@@ -19,21 +19,26 @@ export interface UpdatePageData {
  * Get all pages
  */
 export async function getAllPages(): Promise<Page[]> {
+  console.log('[pageRepository.getAllPages] Getting Supabase client...');
   const client = await getSupabaseAdmin();
   
   if (!client) {
+    console.error('[pageRepository.getAllPages] Supabase client is null!');
     throw new Error('Supabase not configured');
   }
 
+  console.log('[pageRepository.getAllPages] Querying pages table...');
   const { data, error } = await client
     .from('pages')
     .select('*')
     .order('created_at', { ascending: false });
 
   if (error) {
+    console.error('[pageRepository.getAllPages] Query error:', error);
     throw new Error(`Failed to fetch pages: ${error.message}`);
   }
 
+  console.log('[pageRepository.getAllPages] Query success, rows:', data?.length || 0);
   return data || [];
 }
 

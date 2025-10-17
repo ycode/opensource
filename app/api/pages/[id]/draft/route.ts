@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDraftVersion, upsertDraft } from '@/lib/repositories/pageVersionRepository';
 import type { Layer } from '@/types';
 
+// Disable caching for this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET /api/pages/[id]/draft
  * 

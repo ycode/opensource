@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteAsset } from '@/lib/repositories/assetRepository';
 
+// Disable caching for this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * DELETE /api/assets/[id]
  * 

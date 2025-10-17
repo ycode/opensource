@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllPages, createPage } from '@/lib/repositories/pageRepository';
 import { upsertDraft } from '@/lib/repositories/pageVersionRepository';
 
+// Disable caching for this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET /api/pages
  * 
@@ -9,13 +13,23 @@ import { upsertDraft } from '@/lib/repositories/pageVersionRepository';
  */
 export async function GET() {
   try {
+    console.log('[GET /api/pages] Starting request');
+    console.log('[GET /api/pages] Vercel env:', process.env.VERCEL);
+    console.log('[GET /api/pages] Supabase URL set:', !!process.env.SUPABASE_URL);
+    console.log('[GET /api/pages] Supabase Anon Key set:', !!process.env.SUPABASE_ANON_KEY);
+    console.log('[GET /api/pages] Supabase Service Role Key set:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    
     const pages = await getAllPages();
+    
+    console.log('[GET /api/pages] Found pages:', pages.length);
 
     return NextResponse.json({
       data: pages,
     });
   } catch (error) {
-    console.error('Failed to fetch pages:', error);
+    console.error('[GET /api/pages] Error:', error);
+    console.error('[GET /api/pages] Error message:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('[GET /api/pages] Error stack:', error instanceof Error ? error.stack : 'No stack');
     
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch pages' },
@@ -31,17 +45,23 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
+    console.log('[POST /api/pages] Starting request');
     const body = await request.json();
+    console.log('[POST /api/pages] Request body:', body);
+    
     const { title, slug, status = 'draft', published_version_id = null } = body;
 
     // Validate required fields
     if (!title || !slug) {
+      console.error('[POST /api/pages] Validation failed: missing title or slug');
       return NextResponse.json(
         { error: 'Title and slug are required' },
         { status: 400 }
       );
     }
 
+    console.log('[POST /api/pages] Creating page:', { title, slug, status });
+    
     // Create page
     const page = await createPage({
       title,
@@ -50,14 +70,20 @@ export async function POST(request: NextRequest) {
       published_version_id,
     });
 
+    console.log('[POST /api/pages] Page created:', page.id);
+
     // Create initial empty draft
+    console.log('[POST /api/pages] Creating initial draft...');
     await upsertDraft(page.id, []);
+    console.log('[POST /api/pages] Draft created successfully');
 
     return NextResponse.json({
       data: page,
     });
   } catch (error) {
-    console.error('Failed to create page:', error);
+    console.error('[POST /api/pages] Error:', error);
+    console.error('[POST /api/pages] Error message:', error instanceof Error ? error.message : 'Unknown');
+    console.error('[POST /api/pages] Error stack:', error instanceof Error ? error.stack : 'No stack');
     
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to create page' },

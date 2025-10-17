@@ -3,6 +3,10 @@ import { publishPageVersion } from '@/lib/repositories/pageVersionRepository';
 import { getPageById } from '@/lib/repositories/pageRepository';
 import { invalidatePage } from '@/lib/services/cacheInvalidationService';
 
+// Disable caching for this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * POST /api/pages/[id]/publish
  * 

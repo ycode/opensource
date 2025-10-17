@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { storage } from '@/lib/storage';
 
+// Disable caching for this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET /api/supabase/config
  * 

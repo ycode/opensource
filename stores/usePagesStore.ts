@@ -48,19 +48,22 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   setPages: (pages) => set({ pages }),
 
   loadPages: async () => {
+    console.log('[usePagesStore.loadPages] Starting...');
     set({ isLoading: true, error: null });
     try {
+      console.log('[usePagesStore.loadPages] Fetching pages...');
       const response = await pagesApi.getAll();
       if (response.error) {
-        console.error('Error loading pages:', response.error);
+        console.error('[usePagesStore.loadPages] Error loading pages:', response.error);
         set({ error: response.error, isLoading: false });
         return;
       }
       const pages = response.data || [];
+      console.log('[usePagesStore.loadPages] Fetched pages:', pages.length);
       
       // Auto-create a default "Home" page if none exist
       if (pages.length === 0) {
-        console.log('No pages found, creating default Home page...');
+        console.log('[usePagesStore.loadPages] No pages found, creating default Home page...');
         try {
           const createResponse = await pagesApi.create({
             title: 'Home',
@@ -69,27 +72,32 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
             published_version_id: null,
           });
           
+          console.log('[usePagesStore.loadPages] Create response:', createResponse);
+          
           if (createResponse.error) {
-            console.error('Error creating default page:', createResponse.error);
+            console.error('[usePagesStore.loadPages] Error creating default page:', createResponse.error);
             set({ error: createResponse.error, isLoading: false });
             return;
           }
           
           if (createResponse.data) {
-            console.log('Default Home page created:', createResponse.data);
+            console.log('[usePagesStore.loadPages] Default Home page created successfully:', createResponse.data);
             set({ pages: [createResponse.data], isLoading: false });
             return;
           }
+          
+          console.error('[usePagesStore.loadPages] Create succeeded but no data returned');
         } catch (createError) {
-          console.error('Exception creating default page:', createError);
+          console.error('[usePagesStore.loadPages] Exception creating default page:', createError);
           set({ error: 'Failed to create default page', isLoading: false });
           return;
         }
       }
       
+      console.log('[usePagesStore.loadPages] Setting pages:', pages.length);
       set({ pages, isLoading: false });
     } catch (error) {
-      console.error('Exception loading pages:', error);
+      console.error('[usePagesStore.loadPages] Exception loading pages:', error);
       set({ error: 'Failed to load pages', isLoading: false });
     }
   },
