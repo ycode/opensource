@@ -1,46 +1,27 @@
+import { revalidateTag, revalidatePath } from 'next/cache';
+
 /**
  * Cache Invalidation Service
  * 
- * Handles CDN cache invalidation for published pages
+ * Handles CDN cache invalidation for published pages using Next.js revalidation
  */
 
 /**
  * Invalidate cache for a specific page by slug
+ * This will clear both the Next.js cache and trigger CDN purge on Vercel
  */
 export async function invalidatePage(slug: string): Promise<boolean> {
-  const revalidateSecret = process.env.REVALIDATE_SECRET;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-
-  if (!revalidateSecret) {
-    console.warn('REVALIDATE_SECRET not configured - skipping cache invalidation');
-    return false;
-  }
-
   try {
-    const response = await fetch(`${appUrl}/api/revalidate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        tag: `page-${slug}`,
-        secret: revalidateSecret,
-      }),
-    });
-
-    if (response.ok) {
-      console.log(`Cache invalidated for page: ${slug}`);
-      return true;
-    }
-
-    console.error(`Cache invalidation failed for page: ${slug}`, {
-      status: response.status,
-      body: await response.text(),
-    });
-
-    return false;
+    // Revalidate using the cache tag (matches unstable_cache tags)
+    revalidateTag(`page-${slug}`);
+    
+    // Also revalidate the path to ensure all caches are cleared
+    revalidatePath(`/${slug}`);
+    
+    console.log(`✅ Cache invalidated for page: /${slug} (tag: page-${slug})`);
+    return true;
   } catch (error) {
-    console.error('Cache invalidation error:', error);
+    console.error('❌ Cache invalidation error:', error);
     return false;
   }
 }

@@ -16,8 +16,9 @@ import type { Page, PageVersion } from '@/types';
 
 export default function Home() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [homepage, setHomepage] = useState<{ page: Page; version: PageVersion } | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     async function checkSetup() {
@@ -26,6 +27,7 @@ export default function Home() {
 
         if (! status.is_configured) {
           // Not configured yet - redirect to welcome wizard
+          setIsRedirecting(true);
           router.push('/welcome');
           return;
         }
@@ -50,10 +52,11 @@ export default function Home() {
           }
         }
 
-        setLoading(false);
+        setIsLoaded(true);
       } catch (error) {
         console.error('Failed to check setup status:', error);
         // Assume not configured if check fails
+        setIsRedirecting(true);
         router.push('/welcome');
       }
     }
@@ -61,15 +64,21 @@ export default function Home() {
     checkSetup();
   }, [router]);
 
-  if (loading) {
+  // Only show loading spinner if we're redirecting to setup
+  if (isRedirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">Redirecting to setup...</p>
         </div>
       </div>
     );
+  }
+
+  // Don't render anything until loaded (prevents flash)
+  if (!isLoaded) {
+    return null;
   }
 
   // Render homepage if it exists

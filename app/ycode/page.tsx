@@ -30,6 +30,8 @@ export default function YCodeBuilder() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPageDropdown, setShowPageDropdown] = useState(false);
+  const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [zoom, setZoom] = useState(100);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersRef = useRef<string>('');
   const previousPageIdRef = useRef<string | null>(null);
@@ -459,9 +461,53 @@ export default function YCodeBuilder() {
       <header className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
         {/* Left: Logo & Page Selector */}
         <div className="flex items-center gap-4">
-          <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
-            <span className="text-gray-900 font-bold text-sm">Y</span>
-          </div>
+            {/* User Menu */}
+            <div className="relative" ref={userDropdownRef}>
+                <button
+                    onClick={() => setShowUserDropdown(!showUserDropdown)}
+                    className="flex items-center gap-2 hover:bg-zinc-800 px-2 py-1 rounded transition-colors"
+                >
+                    <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">
+                          {user?.email?.charAt(0).toUpperCase() || 'U'}
+                        </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm text-zinc-300">{user?.email || 'User'}</span>
+                        <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                </button>
+
+                {/* User Dropdown */}
+                {showUserDropdown && (
+                    <div className="absolute top-full right-0 mt-2 w-48 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50">
+                        <div className="p-2">
+                            <div className="px-3 py-2 text-xs text-zinc-500 border-b border-zinc-700">
+                                Signed in as
+                            </div>
+                            <div className="px-3 py-2 text-sm text-zinc-300 truncate border-b border-zinc-700">
+                                {user?.email}
+                            </div>
+
+                            <button
+                                onClick={async () => {
+                                    await signOut();
+                                    // No need to redirect - user state change will show login form
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-zinc-700 rounded transition-colors mt-1"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                                Sign Out
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
           
           <div className="relative" ref={pageDropdownRef}>
             <button
@@ -517,101 +563,127 @@ export default function YCodeBuilder() {
           </div>
         </div>
 
-        {/* Center: View Controls */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-zinc-400">All screens</span>
-            <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
+        {/* Center: Viewport Controls */}
+        <div className="flex items-center gap-3">
+          {/* Viewport Selector */}
+          <div className="flex items-center gap-1 bg-zinc-800 rounded p-1">
+            <button
+              onClick={() => setViewportMode('desktop')}
+              className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                viewportMode === 'desktop'
+                  ? 'bg-zinc-700 text-white'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Desktop View"
+            >
+              🖥️
+            </button>
+            <button
+              onClick={() => setViewportMode('tablet')}
+              className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                viewportMode === 'tablet'
+                  ? 'bg-zinc-700 text-white'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Tablet View"
+            >
+              📱
+            </button>
+            <button
+              onClick={() => setViewportMode('mobile')}
+              className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                viewportMode === 'mobile'
+                  ? 'bg-zinc-700 text-white'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Mobile View"
+            >
+              📱
+            </button>
           </div>
-          
-          <div className="flex items-center gap-2 text-zinc-400">
-            <span className="text-sm">82%</span>
+
+          {/* Viewport Width */}
+          <span className="text-xs text-zinc-400">
+            {viewportMode === 'desktop' ? '1200px' : viewportMode === 'tablet' ? '768px' : '375px'}
+          </span>
+
+          {/* Zoom Controls */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-zinc-400">{zoom}%</span>
             <div className="flex flex-col">
-              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-              </svg>
-              <svg className="w-3 h-3 -mt-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
+              <button
+                onClick={() => setZoom(Math.min(zoom + 10, 200))}
+                className="w-3 h-3 flex items-center justify-center hover:bg-zinc-800 rounded text-zinc-400"
+              >
+                <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setZoom(Math.max(zoom - 10, 25))}
+                className="w-3 h-3 flex items-center justify-center hover:bg-zinc-800 rounded text-zinc-400"
+              >
+                <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
 
         {/* Right: User & Actions */}
         <div className="flex items-center gap-3">
-          {/* Unsaved Changes Indicator */}
-          {hasUnsavedChanges && !isSaving && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-900/20 border border-yellow-700/50 rounded text-yellow-500 text-xs">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-              <span>Unsaved changes</span>
-            </div>
-          )}
-          
-          {/* User Menu */}
-          <div className="relative" ref={userDropdownRef}>
-            <button
-              onClick={() => setShowUserDropdown(!showUserDropdown)}
-              className="flex items-center gap-2 hover:bg-zinc-800 px-2 py-1 rounded transition-colors"
-            >
-              <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-                <span className="text-white font-bold text-sm">
-                  {user?.email?.charAt(0).toUpperCase() || 'U'}
-                </span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-zinc-300">{user?.email || 'User'}</span>
-                <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+          {/* Save Status Indicator */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
+            {isSaving ? (
+              <>
+                {/* Saving - Blue Spinner */}
+                <svg className="animate-spin h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-              </div>
-            </button>
-
-            {/* User Dropdown */}
-            {showUserDropdown && (
-              <div className="absolute top-full right-0 mt-2 w-48 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50">
-                <div className="p-2">
-                  <div className="px-3 py-2 text-xs text-zinc-500 border-b border-zinc-700">
-                    Signed in as
-                  </div>
-                  <div className="px-3 py-2 text-sm text-zinc-300 truncate border-b border-zinc-700">
-                    {user?.email}
-                  </div>
-                  
-                  <button
-                    onClick={async () => {
-                      await signOut();
-                      // No need to redirect - user state change will show login form
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-zinc-700 rounded transition-colors mt-1"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    Sign Out
-                  </button>
-                </div>
-              </div>
+                <span className="text-xs text-blue-400 font-medium">Saving...</span>
+              </>
+            ) : hasUnsavedChanges ? (
+              <>
+                {/* Unsaved - Orange Warning */}
+                <svg className="h-4 w-4 text-orange-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9 7a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm1 4a1 1 0 00-1 1v3a1 1 0 102 0v-3a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span className="text-xs text-orange-400 font-medium">Unsaved</span>
+              </>
+            ) : lastSaved ? (
+              <>
+                {/* Saved - Green Check */}
+                <svg className="h-4 w-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-xs text-green-500 font-medium">Saved</span>
+              </>
+            ) : (
+              <>
+                {/* No status yet */}
+                <svg className="h-4 w-4 text-zinc-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12z" clipRule="evenodd" />
+                </svg>
+                <span className="text-xs text-zinc-500 font-medium">Ready</span>
+              </>
             )}
           </div>
 
-          <button className="px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300 border border-zinc-700">
-            Invite
-          </button>
-
-          <button className="p-2 hover:bg-zinc-800 rounded text-zinc-400">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          {/* View Public Page */}
+          <a
+            href={currentPage ? `/${currentPage.slug}` : '/'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-2 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors"
+            title="View published page"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
-          </button>
-
-          <button className="p-2 hover:bg-zinc-800 rounded text-zinc-400">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-            </svg>
-          </button>
+          </a>
 
           <button 
             onClick={async () => {
@@ -638,7 +710,7 @@ export default function YCodeBuilder() {
             disabled={isPublishing || isSaving}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isPublishing ? 'Publishing...' : isSaving && hasUnsavedChanges ? 'Saving...' : 'Publish'}
+            {isPublishing ? 'Publishing...' : 'Publish'}
           </button>
         </div>
       </header>
@@ -657,9 +729,8 @@ export default function YCodeBuilder() {
         <CenterCanvas
           selectedLayerId={selectedLayerId}
           currentPageId={currentPageId}
-          isSaving={isSaving}
-          lastSaved={lastSaved}
-          hasUnsavedChanges={hasUnsavedChanges}
+          viewportMode={viewportMode}
+          zoom={zoom}
         />
 
         {/* Right Sidebar - Properties */}

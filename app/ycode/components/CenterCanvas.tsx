@@ -12,15 +12,14 @@ import { useEditorStore } from '../../../stores/useEditorStore';
 import LayerRenderer from '../../../components/layers/LayerRenderer';
 import type { Layer } from '../../../types';
 
+type ViewportMode = 'desktop' | 'tablet' | 'mobile';
+
 interface CenterCanvasProps {
   selectedLayerId: string | null;
   currentPageId: string | null;
-  isSaving?: boolean;
-  lastSaved?: Date | null;
-  hasUnsavedChanges?: boolean;
+  viewportMode: ViewportMode;
+  zoom: number;
 }
-
-type ViewportMode = 'desktop' | 'tablet' | 'mobile';
 
 const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: string }> = {
   desktop: { width: '1200px', label: 'Desktop', icon: '🖥️' },
@@ -31,12 +30,9 @@ const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: 
 export default function CenterCanvas({
   selectedLayerId,
   currentPageId,
-  isSaving = false,
-  lastSaved = null,
-  hasUnsavedChanges = false,
+  viewportMode,
+  zoom,
 }: CenterCanvasProps) {
-  const [zoom, setZoom] = useState(100);
-  const [viewportMode, setViewportMode] = useState<ViewportMode>('desktop');
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
   const { draftsByPageId, addLayer, updateLayer } = usePagesStore();
   const { setSelectedLayerId } = useEditorStore();
@@ -58,77 +54,6 @@ export default function CenterCanvas({
 
   return (
     <div className="flex-1 bg-zinc-950 flex flex-col">
-      {/* Canvas Header */}
-      <div className="h-12 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
-        <div className="flex items-center gap-4">
-          {/* Viewport Selector */}
-          <div className="flex items-center gap-1 bg-zinc-800 rounded p-1">
-            {(['desktop', 'tablet', 'mobile'] as ViewportMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setViewportMode(mode)}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
-                  viewportMode === mode
-                    ? 'bg-zinc-700 text-white'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-                title={viewportSizes[mode].label}
-              >
-                {viewportSizes[mode].icon}
-              </button>
-            ))}
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-zinc-400">{zoom}%</span>
-            <div className="flex flex-col text-zinc-400">
-              <button
-                onClick={() => setZoom(Math.min(zoom + 10, 200))}
-                className="w-3 h-3 flex items-center justify-center hover:bg-zinc-800 rounded"
-              >
-                <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setZoom(Math.max(zoom - 10, 25))}
-                className="w-3 h-3 flex items-center justify-center hover:bg-zinc-800 rounded"
-              >
-                <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {/* Save Status Indicator */}
-          <div className="flex items-center gap-2">
-            {isSaving ? (
-              <>
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                <span className="text-xs text-zinc-400">Saving...</span>
-              </>
-            ) : hasUnsavedChanges ? (
-              <>
-                <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-                <span className="text-xs text-zinc-400">Unsaved changes</span>
-              </>
-            ) : lastSaved ? (
-              <>
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
-                <span className="text-xs text-zinc-400">
-                  Saved {new Date(lastSaved).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </>
-            ) : null}
-          </div>
-
-          <span className="text-xs text-zinc-500">{viewportSizes[viewportMode].width}</span>
-        </div>
-      </div>
-
       {/* Canvas Area */}
       <div className="flex-1 flex items-start justify-center p-8 overflow-auto bg-zinc-900">
         <div 
@@ -241,17 +166,6 @@ export default function CenterCanvas({
               </div>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Canvas Footer */}
-      <div className="h-12 bg-zinc-900 border-t border-zinc-800 flex items-center justify-center">
-        <div className="flex items-center gap-4 text-sm text-zinc-500">
-          <span>Canvas</span>
-          <div className="w-1 h-1 bg-zinc-600 rounded-full" />
-          <span>Responsive</span>
-          <div className="w-1 h-1 bg-zinc-600 rounded-full" />
-          <span>Live Preview</span>
         </div>
       </div>
     </div>
