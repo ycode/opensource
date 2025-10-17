@@ -1,4 +1,4 @@
-# YCode - Build Websites Visually
+# YCode - Build Websites Visually.
 
 **Create and edit your website by clicking and dragging** - no coding required! YCode is a visual website builder that you host yourself. It's like having your own Wix or Squarespace, but you own everything.
 
