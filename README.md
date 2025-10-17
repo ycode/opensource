@@ -27,7 +27,7 @@
 
 Deploy YCode to Vercel in one click:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fycode%2Fopensource)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fliamwalder%2Ftest)
 
 After deployment:
 1. Visit your deployed URL
@@ -48,8 +48,8 @@ Before you begin, you'll need:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/ycode/opensource.git
-cd opensource
+git clone https://github.com/liamwalder/test.git
+cd test
 ```
 
 ### 2. Install Dependencies
@@ -146,12 +146,40 @@ This creates the required tables and storage buckets.
 
 ### Post-Deployment Setup
 
-After deploying:
+After deploying to Vercel, you need to configure environment variables:
+
+#### 1. Set Environment Variables in Vercel
+
+Go to your Vercel Dashboard → Project → Settings → Environment Variables and add:
+
+| Variable Name | Value | Where to Find |
+|--------------|--------|---------------|
+| `SUPABASE_URL` | `https://xxxxx.supabase.co` | Supabase Dashboard → Settings → API |
+| `SUPABASE_ANON_KEY` | `eyJ...` (long token) | Supabase Dashboard → Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` (secret token) | Supabase Dashboard → Settings → API |
+
+**Important:** 
+- Make sure to add these to **Production**, **Preview**, and **Development** environments
+- Click "Save" after adding each variable
+
+#### 2. Redeploy
+
+After adding environment variables:
+1. Go to Deployments tab
+2. Click "..." on the latest deployment
+3. Click "Redeploy"
+
+Or trigger a new deployment by pushing to your repository.
+
+#### 3. Run Migrations & Create Account
+
 1. Visit your deployed URL
-2. Complete the setup wizard
-3. Connect your Supabase project
-4. Run migrations
-5. Create admin account
+2. Go to `/welcome` 
+3. The setup wizard will detect your Supabase connection
+4. Run migrations (copy SQL to Supabase SQL Editor)
+5. Create your admin account at `/ycode`
+
+**Note:** On Vercel, credentials are stored as environment variables (not in a file). This is more secure and works with Vercel's read-only filesystem.
 
 ## 📁 Project Structure
 
@@ -235,14 +263,49 @@ Browser → Next.js API Routes → Supabase (PostgreSQL)
 
 ## 📝 Environment Variables
 
-YCode **does not use environment variables** for Supabase credentials. Instead:
-- Credentials stored in `.credentials.json` locally
-- Managed through the welcome wizard
-- Never committed to git
+### Local Development
+- Credentials stored in `.credentials.json` (file-based)
+- Created automatically through the welcome wizard
+- Gitignored, never committed
 
-This makes setup easier and avoids manual env var configuration.
+### Production (Vercel)
+**Required environment variables:**
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SUPABASE_URL` | Your Supabase project URL | `https://xxxxx.supabase.co` |
+| `SUPABASE_ANON_KEY` | Public anon/public key | `eyJhbGc...` (JWT token) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Secret service role key | `eyJhbGc...` (JWT token) |
+
+**Why environment variables on Vercel?**
+- Vercel has a read-only filesystem (can't write files)
+- Environment variables are more secure
+- Standard practice for serverless deployments
+
+**How to set:**
+1. Vercel Dashboard → Your Project → Settings
+2. Environment Variables
+3. Add each variable for all environments (Production, Preview, Development)
+4. Redeploy
 
 ## 🐛 Troubleshooting
+
+### "EROFS: read-only file system" error on Vercel
+
+**Error:** `EROFS: read-only file system, open '/var/task/.credentials.json'`
+
+**Cause:** Vercel's serverless environment has a read-only filesystem. You can't write files in production.
+
+**Solution:** Use environment variables instead:
+
+1. Go to **Vercel Dashboard** → Your Project → **Settings** → **Environment Variables**
+2. Add these three variables:
+   - `SUPABASE_URL` = Your Supabase project URL
+   - `SUPABASE_ANON_KEY` = Your anon/public key (starts with `eyJ`)
+   - `SUPABASE_SERVICE_ROLE_KEY` = Your service role key (starts with `eyJ`)
+3. Make sure to add them to **all environments** (Production, Preview, Development)
+4. Go to **Deployments** → Click "..." on latest → **Redeploy**
+5. Visit your site - it should now work!
 
 ### "Email not confirmed" error
 
@@ -304,8 +367,8 @@ MIT License - see LICENSE file for details.
 
 For help and questions:
 - 📖 Check the documentation above
-- 🐛 [Open an issue](https://github.com/ycode/opensource/issues)
-- 💬 [Join discussions](https://github.com/ycode/opensource/discussions)
+- 🐛 [Open an issue](https://github.com/liamwalder/test/issues)
+- 💬 [Join discussions](https://github.com/liamwalder/test/discussions)
 
 ---
 
