@@ -1,36 +1,316 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# YCode - Self-Hosted Visual Website Builder
 
-## Getting Started
+<div align="center">
+  <img src="https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js" alt="Next.js 15" />
+  <img src="https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Supabase-PostgreSQL-green?style=for-the-badge&logo=supabase" alt="Supabase" />
+  <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="MIT License" />
+</div>
 
-First, run the development server:
+<br />
+
+**YCode** is a self-hosted visual website builder that lets you create and edit websites through an intuitive drag-and-drop interface. Build pages visually in the browser, and they're instantly live on your site.
+
+## ✨ Features
+
+- 🎨 **Visual Builder** - Figma-style drag-and-drop interface
+- 🏗️ **Layer-Based Editing** - Nested components with full Tailwind support
+- 📝 **Draft & Publish** - Work on drafts, publish when ready
+- ⚡ **Real-Time Preview** - See changes instantly in the canvas
+- 🎯 **Direct Tailwind Editing** - Edit classes directly for full control
+- 🖼️ **Asset Management** - Upload and manage images via Supabase Storage
+- 🔒 **Supabase Auth** - Secure authentication for builder access
+- 🚀 **Vercel CDN** - Automatic caching with on-demand revalidation
+- 📦 **Self-Hosted** - Your data, your infrastructure, your control
+
+## 🚀 Quick Deploy
+
+Deploy YCode to Vercel in one click:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyour-username%2Fycode)
+
+After deployment:
+1. Visit your deployed URL
+2. Complete the welcome wizard (connect Supabase)
+3. Create your admin account
+4. Start building!
+
+## 📋 Prerequisites
+
+Before you begin, you'll need:
+
+- **Supabase Account** - [Sign up for free](https://supabase.com)
+- **Supabase Project** - Create a new project in your Supabase dashboard
+- **Node.js 18+** - For local development
+
+## 🛠️ Local Development Setup
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/your-username/ycode.git
+cd ycode
+```
+
+### 2. Install Dependencies
+
+```bash
+npm install
+```
+
+### 3. Start Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit http://localhost:3000 to see your app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. Complete Setup Wizard
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+On first visit, you'll see the setup wizard:
 
-## Learn More
+1. **Welcome** - Introduction to YCode
+2. **Connect Supabase** - Enter your Supabase credentials
+3. **Run Migrations** - Copy SQL to Supabase SQL Editor and run
+4. **Create Admin Account** - Set up your admin login
 
-To learn more about Next.js, take a look at the following resources:
+## 📦 Supabase Setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 1. Create Supabase Project
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Go to https://supabase.com/dashboard and create a new project.
 
-## Deploy on Vercel
+### 2. Get Your Credentials
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+In your Supabase project:
+- Go to **Settings** → **API**
+- Copy:
+  - **Project URL** (e.g., `https://xxxxx.supabase.co`)
+  - **anon/public key** (starts with `eyJ...`)
+  - **service_role key** (starts with `eyJ...`, secret)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 3. Disable Email Confirmation (Recommended)
+
+For easier setup:
+1. Go to **Authentication** → **Providers** → **Email**
+2. Uncheck **"Enable email confirmations"**
+3. Click **Save**
+
+This prevents the "Email not confirmed" error and is perfect for self-hosted single-admin setups.
+
+### 4. Run Migrations
+
+The setup wizard will provide SQL to run in Supabase:
+1. Copy the SQL from the wizard
+2. Go to **SQL Editor** in Supabase
+3. Paste and click **Run**
+
+This creates the required tables and storage buckets.
+
+## 🎨 Using YCode
+
+### Building Pages
+
+1. **Access Builder** - Visit `/ycode` and log in
+2. **Create Page** - Click "+" in the sidebar
+3. **Add Layers** - Use the "+" button to add containers, text, headings, images
+4. **Edit Classes** - Select a layer and edit Tailwind classes in the right panel
+5. **Preview** - See changes in real-time in the center canvas
+6. **Publish** - Click "Publish" to make your page live
+
+### Layer Types
+
+- **Container** - `<div>` for layout (flex, grid, etc.)
+- **Heading** - `<h1>` for titles
+- **Paragraph** - `<p>` for text content
+- **Image** - `<img>` for pictures (use Assets tab to upload)
+
+### Keyboard Shortcuts
+
+- `Cmd/Ctrl + C` - Copy selected layer
+- `Cmd/Ctrl + V` - Paste copied layer
+- `Cmd/Ctrl + Z` - Undo
+- `Cmd/Ctrl + Shift + Z` - Redo
+- `Delete` or `Backspace` - Delete selected layer
+
+## 🚀 Deployment
+
+### Deploy to Vercel
+
+1. Push your code to GitHub
+2. Go to [Vercel Dashboard](https://vercel.com/dashboard)
+3. Click "Import Project"
+4. Select your repository
+5. Click "Deploy"
+
+### Post-Deployment Setup
+
+After deploying:
+1. Visit your deployed URL
+2. Complete the setup wizard
+3. Connect your Supabase project
+4. Run migrations
+5. Create admin account
+
+## 📁 Project Structure
+
+```
+ycode/
+├── app/                      # Next.js App Router
+│   ├── [slug]/              # Dynamic public pages
+│   ├── api/                 # API routes
+│   ├── ycode/               # Visual builder interface
+│   │   └── components/      # Builder UI components
+│   └── welcome/             # Setup wizard
+├── components/              # Shared React components
+│   ├── layers/              # Layer renderers
+│   ├── AssetLibrary.tsx     # Asset management
+│   └── AuthProvider.tsx     # Auth initialization
+├── lib/                     # Utilities
+│   ├── repositories/        # Database access layer
+│   ├── services/            # Business logic
+│   └── supabase-server.ts   # Supabase server client
+├── stores/                  # Zustand state management
+│   ├── useAuthStore.ts      # Authentication
+│   ├── useEditorStore.ts    # Editor state
+│   └── usePagesStore.ts     # Pages & layers
+├── types/                   # TypeScript definitions
+├── database/                # Supabase SQL migrations
+│   └── supabase/
+└── .credentials.json        # Supabase credentials (gitignored)
+```
+
+## 🔧 Tech Stack
+
+- **Framework**: Next.js 15 (App Router, React Server Components)
+- **Language**: TypeScript 5
+- **Styling**: Tailwind CSS 4
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: Supabase Auth
+- **Storage**: Supabase Storage (for images)
+- **State Management**: Zustand
+- **Deployment**: Vercel
+- **Caching**: Vercel CDN with ISR
+
+## 🎯 Architecture
+
+### Self-Hosted Model
+
+Each YCode installation is **completely independent**:
+- Deploy to your own Vercel account
+- Connect your own Supabase instance
+- All data stored in **your** database
+- No vendor lock-in, no shared backend
+
+### Authentication
+
+- Only `/ycode` requires authentication
+- All public pages (`/`, `/about`, etc.) are open to everyone
+- Single admin user model (Phase 1)
+- Future: Teams, roles, collaboration
+
+### Data Flow
+
+```
+Browser → Next.js API Routes → Supabase (PostgreSQL)
+                              ↓
+                         Your Database
+```
+
+### Page Rendering
+
+- **Builder** - Edit draft versions, autosave every 2 seconds
+- **Publish** - Copy draft to published version
+- **Public Pages** - Fetch published version, cached by Vercel CDN
+- **Cache Invalidation** - On publish, cache is automatically purged
+
+## 🔐 Security
+
+- **Credentials** - Stored in `.credentials.json` (gitignored)
+- **Authentication** - Supabase Auth with JWT tokens
+- **Session Storage** - HTTP-only cookies
+- **Database Access** - Server-side only via service role
+- **RLS Policies** - Row-Level Security on Supabase tables
+
+## 📝 Environment Variables
+
+YCode **does not use environment variables** for Supabase credentials. Instead:
+- Credentials stored in `.credentials.json` locally
+- Managed through the welcome wizard
+- Never committed to git
+
+This makes setup easier and avoids manual env var configuration.
+
+## 🐛 Troubleshooting
+
+### "Email not confirmed" error
+
+**Solution:** Disable email confirmation in Supabase:
+1. Authentication → Providers → Email
+2. Uncheck "Enable email confirmations"
+3. Delete existing user and recreate
+
+### "Failed to get Supabase config"
+
+**Solution:** Check browser console for detailed error:
+1. Open DevTools (F12)
+2. Check Console tab
+3. Run `node check-credentials.js` to verify credentials file
+
+### Pages load slowly
+
+**Solution:** This is fixed! Pages now query database directly instead of HTTP calls.
+
+### "Supabase not configured"
+
+**Solution:** Complete the setup wizard at `/welcome`
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+MIT License - see LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [Next.js](https://nextjs.org)
+- Database by [Supabase](https://supabase.com)
+- Deployed on [Vercel](https://vercel.com)
+- Styled with [Tailwind CSS](https://tailwindcss.com)
+- Font: [Inter](https://rsms.me/inter/)
+
+## 🚀 Roadmap
+
+- [x] Visual page builder
+- [x] Layer-based editing
+- [x] Tailwind class editing
+- [x] Asset management
+- [x] Authentication
+- [x] Draft/Publish workflow
+- [ ] Component library
+- [ ] Responsive breakpoints UI
+- [ ] Multi-user support
+- [ ] Team collaboration
+- [ ] Role-based permissions
+- [ ] Custom domains
+- [ ] SEO metadata editor
+- [ ] Form builder
+- [ ] E-commerce components
+
+## 💬 Support
+
+For help and questions:
+- 📖 Check the documentation above
+- 🐛 [Open an issue](https://github.com/your-username/ycode/issues)
+- 💬 [Join discussions](https://github.com/your-username/ycode/discussions)
+
+---
+
+<div align="center">
+  Made with ❤️ by the YCode team
+  <br />
+  <sub>Build beautiful websites, visually.</sub>
+</div>
