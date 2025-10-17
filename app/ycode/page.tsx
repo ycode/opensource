@@ -1,0 +1,677 @@
+'use client';
+
+/**
+ * YCode Builder Main Page
+ * 
+ * Three-panel editor layout inspired by modern design tools
+ */
+
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEditorStore } from '../../stores/useEditorStore';
+import { usePagesStore } from '../../stores/usePagesStore';
+import { useAuthStore } from '../../stores/useAuthStore';
+import LeftSidebar from './components/LeftSidebar';
+import CenterCanvas from './components/CenterCanvas';
+import RightSidebar from './components/RightSidebar';
+import UpdateNotification from '../../components/UpdateNotification';
+import type { Layer } from '../../types';
+
+export default function YCodeBuilder() {
+  const router = useRouter();
+  const { signOut, user } = useAuthStore();
+  const { selectedLayerId, setSelectedLayerId, currentPageId, setCurrentPageId, undo, redo, canUndo, canRedo, pushHistory } = useEditorStore();
+  const { updateLayer, draftsByPageId, deleteLayer, saveDraft, loadPages, loadDraft, initDraft } = usePagesStore();
+  const pages = usePagesStore((state) => state.pages);
+  const [copiedLayer, setCopiedLayer] = useState<Layer | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showPageDropdown, setShowPageDropdown] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastLayersRef = useRef<string>('');
+  const previousPageIdRef = useRef<string | null>(null);
+  const pageDropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Login state (when not authenticated)
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError(null);
+
+    const { signIn } = useAuthStore.getState();
+    const result = await signIn(loginEmail, loginPassword);
+
+    if (result.error) {
+      setLoginError(result.error);
+      setIsLoggingIn(false);
+    }
+    // If successful, user state will update and component will re-render with builder
+  };
+
+  // Load pages on mount
+  useEffect(() => {
+    loadPages();
+  }, [loadPages]);
+
+  // Set current page to first page if not set
+  useEffect(() => {
+    if (!currentPageId && pages.length > 0) {
+      const firstPage = pages[0];
+      setCurrentPageId(firstPage.id);
+      
+      // Load or initialize draft for this page
+      if (!draftsByPageId[firstPage.id]) {
+        loadDraft(firstPage.id).catch(() => {
+          // If no draft exists, initialize with empty layers
+          initDraft(firstPage, []);
+        });
+      }
+    }
+  }, [currentPageId, pages, setCurrentPageId, draftsByPageId, loadDraft, initDraft]);
+
+  // Handle undo
+  const handleUndo = () => {
+    if (!canUndo()) return;
+    
+    const historyEntry = undo();
+    if (historyEntry && historyEntry.pageId === currentPageId) {
+      const { draftsByPageId } = usePagesStore.getState();
+      const draft = draftsByPageId[currentPageId];
+      if (draft) {
+        // Restore layers from history
+        updateLayer(currentPageId, draft.layers[0]?.id || 'root', {});
+        // Update entire layers array
+        draft.layers = historyEntry.layers;
+      }
+    }
+  };
+
+  // Handle redo
+  const handleRedo = () => {
+    if (!canRedo()) return;
+    
+    const historyEntry = redo();
+    if (historyEntry && historyEntry.pageId === currentPageId) {
+      const { draftsByPageId } = usePagesStore.getState();
+      const draft = draftsByPageId[currentPageId];
+      if (draft) {
+        // Restore layers from history
+        draft.layers = historyEntry.layers;
+      }
+    }
+  };
+
+  // Get selected layer
+  const selectedLayer = useMemo(() => {
+    if (!currentPageId || !selectedLayerId) return null;
+    const draft = draftsByPageId[currentPageId];
+    if (!draft) return null;
+    const stack: Layer[] = [...draft.layers];
+    while (stack.length) {
+      const node = stack.shift()!;
+      if (node.id === selectedLayerId) return node;
+      if (node.children) stack.push(...node.children);
+    }
+    return null;
+  }, [currentPageId, selectedLayerId, draftsByPageId]);
+
+  // Copy layer
+  const copyLayer = () => {
+    if (selectedLayer) {
+      setCopiedLayer(JSON.parse(JSON.stringify(selectedLayer)));
+      // Show toast notification
+      console.log('Layer copied!');
+    }
+  };
+
+  // Paste layer
+  const pasteLayer = () => {
+    if (!copiedLayer || !currentPageId) return;
+    
+    // Deep clone and generate new IDs
+    const generateNewIds = (layer: Layer): Layer => {
+      const newLayer = {
+        ...layer,
+        id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      };
+      if (newLayer.children) {
+        newLayer.children = newLayer.children.map(generateNewIds);
+      }
+      return newLayer;
+    };
+
+    const newLayer = generateNewIds(copiedLayer);
+    const { addLayer } = usePagesStore.getState();
+    
+    // Add as sibling to selected layer or to root
+    addLayer(currentPageId, null, newLayer.type);
+    
+    // Update the newly added layer with copied properties
+    setTimeout(() => {
+      const draft = draftsByPageId[currentPageId];
+      const lastLayer = draft?.layers[draft.layers.length - 1];
+      if (lastLayer) {
+        updateLayer(currentPageId, lastLayer.id, {
+          classes: newLayer.classes,
+          content: newLayer.content,
+          src: newLayer.src,
+          children: newLayer.children,
+        });
+      }
+    }, 100);
+
+    console.log('Layer pasted!');
+  };
+
+  // Delete selected layer
+  const deleteSelectedLayer = () => {
+    if (selectedLayerId && currentPageId) {
+      deleteLayer(currentPageId, selectedLayerId);
+      setSelectedLayerId(null);
+    }
+  };
+
+  // Immediate save function (bypasses debouncing)
+  const saveImmediately = useCallback(async (pageId: string) => {
+    // Clear any pending debounced save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    setIsSaving(true);
+    setHasUnsavedChanges(false);
+    try {
+      await saveDraft(pageId);
+      setLastSaved(new Date());
+    } catch (error) {
+      console.error('Save failed:', error);
+      setHasUnsavedChanges(true);
+      throw error; // Re-throw for caller to handle
+    } finally {
+      setIsSaving(false);
+    }
+  }, [saveDraft]);
+
+  // Debounced autosave function
+  const debouncedSave = useCallback((pageId: string) => {
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Set new timeout for 2 seconds
+    saveTimeoutRef.current = setTimeout(async () => {
+      setIsSaving(true);
+      setHasUnsavedChanges(false);
+      try {
+        await saveDraft(pageId);
+        setLastSaved(new Date());
+      } catch (error) {
+        console.error('Autosave failed:', error);
+        setHasUnsavedChanges(true); // Restore unsaved flag on error
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2000);
+  }, [saveDraft]);
+
+  // Save before navigating to a different page
+  useEffect(() => {
+    const handlePageChange = async () => {
+      // If we have a previous page with unsaved changes, save it immediately
+      if (previousPageIdRef.current && 
+          previousPageIdRef.current !== currentPageId && 
+          hasUnsavedChanges) {
+        try {
+          await saveImmediately(previousPageIdRef.current);
+        } catch (error) {
+          console.error('Failed to save before navigation:', error);
+        }
+      }
+      
+      // Update the ref to track current page
+      previousPageIdRef.current = currentPageId;
+    };
+
+    handlePageChange();
+  }, [currentPageId, hasUnsavedChanges, saveImmediately]);
+
+  // Watch for draft changes and trigger autosave
+  useEffect(() => {
+    if (!currentPageId || !draftsByPageId[currentPageId]) {
+      return;
+    }
+
+    const draft = draftsByPageId[currentPageId];
+    const currentLayersJSON = JSON.stringify(draft.layers);
+
+    // Only trigger save if layers actually changed
+    if (lastLayersRef.current && lastLayersRef.current !== currentLayersJSON) {
+      setHasUnsavedChanges(true);
+      debouncedSave(currentPageId);
+    }
+
+    // Update the ref for next comparison
+    lastLayersRef.current = currentLayersJSON;
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [currentPageId, draftsByPageId, debouncedSave]);
+
+  // Warn before closing browser with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // Close page dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pageDropdownRef.current && !pageDropdownRef.current.contains(event.target as Node)) {
+        setShowPageDropdown(false);
+      }
+    };
+
+    if (showPageDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showPageDropdown]);
+
+  // Close user dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+
+    if (showUserDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showUserDropdown]);
+
+  // Get current page
+  const currentPage = useMemo(() => {
+    if (!Array.isArray(pages)) return undefined;
+    return pages.find(p => p.id === currentPageId);
+  }, [pages, currentPageId]);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInputFocused = document.activeElement?.tagName === 'INPUT' || 
+                             document.activeElement?.tagName === 'TEXTAREA';
+
+      // Undo: Cmd/Ctrl + Z
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        if (!isInputFocused) {
+          e.preventDefault();
+          handleUndo();
+        }
+      }
+
+      // Redo: Cmd/Ctrl + Shift + Z
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
+        if (!isInputFocused) {
+          e.preventDefault();
+          handleRedo();
+        }
+      }
+      
+      // Copy: Cmd/Ctrl + C
+      if ((e.metaKey || e.ctrlKey) && e.key === 'c' && selectedLayerId) {
+        if (!isInputFocused) {
+          e.preventDefault();
+          copyLayer();
+        }
+      }
+      
+      // Paste: Cmd/Ctrl + V
+      if ((e.metaKey || e.ctrlKey) && e.key === 'v' && copiedLayer) {
+        if (!isInputFocused) {
+          e.preventDefault();
+          pasteLayer();
+        }
+      }
+
+      // Delete: Delete or Backspace
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedLayerId) {
+        if (!isInputFocused) {
+          e.preventDefault();
+          deleteSelectedLayer();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedLayerId, selectedLayer, copiedLayer, currentPageId]);
+
+  // Show login form if not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black p-4">
+        <div className="bg-zinc-900 p-8 rounded-2xl shadow-2xl max-w-md w-full border border-zinc-800">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center mx-auto mb-4">
+              <span className="text-gray-900 font-bold text-2xl">Y</span>
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              YCode Builder
+            </h1>
+            <p className="text-zinc-400">
+              Sign in to access the visual builder
+            </p>
+          </div>
+
+          {loginError && (
+            <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-6">
+              {loginError}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-zinc-300 mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                id="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="w-full bg-zinc-800 border border-zinc-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="you@example.com"
+                disabled={isLoggingIn}
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-zinc-300 mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="w-full bg-zinc-800 border border-zinc-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="••••••••"
+                disabled={isLoggingIn}
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full bg-white hover:bg-zinc-200 text-black font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoggingIn ? 'Signing in...' : 'Sign In'}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-zinc-500">
+              First time here?{' '}
+              <a href="/welcome" className="text-blue-400 hover:text-blue-300">
+                Complete setup
+              </a>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Authenticated - show builder
+  return (
+    <div className="h-screen flex flex-col bg-zinc-950 text-white">
+      {/* Top Header Bar */}
+      <header className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
+        {/* Left: Logo & Page Selector */}
+        <div className="flex items-center gap-4">
+          <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
+            <span className="text-gray-900 font-bold text-sm">Y</span>
+          </div>
+          
+          <div className="relative" ref={pageDropdownRef}>
+            <button
+              onClick={() => setShowPageDropdown(!showPageDropdown)}
+              className="flex items-center gap-2 bg-zinc-800 px-3 py-1.5 rounded border border-zinc-700 hover:bg-zinc-750 transition-colors"
+            >
+              <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+              </svg>
+              <span className="text-sm font-medium text-white">
+                {currentPage?.title || 'Select Page'}
+              </span>
+              <svg className={`w-4 h-4 text-zinc-400 transition-transform ${showPageDropdown ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            {/* Dropdown Menu */}
+            {showPageDropdown && (
+              <div className="absolute top-full left-0 mt-2 w-64 bg-zinc-800 border border-zinc-700 rounded shadow-xl z-50 max-h-80 overflow-y-auto">
+                <div className="p-2">
+                  <div className="text-xs font-semibold text-zinc-500 uppercase px-2 py-1 mb-1">
+                    Pages
+                  </div>
+                  {pages.length === 0 ? (
+                    <div className="px-2 py-3 text-sm text-zinc-500 text-center">
+                      No pages yet
+                    </div>
+                  ) : (
+                    pages.map((page) => (
+                      <button
+                        key={page.id}
+                        onClick={() => {
+                          setCurrentPageId(page.id);
+                          setShowPageDropdown(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-2 py-2 text-sm rounded transition-colors ${
+                          page.id === currentPageId
+                            ? 'bg-blue-600 text-white'
+                            : 'text-zinc-300 hover:bg-zinc-700'
+                        }`}
+                      >
+                        <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+                        </svg>
+                        <span className="flex-1 text-left truncate">{page.title}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Center: View Controls */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-zinc-400">All screens</span>
+            <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </div>
+          
+          <div className="flex items-center gap-2 text-zinc-400">
+            <span className="text-sm">82%</span>
+            <div className="flex flex-col">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+              </svg>
+              <svg className="w-3 h-3 -mt-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: User & Actions */}
+        <div className="flex items-center gap-3">
+          {/* Unsaved Changes Indicator */}
+          {hasUnsavedChanges && !isSaving && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-900/20 border border-yellow-700/50 rounded text-yellow-500 text-xs">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+              <span>Unsaved changes</span>
+            </div>
+          )}
+          
+          {/* User Menu */}
+          <div className="relative" ref={userDropdownRef}>
+            <button
+              onClick={() => setShowUserDropdown(!showUserDropdown)}
+              className="flex items-center gap-2 hover:bg-zinc-800 px-2 py-1 rounded transition-colors"
+            >
+              <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+                <span className="text-white font-bold text-sm">
+                  {user?.email?.charAt(0).toUpperCase() || 'U'}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-zinc-300">{user?.email || 'User'}</span>
+                <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </button>
+
+            {/* User Dropdown */}
+            {showUserDropdown && (
+              <div className="absolute top-full right-0 mt-2 w-48 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50">
+                <div className="p-2">
+                  <div className="px-3 py-2 text-xs text-zinc-500 border-b border-zinc-700">
+                    Signed in as
+                  </div>
+                  <div className="px-3 py-2 text-sm text-zinc-300 truncate border-b border-zinc-700">
+                    {user?.email}
+                  </div>
+                  
+                  <button
+                    onClick={async () => {
+                      await signOut();
+                      // No need to redirect - user state change will show login form
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-zinc-700 rounded transition-colors mt-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button className="px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300 border border-zinc-700">
+            Invite
+          </button>
+
+          <button className="p-2 hover:bg-zinc-800 rounded text-zinc-400">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </button>
+
+          <button className="p-2 hover:bg-zinc-800 rounded text-zinc-400">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+            </svg>
+          </button>
+
+          <button 
+            onClick={async () => {
+              if (!currentPageId) return;
+              
+              setIsPublishing(true);
+              try {
+                // Save first if there are unsaved changes
+                if (hasUnsavedChanges) {
+                  await saveImmediately(currentPageId);
+                }
+                
+                // Then publish
+                const { publishPage } = usePagesStore.getState();
+                await publishPage(currentPageId);
+                alert('Page published successfully!');
+              } catch (error) {
+                console.error('Publish failed:', error);
+                alert('Failed to publish page');
+              } finally {
+                setIsPublishing(false);
+              }
+            }}
+            disabled={isPublishing || isSaving}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isPublishing ? 'Publishing...' : isSaving && hasUnsavedChanges ? 'Saving...' : 'Publish'}
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Pages & Layers */}
+        <LeftSidebar
+          selectedLayerId={selectedLayerId}
+          onLayerSelect={setSelectedLayerId}
+          currentPageId={currentPageId}
+          onPageSelect={setCurrentPageId}
+        />
+
+        {/* Center Canvas - Preview */}
+        <CenterCanvas
+          selectedLayerId={selectedLayerId}
+          currentPageId={currentPageId}
+          isSaving={isSaving}
+          lastSaved={lastSaved}
+          hasUnsavedChanges={hasUnsavedChanges}
+        />
+
+        {/* Right Sidebar - Properties */}
+        <RightSidebar
+          selectedLayerId={selectedLayerId}
+          onLayerUpdate={(layerId, updates) => {
+            if (currentPageId) {
+              updateLayer(currentPageId, layerId, updates);
+            }
+          }}
+        />
+      </div>
+
+      {/* Update Notification */}
+      <UpdateNotification />
+    </div>
+  );
+}
