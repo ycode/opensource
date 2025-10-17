@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { runMigrations, getMigrationSQL } from '@/lib/services/migrationService';
+import { noCache } from '@/lib/api-response';
 
 /**
  * POST /api/setup/migrate
@@ -11,16 +12,16 @@ export async function POST() {
     const result = await runMigrations();
 
     if (!result.success) {
-      return NextResponse.json(
+      return noCache(
         {
           error: `Migration failed at ${result.failed}: ${result.error}`,
           executed: result.executed,
         },
-        { status: 500 }
+        500
       );
     }
 
-    return NextResponse.json({
+    return noCache({
       success: true,
       executed: result.executed,
       message: `Successfully executed ${result.executed.length} migrations`,
@@ -28,9 +29,9 @@ export async function POST() {
   } catch (error) {
     console.error('Migration error:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Migration failed' },
-      { status: 500 }
+      500
     );
   }
 }
@@ -44,16 +45,16 @@ export async function GET() {
   try {
     const migrations = getMigrationSQL();
 
-    return NextResponse.json({
+    return noCache({
       migrations,
       count: migrations.length,
     });
   } catch (error) {
     console.error('Failed to get migrations:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: 'Failed to retrieve migrations' },
-      { status: 500 }
+      500
     );
   }
 }

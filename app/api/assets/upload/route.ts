@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAsset, uploadFile } from '@/lib/repositories/assetRepository';
+import { noCache } from '@/lib/api-response';
 
 /**
  * POST /api/assets/upload
@@ -12,26 +13,26 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File;
 
     if (!file) {
-      return NextResponse.json(
+      return noCache(
         { error: 'No file provided' },
-        { status: 400 }
+        400
       );
     }
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      return NextResponse.json(
+      return noCache(
         { error: 'Only image files are allowed' },
-        { status: 400 }
+        400
       );
     }
 
     // Validate file size (10MB max)
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
-      return NextResponse.json(
+      return noCache(
         { error: 'File size must be less than 10MB' },
-        { status: 400 }
+        400
       );
     }
 
@@ -50,15 +51,15 @@ export async function POST(request: NextRequest) {
       mime_type: file.type,
     });
 
-    return NextResponse.json({
+    return noCache({
       data: asset,
     });
   } catch (error) {
     console.error('Failed to upload asset:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to upload asset' },
-      { status: 500 }
+      500
     );
   }
 }

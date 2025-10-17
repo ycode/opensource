@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllPages, createPage } from '@/lib/repositories/pageRepository';
 import { upsertDraft } from '@/lib/repositories/pageVersionRepository';
+import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -21,19 +22,19 @@ export async function GET() {
     
     const pages = await getAllPages();
     
-    console.log('[GET /api/pages] Found pages:', pages.length);
+            console.log('[GET /api/pages] Found pages:', pages.length);
 
-    return NextResponse.json({
-      data: pages,
-    });
+            return noCache({
+              data: pages,
+            });
   } catch (error) {
     console.error('[GET /api/pages] Error:', error);
     console.error('[GET /api/pages] Error message:', error instanceof Error ? error.message : 'Unknown error');
     console.error('[GET /api/pages] Error stack:', error instanceof Error ? error.stack : 'No stack');
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to fetch pages' },
-      { status: 500 }
+      500
     );
   }
 }
@@ -54,9 +55,9 @@ export async function POST(request: NextRequest) {
     // Validate required fields
     if (!title || !slug) {
       console.error('[POST /api/pages] Validation failed: missing title or slug');
-      return NextResponse.json(
+      return noCache(
         { error: 'Title and slug are required' },
-        { status: 400 }
+        400
       );
     }
 
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
     await upsertDraft(page.id, []);
     console.log('[POST /api/pages] Draft created successfully');
 
-    return NextResponse.json({
+    return noCache({
       data: page,
     });
   } catch (error) {
@@ -85,9 +86,9 @@ export async function POST(request: NextRequest) {
     console.error('[POST /api/pages] Error message:', error instanceof Error ? error.message : 'Unknown');
     console.error('[POST /api/pages] Error stack:', error instanceof Error ? error.stack : 'No stack');
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to create page' },
-      { status: 500 }
+      500
     );
   }
 }

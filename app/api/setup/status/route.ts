@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { storage } from '@/lib/storage';
+import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -16,16 +17,16 @@ export async function GET() {
     const configured = !!config;
     const isVercel = process.env.VERCEL === '1';
 
-    return NextResponse.json({
+    return noCache({
       is_configured: configured,
       is_vercel: isVercel,
     });
   } catch (error) {
     console.error('Setup status check failed:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: 'Failed to check setup status' },
-      { status: 500 }
+      500
     );
   }
 }

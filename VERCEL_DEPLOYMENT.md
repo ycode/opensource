@@ -1,17 +1,23 @@
 # Vercel Deployment Guide
 
-## Quick Deploy
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fliamwalder%2Ftest)
-
 ## Setup Steps
 
-### 1. Deploy to Vercel
+### 1. Fork the Repository
 
-1. Click the "Deploy with Vercel" button above
-2. Connect your GitHub account
-3. Click "Deploy"
-4. Wait for initial deployment to complete
+1. Go to [https://github.com/liamwalder/test](https://github.com/liamwalder/test)
+2. Click the **"Fork"** button (top right)
+3. Your fork will be created at `https://github.com/YOUR_USERNAME/test`
+
+> **Why fork?** This enables one-click updates via GitHub's "Sync fork" button!
+
+### 2. Deploy Your Fork to Vercel
+
+1. Go to [Vercel Dashboard](https://vercel.com/new)
+2. Click **"Import Project"**
+3. Click **"Import Git Repository"**
+4. Select your forked repository from the list
+5. Click **"Deploy"**
+6. Wait for initial deployment to complete
 
 ### 2. Configure Environment Variables
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPublishedVersion } from '@/lib/repositories/pageVersionRepository';
+import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -19,21 +20,21 @@ export async function GET(
     const published = await getPublishedVersion(id);
 
     if (!published) {
-      return NextResponse.json(
+      return noCache(
         { error: 'Published version not found' },
-        { status: 404 }
+        404
       );
     }
 
-    return NextResponse.json({
+    return noCache({
       data: published,
     });
   } catch (error) {
     console.error('Failed to fetch published version:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to fetch published version' },
-      { status: 500 }
+      500
     );
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { storage } from '@/lib/storage';
 import { cookies } from 'next/headers';
+import { noCache } from '@/lib/api-response';
 
 /**
  * GET /api/auth/session
@@ -18,9 +19,9 @@ export async function GET(request: NextRequest) {
     }>('supabase_config');
 
     if (!config) {
-      return NextResponse.json(
+      return noCache(
         { error: 'Supabase not configured' },
-        { status: 500 }
+        500
       );
     }
 
@@ -49,13 +50,13 @@ export async function GET(request: NextRequest) {
     const { data: { session }, error } = await supabase.auth.getSession();
 
     if (error) {
-      return NextResponse.json(
+      return noCache(
         { error: error.message },
-        { status: 401 }
+        401
       );
     }
 
-    return NextResponse.json({
+    return noCache({
       data: {
         session,
         user: session?.user || null,
@@ -64,9 +65,9 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Session check failed:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: 'Session check failed' },
-      { status: 500 }
+      500
     );
   }
 }

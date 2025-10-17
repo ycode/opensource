@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storage } from '@/lib/storage';
 import { testSupabaseConnection } from '@/lib/supabase-server';
+import { noCache } from '@/lib/api-response';
 
 /**
  * POST /api/setup/connect
@@ -14,9 +15,9 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!url || !anon_key || !service_role_key) {
-      return NextResponse.json(
+      return noCache(
         { error: 'Missing required fields' },
-        { status: 400 }
+        400
       );
     }
 
@@ -24,9 +25,9 @@ export async function POST(request: NextRequest) {
     const testResult = await testSupabaseConnection(url, service_role_key);
 
     if (!testResult.success) {
-      return NextResponse.json(
+      return noCache(
         { error: testResult.error || 'Connection test failed' },
-        { status: 400 }
+        400
       );
     }
 
@@ -37,16 +38,16 @@ export async function POST(request: NextRequest) {
       serviceRoleKey: service_role_key,
     });
 
-    return NextResponse.json({
+    return noCache({
       success: true,
       message: 'Supabase connected successfully',
     });
   } catch (error) {
     console.error('Supabase connection failed:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Connection failed' },
-      { status: 500 }
+      500
     );
   }
 }

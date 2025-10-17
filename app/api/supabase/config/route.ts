@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { storage } from '@/lib/storage';
+import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -25,16 +26,16 @@ export async function GET() {
 
     if (!config) {
       console.error('Supabase config not found in storage');
-      return NextResponse.json(
+      return noCache(
         { error: 'Supabase not configured. Please complete the setup wizard first.' },
-        { status: 404 }
+        404
       );
     }
 
     console.log('Returning public config (url + anonKey)');
     
     // Only return public config (not service role key)
-    return NextResponse.json({
+    return noCache({
       data: {
         url: config.url,
         anonKey: config.anonKey,
@@ -43,9 +44,9 @@ export async function GET() {
   } catch (error) {
     console.error('Failed to get Supabase config:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: `Failed to get configuration: ${error instanceof Error ? error.message : 'Unknown error'}` },
-      { status: 500 }
+      500
     );
   }
 }

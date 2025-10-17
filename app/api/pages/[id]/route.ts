@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPageById, updatePage, deletePage } from '@/lib/repositories/pageRepository';
+import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -19,21 +20,21 @@ export async function GET(
     const page = await getPageById(id);
 
     if (!page) {
-      return NextResponse.json(
+      return noCache(
         { error: 'Page not found' },
-        { status: 404 }
+        404
       );
     }
 
-    return NextResponse.json({
+    return noCache({
       data: page,
     });
   } catch (error) {
     console.error('Failed to fetch page:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to fetch page' },
-      { status: 500 }
+      500
     );
   }
 }
@@ -60,15 +61,15 @@ export async function PUT(
 
     const page = await updatePage(id, updates);
 
-    return NextResponse.json({
+    return noCache({
       data: page,
     });
   } catch (error) {
     console.error('Failed to update page:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to update page' },
-      { status: 500 }
+      500
     );
   }
 }
@@ -86,16 +87,16 @@ export async function DELETE(
     const { id } = await params;
     await deletePage(id);
 
-    return NextResponse.json({
+    return noCache({
       success: true,
       message: 'Page deleted successfully',
     });
   } catch (error) {
     console.error('Failed to delete page:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to delete page' },
-      { status: 500 }
+      500
     );
   }
 }

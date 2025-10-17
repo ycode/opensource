@@ -1,5 +1,6 @@
 import { revalidateTag } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
+import { noCache } from '@/lib/api-response';
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,31 +9,31 @@ export async function POST(request: NextRequest) {
 
     // Verify secret token
     if (secret !== process.env.REVALIDATE_SECRET) {
-      return NextResponse.json(
+      return noCache(
         { error: 'Invalid secret' },
-        { status: 401 }
+        401
       );
     }
 
     if (!tag) {
-      return NextResponse.json(
+      return noCache(
         { error: 'Tag is required' },
-        { status: 400 }
+        400
       );
     }
 
     // Revalidate the cache for this tag
     revalidateTag(tag);
 
-    return NextResponse.json({ 
+    return noCache({ 
       revalidated: true, 
       tag,
       now: Date.now() 
     });
   } catch (error) {
-    return NextResponse.json(
+    return noCache(
       { error: 'Error revalidating' },
-      { status: 500 }
+      500
     );
   }
 }

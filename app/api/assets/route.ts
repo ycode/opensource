@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllAssets, createAsset, uploadFile } from '@/lib/repositories/assetRepository';
+import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -14,15 +15,15 @@ export async function GET() {
   try {
     const assets = await getAllAssets();
 
-    return NextResponse.json({
+    return noCache({
       data: assets,
     });
   } catch (error) {
     console.error('Failed to fetch assets:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to fetch assets' },
-      { status: 500 }
+      500
     );
   }
 }
@@ -38,9 +39,9 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File;
 
     if (!file) {
-      return NextResponse.json(
+      return noCache(
         { error: 'No file provided' },
-        { status: 400 }
+        400
       );
     }
 
@@ -57,15 +58,15 @@ export async function POST(request: NextRequest) {
       // TODO: Extract width/height for images
     });
 
-    return NextResponse.json({
+    return noCache({
       data: asset,
     });
   } catch (error) {
     console.error('Failed to upload asset:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to upload asset' },
-      { status: 500 }
+      500
     );
   }
 }

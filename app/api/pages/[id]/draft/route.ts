@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDraftVersion, upsertDraft } from '@/lib/repositories/pageVersionRepository';
 import type { Layer } from '@/types';
+import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -20,21 +21,21 @@ export async function GET(
     const draft = await getDraftVersion(id);
 
     if (!draft) {
-      return NextResponse.json(
+      return noCache(
         { error: 'Draft not found' },
-        { status: 404 }
+        404
       );
     }
 
-    return NextResponse.json({
+    return noCache({
       data: draft,
     });
   } catch (error) {
     console.error('Failed to fetch draft:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to fetch draft' },
-      { status: 500 }
+      500
     );
   }
 }
@@ -54,23 +55,23 @@ export async function PUT(
     const { layers } = body;
 
     if (!Array.isArray(layers)) {
-      return NextResponse.json(
+      return noCache(
         { error: 'Invalid layers data' },
-        { status: 400 }
+        400
       );
     }
 
     const draft = await upsertDraft(id, layers as Layer[]);
 
-    return NextResponse.json({
+    return noCache({
       data: draft,
     });
   } catch (error) {
     console.error('Failed to update draft:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to update draft' },
-      { status: 500 }
+      500
     );
   }
 }

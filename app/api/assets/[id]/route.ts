@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteAsset } from '@/lib/repositories/assetRepository';
+import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -18,16 +19,16 @@ export async function DELETE(
     const { id } = await params;
     await deleteAsset(id);
 
-    return NextResponse.json({
+    return noCache({
       success: true,
       message: 'Asset deleted successfully',
     });
   } catch (error) {
     console.error('Failed to delete asset:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to delete asset' },
-      { status: 500 }
+      500
     );
   }
 }

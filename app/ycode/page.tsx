@@ -452,6 +452,9 @@ export default function YCodeBuilder() {
   // Authenticated - show builder
   return (
     <div className="h-screen flex flex-col bg-zinc-950 text-white">
+      {/* Update Notification Banner */}
+      <UpdateNotification />
+      
       {/* Top Header Bar */}
       <header className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
         {/* Left: Logo & Page Selector */}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPageBySlug } from '@/lib/repositories/pageRepository';
 import { getPublishedVersion } from '@/lib/repositories/pageVersionRepository';
+import { noCache } from '@/lib/api-response';
 
 /**
  * GET /api/pages/slug/[slug]
@@ -16,21 +17,21 @@ export async function GET(
     const page = await getPageBySlug(slug);
 
     if (!page) {
-      return NextResponse.json(
+      return noCache(
         { error: 'Page not found' },
-        { status: 404 }
+        404
       );
     }
 
-    return NextResponse.json({
+    return noCache({
       data: page,
     });
   } catch (error) {
     console.error('Failed to fetch page:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to fetch page' },
-      { status: 500 }
+      500
     );
   }
 }

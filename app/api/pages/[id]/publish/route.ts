@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { publishPageVersion } from '@/lib/repositories/pageVersionRepository';
 import { getPageById } from '@/lib/repositories/pageRepository';
 import { invalidatePage } from '@/lib/services/cacheInvalidationService';
+import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -23,9 +24,9 @@ export async function POST(
     const page = await getPageById(id);
     
     if (!page) {
-      return NextResponse.json(
+      return noCache(
         { error: 'Page not found' },
-        { status: 404 }
+        404
       );
     }
 
@@ -35,16 +36,16 @@ export async function POST(
     // Invalidate cache for this page
     await invalidatePage(page.slug);
 
-    return NextResponse.json({
+    return noCache({
       data: publishedVersion,
       message: 'Page published successfully',
     });
   } catch (error) {
     console.error('Failed to publish page:', error);
     
-    return NextResponse.json(
+    return noCache(
       { error: error instanceof Error ? error.message : 'Failed to publish page' },
-      { status: 500 }
+      500
     );
   }
 }
