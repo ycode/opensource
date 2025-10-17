@@ -27,7 +27,7 @@
 
 Deploy YCode to Vercel in one click:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyour-username%2Fycode)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fycode%2Fopensource)
 
 After deployment:
 1. Visit your deployed URL
@@ -48,8 +48,8 @@ Before you begin, you'll need:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/ycode.git
-cd ycode
+git clone https://github.com/ycode/opensource.git
+cd opensource
 ```
 
 ### 2. Install Dependencies
@@ -304,8 +304,8 @@ MIT License - see LICENSE file for details.
 
 For help and questions:
 - 📖 Check the documentation above
-- 🐛 [Open an issue](https://github.com/your-username/ycode/issues)
-- 💬 [Join discussions](https://github.com/your-username/ycode/discussions)
+- 🐛 [Open an issue](https://github.com/ycode/opensource/issues)
+- 💬 [Join discussions](https://github.com/ycode/opensource/discussions)
 
 ---
 
