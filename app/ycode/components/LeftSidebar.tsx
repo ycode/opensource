@@ -6,13 +6,216 @@
  * Displays pages list and layers tree with navigation icons
  */
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback, forwardRef } from 'react';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { RichTreeViewPro } from '@mui/x-tree-view-pro/RichTreeViewPro';
+import { TreeViewBaseItem } from '@mui/x-tree-view/models';
+import { useTreeItem } from '@mui/x-tree-view/useTreeItem';
+import { TreeItemProvider } from '@mui/x-tree-view/TreeItemProvider';
+import { TreeItemDragAndDropOverlay } from '@mui/x-tree-view/TreeItemDragAndDropOverlay';
+import { animated, useSpring } from '@react-spring/web';
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
 import type { Layer, Page } from '../../../types';
 import AssetLibrary from '../../../components/AssetLibrary';
 import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
 import { pagesApi } from '../../../lib/api';
+
+// Create dark theme for MUI
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    background: {
+      default: '#18181b',
+      paper: '#18181b',
+    },
+    text: {
+      primary: '#d4d4d8',
+      secondary: '#a1a1aa',
+    },
+    primary: {
+      main: '#3b82f6',
+    },
+  },
+});
+
+// Helper function to find layer by ID recursively
+function findLayerById(layers: Layer[], id: string): Layer | null {
+  for (const layer of layers) {
+    if (layer.id === id) return layer;
+    if (layer.children) {
+      const found = findLayerById(layer.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// TransitionComponent with React Spring animation
+function TransitionComponent(props: any) {
+  const { in: open, children, ...other } = props;
+  
+  const style = useSpring({
+    to: {
+      opacity: open ? 1 : 0,
+      transform: `translate3d(0,${open ? 0 : -10}px,0)`,
+      height: open ? 'auto' : 0,
+    },
+    config: { tension: 200, friction: 20 },
+  });
+
+  return (
+    <animated.ul style={style} {...other}>
+      {children}
+    </animated.ul>
+  );
+}
+
+// Custom Tree Item Component
+interface CustomTreeItemProps {
+  itemId: string;
+  label: string;
+  disabled?: boolean;
+  children?: React.ReactNode;
+  layersForCurrentPage: Layer[];
+  selectedLayerId: string | null;
+}
+
+const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
+  function CustomTreeItem(props, ref) {
+    const { itemId, label, disabled, children, layersForCurrentPage, selectedLayerId } = props;
+
+    const {
+      getRootProps,
+      getContentProps,
+      getIconContainerProps,
+      getLabelProps,
+      getGroupTransitionProps,
+      getDragAndDropOverlayProps,
+      status,
+    } = useTreeItem({ itemId, label, disabled, rootRef: ref });
+
+    // Find layer data to determine icon
+    const layer = useMemo(() => findLayerById(layersForCurrentPage, itemId), [layersForCurrentPage, itemId]);
+
+    const isSelected = selectedLayerId === itemId;
+    const isExpanded = status.expanded;
+    const hasChildren = Boolean(children);
+
+    const contentProps = getContentProps();
+
+    return (
+      <TreeItemProvider itemId={itemId} id={itemId}>
+        <li
+          {...getRootProps()}
+          style={{
+            listStyle: 'none',
+            margin: 0,
+            padding: 0,
+            outline: 0,
+          }}
+        >
+          <div
+            {...contentProps}
+            style={{
+              padding: '4px 8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'grab',
+              borderRadius: '6px',
+              marginBottom: '2px',
+              transition: 'all 150ms cubic-bezier(0.25, 0.1, 0.25, 1)',
+              backgroundColor: isSelected
+                ? '#3b82f6'
+                : status.focused
+                  ? 'rgba(63, 63, 70, 0.4)'
+                  : 'transparent',
+              color: isSelected ? '#ffffff' : '#d4d4d8',
+              position: 'relative',
+            }}
+            className="hover:bg-zinc-700/40"
+            onMouseDown={(e) => {
+              // Change cursor to grabbing on mouse down
+              e.currentTarget.style.cursor = 'grabbing';
+            }}
+            onMouseUp={(e) => {
+              // Reset cursor on mouse up
+              e.currentTarget.style.cursor = 'grab';
+            }}
+          >
+            {/* Expand/Collapse Icon */}
+            <span
+              {...getIconContainerProps()}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '16px',
+                height: '16px',
+                transition: 'transform 150ms ease-out',
+                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              }}
+            >
+              {hasChildren ? (
+                <svg
+                  className="w-3 h-3 text-zinc-400"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              ) : (
+                <span style={{ width: '16px' }} />
+              )}
+            </span>
+
+            {/* Layer Icon */}
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {getLayerIcon(layer?.type || 'container')}
+            </span>
+
+            {/* Label */}
+            <span
+              {...getLabelProps()}
+              style={{
+                flexGrow: 1,
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {label}
+            </span>
+
+            {/* Drag Overlay */}
+            <TreeItemDragAndDropOverlay {...getDragAndDropOverlayProps()} />
+          </div>
+
+          {/* Animated Children */}
+          {children && (
+            <TransitionComponent {...getGroupTransitionProps()}>
+              {children}
+            </TransitionComponent>
+          )}
+        </li>
+      </TreeItemProvider>
+    );
+  }
+);
 
 interface LeftSidebarProps {
   selectedLayerId: string | null;
@@ -32,24 +235,68 @@ export default function LeftSidebar({
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const addBlockPanelRef = useRef<HTMLDivElement>(null);
-  const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer } = usePagesStore();
+  const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, moveLayer } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
 
-  // Load pages and drafts on mount
+  const currentPage = useMemo(
+    () => pages.find(p => p.id === currentPageId) || null,
+    [pages, currentPageId]
+  );
+
+  const layersForCurrentPage = useMemo(() => {
+    if (!currentPageId) return [];
+    const draft = draftsByPageId[currentPageId];
+    return draft ? draft.layers : [];
+  }, [currentPageId, draftsByPageId]);
+
+  // Convert Layer[] to MUI TreeViewBaseItem[]
+  const convertToTreeItems = useCallback((layers: Layer[]): TreeViewBaseItem[] => {
+    return layers.map((layer) => ({
+      id: layer.id,
+      label: getLayerDisplayName(layer),
+      children: layer.children ? convertToTreeItems(layer.children) : undefined,
+    }));
+  }, []);
+
+  const treeItems = useMemo(() => {
+    return convertToTreeItems(layersForCurrentPage);
+  }, [layersForCurrentPage, convertToTreeItems]);
+
+  // Handle item reordering from MUI Tree View
+  const handleItemPositionChange = useCallback((params: {
+    itemId: string;
+    oldPosition: { parentId: string | null; index: number };
+    newPosition: { parentId: string | null; index: number };
+  }) => {
+    if (!currentPageId) return;
+    
+    const { itemId, newPosition } = params;
+    moveLayer(currentPageId, itemId, newPosition.parentId, newPosition.index);
+  }, [currentPageId, moveLayer]);
+
+  // Helper to find layer in tree
+  const findLayer = useCallback((layers: Layer[], id: string): { layer: Layer; parentId: string | null } | null => {
+    for (const layer of layers) {
+      if (layer.id === id) {
+        return { layer, parentId: null };
+      }
+      if (layer.children) {
+        const found = findLayer(layer.children, id);
+        if (found) {
+          return { ...found, parentId: found.parentId || layer.id };
+        }
+      }
+    }
+    return null;
+  }, []);
+
+  // Load pages on mount
   useEffect(() => {
     loadPages();
   }, [loadPages]);
-
-  // Auto-select first page if none selected
-  useEffect(() => {
-    if (Array.isArray(pages) && pages.length > 0 && !currentPageId) {
-      const firstPage = pages[0];
-      setCurrentPageId(firstPage.id);
-      onPageSelect(firstPage.id);
-    }
-  }, [pages, currentPageId, setCurrentPageId, onPageSelect]);
 
   // Load draft when page changes
   useEffect(() => {
@@ -58,76 +305,43 @@ export default function LeftSidebar({
     }
   }, [currentPageId, loadDraft]);
 
-  // Close panel when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (addBlockPanelRef.current && !addBlockPanelRef.current.contains(event.target as Node)) {
-        setShowAddBlockPanel(false);
-      }
-    };
-
-    if (showAddBlockPanel) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showAddBlockPanel]);
-
-  // Handle page create/update
-  const handleSavePage = async (pageData: PageFormData) => {
-    if (editingPage) {
-      // Update existing page
-      const response = await pagesApi.update(editingPage.id, pageData);
-      if (response.error) {
-        throw new Error(response.error);
-      }
-    } else {
-      // Create new page
-      const response = await pagesApi.create({
-        ...pageData,
-        published_version_id: null,
-      });
-      if (response.error) {
-        throw new Error(response.error);
-      }
-      // If successful, select the new page
-      if (response.data) {
-        setCurrentPageId(response.data.id);
-        onPageSelect(response.data.id);
-      }
+  // Helper to get parent for new layers
+  const getParentForNewLayer = useCallback((): string | null => {
+    if (!selectedLayerId) return null;
+    
+    const selectedItem = findLayer(layersForCurrentPage, selectedLayerId);
+    if (!selectedItem) return null;
+    
+    // If selected is a container, add as child
+    if (selectedItem.layer.type === 'container') {
+      return selectedLayerId;
     }
     
-    // Reload pages to show the new/updated page
-    await loadPages();
-  };
+    // Otherwise, add as sibling
+    return selectedItem.parentId;
+  }, [selectedLayerId, layersForCurrentPage, findLayer]);
 
-  // Open new page panel
-  const handleAddPage = () => {
-    setEditingPage(null);
-    setShowPageSettings(true);
-  };
-
-  // Open edit page panel
+  // Handle page editing
   const handleEditPage = (page: Page) => {
     setEditingPage(page);
     setShowPageSettings(true);
   };
 
-  const layersForCurrentPage = useMemo(() => {
-    if (! currentPageId) return [];
-    const draft = draftsByPageId[currentPageId];
-    return draft ? draft.layers : [];
-  }, [currentPageId, draftsByPageId]);
-
-  // Find layer by ID in tree
-  const findLayerById = (layers: Layer[], layerId: string): Layer | null => {
-    for (const layer of layers) {
-      if (layer.id === layerId) return layer;
-      if (layer.children) {
-        const found = findLayerById(layer.children, layerId);
-        if (found) return found;
-      }
+  const handleSavePage = async (data: PageFormData) => {
+    if (!editingPage) return;
+    
+    try {
+      await pagesApi.update(editingPage.id, {
+        title: data.title,
+        slug: data.slug,
+      });
+      
+      await loadPages();
+      setShowPageSettings(false);
+      setEditingPage(null);
+    } catch (error) {
+      console.error('Failed to save page:', error);
     }
-    return null;
   };
 
   // Handle asset selection
@@ -145,16 +359,16 @@ export default function LeftSidebar({
     }
 
     // Find the selected layer
-    const selectedLayer = findLayerById(layersForCurrentPage, selectedLayerId);
+    const selectedItem = findLayer(layersForCurrentPage, selectedLayerId);
     
-    if (!selectedLayer) {
+    if (!selectedItem) {
       setAssetMessage('❌ Layer not found');
       setTimeout(() => setAssetMessage(null), 3000);
       return;
     }
 
     // Check if it's an image layer
-    if (selectedLayer.type !== 'image') {
+    if (selectedItem.layer.type !== 'image') {
       setAssetMessage('❌ Please select an image layer (not a container, text, or heading)');
       setTimeout(() => setAssetMessage(null), 3000);
       return;
@@ -170,7 +384,7 @@ export default function LeftSidebar({
   };
 
   return (
-    <div className="w-80 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+    <div className="w-80 max-w-80 bg-zinc-900 border-r border-zinc-800 flex flex-col overflow-hidden">
         {/* Tabs */}
         <div className="flex border-b border-zinc-800">
           <button
@@ -206,35 +420,38 @@ export default function LeftSidebar({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
           {activeTab === 'layers' && (
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-zinc-300">Layers</h3>
-                <div className="relative">
-                  <button 
-                    onClick={() => setShowAddBlockPanel(!showAddBlockPanel)}
-                    className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
-                    title="Add Block"
-                  >
-                    <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-
-                  {/* Add Block Panel */}
-                  {showAddBlockPanel && (
-                    <div 
-                      ref={addBlockPanelRef}
-                      className="absolute top-8 right-0 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl min-w-[200px]"
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-zinc-300">Layers</h3>
+                  <div className="relative">
+                    <button 
+                      onClick={() => setShowAddBlockPanel(!showAddBlockPanel)}
+                      className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
+                      title="Add Block"
                     >
-                      <div className="p-2">
-                        <div className="text-xs text-zinc-400 px-2 py-1 mb-1">Add Block</div>
+                      <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+
+                    {/* Add Block Panel */}
+                    {showAddBlockPanel && (
+                      <div
+                        ref={addBlockPanelRef}
+                        className="absolute top-full right-0 mt-2 w-60 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden"
+                      >
+                        <div className="p-2 border-b border-zinc-700">
+                          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Add Block</h4>
+                        </div>
                         
+                        <div className="p-2 space-y-1">
                         <button
                           onClick={() => {
                             if (currentPageId) {
-                              addLayer(currentPageId, null, 'container');
+                              const parentId = getParentForNewLayer();
+                              addLayer(currentPageId, parentId, 'container');
                               setShowAddBlockPanel(false);
                             }
                           }}
@@ -254,7 +471,8 @@ export default function LeftSidebar({
                         <button
                           onClick={() => {
                             if (currentPageId) {
-                              addLayer(currentPageId, null, 'heading');
+                              const parentId = getParentForNewLayer();
+                              addLayer(currentPageId, parentId, 'heading');
                               setShowAddBlockPanel(false);
                             }
                           }}
@@ -274,7 +492,8 @@ export default function LeftSidebar({
                         <button
                           onClick={() => {
                             if (currentPageId) {
-                              addLayer(currentPageId, null, 'text');
+                              const parentId = getParentForNewLayer();
+                              addLayer(currentPageId, parentId, 'text');
                               setShowAddBlockPanel(false);
                             }
                           }}
@@ -294,11 +513,9 @@ export default function LeftSidebar({
                         <button
                           onClick={() => {
                             if (currentPageId) {
-                              addLayer(currentPageId, null, 'image');
+                              const parentId = getParentForNewLayer();
+                              addLayer(currentPageId, parentId, 'image');
                               setShowAddBlockPanel(false);
-                              // Suggest switching to assets tab
-                              setAssetMessage('💡 Now go to Assets tab and click "Use" on an image');
-                              setTimeout(() => setAssetMessage(null), 5000);
                             }
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
@@ -313,27 +530,27 @@ export default function LeftSidebar({
                             <div className="text-xs text-zinc-500">Picture element</div>
                           </div>
                         </button>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
 
               {!currentPageId ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="w-12 h-12 bg-zinc-800 rounded-lg flex items-center justify-center mb-3">
+                <div className="text-center py-8 text-zinc-500">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-800 flex items-center justify-center">
                     <svg className="w-6 h-6 text-zinc-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
                     </svg>
                   </div>
                   <p className="text-sm text-zinc-400 mb-1">No page selected</p>
                   <p className="text-xs text-zinc-500">
-                    Select a page from the Pages tab
+                    Select a page from the Pages tab to start building
                   </p>
                 </div>
               ) : layersForCurrentPage.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="w-12 h-12 bg-zinc-800 rounded-lg flex items-center justify-center mb-3">
+                <div className="text-center py-8 text-zinc-500">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-800 flex items-center justify-center">
                     <svg className="w-6 h-6 text-zinc-600" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
                     </svg>
@@ -344,37 +561,47 @@ export default function LeftSidebar({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-1">
-                  {layersForCurrentPage.map((layer) => (
-                    <LayerItem
-                      key={layer.id}
-                      layer={layer}
-                      selectedLayerId={selectedLayerId}
-                      onSelect={onLayerSelect}
-                    />
-                  ))}
-                </div>
+                <ThemeProvider theme={darkTheme}>
+                  <RichTreeViewPro
+                    items={treeItems}
+                    selectedItems={selectedLayerId || null}
+                    onSelectedItemsChange={(event, itemId) => {
+                      if (typeof itemId === 'string') {
+                        onLayerSelect(itemId);
+                      }
+                    }}
+                    expandedItems={expandedItems}
+                    onExpandedItemsChange={(event, itemIds) => {
+                      setExpandedItems(itemIds as string[]);
+                    }}
+                    onItemPositionChange={handleItemPositionChange}
+                    itemsReordering
+                    slots={{
+                      item: (props: any) => (
+                        <CustomTreeItem
+                          {...props}
+                          layersForCurrentPage={layersForCurrentPage}
+                          selectedLayerId={selectedLayerId}
+                        />
+                      ),
+                    }}
+                    sx={{
+                      flexGrow: 1,
+                      '--TreeView-itemChildrenIndentation': '16px',
+                      '& ul': {
+                        paddingLeft: '16px',
+                      },
+                    }}
+                  />
+                </ThemeProvider>
               )}
-            </div>
+              </div>
           )}
 
           {activeTab === 'pages' && (
             <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-zinc-300">Pages</h3>
-                <button 
-                  onClick={handleAddPage}
-                  className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
-                  title="Add new page"
-                >
-                  <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="space-y-1">
-                {Array.isArray(pages) && pages.map((page: any) => (
+              <div className="space-y-2">
+                {pages.map((page) => (
                   <div
                     key={page.id}
                     className={`group relative rounded ${
@@ -480,6 +707,8 @@ function getLayerIcon(type: Layer['type']) {
 // Helper function to get display name for layer
 function getLayerDisplayName(layer: Layer): string {
   const typeLabel = layer.type.charAt(0).toUpperCase() + layer.type.slice(1);
+
+  return typeLabel;
   
   // For text/heading layers, show a preview of content
   if ((layer.type === 'text' || layer.type === 'heading') && layer.content) {
@@ -495,137 +724,6 @@ function getLayerDisplayName(layer: Layer): string {
   return typeLabel;
 }
 
-// Layer Item Component - Fully Recursive
-function LayerItem({
-  layer,
-  selectedLayerId,
-  onSelect,
-  depth = 0,
-}: {
-  layer: Layer;
-  selectedLayerId: string | null;
-  onSelect: (id: string) => void;
-  depth?: number;
-}) {
-  const [expanded, setExpanded] = useState(true);
-  const hasChildren = layer.children && layer.children.length > 0;
 
-  return (
-    <div className="relative">
-      {/* Depth Indicator Line */}
-      {depth > 0 && (
-        <div 
-          className="absolute left-0 top-0 bottom-0 w-px bg-zinc-800"
-          style={{ left: `${(depth - 1) * 16 + 16}px` }}
-        />
-      )}
-      
-      <button
-        onClick={() => onSelect(layer.id)}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          // TODO: Show context menu for layer actions
-          console.log('Right click on layer:', layer.id);
-        }}
-        className={`group w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors relative ${
-          selectedLayerId === layer.id
-            ? 'bg-blue-600 text-white'
-            : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'
-        }`}
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
-        title={getLayerDisplayName(layer)}
-      >
-        {/* Expand/Collapse Button */}
-        {hasChildren ? (
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              setExpanded(!expanded);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                setExpanded(!expanded);
-              }
-            }}
-            className="w-4 h-4 flex items-center justify-center text-zinc-400 hover:text-white shrink-0 cursor-pointer"
-            aria-label={expanded ? 'Collapse' : 'Expand'}
-          >
-            <svg
-              className={`w-3 h-3 transition-transform ${
-                expanded ? 'rotate-90' : ''
-              }`}
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-            </svg>
-          </div>
-        ) : (
-          <span className="w-4 h-4 shrink-0" />
-        )}
 
-        {/* Drag Handle (for future drag-and-drop) */}
-        <span className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-50 text-zinc-500 cursor-move">
-          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M7 2a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2V4a2 2 0 00-2-2H7zm3 14a1 1 0 100-2 1 1 0 000 2zm0-4a1 1 0 100-2 1 1 0 000 2zm0-4a1 1 0 100-2 1 1 0 000 2z" />
-          </svg>
-        </span>
 
-        {/* Layer Type Icon */}
-        <span className={`shrink-0 ${selectedLayerId === layer.id ? 'text-white' : 'text-zinc-400'}`}>
-          {getLayerIcon(layer.type)}
-        </span>
-
-        {/* Layer Name */}
-        <span className="flex-1 text-left truncate min-w-0">
-          {getLayerDisplayName(layer)}
-        </span>
-
-        {/* Visibility Toggle */}
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation();
-            // TODO: Implement visibility toggle
-            console.log('Toggle visibility for:', layer.id);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              e.stopPropagation();
-              console.log('Toggle visibility for:', layer.id);
-            }
-          }}
-          className="w-4 h-4 shrink-0 flex items-center justify-center text-zinc-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-          aria-label="Toggle visibility"
-          title="Toggle visibility"
-        >
-          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-            <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-          </svg>
-        </div>
-      </button>
-
-      {/* Recursively Render Children */}
-      {expanded && hasChildren && (
-        <div className="space-y-1 mt-1">
-          {layer.children!.map((child) => (
-            <LayerItem
-              key={child.id}
-              layer={child}
-              selectedLayerId={selectedLayerId}
-              onSelect={onSelect}
-              depth={depth + 1}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}

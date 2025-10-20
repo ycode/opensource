@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
 
 interface LayerRendererProps {
@@ -9,6 +11,9 @@ interface LayerRendererProps {
   onLayerUpdate?: (layerId: string, updates: Partial<Layer>) => void;
   selectedLayerId?: string | null;
   isEditMode?: boolean;
+  enableDragDrop?: boolean;
+  activeLayerId?: string | null;
+  projected?: { depth: number; parentId: string | null } | null;
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({ 
@@ -16,59 +21,144 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   onLayerClick,
   onLayerUpdate,
   selectedLayerId,
-  isEditMode = true 
+  isEditMode = true,
+  enableDragDrop = false,
+  activeLayerId = null,
+  projected = null,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
+  
   return (
     <>
-      {layers.map((layer) => {
-        const isSelected = selectedLayerId === layer.id;
-        const hasChildren = layer.children && layer.children.length > 0;
-        const isEditing = editingLayerId === layer.id;
-        const isTextEditable = layer.type === 'text' || layer.type === 'heading';
-        
-        const startEditing = () => {
-          if (isTextEditable && isEditMode) {
-            setEditingLayerId(layer.id);
-            setEditingContent(layer.content || '');
-          }
-        };
+      {layers.map((layer) => (
+        <LayerItem
+          key={layer.id}
+          layer={layer}
+          isEditMode={isEditMode}
+          enableDragDrop={enableDragDrop}
+          selectedLayerId={selectedLayerId}
+          activeLayerId={activeLayerId}
+          projected={projected}
+          onLayerClick={onLayerClick}
+          onLayerUpdate={onLayerUpdate}
+          editingLayerId={editingLayerId}
+          setEditingLayerId={setEditingLayerId}
+          editingContent={editingContent}
+          setEditingContent={setEditingContent}
+        />
+      ))}
+    </>
+  );
+};
 
-        const finishEditing = () => {
-          if (editingLayerId === layer.id && onLayerUpdate) {
-            onLayerUpdate(layer.id, { content: editingContent });
-            setEditingLayerId(null);
-          }
-        };
-        
-        return (
-          <div
-            key={layer.id}
-            className={`${layer.classes} ${
-              isEditMode 
-                ? 'relative transition-all cursor-pointer hover:outline hover:outline-2 hover:outline-blue-400/50' 
-                : ''
-            } ${
-              isSelected 
-                ? 'outline outline-2 outline-blue-500 outline-offset-2' 
-                : ''
-            }`}
-            onClick={(e) => {
-              if (isEditMode && !isEditing) {
-                e.stopPropagation();
-                onLayerClick?.(layer.id);
-              }
-            }}
-            onDoubleClick={(e) => {
-              if (isEditMode) {
-                e.stopPropagation();
-                startEditing();
-              }
-            }}
-            data-layer-id={layer.id}
-            data-layer-type={layer.type}
-          >
+// Separate LayerItem component to handle drag-and-drop per layer
+const LayerItem: React.FC<{
+  layer: Layer;
+  isEditMode: boolean;
+  enableDragDrop: boolean;
+  selectedLayerId?: string | null;
+  activeLayerId?: string | null;
+  projected?: { depth: number; parentId: string | null } | null;
+  onLayerClick?: (layerId: string) => void;
+  onLayerUpdate?: (layerId: string, updates: Partial<Layer>) => void;
+  editingLayerId: string | null;
+  setEditingLayerId: (id: string | null) => void;
+  editingContent: string;
+  setEditingContent: (content: string) => void;
+}> = ({
+  layer,
+  isEditMode,
+  enableDragDrop,
+  selectedLayerId,
+  activeLayerId,
+  projected,
+  onLayerClick,
+  onLayerUpdate,
+  editingLayerId,
+  setEditingLayerId,
+  editingContent,
+  setEditingContent,
+}) => {
+  const isSelected = selectedLayerId === layer.id;
+  const hasChildren = layer.children && layer.children.length > 0;
+  const isEditing = editingLayerId === layer.id;
+  const isTextEditable = layer.type === 'text' || layer.type === 'heading';
+  const isDragging = activeLayerId === layer.id;
+
+  // Use sortable for drag and drop
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: layer.id,
+    disabled: !enableDragDrop || isEditing,
+    data: {
+      type: layer.type,
+      layer,
+    },
+  });
+
+  const startEditing = () => {
+    if (isTextEditable && isEditMode) {
+      setEditingLayerId(layer.id);
+      setEditingContent(layer.content || '');
+    }
+  };
+
+  const finishEditing = () => {
+    if (editingLayerId === layer.id && onLayerUpdate) {
+      onLayerUpdate(layer.id, { content: editingContent });
+      setEditingLayerId(null);
+    }
+  };
+
+  const style = enableDragDrop ? {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+  } : undefined;
+
+  // Show projection indicator if this is being dragged over
+  const showProjection = projected && activeLayerId && activeLayerId !== layer.id;
+
+  return (
+    <div
+      ref={setNodeRef}
+      key={layer.id}
+      className={`${layer.classes} ${
+        isEditMode 
+          ? `relative transition-all duration-100 ${!isEditing && !isDragging ? 'cursor-pointer hover:outline hover:outline-1 hover:outline-blue-400/30 hover:outline-offset-0' : ''} ${enableDragDrop && !isEditing ? 'cursor-grab active:cursor-grabbing' : ''}` 
+          : ''
+      } ${
+        isSelected 
+          ? 'outline outline-2 outline-blue-500 outline-offset-1' 
+          : ''
+      } ${
+        isDragging ? 'opacity-30 outline-none' : ''
+      } ${
+        showProjection ? 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10' : ''
+      }`}
+      style={style}
+      {...(enableDragDrop && !isEditing ? { ...attributes, ...listeners } : {})}
+      onClick={(e) => {
+        if (isEditMode && !isEditing) {
+          e.stopPropagation();
+          onLayerClick?.(layer.id);
+        }
+      }}
+      onDoubleClick={(e) => {
+        if (isEditMode) {
+          e.stopPropagation();
+          startEditing();
+        }
+      }}
+      data-layer-id={layer.id}
+      data-layer-type={layer.type}
+    >
             {/* Selection Badge */}
             {isEditMode && isSelected && !isEditing && (
               <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none">
@@ -139,24 +229,21 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
               )
             )}
 
-            {/* Recursively Render Children */}
-            {hasChildren && (
-              <LayerRenderer 
-                layers={layer.children!} 
-                onLayerClick={onLayerClick}
-                onLayerUpdate={onLayerUpdate}
-                selectedLayerId={selectedLayerId}
-                isEditMode={isEditMode}
-              />
-            )}
-          </div>
-        );
-      })}
-    </>
+      {/* Recursively Render Children */}
+      {hasChildren && (
+        <LayerRenderer 
+          layers={layer.children!} 
+          onLayerClick={onLayerClick}
+          onLayerUpdate={onLayerUpdate}
+          selectedLayerId={selectedLayerId}
+          isEditMode={isEditMode}
+          enableDragDrop={enableDragDrop}
+          activeLayerId={activeLayerId}
+          projected={projected}
+        />
+      )}
+    </div>
   );
 };
 
 export default LayerRenderer;
-
-
-

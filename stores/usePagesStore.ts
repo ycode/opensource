@@ -23,6 +23,7 @@ interface PagesActions {
   addLayer: (pageId: string, parentLayerId: string | null, layerType: Layer['type']) => void;
   deleteLayer: (pageId: string, layerId: string) => void;
   updateLayer: (pageId: string, layerId: string, updates: Partial<Layer>) => void;
+  moveLayer: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => boolean;
 }
 
 type PagesStore = PagesState & PagesActions;
@@ -266,6 +267,104 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         [pageId]: { ...draft, layers: newLayers } 
       } 
     });
+  },
+
+  moveLayer: (pageId, layerId, targetParentId, targetIndex) => {
+    const { draftsByPageId } = get();
+    const draft = draftsByPageId[pageId];
+    if (! draft) return false;
+
+    // Helper: Find layer by ID in tree
+    const findLayer = (layers: Layer[], id: string): Layer | null => {
+      for (const layer of layers) {
+        if (layer.id === id) return layer;
+        if (layer.children) {
+          const found = findLayer(layer.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    // Helper: Check if targetId is a descendant of layerId (prevent circular nesting)
+    const isDescendant = (parentId: string, childId: string): boolean => {
+      const parent = findLayer(draft.layers, parentId);
+      if (!parent || !parent.children) return false;
+      
+      for (const child of parent.children) {
+        if (child.id === childId) return true;
+        if (child.children && isDescendant(child.id, childId)) return true;
+      }
+      return false;
+    };
+
+    // Validation: Cannot move into self or descendants (circular reference)
+    if (targetParentId === layerId || isDescendant(layerId, targetParentId || '')) {
+      console.warn('Cannot create circular reference');
+      return false;
+    }
+
+    // Validation: Target parent must be a container (if not null)
+    if (targetParentId) {
+      const targetParent = findLayer(draft.layers, targetParentId);
+      if (!targetParent || targetParent.type !== 'container') {
+        console.warn('Can only drop into container layers');
+        return false;
+      }
+    }
+
+    // Get the layer being moved
+    const layerToMove = findLayer(draft.layers, layerId);
+    if (!layerToMove) return false;
+
+    // Helper: Remove layer from tree
+    const removeLayer = (layers: Layer[]): Layer[] => {
+      return layers
+        .filter(node => node.id !== layerId)
+        .map(node => ({
+          ...node,
+          children: node.children ? removeLayer(node.children) : undefined,
+        }));
+    };
+
+    // Helper: Insert layer at specific position
+    const insertLayer = (layers: Layer[], parentId: string | null, index: number, layer: Layer): Layer[] => {
+      if (parentId === null) {
+        // Insert at root level
+        const newLayers = [...layers];
+        newLayers.splice(index, 0, layer);
+        return newLayers;
+      }
+
+      // Insert into parent's children
+      return layers.map(node => {
+        if (node.id === parentId) {
+          const children = node.children || [];
+          const newChildren = [...children];
+          newChildren.splice(index, 0, layer);
+          return { ...node, children: newChildren };
+        }
+        if (node.children) {
+          return { ...node, children: insertLayer(node.children, parentId, index, layer) };
+        }
+        return node;
+      });
+    };
+
+    // Remove layer from current position
+    let newLayers = removeLayer(draft.layers);
+    
+    // Insert at new position
+    newLayers = insertLayer(newLayers, targetParentId, targetIndex, layerToMove);
+
+    set({ 
+      draftsByPageId: { 
+        ...draftsByPageId, 
+        [pageId]: { ...draft, layers: newLayers } 
+      } 
+    });
+
+    return true;
   },
 }));
 

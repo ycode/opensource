@@ -64,17 +64,22 @@ export default function YCodeBuilder() {
     loadPages();
   }, [loadPages]);
 
-  // Set current page to first page if not set
+  // Set current page to "Home" page by default, or first page if Home doesn't exist
   useEffect(() => {
     if (!currentPageId && pages.length > 0) {
-      const firstPage = pages[0];
-      setCurrentPageId(firstPage.id);
+      // Try to find "Home" page first (by slug or title)
+      const homePage = pages.find(p => 
+        p.slug?.toLowerCase() === 'home' || p.title?.toLowerCase() === 'home'
+      );
+      const defaultPage = homePage || pages[0];
+      
+      setCurrentPageId(defaultPage.id);
       
       // Load or initialize draft for this page
-      if (!draftsByPageId[firstPage.id]) {
-        loadDraft(firstPage.id).catch(() => {
+      if (!draftsByPageId[defaultPage.id]) {
+        loadDraft(defaultPage.id).catch(() => {
           // If no draft exists, initialize with empty layers
-          initDraft(firstPage, []);
+          initDraft(defaultPage, []);
         });
       }
     }
