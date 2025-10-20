@@ -240,6 +240,38 @@ export default function LeftSidebar({
   const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, moveLayer } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
+  
+  // Handler to create a new page
+  const handleAddPage = async () => {
+    try {
+      // Generate a unique slug based on current timestamp
+      const timestamp = Date.now();
+      const newPageTitle = `Page ${pages.length + 1}`;
+      const newPageSlug = `page-${timestamp}`;
+      
+      const createResponse = await pagesApi.create({
+        title: newPageTitle,
+        slug: newPageSlug,
+        status: 'draft',
+        published_version_id: null,
+      });
+      
+      if (createResponse.error) {
+        console.error('Error creating page:', createResponse.error);
+        return;
+      }
+      
+      if (createResponse.data) {
+        // Reload pages to get the updated list
+        await loadPages();
+        // Switch to the new page
+        onPageSelect(createResponse.data.id);
+        setCurrentPageId(createResponse.data.id);
+      }
+    } catch (error) {
+      console.error('Exception creating page:', error);
+    }
+  };
 
   const currentPage = useMemo(
     () => pages.find(p => p.id === currentPageId) || null,
@@ -600,6 +632,19 @@ export default function LeftSidebar({
 
           {activeTab === 'pages' && (
             <div className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-zinc-300">Pages</h3>
+                <button 
+                  onClick={handleAddPage}
+                  className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
+                  title="Add Page"
+                >
+                  <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              
               <div className="space-y-2">
                 {pages.map((page) => (
                   <div
@@ -707,20 +752,6 @@ function getLayerIcon(type: Layer['type']) {
 // Helper function to get display name for layer
 function getLayerDisplayName(layer: Layer): string {
   const typeLabel = layer.type.charAt(0).toUpperCase() + layer.type.slice(1);
-
-  return typeLabel;
-  
-  // For text/heading layers, show a preview of content
-  if ((layer.type === 'text' || layer.type === 'heading') && layer.content) {
-    const preview = layer.content.substring(0, 20);
-    return `${typeLabel}: ${preview}${layer.content.length > 20 ? '...' : ''}`;
-  }
-  
-  // For containers, show child count
-  if (layer.type === 'container' && layer.children && layer.children.length > 0) {
-    return `${typeLabel} (${layer.children.length})`;
-  }
-  
   return typeLabel;
 }
 
