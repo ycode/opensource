@@ -1,6 +1,10 @@
 import { getSupabaseAdmin } from '../supabase-server';
 import type { Page } from '../../types';
 
+export interface QueryFilters {
+  [key: string]: any;
+}
+
 export interface CreatePageData {
   title: string;
   slug: string;
@@ -17,8 +21,9 @@ export interface UpdatePageData {
 
 /**
  * Get all pages
+ * @param filters - Optional filters to apply (e.g., { status: 'published', category: 'blog' })
  */
-export async function getAllPages(): Promise<Page[]> {
+export async function getAllPages(filters?: QueryFilters): Promise<Page[]> {
   console.log('[pageRepository.getAllPages] Getting Supabase client...');
   const client = await getSupabaseAdmin();
   
@@ -27,11 +32,18 @@ export async function getAllPages(): Promise<Page[]> {
     throw new Error('Supabase not configured');
   }
 
-  console.log('[pageRepository.getAllPages] Querying pages table...');
-  const { data, error } = await client
-    .from('pages')
-    .select('*')
-    .order('created_at', { ascending: false });
+  console.log('[pageRepository.getAllPages] Querying pages table...', filters ? `with filters: ${JSON.stringify(filters)}` : 'no filters');
+  
+  let query = client.from('pages').select('*');
+  
+  // Apply filters if provided
+  if (filters) {
+    Object.entries(filters).forEach(([column, value]) => {
+      query = query.eq(column, value);
+    });
+  }
+  
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) {
     console.error('[pageRepository.getAllPages] Query error:', error);
@@ -70,19 +82,29 @@ export async function getPageById(id: string): Promise<Page | null> {
 
 /**
  * Get page by slug
+ * @param slug - Page slug
+ * @param filters - Optional additional filters
  */
-export async function getPageBySlug(slug: string): Promise<Page | null> {
+export async function getPageBySlug(slug: string, filters?: QueryFilters): Promise<Page | null> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
     throw new Error('Supabase not configured');
   }
 
-  const { data, error } = await client
+  let query = client
     .from('pages')
     .select('*')
-    .eq('slug', slug)
-    .single();
+    .eq('slug', slug);
+  
+  // Apply additional filters if provided
+  if (filters) {
+    Object.entries(filters).forEach(([column, value]) => {
+      query = query.eq(column, value);
+    });
+  }
+
+  const { data, error } = await query.single();
 
   if (error) {
     if (error.code === 'PGRST116') {
@@ -96,17 +118,26 @@ export async function getPageBySlug(slug: string): Promise<Page | null> {
 
 /**
  * Create new page
+ * @param pageData - Page data to create
+ * @param additionalData - Optional additional fields (e.g., metadata, tags)
  */
-export async function createPage(pageData: CreatePageData): Promise<Page> {
+export async function createPage(pageData: CreatePageData, additionalData?: Record<string, any>): Promise<Page> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
     throw new Error('Supabase not configured');
   }
 
+  // Merge page data with any additional fields
+  const insertData = additionalData 
+    ? { ...pageData, ...additionalData }
+    : pageData;
+
+  console.log('[pageRepository.createPage] Creating page:', insertData);
+
   const { data, error } = await client
     .from('pages')
-    .insert(pageData)
+    .insert(insertData)
     .select()
     .single();
 

@@ -314,6 +314,37 @@ Once you're comfortable with the basics:
 
 ---
 
+## 🌐 Deployment Options
+
+### Self-Hosted (Open Source) - What You Just Did!
+
+This guide walked you through **self-hosting** YCode, which means:
+
+- ✅ **You own everything** - Your code, your data, your infrastructure
+- ✅ **Free forever** - No monthly fees to us (only standard hosting costs)
+- ✅ **Full control** - Customize and modify however you want
+- ✅ **Your own Supabase & Vercel** - You manage everything
+- ✅ **Update when you want** - Sync your fork when you're ready
+
+**Perfect for:** Developers, agencies, or anyone who wants complete control and ownership.
+
+### Cloud Hosted (Coming Soon)
+
+Looking for a fully managed solution where we handle everything for you?
+
+**YCode Cloud** will offer:
+- 🚀 **Instant setup** - No Vercel or Supabase configuration needed
+- 🔄 **Automatic updates** - Always running the latest version
+- 💬 **Priority support** - Get help when you need it
+- 🛡️ **Managed infrastructure** - We handle backups, scaling, and security
+- ⚡ **Quick start** - From signup to building in under 2 minutes
+
+**Perfect for:** Non-technical users or teams who want to focus on building, not infrastructure.
+
+[Join the waitlist for YCode Cloud](https://ycode.app/cloud) (coming soon)
+
+---
+
 ## 🙏 Made Possible By
 
 - [Next.js](https://nextjs.org) - The framework powering YCode

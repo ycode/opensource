@@ -61,8 +61,11 @@ export async function getPublishedVersion(pageId: string): Promise<PageVersion |
 
 /**
  * Create or update draft version
+ * @param pageId - Page ID
+ * @param layers - Page layers
+ * @param additionalData - Optional additional fields (e.g., metadata)
  */
-export async function upsertDraft(pageId: string, layers: Layer[]): Promise<PageVersion> {
+export async function upsertDraft(pageId: string, layers: Layer[], additionalData?: Record<string, any>): Promise<PageVersion> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
@@ -87,14 +90,14 @@ export async function upsertDraft(pageId: string, layers: Layer[]): Promise<Page
 
     return data;
   } else {
-    // Create new draft
+    // Create new draft with any additional data
+    const insertData = additionalData
+      ? { page_id: pageId, layers, is_published: false, ...additionalData }
+      : { page_id: pageId, layers, is_published: false };
+
     const { data, error } = await client
       .from('page_versions')
-      .insert({
-        page_id: pageId,
-        layers,
-        is_published: false,
-      })
+      .insert(insertData)
       .select()
       .single();
 
