@@ -417,7 +417,7 @@ export default function LeftSidebar({
   };
 
   return (
-    <div className="w-80 max-w-80 bg-neutral-950 border-r border-white/10 flex flex-col overflow-hidden p-4">
+    <div className="w-72 bg-neutral-950 border-r border-white/10 flex flex-col overflow-hidden p-4">
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pages' | 'layers' | 'assets')} className="flex flex-col flex-1">
           <TabsList className="w-full">

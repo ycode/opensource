@@ -73,19 +73,14 @@ export default function RightSidebar({
 
   if (! selectedLayerId || ! selectedLayer) {
     return (
-      <div className="w-80 bg-zinc-900 border-l border-zinc-800 flex items-center justify-center">
-        <div className="text-center text-zinc-500">
-          <svg className="w-12 h-12 mx-auto mb-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-          </svg>
-          <p className="text-sm">Select a layer to edit properties</p>
-        </div>
+      <div className="w-72 bg-neutral-950 border-l border-white/10 flex items-center justify-center">
+        <span className="text-xs text-white/50">Select layer</span>
       </div>
     );
   }
 
   return (
-    <div className="w-80 bg-neutral-950 border-l border-zinc-800 flex flex-col p-4">
+    <div className="w-72 bg-neutral-950 border-l border-white/10 flex flex-col p-4">
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')} className="flex flex-col flex-1">
         <TabsList className="w-full">
