@@ -27,7 +27,6 @@ export default function YCodeBuilder() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPageDropdown, setShowPageDropdown] = useState(false);
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [zoom, setZoom] = useState(100);
@@ -435,8 +434,6 @@ export default function YCodeBuilder() {
       <HeaderBar
         user={user}
         signOut={signOut}
-        showUserDropdown={showUserDropdown}
-        setShowUserDropdown={setShowUserDropdown}
         showPageDropdown={showPageDropdown}
         setShowPageDropdown={setShowPageDropdown}
         currentPage={currentPage}

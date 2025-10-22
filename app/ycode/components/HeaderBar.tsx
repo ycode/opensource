@@ -8,12 +8,19 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { LogOut } from 'lucide-react';
 
 interface HeaderBarProps {
   user: User | null;
   signOut: () => Promise<void>;
-  showUserDropdown: boolean;
-  setShowUserDropdown: (show: boolean) => void;
   showPageDropdown: boolean;
   setShowPageDropdown: (show: boolean) => void;
   currentPage: Page | undefined;
@@ -35,8 +42,6 @@ interface HeaderBarProps {
 export default function HeaderBar({
   user,
   signOut,
-  showUserDropdown,
-  setShowUserDropdown,
   showPageDropdown,
   setShowPageDropdown,
   currentPage,
@@ -55,7 +60,6 @@ export default function HeaderBar({
   saveImmediately,
 }: HeaderBarProps) {
   const pageDropdownRef = useRef<HTMLDivElement>(null);
-  const userDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close page dropdown when clicking outside
   useEffect(() => {
@@ -71,124 +75,36 @@ export default function HeaderBar({
     }
   }, [showPageDropdown, setShowPageDropdown]);
 
-  // Close user dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
-        setShowUserDropdown(false);
-      }
-    };
-
-    if (showUserDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showUserDropdown, setShowUserDropdown]);
-
   return (
     <header className="h-14 bg-neutral-950 border-b border-white/10 flex items-center justify-between px-4">
       {/* Left: Logo & Page Selector */}
       <div className="flex items-center gap-4">
         {/* User Menu */}
-        <div className="relative" ref={userDropdownRef}>
-          <button
-            onClick={() => setShowUserDropdown(!showUserDropdown)}
-            className="flex items-center gap-2 hover:bg-zinc-800 px-2 py-1 rounded transition-colors"
-          >
-            <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-              <span className="text-white font-bold text-sm">
-                {user?.email?.charAt(0).toUpperCase() || 'U'}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-zinc-300">{user?.email || 'User'}</span>
-              <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </div>
-          </button>
-
-          {/* User Dropdown */}
-          {showUserDropdown && (
-            <div className="absolute top-full right-0 mt-2 w-48 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50">
-              <div className="p-2">
-                <div className="px-3 py-2 text-xs text-zinc-500 border-b border-zinc-700">
-                  Signed in as
-                </div>
-                <div className="px-3 py-2 text-sm text-zinc-300 truncate border-b border-zinc-700">
-                  {user?.email}
-                </div>
-
-                <button
-                  onClick={async () => {
-                    await signOut();
-                    // No need to redirect - user state change will show login form
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-zinc-700 rounded transition-colors mt-1"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  Sign Out
-                </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="secondary" size="sm">
+              <div className="text-white">
+                <svg className="size-3.5" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg"><g id="Symbols" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><g id="Sidebar" transform="translate(-30.000000, -30.000000)"><g id="Ycode"><g transform="translate(30.000000, 30.000000)"><rect id="Rectangle" x="0" y="0" width="24" height="24"></rect><path id="CurrentFill" d="M11.4241533,0 L11.4241533,5.85877951 L6.024,8.978 L12.6155735,12.7868008 L10.951,13.749 L23.0465401,6.75101349 L23.0465401,12.6152717 L3.39516096,23.9856666 L3.3703726,24 L3.34318129,23.9827156 L0.96,22.4713365 L0.96,16.7616508 L3.36417551,18.1393242 L7.476,15.76 L0.96,11.9090099 L0.96,6.05375516 L11.4241533,0 Z" fill="#ffffff"></path></g></g></g></g></svg>
               </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="relative" ref={pageDropdownRef}>
-          <button
-            onClick={() => setShowPageDropdown(!showPageDropdown)}
-            className="flex items-center gap-2 bg-zinc-800 px-3 py-1.5 rounded border border-zinc-700 hover:bg-zinc-750 transition-colors"
-          >
-            <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
-            </svg>
-            <span className="text-sm font-medium text-white">
-              {currentPage?.title || 'Select Page'}
-            </span>
-            <svg className={`w-4 h-4 text-zinc-400 transition-transform ${showPageDropdown ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
-
-          {/* Dropdown Menu */}
-          {showPageDropdown && (
-            <div className="absolute top-full left-0 mt-2 w-64 bg-zinc-800 border border-zinc-700 rounded shadow-xl z-50 max-h-80 overflow-y-auto">
-              <div className="p-2">
-                <div className="text-xs font-semibold text-zinc-500 uppercase px-2 py-1 mb-1">
-                  Pages
-                </div>
-                {pages.length === 0 ? (
-                  <div className="px-2 py-3 text-sm text-zinc-500 text-center">
-                    No pages yet
-                  </div>
-                ) : (
-                  pages.map((page) => (
-                    <button
-                      key={page.id}
-                      onClick={() => {
-                        setCurrentPageId(page.id);
-                        setShowPageDropdown(false);
-                      }}
-                      className={`w-full flex items-center gap-2 px-2 py-2 text-sm rounded transition-colors ${
-                        page.id === currentPageId
-                          ? 'bg-blue-600 text-white'
-                          : 'text-zinc-300 hover:bg-zinc-700'
-                      }`}
-                    >
-                      <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
-                      </svg>
-                      <span className="flex-1 text-left truncate">{page.title}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>Signed in as</DropdownMenuLabel>
+            <DropdownMenuLabel className="font-normal text-muted-foreground">
+              {user?.email}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={async () => {
+                await signOut();
+              }}
+            >
+              <LogOut />
+              Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Center: Viewport Controls */}
