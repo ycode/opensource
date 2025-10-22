@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import packageJson from '../../../../package.json';
 import { noCache } from '@/lib/api-response';
 
-const UPSTREAM_REPO = 'liamwalder/test'; // Official YCode repo
+const UPSTREAM_REPO = 'ycode/opensource'; // Official YCode repo
 const CURRENT_VERSION = packageJson.version;
 
 // Disable caching for this route
