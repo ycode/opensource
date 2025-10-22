@@ -4,9 +4,10 @@ import { useRef, useEffect } from 'react';
 import { usePagesStore } from '../../../stores/usePagesStore';
 import type { Page } from '../../../types';
 import type { User } from '@supabase/supabase-js';
-import {Button} from "@/components/ui/button";
-import {Spinner} from "@/components/ui/spinner";
-import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface HeaderBarProps {
   user: User | null;
@@ -193,69 +194,19 @@ export default function HeaderBar({
       {/* Center: Viewport Controls */}
       <div className="flex items-center gap-3">
         {/* Viewport Selector */}
-        <div className="flex items-center gap-1 bg-zinc-800 rounded p-1">
-          <button
-            onClick={() => setViewportMode('desktop')}
-            className={`px-3 py-1.5 text-xs rounded transition-colors ${
-              viewportMode === 'desktop'
-                ? 'bg-zinc-700 text-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-            title="Desktop View"
-          >
-            🖥️
-          </button>
-          <button
-            onClick={() => setViewportMode('tablet')}
-            className={`px-3 py-1.5 text-xs rounded transition-colors ${
-              viewportMode === 'tablet'
-                ? 'bg-zinc-700 text-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-            title="Tablet View"
-          >
-            📱
-          </button>
-          <button
-            onClick={() => setViewportMode('mobile')}
-            className={`px-3 py-1.5 text-xs rounded transition-colors ${
-              viewportMode === 'mobile'
-                ? 'bg-zinc-700 text-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-            title="Mobile View"
-          >
-            📱
-          </button>
-        </div>
-
-        {/* Viewport Width */}
-        <span className="text-xs text-zinc-400">
-          {viewportMode === 'desktop' ? '1200px' : viewportMode === 'tablet' ? '768px' : '375px'}
-        </span>
-
-        {/* Zoom Controls */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-400">{zoom}%</span>
-          <div className="flex flex-col">
-            <button
-              onClick={() => setZoom(Math.min(zoom + 10, 200))}
-              className="w-3 h-3 flex items-center justify-center hover:bg-zinc-800 rounded text-zinc-400"
-            >
-              <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setZoom(Math.max(zoom - 10, 25))}
-              className="w-3 h-3 flex items-center justify-center hover:bg-zinc-800 rounded text-zinc-400"
-            >
-              <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as 'desktop' | 'tablet' | 'mobile')} >
+          <TabsList className="w-[240px]">
+            <TabsTrigger value="desktop" title="Desktop View">
+              Desktop
+            </TabsTrigger>
+            <TabsTrigger value="tablet" title="Tablet View">
+              Tablet
+            </TabsTrigger>
+            <TabsTrigger value="mobile" title="Mobile View">
+              Phone
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Right: User & Actions */}
