@@ -11,6 +11,7 @@ import { usePagesStore } from '../../../stores/usePagesStore';
 import { useEditorStore } from '../../../stores/useEditorStore';
 import type { Layer } from '../../../types';
 import debounce from 'lodash.debounce';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
@@ -84,70 +85,17 @@ export default function RightSidebar({
   }
 
   return (
-    <div className="w-80 bg-zinc-900 border-l border-zinc-800 flex flex-col">
-      {/* Header */}
-      <div className="border-b border-zinc-800 p-4">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-zinc-300">Properties</h3>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => {
-                if (selectedLayerId && currentPageId) {
-                  const { deleteLayer } = usePagesStore.getState();
-                  deleteLayer(currentPageId, selectedLayerId);
-                }
-              }}
-              className="p-1.5 hover:bg-zinc-800 rounded text-red-400 hover:text-red-300"
-              title="Delete layer"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div className="text-xs text-zinc-500">
-          {selectedLayer.type.charAt(0).toUpperCase() + selectedLayer.type.slice(1)} Layer
-        </div>
-      </div>
-
+    <div className="w-80 bg-neutral-950 border-l border-zinc-800 flex flex-col p-4">
       {/* Tabs */}
-      <div className="flex border-b border-zinc-800">
-        <button
-          onClick={() => setActiveTab('design')}
-          className={`flex-1 px-4 py-3 text-sm font-medium ${
-            activeTab === 'design'
-              ? 'text-white border-b-2 border-white'
-              : 'text-zinc-400 hover:text-white'
-          }`}
-        >
-          Design
-        </button>
-        <button
-          onClick={() => setActiveTab('content')}
-          className={`flex-1 px-4 py-3 text-sm font-medium ${
-            activeTab === 'content'
-              ? 'text-white border-b-2 border-white'
-              : 'text-zinc-400 hover:text-white'
-          }`}
-        >
-          Content
-        </button>
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`flex-1 px-4 py-3 text-sm font-medium ${
-            activeTab === 'settings'
-              ? 'text-white border-b-2 border-white'
-              : 'text-zinc-400 hover:text-white'
-          }`}
-        >
-          Settings
-        </button>
-      </div>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')} className="flex flex-col flex-1">
+        <TabsList className="w-full">
+          <TabsTrigger value="design">Design</TabsTrigger>
+          <TabsTrigger value="content">Content</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        {activeTab === 'design' && (
+        {/* Content */}
+        <TabsContent value="design" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">{' '}
           <div className="p-4 space-y-6">
             {/* Tailwind Classes Editor */}
             <div>
@@ -336,9 +284,9 @@ export default function RightSidebar({
             </div>
 
           </div>
-        )}
+        </TabsContent>
 
-        {activeTab === 'content' && (
+        <TabsContent value="content" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">
           <div className="p-4 space-y-4">
             {selectedLayer.type === 'text' || selectedLayer.type === 'heading' ? (
               <div>
@@ -398,9 +346,9 @@ export default function RightSidebar({
               />
             </div>
           </div>
-        )}
+        </TabsContent>
 
-        {activeTab === 'settings' && (
+        <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">
           <div className="p-4 space-y-4">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-2">
@@ -440,8 +388,8 @@ export default function RightSidebar({
               </button>
             </div>
           </div>
-        )}
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
