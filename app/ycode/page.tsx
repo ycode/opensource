@@ -722,7 +722,7 @@ export default function YCodeBuilder() {
                 Publishing...
               </>
             ) : (
-              'Publish'
+              'Go live'
             )}
           </button>
         </div>
