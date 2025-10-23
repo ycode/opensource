@@ -24,6 +24,9 @@ interface PagesActions {
   deleteLayer: (pageId: string, layerId: string) => void;
   updateLayer: (pageId: string, layerId: string, updates: Partial<Layer>) => void;
   moveLayer: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => boolean;
+  addPage: (page: Page) => void;
+  updatePage: (pageId: string, updates: Partial<Page>) => void;
+  removePage: (pageId: string) => void;
 }
 
 type PagesStore = PagesState & PagesActions;
@@ -365,6 +368,29 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     });
 
     return true;
+  },
+
+  addPage: (page: Page) => {
+    const { pages } = get();
+    set({ pages: [...pages, page] });
+  },
+
+  updatePage: (pageId: string, updates: Partial<Page>) => {
+    const { pages } = get();
+    const updatedPages = pages.map(page => 
+      page.id === pageId ? { ...page, ...updates } : page
+    );
+    set({ pages: updatedPages });
+  },
+
+  removePage: (pageId: string) => {
+    const { pages, draftsByPageId } = get();
+    const updatedPages = pages.filter(page => page.id !== pageId);
+    const { [pageId]: removedDraft, ...remainingDrafts } = draftsByPageId;
+    set({ 
+      pages: updatedPages,
+      draftsByPageId: remainingDrafts
+    });
   },
 }));
 

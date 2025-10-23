@@ -78,21 +78,17 @@ export function useLayerLocks(): UseLayerLocksReturn {
         // Listen for lock changes from other users
         channel.on('broadcast', { event: 'lock_acquired' }, (payload) => {
           const { layerId, userId, timestamp } = payload.payload;
-          console.log(`[DEBUG] Received lock_acquired event for layer ${layerId} from user ${userId}`);
           if (userId !== currentUserId) {
             // Update local lock state
             storeAcquireLock(layerId, userId);
-            console.log(`[DEBUG] Applied remote lock for layer ${layerId}`);
           }
         });
         
         channel.on('broadcast', { event: 'lock_released' }, (payload) => {
           const { layerId, userId } = payload.payload;
-          console.log(`[DEBUG] Received lock_released event for layer ${layerId} from user ${userId}`);
           if (userId !== currentUserId) {
             // Update local lock state
             storeReleaseLock(layerId);
-            console.log(`[DEBUG] Released remote lock for layer ${layerId}`);
           }
         });
         
@@ -102,7 +98,6 @@ export function useLayerLocks(): UseLayerLocksReturn {
           if (currentUserId) {
             const currentLocks = useCollaborationPresenceStore.getState().locks;
             const myLocks = Object.entries(currentLocks).filter(([_, lock]) => lock.user_id === currentUserId);
-            console.log('[DEBUG] Responding to lock request with:', myLocks);
             channel.send({
               type: 'broadcast',
               event: 'locks_response',
@@ -114,20 +109,15 @@ export function useLayerLocks(): UseLayerLocksReturn {
         channel.on('broadcast', { event: 'locks_response' }, (payload) => {
           // Receive locks from other users
           const { locks: remoteLocks, userId } = payload.payload;
-          console.log(`[DEBUG] Received locks_response from user ${userId}:`, remoteLocks);
           if (userId !== currentUserId) {
             remoteLocks.forEach(([layerId, lock]: [string, any]) => {
               storeAcquireLock(layerId, lock.user_id);
-              console.log(`[DEBUG] Synced lock for layer ${layerId} from user ${lock.user_id}`);
             });
           }
         });
         
         await channel.subscribe();
         channelRef.current = channel;
-        
-        console.log(`[DEBUG] Subscribed to lock updates for page ${currentPageId}`);
-        console.log(`[DEBUG] Channel status:`, channel.state);
         
         // Request current locks from all connected users
         await channel.send({
@@ -144,7 +134,6 @@ export function useLayerLocks(): UseLayerLocksReturn {
     
       return () => {
         if (channelRef.current) {
-          console.log(`[DEBUG] Unsubscribing from lock updates for page ${currentPageId}`);
           channelRef.current.unsubscribe();
           channelRef.current = null;
         }
@@ -154,12 +143,8 @@ export function useLayerLocks(): UseLayerLocksReturn {
   // Broadcast lock changes to other users
   const broadcastLockChange = useCallback(async (action: 'acquire' | 'release', layerId: string) => {
     if (!channelRef.current || !currentUserId) {
-      console.warn(`[DEBUG] Cannot broadcast ${action} - channel: ${!!channelRef.current}, userId: ${currentUserId}`);
       return;
     }
-    
-    console.log(`[DEBUG] Broadcasting ${action} for layer ${layerId} to other users`);
-    console.log(`[DEBUG] Channel state:`, channelRef.current.state);
     
     try {
       await channelRef.current.send({
@@ -171,7 +156,6 @@ export function useLayerLocks(): UseLayerLocksReturn {
           timestamp: Date.now()
         }
       });
-      console.log(`[DEBUG] Successfully broadcasted ${action} for layer ${layerId}`);
     } catch (error) {
       console.error('Failed to broadcast lock change:', error);
     }
@@ -179,30 +163,22 @@ export function useLayerLocks(): UseLayerLocksReturn {
   
   
   const acquireLock = useCallback(async (layerId: string): Promise<boolean> => {
-    console.log(`[DEBUG] acquireLock called for layer ${layerId}`);
-    
     if (!currentUserId) {
-      console.warn(`[DEBUG] No current user ID, cannot acquire lock`);
       return false;
     }
     
     // Get fresh lock state from store
     const currentLocks = useCollaborationPresenceStore.getState().locks;
     const existingLock = currentLocks[layerId];
-    console.log(`[DEBUG] Existing lock for ${layerId}:`, existingLock);
-    
+
     if (existingLock && existingLock.user_id === currentUserId) {
-      console.log(`[DEBUG] Already have lock for ${layerId}`);
       return true; // Already have the lock
     }
     
     // Check if locked by another user
     if (existingLock && existingLock.user_id !== currentUserId) {
-      console.log(`[DEBUG] Layer ${layerId} is locked by another user: ${existingLock.user_id}`);
       return false; // Cannot acquire lock
     }
-    
-    console.log(`[DEBUG] Acquiring lock for ${layerId}`);
     
     // Acquire the lock
     storeAcquireLock(layerId, currentUserId);
@@ -212,7 +188,6 @@ export function useLayerLocks(): UseLayerLocksReturn {
     
     // Set up auto-release timeout
     const timeout = setTimeout(async () => {
-      console.log(`[DEBUG] Auto-releasing lock for ${layerId} after 30 seconds`);
       const freshLocks = useCollaborationPresenceStore.getState().locks;
       if (freshLocks[layerId]?.user_id === currentUserId) {
         storeReleaseLock(layerId);
@@ -226,7 +201,6 @@ export function useLayerLocks(): UseLayerLocksReturn {
     
     lockTimeouts.current[layerId] = timeout;
     
-    console.log(`[DEBUG] Successfully acquired lock for ${layerId}`);
     return true;
   }, [currentUserId, storeAcquireLock, storeReleaseLock, updateUser, broadcastLockChange]);
   

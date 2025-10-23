@@ -165,11 +165,12 @@ export interface CollaborationState {
 
 export interface ActivityNotification {
   id: string;
-  type: 'user_joined' | 'user_left' | 'layer_edit_started' | 'layer_edit_ended' | 'page_published' | 'user_idle';
+  type: 'user_joined' | 'user_left' | 'layer_edit_started' | 'layer_edit_ended' | 'page_published' | 'user_idle' | 'page_created' | 'page_deleted';
   user_id: string;
   user_name: string;
   layer_id?: string;
   layer_name?: string;
+  page_id?: string;
   timestamp: number;
   message: string;
 }

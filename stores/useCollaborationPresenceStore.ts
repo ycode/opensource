@@ -87,7 +87,6 @@ export const useCollaborationPresenceStore = create<CollaborationPresenceState>(
     
     // Lock management
     acquireLock: (layerId, userId) => set((state) => {
-      console.log(`[DEBUG] Store acquireLock called for layer ${layerId} by user ${userId}`);
       const lock: LayerLock = {
         layer_id: layerId,
         user_id: userId,
@@ -100,17 +99,13 @@ export const useCollaborationPresenceStore = create<CollaborationPresenceState>(
         [layerId]: lock
       };
       
-      console.log(`[DEBUG] Store locks after acquire:`, newLocks);
-      
       return {
         locks: newLocks
       };
     }),
     
     releaseLock: (layerId) => set((state) => {
-      console.log(`[DEBUG] Store releaseLock called for layer ${layerId}`);
       const { [layerId]: removed, ...remainingLocks } = state.locks;
-      console.log(`[DEBUG] Store locks after release:`, remainingLocks);
       return { locks: remainingLocks };
     }),
     

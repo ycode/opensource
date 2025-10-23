@@ -146,10 +146,8 @@ export const useRealtimeCursors = ({
 
         channel
         .on('presence', { event: 'sync' }, () => {
-            console.log('[DEBUG] Presence sync - updating collaboration store');
             const presenceState = channel.presenceState();
-            console.log('[DEBUG] Presence state:', presenceState);
-            
+
             const { acquireLock } = useCollaborationPresenceStore.getState();
             
             // Update collaboration store with current presence
@@ -157,7 +155,6 @@ export const useRealtimeCursors = ({
                 if (Array.isArray(presences)) {
                     presences.forEach((presence: any) => {
                         if (presence.key !== userId && presence.lockedLayerId) {
-                            console.log(`[DEBUG] User ${presence.key} has locked layer: ${presence.lockedLayerId}`);
                             // Acquire lock in the store for the remote user
                             acquireLock(presence.lockedLayerId, presence.key);
                             // Update user in collaboration store
@@ -243,8 +240,7 @@ export const useRealtimeCursors = ({
     // Update presence when selected layer changes
     useEffect(() => {
         if (channelRef.current && userId) {
-            console.log(`[DEBUG] Updating presence with lockedLayerId: ${selectedLayerId}`);
-            channelRef.current.track({ 
+            channelRef.current.track({
                 key: userId,
                 lockedLayerId: selectedLayerId || null
             });

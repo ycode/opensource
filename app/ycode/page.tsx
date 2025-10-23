@@ -19,6 +19,7 @@ import { RealtimeCursors } from '../../components/realtime-cursors';
 import ActivityNotifications from '../../components/collaboration/ActivityNotifications';
 import { useLayerLocks } from '../../hooks/use-layer-locks';
 import { useLiveLayerUpdates } from '../../hooks/use-live-layer-updates';
+import { useLivePageUpdates } from '../../hooks/use-live-page-updates';
 import { useCollaborationPresenceStore, startLockExpirationCheck, startNotificationCleanup } from '../../stores/useCollaborationPresenceStore';
 import type { Layer } from '../../types';
 
@@ -34,6 +35,7 @@ export default function YCodeBuilder() {
   // Initialize collaboration features
   const layerLocks = useLayerLocks();
   const liveLayerUpdates = useLiveLayerUpdates(currentPageId);
+  const livePageUpdates = useLivePageUpdates();
   const { currentUserId } = useCollaborationPresenceStore();
   
   // Layer selection handler with lock checking
@@ -43,14 +45,9 @@ export default function YCodeBuilder() {
       return;
     }
     
-    console.log(`[DEBUG] Attempting to select layer ${layerId}`);
-    console.log(`[DEBUG] Current user ID: ${currentUserId}`);
-    console.log(`[DEBUG] Current selected layer: ${selectedLayerId}`);
-    
     try {
       // Release lock on previously selected layer if different
       if (selectedLayerId && selectedLayerId !== layerId) {
-        console.log(`[DEBUG] Releasing lock on previous layer ${selectedLayerId}`);
         await layerLocks.releaseLock(selectedLayerId);
       }
       
@@ -58,20 +55,14 @@ export default function YCodeBuilder() {
       const isLocked = layerLocks.isLayerLocked(layerId);
       const canEdit = layerLocks.canEditLayer(layerId);
       
-      console.log(`[DEBUG] Layer ${layerId} - isLocked: ${isLocked}, canEdit: ${canEdit}`);
-      
       if (isLocked && !canEdit) {
-        console.warn(`[DEBUG] Layer ${layerId} is locked by another user - blocking selection`);
         return;
       }
       
       // Try to acquire lock and select layer
-      console.log(`[DEBUG] Attempting to acquire lock for layer ${layerId}`);
       const lockAcquired = await layerLocks.acquireLock(layerId);
-      console.log(`[DEBUG] Lock acquired for layer ${layerId}: ${lockAcquired}`);
-      
+
       if (lockAcquired) {
-        console.log(`[DEBUG] Setting selected layer to ${layerId}`);
         setSelectedLayerId(layerId);
       } else {
         console.warn(`[DEBUG] Failed to acquire lock for layer ${layerId}`);
@@ -544,6 +535,7 @@ export default function YCodeBuilder() {
           onLayerSelect={handleLayerSelect}
           currentPageId={currentPageId}
           onPageSelect={setCurrentPageId}
+          livePageUpdates={livePageUpdates}
         />
 
         {/* Center Canvas - Preview */}

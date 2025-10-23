@@ -260,6 +260,11 @@ interface LeftSidebarProps {
   onLayerSelect: (layerId: string) => void;
   currentPageId: string | null;
   onPageSelect: (pageId: string) => void;
+  livePageUpdates: {
+    broadcastPageUpdate: (pageId: string, changes: Partial<Page>) => void;
+    broadcastPageCreate: (page: Page) => void;
+    broadcastPageDelete: (pageId: string) => void;
+  };
 }
 
 export default function LeftSidebar({
@@ -267,6 +272,7 @@ export default function LeftSidebar({
   onLayerSelect,
   currentPageId,
   onPageSelect,
+  livePageUpdates,
 }: LeftSidebarProps) {
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'assets'>('layers');
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
@@ -282,9 +288,6 @@ export default function LeftSidebar({
   
   // Lock-aware layer selection handler
   const handleLayerSelect = useCallback((layerId: string) => {
-    console.log(`[DEBUG] LeftSidebar handleLayerSelect called for layer: ${layerId}`);
-    console.log(`[DEBUG] Current selectedLayerId: ${selectedLayerId}`);
-    
     // Check if layer is locked by another user
     const isLocked = layerLocks.isLayerLocked(layerId);
     const canEdit = layerLocks.canEditLayer(layerId);
@@ -295,7 +298,6 @@ export default function LeftSidebar({
     }
     
     // Call the original onLayerSelect if not locked
-    console.log(`[DEBUG] Calling onLayerSelect for layer: ${layerId}`);
     onLayerSelect(layerId);
   }, [onLayerSelect, layerLocks, selectedLayerId]);
   
@@ -325,6 +327,8 @@ export default function LeftSidebar({
         // Switch to the new page
         onPageSelect(createResponse.data.id);
         setCurrentPageId(createResponse.data.id);
+        // Broadcast the page creation to other users
+        livePageUpdates.broadcastPageCreate(createResponse.data);
       }
     } catch (error) {
       console.error('Exception creating page:', error);
@@ -422,10 +426,15 @@ export default function LeftSidebar({
     if (!editingPage) return;
     
     try {
-      await pagesApi.update(editingPage.id, {
+      const updateData = {
         title: data.title,
         slug: data.slug,
-      });
+      };
+      
+      await pagesApi.update(editingPage.id, updateData);
+      
+      // Broadcast the page update to other users
+      livePageUpdates.broadcastPageUpdate(editingPage.id, updateData);
       
       await loadPages();
       setShowPageSettings(false);
@@ -629,10 +638,8 @@ export default function LeftSidebar({
                     items={treeItems}
                     selectedItems={selectedLayerId || null}
                     onSelectedItemsChange={(event, itemIds) => {
-                      console.log(`[DEBUG] TreeView onSelectedItemsChange called with:`, itemIds);
                       // Handle both single item and array of items
                       const itemId = Array.isArray(itemIds) ? itemIds[0] : itemIds;
-                      console.log(`[DEBUG] Extracted itemId: ${itemId}`);
                       if (typeof itemId === 'string') {
                         handleLayerSelect(itemId);
                       }
