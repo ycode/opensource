@@ -341,7 +341,8 @@ export default function LeftSidebar({
     return layers.map((layer) => ({
       id: layer.id,
       label: getLayerDisplayName(layer),
-      children: layer.children ? convertToTreeItems(layer.children) : undefined,
+      // Only container/div layers should be expandable
+      children: (layer.type === 'container' && layer.children) ? convertToTreeItems(layer.children) : undefined,
     }));
   }, []);
 
