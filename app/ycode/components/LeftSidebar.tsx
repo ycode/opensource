@@ -23,6 +23,7 @@ import type { Layer, Page } from '../../../types';
 import AssetLibrary from '../../../components/AssetLibrary';
 import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
 import { pagesApi } from '../../../lib/api';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 // Create dark theme for MUI
 const darkTheme = createTheme({
@@ -117,7 +118,7 @@ const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
     const contentProps = getContentProps();
 
     return (
-      <TreeItemProvider itemId={itemId} id={itemId}>
+        <TreeItemProvider itemId={itemId} id={itemId}>
         <li
           {...getRootProps()}
           style={{
@@ -467,44 +468,16 @@ export default function LeftSidebar({
   };
 
   return (
-    <div className="w-80 max-w-80 bg-zinc-900 border-r border-zinc-800 flex flex-col overflow-hidden">
+    <div className="w-72 shrink-0 bg-neutral-950 border-r border-white/10 flex flex-col overflow-hidden p-4">
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800">
-          <button
-            onClick={() => setActiveTab('layers')}
-            className={`flex-1 px-4 py-3 text-sm font-medium ${
-              activeTab === 'layers'
-                ? 'text-white border-b-2 border-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Layers
-          </button>
-          <button
-            onClick={() => setActiveTab('pages')}
-            className={`flex-1 px-4 py-3 text-sm font-medium ${
-              activeTab === 'pages'
-                ? 'text-white border-b-2 border-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Pages
-          </button>
-          <button
-            onClick={() => setActiveTab('assets')}
-            className={`flex-1 px-4 py-3 text-sm font-medium ${
-              activeTab === 'assets'
-                ? 'text-white border-b-2 border-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Assets
-          </button>
-        </div>
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pages' | 'layers' | 'assets')} className="flex flex-col flex-1">
+          <TabsList className="w-full">
+            <TabsTrigger value="layers">Layers</TabsTrigger>
+            <TabsTrigger value="pages">Pages</TabsTrigger>
+          </TabsList>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
-          {activeTab === 'layers' && (
+          {/* Content */}
+          <TabsContent value="layers" className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden">{' '}
               <div className="p-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-medium text-zinc-300">Layers</h3>
@@ -680,9 +653,9 @@ export default function LeftSidebar({
                 </ThemeProvider>
               )}
               </div>
-          )}
+          </TabsContent>
 
-          {activeTab === 'pages' && (
+          <TabsContent value="pages" className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden">
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-medium text-zinc-300">Pages</h3>
@@ -737,19 +710,8 @@ export default function LeftSidebar({
                 ))}
               </div>
             </div>
-          )}
-
-          {activeTab === 'assets' && (
-            <div className="relative">
-              {assetMessage && (
-                <div className="absolute top-2 left-2 right-2 z-10 p-3 bg-zinc-800 border border-zinc-700 rounded text-sm text-white shadow-lg">
-                  {assetMessage}
-                </div>
-              )}
-              <AssetLibrary onAssetSelect={handleAssetSelect} />
-            </div>
-          )}
-        </div>
+          </TabsContent>
+        </Tabs>
 
         {/* Page Settings Panel */}
         <PageSettingsPanel
