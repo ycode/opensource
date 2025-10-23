@@ -16,7 +16,6 @@ import RightSidebar from './components/RightSidebar';
 import HeaderBar from './components/HeaderBar';
 import UpdateNotification from '../../components/UpdateNotification';
 import { RealtimeCursors } from '../../components/realtime-cursors';
-import ActiveUsersPanel from '../../components/collaboration/ActiveUsersPanel';
 import ActivityNotifications from '../../components/collaboration/ActivityNotifications';
 import { useLayerLocks } from '../../hooks/use-layer-locks';
 import { useLiveLayerUpdates } from '../../hooks/use-live-layer-updates';
@@ -581,13 +580,6 @@ export default function YCodeBuilder() {
       {/* Collaboration Components */}
       {user && currentPageId && (
         <>
-          {/* Active Users Panel */}
-          <ActiveUsersPanel 
-            position="top-right"
-            showUserCount={true}
-            maxUsers={10}
-          />
-          
           {/* Activity Notifications */}
           <ActivityNotifications 
             position="bottom-right"

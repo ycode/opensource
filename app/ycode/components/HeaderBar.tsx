@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { LogOut } from 'lucide-react';
+import ActiveUsersInHeader from './ActiveUsersInHeader';
 
 interface HeaderBarProps {
   user: User | null;
@@ -127,8 +128,10 @@ export default function HeaderBar({
 
       {/* Right: User & Actions */}
       <div className="flex items-center gap-4">
+        {/* Active Users */}
+        <ActiveUsersInHeader />
+        
         {/* Save Status Indicator */}
-
         <div className="flex items-center justify-end w-[64px] text-xs text-white/50">
           {isSaving ? (
             <>
