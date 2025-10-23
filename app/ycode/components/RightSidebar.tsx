@@ -9,12 +9,14 @@
 import { useCallback, useMemo, useState } from 'react';
 import { usePagesStore } from '../../../stores/usePagesStore';
 import { useEditorStore } from '../../../stores/useEditorStore';
+import { useLayerLocks } from '../../../hooks/use-layer-locks';
 import type { Layer } from '../../../types';
 import debounce from 'lodash.debounce';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
   onLayerUpdate: (layerId: string, updates: any) => void;
+  onLayerDeselect?: () => void;
 }
 
 export default function RightSidebar({
@@ -26,6 +28,7 @@ export default function RightSidebar({
 
   const { currentPageId } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
+  const layerLocks = useLayerLocks();
 
   const selectedLayer: Layer | null = useMemo(() => {
     if (! currentPageId || ! selectedLayerId) return null;
@@ -40,6 +43,11 @@ export default function RightSidebar({
     return null;
   }, [currentPageId, selectedLayerId, draftsByPageId]);
 
+  // Check if the selected layer is locked by another user
+  const isLayerLocked = selectedLayerId ? layerLocks.isLayerLocked(selectedLayerId) : false;
+  const canEditLayer = selectedLayerId ? layerLocks.canEditLayer(selectedLayerId) : false;
+  const isLockedByOther = isLayerLocked && !canEditLayer;
+
   // Update local state when selected layer changes
   const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
   if (selectedLayerId !== prevSelectedLayerId) {
@@ -47,12 +55,21 @@ export default function RightSidebar({
     setClassesInput(selectedLayer?.classes || '');
   }
 
+  // Lock-aware update function
+  const handleLayerUpdate = useCallback((layerId: string, updates: any) => {
+    if (isLockedByOther) {
+      console.warn(`Cannot update layer ${layerId} - it is locked by another user`);
+      return;
+    }
+    onLayerUpdate(layerId, updates);
+  }, [onLayerUpdate, isLockedByOther]);
+
   const debouncedUpdate = useMemo(
     () =>
       debounce((layerId: string, classes: string) => {
-        onLayerUpdate(layerId, { classes });
+        handleLayerUpdate(layerId, { classes });
       }, 500),
-    [onLayerUpdate]
+    [handleLayerUpdate]
   );
 
   const handleClassesChange = (value: string) => {
@@ -67,8 +84,17 @@ export default function RightSidebar({
     const currentClasses = classesInput;
     const updated = currentClasses + ' ' + newClasses;
     setClassesInput(updated.trim());
-    onLayerUpdate(selectedLayerId, { classes: updated.trim() });
+    handleLayerUpdate(selectedLayerId, { classes: updated.trim() });
   };
+
+  // Helper function for button props when layer is locked
+  const getButtonProps = (onClick: () => void) => ({
+    onClick,
+    disabled: isLockedByOther,
+    className: `px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-xs border border-zinc-700 text-zinc-300 ${
+      isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''
+    }`
+  });
 
   if (! selectedLayerId || ! selectedLayer) {
     return (
@@ -90,6 +116,15 @@ export default function RightSidebar({
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-zinc-300">Properties</h3>
           <div className="flex items-center gap-2">
+            {/* Lock indicator */}
+            {isLockedByOther && (
+              <div className="flex items-center gap-1 text-amber-400 text-xs">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                </svg>
+                <span>Locked</span>
+              </div>
+            )}
             <button 
               onClick={() => {
                 if (selectedLayerId && currentPageId) {
@@ -159,7 +194,10 @@ export default function RightSidebar({
                 onChange={(e) => handleClassesChange(e.target.value)}
                 placeholder="flex gap-4 bg-blue-500 p-4 rounded"
                 rows={4}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                disabled={isLockedByOther}
+                className={`w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono ${
+                  isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               />
               <p className="text-xs text-zinc-500 mt-1">
                 Type Tailwind classes separated by spaces
@@ -178,26 +216,20 @@ export default function RightSidebar({
                   <div className="flex flex-wrap gap-2">
                     <button 
                       onClick={() => addClasses('flex')}
-                      className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-xs border border-zinc-700 text-zinc-300"
+                      disabled={isLockedByOther}
+                      className={`px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-xs border border-zinc-700 text-zinc-300 ${
+                        isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                     >
                       Flex
                     </button>
-                    <button 
-                      onClick={() => addClasses('grid')}
-                      className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-xs border border-zinc-700 text-zinc-300"
-                    >
+                    <button {...getButtonProps(() => addClasses('grid'))}>
                       Grid
                     </button>
-                    <button 
-                      onClick={() => addClasses('flex flex-col')}
-                      className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-xs border border-zinc-700 text-zinc-300"
-                    >
+                    <button {...getButtonProps(() => addClasses('flex flex-col'))}>
                       Column
                     </button>
-                    <button 
-                      onClick={() => addClasses('flex items-center justify-center')}
-                      className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-xs border border-zinc-700 text-zinc-300"
-                    >
+                    <button {...getButtonProps(() => addClasses('flex items-center justify-center'))}>
                       Center
                     </button>
                   </div>
@@ -349,12 +381,15 @@ export default function RightSidebar({
                   value={selectedLayer.content || ''}
                   onChange={(e) => {
                     if (selectedLayerId) {
-                      onLayerUpdate(selectedLayerId, { content: e.target.value });
+                      handleLayerUpdate(selectedLayerId, { content: e.target.value });
                     }
                   }}
                   placeholder="Enter text..."
                   rows={6}
-                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isLockedByOther}
+                  className={`w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 />
                 <p className="text-xs text-zinc-500 mt-1">
                   Or double-click the layer in the canvas to edit inline
@@ -370,11 +405,14 @@ export default function RightSidebar({
                   value={selectedLayer.src || ''}
                   onChange={(e) => {
                     if (selectedLayerId) {
-                      onLayerUpdate(selectedLayerId, { src: e.target.value });
+                      handleLayerUpdate(selectedLayerId, { src: e.target.value });
                     }
                   }}
                   placeholder="https://example.com/image.jpg"
-                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isLockedByOther}
+                  className={`w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white text-sm placeholder-zinc-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 />
                 <p className="text-xs text-zinc-500 mt-2">
                   Or use the Assets tab to upload an image

@@ -15,6 +15,12 @@ import LeftSidebar from './components/LeftSidebar';
 import CenterCanvas from './components/CenterCanvas';
 import RightSidebar from './components/RightSidebar';
 import UpdateNotification from '../../components/UpdateNotification';
+import { RealtimeCursors } from '../../components/realtime-cursors';
+import ActiveUsersPanel from '../../components/collaboration/ActiveUsersPanel';
+import ActivityNotifications from '../../components/collaboration/ActivityNotifications';
+import { useLayerLocks } from '../../hooks/use-layer-locks';
+import { useLiveLayerUpdates } from '../../hooks/use-live-layer-updates';
+import { useCollaborationPresenceStore, startLockExpirationCheck, startNotificationCleanup } from '../../stores/useCollaborationPresenceStore';
 import type { Layer } from '../../types';
 
 export default function YCodeBuilder() {
@@ -23,6 +29,74 @@ export default function YCodeBuilder() {
   const { selectedLayerId, setSelectedLayerId, currentPageId, setCurrentPageId, undo, redo, canUndo, canRedo, pushHistory } = useEditorStore();
   const { updateLayer, draftsByPageId, deleteLayer, saveDraft, loadPages, loadDraft, initDraft } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
+  
+  // Get user display name for cursor
+  const userDisplayName = user?.email?.split('@')[0] || 'User';
+  
+  // Initialize collaboration features
+  const layerLocks = useLayerLocks();
+  const liveLayerUpdates = useLiveLayerUpdates(currentPageId);
+  const { currentUserId } = useCollaborationPresenceStore();
+  
+  // Layer selection handler with lock checking
+  const handleLayerSelect = useCallback(async (layerId: string) => {
+    if (!currentUserId) {
+      console.warn('No current user ID, cannot select layer');
+      return;
+    }
+    
+    console.log(`[DEBUG] Attempting to select layer ${layerId}`);
+    console.log(`[DEBUG] Current user ID: ${currentUserId}`);
+    console.log(`[DEBUG] Current selected layer: ${selectedLayerId}`);
+    
+    try {
+      // Release lock on previously selected layer if different
+      if (selectedLayerId && selectedLayerId !== layerId) {
+        console.log(`[DEBUG] Releasing lock on previous layer ${selectedLayerId}`);
+        await layerLocks.releaseLock(selectedLayerId);
+      }
+      
+      // Check if layer is locked by another user
+      const isLocked = layerLocks.isLayerLocked(layerId);
+      const canEdit = layerLocks.canEditLayer(layerId);
+      
+      console.log(`[DEBUG] Layer ${layerId} - isLocked: ${isLocked}, canEdit: ${canEdit}`);
+      
+      if (isLocked && !canEdit) {
+        console.warn(`[DEBUG] Layer ${layerId} is locked by another user - blocking selection`);
+        return;
+      }
+      
+      // Try to acquire lock and select layer
+      console.log(`[DEBUG] Attempting to acquire lock for layer ${layerId}`);
+      const lockAcquired = await layerLocks.acquireLock(layerId);
+      console.log(`[DEBUG] Lock acquired for layer ${layerId}: ${lockAcquired}`);
+      
+      if (lockAcquired) {
+        console.log(`[DEBUG] Setting selected layer to ${layerId}`);
+        setSelectedLayerId(layerId);
+      } else {
+        console.warn(`[DEBUG] Failed to acquire lock for layer ${layerId}`);
+      }
+    } catch (error) {
+      console.error(`[DEBUG] Error in handleLayerSelect:`, error);
+    }
+  }, [currentUserId, selectedLayerId, layerLocks, setSelectedLayerId]);
+
+  // Layer deselection handler with lock release
+  const handleLayerDeselect = useCallback(async () => {
+    if (!currentUserId || !selectedLayerId) return;
+    
+    console.log(`Deselecting layer ${selectedLayerId} and releasing lock`);
+    
+    // Optimistically update UI immediately
+    setSelectedLayerId(null);
+    
+    // Then release the lock (will broadcast to others)
+    await layerLocks.releaseLock(selectedLayerId);
+    console.log(`Lock released for layer ${selectedLayerId}`);
+  }, [currentUserId, selectedLayerId, layerLocks, setSelectedLayerId]);
+  
   const [copiedLayer, setCopiedLayer] = useState<Layer | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -63,6 +137,17 @@ export default function YCodeBuilder() {
   useEffect(() => {
     loadPages();
   }, [loadPages]);
+  
+  // Initialize collaboration services
+  useEffect(() => {
+    startLockExpirationCheck();
+    startNotificationCleanup();
+    
+    return () => {
+      // Cleanup will be handled by the store
+    };
+  }, []);
+
 
   // Set current page to "Home" page by default, or first page if Home doesn't exist
   useEffect(() => {
@@ -458,7 +543,7 @@ export default function YCodeBuilder() {
 
   // Authenticated - show builder
   return (
-    <div className="h-screen flex flex-col bg-zinc-950 text-white">
+    <div className="h-screen flex flex-col bg-zinc-950 text-white relative">
       {/* Update Notification Banner */}
       <UpdateNotification />
       
@@ -729,11 +814,11 @@ export default function YCodeBuilder() {
       </header>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Left Sidebar - Pages & Layers */}
         <LeftSidebar
           selectedLayerId={selectedLayerId}
-          onLayerSelect={setSelectedLayerId}
+          onLayerSelect={handleLayerSelect}
           currentPageId={currentPageId}
           onPageSelect={setCurrentPageId}
         />
@@ -744,6 +829,8 @@ export default function YCodeBuilder() {
           currentPageId={currentPageId}
           viewportMode={viewportMode}
           zoom={zoom}
+          onLayerSelect={handleLayerSelect}
+          onLayerDeselect={handleLayerDeselect}
         />
 
         {/* Right Sidebar - Properties */}
@@ -755,7 +842,35 @@ export default function YCodeBuilder() {
             }
           }}
         />
+
+        {/* Realtime Cursors for Collaboration */}
+        {user && currentPageId && (
+          <RealtimeCursors 
+            roomName={`page-${currentPageId}`} 
+            username={userDisplayName} 
+          />
+        )}
       </div>
+
+      {/* Collaboration Components */}
+      {user && currentPageId && (
+        <>
+          {/* Active Users Panel */}
+          <ActiveUsersPanel 
+            position="top-right"
+            showUserCount={true}
+            maxUsers={10}
+          />
+          
+          {/* Activity Notifications */}
+          <ActivityNotifications 
+            position="bottom-right"
+            maxNotifications={5}
+            autoHide={true}
+            hideDelay={5000}
+          />
+        </>
+      )}
 
       {/* Update Notification */}
       <UpdateNotification />

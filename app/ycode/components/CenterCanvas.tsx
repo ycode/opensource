@@ -19,6 +19,8 @@ interface CenterCanvasProps {
   currentPageId: string | null;
   viewportMode: ViewportMode;
   zoom: number;
+  onLayerSelect?: (layerId: string) => void;
+  onLayerDeselect?: () => void;
 }
 
 const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: string }> = {
@@ -32,6 +34,8 @@ export default function CenterCanvas({
   currentPageId,
   viewportMode,
   zoom,
+  onLayerSelect,
+  onLayerDeselect,
 }: CenterCanvasProps) {
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
   const { draftsByPageId, addLayer, updateLayer } = usePagesStore();
@@ -66,17 +70,33 @@ export default function CenterCanvas({
         >
           {/* Preview Content */}
           {layers.length > 0 ? (
-            <div className="w-full h-full relative">
+            <div 
+              className="w-full h-full relative"
+              onClick={(e) => {
+                // Only deselect if clicking on the background (not on a layer)
+                if (e.target === e.currentTarget && onLayerDeselect) {
+                  onLayerDeselect();
+                }
+              }}
+            >
               <LayerRenderer 
                 layers={layers} 
-                onLayerClick={setSelectedLayerId}
+                onLayerClick={onLayerSelect || setSelectedLayerId}
                 onLayerUpdate={handleLayerUpdate}
                 selectedLayerId={selectedLayerId}
                 isEditMode={true}
               />
             </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center p-12">
+            <div 
+              className="w-full h-full flex items-center justify-center p-12"
+              onClick={(e) => {
+                // Only deselect if clicking on the background
+                if (e.target === e.currentTarget && onLayerDeselect) {
+                  onLayerDeselect();
+                }
+              }}
+            >
               <div className="text-center max-w-md relative">
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
                   <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
