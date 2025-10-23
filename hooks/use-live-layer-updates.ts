@@ -113,15 +113,18 @@ export function useLiveLayerUpdates(
     // Update last update time
     lastUpdateTime.current = Date.now();
     
-    // Show notification
-    addNotification({
-      type: 'layer_edit_started',
-      user_id: update.user_id,
-      user_name: 'User', // Would get from user store
-      layer_id: update.layer_id,
-      timestamp: Date.now(),
-      message: `User updated layer ${update.layer_id}`
-    });
+    // Only show notification for text content changes, not class changes
+    const isTextContentChange = 'content' in update.changes;
+    if (isTextContentChange) {
+      addNotification({
+        type: 'layer_edit_started',
+        user_id: update.user_id,
+        user_name: 'User', // Would get from user store
+        layer_id: update.layer_id,
+        timestamp: Date.now(),
+        message: `User is editing text in layer ${update.layer_id}`
+      });
+    }
   }, [currentUserId, addNotification]);
   
   const handleUserActivity = useCallback((activity: any) => {
@@ -204,10 +207,13 @@ export function useLiveLayerUpdates(
     // Broadcast the update
     debouncedBroadcast.current(layerId, changes);
     
+    // Only set is_editing for text content changes, not class changes
+    const isTextContentChange = 'content' in changes;
+    
     // Update user activity
     updateUser(currentUserId, {
       last_active: Date.now(),
-      is_editing: true
+      is_editing: isTextContentChange
     });
     
     // Broadcast activity
@@ -217,7 +223,7 @@ export function useLiveLayerUpdates(
         event: 'user_activity',
         payload: {
           user_id: currentUserId,
-          is_editing: true,
+          is_editing: isTextContentChange,
           timestamp: Date.now()
         }
       });
