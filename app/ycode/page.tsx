@@ -563,6 +563,8 @@ export default function YCodeBuilder() {
           onLayerUpdate={(layerId, updates) => {
             if (currentPageId) {
               updateLayer(currentPageId, layerId, updates);
+              // Broadcast the update to other users
+              liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
             }
           }}
         />

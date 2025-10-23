@@ -49,7 +49,8 @@ export function useLiveLayerUpdates(
       };
       
       channelRef.current.send({
-        type: 'layer_update',
+        type: 'broadcast',
+        event: 'layer_update',
         payload: update
       });
     }, 200) // 200ms debounce
@@ -183,9 +184,12 @@ export function useLiveLayerUpdates(
     
     const updatedLayers = updateLayerInTree(currentDraft.layers);
     
-    // Update the draft - this should be done differently
-    // For now, we'll just log that we received an update
-    console.log('Received layer update:', update);
+    // Apply the update to the store (without broadcasting back)
+    if (pageId) {
+      updateLayer(pageId, update.layer_id, update.changes);
+    }
+    
+    console.log('Applied layer update:', update);
     
     // Process next update
     setTimeout(processUpdateQueue, 50); // Small delay to prevent overwhelming
@@ -194,10 +198,8 @@ export function useLiveLayerUpdates(
   const broadcastLayerUpdate = useCallback((layerId: string, changes: Partial<Layer>) => {
     if (!channelRef.current || !currentUserId) return;
     
-    // Update local state first
-    if (pageId) {
-      updateLayer(pageId, layerId, changes);
-    }
+    // Don't update local state - that's already done by the caller
+    // Just broadcast the update to others
     
     // Broadcast the update
     debouncedBroadcast.current(layerId, changes);
@@ -211,7 +213,8 @@ export function useLiveLayerUpdates(
     // Broadcast activity
     if (channelRef.current) {
       channelRef.current.send({
-        type: 'user_activity',
+        type: 'broadcast',
+        event: 'user_activity',
         payload: {
           user_id: currentUserId,
           is_editing: true,
@@ -219,7 +222,7 @@ export function useLiveLayerUpdates(
         }
       });
     }
-  }, [pageId, currentUserId, updateLayer, updateUser]);
+  }, [currentUserId, updateUser]);
   
   // Cleanup on unmount
   useEffect(() => {
