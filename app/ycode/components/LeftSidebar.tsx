@@ -282,6 +282,9 @@ export default function LeftSidebar({
   
   // Lock-aware layer selection handler
   const handleLayerSelect = useCallback((layerId: string) => {
+    console.log(`[DEBUG] LeftSidebar handleLayerSelect called for layer: ${layerId}`);
+    console.log(`[DEBUG] Current selectedLayerId: ${selectedLayerId}`);
+    
     // Check if layer is locked by another user
     const isLocked = layerLocks.isLayerLocked(layerId);
     const canEdit = layerLocks.canEditLayer(layerId);
@@ -292,8 +295,9 @@ export default function LeftSidebar({
     }
     
     // Call the original onLayerSelect if not locked
+    console.log(`[DEBUG] Calling onLayerSelect for layer: ${layerId}`);
     onLayerSelect(layerId);
-  }, [onLayerSelect, layerLocks]);
+  }, [onLayerSelect, layerLocks, selectedLayerId]);
   
   // Handler to create a new page
   const handleAddPage = async () => {
