@@ -39,7 +39,12 @@ export function useLiveLayerUpdates(
   // Debounced broadcast function
   const debouncedBroadcast = useRef(
     debounce((layerId: string, changes: Partial<Layer>) => {
-      if (!channelRef.current || !currentUserId) return;
+      console.log(`[LIVE-UPDATES] debouncedBroadcast executing for layer ${layerId}`);
+      
+      if (!channelRef.current || !currentUserId) {
+        console.warn(`[LIVE-UPDATES] debouncedBroadcast: channel or user missing`);
+        return;
+      }
       
       const update: LayerUpdate = {
         layer_id: layerId,
@@ -48,11 +53,15 @@ export function useLiveLayerUpdates(
         timestamp: Date.now()
       };
       
+      console.log(`[LIVE-UPDATES] Sending broadcast with update:`, update);
+      
       channelRef.current.send({
         type: 'broadcast',
         event: 'layer_update',
         payload: update
       });
+      
+      console.log(`[LIVE-UPDATES] Broadcast sent successfully`);
     }, 200) // 200ms debounce
   );
   
@@ -65,8 +74,11 @@ export function useLiveLayerUpdates(
         const supabase = await createClient();
         const channel = supabase.channel(`page:${pageId}:updates`);
         
+        console.log(`[LIVE-UPDATES] Initializing channel for page: ${pageId}`);
+        
         // Listen for layer updates
         channel.on('broadcast', { event: 'layer_update' }, (payload) => {
+          console.log(`[LIVE-UPDATES] Received layer_update broadcast:`, payload);
           handleIncomingUpdate(payload.payload);
         });
         
@@ -80,11 +92,17 @@ export function useLiveLayerUpdates(
           handleLockChange(payload.payload);
         });
         
-        await channel.subscribe();
-        channelRef.current = channel;
-        isReceivingUpdates.current = true;
+        await channel.subscribe((status) => {
+          console.log(`[LIVE-UPDATES] Channel subscription status: ${status}`);
+          if (status === 'SUBSCRIBED') {
+            console.log(`[LIVE-UPDATES] Successfully subscribed to page:${pageId}:updates`);
+            isReceivingUpdates.current = true;
+          }
+        });
         
-        console.log(`Subscribed to live updates for page ${pageId}`);
+        channelRef.current = channel;
+        
+        console.log(`[LIVE-UPDATES] Channel reference set for page ${pageId}`);
       } catch (error) {
         console.error('Failed to initialize live updates:', error);
       }
@@ -102,8 +120,15 @@ export function useLiveLayerUpdates(
   }, [pageId, user]);
   
   const handleIncomingUpdate = useCallback((update: LayerUpdate) => {
-    if (!currentUserId || update.user_id === currentUserId) return;
+    console.log(`[LIVE-UPDATES] handleIncomingUpdate called:`, update);
+    console.log(`[LIVE-UPDATES] Current user ID: ${currentUserId}, Update user ID: ${update.user_id}`);
     
+    if (!currentUserId || update.user_id === currentUserId) {
+      console.log(`[LIVE-UPDATES] Ignoring update from self`);
+      return;
+    }
+    
+    console.log(`[LIVE-UPDATES] Adding update to queue`);
     // Add to update queue
     updateQueue.current.push(update);
     
@@ -163,47 +188,54 @@ export function useLiveLayerUpdates(
   }, [currentUserId, addNotification]);
   
   const processUpdateQueue = useCallback(() => {
-    if (updateQueue.current.length === 0) return;
+    if (updateQueue.current.length === 0) {
+      console.log(`[LIVE-UPDATES] processUpdateQueue: queue is empty`);
+      return;
+    }
     
     const update = updateQueue.current.shift();
     if (!update) return;
     
-    // Apply the update to local state
-    const currentDraft = draftsByPageId[pageId || ''];
-    if (!currentDraft) return;
+    console.log(`[LIVE-UPDATES] processUpdateQueue: processing update for layer ${update.layer_id}`, update.changes);
     
-    // Find and update the layer
-    const updateLayerInTree = (layers: Layer[]): Layer[] => {
-      return layers.map(layer => {
-        if (layer.id === update.layer_id) {
-          return { ...layer, ...update.changes };
-        }
-        if (layer.children) {
-          return { ...layer, children: updateLayerInTree(layer.children) };
-        }
-        return layer;
-      });
-    };
+    // Get fresh state from store
+    const { draftsByPageId: freshDrafts, updateLayer: freshUpdateLayer } = usePagesStore.getState();
+    const currentDraft = freshDrafts[pageId || ''];
     
-    const updatedLayers = updateLayerInTree(currentDraft.layers);
+    if (!currentDraft) {
+      console.warn(`[LIVE-UPDATES] No draft found for page ${pageId}`);
+      return;
+    }
+    
+    console.log(`[LIVE-UPDATES] Current draft has ${currentDraft.layers.length} layers`);
     
     // Apply the update to the store (without broadcasting back)
     if (pageId) {
-      updateLayer(pageId, update.layer_id, update.changes);
+      console.log(`[LIVE-UPDATES] Calling updateLayer for page ${pageId}, layer ${update.layer_id}`);
+      freshUpdateLayer(pageId, update.layer_id, update.changes);
+      console.log(`[LIVE-UPDATES] Update applied successfully`);
     }
     
-    console.log('Applied layer update:', update);
-    
     // Process next update
-    setTimeout(processUpdateQueue, 50); // Small delay to prevent overwhelming
-  }, [pageId, draftsByPageId, updateLayer]);
+    if (updateQueue.current.length > 0) {
+      console.log(`[LIVE-UPDATES] Processing next update in queue (${updateQueue.current.length} remaining)`);
+      setTimeout(processUpdateQueue, 50); // Small delay to prevent overwhelming
+    }
+  }, [pageId]);
   
   const broadcastLayerUpdate = useCallback((layerId: string, changes: Partial<Layer>) => {
-    if (!channelRef.current || !currentUserId) return;
+    console.log(`[LIVE-UPDATES] broadcastLayerUpdate called for layer ${layerId}`, changes);
+    console.log(`[LIVE-UPDATES] Channel exists: ${!!channelRef.current}, User ID: ${currentUserId}`);
+    
+    if (!channelRef.current || !currentUserId) {
+      console.warn(`[LIVE-UPDATES] Cannot broadcast - channel or user ID missing`);
+      return;
+    }
     
     // Don't update local state - that's already done by the caller
     // Just broadcast the update to others
     
+    console.log(`[LIVE-UPDATES] Broadcasting update via debounced function`);
     // Broadcast the update
     debouncedBroadcast.current(layerId, changes);
     
