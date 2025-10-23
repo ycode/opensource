@@ -34,8 +34,9 @@ interface UseLiveLayerUpdatesReturn {
 export function useLiveLayerUpdates(
   pageId: string | null
 ): UseLiveLayerUpdatesReturn {
+  console.log(`[LIVE-UPDATES] useLiveLayerUpdates called with pageId: ${pageId}`);
+  
   const { user } = useAuthStore();
-  const { currentPageId } = useEditorStore();
   const { updateLayer, draftsByPageId } = usePagesStore();
   const { 
     addNotification, 
@@ -85,6 +86,7 @@ export function useLiveLayerUpdates(
   
   // Initialize Supabase channel
   useEffect(() => {
+    console.log(`[LIVE-UPDATES] useEffect triggered - pageId: ${pageId}, user: ${!!user}`);
     if (!pageId || !user) return;
     
     const initializeChannel = async () => {
@@ -243,6 +245,11 @@ export function useLiveLayerUpdates(
     // Get fresh state from store
     const { draftsByPageId: freshDrafts, updateLayer: freshUpdateLayer } = usePagesStore.getState();
     const currentDraft = freshDrafts[pageId || ''];
+    
+    if (!pageId) {
+      console.warn(`[LIVE-UPDATES] No pageId provided to processUpdateQueue`);
+      return;
+    }
     
     if (!currentDraft) {
       console.warn(`[LIVE-UPDATES] No draft found for page ${pageId}`);
