@@ -3,6 +3,9 @@
 import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import LayerLockIndicator from '../collaboration/LayerLockIndicator';
+import EditingIndicator from '../collaboration/EditingIndicator';
+import { useLayerLocks } from '../../hooks/use-layer-locks';
 import type { Layer } from '../../types';
 
 interface LayerRendererProps {
@@ -85,6 +88,11 @@ const LayerItem: React.FC<{
   const isEditing = editingLayerId === layer.id;
   const isTextEditable = layer.type === 'text' || layer.type === 'heading';
   const isDragging = activeLayerId === layer.id;
+  
+  // Get layer lock status
+  const { isLayerLocked, canEditLayer } = useLayerLocks();
+  const isLocked = isLayerLocked(layer.id);
+  const canEdit = canEditLayer(layer.id);
 
   // Use sortable for drag and drop
   const {
@@ -127,38 +135,68 @@ const LayerItem: React.FC<{
 
   return (
     <div
-      ref={setNodeRef}
-      key={layer.id}
-      className={`${layer.classes} ${
-        isEditMode 
-          ? `relative transition-all duration-100 ${!isEditing && !isDragging ? 'cursor-pointer hover:outline hover:outline-1 hover:outline-blue-400/30 hover:outline-offset-0' : ''} ${enableDragDrop && !isEditing ? 'cursor-grab active:cursor-grabbing' : ''}` 
-          : ''
-      } ${
-        isSelected 
-          ? 'outline outline-2 outline-blue-500 outline-offset-1' 
-          : ''
-      } ${
-        isDragging ? 'opacity-30 outline-none' : ''
-      } ${
-        showProjection ? 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10' : ''
-      }`}
-      style={style}
-      {...(enableDragDrop && !isEditing ? { ...attributes, ...listeners } : {})}
-      onClick={(e) => {
-        if (isEditMode && !isEditing) {
-          e.stopPropagation();
-          onLayerClick?.(layer.id);
-        }
-      }}
-      onDoubleClick={(e) => {
-        if (isEditMode) {
-          e.stopPropagation();
-          startEditing();
-        }
-      }}
-      data-layer-id={layer.id}
-      data-layer-type={layer.type}
-    >
+        ref={setNodeRef}
+        key={layer.id}
+        className={`${layer.classes} ${
+          isEditMode 
+            ? `relative transition-all duration-100 ${
+                !isEditing && !isDragging && !isLocked 
+                  ? 'cursor-pointer hover:outline hover:outline-1 hover:outline-blue-400/30' 
+                  : ''
+              } ${enableDragDrop && !isEditing && !isLocked ? 'cursor-grab active:cursor-grabbing' : ''}` 
+            : ''
+        } ${
+          isSelected && !isLocked
+            ? 'outline outline-2 outline-blue-500 outline-offset-1' 
+            : ''
+        } ${
+          isDragging ? 'opacity-30 outline-none' : ''
+        } ${
+          showProjection ? 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10' : ''
+        } ${
+          isLocked && !canEdit 
+            ? 'opacity-50 grayscale-[50%] pointer-events-none select-none filter brightness-90' 
+            : ''
+        }`}
+        style={style}
+        {...(enableDragDrop && !isEditing ? { ...attributes, ...listeners } : {})}
+        onClick={(e) => {
+          if (isLocked && !canEdit) {
+            e.stopPropagation();
+            e.preventDefault();
+            console.warn(`Layer ${layer.id} is locked by another user`);
+            return;
+          }
+          if (isEditMode && !isEditing && canEdit) {
+            e.stopPropagation();
+            onLayerClick?.(layer.id);
+          }
+        }}
+        onDoubleClick={(e) => {
+          if (isEditMode && canEdit) {
+            e.stopPropagation();
+            startEditing();
+          }
+        }}
+        data-layer-id={layer.id}
+        data-layer-type={layer.type}
+      >
+        {/* Layer Lock Indicator */}
+        {isLocked && !canEdit && (
+          <LayerLockIndicator 
+            layerId={layer.id}
+            layerName={layer.type}
+            className="absolute inset-0 z-10"
+          />
+        )}
+        
+        {/* Editing Indicator for text layers */}
+        {isTextEditable && (
+          <EditingIndicator 
+            layerId={layer.id}
+            className="absolute top-1 left-1 z-20"
+          />
+        )}
             {/* Selection Badge */}
             {isEditMode && isSelected && !isEditing && (
               <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none">
@@ -229,20 +267,20 @@ const LayerItem: React.FC<{
               )
             )}
 
-      {/* Recursively Render Children */}
-      {hasChildren && (
-        <LayerRenderer 
-          layers={layer.children!} 
-          onLayerClick={onLayerClick}
-          onLayerUpdate={onLayerUpdate}
-          selectedLayerId={selectedLayerId}
-          isEditMode={isEditMode}
-          enableDragDrop={enableDragDrop}
-          activeLayerId={activeLayerId}
-          projected={projected}
-        />
-      )}
-    </div>
+        {/* Recursively Render Children */}
+        {hasChildren && (
+          <LayerRenderer 
+            layers={layer.children!} 
+            onLayerClick={onLayerClick}
+            onLayerUpdate={onLayerUpdate}
+            selectedLayerId={selectedLayerId}
+            isEditMode={isEditMode}
+            enableDragDrop={enableDragDrop}
+            activeLayerId={activeLayerId}
+            projected={projected}
+          />
+        )}
+      </div>
   );
 };
 

@@ -126,3 +126,51 @@ export interface AuthState {
   initialized: boolean;
   error: string | null;
 }
+
+// Collaboration Types
+export interface CollaborationUser {
+  user_id: string;
+  email: string;
+  display_name: string;
+  color: string;
+  cursor: { x: number; y: number } | null;
+  selected_layer_id: string | null;
+  locked_layer_id: string | null;
+  is_editing: boolean; // Typing/editing indicator
+  last_active: number;
+  page_id: string;
+}
+
+export interface LayerLock {
+  layer_id: string;
+  user_id: string;
+  acquired_at: number;
+  expires_at: number;
+}
+
+export interface LayerUpdate {
+  layer_id: string;
+  user_id: string;
+  changes: Partial<Layer>;
+  timestamp: number;
+}
+
+export interface CollaborationState {
+  users: Record<string, CollaborationUser>;
+  locks: Record<string, LayerLock>;
+  isConnected: boolean;
+  currentUserId: string | null;
+  currentUserColor: string;
+}
+
+export interface ActivityNotification {
+  id: string;
+  type: 'user_joined' | 'user_left' | 'layer_edit_started' | 'layer_edit_ended' | 'page_published' | 'user_idle';
+  user_id: string;
+  user_name: string;
+  layer_id?: string;
+  layer_name?: string;
+  timestamp: number;
+  message: string;
+}
+

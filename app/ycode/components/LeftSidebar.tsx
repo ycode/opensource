@@ -16,6 +16,9 @@ import { TreeItemDragAndDropOverlay } from '@mui/x-tree-view/TreeItemDragAndDrop
 import { animated, useSpring } from '@react-spring/web';
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
+import { useCollaborationPresenceStore } from '../../../stores/useCollaborationPresenceStore';
+import { useLayerLocks } from '../../../hooks/use-layer-locks';
+import { getUserInitials, getDisplayName } from '../../../lib/collaboration-utils';
 import type { Layer, Page } from '../../../types';
 import AssetLibrary from '../../../components/AssetLibrary';
 import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
@@ -79,11 +82,12 @@ interface CustomTreeItemProps {
   children?: React.ReactNode;
   layersForCurrentPage: Layer[];
   selectedLayerId: string | null;
+  layerLocks: any; // Layer locks object from useLayerLocks hook
 }
 
 const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
   function CustomTreeItem(props, ref) {
-    const { itemId, label, disabled, children, layersForCurrentPage, selectedLayerId } = props;
+    const { itemId, label, disabled, children, layersForCurrentPage, selectedLayerId, layerLocks } = props;
 
     const {
       getRootProps,
@@ -101,6 +105,14 @@ const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
     const isSelected = selectedLayerId === itemId;
     const isExpanded = status.expanded;
     const hasChildren = Boolean(children);
+    
+    // Get collaboration data
+    const { getUsersByLayer } = useCollaborationPresenceStore();
+    const usersOnLayer = getUsersByLayer(itemId);
+    
+    // Get layer lock status from parent component
+    const isLocked = layerLocks.isLayerLocked(itemId);
+    const canEdit = layerLocks.canEditLayer(itemId);
 
     const contentProps = getContentProps();
 
@@ -122,7 +134,7 @@ const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              cursor: 'grab',
+              cursor: isLocked && !canEdit ? 'not-allowed' : 'grab',
               borderRadius: '6px',
               marginBottom: '2px',
               transition: 'all 150ms cubic-bezier(0.25, 0.1, 0.25, 1)',
@@ -131,10 +143,12 @@ const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
                 : status.focused
                   ? 'rgba(63, 63, 70, 0.4)'
                   : 'transparent',
-              color: isSelected ? '#ffffff' : '#d4d4d8',
+              color: isSelected ? '#ffffff' : isLocked && !canEdit ? '#6b7280' : '#d4d4d8',
               position: 'relative',
+              opacity: isLocked && !canEdit ? 0.5 : 1,
+              pointerEvents: isLocked && !canEdit ? 'none' : 'auto',
             }}
-            className="hover:bg-zinc-700/40"
+            className={isLocked && !canEdit ? "" : "hover:bg-zinc-700/40"}
             onMouseDown={(e) => {
               // Change cursor to grabbing on mouse down
               e.currentTarget.style.cursor = 'grabbing';
@@ -201,6 +215,27 @@ const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
               {label}
             </span>
 
+            {/* User Avatars for Collaboration */}
+            {usersOnLayer.length > 0 && (
+              <div className="flex -space-x-1">
+                {usersOnLayer.slice(0, 3).map((user) => (
+                  <div
+                    key={user.user_id}
+                    className="w-5 h-5 rounded-full border-2 border-zinc-800 flex items-center justify-center text-xs font-medium text-white shadow-sm"
+                    style={{ backgroundColor: user.color }}
+                    title={`${getDisplayName(user.email || '')} is editing this layer`}
+                  >
+                    {getUserInitials(user.email || '', user.display_name)}
+                  </div>
+                ))}
+                {usersOnLayer.length > 3 && (
+                  <div className="w-5 h-5 rounded-full bg-zinc-600 border-2 border-zinc-800 flex items-center justify-center text-xs font-medium text-white shadow-sm">
+                    +{usersOnLayer.length - 3}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Drag Overlay */}
             <TreeItemDragAndDropOverlay {...getDragAndDropOverlayProps()} />
           </div>
@@ -240,6 +275,22 @@ export default function LeftSidebar({
   const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, moveLayer } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
+  const layerLocks = useLayerLocks();
+  
+  // Lock-aware layer selection handler
+  const handleLayerSelect = useCallback((layerId: string) => {
+    // Check if layer is locked by another user
+    const isLocked = layerLocks.isLayerLocked(layerId);
+    const canEdit = layerLocks.canEditLayer(layerId);
+    
+    if (isLocked && !canEdit) {
+      console.warn(`Layer ${layerId} is locked by another user - cannot select`);
+      return;
+    }
+    
+    // Call the original onLayerSelect if not locked
+    onLayerSelect(layerId);
+  }, [onLayerSelect, layerLocks]);
   
   // Handler to create a new page
   const handleAddPage = async () => {
@@ -599,7 +650,7 @@ export default function LeftSidebar({
                     selectedItems={selectedLayerId || null}
                     onSelectedItemsChange={(event, itemId) => {
                       if (typeof itemId === 'string') {
-                        onLayerSelect(itemId);
+                        handleLayerSelect(itemId);
                       }
                     }}
                     expandedItems={expandedItems}
@@ -614,6 +665,7 @@ export default function LeftSidebar({
                           {...props}
                           layersForCurrentPage={layersForCurrentPage}
                           selectedLayerId={selectedLayerId}
+                          layerLocks={layerLocks}
                         />
                       ),
                     }}
