@@ -76,25 +76,44 @@ export default function RightSidebar({
     return classesInput.split(' ').filter(cls => cls.trim() !== '');
   }, [classesInput]);
 
+  const debouncedUpdate = useMemo(
+    () =>
+      debounce((layerId: string, classes: string) => {
+        handleLayerUpdate(layerId, { classes });
+      }, 500),
+    [handleLayerUpdate]
+  );
+
   // Add a new class
   const addClass = useCallback((newClass: string) => {
     if (!newClass.trim()) return;
     
     const trimmedClass = newClass.trim();
-    if (classesArray.includes(trimmedClass)) return; // Don't add duplicates
     
-    const newClasses = [...classesArray, trimmedClass].join(' ');
-    setClassesInput(newClasses);
-    handleClassesChange(newClasses);
+    setClassesInput(prev => {
+      const currentArray = prev.split(' ').filter(cls => cls.trim() !== '');
+      if (currentArray.includes(trimmedClass)) return prev; // Don't add duplicates
+      
+      const newClasses = [...currentArray, trimmedClass].join(' ');
+      if (selectedLayerId) {
+        debouncedUpdate(selectedLayerId, newClasses);
+      }
+      return newClasses;
+    });
     setCurrentClassInput('');
-  }, [classesArray]);
+  }, [selectedLayerId, debouncedUpdate]);
 
   // Remove a class
   const removeClass = useCallback((classToRemove: string) => {
-    const newClasses = classesArray.filter(cls => cls !== classToRemove).join(' ');
-    setClassesInput(newClasses);
-    handleClassesChange(newClasses);
-  }, [classesArray]);
+    setClassesInput(prev => {
+      const currentArray = prev.split(' ').filter(cls => cls.trim() !== '');
+      const newClasses = currentArray.filter(cls => cls !== classToRemove).join(' ');
+      if (selectedLayerId) {
+        debouncedUpdate(selectedLayerId, newClasses);
+      }
+      return newClasses;
+    });
+  }, [selectedLayerId, debouncedUpdate]);
 
   // Handle Enter key press
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
@@ -104,28 +123,21 @@ export default function RightSidebar({
     }
   }, [currentClassInput, addClass]);
 
-  const debouncedUpdate = useMemo(
-    () =>
-      debounce((layerId: string, classes: string) => {
-        handleLayerUpdate(layerId, { classes });
-      }, 500),
-    [handleLayerUpdate]
-  );
-
-  const handleClassesChange = (value: string) => {
+  const handleClassesChange = useCallback((value: string) => {
     setClassesInput(value);
     if (selectedLayerId) {
       debouncedUpdate(selectedLayerId, value);
     }
-  };
+  }, [selectedLayerId, debouncedUpdate]);
 
-  const addClasses = (newClasses: string) => {
+  const addClasses = useCallback((newClasses: string) => {
     if (!selectedLayerId) return;
-    const currentClasses = classesInput;
-    const updated = currentClasses + ' ' + newClasses;
-    setClassesInput(updated.trim());
-    handleLayerUpdate(selectedLayerId, { classes: updated.trim() });
-  };
+    setClassesInput(prev => {
+      const updated = (prev + ' ' + newClasses).trim();
+      handleLayerUpdate(selectedLayerId, { classes: updated });
+      return updated;
+    });
+  }, [selectedLayerId, handleLayerUpdate]);
 
   // Helper function for button props when layer is locked
   const getButtonProps = (onClick: () => void) => ({
