@@ -112,14 +112,14 @@ export default function RightSidebar({
 
   if (! selectedLayerId || ! selectedLayer) {
     return (
-      <div className="w-72 bg-neutral-950 border-l border-white/10 flex items-center justify-center">
+      <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex items-center justify-center">
         <span className="text-xs text-white/50">Select layer</span>
       </div>
     );
   }
 
   return (
-    <div className="w-72 bg-neutral-950 border-l border-white/10 flex flex-col p-5">
+    <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col p-5">
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')} className="flex flex-col flex-1">
         <TabsList className="w-full">
