@@ -7,18 +7,17 @@
  */
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { useEditorStore } from '../../stores/useEditorStore';
 import { usePagesStore } from '../../stores/usePagesStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import LeftSidebar from './components/LeftSidebar';
 import CenterCanvas from './components/CenterCanvas';
 import RightSidebar from './components/RightSidebar';
+import HeaderBar from './components/HeaderBar';
 import UpdateNotification from '../../components/UpdateNotification';
 import type { Layer } from '../../types';
 
 export default function YCodeBuilder() {
-  const router = useRouter();
   const { signOut, user } = useAuthStore();
   const { selectedLayerId, setSelectedLayerId, currentPageId, setCurrentPageId, undo, redo, canUndo, canRedo, pushHistory } = useEditorStore();
   const { updateLayer, draftsByPageId, deleteLayer, saveDraft, loadPages, loadDraft, initDraft } = usePagesStore();
@@ -28,15 +27,12 @@ export default function YCodeBuilder() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPageDropdown, setShowPageDropdown] = useState(false);
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [zoom, setZoom] = useState(100);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersRef = useRef<string>('');
   const previousPageIdRef = useRef<string | null>(null);
-  const pageDropdownRef = useRef<HTMLDivElement>(null);
-  const userDropdownRef = useRef<HTMLDivElement>(null);
 
   // Login state (when not authenticated)
   const [loginEmail, setLoginEmail] = useState('');
@@ -293,34 +289,6 @@ export default function YCodeBuilder() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  // Close page dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (pageDropdownRef.current && !pageDropdownRef.current.contains(event.target as Node)) {
-        setShowPageDropdown(false);
-      }
-    };
-
-    if (showPageDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showPageDropdown]);
-
-  // Close user dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
-        setShowUserDropdown(false);
-      }
-    };
-
-    if (showUserDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showUserDropdown]);
-
   // Get current page
   const currentPage = useMemo(() => {
     if (!Array.isArray(pages)) return undefined;
@@ -463,270 +431,26 @@ export default function YCodeBuilder() {
       <UpdateNotification />
       
       {/* Top Header Bar */}
-      <header className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
-        {/* Left: Logo & Page Selector */}
-        <div className="flex items-center gap-4">
-            {/* User Menu */}
-            <div className="relative" ref={userDropdownRef}>
-                <button
-                    onClick={() => setShowUserDropdown(!showUserDropdown)}
-                    className="flex items-center gap-2 hover:bg-zinc-800 px-2 py-1 rounded transition-colors"
-                >
-                    <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-                        <span className="text-white font-bold text-sm">
-                          {user?.email?.charAt(0).toUpperCase() || 'U'}
-                        </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm text-zinc-300">{user?.email || 'User'}</span>
-                        <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                    </div>
-                </button>
-
-                {/* User Dropdown */}
-                {showUserDropdown && (
-                    <div className="absolute top-full right-0 mt-2 w-48 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50">
-                        <div className="p-2">
-                            <div className="px-3 py-2 text-xs text-zinc-500 border-b border-zinc-700">
-                                Signed in as
-                            </div>
-                            <div className="px-3 py-2 text-sm text-zinc-300 truncate border-b border-zinc-700">
-                                {user?.email}
-                            </div>
-
-                            <button
-                                onClick={async () => {
-                                    await signOut();
-                                    // No need to redirect - user state change will show login form
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-zinc-700 rounded transition-colors mt-1"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                                Sign Out
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-          
-          <div className="relative" ref={pageDropdownRef}>
-            <button
-              onClick={() => setShowPageDropdown(!showPageDropdown)}
-              className="flex items-center gap-2 bg-zinc-800 px-3 py-1.5 rounded border border-zinc-700 hover:bg-zinc-750 transition-colors"
-            >
-              <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
-              </svg>
-              <span className="text-sm font-medium text-white">
-                {currentPage?.title || 'Select Page'}
-              </span>
-              <svg className={`w-4 h-4 text-zinc-400 transition-transform ${showPageDropdown ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-
-            {/* Dropdown Menu */}
-            {showPageDropdown && (
-              <div className="absolute top-full left-0 mt-2 w-64 bg-zinc-800 border border-zinc-700 rounded shadow-xl z-50 max-h-80 overflow-y-auto">
-                <div className="p-2">
-                  <div className="text-xs font-semibold text-zinc-500 uppercase px-2 py-1 mb-1">
-                    Pages
-                  </div>
-                  {pages.length === 0 ? (
-                    <div className="px-2 py-3 text-sm text-zinc-500 text-center">
-                      No pages yet
-                    </div>
-                  ) : (
-                    pages.map((page) => (
-                      <button
-                        key={page.id}
-                        onClick={() => {
-                          setCurrentPageId(page.id);
-                          setShowPageDropdown(false);
-                        }}
-                        className={`w-full flex items-center gap-2 px-2 py-2 text-sm rounded transition-colors ${
-                          page.id === currentPageId
-                            ? 'bg-blue-600 text-white'
-                            : 'text-zinc-300 hover:bg-zinc-700'
-                        }`}
-                      >
-                        <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
-                        </svg>
-                        <span className="flex-1 text-left truncate">{page.title}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Center: Viewport Controls */}
-        <div className="flex items-center gap-3">
-          {/* Viewport Selector */}
-          <div className="flex items-center gap-1 bg-zinc-800 rounded p-1">
-            <button
-              onClick={() => setViewportMode('desktop')}
-              className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                viewportMode === 'desktop'
-                  ? 'bg-zinc-700 text-white'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Desktop View"
-            >
-              🖥️
-            </button>
-            <button
-              onClick={() => setViewportMode('tablet')}
-              className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                viewportMode === 'tablet'
-                  ? 'bg-zinc-700 text-white'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Tablet View"
-            >
-              📱
-            </button>
-            <button
-              onClick={() => setViewportMode('mobile')}
-              className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                viewportMode === 'mobile'
-                  ? 'bg-zinc-700 text-white'
-                  : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Mobile View"
-            >
-              📱
-            </button>
-          </div>
-
-          {/* Viewport Width */}
-          <span className="text-xs text-zinc-400">
-            {viewportMode === 'desktop' ? '1200px' : viewportMode === 'tablet' ? '768px' : '375px'}
-          </span>
-
-          {/* Zoom Controls */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-400">{zoom}%</span>
-            <div className="flex flex-col">
-              <button
-                onClick={() => setZoom(Math.min(zoom + 10, 200))}
-                className="w-3 h-3 flex items-center justify-center hover:bg-zinc-800 rounded text-zinc-400"
-              >
-                <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setZoom(Math.max(zoom - 10, 25))}
-                className="w-3 h-3 flex items-center justify-center hover:bg-zinc-800 rounded text-zinc-400"
-              >
-                <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: User & Actions */}
-        <div className="flex items-center gap-3">
-          {/* Save Status Indicator */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
-            {isSaving ? (
-              <>
-                {/* Saving - Blue Spinner */}
-                <svg className="animate-spin h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span className="text-xs text-blue-400 font-medium">Saving...</span>
-              </>
-            ) : hasUnsavedChanges ? (
-              <>
-                {/* Unsaved - Orange Warning */}
-                <svg className="h-4 w-4 text-orange-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9 7a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm1 4a1 1 0 00-1 1v3a1 1 0 102 0v-3a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs text-orange-400 font-medium">Unsaved</span>
-              </>
-            ) : lastSaved ? (
-              <>
-                {/* Saved - Green Check */}
-                <svg className="h-4 w-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs text-green-500 font-medium">Saved</span>
-              </>
-            ) : (
-              <>
-                {/* No status yet */}
-                <svg className="h-4 w-4 text-zinc-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs text-zinc-500 font-medium">Ready</span>
-              </>
-            )}
-          </div>
-
-          {/* View Public Page */}
-          <a
-            href={currentPage ? `/${currentPage.slug}` : '/'}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white transition-colors"
-            title="View published page"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-          </a>
-
-          <button 
-            onClick={async () => {
-              if (!currentPageId) return;
-              
-              setIsPublishing(true);
-              try {
-                // Save first if there are unsaved changes
-                if (hasUnsavedChanges) {
-                  await saveImmediately(currentPageId);
-                }
-                
-                // Then publish
-                const { publishPage } = usePagesStore.getState();
-                await publishPage(currentPageId);
-              } catch (error) {
-                console.error('Publish failed:', error);
-              } finally {
-                setIsPublishing(false);
-              }
-            }}
-            disabled={isPublishing || isSaving}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isPublishing ? (
-              <>
-                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Publishing...
-              </>
-            ) : (
-              'Go live'
-            )}
-          </button>
-        </div>
-      </header>
+      <HeaderBar
+        user={user}
+        signOut={signOut}
+        showPageDropdown={showPageDropdown}
+        setShowPageDropdown={setShowPageDropdown}
+        currentPage={currentPage}
+        currentPageId={currentPageId}
+        pages={pages}
+        setCurrentPageId={setCurrentPageId}
+        viewportMode={viewportMode}
+        setViewportMode={setViewportMode}
+        zoom={zoom}
+        setZoom={setZoom}
+        isSaving={isSaving}
+        hasUnsavedChanges={hasUnsavedChanges}
+        lastSaved={lastSaved}
+        isPublishing={isPublishing}
+        setIsPublishing={setIsPublishing}
+        saveImmediately={saveImmediately}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
