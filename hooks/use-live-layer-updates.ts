@@ -13,6 +13,18 @@ import { createClient } from '../lib/supabase/client';
 import { debounce } from '../lib/collaboration-utils';
 import type { Layer, LayerUpdate } from '../types';
 
+// Helper function to find layer in draft
+function findLayerInDraft(layers: Layer[], layerId: string): Layer | null {
+  for (const layer of layers) {
+    if (layer.id === layerId) return layer;
+    if (layer.children) {
+      const found = findLayerInDraft(layer.children, layerId);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 interface UseLiveLayerUpdatesReturn {
   broadcastLayerUpdate: (layerId: string, changes: Partial<Layer>) => void;
   isReceivingUpdates: boolean;
@@ -147,7 +159,11 @@ export function useLiveLayerUpdates(
     console.log(`[LIVE-UPDATES] handleIncomingUpdate called:`, update);
     console.log(`[LIVE-UPDATES] Current user ID: ${currentUserId}, Update user ID: ${update.user_id}`);
     
-    if (!currentUserId || update.user_id === currentUserId) {
+    // Get fresh current user ID from store
+    const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
+    console.log(`[LIVE-UPDATES] Fresh current user ID: ${freshCurrentUserId}`);
+    
+    if (!freshCurrentUserId || update.user_id === freshCurrentUserId) {
       console.log(`[LIVE-UPDATES] Ignoring update from self`);
       return;
     }
@@ -155,8 +171,10 @@ export function useLiveLayerUpdates(
     console.log(`[LIVE-UPDATES] Adding update to queue`);
     // Add to update queue
     updateQueue.current.push(update);
+    console.log(`[LIVE-UPDATES] Queue now has ${updateQueue.current.length} items`);
     
     // Process updates in order
+    console.log(`[LIVE-UPDATES] Calling processUpdateQueue`);
     processUpdateQueue();
     
     // Update last update time
@@ -236,8 +254,25 @@ export function useLiveLayerUpdates(
     // Apply the update to the store (without broadcasting back)
     if (pageId) {
       console.log(`[LIVE-UPDATES] Calling updateLayer for page ${pageId}, layer ${update.layer_id}`);
-      freshUpdateLayer(pageId, update.layer_id, update.changes);
-      console.log(`[LIVE-UPDATES] Update applied successfully`);
+      console.log(`[LIVE-UPDATES] Changes to apply:`, update.changes);
+      
+      try {
+        freshUpdateLayer(pageId, update.layer_id, update.changes);
+        console.log(`[LIVE-UPDATES] Update applied successfully`);
+        
+        // Verify the update was applied by checking the store
+        const updatedDraft = usePagesStore.getState().draftsByPageId[pageId];
+        if (updatedDraft) {
+          const updatedLayer = findLayerInDraft(updatedDraft.layers, update.layer_id);
+          if (updatedLayer) {
+            console.log(`[LIVE-UPDATES] Verified layer after update:`, updatedLayer);
+          } else {
+            console.warn(`[LIVE-UPDATES] Could not find updated layer in draft`);
+          }
+        }
+      } catch (error) {
+        console.error(`[LIVE-UPDATES] Error applying update:`, error);
+      }
     }
     
     // Process next update
