@@ -277,7 +277,7 @@ export default function RightSidebar({
                 <p className="text-sm">No editable content for this layer type</p>
               </div>
             )}
-
+          </div>
         </TabsContent>
       </Tabs>
     </div>
