@@ -87,7 +87,10 @@ export function useLiveLayerUpdates(
   // Initialize Supabase channel
   useEffect(() => {
     console.log(`[LIVE-UPDATES] useEffect triggered - pageId: ${pageId}, user: ${!!user}`);
-    if (!pageId || !user) return;
+    if (!pageId || !user) {
+      console.log(`[LIVE-UPDATES] Skipping channel initialization - pageId: ${pageId}, user: ${!!user}`);
+      return;
+    }
     
     const initializeChannel = async () => {
       try {
@@ -232,6 +235,10 @@ export function useLiveLayerUpdates(
   }, [currentUserId, addNotification]);
   
   const processUpdateQueue = useCallback(() => {
+    // Get fresh pageId from the hook parameter (this will be the current value)
+    const currentPageId = pageId;
+    console.log(`[LIVE-UPDATES] processUpdateQueue called with pageId: ${currentPageId}`);
+    
     if (updateQueue.current.length === 0) {
       console.log(`[LIVE-UPDATES] processUpdateQueue: queue is empty`);
       return;
@@ -244,31 +251,31 @@ export function useLiveLayerUpdates(
     
     // Get fresh state from store
     const { draftsByPageId: freshDrafts, updateLayer: freshUpdateLayer } = usePagesStore.getState();
-    const currentDraft = freshDrafts[pageId || ''];
+    const currentDraft = freshDrafts[currentPageId || ''];
     
-    if (!pageId) {
+    if (!currentPageId) {
       console.warn(`[LIVE-UPDATES] No pageId provided to processUpdateQueue`);
       return;
     }
     
     if (!currentDraft) {
-      console.warn(`[LIVE-UPDATES] No draft found for page ${pageId}`);
+      console.warn(`[LIVE-UPDATES] No draft found for page ${currentPageId}`);
       return;
     }
     
     console.log(`[LIVE-UPDATES] Current draft has ${currentDraft.layers.length} layers`);
     
     // Apply the update to the store (without broadcasting back)
-    if (pageId) {
-      console.log(`[LIVE-UPDATES] Calling updateLayer for page ${pageId}, layer ${update.layer_id}`);
+    if (currentPageId) {
+      console.log(`[LIVE-UPDATES] Calling updateLayer for page ${currentPageId}, layer ${update.layer_id}`);
       console.log(`[LIVE-UPDATES] Changes to apply:`, update.changes);
       
       try {
-        freshUpdateLayer(pageId, update.layer_id, update.changes);
+        freshUpdateLayer(currentPageId, update.layer_id, update.changes);
         console.log(`[LIVE-UPDATES] Update applied successfully`);
         
         // Verify the update was applied by checking the store
-        const updatedDraft = usePagesStore.getState().draftsByPageId[pageId];
+        const updatedDraft = usePagesStore.getState().draftsByPageId[currentPageId];
         if (updatedDraft) {
           const updatedLayer = findLayerInDraft(updatedDraft.layers, update.layer_id);
           if (updatedLayer) {
