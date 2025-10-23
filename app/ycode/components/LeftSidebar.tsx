@@ -100,12 +100,14 @@ const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
       status,
     } = useTreeItem({ itemId, label, disabled, rootRef: ref });
 
-    // Find layer data to determine icon
+    // Find layer data to determine icon and type
     const layer = useMemo(() => findLayerById(layersForCurrentPage, itemId), [layersForCurrentPage, itemId]);
 
     const isSelected = selectedLayerId === itemId;
     const isExpanded = status.expanded;
-    const hasChildren = Boolean(children);
+    
+    // Only container layers should show expand/collapse icons
+    const hasChildren = layer?.type === 'container' && Boolean(children);
     
     // Get collaboration data
     const { getUsersByLayer } = useCollaborationPresenceStore();
