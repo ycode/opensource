@@ -41,21 +41,27 @@ export function useLiveLayerUpdates(
     debounce((layerId: string, changes: Partial<Layer>) => {
       console.log(`[LIVE-UPDATES] debouncedBroadcast executing for layer ${layerId}`);
       
-      if (!channelRef.current || !currentUserId) {
+      // Get fresh values from refs and store
+      const channel = channelRef.current;
+      const userId = useCollaborationPresenceStore.getState().currentUserId;
+      
+      console.log(`[LIVE-UPDATES] debouncedBroadcast: channel=${!!channel}, userId=${userId}`);
+      
+      if (!channel || !userId) {
         console.warn(`[LIVE-UPDATES] debouncedBroadcast: channel or user missing`);
         return;
       }
       
       const update: LayerUpdate = {
         layer_id: layerId,
-        user_id: currentUserId,
+        user_id: userId,
         changes,
         timestamp: Date.now()
       };
       
       console.log(`[LIVE-UPDATES] Sending broadcast with update:`, update);
       
-      channelRef.current.send({
+      channel.send({
         type: 'broadcast',
         event: 'layer_update',
         payload: update
@@ -97,12 +103,30 @@ export function useLiveLayerUpdates(
           if (status === 'SUBSCRIBED') {
             console.log(`[LIVE-UPDATES] Successfully subscribed to page:${pageId}:updates`);
             isReceivingUpdates.current = true;
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error(`[LIVE-UPDATES] Channel subscription error`);
+          } else if (status === 'TIMED_OUT') {
+            console.error(`[LIVE-UPDATES] Channel subscription timed out`);
+          } else if (status === 'CLOSED') {
+            console.warn(`[LIVE-UPDATES] Channel closed`);
           }
         });
         
         channelRef.current = channel;
         
         console.log(`[LIVE-UPDATES] Channel reference set for page ${pageId}`);
+        
+        // Test broadcast to verify channel is working
+        setTimeout(() => {
+          if (channelRef.current) {
+            console.log(`[LIVE-UPDATES] Sending test broadcast`);
+            channelRef.current.send({
+              type: 'broadcast',
+              event: 'test',
+              payload: { message: 'test from page ' + pageId, timestamp: Date.now() }
+            });
+          }
+        }, 1000);
       } catch (error) {
         console.error('Failed to initialize live updates:', error);
       }
