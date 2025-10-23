@@ -48,6 +48,13 @@ export function useLiveLayerUpdates(
   const isReceivingUpdates = useRef(false);
   const lastUpdateTime = useRef<number | null>(null);
   const updateQueue = useRef<LayerUpdate[]>([]);
+  const pageIdRef = useRef<string | null>(pageId);
+  
+  // Update pageIdRef whenever pageId changes
+  useEffect(() => {
+    pageIdRef.current = pageId;
+    console.log(`[LIVE-UPDATES] Updated pageIdRef to: ${pageId}`);
+  }, [pageId]);
   
   // Debounced broadcast function
   const debouncedBroadcast = useRef(
@@ -235,9 +242,11 @@ export function useLiveLayerUpdates(
   }, [currentUserId, addNotification]);
   
   const processUpdateQueue = useCallback(() => {
-    // Get fresh pageId from the hook parameter (this will be the current value)
-    const currentPageId = pageId;
+    // Get fresh pageId from the ref (this will be the current value)
+    const currentPageId = pageIdRef.current;
     console.log(`[LIVE-UPDATES] processUpdateQueue called with pageId: ${currentPageId}`);
+    console.log(`[LIVE-UPDATES] Hook pageId parameter: ${pageId}`);
+    console.log(`[LIVE-UPDATES] pageIdRef.current: ${pageIdRef.current}`);
     
     if (updateQueue.current.length === 0) {
       console.log(`[LIVE-UPDATES] processUpdateQueue: queue is empty`);
@@ -294,7 +303,7 @@ export function useLiveLayerUpdates(
       console.log(`[LIVE-UPDATES] Processing next update in queue (${updateQueue.current.length} remaining)`);
       setTimeout(processUpdateQueue, 50); // Small delay to prevent overwhelming
     }
-  }, [pageId]);
+  }, []); // No dependencies since we use refs
   
   const broadcastLayerUpdate = useCallback((layerId: string, changes: Partial<Layer>) => {
     console.log(`[LIVE-UPDATES] broadcastLayerUpdate called for layer ${layerId}`, changes);
