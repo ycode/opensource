@@ -628,7 +628,11 @@ export default function LeftSidebar({
                   <RichTreeViewPro
                     items={treeItems}
                     selectedItems={selectedLayerId || null}
-                    onSelectedItemsChange={(event, itemId) => {
+                    onSelectedItemsChange={(event, itemIds) => {
+                      console.log(`[DEBUG] TreeView onSelectedItemsChange called with:`, itemIds);
+                      // Handle both single item and array of items
+                      const itemId = Array.isArray(itemIds) ? itemIds[0] : itemIds;
+                      console.log(`[DEBUG] Extracted itemId: ${itemId}`);
                       if (typeof itemId === 'string') {
                         handleLayerSelect(itemId);
                       }
