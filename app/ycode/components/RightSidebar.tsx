@@ -119,7 +119,7 @@ export default function RightSidebar({
   }
 
   return (
-    <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col p-5">
+    <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col p-4">
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')} className="flex flex-col flex-1">
         <TabsList className="w-full">
@@ -127,7 +127,7 @@ export default function RightSidebar({
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-        <hr class="my-3"/>
+        <hr className="my-2"/>
 
         {/* Content */}
         <TabsContent value="design" className="flex-1 flex flex-col overflow-y-auto data-[state=inactive]:hidden">
@@ -150,7 +150,7 @@ export default function RightSidebar({
                     >
                       <span>{cls}</span>
                       <Button onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1" variant="outline">
-                        <Icon name="house" className="size-2"/>
+                        <Icon name="x" className="size-2"/>
                       </Button>
                     </Badge>
                   ))

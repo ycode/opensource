@@ -14,6 +14,7 @@ import LeftSidebar from './components/LeftSidebar';
 import CenterCanvas from './components/CenterCanvas';
 import RightSidebar from './components/RightSidebar';
 import HeaderBar from './components/HeaderBar';
+import CMS from './components/CMS';
 import UpdateNotification from '../../components/UpdateNotification';
 import type { Layer } from '../../types';
 
@@ -30,6 +31,7 @@ export default function YCodeBuilder() {
   const [showPageDropdown, setShowPageDropdown] = useState(false);
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [zoom, setZoom] = useState(100);
+  const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersRef = useRef<string>('');
   const previousPageIdRef = useRef<string | null>(null);
@@ -440,8 +442,6 @@ export default function YCodeBuilder() {
         currentPageId={currentPageId}
         pages={pages}
         setCurrentPageId={setCurrentPageId}
-        viewportMode={viewportMode}
-        setViewportMode={setViewportMode}
         zoom={zoom}
         setZoom={setZoom}
         isSaving={isSaving}
@@ -450,6 +450,7 @@ export default function YCodeBuilder() {
         isPublishing={isPublishing}
         setIsPublishing={setIsPublishing}
         saveImmediately={saveImmediately}
+        activeTab={activeTab}
       />
 
       {/* Main Content Area */}
@@ -460,25 +461,34 @@ export default function YCodeBuilder() {
           onLayerSelect={setSelectedLayerId}
           currentPageId={currentPageId}
           onPageSelect={setCurrentPageId}
+          onActiveTabChange={setActiveTab}
         />
 
-        {/* Center Canvas - Preview */}
-        <CenterCanvas
-          selectedLayerId={selectedLayerId}
-          currentPageId={currentPageId}
-          viewportMode={viewportMode}
-          zoom={zoom}
-        />
+        {/* Conditional Content Based on Active Tab */}
+        {activeTab === 'cms' ? (
+          <CMS />
+        ) : (
+          <>
+            {/* Center Canvas - Preview */}
+            <CenterCanvas
+              selectedLayerId={selectedLayerId}
+              currentPageId={currentPageId}
+              viewportMode={viewportMode}
+              setViewportMode={setViewportMode}
+              zoom={zoom}
+            />
 
-        {/* Right Sidebar - Properties */}
-        <RightSidebar
-          selectedLayerId={selectedLayerId}
-          onLayerUpdate={(layerId, updates) => {
-            if (currentPageId) {
-              updateLayer(currentPageId, layerId, updates);
-            }
-          }}
-        />
+            {/* Right Sidebar - Properties */}
+            <RightSidebar
+              selectedLayerId={selectedLayerId}
+              onLayerUpdate={(layerId, updates) => {
+                if (currentPageId) {
+                  updateLayer(currentPageId, layerId, updates);
+                }
+              }}
+            />
+          </>
+        )}
       </div>
 
       {/* Update Notification */}
