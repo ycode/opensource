@@ -127,7 +127,7 @@ export default function RightSidebar({
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-        <hr class="my-3"/>
+        <hr className="my-3"/>
 
         {/* Content */}
         <TabsContent value="design" className="flex-1 flex flex-col overflow-y-auto data-[state=inactive]:hidden">
@@ -150,7 +150,7 @@ export default function RightSidebar({
                     >
                       <span>{cls}</span>
                       <Button onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1" variant="outline">
-                        <Icon name="house" className="size-2"/>
+                        <Icon name="x" className="size-2"/>
                       </Button>
                     </Badge>
                   ))

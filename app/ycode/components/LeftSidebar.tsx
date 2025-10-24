@@ -21,6 +21,8 @@ import AssetLibrary from '../../../components/AssetLibrary';
 import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
 import { pagesApi } from '../../../lib/api';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import Icon from "@/components/ui/icon";
+import {Button} from "@/components/ui/button";
 
 // Create dark theme for MUI
 const darkTheme = createTheme({
@@ -223,6 +225,7 @@ interface LeftSidebarProps {
   onLayerSelect: (layerId: string) => void;
   currentPageId: string | null;
   onPageSelect: (pageId: string) => void;
+  onActiveTabChange: (tab: 'pages' | 'layers' | 'cms') => void;
 }
 
 export default function LeftSidebar({
@@ -230,8 +233,9 @@ export default function LeftSidebar({
   onLayerSelect,
   currentPageId,
   onPageSelect,
+  onActiveTabChange,
 }: LeftSidebarProps) {
-  const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'assets'>('layers');
+  const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
@@ -417,13 +421,20 @@ export default function LeftSidebar({
   };
 
   return (
-    <div className="w-72 shrink-0 bg-neutral-950 border-r border-white/10 flex flex-col overflow-hidden p-4">
+    <div className="w-72 shrink-0 bg-neutral-950 border-r border-white/10 flex overflow-hidden p-4">
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pages' | 'layers' | 'assets')} className="flex flex-col flex-1">
+        <Tabs value={activeTab} onValueChange={(value) => {
+          const newTab = value as 'pages' | 'layers' | 'cms';
+          setActiveTab(newTab);
+          onActiveTabChange(newTab);
+        }} className="flex-1 gap-0">
           <TabsList className="w-full">
             <TabsTrigger value="layers">Layers</TabsTrigger>
             <TabsTrigger value="pages">Pages</TabsTrigger>
+            <TabsTrigger value="cms">CMS</TabsTrigger>
           </TabsList>
+
+          <hr className="mt-4"/>
 
           {/* Content */}
           <TabsContent value="layers" className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden">{' '}
@@ -659,6 +670,38 @@ export default function LeftSidebar({
               </div>
             </div>
           </TabsContent>
+
+          <TabsContent value="cms">
+
+            <div>
+
+              <div className="py-5 flex justify-between">
+                <span className="font-medium">Collections</span>
+                <div className="-my-1">
+                  <Button size="xs" variant="secondary">
+                    <Icon name="plus"/>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-col">
+
+                <div className="px-4 h-8 rounded-lg bg-secondary flex gap-2 items-center">
+                  <Icon name="database" className="size-3"/>
+                  <span>Blog posts</span>
+                </div>
+
+                <div className="px-4 h-8 rounded-lg text-primary/60 flex gap-2 items-center">
+                  <Icon name="database" className="size-3"/>
+                  <span>Categories</span>
+                </div>
+
+              </div>
+
+            </div>
+
+          </TabsContent>
+
         </Tabs>
 
         {/* Page Settings Panel */}

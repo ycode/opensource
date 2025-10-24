@@ -37,6 +37,7 @@ interface HeaderBarProps {
   isPublishing: boolean;
   setIsPublishing: (isPublishing: boolean) => void;
   saveImmediately: (pageId: string) => Promise<void>;
+  activeTab: 'pages' | 'layers' | 'cms';
 }
 
 export default function HeaderBar({
@@ -58,6 +59,7 @@ export default function HeaderBar({
   isPublishing,
   setIsPublishing,
   saveImmediately,
+  activeTab,
 }: HeaderBarProps) {
   const pageDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -78,11 +80,11 @@ export default function HeaderBar({
   return (
     <header className="h-14 bg-neutral-950 border-b border-white/10 flex items-center justify-between px-4">
       {/* Left: Logo & Page Selector */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="sm">
+            <Button variant="secondary" size="sm" className="!size-8">
               <div className="text-white">
                 <svg className="size-3.5" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg"><g id="Symbols" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><g id="Sidebar" transform="translate(-30.000000, -30.000000)"><g id="Ycode"><g transform="translate(30.000000, 30.000000)"><rect id="Rectangle" x="0" y="0" width="24" height="24"></rect><path id="CurrentFill" d="M11.4241533,0 L11.4241533,5.85877951 L6.024,8.978 L12.6155735,12.7868008 L10.951,13.749 L23.0465401,6.75101349 L23.0465401,12.6152717 L3.39516096,23.9856666 L3.3703726,24 L3.34318129,23.9827156 L0.96,22.4713365 L0.96,16.7616508 L3.36417551,18.1393242 L7.476,15.76 L0.96,11.9090099 L0.96,6.05375516 L11.4241533,0 Z" fill="#ffffff"></path></g></g></g></g></svg>
               </div>
@@ -105,25 +107,28 @@ export default function HeaderBar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
       </div>
 
-      {/* Center: Viewport Controls */}
-      <div className="flex items-center gap-3">
-        {/* Viewport Selector */}
-        <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as 'desktop' | 'tablet' | 'mobile')} >
-          <TabsList className="w-[240px]">
-            <TabsTrigger value="desktop" title="Desktop View">
-              Desktop
-            </TabsTrigger>
-            <TabsTrigger value="tablet" title="Tablet View">
-              Tablet
-            </TabsTrigger>
-            <TabsTrigger value="mobile" title="Mobile View">
-              Phone
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+      {/* Center: Viewport Controls - Only show when not in CMS */}
+      {activeTab !== 'cms' && (
+        <div className="flex items-center gap-3">
+          {/* Viewport Selector */}
+          <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as 'desktop' | 'tablet' | 'mobile')} >
+            <TabsList className="w-[240px]">
+              <TabsTrigger value="desktop" title="Desktop View">
+                Desktop
+              </TabsTrigger>
+              <TabsTrigger value="tablet" title="Tablet View">
+                Tablet
+              </TabsTrigger>
+              <TabsTrigger value="mobile" title="Mobile View">
+                Phone
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      )}
 
       {/* Right: User & Actions */}
       <div className="flex items-center gap-4">

@@ -20,13 +20,19 @@ function Tabs({
 
 function TabsList({
   className,
+  orientation = "horizontal",
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.List>) {
+}: React.ComponentProps<typeof TabsPrimitive.List> & {
+  orientation?: "horizontal" | "vertical"
+}) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "bg-muted text-muted-foreground inline-flex h-8 w-fit items-center justify-center rounded-lg p-[2px]",
+        "bg-muted text-muted-foreground rounded-lg p-[2px]",
+        orientation === "horizontal" 
+          ? "inline-flex h-8 w-fit items-center justify-center" 
+          : "flex flex-col w-fit h-fit",
         className
       )}
       {...props}
