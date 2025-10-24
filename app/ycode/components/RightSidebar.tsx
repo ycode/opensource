@@ -163,6 +163,7 @@ export default function RightSidebar({
   }
 
   return (
+<<<<<<< HEAD
     <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col">
       {/* Header */}
       <div className="border-b border-white/10 p-4">
@@ -202,6 +203,9 @@ export default function RightSidebar({
           {selectedLayer.type.charAt(0).toUpperCase() + selectedLayer.type.slice(1)} Layer
         </div>
       </div>
+=======
+    <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col p-4">
+>>>>>>> main
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')} className="flex flex-col flex-1">
         <TabsList className="w-full">
@@ -209,6 +213,11 @@ export default function RightSidebar({
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
+<<<<<<< HEAD
+=======
+        <hr className="my-2"/>
+
+>>>>>>> main
         {/* Content */}
         <TabsContent value="design" className="flex-1 flex flex-col overflow-y-auto data-[state=inactive]:hidden">
           <div className="flex flex-col gap-4 p-4">
@@ -231,6 +240,7 @@ export default function RightSidebar({
                       key={index}
                     >
                       <span>{cls}</span>
+<<<<<<< HEAD
                       <Button 
                         onClick={() => removeClass(cls)} 
                         className="!size-4 !p-0 -mr-1" 
@@ -238,6 +248,10 @@ export default function RightSidebar({
                         disabled={isLockedByOther}
                       >
                         <Icon name="house" className="size-2"/>
+=======
+                      <Button onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1" variant="outline">
+                        <Icon name="x" className="size-2"/>
+>>>>>>> main
                       </Button>
                     </Badge>
                   ))

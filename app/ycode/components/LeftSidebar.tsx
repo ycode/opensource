@@ -24,6 +24,8 @@ import AssetLibrary from '../../../components/AssetLibrary';
 import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
 import { pagesApi } from '../../../lib/api';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import Icon from "@/components/ui/icon";
+import {Button} from "@/components/ui/button";
 
 // Create dark theme for MUI
 const darkTheme = createTheme({
@@ -105,14 +107,14 @@ const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
 
     const isSelected = selectedLayerId === itemId;
     const isExpanded = status.expanded;
-    
+
     // Only container layers should show expand/collapse icons
     const hasChildren = layer?.type === 'container' && Boolean(children);
-    
+
     // Get collaboration data
     const { getUsersByLayer } = useCollaborationPresenceStore();
     const usersOnLayer = getUsersByLayer(itemId);
-    
+
     // Get layer lock status from parent component
     const isLocked = layerLocks.isLayerLocked(itemId);
     const canEdit = layerLocks.canEditLayer(itemId);
@@ -271,6 +273,7 @@ interface LeftSidebarProps {
     broadcastLayerDelete: (pageId: string, layerId: string) => void;
     broadcastLayerMove: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => void;
   };
+  onActiveTabChange: (tab: 'pages' | 'layers' | 'cms') => void;
 }
 
 export default function LeftSidebar({
@@ -278,10 +281,11 @@ export default function LeftSidebar({
   onLayerSelect,
   currentPageId,
   onPageSelect,
+  onActiveTabChange,
   livePageUpdates,
   liveLayerUpdates,
 }: LeftSidebarProps) {
-  const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'assets'>('layers');
+  const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
@@ -292,22 +296,22 @@ export default function LeftSidebar({
   const pages = usePagesStore((state) => state.pages);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
   const layerLocks = useLayerLocks();
-  
+
   // Lock-aware layer selection handler
   const handleLayerSelect = useCallback((layerId: string) => {
     // Check if layer is locked by another user
     const isLocked = layerLocks.isLayerLocked(layerId);
     const canEdit = layerLocks.canEditLayer(layerId);
-    
+
     if (isLocked && !canEdit) {
       console.warn(`Layer ${layerId} is locked by another user - cannot select`);
       return;
     }
-    
+
     // Call the original onLayerSelect if not locked
     onLayerSelect(layerId);
   }, [onLayerSelect, layerLocks, selectedLayerId]);
-  
+
   // Handler to create a new page
   const handleAddPage = async () => {
     try {
@@ -377,7 +381,7 @@ export default function LeftSidebar({
     
     const { itemId, newPosition } = params;
     moveLayer(currentPageId, itemId, newPosition.parentId, newPosition.index);
-    
+
     // Broadcast the layer move to other users
     liveLayerUpdates.broadcastLayerMove(currentPageId, itemId, newPosition.parentId, newPosition.index);
   }, [currentPageId, moveLayer, liveLayerUpdates]);
@@ -429,12 +433,12 @@ export default function LeftSidebar({
   // Helper to add layer with broadcasting
   const handleAddLayer = useCallback((layerType: Layer['type']) => {
     if (!currentPageId) return;
-    
+
     const parentId = getParentForNewLayer();
-    
+
     // Generate the layer ID that will be created (same logic as in usePagesStore)
     const newLayerId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Create the new layer object to broadcast
     const newLayer: Layer = {
       id: newLayerId,
@@ -443,10 +447,10 @@ export default function LeftSidebar({
       content: getDefaultContent(layerType),
       children: layerType === 'container' ? [] : undefined,
     };
-    
+
     // Add the layer locally using the same layer object we'll broadcast
     addLayerWithId(currentPageId, parentId, newLayer);
-    
+
     // Broadcast the layer addition
     console.log('[LAYER-ADD] Broadcasting layer addition:', {
       pageId: currentPageId,
@@ -500,9 +504,9 @@ export default function LeftSidebar({
         title: data.title,
         slug: data.slug,
       };
-      
+
       await pagesApi.update(editingPage.id, updateData);
-      
+
       // Broadcast the page update to other users
       livePageUpdates.broadcastPageUpdate(editingPage.id, updateData);
       
@@ -554,13 +558,20 @@ export default function LeftSidebar({
   };
 
   return (
-    <div className="w-72 shrink-0 bg-neutral-950 border-r border-white/10 flex flex-col overflow-hidden p-4">
+    <div className="w-72 shrink-0 bg-neutral-950 border-r border-white/10 flex overflow-hidden p-4">
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pages' | 'layers' | 'assets')} className="flex flex-col flex-1">
+        <Tabs value={activeTab} onValueChange={(value) => {
+          const newTab = value as 'pages' | 'layers' | 'cms';
+          setActiveTab(newTab);
+          onActiveTabChange(newTab);
+        }} className="flex-1 gap-0">
           <TabsList className="w-full">
             <TabsTrigger value="layers">Layers</TabsTrigger>
             <TabsTrigger value="pages">Pages</TabsTrigger>
+            <TabsTrigger value="cms">CMS</TabsTrigger>
           </TabsList>
+
+          <hr className="mt-4"/>
 
           {/* Content */}
           <TabsContent value="layers" className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden">{' '}
@@ -787,6 +798,38 @@ export default function LeftSidebar({
               </div>
             </div>
           </TabsContent>
+
+          <TabsContent value="cms">
+
+            <div>
+
+              <div className="py-5 flex justify-between">
+                <span className="font-medium">Collections</span>
+                <div className="-my-1">
+                  <Button size="xs" variant="secondary">
+                    <Icon name="plus"/>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-col">
+
+                <div className="px-4 h-8 rounded-lg bg-secondary flex gap-2 items-center">
+                  <Icon name="database" className="size-3"/>
+                  <span>Blog posts</span>
+                </div>
+
+                <div className="px-4 h-8 rounded-lg text-primary/60 flex gap-2 items-center">
+                  <Icon name="database" className="size-3"/>
+                  <span>Categories</span>
+                </div>
+
+              </div>
+
+            </div>
+
+          </TabsContent>
+
         </Tabs>
 
         {/* Page Settings Panel */}

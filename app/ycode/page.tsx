@@ -14,6 +14,7 @@ import LeftSidebar from './components/LeftSidebar';
 import CenterCanvas from './components/CenterCanvas';
 import RightSidebar from './components/RightSidebar';
 import HeaderBar from './components/HeaderBar';
+import CMS from './components/CMS';
 import UpdateNotification from '../../components/UpdateNotification';
 import { RealtimeCursors } from '../../components/realtime-cursors';
 import ActivityNotifications from '../../components/collaboration/ActivityNotifications';
@@ -72,6 +73,25 @@ export default function YCodeBuilder() {
     }
   }, [currentUserId, selectedLayerId, layerLocks, setSelectedLayerId]);
 
+  // Page selection handler with lock release
+  const handlePageSelect = useCallback(async (pageId: string) => {
+    if (!currentUserId) return;
+    
+    console.log(`[PAGE-SELECT] Switching from page ${currentPageId} to page ${pageId}`);
+    
+    // Release all locks on the current page before switching
+    if (currentPageId) {
+      console.log(`[PAGE-SELECT] Releasing all locks on page ${currentPageId}`);
+      await layerLocks.releaseAllLocks();
+    }
+    
+    // Clear selected layer and switch page
+    setSelectedLayerId(null);
+    setCurrentPageId(pageId);
+    
+    console.log(`[PAGE-SELECT] Switched to page ${pageId}`);
+  }, [currentUserId, currentPageId, layerLocks, setSelectedLayerId, setCurrentPageId]);
+
   // Layer deselection handler with lock release
   const handleLayerDeselect = useCallback(async () => {
     if (!currentUserId || !selectedLayerId) return;
@@ -94,6 +114,7 @@ export default function YCodeBuilder() {
   const [showPageDropdown, setShowPageDropdown] = useState(false);
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [zoom, setZoom] = useState(100);
+  const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersRef = useRef<string>('');
   const previousPageIdRef = useRef<string | null>(null);
@@ -517,8 +538,6 @@ export default function YCodeBuilder() {
         currentPageId={currentPageId}
         pages={pages}
         setCurrentPageId={setCurrentPageId}
-        viewportMode={viewportMode}
-        setViewportMode={setViewportMode}
         zoom={zoom}
         setZoom={setZoom}
         isSaving={isSaving}
@@ -527,6 +546,7 @@ export default function YCodeBuilder() {
         isPublishing={isPublishing}
         setIsPublishing={setIsPublishing}
         saveImmediately={saveImmediately}
+        activeTab={activeTab}
       />
 
       {/* Main Content Area */}
@@ -536,35 +556,43 @@ export default function YCodeBuilder() {
           selectedLayerId={selectedLayerId}
           onLayerSelect={handleLayerSelect}
           currentPageId={currentPageId}
-          onPageSelect={setCurrentPageId}
+          onPageSelect={handlePageSelect}
           livePageUpdates={livePageUpdates}
           liveLayerUpdates={liveLayerUpdates}
+          onActiveTabChange={setActiveTab}
         />
 
-        {/* Center Canvas - Preview */}
-        <CenterCanvas
-          selectedLayerId={selectedLayerId}
-          currentPageId={currentPageId}
-          viewportMode={viewportMode}
-          zoom={zoom}
-          onLayerSelect={handleLayerSelect}
-          onLayerDeselect={handleLayerDeselect}
-          liveLayerUpdates={liveLayerUpdates}
-        />
+        {/* Conditional Content Based on Active Tab */}
+        {activeTab === 'cms' ? (
+          <CMS />
+        ) : (
+          <>
+            {/* Center Canvas - Preview */}
+            <CenterCanvas
+              selectedLayerId={selectedLayerId}
+              currentPageId={currentPageId}
+              viewportMode={viewportMode}
+              zoom={zoom}
+              onLayerSelect={handleLayerSelect}
+              onLayerDeselect={handleLayerDeselect}
+              liveLayerUpdates={liveLayerUpdates}
+            />
 
-        {/* Right Sidebar - Properties */}
-        <RightSidebar
-          selectedLayerId={selectedLayerId}
-          onLayerUpdate={(layerId, updates) => {
-            if (currentPageId) {
-              updateLayer(currentPageId, layerId, updates);
-              // Broadcast the update to other users
-              liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
-            }
-          }}
-          liveLayerUpdates={liveLayerUpdates}
-          currentPageId={currentPageId}
-        />
+            {/* Right Sidebar - Properties */}
+            <RightSidebar
+              selectedLayerId={selectedLayerId}
+              onLayerUpdate={(layerId, updates) => {
+                if (currentPageId) {
+                  updateLayer(currentPageId, layerId, updates);
+                  // Broadcast the update to other users
+                  liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
+                }
+              }}
+              liveLayerUpdates={liveLayerUpdates}
+              currentPageId={currentPageId}
+            />
+          </>
+        )}
 
         {/* Realtime Cursors for Collaboration */}
         {user && currentPageId && (

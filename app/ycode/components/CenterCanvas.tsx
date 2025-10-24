@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react';
 import { usePagesStore } from '../../../stores/usePagesStore';
 import { useEditorStore } from '../../../stores/useEditorStore';
 import LayerRenderer from '../../../components/layers/LayerRenderer';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { Layer } from '../../../types';
 
 type ViewportMode = 'desktop' | 'tablet' | 'mobile';
@@ -18,6 +19,7 @@ interface CenterCanvasProps {
   selectedLayerId: string | null;
   currentPageId: string | null;
   viewportMode: ViewportMode;
+  setViewportMode: (mode: ViewportMode) => void;
   zoom: number;
   onLayerSelect?: (layerId: string) => void;
   onLayerDeselect?: () => void;
@@ -36,6 +38,7 @@ export default function CenterCanvas({
   selectedLayerId,
   currentPageId,
   viewportMode,
+  setViewportMode,
   zoom,
   onLayerSelect,
   onLayerDeselect,
@@ -66,10 +69,26 @@ export default function CenterCanvas({
 
   return (
     <div className="flex-1 bg-neutral-900 flex flex-col">
+      {/* Breakpoint Controls */}
+      <div className="flex items-center justify-center p-4 border-b bg-neutral-950">
+        <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
+          <TabsList className="w-[240px]">
+            <TabsTrigger value="desktop" title="Desktop View">
+              Desktop
+            </TabsTrigger>
+            <TabsTrigger value="tablet" title="Tablet View">
+              Tablet
+            </TabsTrigger>
+            <TabsTrigger value="mobile" title="Mobile View">
+              Phone
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
       {/* Canvas Area */}
-      <div className="flex-1 flex items-start justify-center p-8 overflow-auto bg-neutral-900">
+      <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-neutral-900">
         <div 
-          className="bg-white shadow-2xl transition-all origin-top"
+          className="bg-white shadow-3xl transition-all origin-top"
           style={{ 
             transform: `scale(${zoom / 100})`,
             width: viewportSizes[viewportMode].width,
