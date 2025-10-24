@@ -572,6 +572,7 @@ export default function YCodeBuilder() {
               selectedLayerId={selectedLayerId}
               currentPageId={currentPageId}
               viewportMode={viewportMode}
+              setViewportMode={setViewportMode}
               zoom={zoom}
               onLayerSelect={handleLayerSelect}
               onLayerDeselect={handleLayerDeselect}

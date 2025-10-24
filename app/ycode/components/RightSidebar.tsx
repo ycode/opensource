@@ -1,23 +1,15 @@
 'use client';
 
-/**
- * Right Sidebar - Properties Panel
- * 
- * Shows properties for selected layer with Tailwind class editor
- */
-
-import { useCallback, useMemo, useState } from 'react';
-import { usePagesStore } from '../../../stores/usePagesStore';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useEditorStore } from '../../../stores/useEditorStore';
+import { usePagesStore } from '../../../stores/usePagesStore';
 import { useLayerLocks } from '../../../hooks/use-layer-locks';
-import type { Layer } from '../../../types';
-import debounce from 'lodash.debounce';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { X } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
 import {Button} from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
+import type { Layer } from '../../../types';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
@@ -71,99 +63,123 @@ export default function RightSidebar({
   // Lock-aware update function
   const handleLayerUpdate = useCallback((layerId: string, updates: any) => {
     if (isLockedByOther) {
-      console.warn(`Cannot update layer ${layerId} - it is locked by another user`);
+      console.warn('Cannot update layer - locked by another user');
       return;
     }
     onLayerUpdate(layerId, updates);
-  }, [onLayerUpdate, isLockedByOther]);
+  }, [isLockedByOther, onLayerUpdate]);
 
-  // Parse classes into array for badge display
+  // Debounced update function
+  const debouncedUpdate = useCallback(
+    (() => {
+      let timeoutId: NodeJS.Timeout;
+      return (layerId: string, updates: any) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          handleLayerUpdate(layerId, updates);
+        }, 500);
+      };
+    })(),
+    [handleLayerUpdate]
+  );
+
+  // Parse classes into array
   const classesArray = useMemo(() => {
     return classesInput.split(' ').filter(cls => cls.trim() !== '');
   }, [classesInput]);
 
-  const debouncedUpdate = useMemo(
-    () =>
-      debounce((layerId: string, classes: string) => {
-        handleLayerUpdate(layerId, { classes });
-      }, 500),
-    [handleLayerUpdate]
-  );
+  // Handle classes change
+  const handleClassesChange = useCallback((newClasses: string) => {
+    setClassesInput(newClasses);
+    if (selectedLayerId) {
+      debouncedUpdate(selectedLayerId, { classes: newClasses });
+    }
+  }, [selectedLayerId, debouncedUpdate]);
 
-  // Add a new class
+  // Add class function
   const addClass = useCallback((newClass: string) => {
     if (!newClass.trim()) return;
-    
-    const trimmedClass = newClass.trim();
-    
     setClassesInput(prev => {
-      const currentArray = prev.split(' ').filter(cls => cls.trim() !== '');
-      if (currentArray.includes(trimmedClass)) return prev; // Don't add duplicates
-      
-      const newClasses = [...currentArray, trimmedClass].join(' ');
+      const currentClasses = prev.split(' ').filter(cls => cls.trim() !== '');
+      const updatedClasses = [...currentClasses, newClass.trim()].join(' ');
       if (selectedLayerId) {
-        debouncedUpdate(selectedLayerId, newClasses);
+        debouncedUpdate(selectedLayerId, { classes: updatedClasses });
       }
-      return newClasses;
+      return updatedClasses;
     });
     setCurrentClassInput('');
   }, [selectedLayerId, debouncedUpdate]);
 
-  // Remove a class
+  // Remove class function
   const removeClass = useCallback((classToRemove: string) => {
     setClassesInput(prev => {
-      const currentArray = prev.split(' ').filter(cls => cls.trim() !== '');
-      const newClasses = currentArray.filter(cls => cls !== classToRemove).join(' ');
+      const currentClasses = prev.split(' ').filter(cls => cls.trim() !== '');
+      const updatedClasses = currentClasses.filter(cls => cls !== classToRemove).join(' ');
       if (selectedLayerId) {
-        debouncedUpdate(selectedLayerId, newClasses);
+        debouncedUpdate(selectedLayerId, { classes: updatedClasses });
       }
-      return newClasses;
+      return updatedClasses;
     });
   }, [selectedLayerId, debouncedUpdate]);
 
-  // Handle Enter key press
-  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
+  // Handle key press for adding classes
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       addClass(currentClassInput);
     }
-  }, [currentClassInput, addClass]);
+  }, [addClass, currentClassInput]);
 
-  const handleClassesChange = useCallback((value: string) => {
-    setClassesInput(value);
-    if (selectedLayerId) {
-      debouncedUpdate(selectedLayerId, value);
-    }
-  }, [selectedLayerId, debouncedUpdate]);
-
-  const addClasses = useCallback((newClasses: string) => {
-    if (!selectedLayerId) return;
+  // Add classes function
+  const addClasses = useCallback((classes: string[]) => {
     setClassesInput(prev => {
-      const updated = (prev + ' ' + newClasses).trim();
-      handleLayerUpdate(selectedLayerId, { classes: updated });
-      return updated;
+      const currentClasses = prev.split(' ').filter(cls => cls.trim() !== '');
+      const updatedClasses = [...currentClasses, ...classes].join(' ');
+      if (selectedLayerId) {
+        handleLayerUpdate(selectedLayerId, { classes: updatedClasses });
+      }
+      return updatedClasses;
     });
   }, [selectedLayerId, handleLayerUpdate]);
 
-  // Helper function for button props when layer is locked
-  const getButtonProps = (onClick: () => void) => ({
-    onClick,
+  // Quick style buttons
+  const quickStyles = [
+    { label: 'Flex', classes: ['flex'] },
+    { label: 'Grid', classes: ['grid'] },
+    { label: 'Column', classes: ['flex-col'] },
+    { label: 'Center', classes: ['items-center', 'justify-center'] },
+    { label: 'Space Between', classes: ['justify-between'] },
+    { label: 'Gap', classes: ['gap-4'] },
+    { label: 'Padding', classes: ['p-4'] },
+    { label: 'Margin', classes: ['m-4'] },
+    { label: 'Border', classes: ['border', 'border-gray-300'] },
+    { label: 'Rounded', classes: ['rounded'] },
+  ];
+
+  // Get button props for quick style buttons
+  const getButtonProps = (classes: string[]) => ({
     disabled: isLockedByOther,
-    className: `px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-xs border border-zinc-700 text-zinc-300 ${
-      isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''
-    }`
+    className: isLockedByOther ? 'opacity-50 cursor-not-allowed' : '',
+    onClick: () => addClasses(classes)
   });
 
-  if (! selectedLayerId || ! selectedLayer) {
+  if (!selectedLayer) {
     return (
-      <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex items-center justify-center">
-        <span className="text-xs text-white/50">Select layer</span>
+      <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col items-center justify-center p-8">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-neutral-800 rounded-lg flex items-center justify-center mb-4 mx-auto">
+            <svg className="w-6 h-6 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h3 className="text-sm font-medium text-white mb-1">No Layer Selected</h3>
+          <span className="text-xs text-white/50">Select layer</span>
+        </div>
       </div>
     );
   }
 
   return (
-<<<<<<< HEAD
     <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col">
       {/* Header */}
       <div className="border-b border-white/10 p-4">
@@ -203,9 +219,7 @@ export default function RightSidebar({
           {selectedLayer.type.charAt(0).toUpperCase() + selectedLayer.type.slice(1)} Layer
         </div>
       </div>
-=======
-    <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col p-4">
->>>>>>> main
+
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')} className="flex flex-col flex-1">
         <TabsList className="w-full">
@@ -213,11 +227,8 @@ export default function RightSidebar({
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-<<<<<<< HEAD
-=======
         <hr className="my-2"/>
 
->>>>>>> main
         {/* Content */}
         <TabsContent value="design" className="flex-1 flex flex-col overflow-y-auto data-[state=inactive]:hidden">
           <div className="flex flex-col gap-4 p-4">
@@ -240,77 +251,74 @@ export default function RightSidebar({
                       key={index}
                     >
                       <span>{cls}</span>
-<<<<<<< HEAD
                       <Button 
                         onClick={() => removeClass(cls)} 
                         className="!size-4 !p-0 -mr-1" 
                         variant="outline"
                         disabled={isLockedByOther}
                       >
-                        <Icon name="house" className="size-2"/>
-=======
-                      <Button onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1" variant="outline">
-                        <Icon name="x" className="size-2"/>
->>>>>>> main
+                        <Icon name="x" className="w-3 h-3" />
                       </Button>
                     </Badge>
                   ))
                 )}
+            </div>
+
+            {/* Quick Style Buttons */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-white/70 uppercase tracking-wide">Quick Styles</label>
+              <div className="grid grid-cols-2 gap-2">
+                {quickStyles.map((style, index) => (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    size="sm"
+                    {...getButtonProps(style.classes)}
+                  >
+                    {style.label}
+                  </Button>
+                ))}
               </div>
+            </div>
           </div>
         </TabsContent>
 
-        <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">
-          <div className="p-4 space-y-4">
-            {selectedLayer.type === 'text' || selectedLayer.type === 'heading' ? (
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">
-                  Text Content
-                </label>
+        <TabsContent value="settings" className="flex-1 flex flex-col overflow-y-auto data-[state=inactive]:hidden">
+          <div className="flex flex-col gap-4 p-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Layer Type</label>
+              <div className="text-sm text-white/60">
+                {selectedLayer.type.charAt(0).toUpperCase() + selectedLayer.type.slice(1)}
+              </div>
+            </div>
+            
+            {selectedLayer.type === 'text' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white">Text Content</label>
                 <textarea
                   value={selectedLayer.content || ''}
-                  onChange={(e) => {
-                    if (selectedLayerId) {
-                      handleLayerUpdate(selectedLayerId, { content: e.target.value });
-                    }
-                  }}
-                  placeholder="Enter text..."
-                  rows={6}
+                  onChange={(e) => selectedLayerId && handleLayerUpdate(selectedLayerId, { content: e.target.value })}
+                  className="w-full p-2 bg-neutral-800 border border-white/10 rounded text-white placeholder-white/50 resize-none"
+                  placeholder="Enter text content..."
+                  rows={3}
                   disabled={isLockedByOther}
-                  className={`w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  style={{ opacity: isLockedByOther ? 0.5 : 1, cursor: isLockedByOther ? 'not-allowed' : 'text' }}
                 />
-                <p className="text-xs text-white/60 mt-1">
-                  Or double-click the layer in the canvas to edit inline
-                </p>
               </div>
-            ) : selectedLayer.type === 'image' ? (
-              <div>
-                <label className="block text-sm font-medium text-white mb-2">
-                  Image Source
-                </label>
+            )}
+            
+            {selectedLayer.type === 'image' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white">Image Source</label>
                 <input
                   type="text"
                   value={selectedLayer.src || ''}
-                  onChange={(e) => {
-                    if (selectedLayerId) {
-                      handleLayerUpdate(selectedLayerId, { src: e.target.value });
-                    }
-                  }}
-                  placeholder="https://example.com/image.jpg"
+                  onChange={(e) => selectedLayerId && handleLayerUpdate(selectedLayerId, { src: e.target.value })}
+                  className="w-full p-2 bg-neutral-800 border border-white/10 rounded text-white placeholder-white/50"
+                  placeholder="Enter image URL..."
                   disabled={isLockedByOther}
-                  className={`w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded text-white text-sm placeholder-neutral-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  style={{ opacity: isLockedByOther ? 0.5 : 1, cursor: isLockedByOther ? 'not-allowed' : 'text' }}
                 />
-                <p className="text-xs text-white/60 mt-2">
-                  Or use the Assets tab to upload an image
-                </p>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-white/60">
-                <p className="text-sm">No editable content for this layer type</p>
               </div>
             )}
           </div>

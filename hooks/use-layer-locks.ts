@@ -14,6 +14,7 @@ import type { LayerLock } from '../types';
 interface UseLayerLocksReturn {
   acquireLock: (layerId: string) => Promise<boolean>;
   releaseLock: (layerId: string) => Promise<void>;
+  releaseAllLocks: () => Promise<void>;
   isLayerLocked: (layerId: string) => boolean;
   getLockOwner: (layerId: string) => string | null;
   canEditLayer: (layerId: string) => boolean;
@@ -306,6 +307,7 @@ export function useLayerLocks(): UseLayerLocksReturn {
   return {
     acquireLock,
     releaseLock,
+    releaseAllLocks,
     isLayerLocked,
     getLockOwner,
     canEditLayer: canEditLayerLayer,
