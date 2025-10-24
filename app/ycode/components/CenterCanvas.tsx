@@ -21,6 +21,9 @@ interface CenterCanvasProps {
   zoom: number;
   onLayerSelect?: (layerId: string) => void;
   onLayerDeselect?: () => void;
+  liveLayerUpdates?: {
+    broadcastLayerUpdate: (layerId: string, changes: Partial<Layer>) => void;
+  };
 }
 
 const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: string }> = {
@@ -36,6 +39,7 @@ export default function CenterCanvas({
   zoom,
   onLayerSelect,
   onLayerDeselect,
+  liveLayerUpdates,
 }: CenterCanvasProps) {
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
   const { draftsByPageId, addLayer, updateLayer } = usePagesStore();
@@ -53,6 +57,10 @@ export default function CenterCanvas({
   const handleLayerUpdate = (layerId: string, updates: Partial<Layer>) => {
     if (currentPageId) {
       updateLayer(currentPageId, layerId, updates);
+      // Broadcast the update to other users
+      if (liveLayerUpdates) {
+        liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
+      }
     }
   };
 

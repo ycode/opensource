@@ -549,6 +549,7 @@ export default function YCodeBuilder() {
           zoom={zoom}
           onLayerSelect={handleLayerSelect}
           onLayerDeselect={handleLayerDeselect}
+          liveLayerUpdates={liveLayerUpdates}
         />
 
         {/* Right Sidebar - Properties */}
