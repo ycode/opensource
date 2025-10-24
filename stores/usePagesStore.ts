@@ -21,6 +21,7 @@ interface PagesActions {
   publishPage: (pageId: string) => Promise<void>;
   setError: (error: string | null) => void;
   addLayer: (pageId: string, parentLayerId: string | null, layerType: Layer['type']) => void;
+  addLayerWithId: (pageId: string, parentLayerId: string | null, layer: Layer) => void;
   deleteLayer: (pageId: string, layerId: string) => void;
   updateLayer: (pageId: string, layerId: string, updates: Partial<Layer>) => void;
   moveLayer: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => boolean;
@@ -368,6 +369,45 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     });
 
     return true;
+  },
+
+  addLayerWithId: (pageId, parentLayerId, layer) => {
+    const { pages, draftsByPageId } = get();
+    let draft = draftsByPageId[pageId];
+    
+    // Initialize draft if it doesn't exist
+    if (!draft) {
+      const page = pages.find(p => p.id === pageId);
+      if (!page) return;
+      
+      draft = {
+        id: `draft-${pageId}`,
+        page_id: pageId,
+        layers: [],
+        is_published: false,
+        created_at: new Date().toISOString(),
+      };
+    }
+
+    let newLayers: Layer[];
+    
+    if (! parentLayerId) {
+      // Add to root
+      newLayers = [...draft.layers, layer];
+    } else {
+      // Add as child to parent
+      newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
+        ...parent,
+        children: [...(parent.children || []), layer],
+      }));
+    }
+
+    set({ 
+      draftsByPageId: { 
+        ...draftsByPageId, 
+        [pageId]: { ...draft, layers: newLayers }
+      } 
+    });
   },
 
   addPage: (page: Page) => {

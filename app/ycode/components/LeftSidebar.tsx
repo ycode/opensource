@@ -265,6 +265,12 @@ interface LeftSidebarProps {
     broadcastPageCreate: (page: Page) => void;
     broadcastPageDelete: (pageId: string) => void;
   };
+  liveLayerUpdates: {
+    broadcastLayerUpdate: (layerId: string, changes: Partial<Layer>) => void;
+    broadcastLayerAdd: (pageId: string, parentLayerId: string | null, layerType: Layer['type'], newLayer: Layer) => void;
+    broadcastLayerDelete: (pageId: string, layerId: string) => void;
+    broadcastLayerMove: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => void;
+  };
 }
 
 export default function LeftSidebar({
@@ -273,6 +279,7 @@ export default function LeftSidebar({
   currentPageId,
   onPageSelect,
   livePageUpdates,
+  liveLayerUpdates,
 }: LeftSidebarProps) {
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'assets'>('layers');
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
@@ -281,7 +288,7 @@ export default function LeftSidebar({
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const addBlockPanelRef = useRef<HTMLDivElement>(null);
-  const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, moveLayer } = usePagesStore();
+  const { draftsByPageId, loadPages, loadDraft, addLayer, addLayerWithId, updateLayer, moveLayer } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
   const layerLocks = useLayerLocks();
@@ -370,7 +377,10 @@ export default function LeftSidebar({
     
     const { itemId, newPosition } = params;
     moveLayer(currentPageId, itemId, newPosition.parentId, newPosition.index);
-  }, [currentPageId, moveLayer]);
+    
+    // Broadcast the layer move to other users
+    liveLayerUpdates.broadcastLayerMove(currentPageId, itemId, newPosition.parentId, newPosition.index);
+  }, [currentPageId, moveLayer, liveLayerUpdates]);
 
   // Helper to find layer in tree
   const findLayer = useCallback((layers: Layer[], id: string): { layer: Layer; parentId: string | null } | null => {
@@ -415,6 +425,66 @@ export default function LeftSidebar({
     // Otherwise, add as sibling
     return selectedItem.parentId;
   }, [selectedLayerId, layersForCurrentPage, findLayer]);
+
+  // Helper to add layer with broadcasting
+  const handleAddLayer = useCallback((layerType: Layer['type']) => {
+    if (!currentPageId) return;
+    
+    const parentId = getParentForNewLayer();
+    
+    // Generate the layer ID that will be created (same logic as in usePagesStore)
+    const newLayerId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Create the new layer object to broadcast
+    const newLayer: Layer = {
+      id: newLayerId,
+      type: layerType,
+      classes: getDefaultClasses(layerType),
+      content: getDefaultContent(layerType),
+      children: layerType === 'container' ? [] : undefined,
+    };
+    
+    // Add the layer locally using the same layer object we'll broadcast
+    addLayerWithId(currentPageId, parentId, newLayer);
+    
+    // Broadcast the layer addition
+    console.log('[LAYER-ADD] Broadcasting layer addition:', {
+      pageId: currentPageId,
+      parentId,
+      layerType,
+      newLayer
+    });
+    liveLayerUpdates.broadcastLayerAdd(currentPageId, parentId, layerType, newLayer);
+  }, [currentPageId, addLayerWithId, liveLayerUpdates, getParentForNewLayer]);
+
+  // Helper functions for default layer values
+  const getDefaultClasses = (type: Layer['type']): string => {
+    switch (type) {
+      case 'container':
+        return 'flex flex-col gap-4 p-8';
+      case 'text':
+        return 'text-base text-gray-700';
+      case 'heading':
+        return 'text-2xl font-bold text-gray-900';
+      case 'image':
+        return 'w-full h-48 object-cover rounded';
+      default:
+        return '';
+    }
+  };
+
+  const getDefaultContent = (type: Layer['type']): string | undefined => {
+    switch (type) {
+      case 'text':
+        return 'Edit this text...';
+      case 'heading':
+        return 'Heading';
+      case 'image':
+        return '';
+      default:
+        return undefined;
+    }
+  };
 
   // Handle page editing
   const handleEditPage = (page: Page) => {
@@ -521,11 +591,8 @@ export default function LeftSidebar({
                         <div className="p-2 space-y-1">
                         <button
                           onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'container');
-                              setShowAddBlockPanel(false);
-                            }
+                            handleAddLayer('container');
+                            setShowAddBlockPanel(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
                         >
@@ -542,11 +609,8 @@ export default function LeftSidebar({
 
                         <button
                           onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'heading');
-                              setShowAddBlockPanel(false);
-                            }
+                            handleAddLayer('heading');
+                            setShowAddBlockPanel(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
                         >
@@ -563,11 +627,8 @@ export default function LeftSidebar({
 
                         <button
                           onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'text');
-                              setShowAddBlockPanel(false);
-                            }
+                            handleAddLayer('text');
+                            setShowAddBlockPanel(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
                         >
@@ -584,11 +645,8 @@ export default function LeftSidebar({
 
                         <button
                           onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'image');
-                              setShowAddBlockPanel(false);
-                            }
+                            handleAddLayer('image');
+                            setShowAddBlockPanel(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
                         >

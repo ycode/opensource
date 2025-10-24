@@ -254,6 +254,8 @@ export default function YCodeBuilder() {
   const deleteSelectedLayer = () => {
     if (selectedLayerId && currentPageId) {
       deleteLayer(currentPageId, selectedLayerId);
+      // Broadcast the layer deletion to other users
+      liveLayerUpdates.broadcastLayerDelete(currentPageId, selectedLayerId);
       setSelectedLayerId(null);
     }
   };
@@ -536,6 +538,7 @@ export default function YCodeBuilder() {
           currentPageId={currentPageId}
           onPageSelect={setCurrentPageId}
           livePageUpdates={livePageUpdates}
+          liveLayerUpdates={liveLayerUpdates}
         />
 
         {/* Center Canvas - Preview */}
@@ -558,6 +561,8 @@ export default function YCodeBuilder() {
               liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
             }
           }}
+          liveLayerUpdates={liveLayerUpdates}
+          currentPageId={currentPageId}
         />
 
         {/* Realtime Cursors for Collaboration */}

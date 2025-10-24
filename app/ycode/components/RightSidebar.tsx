@@ -23,17 +23,23 @@ interface RightSidebarProps {
   selectedLayerId: string | null;
   onLayerUpdate: (layerId: string, updates: any) => void;
   onLayerDeselect?: () => void;
+  liveLayerUpdates?: {
+    broadcastLayerDelete: (pageId: string, layerId: string) => void;
+  };
+  currentPageId?: string | null;
 }
 
 export default function RightSidebar({
   selectedLayerId,
   onLayerUpdate,
+  liveLayerUpdates,
+  currentPageId,
 }: RightSidebarProps) {
   const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'content'>('design');
   const [classesInput, setClassesInput] = useState<string>('');
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
 
-  const { currentPageId } = useEditorStore();
+  const { currentPageId: editorCurrentPageId } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
   const layerLocks = useLayerLocks();
 
@@ -177,6 +183,10 @@ export default function RightSidebar({
                 if (selectedLayerId && currentPageId) {
                   const { deleteLayer } = usePagesStore.getState();
                   deleteLayer(currentPageId, selectedLayerId);
+                  // Broadcast the layer deletion to other users
+                  if (liveLayerUpdates) {
+                    liveLayerUpdates.broadcastLayerDelete(currentPageId, selectedLayerId);
+                  }
                 }
               }}
               className="p-1.5 hover:bg-white/10 rounded text-red-400 hover:text-red-300"

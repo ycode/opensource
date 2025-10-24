@@ -27,6 +27,9 @@ function findLayerInDraft(layers: Layer[], layerId: string): Layer | null {
 
 interface UseLiveLayerUpdatesReturn {
   broadcastLayerUpdate: (layerId: string, changes: Partial<Layer>) => void;
+  broadcastLayerAdd: (pageId: string, parentLayerId: string | null, layerType: Layer['type'], newLayer: Layer) => void;
+  broadcastLayerDelete: (pageId: string, layerId: string) => void;
+  broadcastLayerMove: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => void;
   isReceivingUpdates: boolean;
   lastUpdateTime: number | null;
 }
@@ -94,6 +97,19 @@ export function useLiveLayerUpdates(
         // Listen for layer updates
         channel.on('broadcast', { event: 'layer_update' }, (payload) => {
           handleIncomingUpdate(payload.payload);
+        });
+        
+        // Listen for layer structure changes
+        channel.on('broadcast', { event: 'layer_added' }, (payload) => {
+          handleIncomingLayerAdd(payload.payload);
+        });
+        
+        channel.on('broadcast', { event: 'layer_deleted' }, (payload) => {
+          handleIncomingLayerDelete(payload.payload);
+        });
+        
+        channel.on('broadcast', { event: 'layer_moved' }, (payload) => {
+          handleIncomingLayerMove(payload.payload);
         });
         
         // Listen for user activity
@@ -194,6 +210,99 @@ export function useLiveLayerUpdates(
       });
     }
   }, [currentUserId, addNotification]);
+
+  const handleIncomingLayerAdd = useCallback((payload: any) => {
+    // Get fresh current user ID from store
+    const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
+    
+    console.log('[LAYER-ADD] Received layer addition:', {
+      payload,
+      currentUserId: freshCurrentUserId,
+      pageId
+    });
+    
+    if (!freshCurrentUserId || payload.user_id === freshCurrentUserId) {
+      console.log('[LAYER-ADD] Ignoring own layer addition');
+      return;
+    }
+    
+    // Get fresh state from store
+    const { addLayerWithId: freshAddLayerWithId } = usePagesStore.getState();
+    
+    // Apply the layer addition with the exact same layer object
+    if (pageId && payload.page_id === pageId) {
+      console.log('[LAYER-ADD] Applying layer addition:', {
+        pageId,
+        parentId: payload.parent_layer_id,
+        layer: payload.new_layer
+      });
+      freshAddLayerWithId(pageId, payload.parent_layer_id, payload.new_layer);
+    }
+    
+    // Show notification
+    addNotification({
+      type: 'layer_edit_started',
+      user_id: payload.user_id,
+      user_name: 'User',
+      layer_id: payload.new_layer.id,
+      timestamp: Date.now(),
+      message: `User added a new ${payload.layer_type} layer`
+    });
+  }, [pageId, addNotification]);
+
+  const handleIncomingLayerDelete = useCallback((payload: any) => {
+    // Get fresh current user ID from store
+    const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
+    
+    if (!freshCurrentUserId || payload.user_id === freshCurrentUserId) {
+      return;
+    }
+    
+    // Get fresh state from store
+    const { deleteLayer: freshDeleteLayer } = usePagesStore.getState();
+    
+    // Apply the layer deletion
+    if (pageId && payload.page_id === pageId) {
+      freshDeleteLayer(pageId, payload.layer_id);
+    }
+    
+    // Show notification
+    addNotification({
+      type: 'layer_edit_ended',
+      user_id: payload.user_id,
+      user_name: 'User',
+      layer_id: payload.layer_id,
+      timestamp: Date.now(),
+      message: `User deleted a layer`
+    });
+  }, [pageId, addNotification]);
+
+  const handleIncomingLayerMove = useCallback((payload: any) => {
+    // Get fresh current user ID from store
+    const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
+    
+    if (!freshCurrentUserId || payload.user_id === freshCurrentUserId) {
+      return;
+    }
+    
+    // Get fresh state from store
+    const { moveLayer: freshMoveLayer } = usePagesStore.getState();
+    
+    // Apply the layer move
+    if (pageId && payload.page_id === pageId) {
+      freshMoveLayer(pageId, payload.layer_id, payload.target_parent_id, payload.target_index);
+    }
+    
+    // Show notification
+    addNotification({
+      type: 'layer_edit_started',
+      user_id: payload.user_id,
+      user_name: 'User',
+      layer_id: payload.layer_id,
+      timestamp: Date.now(),
+      message: `User moved a layer`
+    });
+  }, [pageId, addNotification]);
   
   const processUpdateQueue = useCallback(() => {
     // Get fresh pageId from the ref (this will be the current value)
@@ -266,6 +375,82 @@ export function useLiveLayerUpdates(
       });
     }
   }, [currentUserId, updateUser]);
+
+  const broadcastLayerAdd = useCallback((pageId: string, parentLayerId: string | null, layerType: Layer['type'], newLayer: Layer) => {
+    if (!channelRef.current || !currentUserId) {
+      return;
+    }
+    
+    // Broadcast the layer addition
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'layer_added',
+      payload: {
+        page_id: pageId,
+        parent_layer_id: parentLayerId,
+        layer_type: layerType,
+        new_layer: newLayer,
+        user_id: currentUserId,
+        timestamp: Date.now()
+      }
+    });
+    
+    // Update user activity
+    updateUser(currentUserId, {
+      last_active: Date.now(),
+      is_editing: false
+    });
+  }, [currentUserId, updateUser]);
+
+  const broadcastLayerDelete = useCallback((pageId: string, layerId: string) => {
+    if (!channelRef.current || !currentUserId) {
+      return;
+    }
+    
+    // Broadcast the layer deletion
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'layer_deleted',
+      payload: {
+        page_id: pageId,
+        layer_id: layerId,
+        user_id: currentUserId,
+        timestamp: Date.now()
+      }
+    });
+    
+    // Update user activity
+    updateUser(currentUserId, {
+      last_active: Date.now(),
+      is_editing: false
+    });
+  }, [currentUserId, updateUser]);
+
+  const broadcastLayerMove = useCallback((pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => {
+    if (!channelRef.current || !currentUserId) {
+      return;
+    }
+    
+    // Broadcast the layer move
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'layer_moved',
+      payload: {
+        page_id: pageId,
+        layer_id: layerId,
+        target_parent_id: targetParentId,
+        target_index: targetIndex,
+        user_id: currentUserId,
+        timestamp: Date.now()
+      }
+    });
+    
+    // Update user activity
+    updateUser(currentUserId, {
+      last_active: Date.now(),
+      is_editing: false
+    });
+  }, [currentUserId, updateUser]);
   
   // Cleanup on unmount
   useEffect(() => {
@@ -278,6 +463,9 @@ export function useLiveLayerUpdates(
   
   return {
     broadcastLayerUpdate,
+    broadcastLayerAdd,
+    broadcastLayerDelete,
+    broadcastLayerMove,
     isReceivingUpdates: isReceivingUpdates.current,
     lastUpdateTime: lastUpdateTime.current
   };
