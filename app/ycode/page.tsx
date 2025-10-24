@@ -442,8 +442,6 @@ export default function YCodeBuilder() {
         currentPageId={currentPageId}
         pages={pages}
         setCurrentPageId={setCurrentPageId}
-        viewportMode={viewportMode}
-        setViewportMode={setViewportMode}
         zoom={zoom}
         setZoom={setZoom}
         isSaving={isSaving}
@@ -476,6 +474,7 @@ export default function YCodeBuilder() {
               selectedLayerId={selectedLayerId}
               currentPageId={currentPageId}
               viewportMode={viewportMode}
+              setViewportMode={setViewportMode}
               zoom={zoom}
             />
 

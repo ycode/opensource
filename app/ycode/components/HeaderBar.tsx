@@ -27,8 +27,6 @@ interface HeaderBarProps {
   currentPageId: string | null;
   pages: Page[];
   setCurrentPageId: (id: string) => void;
-  viewportMode: 'desktop' | 'tablet' | 'mobile';
-  setViewportMode: (mode: 'desktop' | 'tablet' | 'mobile') => void;
   zoom: number;
   setZoom: (zoom: number) => void;
   isSaving: boolean;
@@ -49,8 +47,6 @@ export default function HeaderBar({
   currentPageId,
   pages,
   setCurrentPageId,
-  viewportMode,
-  setViewportMode,
   zoom,
   setZoom,
   isSaving,
@@ -109,26 +105,6 @@ export default function HeaderBar({
         </DropdownMenu>
 
       </div>
-
-      {/* Center: Viewport Controls - Only show when not in CMS */}
-      {activeTab !== 'cms' && (
-        <div className="flex items-center gap-3">
-          {/* Viewport Selector */}
-          <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as 'desktop' | 'tablet' | 'mobile')} >
-            <TabsList className="w-[240px]">
-              <TabsTrigger value="desktop" title="Desktop View">
-                Desktop
-              </TabsTrigger>
-              <TabsTrigger value="tablet" title="Tablet View">
-                Tablet
-              </TabsTrigger>
-              <TabsTrigger value="mobile" title="Mobile View">
-                Phone
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      )}
 
       {/* Right: User & Actions */}
       <div className="flex items-center gap-4">
