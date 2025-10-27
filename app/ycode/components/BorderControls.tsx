@@ -21,7 +21,7 @@ export default function BorderControls() {
           <Label variant="muted" className="h-8">Radius</Label>
           <div className="col-span-2 flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2">
-              <Input placeholder="All"/>
+              <Input/>
               <Tabs value={borderMode} onValueChange={(value) => setBorderMode(value as 'all-borders' | 'individual-borders')} className="w-full">
                 <TabsList className="w-full">
                   <TabsTrigger value="all-borders">
