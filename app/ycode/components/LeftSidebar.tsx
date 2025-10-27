@@ -6,14 +6,7 @@
  * Displays pages list and layers tree with navigation icons
  */
 
-import React, { useEffect, useMemo, useState, useRef, useCallback, forwardRef } from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { RichTreeViewPro } from '@mui/x-tree-view-pro/RichTreeViewPro';
-import { TreeViewBaseItem } from '@mui/x-tree-view/models';
-import { useTreeItem } from '@mui/x-tree-view/useTreeItem';
-import { TreeItemProvider } from '@mui/x-tree-view/TreeItemProvider';
-import { TreeItemDragAndDropOverlay } from '@mui/x-tree-view/TreeItemDragAndDropOverlay';
-import { animated, useSpring } from '@react-spring/web';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
 import type { Layer, Page } from '../../../types';
@@ -21,26 +14,9 @@ import AssetLibrary from '../../../components/AssetLibrary';
 import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
 import { pagesApi } from '../../../lib/api';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import Icon from "@/components/ui/icon";
-import {Button} from "@/components/ui/button";
-
-// Create dark theme for MUI
-const darkTheme = createTheme({
-  palette: {
-    mode: 'dark',
-    background: {
-      default: '#18181b',
-      paper: '#18181b',
-    },
-    text: {
-      primary: '#d4d4d8',
-      secondary: '#a1a1aa',
-    },
-    primary: {
-      main: '#3b82f6',
-    },
-  },
-});
+import Icon from '@/components/ui/icon';
+import { Button } from '@/components/ui/button';
+import LayersTree from './LayersTree';
 
 // Helper function to find layer by ID recursively
 function findLayerById(layers: Layer[], id: string): Layer | null {
@@ -53,172 +29,6 @@ function findLayerById(layers: Layer[], id: string): Layer | null {
   }
   return null;
 }
-
-// TransitionComponent with React Spring animation
-function TransitionComponent(props: any) {
-  const { in: open, children, ...other } = props;
-  
-  const style = useSpring({
-    to: {
-      opacity: open ? 1 : 0,
-      transform: `translate3d(0,${open ? 0 : -10}px,0)`,
-      height: open ? 'auto' : 0,
-    },
-    config: { tension: 200, friction: 20 },
-  });
-
-  return (
-    <animated.ul style={style} {...other}>
-      {children}
-    </animated.ul>
-  );
-}
-
-// Custom Tree Item Component
-interface CustomTreeItemProps {
-  itemId: string;
-  label: string;
-  disabled?: boolean;
-  children?: React.ReactNode;
-  layersForCurrentPage: Layer[];
-  selectedLayerId: string | null;
-}
-
-const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
-  function CustomTreeItem(props, ref) {
-    const { itemId, label, disabled, children, layersForCurrentPage, selectedLayerId } = props;
-
-    const {
-      getRootProps,
-      getContentProps,
-      getIconContainerProps,
-      getLabelProps,
-      getGroupTransitionProps,
-      getDragAndDropOverlayProps,
-      status,
-    } = useTreeItem({ itemId, label, disabled, rootRef: ref });
-
-    // Find layer data to determine icon
-    const layer = useMemo(() => findLayerById(layersForCurrentPage, itemId), [layersForCurrentPage, itemId]);
-
-    const isSelected = selectedLayerId === itemId;
-    const isExpanded = status.expanded;
-    const hasChildren = Boolean(children);
-
-    const contentProps = getContentProps();
-
-    return (
-        <TreeItemProvider itemId={itemId} id={itemId}>
-        <li
-          {...getRootProps()}
-          style={{
-            listStyle: 'none',
-            margin: 0,
-            padding: 0,
-            outline: 0,
-          }}
-        >
-          <div
-            {...contentProps}
-            style={{
-              padding: '4px 8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              cursor: 'grab',
-              borderRadius: '6px',
-              marginBottom: '2px',
-              transition: 'all 150ms cubic-bezier(0.25, 0.1, 0.25, 1)',
-              backgroundColor: isSelected
-                ? '#3b82f6'
-                : status.focused
-                  ? 'rgba(63, 63, 70, 0.4)'
-                  : 'transparent',
-              color: isSelected ? '#ffffff' : '#d4d4d8',
-              position: 'relative',
-            }}
-            className="hover:bg-zinc-700/40"
-            onMouseDown={(e) => {
-              // Change cursor to grabbing on mouse down
-              e.currentTarget.style.cursor = 'grabbing';
-            }}
-            onMouseUp={(e) => {
-              // Reset cursor on mouse up
-              e.currentTarget.style.cursor = 'grab';
-            }}
-          >
-            {/* Expand/Collapse Icon */}
-            <span
-              {...getIconContainerProps()}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '16px',
-                height: '16px',
-                transition: 'transform 150ms ease-out',
-                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-              }}
-            >
-              {hasChildren ? (
-                <svg
-                  className="w-3 h-3 text-zinc-400"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              ) : (
-                <span style={{ width: '16px' }} />
-              )}
-            </span>
-
-            {/* Layer Icon */}
-            <span
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              {getLayerIcon(layer?.type || 'container')}
-            </span>
-
-            {/* Label */}
-            <span
-              {...getLabelProps()}
-              style={{
-                flexGrow: 1,
-                fontSize: '0.875rem',
-                fontWeight: 500,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {label}
-            </span>
-
-            {/* Drag Overlay */}
-            <TreeItemDragAndDropOverlay {...getDragAndDropOverlayProps()} />
-          </div>
-
-          {/* Animated Children */}
-          {children && (
-            <TransitionComponent {...getGroupTransitionProps()}>
-              {children}
-            </TransitionComponent>
-          )}
-        </li>
-      </TreeItemProvider>
-    );
-  }
-);
 
 interface LeftSidebarProps {
   selectedLayerId: string | null;
@@ -240,9 +50,8 @@ export default function LeftSidebar({
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
-  const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const addBlockPanelRef = useRef<HTMLDivElement>(null);
-  const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, moveLayer } = usePagesStore();
+  const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
   
@@ -289,30 +98,11 @@ export default function LeftSidebar({
     return draft ? draft.layers : [];
   }, [currentPageId, draftsByPageId]);
 
-  // Convert Layer[] to MUI TreeViewBaseItem[]
-  const convertToTreeItems = useCallback((layers: Layer[]): TreeViewBaseItem[] => {
-    return layers.map((layer) => ({
-      id: layer.id,
-      label: getLayerDisplayName(layer),
-      children: layer.children ? convertToTreeItems(layer.children) : undefined,
-    }));
-  }, []);
-
-  const treeItems = useMemo(() => {
-    return convertToTreeItems(layersForCurrentPage);
-  }, [layersForCurrentPage, convertToTreeItems]);
-
-  // Handle item reordering from MUI Tree View
-  const handleItemPositionChange = useCallback((params: {
-    itemId: string;
-    oldPosition: { parentId: string | null; index: number };
-    newPosition: { parentId: string | null; index: number };
-  }) => {
+  // Handle layer reordering from drag & drop
+  const handleLayersReorder = useCallback((newLayers: Layer[]) => {
     if (!currentPageId) return;
-    
-    const { itemId, newPosition } = params;
-    moveLayer(currentPageId, itemId, newPosition.parentId, newPosition.index);
-  }, [currentPageId, moveLayer]);
+    setDraftLayers(currentPageId, newLayers);
+  }, [currentPageId, setDraftLayers]);
 
   // Helper to find layer in tree
   const findLayer = useCallback((layers: Layer[], id: string): { layer: Layer; parentId: string | null } | null => {
@@ -577,39 +367,12 @@ export default function LeftSidebar({
                   </p>
                 </div>
               ) : (
-                <ThemeProvider theme={darkTheme}>
-                  <RichTreeViewPro
-                    items={treeItems}
-                    selectedItems={selectedLayerId || null}
-                    onSelectedItemsChange={(event, itemId) => {
-                      if (typeof itemId === 'string') {
-                        onLayerSelect(itemId);
-                      }
-                    }}
-                    expandedItems={expandedItems}
-                    onExpandedItemsChange={(event, itemIds) => {
-                      setExpandedItems(itemIds as string[]);
-                    }}
-                    onItemPositionChange={handleItemPositionChange}
-                    itemsReordering
-                    slots={{
-                      item: (props: any) => (
-                        <CustomTreeItem
-                          {...props}
-                          layersForCurrentPage={layersForCurrentPage}
-                          selectedLayerId={selectedLayerId}
-                        />
-                      ),
-                    }}
-                    sx={{
-                      flexGrow: 1,
-                      '--TreeView-itemChildrenIndentation': '16px',
-                      '& ul': {
-                        paddingLeft: '16px',
-                      },
-                    }}
-                  />
-                </ThemeProvider>
+                <LayersTree
+                  layers={layersForCurrentPage}
+                  selectedLayerId={selectedLayerId}
+                  onLayerSelect={onLayerSelect}
+                  onReorder={handleLayersReorder}
+                />
               )}
               </div>
           </TabsContent>
@@ -717,49 +480,3 @@ export default function LeftSidebar({
     </div>
   );
 }
-
-// Helper function to get icon for layer type
-function getLayerIcon(type: Layer['type']) {
-  switch (type) {
-    case 'container':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-        </svg>
-      );
-    case 'text':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M6 4a1 1 0 011-1h6a1 1 0 110 2h-2v10h2a1 1 0 110 2H7a1 1 0 110-2h2V5H7a1 1 0 01-1-1z" clipRule="evenodd" />
-        </svg>
-      );
-    case 'heading':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6v10h2a1 1 0 010 2H4a1 1 0 010-2h1V5H4a1 1 0 01-1-1zm9 0a1 1 0 011-1h4a1 1 0 110 2h-2v4h2a1 1 0 110 2h-2v4h2a1 1 0 110 2h-4a1 1 0 110-2h1v-4h-1a1 1 0 010-2h1V5h-1a1 1 0 01-1-1z" />
-        </svg>
-      );
-    case 'image':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-        </svg>
-      );
-    default:
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-        </svg>
-      );
-  }
-}
-
-// Helper function to get display name for layer
-function getLayerDisplayName(layer: Layer): string {
-  const typeLabel = layer.type.charAt(0).toUpperCase() + layer.type.slice(1);
-  return typeLabel;
-}
-
-
-
-
