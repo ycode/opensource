@@ -17,6 +17,9 @@ import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
 import {Button} from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
+import {Label} from "@/components/ui/label";
+import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger} from "@/components/ui/select";
+import {InputGroup, InputGroupAddon, InputGroupInput} from "@/components/ui/input-group";
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
@@ -121,17 +124,18 @@ export default function RightSidebar({
   return (
     <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col p-4">
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')} className="flex flex-col flex-1">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')} className="flex flex-col flex-1 gap-0">
         <TabsList className="w-full">
           <TabsTrigger value="design">Design</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-        <hr className="my-2"/>
+        <hr className="mt-4"/>
 
         {/* Content */}
-        <TabsContent value="design" className="flex-1 flex flex-col overflow-y-auto data-[state=inactive]:hidden">
-          <div className="flex flex-col gap-4">
+        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto data-[state=inactive]:hidden overflow-x-hidden">
+
+          <div className="flex flex-col gap-4 py-5">
             <Input
               type="text"
               value={currentClassInput}
@@ -157,6 +161,117 @@ export default function RightSidebar({
                 )}
               </div>
           </div>
+
+          <div className="py-5">
+
+            <div className="py-4 -mt-4">
+              <Label>Typography</Label>
+            </div>
+
+            <div className="flex flex-col gap-2">
+
+              <div className="grid grid-cols-3">
+                <Label variant="muted">Font</Label>
+                <div className="col-span-2 *:w-full">
+
+                  <Select>
+                    <SelectTrigger>
+                      Inherits
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="inherits">Inherits</SelectItem>
+                        <SelectItem value="Inter">Inter</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3">
+                <Label variant="muted">Weight</Label>
+                <div className="col-span-2 *:w-full">
+                  <Select>
+                    <SelectTrigger>
+                      Regular
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="100">Thin</SelectItem>
+                        <SelectItem value="200">Extralight</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3">
+                <Label variant="muted">Size</Label>
+                <div className="col-span-2 *:w-full">
+                  <InputGroup>
+                    <InputGroupInput/>
+                    <InputGroupAddon align="inline-end">
+                      <Select>
+                        <SelectTrigger size="xs" variant="ghost">
+                          Px
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="px">Px</SelectItem>
+                            <SelectItem value="rem">Rem</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3">
+                <Label variant="muted">Align</Label>
+                <div className="col-span-2">
+                  <Tabs defaultValue="left" className="w-full">
+                    <TabsList className="grid w-full grid-cols-4">
+                      <TabsTrigger value="left" className="px-2 text-xs">
+                        <Icon name="textAlignLeft"/>
+                      </TabsTrigger>
+                      <TabsTrigger value="center" className="px-2 text-xs">
+                        <Icon name="textAlignCenter"/>
+                      </TabsTrigger>
+                      <TabsTrigger value="right" className="px-2 text-xs">
+                        <Icon name="textAlignRight"/>
+                      </TabsTrigger>
+                      <TabsTrigger value="justify" className="px-2 text-xs">
+                        <Icon name="textAlignJustify"/>
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3">
+                <Label variant="muted">Spacing</Label>
+                <div className="col-span-2 grid grid-cols-2 gap-2">
+                  <InputGroup>
+                      <InputGroupAddon>
+                        <Icon name="letterSpacing" className="size-3"/>
+                      </InputGroupAddon>
+                      <InputGroupInput className="!pr-0"/>
+                  </InputGroup>
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <Icon name="lineHeight" className="size-3"/>
+                    </InputGroupAddon>
+                    <InputGroupInput className="!pr-0"/>
+                  </InputGroup>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">
