@@ -27,10 +27,11 @@ import {
   useDraggable,
   useDroppable,
 } from '@dnd-kit/core';
-import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight } from 'lucide-react';
+import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check } from 'lucide-react';
 import type { Layer } from '../../../types';
 import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
 import { cn } from '../../../lib/utils';
+import { getHtmlTag } from '../../../lib/layer-utils';
 
 interface LayersTreeProps {
   layers: Layer[];
@@ -50,12 +51,56 @@ interface LayerRowProps {
   onToggle: (id: string) => void;
 }
 
-// Element icon mapping
-const elementIcons: Record<Layer['type'], React.ElementType> = {
+// Element icon mapping - Now supports both old 'type' and new 'name' properties
+const elementIcons: Record<string, React.ElementType> = {
+  // Old system
   container: Box,
   text: Type,
   heading: Heading,
   image: ImageIcon,
+  
+  // New system - Structure
+  div: Box,
+  section: Layout,
+  hr: Square,
+  columns: Layout,
+  rows: Layout,
+  grid: Layout,
+  
+  // Content
+  heading: Heading, // New consolidated heading
+  h1: Heading,
+  h2: Heading,
+  h3: Heading,
+  h4: Heading,
+  h5: Heading,
+  h6: Heading,
+  p: Type,
+  span: Type,
+  richtext: FileText,
+  
+  // Actions
+  button: Square,
+  a: Link,
+  link: Link,
+  
+  // Media
+  img: ImageIcon,
+  icon: Square,
+  video: Video,
+  audio: Music,
+  youtube: Film,
+  iframe: Code,
+  
+  // Forms
+  form: FileText,
+  input: Type,
+  textarea: FileText,
+  select: Square,
+  checkbox: CheckSquare,
+  radio: Circle,
+  label: Tag,
+  submit: Check,
 };
 
 // Helper function to get display name for layer
@@ -65,8 +110,31 @@ function getLayerDisplayName(layer: Layer): string {
     return 'Body';
   }
   
-  const typeLabel = layer.type.charAt(0).toUpperCase() + layer.type.slice(1);
-  return typeLabel;
+  // Use custom name if available
+  if (layer.customName) {
+    return layer.customName;
+  }
+  
+  // Use name property (new system)
+  if (layer.name) {
+    const name = layer.name;
+    // Capitalize first letter
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+  
+  // Fallback to type property (old system)
+  if (layer.type) {
+    const typeLabel = layer.type.charAt(0).toUpperCase() + layer.type.slice(1);
+    return typeLabel;
+  }
+  
+  return 'Element';
+}
+
+// Helper function to get icon key for a layer
+function getIconKey(layer: Layer): string {
+  // Use name property (new system) or fallback to type (old system)
+  return layer.name || layer.type || 'div';
 }
 
 // Helper to check if a node is a descendant of another
@@ -111,7 +179,7 @@ function LayerRow({
   const hasChildren = node.layer.children && node.layer.children.length > 0;
   const isCollapsed = node.collapsed || false;
   
-  const ElementIcon = elementIcons[node.layer.type] || Square;
+  const ElementIcon = elementIcons[getIconKey(node.layer)] || Square;
 
   return (
     <div className="relative">
@@ -660,7 +728,7 @@ export default function LayersTree({
             style={{ transform: 'translateX(40px)' }}
           >
             {(() => {
-              const ElementIcon = elementIcons[activeNode.layer.type] || Square;
+              const ElementIcon = elementIcons[getIconKey(activeNode.layer)] || Square;
               return <ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" />;
             })()}
             <span>{getLayerDisplayName(activeNode.layer)}</span>

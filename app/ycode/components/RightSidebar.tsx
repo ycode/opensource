@@ -17,6 +17,8 @@ import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
 import {Button} from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
+import SettingsPanel from './SettingsPanel';
+import ToggleGroup from './ToggleGroup';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
@@ -30,6 +32,9 @@ export default function RightSidebar({
   const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'content'>('design');
   const [classesInput, setClassesInput] = useState<string>('');
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
+  const [attributesOpen, setAttributesOpen] = useState(true);
+  const [customId, setCustomId] = useState<string>('');
+  const [isHidden, setIsHidden] = useState<boolean>(false);
 
   const { currentPageId } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
@@ -52,6 +57,8 @@ export default function RightSidebar({
   if (selectedLayerId !== prevSelectedLayerId) {
     setPrevSelectedLayerId(selectedLayerId);
     setClassesInput(selectedLayer?.classes || '');
+    setCustomId(selectedLayer?.attributes?.id || '');
+    setIsHidden(selectedLayer?.hidden || false);
   }
 
   // Parse classes into array for badge display
@@ -110,6 +117,25 @@ export default function RightSidebar({
     onLayerUpdate(selectedLayerId, { classes: updated.trim() });
   };
 
+  // Handle custom ID change
+  const handleIdChange = (value: string) => {
+    setCustomId(value);
+    if (selectedLayerId) {
+      const currentAttributes = selectedLayer?.attributes || {};
+      onLayerUpdate(selectedLayerId, { 
+        attributes: { ...currentAttributes, id: value }
+      });
+    }
+  };
+
+  // Handle visibility toggle
+  const handleVisibilityChange = (hidden: boolean) => {
+    setIsHidden(hidden);
+    if (selectedLayerId) {
+      onLayerUpdate(selectedLayerId, { hidden });
+    }
+  };
+
   if (! selectedLayerId || ! selectedLayer) {
     return (
       <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex items-center justify-center">
@@ -160,7 +186,39 @@ export default function RightSidebar({
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">
+          <div className="flex flex-col gap-4 p-2">
+            {/* Attributes Panel */}
+            <SettingsPanel
+              title="Attributes"
+              isOpen={attributesOpen}
+              onToggle={() => setAttributesOpen(!attributesOpen)}
+            >
+              {/* ID Field */}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-2">ID</label>
+                <Input
+                  type="text"
+                  value={customId}
+                  onChange={(e) => handleIdChange(e.target.value)}
+                  placeholder="Identifier"
+                  className="w-full bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-600"
+                />
+              </div>
 
+              {/* Element Visibility Toggle */}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-2">Element</label>
+                <ToggleGroup
+                  options={[
+                    { label: 'Shown', value: false },
+                    { label: 'Hidden', value: true },
+                  ]}
+                  value={isHidden}
+                  onChange={(value) => handleVisibilityChange(value as boolean)}
+                />
+              </div>
+            </SettingsPanel>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

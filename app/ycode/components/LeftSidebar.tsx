@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import LayersTree from './LayersTree';
+import ElementLibrary from './ElementLibrary';
 
 // Helper function to find layer by ID recursively
 function findLayerById(layers: Layer[], id: string): Layer | null {
@@ -46,11 +47,10 @@ export default function LeftSidebar({
   onActiveTabChange,
 }: LeftSidebarProps) {
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
-  const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
+  const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
-  const addBlockPanelRef = useRef<HTMLDivElement>(null);
   const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
@@ -224,7 +224,8 @@ export default function LeftSidebar({
   };
 
   return (
-    <div className="w-72 shrink-0 bg-neutral-950 border-r border-white/10 flex overflow-hidden p-4">
+    <>
+      <div className="w-72 shrink-0 bg-neutral-950 border-r border-white/10 flex overflow-hidden p-4">
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(value) => {
           const newTab = value as 'pages' | 'layers' | 'cms';
@@ -244,115 +245,15 @@ export default function LeftSidebar({
               <div className="p-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-medium text-zinc-300">Layers</h3>
-                  <div className="relative">
-                    <button 
-                      onClick={() => setShowAddBlockPanel(!showAddBlockPanel)}
-                      className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
-                      title="Add Block"
-                    >
-                      <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-
-                    {/* Add Block Panel */}
-                    {showAddBlockPanel && (
-                      <div
-                        ref={addBlockPanelRef}
-                        className="absolute top-full right-0 mt-2 w-60 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden"
-                      >
-                        <div className="p-2 border-b border-zinc-700">
-                          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Add Block</h4>
-                        </div>
-                        
-                        <div className="p-2 space-y-1">
-                        <button
-                          onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'container');
-                              setShowAddBlockPanel(false);
-                            }
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
-                        >
-                          <div className="w-8 h-8 bg-zinc-700 rounded flex items-center justify-center">
-                            <svg className="w-4 h-4 text-zinc-300" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-zinc-200">Div</div>
-                            <div className="text-xs text-zinc-500">Container element</div>
-                          </div>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'heading');
-                              setShowAddBlockPanel(false);
-                            }
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
-                        >
-                          <div className="w-8 h-8 bg-zinc-700 rounded flex items-center justify-center">
-                            <svg className="w-4 h-4 text-zinc-300" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6v10h2a1 1 0 010 2H4a1 1 0 010-2h1V5H4a1 1 0 01-1-1zm9 0a1 1 0 011-1h4a1 1 0 110 2h-2v4h2a1 1 0 110 2h-2v4h2a1 1 0 110 2h-4a1 1 0 110-2h1v-4h-1a1 1 0 010-2h1V5h-1a1 1 0 01-1-1z" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-zinc-200">Heading</div>
-                            <div className="text-xs text-zinc-500">Title text</div>
-                          </div>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'text');
-                              setShowAddBlockPanel(false);
-                            }
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
-                        >
-                          <div className="w-8 h-8 bg-zinc-700 rounded flex items-center justify-center">
-                            <svg className="w-4 h-4 text-zinc-300" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M6 4a1 1 0 011-1h6a1 1 0 110 2h-2v10h2a1 1 0 110 2H7a1 1 0 110-2h2V5H7a1 1 0 01-1-1z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-zinc-200">Paragraph</div>
-                            <div className="text-xs text-zinc-500">Body text</div>
-                          </div>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'image');
-                              setShowAddBlockPanel(false);
-                            }
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
-                        >
-                          <div className="w-8 h-8 bg-zinc-700 rounded flex items-center justify-center">
-                            <svg className="w-4 h-4 text-zinc-300" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-zinc-200">Image</div>
-                            <div className="text-xs text-zinc-500">Picture element</div>
-                          </div>
-                        </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <button 
+                    onClick={() => setShowElementLibrary(true)}
+                    className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
+                    title="Add Element"
+                  >
+                    <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                    </svg>
+                  </button>
                 </div>
 
               {!currentPageId ? (
@@ -490,6 +391,15 @@ export default function LeftSidebar({
           page={editingPage}
           onSave={handleSavePage}
         />
-    </div>
+      </div>
+
+      {/* Element Library Slide-Out */}
+      {showElementLibrary && (
+        <ElementLibrary
+          isOpen={showElementLibrary}
+          onClose={() => setShowElementLibrary(false)}
+        />
+      )}
+    </>
   );
 }

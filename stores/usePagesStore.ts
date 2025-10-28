@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import type { Layer, Page, PageVersion } from '../types';
 import { pagesApi, pageVersionsApi } from '../lib/api';
+import { getTemplate } from '../lib/templates/blocks';
 
 interface PagesState {
   pages: Page[];
@@ -21,6 +22,7 @@ interface PagesActions {
   publishPage: (pageId: string) => Promise<void>;
   setError: (error: string | null) => void;
   addLayer: (pageId: string, parentLayerId: string | null, layerType: Layer['type']) => void;
+  addLayerFromTemplate: (pageId: string, parentLayerId: string | null, templateId: string) => void;
   deleteLayer: (pageId: string, layerId: string) => void;
   updateLayer: (pageId: string, layerId: string, updates: Partial<Layer>) => void;
   moveLayer: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => boolean;
@@ -221,6 +223,86 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
         ...parent,
         children: [...(parent.children || []), newLayer],
+      }));
+    }
+
+    set({ 
+      draftsByPageId: { 
+        ...draftsByPageId, 
+        [pageId]: { ...draft, layers: newLayers }
+      } 
+    });
+  },
+
+  addLayerFromTemplate: (pageId, parentLayerId, templateId) => {
+    const { draftsByPageId, pages } = get();
+    let draft = draftsByPageId[pageId];
+    
+    // Initialize draft if it doesn't exist
+    if (!draft) {
+      const page = pages.find(p => p.id === pageId);
+      if (!page) return;
+      
+      draft = {
+        id: `draft-${pageId}`,
+        page_id: pageId,
+        layers: [],
+        is_published: false,
+        created_at: new Date().toISOString(),
+      };
+    }
+
+    // Get the template and block info
+    const template = getTemplate(templateId);
+    if (!template) {
+      console.error(`Template ${templateId} not found`);
+      return;
+    }
+    
+    // Import block name function dynamically
+    const { getBlockName } = require('../lib/templates/blocks');
+    const displayName = getBlockName(templateId);
+
+    // Helper: Ensure children/items compatibility
+    const normalizeLayer = (layer: Layer, isRoot: boolean = true): Layer => {
+      const normalized = { ...layer };
+      
+      // Set the display name for the root layer
+      if (isRoot && displayName) {
+        normalized.customName = displayName;
+      }
+      
+      // If layer has items but not children, copy items to children
+      if (normalized.items && !normalized.children) {
+        normalized.children = normalized.items;
+      }
+      
+      // If layer has children, recursively normalize them
+      if (normalized.children) {
+        normalized.children = normalized.children.map(child => normalizeLayer(child, false));
+      }
+      
+      // Ensure classes is a string (for backwards compatibility)
+      if (Array.isArray(normalized.classes)) {
+        normalized.classes = normalized.classes.join(' ');
+      }
+      
+      return normalized;
+    };
+
+    const newLayer = normalizeLayer(template, true);
+
+    let newLayers: Layer[];
+    
+    if (! parentLayerId) {
+      // Add to root
+      newLayers = [...draft.layers, newLayer];
+    } else {
+      // Add as child to parent
+      newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
+        ...parent,
+        children: [...(parent.children || []), newLayer],
+        items: [...(parent.items || parent.children || []), newLayer],
       }));
     }
 
