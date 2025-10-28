@@ -24,6 +24,7 @@ interface PagesActions {
   deleteLayer: (pageId: string, layerId: string) => void;
   updateLayer: (pageId: string, layerId: string, updates: Partial<Layer>) => void;
   moveLayer: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => boolean;
+  setDraftLayers: (pageId: string, layers: Layer[]) => void;
 }
 
 type PagesStore = PagesState & PagesActions;
@@ -365,6 +366,30 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     });
 
     return true;
+  },
+
+  setDraftLayers: (pageId, layers) => {
+    console.log('💾 SET DRAFT LAYERS called:', {
+      pageId,
+      layersCount: layers.length,
+      layers: layers.map(l => ({ id: l.id, type: l.type }))
+    });
+    
+    const { draftsByPageId } = get();
+    const draft = draftsByPageId[pageId];
+    if (!draft) {
+      console.error('❌ SET DRAFT LAYERS: No draft found for page', pageId);
+      return;
+    }
+
+    set({
+      draftsByPageId: {
+        ...draftsByPageId,
+        [pageId]: { ...draft, layers },
+      },
+    });
+    
+    console.log('✅ SET DRAFT LAYERS: State updated successfully');
   },
 }));
 

@@ -400,6 +400,7 @@ export default function YCodeBuilder() {
                 className="w-full bg-zinc-800 border border-zinc-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="••••••••"
                 disabled={isLoggingIn}
+                autoComplete="current-password"
                 required
               />
             </div>
