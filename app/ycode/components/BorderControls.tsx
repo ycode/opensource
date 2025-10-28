@@ -25,18 +25,15 @@ export default function BorderControls() {
         <div className="grid grid-cols-3 items-start">
           <Label variant="muted" className="h-8">Radius</Label>
           <div className="col-span-2 flex flex-col gap-2">
-            <div className="grid grid-cols-2 gap-2">
-              <Input/>
-              <Tabs value={radiusBorderMode} onValueChange={(value) => setRadiusBorderMode(value as 'all-borders' | 'individual-borders')} className="w-full">
-                <TabsList className="w-full">
-                  <TabsTrigger value="all-borders">
-                    <Icon name="borders"/>
-                  </TabsTrigger>
-                  <TabsTrigger value="individual-borders">
-                    <Icon name="individualBorders"/>
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+            <div className="flex items-center gap-2">
+              <Input className="flex-1" disabled={radiusBorderMode === 'individual-borders'}/>
+              <Button 
+                variant={radiusBorderMode === 'individual-borders' ? 'secondary' : 'ghost'} 
+                size="sm"
+                onClick={() => setRadiusBorderMode(radiusBorderMode === 'all-borders' ? 'individual-borders' : 'all-borders')}
+              >
+                <Icon name="individualBorders"/>
+              </Button>
             </div>
             {radiusBorderMode === 'individual-borders' && (
               <div className="grid grid-cols-2 gap-2">
@@ -101,18 +98,15 @@ export default function BorderControls() {
                   <div className="grid grid-cols-3 items-start">
                     <Label variant="muted" className="h-8">Width</Label>
                     <div className="col-span-2 flex flex-col gap-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input/>
-                        <Tabs value={widthBorderMode} onValueChange={(value) => setWidthBorderMode(value as 'all-borders' | 'individual-borders')} className="w-full">
-                          <TabsList className="w-full">
-                            <TabsTrigger value="all-borders">
-                              <Icon name="borders"/>
-                            </TabsTrigger>
-                            <TabsTrigger value="individual-borders">
-                              <Icon name="borderWidth"/>
-                            </TabsTrigger>
-                          </TabsList>
-                        </Tabs>
+                      <div className="flex items-center gap-2">
+                        <Input className="flex-1" disabled={widthBorderMode === 'individual-borders'}/>
+                        <Button 
+                          variant={widthBorderMode === 'individual-borders' ? 'secondary' : 'ghost'} 
+                          size="sm"
+                          onClick={() => setWidthBorderMode(widthBorderMode === 'all-borders' ? 'individual-borders' : 'all-borders')}
+                        >
+                          <Icon name="individualBorders"/>
+                        </Button>
                       </div>
                       {widthBorderMode === 'individual-borders' && (
                           <div className="grid grid-cols-4 gap-2">

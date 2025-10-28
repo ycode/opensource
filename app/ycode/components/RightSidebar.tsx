@@ -22,6 +22,8 @@ import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger} from "@/c
 import {InputGroup, InputGroupAddon, InputGroupInput} from "@/components/ui/input-group";
 import BorderControls from './BorderControls';
 import TypographyControls from './TypographyControls';
+import EffectControls from './EffectControls';
+import LayoutControls from './LayoutControls';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
@@ -164,9 +166,13 @@ export default function RightSidebar({
               </div>
           </div>
 
+          <LayoutControls />
+
           <TypographyControls />
 
           <BorderControls />
+
+          <EffectControls />
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">
