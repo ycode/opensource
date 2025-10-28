@@ -60,6 +60,11 @@ const elementIcons: Record<Layer['type'], React.ElementType> = {
 
 // Helper function to get display name for layer
 function getLayerDisplayName(layer: Layer): string {
+  // Special case for Body layer
+  if (layer.id === 'body') {
+    return 'Body';
+  }
+  
   const typeLabel = layer.type.charAt(0).toUpperCase() + layer.type.slice(1);
   return typeLabel;
 }
@@ -255,6 +260,8 @@ export default function LayersTree({
     }
 
     const overNode = flattenedNodes.find((n) => n.id === overId);
+    const activeNode = activeId ? flattenedNodes.find((n) => n.id === activeId) : null;
+    
     if (!overNode) {
       setDropPosition(null);
       return;
@@ -267,6 +274,14 @@ export default function LayersTree({
       childrenCount: overNode.layer.children?.length || 0,
       isCollapsed: collapsedIds.has(overId)
     });
+
+    // CRITICAL: Prevent dropping outside Body layer
+    // If hovering over Body itself, only allow "inside" drops
+    if (overNode.id === 'body') {
+      setOverId(overId);
+      setDropPosition('inside');
+      return;
+    }
 
     // Calculate pointer position accounting for drag delta
     const pointerY = event.activatorEvent && 'clientY' in event.activatorEvent 
@@ -297,20 +312,9 @@ export default function LayersTree({
     if (isContainerType && hasVisibleChildren) {
       // CONTAINERS WITH VISIBLE CHILDREN: Larger "inside" zone
       if (relativeY < 0.2) {
-        // Don't allow "above" if container has no parent
-        if (!overNode.parentId) {
-          setOverId(null);
-          setDropPosition(null);
-          return;
-        }
         position = 'above';
       } else if (relativeY > 0.8) {
-        // If container has no parent, "below" should place inside as last child
-        if (!overNode.parentId) {
-          position = 'inside';
-        } else {
-          position = 'below';
-        }
+        position = 'below';
       } else {
         // 60% of the container is "inside" zone
         position = 'inside';
@@ -318,38 +322,87 @@ export default function LayersTree({
     } else if (canHaveChildren && isContainerType) {
       // EMPTY/COLLAPSED CONTAINERS: Most area is inside
       if (relativeY < 0.15) {
-        // Don't allow "above" if container has no parent
-        if (!overNode.parentId) {
-          setOverId(null);
-          setDropPosition(null);
-          return;
-        }
         position = 'above';
       } else if (relativeY > 0.85) {
-        // If container has no parent, "below" should place inside as last child
-        if (!overNode.parentId) {
-          position = 'inside';
-        } else {
-          position = 'below';
-        }
+        position = 'below';
       } else {
         // 70% of empty container is "inside" zone
         position = 'inside';
       }
     } else {
       // LEAF NODES: Simple 50/50 split
-      // BUT: Don't allow "above" or "below" if element has no parent (would place outside root)
-      if (!overNode.parentId) {
-        // No parent = at root level, can't place above or below
+      if (relativeY < 0.5) {
+        position = 'above';
+      } else {
+        position = 'below';
+      }
+    }
+
+    // CRITICAL: Prevent reordering within same parent from moving outside parent
+    // If dragging an element within its own parent, "above/below" should only reorder
+    // within that parent, not escape to the parent's parent level
+    if (activeNode && (position === 'above' || position === 'below')) {
+      const targetParentId = overNode.parentId;
+      const currentParentId = activeNode.parentId;
+      
+      // Check if hovering over a container that IS the current parent
+      // This would place element outside its own container
+      if (overNode.id === currentParentId && overNode.layer.type === 'container') {
+        // Dragging over the container that contains the dragged element
+        // "above" or "below" would escape to the grandparent level
+        console.log('🚫 DROP BLOCKED: Would escape own container', {
+          container: getLayerDisplayName(overNode.layer),
+          position,
+        });
         setOverId(null);
         setDropPosition(null);
         return;
       }
       
-      if (relativeY < 0.5) {
-        position = 'above';
-      } else {
-        position = 'below';
+      // ADDITIONAL CHECK: If both are siblings but the target's parent is different from
+      // what the drop would result in, block it
+      // This catches the edge case where "above" first child would place at parent level
+      if (currentParentId === targetParentId && currentParentId !== null) {
+        // Same parent - check if this would actually change the parent
+        // For "above" on first child or "below" on last child, the actual placement
+        // would be at parent level (escaping the container)
+        
+        // Find all siblings in this container
+        const siblingsInParent = flattenedNodes.filter(n => n.parentId === currentParentId);
+        
+        // Check if target is first child and we're going "above"
+        // OR if target is last child and we're going "below"
+        const isFirstSibling = overNode.index === 0;
+        const isLastSibling = overNode.index === siblingsInParent.length - 1;
+        
+        // CRITICAL: Check what the actual resulting parent would be
+        // If position is "above" first child, it would use overNode.parentId which might escape
+        // We need to ensure this doesn't change the parent level
+        
+        if (position === 'above' && isFirstSibling) {
+          // This would place ABOVE the first child
+          // In the tree, this means same parent (which is fine)
+          // But we need to make sure the depth stays the same
+          console.log('✅ ALLOWING above first sibling (stays in container)');
+        }
+        
+        if (position === 'below' && isLastSibling) {
+          // This would place BELOW the last child
+          // Should stay at same level
+          console.log('✅ ALLOWING below last sibling (stays in container)');
+        }
+        
+        // Allow reordering within same parent
+      } else if (currentParentId !== targetParentId) {
+        // Different parents - this is a cross-container move
+        // Block if it would place at root level (outside Body)
+        if (targetParentId === null) {
+          // Don't show ANY drop indicator - cancel the entire hover state
+          setOverId(null);
+          setDropPosition(null);
+          return;
+        }
+        // Otherwise allow cross-container move - show indicator
       }
     }
 
@@ -359,12 +412,14 @@ export default function LayersTree({
       relativeY: relativeY.toFixed(3),
       hasChildren: !!overNode.layer.children,
       hasVisibleChildren,
-      isContainerType
+      isContainerType,
+      overNodeParent: overNode.parentId,
+      activeNodeParent: activeNode?.parentId,
     });
 
     setOverId(overId);
     setDropPosition(position);
-  }, [flattenedNodes, collapsedIds]);
+  }, [flattenedNodes, collapsedIds, activeId]);
 
   // Handle drag end - perform the actual reorder
   const handleDragEnd = useCallback(
@@ -412,12 +467,12 @@ export default function LayersTree({
         newParentId = overNode.parentId;
         newOrder = overNode.index;
         
-        // CRITICAL: Block placement if target has no parent (would place outside root container)
-        if (!newParentId) {
+        // CRITICAL: Prevent placement at root level (parentId: null)
+        // Everything must be inside Body
+        if (newParentId === null) {
           console.log('🚫 DRAG BLOCKED:', {
-            reason: 'Cannot place outside root container',
+            reason: 'Cannot place layers outside Body container',
             targetNode: getLayerDisplayName(overNode.layer),
-            targetHasNoParent: true
           });
           setActiveId(null);
           setOverId(null);
@@ -468,12 +523,12 @@ export default function LayersTree({
         newParentId = overNode.parentId;
         newOrder = overNode.index + 1;
         
-        // CRITICAL: Block placement if target has no parent (would place outside root container)
-        if (!newParentId) {
+        // CRITICAL: Prevent placement at root level (parentId: null)
+        // Everything must be inside Body
+        if (newParentId === null) {
           console.log('🚫 DRAG BLOCKED:', {
-            reason: 'Cannot place outside root container',
+            reason: 'Cannot place layers outside Body container',
             targetNode: getLayerDisplayName(overNode.layer),
-            targetHasNoParent: true
           });
           setActiveId(null);
           setOverId(null);

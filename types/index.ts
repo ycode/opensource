@@ -14,6 +14,7 @@ export interface Layer {
   content?: string; // For text/heading layers
   src?: string;     // For image layers
   children?: Layer[];
+  locked?: boolean; // For non-deletable, non-moveable layers
 }
 
 // Page Types

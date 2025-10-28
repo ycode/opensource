@@ -134,17 +134,30 @@ export default function LeftSidebar({
 
   // Helper to get parent for new layers
   const getParentForNewLayer = useCallback((): string | null => {
-    if (!selectedLayerId) return null;
+    if (!selectedLayerId) {
+      // No layer selected - add inside Body by default
+      const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
+      return bodyLayer ? 'body' : null;
+    }
     
     const selectedItem = findLayer(layersForCurrentPage, selectedLayerId);
-    if (!selectedItem) return null;
+    if (!selectedItem) {
+      // Selected layer not found - add inside Body by default
+      const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
+      return bodyLayer ? 'body' : null;
+    }
     
     // If selected is a container, add as child
     if (selectedItem.layer.type === 'container') {
       return selectedLayerId;
     }
     
-    // Otherwise, add as sibling
+    // Otherwise, add as sibling (same parent)
+    // But if parent is null (would be root level), use Body instead
+    if (selectedItem.parentId === null) {
+      return 'body';
+    }
+    
     return selectedItem.parentId;
   }, [selectedLayerId, layersForCurrentPage, findLayer]);
 

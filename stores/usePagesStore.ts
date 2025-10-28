@@ -203,10 +203,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const newLayer: Layer = {
       id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: layerType,
-      classes: getDefaultClasses(layerType),
+      classes: '',
       content: getDefaultContent(layerType),
       children: layerType === 'container' ? [] : undefined,
     };
+    
+    // Set classes after ID is assigned
+    newLayer.classes = getDefaultClasses(layerType, newLayer.id);
 
     let newLayers: Layer[];
     
@@ -233,6 +236,26 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const { draftsByPageId } = get();
     const draft = draftsByPageId[pageId];
     if (! draft) return;
+
+    // Helper: Find layer by ID
+    const findLayer = (tree: Layer[]): Layer | null => {
+      for (const node of tree) {
+        if (node.id === layerId) return node;
+        if (node.children) {
+          const found = findLayer(node.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const layerToDelete = findLayer(draft.layers);
+    
+    // Prevent deleting locked layers
+    if (layerToDelete?.locked) {
+      console.warn('Cannot delete locked layer');
+      return;
+    }
 
     const removeFromTree = (tree: Layer[]): Layer[] => {
       return tree
@@ -394,7 +417,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 }));
 
 // Helper functions for default layer values
-function getDefaultClasses(type: Layer['type']): string {
+function getDefaultClasses(type: Layer['type'], id?: string): string {
+  if (id === 'body') return '';
+  
   switch (type) {
     case 'container':
       return 'flex flex-col gap-4 p-8';

@@ -127,7 +127,8 @@ export default function CenterCanvas({
                         
                         <button
                           onClick={() => {
-                            addLayer(currentPageId, null, 'container');
+                            // Always add inside Body container
+                            addLayer(currentPageId, 'body', 'container');
                             setShowAddBlockPanel(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"
@@ -145,7 +146,8 @@ export default function CenterCanvas({
 
                         <button
                           onClick={() => {
-                            addLayer(currentPageId, null, 'heading');
+                            // Always add inside Body container
+                            addLayer(currentPageId, 'body', 'heading');
                             setShowAddBlockPanel(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"
@@ -163,7 +165,8 @@ export default function CenterCanvas({
 
                         <button
                           onClick={() => {
-                            addLayer(currentPageId, null, 'text');
+                            // Always add inside Body container
+                            addLayer(currentPageId, 'body', 'text');
                             setShowAddBlockPanel(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"
