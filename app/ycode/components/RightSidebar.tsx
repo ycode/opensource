@@ -167,7 +167,6 @@ export default function RightSidebar({
           <TypographyControls />
 
           <BorderControls />
-
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">
