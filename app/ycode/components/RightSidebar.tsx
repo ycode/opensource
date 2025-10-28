@@ -139,33 +139,6 @@ export default function RightSidebar({
         {/* Content */}
         <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto data-[state=inactive]:hidden overflow-x-hidden">
 
-          <div className="flex flex-col gap-4 py-5">
-            <Input
-              type="text"
-              value={currentClassInput}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentClassInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Type class and press Enter..."
-            />
-            <div className="flex flex-wrap gap-1.5">
-                {classesArray.length === 0 ? (
-                    <div></div>
-                ) : (
-                  classesArray.map((cls, index) => (
-                    <Badge
-                      variant="secondary"
-                      key={index}
-                    >
-                      <span>{cls}</span>
-                      <Button onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1" variant="outline">
-                        <Icon name="x" className="size-2"/>
-                      </Button>
-                    </Badge>
-                  ))
-                )}
-              </div>
-          </div>
-
           <LayoutControls />
 
           <TypographyControls />
@@ -173,6 +146,34 @@ export default function RightSidebar({
           <BorderControls />
 
           <EffectControls />
+
+          <div className="flex flex-col gap-4 py-5">
+            <Input
+                type="text"
+                value={currentClassInput}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentClassInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Type class and press Enter..."
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {classesArray.length === 0 ? (
+                  <div></div>
+              ) : (
+                  classesArray.map((cls, index) => (
+                      <Badge
+                          variant="secondary"
+                          key={index}
+                      >
+                        <span>{cls}</span>
+                        <Button onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1" variant="outline">
+                          <Icon name="x" className="size-2"/>
+                        </Button>
+                      </Badge>
+                  ))
+              )}
+            </div>
+          </div>
+
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">
