@@ -13,25 +13,11 @@
  */
 
 import React, { useMemo, useState, useCallback } from 'react';
-import {
-  DndContext,
-  DragOverlay,
-  DragStartEvent,
-  DragEndEvent,
-  DragOverEvent,
-  DragCancelEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  closestCenter,
-  useDraggable,
-  useDroppable,
-} from '@dnd-kit/core';
-import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check } from 'lucide-react';
+import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
+import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder } from 'lucide-react';
 import type { Layer } from '../../../types';
 import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
 import { cn } from '../../../lib/utils';
-import { getHtmlTag } from '../../../lib/layer-utils';
 
 interface LayersTreeProps {
   layers: Layer[];
@@ -56,7 +42,6 @@ const elementIcons: Record<string, React.ElementType> = {
   // Old system
   container: Box,
   text: Type,
-  heading: Heading,
   image: ImageIcon,
   
   // New system - Structure
@@ -101,6 +86,10 @@ const elementIcons: Record<string, React.ElementType> = {
   radio: Circle,
   label: Tag,
   submit: Check,
+
+  // Pages & Folders
+  page: File,
+  folder: Folder,
 };
 
 // Helper function to get display name for layer
@@ -785,7 +774,6 @@ function rebuildTree(
     }
     byParent.get(parent)!.push(node);
   });
-  
   
   // Sort each group by index and reassign indices
   byParent.forEach((children, parentId) => {

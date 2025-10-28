@@ -151,6 +151,14 @@ export async function publishPageVersion(pageId: string): Promise<PageVersion> {
     })
     .eq('id', pageId);
 
+  // Delete the old published versions (except the new one)
+  await client
+    .from('page_versions')
+    .delete()
+    .eq('page_id', pageId)
+    .eq('is_published', true)
+    .neq('id', data.id);
+
   return data;
 }
 
