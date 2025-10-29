@@ -4,9 +4,11 @@
  * Toggle Group Component
  * 
  * Reusable toggle button group for binary or multi-option selections
+ * Uses the shadcn/ui Tabs component for consistent styling
  */
 
 import React from 'react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export interface ToggleOption {
   label: string;
@@ -26,26 +28,37 @@ export default function ToggleGroup({
   onChange,
   className = '',
 }: ToggleGroupProps) {
+  // Convert boolean values to strings for Tabs component
+  const stringValue = String(value);
+  
+  const handleChange = (newValue: string) => {
+    // Try to parse back to boolean if the original value was boolean
+    const firstOptionValue = options[0]?.value;
+    if (typeof firstOptionValue === 'boolean') {
+      onChange(newValue === 'true');
+    } else {
+      onChange(newValue);
+    }
+  };
+
   return (
-    <div className={`flex gap-2 ${className}`}>
-      {options.map((option) => {
-        const isActive = option.value === value;
-        
-        return (
-          <button
-            key={String(option.value)}
-            onClick={() => onChange(option.value)}
-            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              isActive
-                ? 'bg-zinc-700 text-white'
-                : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800'
-            }`}
+    <Tabs 
+      value={stringValue} 
+      onValueChange={handleChange}
+      className={className}
+    >
+      <TabsList className="w-full">
+        {options.map((option) => (
+          <TabsTrigger 
+            key={String(option.value)} 
+            value={String(option.value)}
           >
             {option.label}
-          </button>
-        );
-      })}
-    </div>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   );
 }
+
 
