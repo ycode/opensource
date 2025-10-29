@@ -154,6 +154,7 @@ const LayerItem: React.FC<{
 
   // Render element-specific content
   const renderContent = () => {
+cl    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Tag = htmlTag as any;
     const attributes = layer.attributes || {};
     
@@ -164,7 +165,7 @@ const LayerItem: React.FC<{
     const isLocked = layer.id === 'body' || layer.locked === true;
     
     // Build props for the element
-    const elementProps: any = {
+    const elementProps: Record<string, unknown> = {
       ref: setNodeRef,
       className: fullClassName,
       style,

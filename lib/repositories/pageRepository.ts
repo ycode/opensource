@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '../supabase-server';
 import type { Page } from '../../types';
 
 export interface QueryFilters {
-  [key: string]: any;
+  [key: string]: string | number | boolean | null;
 }
 
 export interface CreatePageData {
@@ -158,7 +158,7 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
     throw new Error('Supabase not configured');
   }
 
-  const { data, error} = await client
+  const { data, error } = await client
     .from('pages')
     .update(updates)
     .eq('id', id)

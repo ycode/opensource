@@ -5,9 +5,9 @@
  */
 
 import React, { useState } from 'react';
-import {Input} from "@/components/ui/input";
-import Icon from "@/components/ui/icon";
-import {Button} from "@/components/ui/button";
+import { Input } from '@/components/ui/input';
+import Icon from '@/components/ui/icon';
+import { Button } from '@/components/ui/button';
 
 export default function CMS() {
   const [activeSection, setActiveSection] = useState<'content' | 'media' | 'settings'>('content');
@@ -18,12 +18,12 @@ export default function CMS() {
         <div className="p-4 flex">
 
             <div className="w-full max-w-72">
-                <Input placeholder="Search..."/>
+                <Input placeholder="Search..." />
             </div>
 
         </div>
 
-        <hr/>
+        <hr />
 
         <div>
 
@@ -45,14 +45,14 @@ export default function CMS() {
                         <span>my-first-blog-post</span>
                     </div>
                 </div>
-                <hr className="ml-4"/>
+                <hr className="ml-4" />
             </div>
 
             <div className="group">
                 <div className="grid grid-flow-col text-primary/60 group-hover:bg-white/5">
                     <div className="px-4 py-5">
                         <Button size="xs" variant="ghost">
-                            <Icon name="plus"/>
+                            <Icon name="plus" />
                         </Button>
                     </div>
                 </div>

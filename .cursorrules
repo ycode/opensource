@@ -1,1068 +1,1098 @@
-# Cursor AI Rules - YCode Project
+# YCode Cursor AI Rules
 
-## 🎯 Project Overview
-**YCode** is a self-hosted visual website builder. It functions as a normal website, but accessing `/ycode` opens a drag-and-drop visual builder where authenticated users can edit the live website in real-time. Changes are saved to the database and immediately reflected on the public site.
+## 🎯 Project Context
 
-**Key Concept:**
-- All routes are public and render dynamically from Supabase content
-- **ONLY `/ycode` is protected** - requires authentication via Supabase Auth
-- **Layer-based editing** - Figma-style layers with direct Tailwind class editing
-- **Draft vs Published** workflow - Autosave drafts, explicit publish action
-- **Live preview** - Changes appear instantly in preview iframe
-- **CDN caching** - Published pages cached on Vercel CDN with cache invalidation
-- **Three-panel editor** - Pages/Layers | Preview Canvas | Tailwind Editor
-
-**Self-Hosted Model:**
-- Each YCode installation is **completely independent**
-- Users deploy to Vercel and connect their **own Supabase instance**
-- First-time setup: Connect Supabase → Auto-migrate → Create admin user
-- All user data lives in **their** Supabase (they own it)
-- No vendor lock-in, no shared backend, no multi-tenancy
-
-## 🏗️ Architecture
-- **Frontend**: Next.js 15 + TypeScript + Tailwind CSS + Zustand (SPA)
-- **Backend**: Next.js API Routes (interface to Supabase)
-- **Credential Storage**: Vercel KV (Redis) - ONLY stores Supabase credentials
-- **Database (Remote)**: Supabase (PostgreSQL) - All app data
-- **Authentication**: Supabase Auth (JWT tokens)
-- **Communication**: Next.js SPA → Next.js API Routes → Supabase
-- **Storage**: Pages (with layers as JSON) stored in Supabase, assets in Supabase Storage
-- **Deployment**: Vercel with CDN caching + cache tag invalidation on publish
-- **First-Run**: Welcome wizard saves credentials to Vercel KV, runs migrations
-- **Self-Update**: Version checking against GitHub releases
+**YCode** is a self-hosted visual website builder built with Next.js 15, TypeScript, Tailwind CSS, and Supabase. This is a **fast-moving team project** where multiple developers use Cursor simultaneously. Code consistency and abstraction are critical.
 
 ---
 
-## 🚀 First-Time Setup Flow
+## 🧠 Core Philosophy: ALWAYS Think About Abstraction
 
-### **User Journey**
-```
-1. User clicks "Deploy to Vercel" button
-   ↓
-2. Vercel deploys YCode → redirects to site
-   ↓
-3. First visit: "Welcome to YCode" wizard
-   → Step 1: Welcome screen (explains setup)
-   ↓
-4. Step 2: Connect Supabase
-   → Enter Supabase Project URL
-   → Enter Supabase Anon Key
-   → Enter Supabase Service Role Key
-   → Enter Vercel API Token (for env var updates)
-   ↓
-5. YCode validates and configures:
-   → Tests Supabase connection
-   → Writes env vars to Vercel via API
-   → Saves credentials to Vercel KV
-   → Triggers Vercel redeploy with new env vars
-   ↓
-6. Step 3: Run migrations on user's Supabase
-   → Create 'pages' table
-   → Create 'page_versions' table (draft/published)
-   → Create 'assets' table
-   → Create 'settings' table
-   ↓
-7. Step 4: Create admin account
-   → Enter email + password
-   → YCode → Supabase Auth creates user
-   → User authenticated automatically
-   ↓
-8. Redirect to /ycode builder
-   → Three-panel editor ready
-   → User can start building pages
-```
+Before writing any code, ask yourself:
+1. **Can this logic be extracted into a reusable hook?**
+2. **Does a ShadCN component already exist for this UI element?**
+3. **Is this component doing too many things? Should it be split?**
+4. **Can this be a pure utility function instead of component logic?**
+5. **Will another team member be able to reuse this easily?**
 
-### **Database Strategy**
-
-| Database | Stores | Why |
-|----------|--------|-----|
-| **Vercel KV (Redis)** | Supabase credentials only | Secure serverless storage for credentials |
-| **Supabase (remote)** | Users, pages, components, settings | User's own database - they own their data |
-
-### **Critical Setup Rules**
-- **MUST** validate Supabase credentials before storing
-- **MUST** run all migrations on user's Supabase during setup
-- **MUST** handle migration errors gracefully (show user-friendly messages)
-- **NEVER** store sensitive data in Vercel KV beyond Supabase credentials
-- **ALWAYS** store Supabase credentials securely in Vercel KV
-- **MUST** create first admin user in Supabase Auth during setup
+**Golden Rule**: If you're writing the same code twice, abstract it.
 
 ---
 
-## 📁 File Structure Rules
+## 🎨 1. ShadCN Components (MANDATORY)
 
-### **Next.js Structure**
-```
-next.js/
-├── app/
-│   ├── page.tsx              # Home page (shows Welcome wizard or renders from DB)
-│   ├── [slug]/page.tsx       # Dynamic pages (ISR with cache tags)
-│   ├── welcome/              # First-run setup wizard
-│   │   └── page.tsx
-│   └── ycode/                # Visual builder interface
-│       ├── page.tsx          # Three-panel editor layout
-│       └── components/
-│           ├── LeftSidebar/  # Pages list + Layers tree
-│           ├── CenterCanvas/ # Preview iframe
-│           └── RightSidebar/ # Tailwind class editor
-├── components/
-│   ├── ui/                   # Reusable UI components
-│   ├── layers/               # Layer renderers (Container, Text, Image)
-│   └── builder/              # Builder-specific components
-├── stores/                   # Zustand state management
-│   ├── useEditorStore.ts     # Selected layer, current page
-│   ├── usePagesStore.ts      # Pages CRUD
-│   └── useLayersStore.ts     # Layers tree state
-├── lib/                      # Utilities and API handlers
-│   ├── api/                  # API client functions
-│   ├── vercel.ts             # Vercel API integration
-│   └── supabase.ts           # Supabase client
-└── types/                    # TypeScript definitions
-```
+### ALWAYS Use ShadCN for UI Primitives
 
-### **Backend API Structure**
-```
-next.js/
-├── app/api/                  # Next.js API Routes
-│   ├── setup/
-│   │   ├── status/route.ts   # Check setup status
-│   │   ├── connect/route.ts  # Connect Supabase
-│   │   └── migrate/route.ts  # Run migrations
-│   ├── pages/
-│   │   ├── route.ts          # GET all pages, POST create
-│   │   ├── [id]/
-│   │   │   ├── route.ts      # GET/PUT/DELETE by ID
-│   │   │   ├── draft/route.ts        # Draft operations
-│   │   │   ├── publish/route.ts      # Publish page
-│   │   │   └── published/route.ts    # Get published version
-│   │   └── slug/[slug]/route.ts      # Get page by slug
-│   ├── assets/
-│   │   ├── route.ts          # GET all, POST upload
-│   │   └── [id]/route.ts     # DELETE asset
-│   ├── revalidate/route.ts   # Cache invalidation
-│   └── updates/
-│       └── check/route.ts    # Version checking
-├── lib/
-│   ├── kv.ts                 # Vercel KV client
-│   ├── supabase-server.ts    # Supabase client (server-side)
-│   ├── repositories/         # Data access layer
-│   │   ├── pageRepository.ts
-│   │   ├── pageVersionRepository.ts
-│   │   └── assetRepository.ts
-│   └── services/             # Business logic
-│       ├── migrationService.ts
-│       └── cacheInvalidationService.ts
-└── database/migrations/      # Supabase SQL migrations
-    ├── 2025_10_14_123226_create_pages_table.sql
-    ├── 2025_10_14_123227_create_page_versions_table.sql
-    └── 2025_10_14_123228_create_assets_table.sql
-```
+**Available ShadCN Components** (in `/components/ui/`):
+- `Button` - All button interactions
+- `Input` - Text inputs
+- `Textarea` - Multi-line text
+- `Label` - Form labels
+- `Select` - Dropdowns
+- `Tabs` - Tab navigation
+- `Dropdown Menu` - Context menus
+- `Popover` - Overlays
+- `Tooltip` - Hover hints
+- `Slider` - Range inputs
+- `Badge` - Status indicators
+- `Spinner` - Loading states
+- `Icon` - Lucide icons (via icon.tsx)
 
----
-
-## 🔧 Coding Standards
-
-### **Code Formatting**
-- **All Code**: Uses ESLint with Next.js config (`next.js/eslint.config.mjs`)
-- Run `npm run lint` for auto-fixes
-- Run `npm run type-check` for TypeScript validation
-
-### **TypeScript/JavaScript Style (ESLint)**
-- **Indentation**: 2 spaces (enforced by ESLint)
-- **Quotes**: Single quotes (with template literals allowed)
-- **Object spacing**: Always use spaces in curly braces `{ key: value }`
-- **JSX props**: Max 2 props per line, multiline props indented 2 spaces
-- **JSX brackets**: Tag-aligned closing brackets
-- **Self-closing tags**: Space before `/>`
-
-### **TypeScript Rules**
-- **ALWAYS** use proper TypeScript types - NEVER use `any`
-- Define interfaces for all data structures
-- Use generic types for reusable components
-- Prefer type inference over explicit typing when obvious
+### ✅ CORRECT Usage
 
 ```typescript
-// ✅ REQUIRED - Proper formatting
-interface LinkMetadata {
-  title: string;
-  description: string;
-  image?: string;
-  url: string;
-}
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Icon } from '@/components/ui/icon';
 
-const MyComponent: React.FC = () => {
-  const data = { key: 'value' }; // ✅ Spaces in braces
-
+export function SearchBar({ onSearch }: SearchBarProps) {
+  const [query, setQuery] = useState('');
+  
   return (
-    <div
-      className="container"
-      onClick={handleClick}  // ✅ 2 props max per line
-    >
-      <Button variant="primary" size="lg" />  // ✅ Space before />
+    <div className="flex gap-2">
+      <Input 
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search pages..."
+      />
+      <Button size="sm" onClick={() => onSearch(query)}>
+        <Icon name="search" />
+        Search
+      </Button>
     </div>
   );
-};
-
-// ❌ FORBIDDEN
-const metadata: any = { ... };  // Never use 'any'
-const bad={key:'value'};  // Missing spaces, wrong quotes
-```
-
-### **React Component Standards**
-- **ALWAYS** use functional components with hooks
-- **MUST** implement proper loading and error states
-- **MUST** use `React.FC<Props>` for component typing
-- Use `useCallback` and `useMemo` for performance optimization
-- **ALWAYS** handle undefined/null states gracefully
-
-```typescript
-// ✅ REQUIRED PATTERN
-const LinkCard: React.FC<LinkCardProps> = ({ href, isGridLayout }) => {
-  const [metadata, setMetadata] = useState<LinkMetadata | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Always include error handling
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const result = await fetchLinkMetadata(href);
-        setMetadata(result);
-      } catch (err) {
-        setError(getErrorMessage(err));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [href]);
-
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
-  if (!metadata) return null;
-
-  return (
-    // Component JSX
-  );
-};
-```
-
-### **Next.js API Route Standards**
-- **ALWAYS** use proper TypeScript types and return types
-- **MUST** implement request validation for all endpoints
-- **ALWAYS** use Next.js naming conventions (route.ts)
-- **MUST** handle errors gracefully with appropriate HTTP status codes
-
-```typescript
-// ✅ REQUIRED PATTERN
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    
-    // Validate input
-    if (!body.slug || !body.title) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
-    // Process request
-    const result = await pageRepository.create(body);
-    return NextResponse.json({ data: result }, { status: 201 });
-  } catch (error) {
-    console.error('Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to create page' },
-      { status: 500 }
-    );
-  }
 }
 ```
 
-### **Repository Pattern (CRITICAL)**
-- **NEVER** use Supabase client directly in API Routes - ALWAYS use Repositories
-- **ALWAYS** use TypeScript types for data transfer
-- **MUST** create repository modules for all data access
-- **MUST** use server-side Supabase client from `lib/supabase-server.ts`
-
-#### **Architecture Flow:**
-```
-API Route → Repository → Supabase Client
-    ↓            ↓              ↓
-  Request    TypeScript    Server-Side
-            Interface        Only
-```
-
-#### **Required Pattern:**
+### ❌ FORBIDDEN - Never Do This
 
 ```typescript
-// ✅ CORRECT - Using Repository Pattern
+// ❌ WRONG: Custom button instead of ShadCN
+export function SearchBar({ onSearch }: SearchBarProps) {
+  return (
+    <button className="px-4 py-2 bg-blue-500 rounded hover:bg-blue-600">
+      Search
+    </button>
+  );
+}
 
-// 1. Create Repository (lib/repositories/pageRepository.ts)
-import { getSupabaseServiceRoleClient } from '../supabase-server';
-import type { Page } from '../../types';
+// ❌ WRONG: Custom input instead of ShadCN
+<input className="border rounded px-2 py-1" />
+```
 
-const TABLE_NAME = 'pages';
+### Extending ShadCN Components
 
-export const pageRepository = {
-  async getAll(): Promise<Page[]> {
-    const supabase = await getSupabaseServiceRoleClient();
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data;
-  },
+If you need custom behavior, **compose** ShadCN components:
 
-  async getById(id: string): Promise<Page | null> {
-    const supabase = await getSupabaseServiceRoleClient();
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .select('*')
-      .eq('id', id)
-      .single();
-    
-    if (error && error.code !== 'PGRST116') throw error;
-    return data;
-  },
+```typescript
+// ✅ CORRECT: Composition
+import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/icon';
 
-  async getBySlug(slug: string): Promise<Page | null> {
-    const supabase = await getSupabaseServiceRoleClient();
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .select('*')
-      .eq('slug', slug)
-      .single();
-    
-    if (error && error.code !== 'PGRST116') throw error;
-    return data;
-  },
+interface IconButtonProps {
+  icon: string;
+  label: string;
+  onClick: () => void;
+}
 
-  async create(page: Omit<Page, 'id' | 'created_at' | 'updated_at'>): Promise<Page> {
-    const supabase = await getSupabaseServiceRoleClient();
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .insert(page)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  },
+export function IconButton({ icon, label, onClick }: IconButtonProps) {
+  return (
+    <Button size="sm" variant="secondary" onClick={onClick}>
+      <Icon name={icon} />
+      {label}
+    </Button>
+  );
+}
+```
 
-  async update(id: string, updates: Partial<Omit<Page, 'id' | 'created_at' | 'updated_at'>>): Promise<Page> {
-    const supabase = await getSupabaseServiceRoleClient();
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  },
+---
 
-  async delete(id: string): Promise<void> {
-    const supabase = await getSupabaseServiceRoleClient();
-    const { error } = await supabase
-      .from(TABLE_NAME)
-      .delete()
-      .eq('id', id);
-    
-    if (error) throw error;
-  },
-};
+## 🏗️ 2. Component Architecture & Abstraction
 
-// 2. Use in API Route (app/api/pages/[id]/route.ts)
-import { NextResponse } from 'next/server';
-import { pageRepository } from '@/lib/repositories/pageRepository';
+### Single Responsibility Principle
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+Each component should do ONE thing well:
+
+```typescript
+// ✅ GOOD: Small, focused components
+function PageListItem({ page, onSelect, isActive }: PageListItemProps) {
+  return (
+    <button
+      onClick={() => onSelect(page.id)}
+      className={cn(
+        'w-full text-left px-3 py-2 rounded',
+        isActive ? 'bg-zinc-700' : 'hover:bg-zinc-800'
+      )}
+    >
+      <Icon name="file" />
+      {page.title}
+    </button>
+  );
+}
+
+function PageList({ pages, selectedId, onSelect }: PageListProps) {
+  return (
+    <div className="flex flex-col gap-1">
+      {pages.map(page => (
+        <PageListItem
+          key={page.id}
+          page={page}
+          isActive={selectedId === page.id}
+          onSelect={onSelect}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ❌ BAD: Monolithic component doing everything
+function PageManagement() {
+  // 500 lines of code managing pages, settings, modals, etc.
+}
+```
+
+### Extract Custom Hooks
+
+Move reusable logic into custom hooks:
+
+```typescript
+// ✅ GOOD: Reusable hook
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  
+  return debouncedValue;
+}
+
+// Usage in component
+function SearchInput() {
+  const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query, 500);
+  
+  useEffect(() => {
+    if (debouncedQuery) {
+      performSearch(debouncedQuery);
+    }
+  }, [debouncedQuery]);
+}
+```
+
+### Extract Utility Functions
+
+Keep components clean by moving pure functions to `/lib`:
+
+```typescript
+// ✅ GOOD: Utility in /lib/layer-utils.ts
+export function findLayerById(layers: Layer[], id: string): Layer | null {
+  for (const layer of layers) {
+    if (layer.id === id) return layer;
+    if (layer.children) {
+      const found = findLayerById(layer.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// Usage in component
+import { findLayerById } from '@/lib/layer-utils';
+
+function LayerEditor({ layers, selectedId }: LayerEditorProps) {
+  const selectedLayer = findLayerById(layers, selectedId);
+  // ...
+}
+```
+
+---
+
+## 📁 3. File & Naming Conventions
+
+### File Names
+- **All files**: `kebab-case.tsx` (e.g., `page-settings.tsx`, `user-profile.tsx`)
+- **Components**: PascalCase export matching filename
+  - File: `layer-renderer.tsx` → Export: `LayerRenderer`
+- **Utilities**: camelCase functions
+  - File: `layer-utils.ts` → Export: `findLayerById`
+- **Hooks**: camelCase with `use` prefix
+  - File: `use-debounce.ts` → Export: `useDebounce`
+
+### Variable & Function Names
+
+```typescript
+// Components & Types: PascalCase
+const UserProfile: React.FC<UserProfileProps> = () => {};
+interface LayerProps {}
+type PageStatus = 'draft' | 'published';
+
+// Functions & Variables: camelCase
+const handleClick = () => {};
+const userData = fetchUser();
+function formatDate(date: Date) {}
+
+// Event Handlers: handleX pattern
+const handleSubmit = () => {};
+const handlePageSelect = (id: string) => {};
+const handleInputChange = (e: ChangeEvent) => {};
+
+// Boolean: isX, hasX, shouldX
+const isLoading = false;
+const hasChildren = layers.length > 0;
+const shouldRender = isVisible && hasData;
+
+// Constants: SCREAMING_SNAKE_CASE
+const MAX_PAGE_SIZE = 100;
+const API_BASE_URL = 'https://api.example.com';
+const DEFAULT_LAYER_CLASSES = 'flex gap-4';
+```
+
+---
+
+## 📦 4. Import Organization
+
+**ALWAYS order imports consistently** to prevent merge conflicts:
+
+```typescript
+// 1. React/Next.js core
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
+
+// 2. External libraries (alphabetical)
+import { create } from 'zustand';
+import debounce from 'lodash.debounce';
+import { DndContext } from '@dnd-kit/core';
+
+// 3. ShadCN UI components (alphabetical)
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+
+// 4. Internal components (alphabetical)
+import { LayerRenderer } from '@/components/layers/LayerRenderer';
+import { PageSettings } from './PageSettings';
+import ElementLibrary from './ElementLibrary';
+
+// 5. Stores (alphabetical)
+import { useEditorStore } from '@/stores/useEditorStore';
+import { usePagesStore } from '@/stores/usePagesStore';
+
+// 6. Utils, APIs, lib (alphabetical)
+import { pagesApi } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { findLayerById } from '@/lib/layer-utils';
+
+// 7. Types (always last, alphabetical)
+import type { Layer, Page, PageVersion, Asset } from '@/types';
+```
+
+---
+
+## 🛣️ 5. Path Aliases - When to Use What
+
+### Rules:
+- Use `@/` for **everything outside current directory**
+- Use `./` **ONLY** for files in the **same directory**
+- Use `../` **sparingly** (max 1 level up, prefer `@/`)
+- **NEVER** use deep relative paths like `../../../../`
+
+```typescript
+// ✅ CORRECT
+import { Button } from '@/components/ui/button';
+import { useEditorStore } from '@/stores/useEditorStore';
+import { PageSettings } from './PageSettings'; // Same directory
+import { findLayerById } from '@/lib/layer-utils';
+
+// ❌ WRONG
+import { Button } from '../../../components/ui/button';
+import { useEditorStore } from '../../stores/useEditorStore';
+```
+
+---
+
+## ⚛️ 6. Server vs Client Components (Next.js 15)
+
+### Default: Server Components
+**Don't add any directive** - components are Server Components by default.
+
+### Add `'use client'` ONLY When:
+- Using React hooks (`useState`, `useEffect`, `useCallback`, etc.)
+- Using event handlers (`onClick`, `onChange`, `onSubmit`)
+- Using browser APIs (`window`, `localStorage`, `document`)
+- Using Zustand stores
+- Using client-only libraries
+
+```typescript
+// ✅ Server Component (no directive)
+// app/[slug]/page.tsx
+export default async function Page({ params }: { params: { slug: string } }) {
+  const page = await fetchPageBySlug(params.slug);
+  return <LayerRenderer layers={page.layers} />;
+}
+
+// ✅ Client Component (with directive)
+// app/ycode/components/LayersTree.tsx
+'use client';
+
+import { useState } from 'react';
+
+export default function LayersTree({ layers }: LayersTreeProps) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Component using hooks and state
+}
+```
+
+### Keep `'use client'` Close to Leaves
+Push client boundaries down the tree:
+
+```typescript
+// ✅ GOOD: Server component wraps client component
+// app/page.tsx (Server Component)
+export default function Page() {
+  return (
+    <div>
+      <Header /> {/* Server */}
+      <InteractiveWidget /> {/* Client */}
+      <Footer /> {/* Server */}
+    </div>
+  );
+}
+
+// ❌ BAD: Everything is client-side unnecessarily
+'use client';
+
+export default function Page() {
+  return (
+    <div>
+      <Header /> {/* Unnecessarily client-side */}
+      <InteractiveWidget />
+      <Footer /> {/* Unnecessarily client-side */}
+    </div>
+  );
+}
+```
+
+---
+
+## 🗄️ 7. Repository Pattern (Backend/API)
+
+### NEVER Use Supabase Directly in API Routes
+
+**Architecture**: `API Route → Repository → Supabase Client`
+
+```typescript
+// ✅ CORRECT: Use repository pattern
+// app/api/pages/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { getPageById, updatePage } from '@/lib/repositories/pageRepository';
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const page = await pageRepository.getById(params.id);
+    const page = await getPageById(params.id);
     
     if (!page) {
       return NextResponse.json({ error: 'Page not found' }, { status: 404 });
     }
     
     return NextResponse.json({ data: page });
-  } catch (error: any) {
-    console.error(`Error fetching page ${params.id}:`, error);
+  } catch (error) {
+    console.error('Error fetching page:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch page' },
+      { error: 'Failed to fetch page' },
       { status: 500 }
     );
   }
 }
+
+// ❌ WRONG: Direct Supabase in API route
+import { getSupabaseAdmin } from '@/lib/supabase-server';
+
+export async function GET(request: NextRequest, { params }) {
+  const supabase = await getSupabaseAdmin();
+  const { data } = await supabase.from('pages').select('*').eq('id', params.id);
+  // WRONG! Use repository instead
+}
 ```
 
-#### **❌ FORBIDDEN - Direct Supabase in API Routes:**
-```typescript
-// ❌ BAD - Direct Supabase usage in API Route
-import { getSupabaseServiceRoleClient } from '@/lib/supabase-server';
+### Create Repositories for All Data Entities
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
-  // WRONG! Use repository instead
-  const supabase = await getSupabaseServiceRoleClient();
-  const { error } = await supabase
+Example structure in `/lib/repositories/pageRepository.ts`:
+
+```typescript
+import { getSupabaseAdmin } from '../supabase-server';
+import type { Page } from '@/types';
+
+export async function getAllPages(): Promise<Page[]> {
+  const client = await getSupabaseAdmin();
+  const { data, error } = await client
     .from('pages')
-    .delete()
-    .eq('id', params.id);
+    .select('*')
+    .order('created_at', { ascending: false });
   
-  // This breaks the architecture pattern!
+  if (error) throw new Error(`Failed to fetch pages: ${error.message}`);
+  return data || [];
+}
+
+export async function getPageById(id: string): Promise<Page | null> {
+  const client = await getSupabaseAdmin();
+  const { data, error } = await client
+    .from('pages')
+    .select('*')
+    .eq('id', id)
+    .single();
+  
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Failed to fetch page: ${error.message}`);
+  }
+  
+  return data;
+}
+
+export async function createPage(pageData: Omit<Page, 'id' | 'created_at' | 'updated_at'>): Promise<Page> {
+  const client = await getSupabaseAdmin();
+  const { data, error } = await client
+    .from('pages')
+    .insert(pageData)
+    .select()
+    .single();
+  
+  if (error) throw new Error(`Failed to create page: ${error.message}`);
+  return data;
 }
 ```
 
 ---
 
-## 🏗️ Editor & Data Model Requirements
+## 🔄 8. API Response Format (Consistency)
 
-### **Page & Layer Data Structure**
-- Pages have **draft** and **published** versions (separate records)
-- Layers are nested JSON structures with Tailwind classes
-- Autosave updates draft version every 2 seconds (debounced)
+### All API Routes MUST Return Consistent Format
 
-```typescript
-// ✅ Page Structure
-interface Page {
-  id: string;
-  slug: string;
-  title: string;
-  status: 'draft' | 'published';
-  published_version_id: string | null;  // Reference to published PageVersion
-  created_at: string;
-  updated_at: string;
-}
-
-// ✅ Page Version Structure (draft vs published)
-interface PageVersion {
-  id: string;
-  page_id: string;
-  layers: Layer[];      // JSONB column
-  is_published: boolean;
-  created_at: string;
-}
-
-// ✅ Layer Structure (nested tree)
-interface Layer {
-  id: string;           // Unique ID for React keys
-  type: 'container' | 'text' | 'image' | 'heading';
-  classes: string;      // Tailwind classes: "flex gap-4 bg-blue-500"
-  content?: string;     // For text/heading layers
-  src?: string;         // For image layers
-  children?: Layer[];   // Nested layers
-}
-```
-
-### **Draft vs Published Workflow**
-```
-User edits page in editor
-  → Changes autosaved to draft PageVersion (every 2s)
-  → Preview shows draft version
-  
-User clicks "Publish"
-  → Copy current draft PageVersion
-  → Mark new version as is_published: true
-  → Update Page.published_version_id
-  → Trigger Vercel cache invalidation
-  → Public sees published version
-```
-
-### **Three-Panel Editor UI**
-```
-┌──────────────────────────────────────────────────────┐
-│  Left (20%)     │  Center (60%)   │  Right (20%)     │
-├─────────────────┼─────────────────┼──────────────────┤
-│ • Pages List    │  Preview iframe │  Tailwind Editor │
-│   - Home        │                 │                  │
-│   - About       │  ┌───────────┐  │  Selected: div#1 │
-│   + New Page    │  │  Website  │  │                  │
-│                 │  │  Preview  │  │  Classes:        │
-│ • Layers Tree   │  │           │  │  ┌────────────┐  │
-│   □ Container   │  │  [Live]   │  │  │flex gap-4  │  │
-│     □ Heading   │  │           │  │  │bg-blue-500 │  │
-│     □ Text      │  │           │  │  │p-4 rounded │  │
-│     □ Image     │  └───────────┘  │  └────────────┘  │
-│                 │                 │  [Apply]         │
-└─────────────────┴─────────────────┴──────────────────┘
-```
-
-### **API Communication**
-- **ALWAYS** use relative URLs for API calls (they're in the same Next.js app)
-- **MUST** include Supabase Auth JWT token for authenticated requests to `/ycode` endpoints (future)
-- API routes are server-side and use service role client
+Use the `ApiResponse<T>` type from `/types/index.ts`:
 
 ```typescript
-// ✅ REQUIRED - Relative API calls
-const response = await fetch('/api/pages', {
-  method: 'GET',
-  headers: {
-    'Content-Type': 'application/json',
-  }
-});
+// ✅ Success response
+return NextResponse.json({ 
+  data: result 
+}, { status: 200 });
 
-// For authenticated requests (future implementation):
-const supabaseToken = supabase.auth.session()?.access_token;
+// ✅ Error response
+return NextResponse.json({ 
+  error: 'Descriptive error message' 
+}, { status: 400 });
 
-const response = await fetch('/api/pages', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${supabaseToken}`
-  },
-  body: JSON.stringify({ title: 'New Page', slug: 'new-page' })
-});
+// ✅ With optional message
+return NextResponse.json({ 
+  data: result,
+  message: 'Page published successfully'
+}, { status: 200 });
 ```
 
-### **Supabase Integration**
-- **ALWAYS** use Supabase client for app data (pages, components, etc.)
-- **ALWAYS** use Vercel KV for credential storage only
-- **NEVER** mix the two - clear separation of concerns
-- **MUST** handle case where Supabase is not configured
+### Status Codes
+- `200` - Success (GET, PUT)
+- `201` - Created (POST)
+- `204` - No Content (DELETE)
+- `400` - Bad Request (validation errors)
+- `404` - Not Found
+- `500` - Internal Server Error
+
+---
+
+## ⚠️ 9. Error Handling & Async Operations
+
+### ALWAYS Follow This Pattern
 
 ```typescript
-// ✅ REQUIRED - Server-side Supabase client (lib/supabase-server.ts)
-import { createClient } from '@supabase/supabase-js';
-import { kv } from './kv';
-
-interface SupabaseCredentials {
-  url: string;
-  anon_key: string;
-  service_role_key: string;
-}
-
-let cachedSupabaseConfig: SupabaseCredentials | null = null;
-
-export async function getSupabaseConfig(): Promise<SupabaseCredentials | null> {
-  if (cachedSupabaseConfig) {
-    return cachedSupabaseConfig;
+// ✅ REQUIRED pattern for ALL async operations
+const handleAction = async () => {
+  try {
+    setLoading(true);
+    setError(null); // Clear previous errors
+    
+    const result = await apiCall();
+    
+    // Success handling
+    setData(result);
+  } catch (error) {
+    console.error('Context-specific message:', error);
+    setError(error instanceof Error ? error.message : 'Unknown error occurred');
+  } finally {
+    setLoading(false); // Always runs
   }
-
-  const config = await kv.get<SupabaseCredentials>('supabase_config');
-  if (config) {
-    cachedSupabaseConfig = config;
-  }
-  return config;
-}
-
-export async function getSupabaseClient() {
-  const config = await getSupabaseConfig();
-  if (!config) {
-    throw new Error('Supabase not configured');
-  }
-  return createClient(config.url, config.anon_key);
-}
-
-export async function getSupabaseServiceRoleClient() {
-  const config = await getSupabaseConfig();
-  if (!config) {
-    throw new Error('Supabase not configured');
-  }
-  return createClient(config.url, config.service_role_key);
-}
-
-// ✅ REQUIRED - Vercel KV for credential storage (lib/kv.ts)
-import { createClient } from '@vercel/kv';
-
-export const kv = createClient({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-});
-```
-
-### **Migrations Strategy**
-- **Supabase migrations**: Store in `next.js/database/migrations/` directory
-- **MUST** run Supabase migrations via direct SQL execution on user's instance during setup
-- Migrations are SQL files executed using Supabase's service role client
-
-```typescript
-// ✅ REQUIRED - Running Supabase migrations (lib/services/migrationService.ts)
-import { getSupabaseServiceRoleClient } from '../supabase-server';
-import fs from 'fs/promises';
-import path from 'path';
-
-const migrationFiles = [
-  '2025_10_14_123226_create_pages_table.sql',
-  '2025_10_14_123227_create_page_versions_table.sql',
-  '2025_10_14_123228_create_assets_table.sql',
-];
-
-export const migrationService = {
-  async getMigrationSQL(): Promise<string[]> {
-    const migrations: string[] = [];
-    for (const file of migrationFiles) {
-      const filePath = path.join(process.cwd(), 'next.js/database/migrations', file);
-      const sql = await fs.readFile(filePath, 'utf-8');
-      migrations.push(sql);
-    }
-    return migrations;
-  },
-
-  async runMigrations(): Promise<void> {
-    const supabase = await getSupabaseServiceRoleClient();
-    const migrations = await this.getMigrationSQL();
-
-    for (const sql of migrations) {
-      // Execute SQL directly on Supabase
-      const { error } = await supabase.rpc('exec_sql', { sql });
-      if (error) throw error;
-    }
-  },
 };
 ```
 
-### **CDN & Caching Strategy**
-- Public pages use **Next.js ISR** with Vercel CDN caching
-- Each page has a **cache tag** based on slug
-- Publish action **invalidates cache** via Vercel API
+### In Components with UI State
 
 ```typescript
-// ✅ Dynamic page with cache tags (app/[slug]/page.tsx)
-export async function generateStaticParams() {
-  const pages = await fetchAllPublishedPages();
-  return pages.map(page => ({ slug: page.slug }));
-}
-
-export const revalidate = 60; // ISR revalidation
-
-export default async function Page({ params }: { params: { slug: string } }) {
-  const page = await fetchPageBySlug(params.slug);
+function PageEditor({ pageId }: PageEditorProps) {
+  const [page, setPage] = useState<Page | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // Add cache tag
-  unstable_cache(() => page, [`page-${params.slug}`]);
-  
-  return <LayerRenderer layers={page.layers} />;
-}
-```
-
-```php
-// ✅ Invalidate cache on publish (Laravel)
-protected function invalidateCache(Page $page): void
-{
-    Http::withToken(config('vercel.token'))
-        ->purge('https://api.vercel.com/v1/purge', [
-            'tags' => ["page-{$page->slug}"]
-        ]);
-}
-```
-
-### **Vercel Integration**
-- First-run setup **writes env vars** to Vercel via API
-- Requires **Vercel API token** with write permissions
-- Triggers **redeploy** after env vars updated
-
-```php
-// ✅ Write env vars to Vercel
-class VercelService
-{
-    public function updateEnvVars(array $vars): void
-    {
-        $projectId = config('vercel.project_id');
-        $token = request()->input('vercel_token');
-        
-        foreach ($vars as $key => $value) {
-            Http::withToken($token)->post(
-                "https://api.vercel.com/v10/projects/{$projectId}/env",
-                [
-                    'key' => $key,
-                    'value' => $value,
-                    'type' => 'encrypted',
-                    'target' => ['production']
-                ]
-            );
-        }
-        
-        // Trigger redeploy
-        $this->triggerRedeploy($projectId, $token);
-    }
-}
-```
-
----
-
-## 🎨 UI/UX Standards
-
-### **Tailwind CSS Rules**
-- **ALWAYS** use Tailwind utility classes - avoid custom CSS
-- **MUST** implement responsive design (`sm:`, `md:`, `lg:` breakpoints)
-- **ALWAYS** use consistent spacing (`space-y-4`, `gap-4`, etc.)
-- Use existing color palette from the project
-
-### **Component Patterns**
-- **MUST** include loading states for async operations
-- **MUST** include error states with user-friendly messages
-- **ALWAYS** implement proper accessibility (ARIA labels, keyboard navigation)
-- **MUST** be responsive and mobile-friendly
-
----
-
-## ⚙️ Environment Configuration
-
-### **Required Environment Variables**
-
-**Next.js (.env.local):**
-```bash
-# API endpoint
-NEXT_PUBLIC_API_URL=http://localhost:8000
-
-# Supabase credentials (loaded dynamically from Laravel after setup)
-# These are NOT in .env - fetched from backend after connection
-```
-
-**Backend Environment Variables:**
-```bash
-# Vercel KV (automatically set by Vercel when you add KV storage)
-KV_REST_API_URL=your_kv_rest_api_url
-KV_REST_API_TOKEN=your_kv_rest_api_token
-
-# Revalidation secret
-REVALIDATE_SECRET=your-secret-key-here
-
-# App URL (for cache invalidation)
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-
-# Supabase credentials are NOT in .env
-# They are stored in Vercel KV and loaded dynamically
-# After first-time setup, getSupabaseConfig() reads from KV
-```
-
-### **Dynamic Supabase Configuration**
-- Supabase credentials are stored in Vercel KV during first-time setup
-- Next.js API routes load credentials from KV, not `.env`
-- Frontend fetches Supabase config from Next.js API endpoint
-
-```typescript
-// ✅ REQUIRED in lib/supabase-server.ts (already shown above)
-export async function getSupabaseConfig(): Promise<SupabaseCredentials | null> {
-  if (cachedSupabaseConfig) {
-    return cachedSupabaseConfig;
-  }
-
-  const config = await kv.get<SupabaseCredentials>('supabase_config');
-  if (config) {
-    cachedSupabaseConfig = config;
-  }
-  return config;
-}
-```
-
-### **First-Time Setup Flow**
-```typescript
-// ✅ Setup API route pattern (app/api/setup/connect/route.ts)
-export async function POST(request: NextRequest) {
-  try {
-    const { url, anon_key, service_role_key } = await request.json();
-
-    // 1. Validate input
-    if (!url || !anon_key || !service_role_key) {
-      return NextResponse.json(
-        { error: 'Missing Supabase credentials' },
-        { status: 400 }
-      );
-    }
-
-    // 2. Validate connection by testing service role client
-    const testClient = createClient(url, service_role_key);
-    const { error: testError } = await testClient
-      .from('pg_tables')
-      .select('tablename')
-      .limit(1);
+  useEffect(() => {
+    const loadPage = async () => {
+      try {
+        setLoading(true);
+        const result = await pagesApi.getById(pageId);
+        setPage(result.data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load page');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    if (testError) {
-      return NextResponse.json(
-        { error: 'Invalid Supabase credentials' },
-        { status: 400 }
-      );
-    }
-
-    // 3. Store credentials in Vercel KV
-    await kv.set('supabase_config', { url, anon_key, service_role_key });
-
-    // 4. Run migrations on user's Supabase (optional - can be separate step)
-    // await migrationService.runMigrations();
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('Setup error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Setup failed' },
-      { status: 500 }
-    );
-  }
+    loadPage();
+  }, [pageId]);
+  
+  if (loading) return <Spinner />;
+  if (error) return <ErrorMessage error={error} />;
+  if (!page) return null;
+  
+  return <div>{/* Render page */}</div>;
 }
 ```
 
 ---
 
-## 📊 State Management (Zustand)
+## ⏳ 10. Loading States (MANDATORY)
 
-### **Store Patterns**
-- **ALWAYS** use proper TypeScript interfaces for store state
-- **NEVER** mutate state directly - use set() function
-- **MUST** implement proper error handling in store actions
+### Always Show Loading for Async Operations
 
 ```typescript
-// ✅ REQUIRED PATTERN
-interface AuthState {
-  user: User | null;
-  loading: boolean;
-  error: string | null;
-  login: (credentials: LoginCredentials) => Promise<void>;
+// ✅ CORRECT: Loading state shown
+function PageList() {
+  const [pages, setPages] = useState<Page[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    fetchPages().then(setPages).finally(() => setLoading(false));
+  }, []);
+  
+  if (loading) {
+    return <Spinner />;
+  }
+  
+  return <div>{/* Render pages */}</div>;
 }
 
-const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
-  loading: false,
-  error: null,
-  login: async (credentials) => {
-    set({ loading: true, error: null });
-    try {
-      const user = await authApi.login(credentials);
-      set({ user, loading: false });
-    } catch (error) {
-      set({ error: getErrorMessage(error), loading: false });
-    }
+// ❌ WRONG: No loading state
+function PageList() {
+  const [pages, setPages] = useState<Page[]>([]);
+  
+  useEffect(() => {
+    fetchPages().then(setPages);
+  }, []);
+  
+  return <div>{/* Flashes empty state, then content */}</div>;
+}
+```
+
+### Use ShadCN Spinner
+
+```typescript
+import { Spinner } from '@/components/ui/spinner';
+
+if (loading) return <Spinner />;
+if (loading) return (
+  <div className="flex items-center justify-center p-8">
+    <Spinner />
+  </div>
+);
+```
+
+---
+
+## 🔀 11. Conditional Rendering - Early Returns
+
+### Prefer Early Returns Over Nested Ternaries
+
+```typescript
+// ✅ GOOD: Early returns (clean, readable)
+function PageEditor({ pageId }: PageEditorProps) {
+  const { page, loading, error } = usePageData(pageId);
+  
+  if (loading) {
+    return <Spinner />;
   }
+  
+  if (error) {
+    return <ErrorMessage error={error} />;
+  }
+  
+  if (!page) {
+    return <EmptyState message="Page not found" />;
+  }
+  
+  return (
+    <div>
+      <h1>{page.title}</h1>
+      {/* Main content */}
+    </div>
+  );
+}
+
+// ❌ BAD: Nested ternaries (hard to read, hard to maintain)
+function PageEditor({ pageId }: PageEditorProps) {
+  const { page, loading, error } = usePageData(pageId);
+  
+  return loading ? (
+    <Spinner />
+  ) : error ? (
+    <ErrorMessage error={error} />
+  ) : !page ? (
+    <EmptyState message="Page not found" />
+  ) : (
+    <div>
+      <h1>{page.title}</h1>
+      {/* Main content */}
+    </div>
+  );
+}
+```
+
+### For Simple Conditions
+
+Use inline ternaries for simple show/hide:
+
+```typescript
+// ✅ GOOD: Simple inline conditional
+<div>
+  {isVisible && <Notice message="Page is published" />}
+  {count > 0 ? <Badge>{count}</Badge> : null}
+</div>
+```
+
+---
+
+## 🎭 12. State Management with Zustand
+
+### Keep Stores Focused and Domain-Specific
+
+```typescript
+// ✅ GOOD: Focused store
+// stores/useEditorStore.ts
+import { create } from 'zustand';
+
+interface EditorState {
+  selectedLayerId: string | null;
+  currentPageId: string | null;
+  isLoading: boolean;
+  isSaving: boolean;
+}
+
+interface EditorActions {
+  setSelectedLayerId: (id: string | null) => void;
+  setCurrentPageId: (id: string | null) => void;
+  setLoading: (value: boolean) => void;
+  setSaving: (value: boolean) => void;
+}
+
+type EditorStore = EditorState & EditorActions;
+
+export const useEditorStore = create<EditorStore>((set) => ({
+  selectedLayerId: null,
+  currentPageId: null,
+  isLoading: false,
+  isSaving: false,
+  
+  setSelectedLayerId: (id) => set({ selectedLayerId: id }),
+  setCurrentPageId: (id) => set({ currentPageId: id }),
+  setLoading: (value) => set({ isLoading: value }),
+  setSaving: (value) => set({ isSaving: value }),
 }));
 ```
 
----
+### Use TypeScript Interfaces for Store Types
 
-## 🔐 Security Requirements
-
-### **Input Validation**
-- **ALWAYS** validate all user inputs on both frontend and backend
-- **MUST** sanitize data before database storage
-- **ALWAYS** use Laravel's validation rules
-
-### **Authentication**
-- **MUST** use Supabase Auth for user authentication
-- **MUST** validate Supabase JWT tokens in Laravel for protected routes
-- **ALWAYS** check user permissions using Laravel Policies
-- **NEVER** trust frontend-only validation
-- **ONLY `/ycode` routes require authentication** - all other routes are public
+Always define separate interfaces for state and actions, then combine them.
 
 ---
 
-## 🚨 Critical Rules
+## ⚡ 13. Performance Optimization
 
-### **Database Architecture**
-1. **NEVER** store application data in Vercel KV - ONLY Supabase credentials
-2. **ALWAYS** store sensitive credentials securely in Vercel KV
-3. **MUST** handle case where Supabase is not configured yet
-4. **NEVER** hardcode Supabase credentials in `.env` files
-5. **ALWAYS** load Supabase config dynamically from Vercel KV
+### When to Optimize
 
-### **First-Time Setup**
-1. **MUST** validate Supabase credentials before storing
-2. **MUST** run all migrations on user's Supabase during setup
-3. **ALWAYS** create first admin user in Supabase Auth
-4. **MUST** handle setup errors gracefully with user-friendly messages
-5. **NEVER** allow access to builder without Supabase connection
+1. **Profile First** - Don't optimize prematurely
+2. **Use React DevTools Profiler** to identify slow components
+3. **Optimize when you see actual performance issues**
 
-### **Page Rendering & Versioning**
-1. **ALWAYS** render published version on public routes, draft in editor
-2. **MUST** handle missing pages gracefully (404)
-3. **NEVER** show draft versions to unauthenticated users
-4. **ALWAYS** sanitize user-generated content and Tailwind classes
-5. **MUST** debounce autosave to avoid excessive DB writes
+### React.memo for Expensive Pure Components
 
-### **Error Handling**
-1. **ALWAYS** implement try-catch blocks for async operations
-2. **MUST** provide user-friendly error messages
-3. **ALWAYS** include loading states for UI components
-4. **MUST** handle network failures gracefully
-
-### **Type Safety**
-1. **NEVER** use `any` type in TypeScript
-2. **ALWAYS** define proper interfaces for API responses
-3. **MUST** handle undefined/null values explicitly
-4. **ALWAYS** use proper PHP type hints and return types
-
-### **Performance**
-1. **MUST** use React.memo for expensive components
-2. **ALWAYS** implement proper useCallback/useMemo usage
-3. **MUST** optimize images with Next.js Image component when possible
-4. **ALWAYS** implement pagination for large data sets
-
----
-
-## 📋 Code Review Checklist
-
-Before completing any task, ensure:
-
-- [ ] **Formatting**: Run `npm run lint` and `npm run type-check`
-- [ ] **TypeScript**: No `any` types, proper interfaces defined
-- [ ] **Database Architecture**: Vercel KV for credentials only, Supabase for app data
-- [ ] **Setup Flow**: First-time setup handles all edge cases gracefully
-- [ ] **Credentials**: Sensitive data stored in Vercel KV, never in `.env`
-- [ ] **Page Rendering**: Published pages display correctly, unpublished pages return 404
-- [ ] **Error handling**: Try-catch blocks and user-friendly errors
-- [ ] **Loading states**: Proper loading/error UI states
-- [ ] **Responsive**: Works on mobile and desktop
-- [ ] **Validation**: Both frontend and backend validation
-- [ ] **Performance**: Optimized with proper React hooks
-- [ ] **Security**: Input sanitization and Supabase Auth validation
-- [ ] **Builder UX**: Visual builder provides good editing experience
-- [ ] **Supabase**: Using Repository pattern, not direct Supabase calls in Services
-- [ ] **Authentication**: Only `/ycode` routes protected, all others public
-- [ ] **Migrations**: Supabase migrations run correctly during setup
-- [ ] **Consistency**: Follows existing code patterns
-- [ ] **Linting**: No ESLint or Pint errors
-
----
-
-## 🛠️ Development Workflow
-
-### **When Modifying Existing Code**
-1. **ALWAYS** read the existing file completely first
-2. **MUST** maintain existing patterns and conventions
-3. **NEVER** break existing functionality
-4. **ALWAYS** test on both public pages and builder interface
-
-### **When Creating New Components/Blocks**
-1. **MUST** follow existing component structure
-2. **ALWAYS** implement proper TypeScript types
-3. **MUST** include loading and error states
-4. **ALWAYS** make responsive and accessible
-5. **MUST** be usable in both builder and public view
-
-### **When Adding API Endpoints**
-1. **MUST** add to `laravel/routes/web.php` (not api.php)
-2. **ALWAYS** implement proper validation
-3. **MUST** protect builder endpoints with authentication
-4. **ALWAYS** return consistent JSON responses
-
----
-
-## 🎯 Project-Specific Patterns
-
-### **Layer Rendering Pattern**
 ```typescript
-// ✅ Recursive layer renderer
-interface LayerRendererProps {
-  layers: Layer[];
-  onLayerClick?: (layerId: string) => void;
+// ✅ Use React.memo for pure components that render often
+import React, { memo } from 'react';
+
+interface LayerItemProps {
+  layer: Layer;
+  onSelect: (id: string) => void;
 }
 
-const LayerRenderer: React.FC<LayerRendererProps> = ({ layers, onLayerClick }) => {
+const LayerItem: React.FC<LayerItemProps> = memo(({ layer, onSelect }) => {
+  return (
+    <div onClick={() => onSelect(layer.id)}>
+      {layer.name}
+    </div>
+  );
+});
+```
+
+### useCallback for Functions Passed as Props
+
+```typescript
+// ✅ useCallback prevents unnecessary re-renders
+function LayersList({ layers }: LayersListProps) {
+  const handleSelect = useCallback((id: string) => {
+    console.log('Selected:', id);
+  }, []); // Empty deps - function never changes
+  
   return (
     <>
       {layers.map(layer => (
-        <div
-          key={layer.id}
-          className={layer.classes}
-          onClick={() => onLayerClick?.(layer.id)}
-          data-layer-id={layer.id}
-        >
-          {layer.type === 'text' && layer.content}
-          {layer.type === 'heading' && <h1>{layer.content}</h1>}
-          {layer.type === 'image' && <img src={layer.src} alt="" />}
-          
-          {layer.children && (
-            <LayerRenderer layers={layer.children} onLayerClick={onLayerClick} />
-          )}
-        </div>
+        <LayerItem key={layer.id} layer={layer} onSelect={handleSelect} />
       ))}
     </>
   );
-};
-```
-
-### **Page Fetching Pattern (Public)**
-```typescript
-// ✅ Fetch published page version from database
-export async function fetchPublishedPage(slug: string): Promise<PageVersion> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-  const response = await fetch(`${apiUrl}/api/pages/${slug}/published`, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' }
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 ```
 
-### **Autosave Pattern (Builder)**
+### useMemo for Expensive Calculations
+
 ```typescript
-// ✅ Debounced autosave for draft versions
-import { debounce } from 'lodash';
-
-const useAutosave = (pageId: string) => {
-  const saveDraft = async (layers: Layer[]) => {
-    const token = supabase.auth.session()?.access_token;
-    
-    await fetch(`${apiUrl}/api/pages/${pageId}/draft`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ layers })
-    });
-  };
-
-  // Debounce for 2 seconds
-  const debouncedSave = useCallback(debounce(saveDraft, 2000), [pageId]);
-
-  return { saveDraft: debouncedSave };
-};
-```
-
-### **Publish Pattern**
-```typescript
-// ✅ Publish page and invalidate CDN cache
-export async function publishPage(pageId: string, token: string): Promise<void> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-  const response = await fetch(`${apiUrl}/api/pages/${pageId}/publish`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to publish: ${response.statusText}`);
-  }
+// ✅ useMemo caches expensive computations
+function PageEditor({ pageId }: PageEditorProps) {
+  const { draftsByPageId } = usePagesStore();
   
-  // Cache invalidation happens server-side
+  // Expensive: traverse tree structure
+  const layersForCurrentPage = useMemo(() => {
+    if (!pageId) return [];
+    const draft = draftsByPageId[pageId];
+    return draft ? draft.layers : [];
+  }, [pageId, draftsByPageId]);
+  
+  return <LayerRenderer layers={layersForCurrentPage} />;
 }
 ```
 
 ---
 
-## ⚠️ Common Mistakes to Avoid
+## ♿ 14. Accessibility (A11y)
 
-1. **NEVER** store app data in Vercel KV - use Supabase for everything except credentials
-2. **NEVER** hardcode Supabase credentials in `.env` files
-3. **NEVER** show draft versions on public routes - only published
-4. **NEVER** use `any` type in TypeScript
-5. **NEVER** forget loading/error states in UI components
-6. **NEVER** skip input validation on the backend
-7. **NEVER** mutate Zustand state directly
-8. **NEVER** use custom CSS when Tailwind classes exist
-9. **NEVER** trust layer data from database without validation (XSS risk)
-10. **NEVER** expose builder endpoints without authentication
-11. **NEVER** use Supabase client directly in Services - use Repositories
-12. **NEVER** allow builder access without Supabase connection
-13. **NEVER** expose Vercel KV credentials (they're auto-managed by Vercel)
-14. **NEVER** forget to invalidate CDN cache after publish
-15. **NEVER** autosave without debouncing (performance issue)
+### Required for All Interactive Elements
+
+```typescript
+// ✅ GOOD: Accessible button
+<Button
+  onClick={handleDelete}
+  aria-label="Delete page"
+  aria-describedby="delete-hint"
+>
+  <Icon name="trash" />
+</Button>
+<span id="delete-hint" className="sr-only">
+  This action cannot be undone
+</span>
+
+// ❌ BAD: Not accessible
+<div onClick={handleDelete}>
+  <Icon name="trash" />
+</div>
+```
+
+### Checklist
+- ✅ Use semantic HTML (`<button>` not `<div onClick>`)
+- ✅ Include ARIA labels for icon-only buttons
+- ✅ Maintain proper heading hierarchy (h1 → h2 → h3)
+- ✅ Add alt text for images
+- ✅ Ensure keyboard navigation works (Tab, Enter, Esc)
+- ✅ Test with screen reader when possible
+- ✅ Maintain sufficient color contrast
 
 ---
 
-*Follow these rules strictly. They prevent common bugs and ensure consistency across the codebase.*
+## 📝 15. Comments & Documentation
 
+### When to Comment
+
+```typescript
+// ✅ GOOD: Explain WHY, not WHAT
+// Use debounce to prevent excessive API calls during typing
+const debouncedSearch = useDebounce(searchQuery, 500);
+
+// Edge case: Supabase returns error code PGRST116 for "not found"
+if (error && error.code !== 'PGRST116') {
+  throw error;
+}
+
+// TODO: Add pagination after 100 pages - performance degrades with large lists
+const pages = await getAllPages();
+
+// ❌ BAD: Obvious comments that repeat the code
+// Set loading to true
+setLoading(true);
+
+// Loop through pages
+pages.forEach(page => {
+  // ...
+});
+```
+
+### JSDoc for Public APIs
+
+```typescript
+/**
+ * Recursively finds a layer by ID in a tree structure
+ * @param layers - Array of layers to search
+ * @param id - Unique layer ID to find
+ * @returns The found layer or null if not found
+ */
+export function findLayerById(layers: Layer[], id: string): Layer | null {
+  for (const layer of layers) {
+    if (layer.id === id) return layer;
+    if (layer.children) {
+      const found = findLayerById(layer.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+```
+
+---
+
+## 🌍 16. Environment Variables
+
+### Client vs Server
+
+```typescript
+// ✅ Client-side (accessible in browser)
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+// ✅ Server-side ONLY (API routes, Server Components)
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// ❌ WRONG: Server-side var in client code
+const secret = process.env.SECRET_KEY; // Undefined in browser!
+```
+
+### Rules
+- Prefix with `NEXT_PUBLIC_` ONLY for client-side variables
+- NEVER expose secrets/keys to the client
+- Validate required env vars at startup
+- Document all env vars in README or `.env.example`
+
+---
+
+## 🧪 17. TypeScript Standards
+
+### NEVER Use `any`
+
+```typescript
+// ❌ FORBIDDEN
+function handleData(data: any) {
+  return data.map((item: any) => item.name);
+}
+
+// ✅ CORRECT: Proper types
+interface Item {
+  id: string;
+  name: string;
+}
+
+function handleData(data: Item[]): string[] {
+  return data.map(item => item.name);
+}
+```
+
+### Use Proper Interfaces
+
+```typescript
+// ✅ Define clear interfaces
+interface LayerProps {
+  layer: Layer;
+  selectedLayerId: string | null;
+  onSelect: (id: string) => void;
+}
+
+const LayerItem: React.FC<LayerProps> = ({ layer, selectedLayerId, onSelect }) => {
+  // Component implementation
+};
+```
+
+### Type Inference
+
+Let TypeScript infer when obvious:
+
+```typescript
+// ✅ Inference is clear
+const count = 5; // number
+const name = 'John'; // string
+const items = pages.map(p => p.id); // string[]
+
+// ✅ Explicit when needed
+const [data, setData] = useState<Page | null>(null);
+```
+
+---
+
+## ✅ 18. ESLint & Code Quality
+
+### Always Run Before Committing
+
+```bash
+npm run lint        # Check for issues
+npm run lint:fix    # Auto-fix issues
+npm run type-check  # Verify TypeScript
+```
+
+### Key Rules Enforced
+
+- **Indentation**: 2 spaces
+- **Quotes**: Single quotes (template literals allowed)
+- **JSX**: Max 2 props per line
+- **Spacing**: Spaces in object braces `{ key: value }`
+- **Self-closing**: Space before `/>` (`<Button />`)
+- **Brackets**: Tag-aligned closing brackets
+
+```typescript
+// ✅ CORRECT formatting
+const config = { name: 'YCode', version: '1.0' };
+
+<Button
+  variant="primary"
+  size="lg"
+  onClick={handleClick}
+/>
+
+// ❌ WRONG formatting
+const config={name:'YCode',version:'1.0'};
+
+<Button variant="primary" size="lg" onClick={handleClick}/>
+```
+
+---
+
+## 🚫 Common Anti-Patterns to AVOID
+
+### 1. Not Using ShadCN Components
+```typescript
+// ❌ Creating custom button
+<button className="px-4 py-2 bg-blue-500">Click</button>
+
+// ✅ Using ShadCN
+<Button variant="default">Click</Button>
+```
+
+### 2. Direct Supabase in API Routes
+```typescript
+// ❌ Direct Supabase
+const supabase = await getSupabaseAdmin();
+await supabase.from('pages').select();
+
+// ✅ Use repository
+await getAllPages();
+```
+
+### 3. Nested Ternaries
+```typescript
+// ❌ Nested ternaries
+return loading ? <Spinner /> : error ? <Error /> : <Content />;
+
+// ✅ Early returns
+if (loading) return <Spinner />;
+if (error) return <Error />;
+return <Content />;
+```
+
+### 4. Missing Loading States
+```typescript
+// ❌ No loading state
+const [data, setData] = useState([]);
+useEffect(() => { fetch().then(setData); }, []);
+return <List data={data} />;
+
+// ✅ With loading state
+const [data, setData] = useState([]);
+const [loading, setLoading] = useState(true);
+useEffect(() => {
+  fetch().then(setData).finally(() => setLoading(false));
+}, []);
+if (loading) return <Spinner />;
+return <List data={data} />;
+```
+
+### 5. Using `any` Type
+```typescript
+// ❌ Using any
+function process(data: any) { }
+
+// ✅ Proper types
+function process(data: Page[]) { }
+```
+
+### 6. Deep Relative Imports
+```typescript
+// ❌ Deep relative paths
+import { Button } from '../../../../components/ui/button';
+
+// ✅ Use path alias
+import { Button } from '@/components/ui/button';
+```
+
+### 7. Not Abstracting Repeated Logic
+```typescript
+// ❌ Repeated debounce logic everywhere
+const [debouncedValue, setDebouncedValue] = useState(value);
+useEffect(() => {
+  const timer = setTimeout(() => setDebouncedValue(value), 500);
+  return () => clearTimeout(timer);
+}, [value]);
+
+// ✅ Extract to custom hook
+const debouncedValue = useDebounce(value, 500);
+```
+
+---
+
+## 🎯 Quick Checklist Before Committing
+
+- [ ] Using ShadCN components for all UI primitives?
+- [ ] Extracted reusable logic into hooks/utils?
+- [ ] Components are small and focused (single responsibility)?
+- [ ] Used proper TypeScript types (no `any`)?
+- [ ] Imports organized correctly?
+- [ ] Using `@/` path aliases (not relative paths)?
+- [ ] Loading states for all async operations?
+- [ ] Error handling with try/catch/finally?
+- [ ] Early returns instead of nested ternaries?
+- [ ] Added `'use client'` only when needed?
+- [ ] API routes use repository pattern?
+- [ ] Consistent API response format?
+- [ ] Event handlers named `handleX`?
+- [ ] Boolean props named `isX`, `hasX`, `shouldX`?
+- [ ] Run `npm run lint:fix` and `npm run type-check`?
+
+---
+
+## 🚀 Team Collaboration Best Practices
+
+### For Fast-Moving Teams Using Cursor
+
+1. **Think abstraction first** - Before coding, ask "Can I reuse something?"
+2. **Use ShadCN religiously** - Never reinvent UI primitives
+3. **Keep PRs small** - Small, focused changes prevent conflicts
+4. **Follow naming conventions strictly** - Makes searching and refactoring easy
+5. **Document complex logic** - Help your teammates understand WHY
+6. **Run linters before committing** - Catch issues early
+7. **Prefer composition over duplication** - DRY principle
+8. **Use TypeScript properly** - Types are documentation
+
+---
+
+**Remember**: Consistency > Cleverness. A fast-moving team needs predictable patterns, not creative solutions.

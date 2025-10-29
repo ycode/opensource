@@ -28,22 +28,22 @@ export function generateId(): string {
 // Deep clone object
 function cloneDeep<T>(obj: T): T {
   if (obj === null || typeof obj !== 'object') return obj;
-  if (obj instanceof Date) return new Date(obj.getTime()) as any;
-  if (obj instanceof Array) return obj.map(item => cloneDeep(item)) as any;
+  if (obj instanceof Date) return new Date(obj.getTime()) as T;
+  if (obj instanceof Array) return obj.map(item => cloneDeep(item)) as T;
   if (obj instanceof Object) {
-    const clonedObj = {} as any;
+    const clonedObj = {} as Record<string, unknown>;
     for (const key in obj) {
       if (obj.hasOwnProperty(key)) {
-        clonedObj[key] = cloneDeep(obj[key]);
+        clonedObj[key] = cloneDeep((obj as Record<string, unknown>)[key]);
       }
     }
-    return clonedObj;
+    return clonedObj as T;
   }
   throw new Error('Unable to clone object');
 }
 
 // Merge objects
-function merge<T extends Record<string, any>>(target: T, ...sources: Partial<T>[]): T {
+function merge<T extends Record<string, unknown>>(target: T, ...sources: Partial<T>[]): T {
   for (const source of sources) {
     for (const key in source) {
       if (source.hasOwnProperty(key)) {

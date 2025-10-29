@@ -632,22 +632,43 @@ export default function LayersTree({
           newParentName,
           newOrder,
           expectedDepth: newParentId ? (newParentNode?.depth ?? 0) + 1 : 0,
-          explanation: dropPosition === 'above' 
-            ? `Will be placed as sibling ABOVE "${getLayerDisplayName(overNode.layer)}" inside "${targetParentNode ? getLayerDisplayName(targetParentNode.layer) : 'ROOT'}" at index ${newOrder}`
-            : dropPosition === 'inside'
-            ? `Will be placed INSIDE "${getLayerDisplayName(overNode.layer)}" as child at index ${newOrder}`
-            : `Will be placed as sibling BELOW "${getLayerDisplayName(overNode.layer)}" inside "${targetParentNode ? getLayerDisplayName(targetParentNode.layer) : 'ROOT'}" at index ${newOrder}`
+          explanation: (() => {
+            const targetParentName = targetParentNode ? getLayerDisplayName(targetParentNode.layer) : 'ROOT';
+            const overLayerName = getLayerDisplayName(overNode.layer);
+            
+            if (dropPosition === 'above') {
+              return `Will be placed as sibling ABOVE "${overLayerName}" inside "${targetParentName}" at index ${newOrder}`;
+            }
+            
+            if (dropPosition === 'inside') {
+              return `Will be placed INSIDE "${overLayerName}" as child at index ${newOrder}`;
+            }
+            
+            return `Will be placed as sibling BELOW "${overLayerName}" inside "${targetParentName}" at index ${newOrder}`;
+          })()
         }
       });
 
       console.log('📋 CALLING onReorder with new tree structure');
+      
+      // Helper function to get target parent name
+      const getTargetParentName = (): string => {
+        if (!newParentId) return 'ROOT';
+        
+        const parentNode = flattenedNodes.find(n => n.id === newParentId);
+        if (parentNode) {
+          return getLayerDisplayName(parentNode.layer);
+        }
+        
+        return 'NOT FOUND!';
+      };
       
       // FINAL ASSERTION: Verify parentId before rebuild
       console.log('🔍 FINAL CHECK before rebuild:', {
         draggedNodeId: activeNode.id,
         draggedNodeName: getLayerDisplayName(activeNode.layer),
         targetParentId: newParentId,
-        targetParentName: newParentId ? (flattenedNodes.find(n => n.id === newParentId) ? getLayerDisplayName(flattenedNodes.find(n => n.id === newParentId)!.layer) : 'NOT FOUND!') : 'ROOT',
+        targetParentName: getTargetParentName(),
         targetIndex: newOrder,
         dropPosition: dropPosition
       });

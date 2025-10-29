@@ -1,9 +1,9 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import * as TabsPrimitive from "@radix-ui/react-tabs"
+import * as React from 'react'
+import * as TabsPrimitive from '@radix-ui/react-tabs'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 function Tabs({
   className,
@@ -12,7 +12,7 @@ function Tabs({
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn('flex flex-col gap-2', className)}
       {...props}
     />
   )
@@ -20,19 +20,19 @@ function Tabs({
 
 function TabsList({
   className,
-  orientation = "horizontal",
+  orientation = 'horizontal',
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List> & {
-  orientation?: "horizontal" | "vertical"
+  orientation?: 'horizontal' | 'vertical'
 }) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "bg-muted text-muted-foreground rounded-lg p-[2px]",
-        orientation === "horizontal" 
-          ? "inline-flex h-8 w-fit items-center justify-center" 
-          : "flex flex-col w-fit h-fit",
+        'bg-muted text-muted-foreground rounded-lg p-[2px]',
+        orientation === 'horizontal' 
+          ? 'inline-flex h-8 w-fit items-center justify-center' 
+          : 'flex flex-col w-fit h-fit',
         className
       )}
       {...props}
@@ -63,7 +63,7 @@ function TabsContent({
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn("flex-1 outline-none", className)}
+      className={cn('flex-1 outline-none', className)}
       {...props}
     />
   )
