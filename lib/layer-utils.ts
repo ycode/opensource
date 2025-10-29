@@ -54,3 +54,4 @@ export function getImageUrl(layer: Layer): string | undefined {
   return layer.url || layer.src;
 }
 
+

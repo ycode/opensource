@@ -195,8 +195,14 @@ export default function PageSettingsPanel({
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-zinc-500 text-sm flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                    <svg
+                      className="w-4 h-4" fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                     /
                   </span>
@@ -219,7 +225,10 @@ export default function PageSettingsPanel({
                   Parent folder
                 </label>
                 <div className="px-3 py-2 bg-zinc-800/50 border border-zinc-700/50 rounded text-zinc-500 text-sm flex items-center gap-2 cursor-not-allowed">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <svg
+                    className="w-4 h-4" fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
                     <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                   </svg>
                   None
@@ -268,9 +277,15 @@ export default function PageSettingsPanel({
 
           {activeTab === 'seo' && (
             <div className="text-center py-12 text-zinc-500">
-              <svg className="w-12 h-12 mx-auto mb-3 text-zinc-600" fill="currentColor" viewBox="0 0 20 20">
+              <svg
+                className="w-12 h-12 mx-auto mb-3 text-zinc-600" fill="currentColor"
+                viewBox="0 0 20 20"
+              >
                 <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                <path
+                  fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
+                  clipRule="evenodd"
+                />
               </svg>
               <p className="text-sm">SEO settings coming soon</p>
               <p className="text-xs mt-1">Configure meta tags, descriptions, and more</p>
@@ -279,7 +294,10 @@ export default function PageSettingsPanel({
 
           {activeTab === 'social' && (
             <div className="text-center py-12 text-zinc-500">
-              <svg className="w-12 h-12 mx-auto mb-3 text-zinc-600" fill="currentColor" viewBox="0 0 20 20">
+              <svg
+                className="w-12 h-12 mx-auto mb-3 text-zinc-600" fill="currentColor"
+                viewBox="0 0 20 20"
+              >
                 <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
               </svg>
               <p className="text-sm">Social share settings coming soon</p>
@@ -289,8 +307,14 @@ export default function PageSettingsPanel({
 
           {activeTab === 'code' && (
             <div className="text-center py-12 text-zinc-500">
-              <svg className="w-12 h-12 mx-auto mb-3 text-zinc-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+              <svg
+                className="w-12 h-12 mx-auto mb-3 text-zinc-600" fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
               </svg>
               <p className="text-sm">Custom code coming soon</p>
               <p className="text-xs mt-1">Add custom HTML, CSS, and JavaScript</p>

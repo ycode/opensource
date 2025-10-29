@@ -44,14 +44,12 @@ export async function connectSupabase(
 /**
  * Get migration status (completed and pending)
  */
-export async function getMigrationStatus(): Promise<
-  ApiResponse<{
+export async function getMigrationStatus(): Promise<ApiResponse<{
     completed: Array<{ name: string; batch: number; migration_time: Date }>;
     pending: string[];
     completedCount: number;
     pendingCount: number;
-  }>
-> {
+}>> {
   const response = await fetch('/api/setup/migrate');
 
   if (!response.ok) {
@@ -76,9 +74,7 @@ export async function runMigrations(): Promise<ApiResponse<void>> {
 /**
  * Complete setup (no-op now, kept for compatibility)
  */
-export async function completeSetup(): Promise<
-  ApiResponse<{ redirect_url: string }>
-> {
+export async function completeSetup(): Promise<ApiResponse<{ redirect_url: string }>> {
   return {
     data: {
       redirect_url: '/ycode',

@@ -10,14 +10,14 @@ const STORAGE_FILE = path.join(process.cwd(), '.credentials.json');
 const IS_VERCEL = process.env.VERCEL === '1';
 
 interface StorageData {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
  * Get a value from storage
  * Uses environment variables on Vercel, file-based storage locally
  */
-export async function get<T = any>(key: string): Promise<T | null> {
+export async function get<T = unknown>(key: string): Promise<T | null> {
   try {
     console.log(`[Storage] Getting key "${key}" (Vercel: ${IS_VERCEL})`);
     
@@ -58,7 +58,7 @@ export async function get<T = any>(key: string): Promise<T | null> {
  * Set a value in storage
  * On Vercel, throws error directing users to set environment variables
  */
-export async function set(key: string, value: any): Promise<void> {
+export async function set(key: string, value: unknown): Promise<void> {
   // On Vercel, we can't write to filesystem
   if (IS_VERCEL) {
     throw new Error(

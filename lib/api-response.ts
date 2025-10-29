@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
  * @param data - The data to return
  * @param status - HTTP status code (default: 200)
  */
-export function noCache(data: any, status = 200) {
+export function noCache<T = Record<string, unknown>>(data: T, status = 200) {
   return NextResponse.json(data, {
     status,
     headers: {
