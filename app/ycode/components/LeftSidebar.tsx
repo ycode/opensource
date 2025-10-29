@@ -241,20 +241,23 @@ export default function LeftSidebar({
           <hr className="mt-4"/>
 
           {/* Content */}
-          <TabsContent value="layers" className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden">{' '}
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-zinc-300">Layers</h3>
-                  <button 
-                    onClick={() => setShowElementLibrary(true)}
-                    className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
-                    title="Add Element"
-                  >
-                    <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
+          <TabsContent
+            value="layers"
+            className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden"
+          >
+            <div className="py-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-zinc-300">Layers</h3>
+                <button 
+                  onClick={() => setShowElementLibrary(true)}
+                  className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
+                  title="Add Element"
+                >
+                  <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
 
               {!currentPageId ? (
                 <div className="text-center py-8 text-zinc-500">
@@ -288,11 +291,14 @@ export default function LeftSidebar({
                   onReorder={handleLayersReorder}
                 />
               )}
-              </div>
+            </div>
           </TabsContent>
 
-          <TabsContent value="pages" className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden">
-            <div className="p-4">
+          <TabsContent
+            value="pages"
+            className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden"
+          >
+            <div className="py-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-medium text-zinc-300">Pages</h3>
                 <button 
@@ -306,7 +312,7 @@ export default function LeftSidebar({
                 </button>
               </div>
               
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {pages.map((page) => (
                   <div
                     key={page.id}
@@ -321,7 +327,7 @@ export default function LeftSidebar({
                         onPageSelect(page.id);
                         setCurrentPageId(page.id);
                       }}
-                      className="w-full text-left px-3 py-2 text-sm text-zinc-300 flex items-center gap-2"
+                      className="w-full text-left px-3 py-1.5 text-sm text-zinc-300 flex items-center gap-2"
                     >
                       <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
@@ -349,20 +355,21 @@ export default function LeftSidebar({
           </TabsContent>
 
           <TabsContent value="cms">
-
-            <div>
-
-              <div className="py-5 flex justify-between">
-                <span className="font-medium">Collections</span>
-                <div className="-my-1">
-                  <Button size="xs" variant="secondary">
-                    <Icon name="plus"/>
-                  </Button>
-                </div>
+            <div className="py-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-zinc-300">CMS</h3>
+                <button 
+                  onClick={() => {}}
+                  className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
+                  title="Add Collection"
+                >
+                  <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                </button>
               </div>
 
               <div className="flex flex-col">
-
                 <div className="px-4 h-8 rounded-lg bg-secondary flex gap-2 items-center">
                   <Icon name="database" className="size-3"/>
                   <span>Blog posts</span>
@@ -372,13 +379,9 @@ export default function LeftSidebar({
                   <Icon name="database" className="size-3"/>
                   <span>Categories</span>
                 </div>
-
               </div>
-
             </div>
-
           </TabsContent>
-
         </Tabs>
 
         {/* Page Settings Panel */}
