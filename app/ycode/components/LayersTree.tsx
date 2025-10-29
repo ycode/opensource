@@ -183,9 +183,13 @@ function LayerRow({
         {/* Vertical connector line */}
         {node.depth > 0 && (
           <div
-            className="absolute top-0 bottom-0 w-px bg-zinc-700"
+            className={cn(
+                'absolute z-10 top-0 bottom-0 w-px ',
+                isSelected && 'bg-white/10',
+                !isSelected && 'bg-secondary',
+            )}
             style={{
-              left: `${node.depth * 20 - 2}px`,
+              left: `${node.depth * 18 - 2}px`,
             }}
           />
         )}
@@ -193,26 +197,26 @@ function LayerRow({
         {/* Drop Indicators */}
         {isOver && dropPosition === 'above' && (
           <div 
-            className="absolute top-0 left-0 right-0 h-px bg-blue-500 z-50"
+            className="absolute top-0 left-0 right-0 h-[1.5px] bg-primary z-50"
             style={{
-              marginLeft: `${node.depth * 20}px`,
+              marginLeft: `${node.depth * 18}px`,
             }}
           >
-            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-blue-500 border border-zinc-900" />
+            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border border-[1.5px] bg-neutral-950 border-primary" />
           </div>
         )}
         {isOver && dropPosition === 'below' && (
           <div 
-            className="absolute bottom-0 left-0 right-0 h-px bg-blue-500 z-50"
+            className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-primary z-50"
             style={{
-              marginLeft: `${node.depth * 20}px`,
+              marginLeft: `${node.depth * 18}px`,
             }}
           >
-            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-blue-500 border border-zinc-900" />
+            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border border-[1.5px] bg-neutral-950 border-primary" />
           </div>
         )}
         {isOver && dropPosition === 'inside' && (
-          <div className="absolute inset-0 border-2 border-blue-500 rounded bg-blue-500/10 z-40 pointer-events-none" />
+          <div className="absolute inset-0 border-2 border-yellow-500 rounded-lg bg-yellow-500/50 z-40 pointer-events-none" />
         )}
 
         {/* Main Row */}
@@ -223,12 +227,12 @@ function LayerRow({
           data-drag-active={isDragActive}
           data-layer-id={node.id}
           className={cn(
-            'group relative flex items-center h-8 px-2 transition-all',
-            !isDragActive && !isDragging && 'hover:bg-zinc-700/80 hover:rounded',
-            isSelected && 'bg-[rgb(0_125_255/0.8)] text-white rounded',
-            isSelected && !isDragActive && !isDragging && 'hover:bg-[rgb(0_125_255/0.8)]',
-            isDragging && 'opacity-40',
-            !isDragActive && 'cursor-grab active:cursor-grabbing'
+            'group relative flex items-center h-8 rounded-lg text-muted-foreground',
+            !isDragActive && !isDragging && 'hover:bg-secondary/50',
+            isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
+            isSelected && !isDragActive && !isDragging && '',
+            isDragging && '',
+            !isDragActive && ''
           )}
           style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
           onClick={() => onSelect(node.id)}
@@ -240,7 +244,7 @@ function LayerRow({
               onToggle(node.id);
             }}
             className={cn(
-              'w-4 h-4 flex items-center justify-center flex-shrink-0 transition-transform duration-150',
+              'w-4 h-4 flex items-center justify-center flex-shrink-0',
               hasChildren ? '' : 'invisible',
               isCollapsed ? '' : 'rotate-90'
             )}
@@ -249,10 +253,11 @@ function LayerRow({
           </button>
 
           {/* Layer Icon */}
-          <ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400 mx-1.5" />
+          {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400 mx-1.5" />*/}
+          <div className="size-3 bg-white/10 rounded mx-1.5"/>
 
           {/* Label */}
-          <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap">
+          <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
             {getLayerDisplayName(node.layer)}
           </span>
         </div>
