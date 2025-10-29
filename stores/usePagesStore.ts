@@ -299,11 +299,49 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Add to root
       newLayers = [...draft.layers, newLayer];
     } else {
-      // Add as child to parent
-      newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
-        ...parent,
-        children: [...(parent.children || []), newLayer],
-      }));
+      // Validate that parent can have children
+      const { canHaveChildren } = require('../lib/layer-utils');
+      
+      // Find the parent layer and its parent
+      const findLayerWithParent = (tree: Layer[], id: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null => {
+        for (const node of tree) {
+          if (node.id === id) return { layer: node, parent };
+          if (node.children) {
+            const found = findLayerWithParent(node.children, id, node);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      
+      const result = findLayerWithParent(draft.layers, parentLayerId);
+      
+      // Check if parent can have children
+      if (result && !canHaveChildren(result.layer)) {
+        console.log(`🔄 Cannot add child to ${result.layer.name || result.layer.type} - placing after selected layer instead`);
+        
+        // If parent exists (not root level), insert after the selected layer
+        if (result.parent) {
+          newLayers = updateLayerInTree(draft.layers, result.parent.id, (grandparent) => {
+            const children = grandparent.children || [];
+            const selectedIndex = children.findIndex(c => c.id === parentLayerId);
+            const newChildren = [...children];
+            newChildren.splice(selectedIndex + 1, 0, newLayer);
+            return { ...grandparent, children: newChildren };
+          });
+        } else {
+          // Selected layer is at root level, insert after it
+          const selectedIndex = draft.layers.findIndex(l => l.id === parentLayerId);
+          newLayers = [...draft.layers];
+          newLayers.splice(selectedIndex + 1, 0, newLayer);
+        }
+      } else {
+        // Add as child to parent
+        newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
+          ...parent,
+          children: [...(parent.children || []), newLayer],
+        }));
+      }
     }
 
     set({ 

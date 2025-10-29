@@ -289,6 +289,7 @@ export default function LayersTree({
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | 'inside' | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [cursorOffsetY, setCursorOffsetY] = useState<number>(0);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Flatten the tree for rendering
   const flattenedNodes = useMemo(
@@ -313,6 +314,12 @@ export default function LayersTree({
 
   // Handle drag start
   const handleDragStart = useCallback((event: DragStartEvent) => {
+    // Prevent starting a new drag while processing the previous one
+    if (isProcessing) {
+      console.log('⏸️ DRAG BLOCKED: Previous drag still processing');
+      return;
+    }
+
     const draggedId = event.active.id as string;
     const draggedNode = flattenedNodes.find(n => n.id === draggedId);
     
@@ -341,7 +348,7 @@ export default function LayersTree({
     
     setActiveId(draggedId);
     onLayerSelect(draggedId);
-  }, [flattenedNodes, onLayerSelect]);
+  }, [flattenedNodes, onLayerSelect, isProcessing]);
 
   // Handle drag over - standard 25/50/25 drop zone detection
   const handleDragOver = useCallback((event: DragOverEvent) => {
@@ -565,6 +572,9 @@ export default function LayersTree({
         return;
       }
 
+      // Set processing flag to prevent concurrent drags
+      setIsProcessing(true);
+
       const activeNode = flattenedNodes.find((n) => n.id === active.id);
       const overNode = flattenedNodes.find((n) => n.id === over.id);
 
@@ -574,6 +584,7 @@ export default function LayersTree({
         setOverId(null);
         setDropPosition(null);
         setCursorOffsetY(0);
+        setIsProcessing(false);
         return;
       }
 
@@ -588,6 +599,7 @@ export default function LayersTree({
         setOverId(null);
         setDropPosition(null);
         setCursorOffsetY(0);
+        setIsProcessing(false);
         return;
       }
 
@@ -611,6 +623,7 @@ export default function LayersTree({
           setOverId(null);
           setDropPosition(null);
           setCursorOffsetY(0);
+          setIsProcessing(false);
           return;
         }
         
@@ -635,6 +648,7 @@ export default function LayersTree({
           setOverId(null);
           setDropPosition(null);
           setCursorOffsetY(0);
+          setIsProcessing(false);
           return;
         }
         
@@ -670,6 +684,7 @@ export default function LayersTree({
           setOverId(null);
           setDropPosition(null);
           setCursorOffsetY(0);
+          setIsProcessing(false);
           return;
         }
       }
@@ -753,6 +768,9 @@ export default function LayersTree({
       setOverId(null);
       setDropPosition(null);
       setCursorOffsetY(0);
+      
+      // Use setTimeout to reset processing flag after state updates complete
+      setTimeout(() => setIsProcessing(false), 0);
     },
     [flattenedNodes, dropPosition, onReorder, collapsedIds]
   );

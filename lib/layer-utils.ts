@@ -57,6 +57,9 @@ const ELEMENTS_WITHOUT_CHILDREN = [
   'hr',
   'br',
   'icon',
+  'video',
+  'audio',
+  'image',    // Old system
   
   // Text-only elements that should be leaf nodes
   'heading',  // Generic heading
@@ -66,9 +69,17 @@ const ELEMENTS_WITHOUT_CHILDREN = [
   'h4',
   'h5',
   'h6',
+  'p',        // Paragraph
+  'span',     // Inline text
+  'label',    // Form label
+  'button',   // Button (text content only in builder)
+  'text',     // Old system text type
   
   // Form inputs (technically not void but shouldn't have children in builder)
   'textarea',
+  'select',
+  'checkbox',
+  'radio',
 ];
 
 /**

@@ -109,7 +109,7 @@ export default function LayerContextMenu({
   };
 
   const handleOpenChange = (open: boolean) => {
-    // When context menu opens, select this layer
+    // When context menu opens, select this layer for visual feedback
     if (open && onLayerSelect) {
       onLayerSelect(layerId);
     }
