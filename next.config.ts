@@ -18,6 +18,24 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Ignore optional dependencies that Knex tries to load
+      // We only use PostgreSQL, so we don't need these drivers
+      config.externals = config.externals || [];
+      config.externals.push({
+        'oracledb': 'commonjs oracledb',
+        'mysql': 'commonjs mysql',
+        'mysql2': 'commonjs mysql2',
+        'sqlite3': 'commonjs sqlite3',
+        'better-sqlite3': 'commonjs better-sqlite3',
+        'tedious': 'commonjs tedious',
+        'pg-query-stream': 'commonjs pg-query-stream',
+      });
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

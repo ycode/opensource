@@ -212,6 +212,7 @@ export interface SupabaseConfig {
   url: string;
   publishable_key: string;
   secret_key: string;
+  db_password: string;
   jwt_secret?: string;
 }
 

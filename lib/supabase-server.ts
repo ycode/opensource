@@ -8,10 +8,11 @@ import { storage } from './storage';
  * Credentials are fetched from file-based storage
  */
 
-interface SupabaseCredentials {
+export interface SupabaseCredentials {
   url: string;
   anonKey: string;
   serviceRoleKey: string;
+  db_password: string;
 }
 
 /**
@@ -19,6 +20,13 @@ interface SupabaseCredentials {
  */
 async function getSupabaseCredentials(): Promise<SupabaseCredentials | null> {
   return await storage.get<SupabaseCredentials>('supabase_config');
+}
+
+/**
+ * Get Supabase configuration (exported for use in knex-client)
+ */
+export async function getSupabaseConfig(): Promise<SupabaseCredentials | null> {
+  return await getSupabaseCredentials();
 }
 
 let cachedClient: SupabaseClient | null = null;

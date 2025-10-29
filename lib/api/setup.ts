@@ -34,6 +34,7 @@ export async function connectSupabase(
       url: config.url,
       anon_key: config.publishable_key,
       service_role_key: config.secret_key,
+      db_password: config.db_password,
     }),
   });
 
@@ -41,10 +42,15 @@ export async function connectSupabase(
 }
 
 /**
- * Get list of available migrations
+ * Get migration status (completed and pending)
  */
-export async function getMigrationSQL(): Promise<
-  ApiResponse<{ sql: string; instructions: string }>
+export async function getMigrationStatus(): Promise<
+  ApiResponse<{
+    completed: Array<{ name: string; batch: number; migration_time: Date }>;
+    pending: string[];
+    completedCount: number;
+    pendingCount: number;
+  }>
 > {
   const response = await fetch('/api/setup/migrate');
 
@@ -52,22 +58,7 @@ export async function getMigrationSQL(): Promise<
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  const data = await response.json();
-  
-  // Extract SQL from migration objects and combine
-  const sqlContent = data.migrations
-    ?.map((m: { filename: string; sql: string }) => {
-      return `-- ${m.filename}\n${m.sql}\n`;
-    })
-    .join('\n') || '';
-  
-  // Return in expected format
-  return {
-    data: {
-      sql: sqlContent,
-      instructions: `Found ${data.count || 0} migration files`,
-    },
-  };
+  return response.json();
 }
 
 /**

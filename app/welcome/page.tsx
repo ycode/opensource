@@ -12,20 +12,16 @@ import { useSetupStore } from '@/stores/useSetupStore';
 import type { SupabaseConfig } from '@/types';
 import {
   connectSupabase,
-  getMigrationSQL,
   runMigrations,
   completeSetup,
 } from '@/lib/api/setup';
 
 export default function WelcomePage() {
   const router = useRouter();
-  const { currentStep, setStep, setSupabaseConfig, markComplete } =
-    useSetupStore();
+  const { currentStep, setStep, setSupabaseConfig, markComplete } = useSetupStore();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [migrationSQL, setMigrationSQL] = useState<string>('');
-  const [copied, setCopied] = useState(false);
   const [isVercel, setIsVercel] = useState<boolean | null>(null); // null = loading
   const [envVarsConfigured, setEnvVarsConfigured] = useState(false);
   
@@ -50,22 +46,6 @@ export default function WelcomePage() {
     checkEnvironment();
   }, [currentStep]);
 
-  // Load migration SQL when on migrate step (if not already loaded)
-  useEffect(() => {
-    if (currentStep === 'migrate' && !migrationSQL) {
-      const loadSQL = async () => {
-        try {
-          const result = await getMigrationSQL();
-          if (result.data?.sql) {
-            setMigrationSQL(result.data.sql);
-          }
-        } catch (err) {
-          setError('Failed to load migration SQL');
-        }
-      };
-      loadSQL();
-    }
-  }, [currentStep, migrationSQL]);
 
   // Step 1: Welcome
   if (currentStep === 'welcome') {
@@ -215,7 +195,7 @@ export default function WelcomePage() {
                   </li>
                   <li className="flex gap-3">
                     <span className="text-white font-semibold">2.</span>
-                    <span>Add these three variables (get values from <strong className="text-white">Supabase Dashboard → Settings → API</strong>):</span>
+                    <span>Add these four variables (get values from <strong className="text-white">Supabase Dashboard → Settings</strong>):</span>
                   </li>
                 </ol>
               </div>
@@ -232,6 +212,10 @@ export default function WelcomePage() {
                 <div>
                   <code className="text-green-400 font-mono text-sm">SUPABASE_SERVICE_ROLE_KEY</code>
                   <p className="text-xs text-zinc-400 mt-1">Your service role key (starts with eyJ...)</p>
+                </div>
+                <div>
+                  <code className="text-green-400 font-mono text-sm">SUPABASE_DB_PASSWORD</code>
+                  <p className="text-xs text-zinc-400 mt-1">Your database password (from Settings → Database → Connection String)</p>
                 </div>
               </div>
 
@@ -320,6 +304,7 @@ export default function WelcomePage() {
         url: formData.get('url') as string,
         publishable_key: formData.get('publishable_key') as string,
         secret_key: formData.get('secret_key') as string,
+        db_password: formData.get('db_password') as string,
       };
 
       try {
@@ -330,14 +315,9 @@ export default function WelcomePage() {
           return;
         }
 
-        // Store migration SQL from response (if available in data)
-        if (result.data && typeof result.data === 'object' && 'migration_sql' in result.data) {
-          setMigrationSQL((result.data as any).migration_sql);
-        }
-
         setSupabaseConfig(config);
         
-        // Go to migration step to show SQL
+        // Go to migration step
         setStep('migrate');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Connection failed');
@@ -365,9 +345,9 @@ export default function WelcomePage() {
             </p>
           </div>
 
-          <p className="text-zinc-400 mb-8">
-            Enter your Supabase project credentials. You can find these in your
-            Supabase dashboard under <strong className="text-white">Settings → API</strong>.
+          <p className="text-zinc-400 mb-8 leading-5">
+            Enter your Supabase project credentials. <br />
+            You can find these in your Supabase dashboard under <span className="text-white/85">Settings → API</span>.
           </p>
 
           {error && (
@@ -405,7 +385,7 @@ export default function WelcomePage() {
                 id="publishable_key"
                 name="publishable_key"
                 required
-                rows={3}
+                rows={2}
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-sm placeholder-zinc-500"
               />
@@ -425,12 +405,32 @@ export default function WelcomePage() {
                 id="secret_key"
                 name="secret_key"
                 required
-                rows={3}
+                rows={2}
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-sm placeholder-zinc-500"
               />
               <p className="text-xs text-zinc-500 mt-1">
                 ⚠️ Keep this secret! It has admin access to your database.
+              </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor="db_password"
+                className="block text-sm font-medium text-zinc-300 mb-2"
+              >
+                Database Password
+              </label>
+              <input
+                type="password"
+                id="db_password"
+                name="db_password"
+                required
+                placeholder="Your PostgreSQL database password"
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent placeholder-zinc-500"
+              />
+              <p className="text-xs text-zinc-500 mt-1">
+                Password you used to create your Supabase project (can be reset in <span className="text-white/85">Database → Settings</span>).
               </p>
             </div>
 
@@ -461,14 +461,8 @@ export default function WelcomePage() {
     return null;
   }
 
-  // Step 3: Run Migrations
+  // Step 3: Run Migrations (Automatic)
   if (currentStep === 'migrate') {
-    const handleCopy = () => {
-      navigator.clipboard.writeText(migrationSQL);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    };
-
     const handleMigrate = async () => {
       setLoading(true);
       setError(null);
@@ -491,12 +485,12 @@ export default function WelcomePage() {
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-black p-4">
-        <div className="bg-zinc-900 p-8 rounded-2xl shadow-2xl max-w-4xl w-full border border-zinc-800">
+        <div className="bg-zinc-900 p-8 rounded-2xl shadow-2xl max-w-2xl w-full border border-zinc-800">
           <h2 className="text-3xl font-bold text-white mb-2">
-            Run Database Migrations
+            Setup Database 🗄️
           </h2>
-          <p className="text-zinc-400 mb-6">
-            Copy the SQL below and run it in your Supabase SQL Editor to create the necessary tables.
+          <p className="text-zinc-400 mb-8">
+            We&apos;ll automatically create the necessary database tables and storage buckets in your Supabase project.
           </p>
 
           {error && (
@@ -505,45 +499,17 @@ export default function WelcomePage() {
             </div>
           )}
 
-          <div className="bg-zinc-800 border border-zinc-700 px-4 py-3 rounded-lg mb-6">
-            <p className="text-zinc-300 text-sm">
-              <strong>📋 Quick Setup (30 seconds):</strong>
-              <br />1. Click &quot;Open Supabase SQL Editor&quot; below (opens in new tab)
-              <br />2. Click &quot;Copy SQL&quot; and paste into the editor
-              <br />3. Click &quot;Run&quot; in Supabase
-              <br />4. Come back here and click &quot;Verify & Continue&quot; ✓
+          <div className="bg-zinc-800 border border-zinc-700 px-4 py-3 rounded-lg mb-8">
+            <p className="text-zinc-300 text-sm font-medium mb-2">
+              ✨ What will be created:
             </p>
-          </div>
-
-          <div className="flex gap-3 mb-6">
-            <button
-              onClick={() => {
-                const url = new URL(useSetupStore.getState().supabaseConfig?.url || '');
-                const projectRef = url.hostname.split('.')[0];
-                window.open(`https://supabase.com/dashboard/project/${projectRef}/sql/new`, '_blank');
-              }}
-              className="flex-1 bg-white hover:bg-zinc-200 text-black font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
-            >
-              🚀 Open Supabase SQL Editor
-            </button>
-            <button
-              onClick={handleCopy}
-              className="bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors border border-zinc-700"
-            >
-              {copied ? '✓ Copied!' : '📋 Copy SQL'}
-            </button>
-          </div>
-
-          <div className="mb-6">
-            <label className="text-sm font-medium text-zinc-300 mb-2 block">
-              Migration SQL (Copy and paste this into Supabase)
-            </label>
-            <textarea
-              readOnly
-              value={migrationSQL}
-              className="w-full h-64 px-4 py-3 bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-lg font-mono text-xs placeholder-zinc-500"
-              placeholder="Loading migration SQL..."
-            />
+            <ul className="text-zinc-400 text-sm space-y-1 ml-4 list-disc">
+              <li>Pages table (for your website pages)</li>
+              <li>Page versions table (draft and published versions)</li>
+              <li>Assets table (for uploaded images)</li>
+              <li>Settings table (site configuration)</li>
+              <li>Storage bucket (for file uploads)</li>
+            </ul>
           </div>
 
           <div className="flex gap-4">
@@ -560,7 +526,7 @@ export default function WelcomePage() {
               disabled={loading}
               className="flex-1 bg-white hover:bg-zinc-200 text-black font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50"
             >
-              {loading ? 'Verifying tables...' : 'Verify & Continue →'}
+              {loading ? 'Setting up database...' : 'Run Setup →'}
             </button>
           </div>
         </div>

@@ -11,12 +11,12 @@ import { noCache } from '@/lib/api-response';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { url, anon_key, service_role_key } = body;
+    const { url, anon_key, service_role_key, db_password } = body;
 
-    // Validate required fields
-    if (!url || !anon_key || !service_role_key) {
+    // Validate required fields (including db_password for migrations)
+    if (!url || !anon_key || !service_role_key || !db_password) {
       return noCache(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields. All fields are required.' },
         400
       );
     }
@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       url,
       anonKey: anon_key,
       serviceRoleKey: service_role_key,
+      db_password,
     });
 
     return noCache({

@@ -16,6 +16,7 @@ import RightSidebar from './components/RightSidebar';
 import HeaderBar from './components/HeaderBar';
 import CMS from './components/CMS';
 import UpdateNotification from '../../components/UpdateNotification';
+import MigrationChecker from '../../components/MigrationChecker';
 import type { Layer } from '../../types';
 
 export default function YCodeBuilder() {
@@ -35,6 +36,9 @@ export default function YCodeBuilder() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersRef = useRef<string>('');
   const previousPageIdRef = useRef<string | null>(null);
+
+  // Migration state - BLOCKS builder until migrations complete
+  const [migrationsComplete, setMigrationsComplete] = useState(false);
 
   // Login state (when not authenticated)
   const [loginEmail, setLoginEmail] = useState('');
@@ -57,10 +61,12 @@ export default function YCodeBuilder() {
     // If successful, user state will update and component will re-render with builder
   };
 
-  // Load pages on mount
+  // Load pages only after migrations complete
   useEffect(() => {
-    loadPages();
-  }, [loadPages]);
+    if (migrationsComplete) {
+      loadPages();
+    }
+  }, [loadPages, migrationsComplete]);
 
   // Set current page to "Home" page by default, or first page if Home doesn't exist
   useEffect(() => {
@@ -427,7 +433,12 @@ export default function YCodeBuilder() {
     );
   }
 
-  // Authenticated - show builder
+  // Check migrations first (BLOCKING) before showing builder
+  if (!migrationsComplete) {
+    return <MigrationChecker onComplete={() => setMigrationsComplete(true)} />;
+  }
+
+  // Authenticated - show builder (only after migrations complete)
   return (
     <div className="h-screen flex flex-col bg-zinc-950 text-white">
       {/* Update Notification Banner */}
@@ -491,9 +502,6 @@ export default function YCodeBuilder() {
           </>
         )}
       </div>
-
-      {/* Update Notification */}
-      <UpdateNotification />
     </div>
   );
 }
