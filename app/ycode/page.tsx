@@ -32,7 +32,6 @@ export default function YCodeBuilder() {
   const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter } = usePagesStore();
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard } = useClipboardStore();
   const pages = usePagesStore((state) => state.pages);
-  const [copiedLayer, setCopiedLayer] = useState<Layer | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -215,73 +214,11 @@ export default function YCodeBuilder() {
         
         return;
       }
-
-      // Don't trigger other shortcuts if no layer is selected or no current page
-      if (!selectedLayerId || !currentPageId) return;
-
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-      const modKey = isMac ? e.metaKey : e.ctrlKey;
-
-      // Copy (Cmd/Ctrl + C)
-      if (modKey && e.key.toLowerCase() === 'c') {
-        e.preventDefault();
-        const layer = copyLayerFromStore(currentPageId, selectedLayerId);
-        if (layer) {
-          copyToClipboard(layer, currentPageId);
-          console.log('Layer copied!');
-        }
-      }
-
-      // Cut (Cmd/Ctrl + X)
-      else if (modKey && e.key.toLowerCase() === 'x') {
-        e.preventDefault();
-        // Don't allow cutting Body layer
-        const draft = draftsByPageId[currentPageId];
-        const layerToCut = draft?.layers.find(l => l.id === selectedLayerId);
-        if (layerToCut && layerToCut.id !== 'body' && !layerToCut.locked) {
-          const layer = copyLayerFromStore(currentPageId, selectedLayerId);
-          if (layer) {
-            cutToClipboard(layer, currentPageId);
-            deleteLayer(currentPageId, selectedLayerId);
-            setSelectedLayerId(null);
-            console.log('Layer cut!');
-          }
-        }
-      }
-
-      // Paste (Cmd/Ctrl + V)
-      else if (modKey && e.key.toLowerCase() === 'v' && !e.shiftKey) {
-        e.preventDefault();
-        if (clipboardLayer) {
-          pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
-          console.log('Layer pasted!');
-        }
-      }
-
-      // Duplicate (Cmd/Ctrl + D)
-      else if (modKey && e.key.toLowerCase() === 'd') {
-        e.preventDefault();
-        duplicateLayer(currentPageId, selectedLayerId);
-        console.log('Layer duplicated!');
-      }
-
-      // Delete (Delete or Backspace)
-      else if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault();
-        // Don't allow deleting Body layer
-        const draft = draftsByPageId[currentPageId];
-        const layerToDelete = draft?.layers.find(l => l.id === selectedLayerId);
-        if (layerToDelete && layerToDelete.id !== 'body' && !layerToDelete.locked) {
-          deleteLayer(currentPageId, selectedLayerId);
-          setSelectedLayerId(null);
-          console.log('Layer deleted!');
-        }
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, currentPageId, clipboardLayer, draftsByPageId, copyLayerFromStore, copyToClipboard, cutToClipboard, deleteLayer, duplicateLayer, pasteAfter, setSelectedLayerId]);
+  }, [selectedLayerId, currentPageId, draftsByPageId, setSelectedLayerId]);
 
   // Handle undo
   const handleUndo = () => {
@@ -328,54 +265,6 @@ export default function YCodeBuilder() {
     }
     return null;
   }, [currentPageId, selectedLayerId, draftsByPageId]);
-
-  // Copy layer
-  const copyLayer = () => {
-    if (selectedLayer) {
-      setCopiedLayer(JSON.parse(JSON.stringify(selectedLayer)));
-      // Show toast notification
-      console.log('Layer copied!');
-    }
-  };
-
-  // Paste layer
-  const pasteLayer = () => {
-    if (!copiedLayer || !currentPageId) return;
-    
-    // Deep clone and generate new IDs
-    const generateNewIds = (layer: Layer): Layer => {
-      const newLayer = {
-        ...layer,
-        id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      };
-      if (newLayer.children) {
-        newLayer.children = newLayer.children.map(generateNewIds);
-      }
-      return newLayer;
-    };
-
-    const newLayer = generateNewIds(copiedLayer);
-    const { addLayer } = usePagesStore.getState();
-    
-    // Add as sibling to selected layer or to root
-    addLayer(currentPageId, null, newLayer.type);
-    
-    // Update the newly added layer with copied properties
-    setTimeout(() => {
-      const draft = draftsByPageId[currentPageId];
-      const lastLayer = draft?.layers[draft.layers.length - 1];
-      if (lastLayer) {
-        updateLayer(currentPageId, lastLayer.id, {
-          classes: newLayer.classes,
-          content: newLayer.content,
-          src: newLayer.src,
-          children: newLayer.children,
-        });
-      }
-    }, 100);
-
-    console.log('Layer pasted!');
-  };
 
   // Delete selected layer
   const deleteSelectedLayer = () => {
@@ -527,22 +416,57 @@ export default function YCodeBuilder() {
             // Multi-select: copy all
             const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
             console.log(`Copied ${layers.length} layers`);
-            // For multi-select, store first layer in clipboard for compatibility
+            // Store first layer in clipboard store for compatibility
             if (layers.length > 0) {
-              setCopiedLayer(layers[0]);
+              copyToClipboard(layers[0], currentPageId);
+            }
+          } else if (selectedLayerId) {
+            // Single select - use clipboard store
+            const layer = copyLayerFromStore(currentPageId, selectedLayerId);
+            if (layer) {
+              copyToClipboard(layer, currentPageId);
+              console.log('Layer copied!');
+            }
+          }
+        }
+      }
+      
+      // Cut: Cmd/Ctrl + X (supports multi-select)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
+        if (!isInputFocused && currentPageId) {
+          e.preventDefault();
+          if (selectedLayerIds.length > 1) {
+            // Multi-select: cut all (copy then delete)
+            const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
+            if (layers.length > 0) {
+              // Store first layer in clipboard for compatibility
+              cutToClipboard(layers[0], currentPageId);
+              deleteLayers(currentPageId, selectedLayerIds);
+              clearSelection();
+              console.log(`Cut ${selectedLayerIds.length} layers`);
             }
           } else if (selectedLayerId) {
             // Single select
-            copyLayer();
+            const layer = copyLayerFromStore(currentPageId, selectedLayerId);
+            if (layer && layer.id !== 'body' && !layer.locked) {
+              cutToClipboard(layer, currentPageId);
+              deleteLayer(currentPageId, selectedLayerId);
+              setSelectedLayerId(null);
+              console.log('Layer cut!');
+            }
           }
         }
       }
       
       // Paste: Cmd/Ctrl + V
-      if ((e.metaKey || e.ctrlKey) && e.key === 'v' && copiedLayer) {
-        if (!isInputFocused) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+        if (!isInputFocused && currentPageId) {
           e.preventDefault();
-          pasteLayer();
+          // Use clipboard store for paste (works with context menu)
+          if (clipboardLayer && selectedLayerId) {
+            pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
+            console.log('Layer pasted!');
+          }
         }
       }
 
@@ -580,7 +504,7 @@ export default function YCodeBuilder() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, selectedLayerIds, selectedLayer, copiedLayer, currentPageId, copyLayersFromStore, duplicateLayersFromStore, deleteLayers, clearSelection]);
+  }, [selectedLayerId, selectedLayerIds, currentPageId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId]);
 
   // Show login form if not authenticated
   if (!user) {
