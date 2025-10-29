@@ -37,7 +37,7 @@ export default function CMS() {
             </div>
 
             <div className="group">
-                <div className="grid grid-flow-col text-primary/60 group-hover:bg-white/5">
+                <div className="grid grid-flow-col text-muted-foreground group-hover:bg-white/5">
                     <div className="px-4 py-5">
                         <span>My first blog post</span>
                     </div>
@@ -49,7 +49,7 @@ export default function CMS() {
             </div>
 
             <div className="group">
-                <div className="grid grid-flow-col text-primary/60 group-hover:bg-white/5">
+                <div className="grid grid-flow-col text-muted-foreground group-hover:bg-white/5">
                     <div className="px-4 py-5">
                         <Button size="xs" variant="ghost">
                             <Icon name="plus" />
