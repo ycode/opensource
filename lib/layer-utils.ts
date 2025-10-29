@@ -54,4 +54,35 @@ export function getImageUrl(layer: Layer): string | undefined {
   return layer.url || layer.src;
 }
 
+/**
+ * Elements that cannot have children (void elements + text-only elements)
+ */
+const ELEMENTS_WITHOUT_CHILDREN = [
+  // Void/self-closing elements
+  'img',
+  'input', 
+  'hr',
+  'br',
+  'icon',
+  
+  // Text-only elements that should be leaf nodes
+  'heading',  // Generic heading
+  'h1',
+  'h2', 
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  
+  // Form inputs (technically not void but shouldn't have children in builder)
+  'textarea',
+];
+
+/**
+ * Check if a layer can have children based on its name/type
+ */
+export function canHaveChildren(layer: Layer): boolean {
+  const elementName = (layer.name || layer.type) ?? '';
+  return !ELEMENTS_WITHOUT_CHILDREN.includes(elementName);
+}
 

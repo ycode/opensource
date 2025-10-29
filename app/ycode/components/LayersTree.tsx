@@ -25,6 +25,7 @@ import LayerContextMenu from './LayerContextMenu';
 // 6. Utils/lib
 import { cn } from '../../../lib/utils';
 import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
+import { canHaveChildren } from '../../../lib/layer-utils';
 
 // 7. Types
 import type { Layer } from '../../../types';
@@ -570,12 +571,13 @@ export default function LayersTree({
       } else if (dropPosition === 'inside') {
         // Drop inside the target - target becomes parent
         // Validate that target can accept children
-        if (overNode.layer.type !== 'container') {
+        if (!canHaveChildren(overNode.layer)) {
           console.log('🚫 DRAG BLOCKED:', {
-            reason: 'Can only drop inside container elements',
+            reason: 'Target element cannot have children',
             dragged: getLayerDisplayName(activeNode.layer),
             target: getLayerDisplayName(overNode.layer),
-            targetType: overNode.layer.type
+            targetType: overNode.layer.type,
+            targetName: overNode.layer.name
           });
           setActiveId(null);
           setOverId(null);

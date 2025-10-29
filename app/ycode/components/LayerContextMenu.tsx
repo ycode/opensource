@@ -18,6 +18,7 @@ import {
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useClipboardStore } from '@/stores/useClipboardStore';
 import { Copy, Scissors, Clipboard, ClipboardPaste, CopyPlus, Trash2 } from 'lucide-react';
+import { canHaveChildren } from '@/lib/layer-utils';
 import type { Layer } from '@/types';
 
 interface LayerContextMenuProps {
@@ -27,28 +28,6 @@ interface LayerContextMenuProps {
   isLocked?: boolean;
   onLayerSelect?: (layerId: string) => void;
 }
-
-// Elements that cannot have children (void elements + text-only elements)
-const ELEMENTS_WITHOUT_CHILDREN = [
-  // Void/self-closing elements
-  'img',
-  'input', 
-  'hr',
-  'br',
-  'icon',
-  
-  // Text-only elements that should be leaf nodes
-  'heading',  // Generic heading
-  'h1',
-  'h2', 
-  'h3',
-  'h4',
-  'h5',
-  'h6',
-  
-  // Form inputs (technically not void but shouldn't have children in builder)
-  'textarea',
-];
 
 export default function LayerContextMenu({
   layerId,
@@ -72,7 +51,7 @@ export default function LayerContextMenu({
   const hasClipboard = clipboardLayer !== null;
 
   // Check if the current layer can have children
-  const canHaveChildren = useMemo(() => {
+  const canPasteInside = useMemo(() => {
     const draft = draftsByPageId[pageId];
     if (!draft) return false;
 
@@ -95,9 +74,7 @@ export default function LayerContextMenu({
     const layer = findLayer(draft.layers, layerId);
     if (!layer) return false;
 
-    // Check if it's a void element by name or type
-    const elementName = (layer.name || layer.type) ?? '';
-    return !ELEMENTS_WITHOUT_CHILDREN.includes(elementName);
+    return canHaveChildren(layer);
   }, [draftsByPageId, pageId, layerId]);
 
   const handleCopy = () => {
@@ -122,7 +99,7 @@ export default function LayerContextMenu({
   };
 
   const handlePasteInside = () => {
-    if (!clipboardLayer || !canHaveChildren) return;
+    if (!clipboardLayer || !canPasteInside) return;
     pasteInside(pageId, layerId, clipboardLayer);
   };
 
@@ -166,7 +143,7 @@ export default function LayerContextMenu({
           <span className="ml-auto text-xs text-muted-foreground">⌘V</span>
         </ContextMenuItem>
         
-        <ContextMenuItem onClick={handlePasteInside} disabled={!hasClipboard || !canHaveChildren}>
+        <ContextMenuItem onClick={handlePasteInside} disabled={!hasClipboard || !canPasteInside}>
           <ClipboardPaste className="mr-2 h-4 w-4" />
           <span>Paste inside</span>
           <span className="ml-auto text-xs text-muted-foreground">⌘⇧V</span>
