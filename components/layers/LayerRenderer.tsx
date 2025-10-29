@@ -148,7 +148,6 @@ const LayerItem: React.FC<{
 
   // Render element-specific content
   const renderContent = () => {
-cl    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Tag = htmlTag as any;
     const attributes = layer.attributes || {};
     
