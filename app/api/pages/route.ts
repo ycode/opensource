@@ -22,11 +22,11 @@ export async function GET() {
     
     const pages = await getAllPages();
     
-            console.log('[GET /api/pages] Found pages:', pages.length);
+    console.log('[GET /api/pages] Found pages:', pages.length);
 
-            return noCache({
-              data: pages,
-            });
+    return noCache({
+      data: pages,
+    });
   } catch (error) {
     console.error('[GET /api/pages] Error:', error);
     console.error('[GET /api/pages] Error message:', error instanceof Error ? error.message : 'Unknown error');

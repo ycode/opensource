@@ -45,7 +45,7 @@ export async function connectSupabase(
  */
 export async function getMigrationSQL(): Promise<
   ApiResponse<{ sql: string; instructions: string }>
-> {
+  > {
   const response = await fetch('/api/setup/migrate');
 
   if (!response.ok) {
@@ -87,7 +87,7 @@ export async function runMigrations(): Promise<ApiResponse<void>> {
  */
 export async function completeSetup(): Promise<
   ApiResponse<{ redirect_url: string }>
-> {
+  > {
   return {
     data: {
       redirect_url: '/ycode',
