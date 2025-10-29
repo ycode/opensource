@@ -9,10 +9,10 @@
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "type-check": "tsc --noEmit",
-    "migrate:make": "knex migrate:make --knexfile knexfile.ts -x ts",
-    "migrate:latest": "knex migrate:latest --knexfile knexfile.ts",
-    "migrate:rollback": "knex migrate:rollback --knexfile knexfile.ts",
-    "migrate:status": "knex migrate:status --knexfile knexfile.ts"
+    "migrate:make": "NODE_NO_WARNINGS=1 knex migrate:make --knexfile knexfile.ts -x ts",
+    "migrate:latest": "NODE_NO_WARNINGS=1 knex migrate:latest --knexfile knexfile.ts",
+    "migrate:rollback": "NODE_NO_WARNINGS=1 knex migrate:rollback --knexfile knexfile.ts",
+    "migrate:status": "NODE_NO_WARNINGS=1 knex migrate:status --knexfile knexfile.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

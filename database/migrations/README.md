@@ -48,7 +48,7 @@ Migrations connect to the Supabase PostgreSQL database using credentials stored 
 - **Database Host**: `db.[project-ref].supabase.co`
 - **Database**: `postgres` (default)
 - **User**: `postgres` (default)
-- **Password**: Stored in `supabase_config.db_password`
+- **Password**: Stored in `supabase_config.dbPassword`
 
 **Important**: The database password must be provided during the initial setup for migrations to work.
 

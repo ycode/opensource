@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       url,
       anonKey: anon_key,
       serviceRoleKey: service_role_key,
-      db_password,
+      dbPassword: db_password,
     });
 
     return noCache({

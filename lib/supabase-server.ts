@@ -12,7 +12,7 @@ export interface SupabaseCredentials {
   url: string;
   anonKey: string;
   serviceRoleKey: string;
-  db_password: string;
+  dbPassword: string;
 }
 
 /**

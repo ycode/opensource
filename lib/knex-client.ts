@@ -1,53 +1,14 @@
 import knex, { Knex } from 'knex';
-import path from 'path';
-import { getSupabaseConfig } from './supabase-server';
+import knexfileConfig from '../knexfile';
 
 /**
  * Knex Client for YCode Migrations
  * 
  * Creates a knex instance connected to the user's Supabase PostgreSQL database
+ * Uses configuration from knexfile.ts based on NODE_ENV
  */
 
 let knexInstance: Knex | null = null;
-
-interface SupabaseConnectionInfo {
-  host: string;
-  port: number;
-  database: string;
-  user: string;
-  password: string;
-}
-
-/**
- * Parse Supabase connection info from config
- * 
- * Note: This requires the database password to be stored in KV
- * Users should provide this during the setup process
- */
-async function getConnectionInfo(): Promise<SupabaseConnectionInfo> {
-  const config = await getSupabaseConfig();
-  
-  if (!config) {
-    throw new Error('Supabase not configured. Please run setup first.');
-  }
-
-  // Extract project reference from Supabase URL
-  // Format: https://[project-ref].supabase.co
-  const urlMatch = config.url.match(/https:\/\/([^.]+)\.supabase\.co/);
-  if (!urlMatch) {
-    throw new Error('Invalid Supabase URL format');
-  }
-
-  const projectRef = urlMatch[1];
-
-  return {
-    host: `db.${projectRef}.supabase.co`,
-    port: 5432,
-    database: 'postgres',
-    user: 'postgres',
-    password: config.db_password,
-  };
-}
 
 /**
  * Get or create knex instance
@@ -57,24 +18,15 @@ export async function getKnexClient(): Promise<Knex> {
     return knexInstance;
   }
 
-  const connectionInfo = await getConnectionInfo();
+  // Use NODE_ENV to determine which config to use (defaults to development)
+  const environment = process.env.NODE_ENV || 'development';
+  const config = knexfileConfig[environment];
 
-  knexInstance = knex({
-    client: 'pg',
-    connection: {
-      ...connectionInfo,
-      ssl: { rejectUnauthorized: false },
-    },
-    pool: {
-      min: 2,
-      max: 10,
-    },
-    migrations: {
-      directory: path.join(process.cwd(), 'database/migrations'),
-      extension: 'ts',
-      tableName: 'migrations',
-    },
-  });
+  if (!config) {
+    throw new Error(`No knex configuration found for environment: ${environment}`);
+  }
+
+  knexInstance = knex(config);
 
   return knexInstance;
 }

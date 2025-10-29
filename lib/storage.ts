@@ -19,10 +19,9 @@ interface StorageData {
  */
 export async function get<T = unknown>(key: string): Promise<T | null> {
   try {
-    console.log(`[Storage] Getting key "${key}" (Vercel: ${IS_VERCEL})`);
-    
     // On Vercel, use environment variables
     if (IS_VERCEL && key === 'supabase_config') {
+      console.log(`[Storage] Getting key "${key}" from Vercel environment variables`);
       const url = process.env.SUPABASE_URL;
       const anonKey = process.env.SUPABASE_ANON_KEY;
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -34,7 +33,7 @@ export async function get<T = unknown>(key: string): Promise<T | null> {
           url,
           anonKey,
           serviceRoleKey,
-          db_password: dbPassword,
+          dbPassword,
         } as T;
       }
       
