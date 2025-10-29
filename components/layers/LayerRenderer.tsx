@@ -285,10 +285,10 @@ const LayerItem: React.FC<{
       <Tag {...elementProps}>
         {/* Selection Badge */}
         {isEditMode && isSelected && !isEditing && (
-          <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none">
+          <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
             {htmlTag.charAt(0).toUpperCase() + htmlTag.slice(1)} Selected
             {isTextEditable && <span className="ml-2 opacity-75">• Double-click to edit</span>}
-          </div>
+          </span>
         )}
         
         {textContent && textContent}

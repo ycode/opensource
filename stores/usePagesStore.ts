@@ -664,8 +664,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (!draft) return;
 
-    console.log('🟡 PASTE AFTER:', { pageId, targetLayerId, layerToPaste });
-
     // Regenerate IDs for the pasted layer
     const regenerateIds = (layer: Layer): Layer => {
       const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -678,77 +676,100 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     };
 
     const newLayer = regenerateIds(cloneDeep(layerToPaste));
-    console.log('🟢 NEW LAYER WITH IDS:', newLayer);
 
     // Find parent and index of the target layer
+    // Must check BOTH children AND items when both exist
     const findParentAndIndex = (
       layers: Layer[],
       targetId: string,
-      parent: Layer | null = null
-    ): { parent: Layer | null; index: number } | null => {
+      parent: Layer | null = null,
+      propertyName: 'children' | 'items' | null = null
+    ): { parent: Layer | null; index: number; propertyName: 'children' | 'items' | null } | null => {
       for (let i = 0; i < layers.length; i++) {
         const layer = layers[i];
+        
         if (layer.id === targetId) {
-          console.log('🎯 FOUND TARGET:', { layer, parent, index: i });
-          return { parent, index: i };
+          return { parent, index: i, propertyName };
         }
-        const children = layer.children || layer.items || [];
-        if (children.length > 0) {
-          const found = findParentAndIndex(children, targetId, layer);
+        
+        // Search both children and items arrays when they exist
+        // Using || only searches one, missing layers in the other array
+        if (layer.children && layer.children.length > 0) {
+          const found = findParentAndIndex(layer.children, targetId, layer, 'children');
+          if (found) return found;
+        }
+        
+        if (layer.items && layer.items.length > 0) {
+          const found = findParentAndIndex(layer.items, targetId, layer, 'items');
           if (found) return found;
         }
       }
+      
       return null;
     };
 
     const result = findParentAndIndex(draft.layers, targetLayerId);
     if (!result) {
-      console.error('❌ TARGET LAYER NOT FOUND');
+      console.error('❌ TARGET LAYER NOT FOUND:', targetLayerId);
       return;
     }
 
-    console.log('📍 INSERT LOCATION:', result);
-
     // Insert after the target layer
-    const insertAfter = (layers: Layer[], parentLayer: Layer | null, insertIndex: number): Layer[] => {
+    const insertAfter = (
+      layers: Layer[], 
+      parentLayer: Layer | null, 
+      insertIndex: number,
+      targetPropertyName: 'children' | 'items' | null
+    ): Layer[] => {
       if (parentLayer === null) {
         // Insert at root level
         const newLayers = [...layers];
         newLayers.splice(insertIndex + 1, 0, newLayer);
-        console.log('✅ INSERTED AT ROOT, index:', insertIndex + 1);
         return newLayers;
       }
 
       // Find and update the parent
       return layers.map(layer => {
         if (layer.id === parentLayer.id) {
-          const children = layer.children || layer.items || [];
-          const newChildren = [...children];
-          newChildren.splice(insertIndex + 1, 0, newLayer);
+          // Use the property name where the target was actually found
+          const propertyToUse = targetPropertyName || (layer.items ? 'items' : 'children');
           
-          console.log('✅ INSERTED IN PARENT:', { parentId: parentLayer.id, index: insertIndex + 1, childCount: newChildren.length });
-          
-          if (layer.children) {
+          if (propertyToUse === 'items') {
+            const newItems = [...(layer.items || [])];
+            newItems.splice(insertIndex + 1, 0, newLayer);
+            return { ...layer, items: newItems };
+          } else {
+            const newChildren = [...(layer.children || [])];
+            newChildren.splice(insertIndex + 1, 0, newLayer);
             return { ...layer, children: newChildren };
-          } else if (layer.items) {
-            return { ...layer, items: newChildren };
-          }
-          return { ...layer, children: newChildren };
-        }
-        const children = layer.children || layer.items || [];
-        if (children.length > 0) {
-          if (layer.children) {
-            return { ...layer, children: insertAfter(layer.children, parentLayer, insertIndex) };
-          } else if (layer.items) {
-            return { ...layer, items: insertAfter(layer.items, parentLayer, insertIndex) };
           }
         }
-        return layer;
+        
+        // Recursively search in both children and items
+        const updatedLayer = { ...layer };
+        let modified = false;
+        
+        if (layer.children && layer.children.length > 0) {
+          const newChildren = insertAfter(layer.children, parentLayer, insertIndex, targetPropertyName);
+          if (newChildren !== layer.children) {
+            updatedLayer.children = newChildren;
+            modified = true;
+          }
+        }
+        
+        if (layer.items && layer.items.length > 0) {
+          const newItems = insertAfter(layer.items, parentLayer, insertIndex, targetPropertyName);
+          if (newItems !== layer.items) {
+            updatedLayer.items = newItems;
+            modified = true;
+          }
+        }
+        
+        return modified ? updatedLayer : layer;
       });
     };
 
-    const newLayers = insertAfter(draft.layers, result.parent, result.index);
-    console.log('🔷 NEW LAYERS TREE:', JSON.stringify(newLayers, null, 2));
+    const newLayers = insertAfter(draft.layers, result.parent, result.index, result.propertyName);
 
     set({
       draftsByPageId: {
@@ -756,8 +777,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         [pageId]: { ...draft, layers: newLayers },
       },
     });
-    
-    console.log('✅ PASTE AFTER COMPLETE');
   },
 
   pasteInside: (pageId, targetLayerId, layerToPaste) => {
