@@ -68,6 +68,16 @@ export default function LeftSidebar({
   const pages = usePagesStore((state) => state.pages);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
   
+  // Listen for keyboard shortcut to toggle ElementLibrary
+  useEffect(() => {
+    const handleToggleElementLibrary = () => {
+      setShowElementLibrary((prev) => !prev);
+    };
+
+    window.addEventListener('toggleElementLibrary', handleToggleElementLibrary);
+    return () => window.removeEventListener('toggleElementLibrary', handleToggleElementLibrary);
+  }, []);
+  
   // Handler to create a new page
   const handleAddPage = async () => {
     try {

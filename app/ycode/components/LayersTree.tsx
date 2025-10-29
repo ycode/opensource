@@ -248,7 +248,7 @@ function LayerRow({
           data-drag-active={isDragActive}
           data-layer-id={node.id}
           className={cn(
-            'group relative flex items-center h-8 rounded-lg text-muted-foreground',
+            'group relative flex items-center h-8 rounded-lg text-muted-foreground outline-none focus:outline-none',
             !isDragActive && !isDragging && 'hover:bg-secondary/50',
             isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
             isSelected && !isDragActive && !isDragging && '',

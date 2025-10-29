@@ -91,12 +91,33 @@ export default function YCodeBuilder() {
     }
   }, [currentPageId, pages, setCurrentPageId, draftsByPageId, loadDraft, initDraft]);
 
+  // Auto-select Body layer when switching pages (not when draft updates)
+  useEffect(() => {
+    // Only select Body if the page ID actually changed
+    if (currentPageId && currentPageId !== previousPageIdRef.current) {
+      // Check if draft is loaded
+      if (draftsByPageId[currentPageId]) {
+        setSelectedLayerId('body');
+      }
+      // Update the ref to track this page
+      previousPageIdRef.current = currentPageId;
+    }
+  }, [currentPageId, draftsByPageId, setSelectedLayerId]);
+
   // Keyboard shortcuts for layer operations
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Check if user is typing in an input/textarea
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // A - Toggle Element Library (when on layers tab)
+      if (e.key === 'a' && activeTab === 'layers') {
+        e.preventDefault();
+        // Dispatch custom event to toggle ElementLibrary
+        window.dispatchEvent(new CustomEvent('toggleElementLibrary'));
         return;
       }
 
@@ -214,11 +235,54 @@ export default function YCodeBuilder() {
         
         return;
       }
+
+      // Tab - Select next sibling layer
+      if (e.key === 'Tab' && currentPageId && selectedLayerId) {
+        e.preventDefault();
+        
+        const draft = draftsByPageId[currentPageId];
+        if (!draft) return;
+        
+        // Find the layer, its parent, and its index within siblings
+        const findLayerInfo = (
+          layers: Layer[], 
+          targetId: string, 
+          parent: Layer | null = null
+        ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
+          for (let i = 0; i < layers.length; i++) {
+            const layer = layers[i];
+            if (layer.id === targetId) {
+              return { layer, parent, siblings: layers, index: i };
+            }
+            if (layer.children) {
+              const found = findLayerInfo(layer.children, targetId, layer);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        
+        const info = findLayerInfo(draft.layers, selectedLayerId);
+        if (!info) return;
+        
+        const { siblings, index } = info;
+        
+        // Check if there's a next sibling
+        if (index + 1 < siblings.length) {
+          const nextSibling = siblings[index + 1];
+          setSelectedLayerId(nextSibling.id);
+          console.log('Selected next sibling:', nextSibling.customName || nextSibling.name || nextSibling.type);
+        } else {
+          console.log('No next sibling - already at the last position');
+        }
+        
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, currentPageId, draftsByPageId, setSelectedLayerId]);
+  }, [selectedLayerId, currentPageId, draftsByPageId, setSelectedLayerId, activeTab]);
 
   // Handle undo
   const handleUndo = () => {
