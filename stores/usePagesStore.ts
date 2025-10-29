@@ -403,12 +403,16 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const newLayers = removeFromTree(draft.layers);
     console.log('✅ LAYERS AFTER DELETE:', newLayers);
     
-    set({ 
-      draftsByPageId: { 
-        ...draftsByPageId, 
-        [pageId]: { ...draft, layers: newLayers } 
-      } 
-    });
+    // Use functional update to ensure we're working with the latest state
+    set((state) => ({
+      draftsByPageId: {
+        ...state.draftsByPageId,
+        [pageId]: { 
+          ...state.draftsByPageId[pageId], 
+          layers: newLayers 
+        }
+      }
+    }));
   },
 
   updateLayer: (pageId, layerId, updates) => {
