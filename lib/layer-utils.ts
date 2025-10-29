@@ -34,13 +34,6 @@ export function getClassesString(layer: Layer): string {
 }
 
 /**
- * Get children layers (support both items and children)
- */
-export function getChildren(layer: Layer): Layer[] | undefined {
-  return layer.items || layer.children;
-}
-
-/**
  * Get text content (support both text and content properties)
  */
 export function getText(layer: Layer): string | undefined {
@@ -54,4 +47,46 @@ export function getImageUrl(layer: Layer): string | undefined {
   return layer.url || layer.src;
 }
 
+/**
+ * Elements that cannot have children (void elements + text-only elements)
+ */
+const ELEMENTS_WITHOUT_CHILDREN = [
+  // Void/self-closing elements
+  'img',
+  'input', 
+  'hr',
+  'br',
+  'icon',
+  'video',
+  'audio',
+  'image',    // Old system
+  
+  // Text-only elements that should be leaf nodes
+  'heading',  // Generic heading
+  'h1',
+  'h2', 
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'p',        // Paragraph
+  'span',     // Inline text
+  'label',    // Form label
+  'button',   // Button (text content only in builder)
+  'text',     // Old system text type
+  
+  // Form inputs (technically not void but shouldn't have children in builder)
+  'textarea',
+  'select',
+  'checkbox',
+  'radio',
+];
+
+/**
+ * Check if a layer can have children based on its name/type
+ */
+export function canHaveChildren(layer: Layer): boolean {
+  const elementName = (layer.name || layer.type) ?? '';
+  return !ELEMENTS_WITHOUT_CHILDREN.includes(elementName);
+}
 

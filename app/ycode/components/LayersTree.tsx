@@ -12,29 +12,50 @@
  * - Depth-aware positioning
  */
 
-import React, { useMemo, useState, useCallback } from 'react';
+// 1. React/Next.js
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
+
+// 2. External libraries
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
 import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder } from 'lucide-react';
-import type { Layer } from '../../../types';
-import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
+
+// 4. Internal components
+import LayerContextMenu from './LayerContextMenu';
+
+// 5. Stores
+import { useEditorStore } from '../../../stores/useEditorStore';
+
+// 6. Utils/lib
 import { cn } from '../../../lib/utils';
+import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
+import { canHaveChildren } from '../../../lib/layer-utils';
+
+// 7. Types
+import type { Layer } from '../../../types';
 
 interface LayersTreeProps {
   layers: Layer[];
   selectedLayerId: string | null;
+  selectedLayerIds?: string[]; // New multi-select support
   onLayerSelect: (layerId: string) => void;
   onReorder: (newLayers: Layer[]) => void;
+  pageId: string;
 }
 
 interface LayerRowProps {
   node: FlattenedItem;
   isSelected: boolean;
+  isChildOfSelected: boolean; // New: indicates this is a child of selected parent
+  isLastVisibleDescendant: boolean; // New: last visible descendant of selected parent
+  hasVisibleChildren: boolean; // New: has visible children
   isOver: boolean;
   isDragging: boolean;
   isDragActive: boolean;
   dropPosition: 'above' | 'below' | 'inside' | null;
   onSelect: (id: string) => void;
+  onMultiSelect: (id: string, modifiers: { meta: boolean; shift: boolean }) => void;
   onToggle: (id: string) => void;
+  pageId: string;
 }
 
 // Element icon mapping - Now supports both old 'type' and new 'name' properties
@@ -144,12 +165,17 @@ function isDescendant(
 function LayerRow({
   node,
   isSelected,
+  isChildOfSelected,
+  isLastVisibleDescendant,
+  hasVisibleChildren,
   isOver,
   isDragging,
   isDragActive,
   dropPosition,
   onSelect,
+  onMultiSelect,
   onToggle,
+  pageId,
 }: LayerRowProps) {
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
@@ -170,85 +196,123 @@ function LayerRow({
   
   const ElementIcon = elementIcons[getIconKey(node.layer)] || Square;
 
+  // Check if this is the Body layer (locked)
+  const isLocked = node.layer.id === 'body' || node.layer.locked === true;
+
   return (
-    <div className="relative">
-      {/* Vertical connector line */}
-      {node.depth > 0 && (
-        <div
-          className="absolute top-0 bottom-0 w-px bg-zinc-700"
-          style={{
-            left: `${node.depth * 20 - 2}px`,
-          }}
-        />
-      )}
-
-      {/* Drop Indicators */}
-      {isOver && dropPosition === 'above' && (
-        <div 
-          className="absolute top-0 left-0 right-0 h-px bg-blue-500 z-50"
-          style={{
-            marginLeft: `${node.depth * 20}px`,
-          }}
-        >
-          <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-blue-500 border border-zinc-900" />
-        </div>
-      )}
-      {isOver && dropPosition === 'below' && (
-        <div 
-          className="absolute bottom-0 left-0 right-0 h-px bg-blue-500 z-50"
-          style={{
-            marginLeft: `${node.depth * 20}px`,
-          }}
-        >
-          <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-blue-500 border border-zinc-900" />
-        </div>
-      )}
-      {isOver && dropPosition === 'inside' && (
-        <div className="absolute inset-0 border-2 border-blue-500 rounded bg-blue-500/10 z-40 pointer-events-none" />
-      )}
-
-      {/* Main Row */}
-      <div
-        ref={setRefs}
-        {...attributes}
-        {...listeners}
-        data-drag-active={isDragActive}
-        data-layer-id={node.id}
-        className={cn(
-          'group relative flex items-center h-8 px-2 transition-all',
-          !isDragActive && !isDragging && 'hover:bg-zinc-700/80 hover:rounded',
-          isSelected && 'bg-[rgb(0_125_255/0.8)] text-white rounded',
-          isSelected && !isDragActive && !isDragging && 'hover:bg-[rgb(0_125_255/0.8)]',
-          isDragging && 'opacity-40',
-          !isDragActive && 'cursor-grab active:cursor-grabbing'
+    <LayerContextMenu
+      layerId={node.id}
+      pageId={pageId}
+      isLocked={isLocked}
+      onLayerSelect={onSelect}
+    >
+      <div className="relative">
+        {/* Vertical connector line */}
+        {node.depth > 0 && (
+          <div
+            className={cn(
+                'absolute z-10 top-0 bottom-0 w-px ',
+                isSelected && 'bg-white/10',
+                !isSelected && 'bg-secondary',
+            )}
+            style={{
+              left: `${node.depth * 18 - 2}px`,
+            }}
+          />
         )}
-        style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
-        onClick={() => onSelect(node.id)}
-      >
-        {/* Expand/Collapse Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle(node.id);
-          }}
+
+        {/* Drop Indicators */}
+        {isOver && dropPosition === 'above' && (
+          <div 
+            className="absolute top-0 left-0 right-0 h-[1.5px] bg-primary z-50"
+            style={{
+              marginLeft: `${node.depth * 18}px`,
+            }}
+          >
+            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border border-[1.5px] bg-neutral-950 border-primary" />
+          </div>
+        )}
+        {isOver && dropPosition === 'below' && (
+          <div 
+            className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-primary z-50"
+            style={{
+              marginLeft: `${node.depth * 18}px`,
+            }}
+          >
+            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border border-[1.5px] bg-neutral-950 border-primary" />
+          </div>
+        )}
+        {isOver && dropPosition === 'inside' && (
+          <div className="absolute inset-0 border-[1.5px] border-primary rounded-lg z-40 pointer-events-none" />
+        )}
+
+        {/* Main Row */}
+        <div
+          ref={setRefs}
+          {...attributes}
+          {...listeners}
+          data-drag-active={isDragActive}
+          data-layer-id={node.id}
           className={cn(
-            'w-4 h-4 flex items-center justify-center flex-shrink-0 transition-transform duration-150',
-            hasChildren ? '' : 'invisible',
-            isCollapsed ? '' : 'rotate-90'
+            'group relative flex items-center h-8 text-muted-foreground outline-none focus:outline-none',
+            // Conditional rounding based on position in selected group
+            // Selected parent: rounded top, rounded bottom ONLY if no visible children
+            isSelected && !hasVisibleChildren && 'rounded-lg', // No children: fully rounded
+            isSelected && hasVisibleChildren && 'rounded-t-lg', // Has children: only top rounded
+            // Children of selected should have NO rounding, EXCEPT last visible descendant gets bottom rounding
+            !isSelected && isChildOfSelected && !isLastVisibleDescendant && 'rounded-none',
+            !isSelected && isChildOfSelected && isLastVisibleDescendant && 'rounded-b-lg',
+            // Not in group: fully rounded
+            !isSelected && !isChildOfSelected && 'rounded-lg',
+            // Background colors
+            !isDragActive && !isDragging && 'hover:bg-secondary/50',
+            isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
+            !isSelected && isChildOfSelected && 'bg-primary/20 text-foreground',
+            isSelected && !isDragActive && !isDragging && '',
+            isDragging && '',
+            !isDragActive && ''
           )}
+          style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
+          onClick={(e) => {
+            // Multi-select support
+            if (e.metaKey || e.ctrlKey) {
+              // Cmd/Ctrl+Click: Toggle this layer in selection
+              onMultiSelect(node.id, { meta: true, shift: false });
+            } else if (e.shiftKey) {
+              // Shift+Click: Select range
+              onMultiSelect(node.id, { meta: false, shift: true });
+            } else {
+              // Normal click: Select only this layer
+              onSelect(node.id);
+            }
+          }}
         >
-          <ChevronRight className="w-3 h-3 text-zinc-400" />
-        </button>
+          {/* Expand/Collapse Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(node.id);
+            }}
+            className={cn(
+              'w-4 h-4 flex items-center justify-center flex-shrink-0',
+              hasChildren ? '' : 'invisible',
+              isCollapsed ? '' : 'rotate-90'
+            )}
+          >
+            <ChevronRight className="w-3 h-3 text-zinc-400" />
+          </button>
 
-        {/* Layer Icon */}
-        <ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400 mx-1.5" />
+          {/* Layer Icon */}
+          {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400 mx-1.5" />*/}
+          <div className="size-3 bg-white/10 rounded mx-1.5"/>
 
-        {/* Label */}
-        <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap">
-          {getLayerDisplayName(node.layer)}
-        </span>
+          {/* Label */}
+          <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
+            {getLayerDisplayName(node.layer)}
+          </span>
+        </div>
       </div>
-    </div>
+    </LayerContextMenu>
   );
 }
 
@@ -256,13 +320,23 @@ function LayerRow({
 export default function LayersTree({
   layers,
   selectedLayerId,
+  selectedLayerIds: propSelectedLayerIds,
   onLayerSelect,
   onReorder,
+  pageId,
 }: LayersTreeProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | 'inside' | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [cursorOffsetY, setCursorOffsetY] = useState<number>(0);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  // Pull multi-select state from editor store
+  const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange } = useEditorStore();
+  
+  // Use prop or store state (prop takes precedence for compatibility)
+  const selectedLayerIds = propSelectedLayerIds ?? storeSelectedLayerIds;
 
   // Flatten the tree for rendering
   const flattenedNodes = useMemo(
@@ -285,26 +359,64 @@ export default function LayersTree({
     })
   );
 
+  // Multi-select click handler
+  const handleMultiSelect = useCallback((id: string, modifiers: { meta: boolean; shift: boolean }) => {
+    if (id === 'body') {
+      // Body layer can't be multi-selected
+      onLayerSelect(id);
+      return;
+    }
+
+    if (modifiers.meta) {
+      // Cmd/Ctrl+Click: Toggle selection
+      toggleSelection(id);
+    } else if (modifiers.shift && lastSelectedLayerId) {
+      // Shift+Click: Select range
+      selectRange(lastSelectedLayerId, id, flattenedNodes);
+    }
+  }, [toggleSelection, selectRange, lastSelectedLayerId, flattenedNodes, onLayerSelect]);
+
+  // Listen for expand events from ElementLibrary
+  useEffect(() => {
+    const handleExpandLayer = (event: CustomEvent) => {
+      const { layerId } = event.detail;
+      if (layerId && collapsedIds.has(layerId)) {
+        setCollapsedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(layerId);
+          return next;
+        });
+      }
+    };
+
+    window.addEventListener('expandLayer', handleExpandLayer as EventListener);
+    return () => window.removeEventListener('expandLayer', handleExpandLayer as EventListener);
+  }, [collapsedIds]);
+
   // Handle drag start
   const handleDragStart = useCallback((event: DragStartEvent) => {
+    // Prevent starting a new drag while processing the previous one
+    if (isProcessing) {
+      return;
+    }
+
     const draggedId = event.active.id as string;
     const draggedNode = flattenedNodes.find(n => n.id === draggedId);
     
-    console.log('🎯 DRAG START:', {
-      id: draggedId,
-      name: getLayerDisplayName(draggedNode?.layer!),
-      type: draggedNode?.layer.type,
-      depth: draggedNode?.depth,
-      isImageLayer: draggedNode?.layer.type === 'image'
-    });
-    
-    if (draggedNode?.layer.type === 'image') {
-      console.log('📷 IMAGE LAYER DRAG DETECTED - This should work!');
+    // Calculate where user clicked within the element
+    const activeRect = event.active.rect.current.initial;
+    if (activeRect && event.activatorEvent) {
+      const clickY = (event.activatorEvent as PointerEvent).clientY;
+      const elementTop = activeRect.top;
+      const offsetWithinElement = clickY - elementTop;
+      setCursorOffsetY(offsetWithinElement);
+    } else if (activeRect) {
+      setCursorOffsetY(activeRect.height / 2); // Fallback to middle
     }
     
     setActiveId(draggedId);
     onLayerSelect(draggedId);
-  }, [flattenedNodes, onLayerSelect]);
+  }, [flattenedNodes, onLayerSelect, isProcessing]);
 
   // Handle drag over - standard 25/50/25 drop zone detection
   const handleDragOver = useCallback((event: DragOverEvent) => {
@@ -324,13 +436,6 @@ export default function LayersTree({
       return;
     }
 
-    console.log('🎯 DRAG OVER:', {
-      overId,
-      nodeType: overNode.layer.type,
-      hasChildren: !!overNode.layer.children,
-      childrenCount: overNode.layer.children?.length || 0,
-      isCollapsed: collapsedIds.has(overId)
-    });
 
     // CRITICAL: Prevent dropping outside Body layer
     // If hovering over Body itself, only allow "inside" drops
@@ -340,21 +445,33 @@ export default function LayersTree({
       return;
     }
 
-    // Calculate pointer position accounting for drag delta
-    const pointerY = event.activatorEvent && 'clientY' in event.activatorEvent 
-      ? (event.activatorEvent.clientY as number) + event.delta.y
-      : event.over.rect.top + event.over.rect.height / 2;
-
+    // Calculate pointer position relative to the hovered element
+    // Use the current drag event's active position for accurate detection
+    const activeRect = event.active.rect.current;
+    if (!activeRect.initial) {
+      setOverId(overId);
+      setDropPosition(null);
+      return;
+    }
+    
+    const pointerY = activeRect.translated?.top ?? activeRect.initial.top;
     const { top, height } = event.over.rect;
-    const offsetY = pointerY - top;
+    
+    // Use the ACTUAL cursor offset captured on drag start
+    const actualPointerY = pointerY + cursorOffsetY;
+    
+    const offsetY = actualPointerY - top;
     const relativeY = offsetY / height;
     
-    // Check if node can have children
-    const canHaveChildren = overNode.layer.children || 
-      overNode.layer.type === 'container';
+    // Check if node can have children using the shared utility
+    const nodeCanHaveChildren = canHaveChildren(overNode.layer);
     
     // Container types strongly prefer "inside" drops
-    const isContainerType = overNode.layer.type === 'container';
+    // Check both old type property and new name property
+    const isContainerType = overNode.layer.type === 'container' || 
+                           overNode.layer.name === 'div' ||
+                           overNode.layer.name === 'section' ||
+                           overNode.layer.name === 'form';
     
     // Determine drop position based on pointer position
     let position: 'above' | 'below' | 'inside';
@@ -364,36 +481,45 @@ export default function LayersTree({
                                 overNode.layer.children.length > 0 && 
                                 !collapsedIds.has(overNode.id);
     
-    // DEFAULT DND APPROACH: Simple 50/50 split with special handling for containers
-    
-    if (isContainerType && hasVisibleChildren) {
-      // CONTAINERS WITH VISIBLE CHILDREN: Larger "inside" zone
-      if (relativeY < 0.2) {
-        position = 'above';
-      } else if (relativeY > 0.8) {
-        position = 'below';
+    // Clearer, more predictable drop zones
+    if (nodeCanHaveChildren) {
+      // Elements that can have children use generous inside zone
+      if (isContainerType) {
+        // Containers (Block, Section, Container, Form)
+        if (hasVisibleChildren) {
+          // With visible children: 15% top/bottom, 70% inside
+          if (relativeY < 0.15) {
+            position = 'above';
+          } else if (relativeY > 0.85) {
+            position = 'below';
+          } else {
+            position = 'inside';
+          }
+        } else {
+          // Empty/collapsed containers: 10% top/bottom, 80% inside
+          if (relativeY < 0.10) {
+            position = 'above';
+          } else if (relativeY > 0.90) {
+            position = 'below';
+          } else {
+            position = 'inside';
+          }
+        }
       } else {
-        // 60% of the container is "inside" zone
-        position = 'inside';
-      }
-    } else if (canHaveChildren && isContainerType) {
-      // EMPTY/COLLAPSED CONTAINERS: Most area is inside
-      if (relativeY < 0.15) {
-        position = 'above';
-      } else if (relativeY > 0.85) {
-        position = 'below';
-      } else {
-        // 70% of empty container is "inside" zone
-        position = 'inside';
+        // Other elements that can have children (e.g., links with nested content)
+        if (relativeY < 0.20) {
+          position = 'above';
+        } else if (relativeY > 0.80) {
+          position = 'below';
+        } else {
+          position = 'inside';
+        }
       }
     } else {
-      // LEAF NODES: Simple 50/50 split
-      if (relativeY < 0.5) {
-        position = 'above';
-      } else {
-        position = 'below';
-      }
+      // Leaf nodes: simple 50/50 split
+      position = relativeY < 0.5 ? 'above' : 'below';
     }
+
 
     // CRITICAL: Prevent reordering within same parent from moving outside parent
     // If dragging an element within its own parent, "above/below" should only reorder
@@ -407,10 +533,6 @@ export default function LayersTree({
       if (overNode.id === currentParentId && overNode.layer.type === 'container') {
         // Dragging over the container that contains the dragged element
         // "above" or "below" would escape to the grandparent level
-        console.log('🚫 DROP BLOCKED: Would escape own container', {
-          container: getLayerDisplayName(overNode.layer),
-          position,
-        });
         setOverId(null);
         setDropPosition(null);
         return;
@@ -440,13 +562,11 @@ export default function LayersTree({
           // This would place ABOVE the first child
           // In the tree, this means same parent (which is fine)
           // But we need to make sure the depth stays the same
-          console.log('✅ ALLOWING above first sibling (stays in container)');
         }
         
         if (position === 'below' && isLastSibling) {
           // This would place BELOW the last child
           // Should stay at same level
-          console.log('✅ ALLOWING below last sibling (stays in container)');
         }
         
         // Allow reordering within same parent
@@ -463,20 +583,10 @@ export default function LayersTree({
       }
     }
 
-    console.log('📍 DROP ZONE:', {
-      nodeType: overNode.layer.type,
-      position,
-      relativeY: relativeY.toFixed(3),
-      hasChildren: !!overNode.layer.children,
-      hasVisibleChildren,
-      isContainerType,
-      overNodeParent: overNode.parentId,
-      activeNodeParent: activeNode?.parentId,
-    });
 
     setOverId(overId);
     setDropPosition(position);
-  }, [flattenedNodes, collapsedIds, activeId]);
+  }, [flattenedNodes, collapsedIds, activeId, cursorOffsetY]);
 
   // Handle drag end - perform the actual reorder
   const handleDragEnd = useCallback(
@@ -484,34 +594,35 @@ export default function LayersTree({
       const { active, over } = event;
 
       if (!over || active.id === over.id) {
-        console.log('❌ DRAG CANCELLED: No valid drop target');
         setActiveId(null);
         setOverId(null);
         setDropPosition(null);
+        setCursorOffsetY(0);
         return;
       }
+
+      // Set processing flag to prevent concurrent drags
+      setIsProcessing(true);
 
       const activeNode = flattenedNodes.find((n) => n.id === active.id);
       const overNode = flattenedNodes.find((n) => n.id === over.id);
 
       if (!activeNode || !overNode) {
-        console.log('❌ DRAG CANCELLED: Node not found');
         setActiveId(null);
         setOverId(null);
         setDropPosition(null);
+        setCursorOffsetY(0);
+        setIsProcessing(false);
         return;
       }
 
       // Prevent moving into self or descendant
       if (isDescendant(activeNode, overNode, flattenedNodes)) {
-        console.log('🚫 DRAG BLOCKED:', {
-          reason: 'Cannot move node into itself or its descendant',
-          dragged: getLayerDisplayName(activeNode.layer),
-          target: getLayerDisplayName(overNode.layer)
-        });
         setActiveId(null);
         setOverId(null);
         setDropPosition(null);
+        setCursorOffsetY(0);
+        setIsProcessing(false);
         return;
       }
 
@@ -527,35 +638,22 @@ export default function LayersTree({
         // CRITICAL: Prevent placement at root level (parentId: null)
         // Everything must be inside Body
         if (newParentId === null) {
-          console.log('🚫 DRAG BLOCKED:', {
-            reason: 'Cannot place layers outside Body container',
-            targetNode: getLayerDisplayName(overNode.layer),
-          });
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
           return;
         }
-        
-        console.log('📍 DROP ABOVE:', {
-          targetNode: getLayerDisplayName(overNode.layer),
-          targetParentId: overNode.parentId,
-          targetIndex: overNode.index,
-          willPlaceAt: { parentId: newParentId, index: newOrder }
-        });
       } else if (dropPosition === 'inside') {
         // Drop inside the target - target becomes parent
         // Validate that target can accept children
-        if (overNode.layer.type !== 'container') {
-          console.log('🚫 DRAG BLOCKED:', {
-            reason: 'Can only drop inside container elements',
-            dragged: getLayerDisplayName(activeNode.layer),
-            target: getLayerDisplayName(overNode.layer),
-            targetType: overNode.layer.type
-          });
+        if (!canHaveChildren(overNode.layer)) {
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
           return;
         }
         
@@ -567,14 +665,6 @@ export default function LayersTree({
         newOrder = childrenOfOver.length > 0 
           ? Math.max(...childrenOfOver.map(n => n.index)) + 1 
           : 0;
-          
-        console.log('📍 DROP INSIDE:', {
-          targetNode: getLayerDisplayName(overNode.layer),
-          targetId: overNode.id,
-          newParentId: newParentId,
-          existingChildren: childrenOfOver.length,
-          willPlaceAt: { parentId: newParentId, index: newOrder }
-        });
       } else {
         // Drop below the target (default)
         newParentId = overNode.parentId;
@@ -583,63 +673,14 @@ export default function LayersTree({
         // CRITICAL: Prevent placement at root level (parentId: null)
         // Everything must be inside Body
         if (newParentId === null) {
-          console.log('🚫 DRAG BLOCKED:', {
-            reason: 'Cannot place layers outside Body container',
-            targetNode: getLayerDisplayName(overNode.layer),
-          });
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
           return;
         }
       }
-
-      // Debug: Find parent name for better logging
-      const newParentNode = flattenedNodes.find(n => n.id === newParentId);
-      const newParentName = newParentNode ? getLayerDisplayName(newParentNode.layer) : 'ROOT';
-      const targetParentNode = overNode.parentId ? flattenedNodes.find(n => n.id === overNode.parentId) : null;
-
-      console.log('✅ DRAG END:', {
-        action: 'MOVE',
-        dragged: {
-          id: activeNode.id,
-          name: getLayerDisplayName(activeNode.layer),
-          oldParent: activeNode.parentId,
-          oldParentName: activeNode.parentId ? getLayerDisplayName(flattenedNodes.find(n => n.id === activeNode.parentId)?.layer!) : 'ROOT',
-          oldOrder: activeNode.index
-        },
-        target: {
-          id: overNode.id,
-          name: getLayerDisplayName(overNode.layer),
-          depth: overNode.depth,
-          parentId: overNode.parentId,
-          parentName: targetParentNode ? getLayerDisplayName(targetParentNode.layer) : 'ROOT',
-          index: overNode.index,
-          dropPosition
-        },
-        result: {
-          newParentId,
-          newParentName,
-          newOrder,
-          expectedDepth: newParentId ? (newParentNode?.depth ?? 0) + 1 : 0,
-          explanation: (() => {
-            const targetParentName = targetParentNode ? getLayerDisplayName(targetParentNode.layer) : 'ROOT';
-            const overLayerName = getLayerDisplayName(overNode.layer);
-            
-            if (dropPosition === 'above') {
-              return `Will be placed as sibling ABOVE "${overLayerName}" inside "${targetParentName}" at index ${newOrder}`;
-            }
-            
-            if (dropPosition === 'inside') {
-              return `Will be placed INSIDE "${overLayerName}" as child at index ${newOrder}`;
-            }
-            
-            return `Will be placed as sibling BELOW "${overLayerName}" inside "${targetParentName}" at index ${newOrder}`;
-          })()
-        }
-      });
-
-      console.log('📋 CALLING onReorder with new tree structure');
       
       // Helper function to get target parent name
       const getTargetParentName = (): string => {
@@ -653,35 +694,27 @@ export default function LayersTree({
         return 'NOT FOUND!';
       };
       
-      // FINAL ASSERTION: Verify parentId before rebuild
-      console.log('🔍 FINAL CHECK before rebuild:', {
-        draggedNodeId: activeNode.id,
-        draggedNodeName: getLayerDisplayName(activeNode.layer),
-        targetParentId: newParentId,
-        targetParentName: getTargetParentName(),
-        targetIndex: newOrder,
-        dropPosition: dropPosition
-      });
-      
       // Rebuild the tree structure
       const newLayers = rebuildTree(flattenedNodes, activeNode.id, newParentId, newOrder);
       onReorder(newLayers);
-      
-      console.log('✔️ onReorder called');
 
       setActiveId(null);
       setOverId(null);
       setDropPosition(null);
+      setCursorOffsetY(0);
+      
+      // Use setTimeout to reset processing flag after state updates complete
+      setTimeout(() => setIsProcessing(false), 0);
     },
     [flattenedNodes, dropPosition, onReorder, collapsedIds]
   );
 
   // Handle drag cancel
   const handleDragCancel = useCallback(() => {
-    console.log('❌ DRAG CANCELLED');
     setActiveId(null);
     setOverId(null);
     setDropPosition(null);
+    setCursorOffsetY(0);
   }, []);
 
   // Handle expand/collapse toggle
@@ -715,33 +748,104 @@ export default function LayersTree({
       onDragCancel={handleDragCancel}
     >
       <div className="space-y-0">
-        {flattenedNodes.map((node) => (
-          <LayerRow
-            key={node.id}
-            node={node}
-            isSelected={selectedLayerId === node.id}
-            isOver={overId === node.id}
-            isDragging={activeId === node.id}
-            isDragActive={!!activeId}
-            dropPosition={overId === node.id ? dropPosition : null}
-            onSelect={handleSelect}
-            onToggle={handleToggle}
-          />
-        ))}
+        {flattenedNodes.map((node, nodeIndex) => {
+          // Check if this node has visible children
+          const hasVisibleChildren = !!(node.layer.children && 
+                                        node.layer.children.length > 0 && 
+                                        !collapsedIds.has(node.id));
+
+          // Check if this node is a child/descendant of any selected layer
+          let parentSelectedId: string | null = null;
+          const isChildOfSelected = selectedLayerIds.some(selectedId => {
+            // Find the selected node
+            const selectedNode = flattenedNodes.find(n => n.id === selectedId);
+            if (!selectedNode || node.id === selectedId) return false;
+            
+            // Check if node's parentId chain leads to selectedId
+            let currentNode: FlattenedItem | undefined = node;
+            while (currentNode && currentNode.parentId) {
+              if (currentNode.parentId === selectedId) {
+                parentSelectedId = selectedId;
+                return true;
+              }
+              currentNode = flattenedNodes.find(n => n.id === currentNode!.parentId);
+            }
+            return false;
+          });
+
+          // Determine if this is the last visible descendant of selected parent
+          let isLastVisibleDescendant = false;
+          
+          if (isChildOfSelected && parentSelectedId) {
+            // Find ALL visible descendants of the selected parent
+            const allDescendants: FlattenedItem[] = [];
+            
+            for (let i = 0; i < flattenedNodes.length; i++) {
+              const checkNode = flattenedNodes[i];
+              
+              // Skip the selected parent itself
+              if (checkNode.id === parentSelectedId) continue;
+              
+              // Check if this node is a descendant of parentSelectedId
+              let current: FlattenedItem | undefined = checkNode;
+              let isDescendant = false;
+              
+              while (current && current.parentId) {
+                if (current.parentId === parentSelectedId) {
+                  isDescendant = true;
+                  break;
+                }
+                current = flattenedNodes.find(n => n.id === current!.parentId);
+              }
+              
+              if (isDescendant && !selectedLayerIds.includes(checkNode.id)) {
+                allDescendants.push(checkNode);
+              }
+            }
+            
+            if (allDescendants.length > 0) {
+              isLastVisibleDescendant = allDescendants[allDescendants.length - 1].id === node.id;
+            }
+          }
+
+          return (
+            <LayerRow
+              key={node.id}
+              node={node}
+              isSelected={selectedLayerIds.includes(node.id) || selectedLayerId === node.id}
+              isChildOfSelected={isChildOfSelected}
+              isLastVisibleDescendant={isLastVisibleDescendant}
+              hasVisibleChildren={hasVisibleChildren}
+              isOver={overId === node.id}
+              isDragging={activeId === node.id}
+              isDragActive={!!activeId}
+              dropPosition={overId === node.id ? dropPosition : null}
+              onSelect={handleSelect}
+              onMultiSelect={handleMultiSelect}
+              onToggle={handleToggle}
+              pageId={pageId}
+            />
+          );
+        })}
       </div>
 
       {/* Drag Overlay - custom ghost element with 40px offset */}
       <DragOverlay dropAnimation={null}>
         {activeNode ? (
           <div 
-            className="flex items-center gap-2 text-white text-xs bg-zinc-800/90 px-3 py-1.5 rounded shadow-lg border border-zinc-600"
+            className="flex items-center text-white text-xs h-8 rounded-lg"
             style={{ transform: 'translateX(40px)' }}
           >
             {(() => {
               const ElementIcon = elementIcons[getIconKey(activeNode.layer)] || Square;
-              return <ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" />;
+              return (
+                <>
+                  {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" />*/}
+                  <div className="size-3 bg-white/10 rounded mx-1.5" />
+                </>
+              );
             })()}
-            <span>{getLayerDisplayName(activeNode.layer)}</span>
+            <span className="pointer-events-none">{getLayerDisplayName(activeNode.layer)}</span>
           </div>
         ) : null}
       </DragOverlay>
@@ -756,13 +860,6 @@ function rebuildTree(
   newParentId: string | null,
   newOrder: number
 ): Layer[] {
-  console.log('🔨 REBUILD TREE START:', {
-    movedId,
-    newParentId,
-    newOrder,
-    totalNodes: flattenedNodes.length
-  });
-  
   // Create a copy of all nodes
   const nodeCopy = flattenedNodes.map(n => ({ ...n, layer: { ...n.layer } }));
   
@@ -772,15 +869,6 @@ function rebuildTree(
     console.error('❌ REBUILD ERROR: Moved node not found!');
     return [];
   }
-  
-  console.log('📦 Moving node:', {
-    id: movedNode.id,
-    type: movedNode.layer.type,
-    fromParent: movedNode.parentId,
-    toParent: newParentId,
-    fromIndex: movedNode.index,
-    toIndex: newOrder
-  });
   
   // Update moved node's parent and index
   movedNode.parentId = newParentId;
@@ -820,14 +908,6 @@ function rebuildTree(
       }
       
       children.splice(insertIndex, 0, movedNodeInGroup);
-      
-      console.log('🔄 Reordered group:', {
-        parentId,
-        childCount: children.length,
-        movedNodeId: movedId,
-        insertedAt: insertIndex,
-        children: children.map((c, idx) => ({ id: c.id, oldIndex: c.index, newIndex: idx }))
-      });
     }
     
     // Reassign sequential indices
@@ -839,32 +919,20 @@ function rebuildTree(
   // Build tree recursively
   function buildNode(nodeId: string): Layer {
     const node = nodeCopy.find(n => n.id === nodeId)!;
-    const children = byParent.get(nodeId) || [];
+    const childNodes = byParent.get(nodeId) || [];
     
-    return {
-      ...node.layer,
-      children: children.length > 0 ? children.map(child => buildNode(child.id)) : undefined,
-    };
+    const result: Layer = { ...node.layer };
+    
+    if (childNodes.length > 0) {
+      result.children = childNodes.map(child => buildNode(child.id));
+    }
+    
+    return result;
   }
   
   // Build root level
   const rootNodes = byParent.get(null) || [];
   const result = rootNodes.map(node => buildNode(node.id));
-  
-  console.log('✅ REBUILD TREE COMPLETE:', {
-    rootNodesCount: result.length,
-    result: result.map(layer => ({
-      id: layer.id,
-      type: layer.type,
-      hasChildren: !!layer.children,
-      childrenCount: layer.children?.length || 0,
-      children: layer.children?.map(c => ({
-        id: c.id,
-        type: c.type,
-        hasChildren: !!c.children
-      }))
-    }))
-  });
   
   return result;
 }

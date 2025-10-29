@@ -12,12 +12,12 @@ interface BlockTemplate {
 
 export const formTemplates: Record<string, BlockTemplate> = {
   form: {
-    icon: 'file-text',
+    icon: 'block',
     name: 'Form',
     template: {
       name: 'form',
       classes: ['space-y-4'],
-      items: [],
+      children: [],
       attributes: {
         method: 'POST',
         action: ''
@@ -31,7 +31,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   input: {
-    icon: 'edit',
+    icon: 'block',
     name: 'Input',
     template: {
       name: 'input',
@@ -63,7 +63,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   textarea: {
-    icon: 'align-left',
+    icon: 'block',
     name: 'Textarea',
     template: {
       name: 'textarea',
@@ -95,12 +95,12 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   select: {
-    icon: 'chevron-down',
+    icon: 'block',
     name: 'Select',
     template: {
       name: 'select',
       classes: ['w-full', 'px-4', 'py-2', 'border', 'border-gray-300', 'rounded-lg', 'focus:ring-2', 'focus:ring-blue-500', 'focus:border-transparent', 'bg-white'],
-      items: [
+      children: [
         {
           name: 'option',
           text: 'Option 1',
@@ -135,12 +135,12 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   checkbox: {
-    icon: 'check-square',
+    icon: 'block',
     name: 'Checkbox',
     template: {
       name: 'div',
       classes: ['flex', 'items-center', 'gap-2'],
-      items: [
+      children: [
         {
           name: 'input',
           attributes: {
@@ -152,7 +152,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
         {
           name: 'label',
           text: 'Checkbox label',
-          items: [], // Labels can contain elements
+          children: [], // Labels can contain elements
           attributes: {
             for: 'checkbox'
           },
@@ -171,12 +171,12 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   radio: {
-    icon: 'circle',
+    icon: 'block',
     name: 'Radio',
     template: {
       name: 'div',
       classes: ['flex', 'items-center', 'gap-2'],
-      items: [
+      children: [
         {
           name: 'input',
           attributes: {
@@ -189,7 +189,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
         {
           name: 'label',
           text: 'Radio label',
-          items: [], // Labels can contain elements
+          children: [], // Labels can contain elements
           attributes: {
             for: 'radio'
           },
@@ -208,13 +208,13 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   label: {
-    icon: 'tag',
+    icon: 'block',
     name: 'Label',
     template: {
       name: 'label',
       classes: ['block', 'text-sm', 'font-medium', 'text-gray-700', 'mb-1'],
       text: 'Label',
-      items: [], // Labels can wrap inputs
+      children: [], // Labels can wrap inputs
       design: {
         typography: {
           isActive: true,
@@ -227,13 +227,13 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   submit: {
-    icon: 'check',
+    icon: 'block',
     name: 'Submit',
     template: {
       name: 'button',
       classes: ['px-6', 'py-2', 'bg-blue-600', 'text-white', 'rounded-lg', 'hover:bg-blue-700', 'transition-colors'],
       text: 'Submit',
-      items: [], // Buttons can contain icons, text
+      children: [], // Buttons can contain icons, text
       attributes: {
         type: 'submit'
       },

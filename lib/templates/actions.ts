@@ -12,13 +12,13 @@ interface BlockTemplate {
 
 export const actionTemplates: Record<string, BlockTemplate> = {
   button: {
-    icon: 'square',
+    icon: 'block',
     name: 'Button',
     template: {
       name: 'button',
       classes: ['px-6', 'py-2', 'bg-blue-600', 'text-white', 'rounded-lg', 'hover:bg-blue-700', 'transition-colors'],
       text: 'Button',
-      items: [], // Can contain icons, spans, etc.
+      children: [], // Can contain icons, spans, etc.
       attributes: {
         type: 'button'
       },
@@ -59,7 +59,7 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       name: 'a',
       classes: ['text-blue-600', 'hover:underline'],
       text: 'Link text',
-      items: [], // Can contain icons, images, text
+      children: [], // Can contain icons, images, text
       attributes: {
         href: '#',
         target: '_self'

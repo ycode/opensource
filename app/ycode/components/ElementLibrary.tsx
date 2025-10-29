@@ -11,6 +11,8 @@ import React from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
+import { Label } from '@/components/ui/label';
+import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
 import { getTemplate, getBlockName, getIcon } from '@/lib/templates/blocks';
 
@@ -31,7 +33,7 @@ const formElements = ['form', 'input', 'textarea', 'select', 'checkbox', 'radio'
 
 export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps) {
   const { addLayerFromTemplate } = usePagesStore();
-  const { currentPageId, selectedLayerId } = useEditorStore();
+  const { currentPageId, selectedLayerId, setSelectedLayerId } = useEditorStore();
 
   const handleAddElement = (elementType: string) => {
     if (!currentPageId) return;
@@ -40,7 +42,20 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
     const parentId = selectedLayerId || 'body';
 
     // Add the layer using the template
-    addLayerFromTemplate(currentPageId, parentId, elementType);
+    const result = addLayerFromTemplate(currentPageId, parentId, elementType);
+    
+    // Select the newly added layer
+    if (result) {
+      setSelectedLayerId(result.newLayerId);
+      
+      // Note: parentToExpand is handled by LayersTree component
+      // We dispatch a custom event for LayersTree to listen to
+      if (result.parentToExpand) {
+        window.dispatchEvent(new CustomEvent('expandLayer', { 
+          detail: { layerId: result.parentToExpand } 
+        }));
+      }
+    }
 
     // Close the panel
     onClose();
@@ -49,148 +64,137 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
   if (!isOpen) return null;
 
   return (
-    <div className="fixed left-72 top-0 h-full w-[400px] bg-zinc-900 border-l border-zinc-800 z-50 overflow-y-auto shadow-2xl">
-      {/* Header */}
-      <div className="sticky top-0 bg-zinc-900 border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white">Add Element</h2>
-        <Button 
-          onClick={onClose}
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Close element library"
-        >
-          <Icon name="x" className="w-5 h-5" />
-        </Button>
-      </div>
-
+    <div className="fixed left-72 top-14 h-full w-72 bg-background border-r z-50 overflow-y-auto p-4 flex flex-col">
         {/* Tabs */}
-        <Tabs defaultValue="elements" className="flex-1">
-          <TabsList className="w-full rounded-none border-b border-zinc-800 bg-transparent">
+        <Tabs defaultValue="elements" className="flex-1 gap-0">
+          <TabsList className="w-full">
             <TabsTrigger value="elements">Elements</TabsTrigger>
             <TabsTrigger value="layouts">Layouts</TabsTrigger>
             <TabsTrigger value="components">Components</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="elements" className="p-4 space-y-6 mt-0">
+          <hr className="mt-4" />
+
+          <TabsContent value="elements" className="flex flex-col divide-y">
             {/* Structure Category */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wide">Structure</h3>
+            <div className="flex flex-col pb-5">
+              <div className="py-5 h-14">
+                <Label>Structure</Label>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {structureElements.map((el) => (
                   <Button
                     key={el}
                     onClick={() => handleAddElement(el)}
-                    variant="ghost"
-                    className="flex flex-col items-center gap-2 p-4 h-auto bg-zinc-800 hover:bg-zinc-700"
+                    size="sm"
+                    variant="secondary"
+                    className="justify-start"
                   >
-                    <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
-                      <Icon name={(getIcon(el) as any) || 'box'} className="w-6 h-6 text-zinc-300" />
-                    </div>
-                    <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
+                    <Icon name={getIcon(el) || 'box'} />
+                    {getBlockName(el)}
                   </Button>
                 ))}
               </div>
             </div>
 
             {/* Content Category */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wide">Content</h3>
+            <div className="flex flex-col pb-5">
+              <div className="py-5 h-14">
+                <Label>Content</Label>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {contentElements.map((el) => (
                   <Button
                     key={el}
                     onClick={() => handleAddElement(el)}
-                    variant="ghost"
-                    className="flex flex-col items-center gap-2 p-4 h-auto bg-zinc-800 hover:bg-zinc-700"
+                    size="sm"
+                    variant="secondary"
+                    className="justify-start"
                   >
-                    <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
-                      <Icon name={(getIcon(el) as any) || 'type'} className="w-6 h-6 text-zinc-300" />
-                    </div>
-                    <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
+                    <Icon name={getIcon(el) || 'box'} />
+                    {getBlockName(el)}
                   </Button>
                 ))}
               </div>
             </div>
 
             {/* Actions Category */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wide">Actions</h3>
+            <div className="flex flex-col pb-5">
+              <div className="py-5 h-14">
+                <Label>Actions</Label>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {actionElements.map((el) => (
                   <Button
                     key={el}
                     onClick={() => handleAddElement(el)}
-                    variant="ghost"
-                    className="flex flex-col items-center gap-2 p-4 h-auto bg-zinc-800 hover:bg-zinc-700"
+                    size="sm"
+                    variant="secondary"
+                    className="justify-start"
                   >
-                    <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
-                      <Icon name={(getIcon(el) as any) || 'square'} className="w-6 h-6 text-zinc-300" />
-                    </div>
-                    <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
+                    <Icon name={getIcon(el) || 'box'} />
+                    {getBlockName(el)}
                   </Button>
                 ))}
               </div>
             </div>
 
             {/* Media Category */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wide">Media</h3>
+            <div className="flex flex-col pb-5">
+              <div className="py-5 h-14">
+                <Label>Media</Label>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {mediaElements.map((el) => (
                   <Button
                     key={el}
                     onClick={() => handleAddElement(el)}
-                    variant="ghost"
-                    className="flex flex-col items-center gap-2 p-4 h-auto bg-zinc-800 hover:bg-zinc-700"
+                    size="sm"
+                    variant="secondary"
+                    className="justify-start"
                   >
-                    <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
-                      <Icon name={(getIcon(el) as any) || 'image'} className="w-6 h-6 text-zinc-300" />
-                    </div>
-                    <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
+                    <Icon name={getIcon(el) || 'box'} />
+                    {getBlockName(el)}
                   </Button>
                 ))}
               </div>
             </div>
 
             {/* Forms Category */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wide">Forms</h3>
+            <div className="flex flex-col pb-5">
+              <div className="py-5 h-14">
+                <Label>Form</Label>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {formElements.map((el) => (
                   <Button
                     key={el}
                     onClick={() => handleAddElement(el)}
-                    variant="ghost"
-                    className="flex flex-col items-center gap-2 p-4 h-auto bg-zinc-800 hover:bg-zinc-700"
+                    size="sm"
+                    variant="secondary"
+                    className="justify-start"
                   >
-                    <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
-                      <Icon name={(getIcon(el) as any) || 'file-text'} className="w-6 h-6 text-zinc-300" />
-                    </div>
-                    <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
+                    <Icon name={getIcon(el) || 'box'} />
+                    {getBlockName(el)}
                   </Button>
                 ))}
               </div>
             </div>
+
           </TabsContent>
 
-          <TabsContent value="layouts" className="p-4">
-            <div className="text-center py-8 text-zinc-500">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-zinc-800 flex items-center justify-center">
-                <Icon name="layout" className="w-8 h-8 text-zinc-600" />
-              </div>
-              <p className="text-sm text-zinc-400">Layouts coming soon</p>
-              <p className="text-xs text-zinc-500 mt-1">Pre-built page layouts</p>
-            </div>
+          <TabsContent value="layouts" className="flex flex-col">
+            <Empty>
+              <EmptyTitle>Coming soon</EmptyTitle>
+              <EmptyDescription>Pre-built page layouts are coming soon</EmptyDescription>
+            </Empty>
           </TabsContent>
 
-          <TabsContent value="components" className="p-4">
-            <div className="text-center py-8 text-zinc-500">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-zinc-800 flex items-center justify-center">
-                <Icon name="box" className="w-8 h-8 text-zinc-600" />
-              </div>
-              <p className="text-sm text-zinc-400">Components coming soon</p>
-              <p className="text-xs text-zinc-500 mt-1">Reusable component library</p>
-            </div>
+          <TabsContent value="components" className="flex flex-col">
+            <Empty>
+              <EmptyTitle>Coming soon</EmptyTitle>
+              <EmptyDescription>Reusable component library are coming soon</EmptyDescription>
+            </Empty>
           </TabsContent>
         </Tabs>
     </div>

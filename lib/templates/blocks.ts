@@ -70,19 +70,23 @@ export function getTemplate(
   const template = cloneDeep(block.template);
   
   // Recursively assign IDs to all nested children
-  const assignIds = (layer: any): any => {
-    layer.id = generateId();
+  const assignIds = (layer: Omit<Layer, 'id'>): Layer => {
+    const layerWithId = { ...layer, id: generateId() } as Layer;
     
-    if (layer.items && Array.isArray(layer.items)) {
-      layer.items = layer.items.map((child: any) => assignIds(child));
+    if (layerWithId.items && Array.isArray(layerWithId.items)) {
+      layerWithId.items = layerWithId.items.map((child) => assignIds(child as Omit<Layer, 'id'>)) as Layer[];
     }
     
-    return layer;
+    return layerWithId;
   };
   
   const templateWithIds = assignIds(template);
   
-  return merge(templateWithIds, overrides || {});
+  if (overrides && Object.keys(overrides).length > 0) {
+    return { ...templateWithIds, ...overrides };
+  }
+  
+  return templateWithIds;
 }
 
 /**

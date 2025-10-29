@@ -33,7 +33,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
   },
   
   icon: {
-    icon: 'star',
+    icon: 'icon',
     name: 'Icon',
     template: {
       name: 'div',
@@ -59,7 +59,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       name: 'video',
       classes: ['w-full', 'h-auto'],
       url: '',
-      items: [], // Can contain fallback content (source, track elements)
+      children: [], // Can contain fallback content (source, track elements)
       attributes: {
         controls: true,
         preload: 'metadata'
@@ -75,13 +75,13 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
   },
   
   audio: {
-    icon: 'music',
+    icon: 'block',
     name: 'Audio',
     template: {
       name: 'audio',
       classes: ['w-full'],
       url: '',
-      items: [], // Can contain fallback content (source elements)
+      children: [], // Can contain fallback content (source elements)
       attributes: {
         controls: true,
         preload: 'metadata'
@@ -102,7 +102,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       name: 'iframe',
       classes: ['w-full', 'aspect-video'],
       url: '',
-      items: [], // Can contain fallback content
+      children: [], // Can contain fallback content
       attributes: {
         src: '',
         frameborder: '0',
@@ -122,13 +122,13 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
   },
   
   iframe: {
-    icon: 'code',
+    icon: 'block',
     name: 'Iframe',
     template: {
       name: 'iframe',
       classes: ['w-full', 'h-96'],
       url: '',
-      items: [], // Can contain fallback content
+      children: [], // Can contain fallback content
       attributes: {
         src: '',
         frameborder: '0'

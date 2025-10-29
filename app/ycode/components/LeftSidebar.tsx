@@ -6,18 +6,29 @@
  * Displays pages list and layers tree with navigation icons
  */
 
+// 1. React/Next.js
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+
+// 3. ShadCN UI
+import { Button } from '@/components/ui/button';
+import Icon from '@/components/ui/icon';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+
+// 4. Internal components
+import AssetLibrary from '../../../components/AssetLibrary';
+import ElementLibrary from './ElementLibrary';
+import LayersTree from './LayersTree';
+import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
+
+// 5. Stores
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
-import type { Layer, Page } from '../../../types';
-import AssetLibrary from '../../../components/AssetLibrary';
-import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
+
+// 6. Utils/lib
 import { pagesApi } from '../../../lib/api';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import Icon from '@/components/ui/icon';
-import { Button } from '@/components/ui/button';
-import LayersTree from './LayersTree';
-import ElementLibrary from './ElementLibrary';
+
+// 7. Types
+import type { Layer, Page } from '../../../types';
 
 // Helper function to find layer by ID recursively
 function findLayerById(layers: Layer[], id: string): Layer | null {
@@ -33,6 +44,7 @@ function findLayerById(layers: Layer[], id: string): Layer | null {
 
 interface LeftSidebarProps {
   selectedLayerId: string | null;
+  selectedLayerIds?: string[]; // New multi-select support
   onLayerSelect: (layerId: string) => void;
   currentPageId: string | null;
   onPageSelect: (pageId: string) => void;
@@ -41,6 +53,7 @@ interface LeftSidebarProps {
 
 export default function LeftSidebar({
   selectedLayerId,
+  selectedLayerIds,
   onLayerSelect,
   currentPageId,
   onPageSelect,
@@ -54,6 +67,16 @@ export default function LeftSidebar({
   const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
+  
+  // Listen for keyboard shortcut to toggle ElementLibrary
+  useEffect(() => {
+    const handleToggleElementLibrary = () => {
+      setShowElementLibrary((prev) => !prev);
+    };
+
+    window.addEventListener('toggleElementLibrary', handleToggleElementLibrary);
+    return () => window.removeEventListener('toggleElementLibrary', handleToggleElementLibrary);
+  }, []);
   
   // Handler to create a new page
   const handleAddPage = async () => {
@@ -249,11 +272,8 @@ export default function LeftSidebar({
             <header className="py-5 flex justify-between">
               <span className="font-medium">Layers</span>
               <div className="-my-1">
-                <Button
-                  size="xs" variant="secondary"
-                  onClick={() => setShowElementLibrary(true)}
-                >
-                  <Icon name="plus" />
+                <Button size="xs" variant="secondary" onClick={() => setShowElementLibrary(prev => !prev)}>
+                  <Icon name="plus" className={showElementLibrary ? "rotate-45" : "rotate-0"} />
                 </Button>
               </div>
             </header>
@@ -277,8 +297,10 @@ export default function LeftSidebar({
                 <LayersTree
                   layers={layersForCurrentPage}
                   selectedLayerId={selectedLayerId}
+                  selectedLayerIds={selectedLayerIds}
                   onLayerSelect={onLayerSelect}
                   onReorder={handleLayersReorder}
+                  pageId={currentPageId || ''}
                 />
               )}
             </div>

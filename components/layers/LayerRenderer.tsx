@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
-import { getHtmlTag, getClassesString, getChildren, getText, getImageUrl } from '../../lib/layer-utils';
+import { getHtmlTag, getClassesString, getText, getImageUrl } from '../../lib/layer-utils';
+import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -15,6 +16,7 @@ interface LayerRendererProps {
   enableDragDrop?: boolean;
   activeLayerId?: string | null;
   projected?: { depth: number; parentId: string | null } | null;
+  pageId?: string;
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({ 
@@ -26,6 +28,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   enableDragDrop = false,
   activeLayerId = null,
   projected = null,
+  pageId = '',
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -47,6 +50,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
           setEditingLayerId={setEditingLayerId}
           editingContent={editingContent}
           setEditingContent={setEditingContent}
+          pageId={pageId}
         />
       ))}
     </>
@@ -67,6 +71,7 @@ const LayerItem: React.FC<{
   setEditingLayerId: (id: string | null) => void;
   editingContent: string;
   setEditingContent: (content: string) => void;
+  pageId: string;
 }> = ({
   layer,
   isEditMode,
@@ -80,9 +85,10 @@ const LayerItem: React.FC<{
   setEditingLayerId,
   editingContent,
   setEditingContent,
+  pageId,
 }) => {
   const isSelected = selectedLayerId === layer.id;
-  const hasChildren = (getChildren(layer) && getChildren(layer)!.length > 0) || false;
+  const hasChildren = (layer.children && layer.children.length > 0) || false;
   const isEditing = editingLayerId === layer.id;
   const isTextEditable = layer.formattable || layer.type === 'text' || layer.type === 'heading';
   const isDragging = activeLayerId === layer.id;
@@ -90,7 +96,7 @@ const LayerItem: React.FC<{
   const classesString = getClassesString(layer);
   const textContent = getText(layer);
   const imageUrl = getImageUrl(layer);
-  const children = getChildren(layer);
+  const children = layer.children;
 
   // Use sortable for drag and drop
   const {
@@ -154,6 +160,9 @@ const LayerItem: React.FC<{
     // Check if element is truly empty (no text, no children)
     const isEmpty = !textContent && (!children || children.length === 0);
     
+    // Check if this is the Body layer (locked)
+    const isLocked = layer.id === 'body' || layer.locked === true;
+    
     // Build props for the element
     const elementProps: Record<string, unknown> = {
       ref: setNodeRef,
@@ -165,15 +174,26 @@ const LayerItem: React.FC<{
       ...(enableDragDrop && !isEditing ? { ...attributes, ...listeners } : attributes),
     };
     
-    // Add editor event handlers if in edit mode
+    // Add editor event handlers if in edit mode (but not for context menu trigger)
     if (isEditMode && !isEditing) {
+      const originalOnClick = elementProps.onClick as ((e: React.MouseEvent) => void) | undefined;
       elementProps.onClick = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onLayerClick?.(layer.id);
+        // Only handle if not a context menu trigger
+        if (e.button !== 2) {
+          e.stopPropagation();
+          onLayerClick?.(layer.id);
+        }
+        if (originalOnClick) {
+          originalOnClick(e);
+        }
       };
       elementProps.onDoubleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         startEditing();
+      };
+      // Prevent context menu from bubbling
+      elementProps.onContextMenu = (e: React.MouseEvent) => {
+        e.stopPropagation();
       };
     }
 
@@ -222,6 +242,7 @@ const LayerItem: React.FC<{
               enableDragDrop={enableDragDrop}
               activeLayerId={activeLayerId}
               projected={projected}
+              pageId={pageId}
             />
           )}
         </Tag>
@@ -264,10 +285,10 @@ const LayerItem: React.FC<{
       <Tag {...elementProps}>
         {/* Selection Badge */}
         {isEditMode && isSelected && !isEditing && (
-          <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none">
+          <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
             {htmlTag.charAt(0).toUpperCase() + htmlTag.slice(1)} Selected
             {isTextEditable && <span className="ml-2 opacity-75">• Double-click to edit</span>}
-          </div>
+          </span>
         )}
         
         {textContent && textContent}
@@ -282,13 +303,31 @@ const LayerItem: React.FC<{
             enableDragDrop={enableDragDrop}
             activeLayerId={activeLayerId}
             projected={projected}
+            pageId={pageId}
           />
         )}
       </Tag>
     );
   };
 
-  return renderContent();
+  // Wrap with context menu in edit mode
+  const content = renderContent();
+  
+  if (isEditMode && pageId && !isEditing) {
+    const isLocked = layer.id === 'body' || layer.locked === true;
+    return (
+      <LayerContextMenu 
+        layerId={layer.id} 
+        pageId={pageId} 
+        isLocked={isLocked}
+        onLayerSelect={onLayerClick}
+      >
+        {content}
+      </LayerContextMenu>
+    );
+  }
+
+  return content;
 };
 
 export default LayerRenderer;

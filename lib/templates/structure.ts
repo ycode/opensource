@@ -12,12 +12,12 @@ interface BlockTemplate {
 
 export const structureTemplates: Record<string, BlockTemplate> = {
   div: {
-    icon: 'box',
+    icon: 'block',
     name: 'Block',
     template: {
       name: 'div',
       classes: ['block'],
-      items: [],
+      children: [],
       design: {
         layout: { isActive: true, display: 'Block' }
       }
@@ -25,12 +25,12 @@ export const structureTemplates: Record<string, BlockTemplate> = {
   },
   
   section: {
-    icon: 'layout',
+    icon: 'section',
     name: 'Section',
     template: {
       name: 'section',
       classes: ['flex', 'flex-col', 'gap-4', 'py-12'],
-      items: [],
+      children: [],
       design: {
         layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
         spacing: { isActive: true, paddingTop: '3rem', paddingBottom: '3rem' }
@@ -44,7 +44,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'div',
       classes: ['max-w-7xl', 'mx-auto', 'px-4'],
-      items: [],
+      children: [],
       design: {
         sizing: { isActive: true, maxWidth: '80rem' },
         spacing: { isActive: true, marginLeft: 'auto', marginRight: 'auto', paddingLeft: '1rem', paddingRight: '1rem' }
@@ -53,7 +53,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
   },
   
   hr: {
-    icon: 'minus',
+    icon: 'separator',
     name: 'Separator',
     template: {
       name: 'hr',
@@ -71,11 +71,11 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'div',
       classes: ['flex', 'gap-4'],
-      items: [
+      children: [
         {
           name: 'div',
           classes: ['w-full'],
-          items: [],
+          children: [],
           design: {
             sizing: {
               isActive: true,
@@ -86,7 +86,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
         {
           name: 'div',
           classes: ['w-full'],
-          items: [],
+          children: [],
           design: {
             sizing: {
               isActive: true,
@@ -107,16 +107,16 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'div',
       classes: ['flex', 'flex-col', 'gap-4'],
-      items: [
+      children: [
         {
           name: 'div',
           classes: ['block'],
-          items: []
+          children: []
         },
         {
           name: 'div',
           classes: ['block'],
-          items: []
+          children: []
         }
       ] as any[],
       design: {
@@ -131,26 +131,26 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'div',
       classes: ['grid', 'grid-cols-2', 'gap-4'],
-      items: [
+      children: [
         {
           name: 'div',
           classes: ['block'],
-          items: []
+          children: []
         },
         {
           name: 'div',
           classes: ['block'],
-          items: []
+          children: []
         },
         {
           name: 'div',
           classes: ['block'],
-          items: []
+          children: []
         },
         {
           name: 'div',
           classes: ['block'],
-          items: []
+          children: []
         }
       ] as any[],
       design: {

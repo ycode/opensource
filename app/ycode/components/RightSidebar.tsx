@@ -6,26 +6,37 @@
  * Shows properties for selected layer with Tailwind class editor
  */
 
+// 1. React/Next.js
 import { useCallback, useMemo, useState } from 'react';
-import { usePagesStore } from '../../../stores/usePagesStore';
-import { useEditorStore } from '../../../stores/useEditorStore';
-import type { Layer } from '../../../types';
+
+// 2. External libraries
 import debounce from 'lodash.debounce';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { X } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+
+// 3. ShadCN UI
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
+import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@/components/ui/select';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+
+// 4. Internal components
 import BorderControls from './BorderControls';
-import TypographyControls from './TypographyControls';
 import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
 import SettingsPanel from './SettingsPanel';
 import ToggleGroup from './ToggleGroup';
+import TypographyControls from './TypographyControls';
+
+// 5. Stores
+import { useEditorStore } from '../../../stores/useEditorStore';
+import { usePagesStore } from '../../../stores/usePagesStore';
+
+// 6. Types
+import type { Layer } from '../../../types';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
