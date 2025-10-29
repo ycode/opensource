@@ -45,6 +45,9 @@ interface LayersTreeProps {
 interface LayerRowProps {
   node: FlattenedItem;
   isSelected: boolean;
+  isChildOfSelected: boolean; // New: indicates this is a child of selected parent
+  isLastVisibleDescendant: boolean; // New: last visible descendant of selected parent
+  hasVisibleChildren: boolean; // New: has visible children
   isOver: boolean;
   isDragging: boolean;
   isDragActive: boolean;
@@ -162,6 +165,9 @@ function isDescendant(
 function LayerRow({
   node,
   isSelected,
+  isChildOfSelected,
+  isLastVisibleDescendant,
+  hasVisibleChildren,
   isOver,
   isDragging,
   isDragActive,
@@ -248,9 +254,20 @@ function LayerRow({
           data-drag-active={isDragActive}
           data-layer-id={node.id}
           className={cn(
-            'group relative flex items-center h-8 rounded-lg text-muted-foreground outline-none focus:outline-none',
+            'group relative flex items-center h-8 text-muted-foreground outline-none focus:outline-none',
+            // Conditional rounding based on position in selected group
+            // Selected parent: rounded top, rounded bottom ONLY if no visible children
+            isSelected && !hasVisibleChildren && 'rounded-lg', // No children: fully rounded
+            isSelected && hasVisibleChildren && 'rounded-t-lg', // Has children: only top rounded
+            // Children of selected should have NO rounding, EXCEPT last visible descendant gets bottom rounding
+            !isSelected && isChildOfSelected && !isLastVisibleDescendant && 'rounded-none',
+            !isSelected && isChildOfSelected && isLastVisibleDescendant && 'rounded-b-lg',
+            // Not in group: fully rounded
+            !isSelected && !isChildOfSelected && 'rounded-lg',
+            // Background colors
             !isDragActive && !isDragging && 'hover:bg-secondary/50',
             isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
+            !isSelected && isChildOfSelected && 'bg-primary/20 text-foreground',
             isSelected && !isDragActive && !isDragging && '',
             isDragging && '',
             !isDragActive && ''
@@ -879,21 +896,85 @@ export default function LayersTree({
       onDragCancel={handleDragCancel}
     >
       <div className="space-y-0">
-        {flattenedNodes.map((node) => (
-          <LayerRow
-            key={node.id}
-            node={node}
-            isSelected={selectedLayerIds.includes(node.id) || selectedLayerId === node.id}
-            isOver={overId === node.id}
-            isDragging={activeId === node.id}
-            isDragActive={!!activeId}
-            dropPosition={overId === node.id ? dropPosition : null}
-            onSelect={handleSelect}
-            onMultiSelect={handleMultiSelect}
-            onToggle={handleToggle}
-            pageId={pageId}
-          />
-        ))}
+        {flattenedNodes.map((node, nodeIndex) => {
+          // Check if this node has visible children
+          const hasVisibleChildren = !!(node.layer.children && 
+                                        node.layer.children.length > 0 && 
+                                        !collapsedIds.has(node.id));
+
+          // Check if this node is a child/descendant of any selected layer
+          let parentSelectedId: string | null = null;
+          const isChildOfSelected = selectedLayerIds.some(selectedId => {
+            // Find the selected node
+            const selectedNode = flattenedNodes.find(n => n.id === selectedId);
+            if (!selectedNode || node.id === selectedId) return false;
+            
+            // Check if node's parentId chain leads to selectedId
+            let currentNode: FlattenedItem | undefined = node;
+            while (currentNode && currentNode.parentId) {
+              if (currentNode.parentId === selectedId) {
+                parentSelectedId = selectedId;
+                return true;
+              }
+              currentNode = flattenedNodes.find(n => n.id === currentNode!.parentId);
+            }
+            return false;
+          });
+
+          // Determine if this is the last visible descendant of selected parent
+          let isLastVisibleDescendant = false;
+          
+          if (isChildOfSelected && parentSelectedId) {
+            // Find ALL visible descendants of the selected parent
+            const allDescendants: FlattenedItem[] = [];
+            
+            for (let i = 0; i < flattenedNodes.length; i++) {
+              const checkNode = flattenedNodes[i];
+              
+              // Skip the selected parent itself
+              if (checkNode.id === parentSelectedId) continue;
+              
+              // Check if this node is a descendant of parentSelectedId
+              let current: FlattenedItem | undefined = checkNode;
+              let isDescendant = false;
+              
+              while (current && current.parentId) {
+                if (current.parentId === parentSelectedId) {
+                  isDescendant = true;
+                  break;
+                }
+                current = flattenedNodes.find(n => n.id === current!.parentId);
+              }
+              
+              if (isDescendant && !selectedLayerIds.includes(checkNode.id)) {
+                allDescendants.push(checkNode);
+              }
+            }
+            
+            if (allDescendants.length > 0) {
+              isLastVisibleDescendant = allDescendants[allDescendants.length - 1].id === node.id;
+            }
+          }
+
+          return (
+            <LayerRow
+              key={node.id}
+              node={node}
+              isSelected={selectedLayerIds.includes(node.id) || selectedLayerId === node.id}
+              isChildOfSelected={isChildOfSelected}
+              isLastVisibleDescendant={isLastVisibleDescendant}
+              hasVisibleChildren={hasVisibleChildren}
+              isOver={overId === node.id}
+              isDragging={activeId === node.id}
+              isDragActive={!!activeId}
+              dropPosition={overId === node.id ? dropPosition : null}
+              onSelect={handleSelect}
+              onMultiSelect={handleMultiSelect}
+              onToggle={handleToggle}
+              pageId={pageId}
+            />
+          );
+        })}
       </div>
 
       {/* Drag Overlay - custom ghost element with 40px offset */}
