@@ -86,6 +86,10 @@ export default function LayerContextMenu({
     if (layer) {
       cutToClipboard(layer, pageId);
       deleteLayer(pageId, layerId);
+      // Clear selection after cut to match keyboard shortcut behavior
+      if (onLayerSelect) {
+        onLayerSelect(null as any);
+      }
     }
   };
 
@@ -106,6 +110,10 @@ export default function LayerContextMenu({
   const handleDelete = () => {
     if (isLocked) return;
     deleteLayer(pageId, layerId);
+    // Clear selection after delete to match keyboard shortcut behavior
+    if (onLayerSelect) {
+      onLayerSelect(null as any);
+    }
   };
 
   const handleOpenChange = (open: boolean) => {

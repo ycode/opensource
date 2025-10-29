@@ -649,12 +649,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     const newLayers = insertAfter(draft.layers, result.parent, result.index);
 
-    set({
+    // Use functional update to ensure latest state
+    set((state) => ({
       draftsByPageId: {
-        ...draftsByPageId,
-        [pageId]: { ...draft, layers: newLayers },
+        ...state.draftsByPageId,
+        [pageId]: { ...state.draftsByPageId[pageId], layers: newLayers },
       },
-    });
+    }));
   },
 
   pasteAfter: (pageId, targetLayerId, layerToPaste) => {
@@ -738,12 +739,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     const newLayers = insertAfter(draft.layers, result.parent, result.index, result.propertyName);
 
-    set({
+    // Use functional update to ensure latest state
+    set((state) => ({
       draftsByPageId: {
-        ...draftsByPageId,
-        [pageId]: { ...draft, layers: newLayers },
+        ...state.draftsByPageId,
+        [pageId]: { ...state.draftsByPageId[pageId], layers: newLayers },
       },
-    });
+    }));
   },
 
   pasteInside: (pageId, targetLayerId, layerToPaste) => {
@@ -788,12 +790,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const newLayers = insertInside(draft.layers);
     console.log('🔷 NEW LAYERS TREE:', JSON.stringify(newLayers, null, 2));
 
-    set({
+    // Use functional update to ensure latest state
+    set((state) => ({
       draftsByPageId: {
-        ...draftsByPageId,
-        [pageId]: { ...draft, layers: newLayers },
+        ...state.draftsByPageId,
+        [pageId]: { ...state.draftsByPageId[pageId], layers: newLayers },
       },
-    });
+    }));
     
     console.log('✅ PASTE INSIDE COMPLETE');
   },
