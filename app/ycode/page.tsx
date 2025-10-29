@@ -456,6 +456,15 @@ export default function YCodeBuilder() {
       const isInputFocused = document.activeElement?.tagName === 'INPUT' || 
                              document.activeElement?.tagName === 'TEXTAREA';
 
+      // Save: Cmd/Ctrl + S
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault(); // Always prevent default browser save dialog
+        if (currentPageId) {
+          saveImmediately(currentPageId);
+          console.log('Manual save triggered');
+        }
+      }
+
       // Undo: Cmd/Ctrl + Z
       if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
         if (!isInputFocused) {
@@ -568,7 +577,7 @@ export default function YCodeBuilder() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, selectedLayerIds, currentPageId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId]);
+  }, [selectedLayerId, selectedLayerIds, currentPageId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately]);
 
   // Show login form if not authenticated
   if (!user) {
