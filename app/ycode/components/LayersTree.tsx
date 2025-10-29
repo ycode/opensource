@@ -22,6 +22,9 @@ import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, F
 // 4. Internal components
 import LayerContextMenu from './LayerContextMenu';
 
+// 5. Stores
+import { useEditorStore } from '../../../stores/useEditorStore';
+
 // 6. Utils/lib
 import { cn } from '../../../lib/utils';
 import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
@@ -33,6 +36,7 @@ import type { Layer } from '../../../types';
 interface LayersTreeProps {
   layers: Layer[];
   selectedLayerId: string | null;
+  selectedLayerIds?: string[]; // New multi-select support
   onLayerSelect: (layerId: string) => void;
   onReorder: (newLayers: Layer[]) => void;
   pageId: string;
@@ -46,6 +50,7 @@ interface LayerRowProps {
   isDragActive: boolean;
   dropPosition: 'above' | 'below' | 'inside' | null;
   onSelect: (id: string) => void;
+  onMultiSelect: (id: string, modifiers: { meta: boolean; shift: boolean }) => void;
   onToggle: (id: string) => void;
   pageId: string;
 }
@@ -162,6 +167,7 @@ function LayerRow({
   isDragActive,
   dropPosition,
   onSelect,
+  onMultiSelect,
   onToggle,
   pageId,
 }: LayerRowProps) {
@@ -250,7 +256,19 @@ function LayerRow({
             !isDragActive && ''
           )}
           style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
-          onClick={() => onSelect(node.id)}
+          onClick={(e) => {
+            // Multi-select support
+            if (e.metaKey || e.ctrlKey) {
+              // Cmd/Ctrl+Click: Toggle this layer in selection
+              onMultiSelect(node.id, { meta: true, shift: false });
+            } else if (e.shiftKey) {
+              // Shift+Click: Select range
+              onMultiSelect(node.id, { meta: false, shift: true });
+            } else {
+              // Normal click: Select only this layer
+              onSelect(node.id);
+            }
+          }}
         >
           {/* Expand/Collapse Button */}
           <button
@@ -285,6 +303,7 @@ function LayerRow({
 export default function LayersTree({
   layers,
   selectedLayerId,
+  selectedLayerIds: propSelectedLayerIds,
   onLayerSelect,
   onReorder,
   pageId,
@@ -295,6 +314,12 @@ export default function LayersTree({
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [cursorOffsetY, setCursorOffsetY] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  // Pull multi-select state from editor store
+  const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange } = useEditorStore();
+  
+  // Use prop or store state (prop takes precedence for compatibility)
+  const selectedLayerIds = propSelectedLayerIds ?? storeSelectedLayerIds;
 
   // Flatten the tree for rendering
   const flattenedNodes = useMemo(
@@ -316,6 +341,23 @@ export default function LayersTree({
       },
     })
   );
+
+  // Multi-select click handler
+  const handleMultiSelect = useCallback((id: string, modifiers: { meta: boolean; shift: boolean }) => {
+    if (id === 'body') {
+      // Body layer can't be multi-selected
+      onLayerSelect(id);
+      return;
+    }
+
+    if (modifiers.meta) {
+      // Cmd/Ctrl+Click: Toggle selection
+      toggleSelection(id);
+    } else if (modifiers.shift && lastSelectedLayerId) {
+      // Shift+Click: Select range
+      selectRange(lastSelectedLayerId, id, flattenedNodes);
+    }
+  }, [toggleSelection, selectRange, lastSelectedLayerId, flattenedNodes, onLayerSelect]);
 
   // Listen for expand events from ElementLibrary
   useEffect(() => {
@@ -841,12 +883,13 @@ export default function LayersTree({
           <LayerRow
             key={node.id}
             node={node}
-            isSelected={selectedLayerId === node.id}
+            isSelected={selectedLayerIds.includes(node.id) || selectedLayerId === node.id}
             isOver={overId === node.id}
             isDragging={activeId === node.id}
             isDragActive={!!activeId}
             dropPosition={overId === node.id ? dropPosition : null}
             onSelect={handleSelect}
+            onMultiSelect={handleMultiSelect}
             onToggle={handleToggle}
             pageId={pageId}
           />

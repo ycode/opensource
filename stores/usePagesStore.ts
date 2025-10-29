@@ -25,11 +25,14 @@ interface PagesActions {
   addLayer: (pageId: string, parentLayerId: string | null, layerType: Layer['type']) => void;
   addLayerFromTemplate: (pageId: string, parentLayerId: string | null, templateId: string) => { newLayerId: string; parentToExpand: string | null } | null;
   deleteLayer: (pageId: string, layerId: string) => void;
+  deleteLayers: (pageId: string, layerIds: string[]) => void; // New batch delete
   updateLayer: (pageId: string, layerId: string, updates: Partial<Layer>) => void;
   moveLayer: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => boolean;
   setDraftLayers: (pageId: string, layers: Layer[]) => void;
   copyLayer: (pageId: string, layerId: string) => Layer | null;
+  copyLayers: (pageId: string, layerIds: string[]) => Layer[]; // New batch copy
   duplicateLayer: (pageId: string, layerId: string) => void;
+  duplicateLayers: (pageId: string, layerIds: string[]) => void; // New batch duplicate
   pasteAfter: (pageId: string, targetLayerId: string, layerToPaste: Layer) => void;
   pasteInside: (pageId: string, targetLayerId: string, layerToPaste: Layer) => void;
 }
@@ -415,6 +418,93 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     }));
   },
 
+  deleteLayers: (pageId, layerIds) => {
+    const { draftsByPageId } = get();
+    const draft = draftsByPageId[pageId];
+    if (!draft || layerIds.length === 0) return;
+
+    console.log('🔴 DELETE MULTIPLE LAYERS:', { pageId, layerIds });
+
+    // Filter out body and locked layers
+    const validIds = new Set<string>();
+    const findLayer = (tree: Layer[], id: string): Layer | null => {
+      for (const node of tree) {
+        if (node.id === id) return node;
+        if (node.children) {
+          const found = findLayer(node.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    // Check each layer ID
+    for (const layerId of layerIds) {
+      if (layerId === 'body') continue; // Skip body
+      const layer = findLayer(draft.layers, layerId);
+      if (layer && !layer.locked) {
+        validIds.add(layerId);
+      }
+    }
+
+    if (validIds.size === 0) {
+      console.warn('No valid layers to delete');
+      return;
+    }
+
+    // Helper: Check if a node is a descendant of any in the delete set
+    const isDescendantOfDeleted = (tree: Layer[], nodeId: string, deletedIds: Set<string>): boolean => {
+      for (const node of tree) {
+        if (deletedIds.has(node.id)) {
+          // Check if nodeId is in this node's descendants
+          const hasDescendant = (children: Layer[]): boolean => {
+            for (const child of children) {
+              if (child.id === nodeId) return true;
+              if (child.children && hasDescendant(child.children)) return true;
+            }
+            return false;
+          };
+          if (node.children && hasDescendant(node.children)) return true;
+        }
+        if (node.children && isDescendantOfDeleted(node.children, nodeId, deletedIds)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Remove parent-child duplicates (if parent is selected, don't separately delete children)
+    const finalIds = new Set<string>();
+    for (const id of validIds) {
+      if (!isDescendantOfDeleted(draft.layers, id, validIds)) {
+        finalIds.add(id);
+      }
+    }
+
+    // Helper: Remove multiple IDs from tree
+    const removeMultipleFromTree = (tree: Layer[]): Layer[] => {
+      return tree
+        .filter(node => !finalIds.has(node.id))
+        .map(node => {
+          if (!node.children) return node;
+          return { ...node, children: removeMultipleFromTree(node.children) };
+        });
+    };
+
+    const newLayers = removeMultipleFromTree(draft.layers);
+    console.log('✅ LAYERS AFTER MULTI-DELETE:', { deleted: finalIds.size, remaining: newLayers.length });
+
+    set((state) => ({
+      draftsByPageId: {
+        ...state.draftsByPageId,
+        [pageId]: {
+          ...state.draftsByPageId[pageId],
+          layers: newLayers
+        }
+      }
+    }));
+  },
+
   updateLayer: (pageId, layerId, updates) => {
     const { draftsByPageId } = get();
     const draft = draftsByPageId[pageId];
@@ -648,6 +738,135 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     };
 
     const newLayers = insertAfter(draft.layers, result.parent, result.index);
+
+    // Use functional update to ensure latest state
+    set((state) => ({
+      draftsByPageId: {
+        ...state.draftsByPageId,
+        [pageId]: { ...state.draftsByPageId[pageId], layers: newLayers },
+      },
+    }));
+  },
+
+  copyLayers: (pageId, layerIds) => {
+    const { copyLayer } = get();
+    const layers: Layer[] = [];
+
+    for (const layerId of layerIds) {
+      if (layerId === 'body') continue; // Skip body
+      const layer = copyLayer(pageId, layerId);
+      if (layer) {
+        layers.push(layer);
+      }
+    }
+
+    return layers;
+  },
+
+  duplicateLayers: (pageId, layerIds) => {
+    const { draftsByPageId, copyLayer } = get();
+    const draft = draftsByPageId[pageId];
+    if (!draft || layerIds.length === 0) return;
+
+    console.log('📋 DUPLICATE MULTIPLE LAYERS:', { pageId, layerIds });
+
+    // Filter out body and locked layers
+    const validIds: string[] = [];
+    const findLayer = (tree: Layer[], id: string): Layer | null => {
+      for (const node of tree) {
+        if (node.id === id) return node;
+        if (node.children) {
+          const found = findLayer(node.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    // Check each layer ID
+    for (const layerId of layerIds) {
+      if (layerId === 'body') continue; // Skip body
+      const layer = findLayer(draft.layers, layerId);
+      if (layer && !layer.locked) {
+        validIds.push(layerId);
+      }
+    }
+
+    if (validIds.length === 0) {
+      console.warn('No valid layers to duplicate');
+      return;
+    }
+
+    // Regenerate IDs for a layer and its children
+    const regenerateIds = (layer: Layer): Layer => {
+      const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      return {
+        ...layer,
+        id: newId,
+        children: layer.children?.map(regenerateIds),
+      };
+    };
+
+    // Duplicate each layer
+    let newLayers = draft.layers;
+    for (const layerId of validIds) {
+      const layerCopy = copyLayer(pageId, layerId);
+      if (!layerCopy) continue;
+
+      const newLayer = regenerateIds(layerCopy);
+
+      // Find parent and index of the original layer
+      const findParentAndIndex = (
+        layers: Layer[],
+        targetId: string,
+        parent: Layer | null = null,
+        index: number = 0
+      ): { parent: Layer | null; index: number } | null => {
+        for (let i = 0; i < layers.length; i++) {
+          const layer = layers[i];
+          if (layer.id === targetId) {
+            return { parent, index: i };
+          }
+          if (layer.children && layer.children.length > 0) {
+            const found = findParentAndIndex(layer.children, targetId, layer, i);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const result = findParentAndIndex(newLayers, layerId);
+      if (!result) continue;
+
+      // Insert the duplicate after the original layer
+      const insertAfter = (layers: Layer[], parentLayer: Layer | null, insertIndex: number): Layer[] => {
+        if (parentLayer === null) {
+          // Insert at root level
+          const updated = [...layers];
+          updated.splice(insertIndex + 1, 0, newLayer);
+          return updated;
+        }
+
+        // Find and update the parent
+        return layers.map(layer => {
+          if (layer.id === parentLayer.id) {
+            const children = [...(layer.children || [])];
+            children.splice(insertIndex + 1, 0, newLayer);
+            return { ...layer, children };
+          }
+
+          if (layer.children && layer.children.length > 0) {
+            return { ...layer, children: insertAfter(layer.children, parentLayer, insertIndex) };
+          }
+
+          return layer;
+        });
+      };
+
+      newLayers = insertAfter(newLayers, result.parent, result.index);
+    }
+
+    console.log('✅ LAYERS AFTER MULTI-DUPLICATE:', { duplicated: validIds.length });
 
     // Use functional update to ensure latest state
     set((state) => ({

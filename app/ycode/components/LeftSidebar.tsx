@@ -44,6 +44,7 @@ function findLayerById(layers: Layer[], id: string): Layer | null {
 
 interface LeftSidebarProps {
   selectedLayerId: string | null;
+  selectedLayerIds?: string[]; // New multi-select support
   onLayerSelect: (layerId: string) => void;
   currentPageId: string | null;
   onPageSelect: (pageId: string) => void;
@@ -52,6 +53,7 @@ interface LeftSidebarProps {
 
 export default function LeftSidebar({
   selectedLayerId,
+  selectedLayerIds,
   onLayerSelect,
   currentPageId,
   onPageSelect,
@@ -288,6 +290,7 @@ export default function LeftSidebar({
                 <LayersTree
                   layers={layersForCurrentPage}
                   selectedLayerId={selectedLayerId}
+                  selectedLayerIds={selectedLayerIds}
                   onLayerSelect={onLayerSelect}
                   onReorder={handleLayersReorder}
                   pageId={currentPageId || ''}

@@ -28,8 +28,8 @@ import type { Layer } from '../../types';
 
 export default function YCodeBuilder() {
   const { signOut, user } = useAuthStore();
-  const { selectedLayerId, setSelectedLayerId, currentPageId, setCurrentPageId, undo, redo, canUndo, canRedo, pushHistory } = useEditorStore();
-  const { updateLayer, draftsByPageId, deleteLayer, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, duplicateLayer, pasteAfter } = usePagesStore();
+  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, setSelectedLayerIds, clearSelection, currentPageId, setCurrentPageId, undo, redo, canUndo, canRedo, pushHistory } = useEditorStore();
+  const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter } = usePagesStore();
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard } = useClipboardStore();
   const pages = usePagesStore((state) => state.pages);
   const [copiedLayer, setCopiedLayer] = useState<Layer | null>(null);
@@ -519,11 +519,22 @@ export default function YCodeBuilder() {
         }
       }
       
-      // Copy: Cmd/Ctrl + C
-      if ((e.metaKey || e.ctrlKey) && e.key === 'c' && selectedLayerId) {
-        if (!isInputFocused) {
+      // Copy: Cmd/Ctrl + C (supports multi-select)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+        if (!isInputFocused && currentPageId) {
           e.preventDefault();
-          copyLayer();
+          if (selectedLayerIds.length > 1) {
+            // Multi-select: copy all
+            const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
+            console.log(`Copied ${layers.length} layers`);
+            // For multi-select, store first layer in clipboard for compatibility
+            if (layers.length > 0) {
+              setCopiedLayer(layers[0]);
+            }
+          } else if (selectedLayerId) {
+            // Single select
+            copyLayer();
+          }
         }
       }
       
@@ -535,18 +546,41 @@ export default function YCodeBuilder() {
         }
       }
 
-      // Delete: Delete or Backspace
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedLayerId) {
-        if (!isInputFocused) {
+      // Duplicate: Cmd/Ctrl + D (supports multi-select)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+        if (!isInputFocused && currentPageId) {
           e.preventDefault();
-          deleteSelectedLayer();
+          if (selectedLayerIds.length > 1) {
+            // Multi-select: duplicate all
+            duplicateLayersFromStore(currentPageId, selectedLayerIds);
+            console.log(`Duplicated ${selectedLayerIds.length} layers`);
+          } else if (selectedLayerId) {
+            // Single select
+            duplicateLayer(currentPageId, selectedLayerId);
+          }
+        }
+      }
+
+      // Delete: Delete or Backspace (supports multi-select)
+      if ((e.key === 'Delete' || e.key === 'Backspace')) {
+        if (!isInputFocused && currentPageId) {
+          e.preventDefault();
+          if (selectedLayerIds.length > 1) {
+            // Multi-select: delete all
+            deleteLayers(currentPageId, selectedLayerIds);
+            clearSelection();
+            console.log(`Deleted ${selectedLayerIds.length} layers`);
+          } else if (selectedLayerId) {
+            // Single select
+            deleteSelectedLayer();
+          }
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, selectedLayer, copiedLayer, currentPageId]);
+  }, [selectedLayerId, selectedLayerIds, selectedLayer, copiedLayer, currentPageId, copyLayersFromStore, duplicateLayersFromStore, deleteLayers, clearSelection]);
 
   // Show login form if not authenticated
   if (!user) {
@@ -659,6 +693,7 @@ export default function YCodeBuilder() {
         {/* Left Sidebar - Pages & Layers */}
         <LeftSidebar
           selectedLayerId={selectedLayerId}
+          selectedLayerIds={selectedLayerIds}
           onLayerSelect={setSelectedLayerId}
           currentPageId={currentPageId}
           onPageSelect={setCurrentPageId}

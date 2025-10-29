@@ -185,7 +185,9 @@ export interface SiteSettings {
 
 // Editor State Types
 export interface EditorState {
-  selectedLayerId: string | null;
+  selectedLayerId: string | null; // Legacy - kept for backward compatibility
+  selectedLayerIds: string[]; // New multi-select
+  lastSelectedLayerId: string | null; // For Shift+Click range
   currentPageId: string | null;
   isDragging: boolean;
   isLoading: boolean;
