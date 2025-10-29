@@ -101,7 +101,43 @@ export default function YCodeBuilder() {
         return;
       }
 
-      // Don't trigger if no layer is selected or no current page
+      // Escape - Select parent layer (doesn't require a selected layer)
+      if (e.key === 'Escape' && currentPageId && selectedLayerId) {
+        e.preventDefault();
+        
+        // Find parent of currently selected layer
+        const draft = draftsByPageId[currentPageId];
+        if (!draft) return;
+        
+        const findParent = (layers: Layer[], targetId: string, parent: Layer | null = null): Layer | null => {
+          for (const layer of layers) {
+            if (layer.id === targetId) {
+              return parent;
+            }
+            if (layer.children) {
+              const found = findParent(layer.children, targetId, layer);
+              if (found !== undefined) return found;
+            }
+          }
+          return undefined as any;
+        };
+        
+        const parentLayer = findParent(draft.layers, selectedLayerId);
+        
+        // If parent exists, select it. If no parent (root level), deselect
+        if (parentLayer) {
+          setSelectedLayerId(parentLayer.id);
+          console.log('Selected parent layer:', parentLayer.customName || parentLayer.name);
+        } else {
+          // At root level or Body layer selected - deselect
+          setSelectedLayerId(null);
+          console.log('At root level - deselected');
+        }
+        
+        return;
+      }
+
+      // Don't trigger other shortcuts if no layer is selected or no current page
       if (!selectedLayerId || !currentPageId) return;
 
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
