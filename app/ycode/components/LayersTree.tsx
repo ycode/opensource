@@ -374,19 +374,22 @@ export default function LayersTree({
     const offsetY = pointerY - top;
     const relativeY = offsetY / height;
     
-    // Check if node can have children
-    const canHaveChildren = overNode.layer.children || 
-      overNode.layer.type === 'container';
+    // Check if node can have children using the shared utility
+    const nodeCanHaveChildren = canHaveChildren(overNode.layer);
     
     // Container types strongly prefer "inside" drops
-    const isContainerType = overNode.layer.type === 'container';
+    // Check both old type property and new name property
+    const isContainerType = overNode.layer.type === 'container' || 
+                           overNode.layer.name === 'div' ||
+                           overNode.layer.name === 'section' ||
+                           overNode.layer.name === 'form';
     
     // Determine drop position based on pointer position
     let position: 'above' | 'below' | 'inside';
     
-    // Check if node has visible children
-    const hasVisibleChildren = overNode.layer.children && 
-                                overNode.layer.children.length > 0 && 
+    // Check if node has visible children (check both children and items)
+    const hasVisibleChildren = ((overNode.layer.children && overNode.layer.children.length > 0) ||
+                                (overNode.layer.items && overNode.layer.items.length > 0)) && 
                                 !collapsedIds.has(overNode.id);
     
     // DEFAULT DND APPROACH: Simple 50/50 split with special handling for containers
@@ -401,7 +404,7 @@ export default function LayersTree({
         // 60% of the container is "inside" zone
         position = 'inside';
       }
-    } else if (canHaveChildren && isContainerType) {
+    } else if (nodeCanHaveChildren && isContainerType) {
       // EMPTY/COLLAPSED CONTAINERS: Most area is inside
       if (relativeY < 0.15) {
         position = 'above';
@@ -409,6 +412,16 @@ export default function LayersTree({
         position = 'below';
       } else {
         // 70% of empty container is "inside" zone
+        position = 'inside';
+      }
+    } else if (nodeCanHaveChildren) {
+      // OTHER ELEMENTS THAT CAN HAVE CHILDREN: Balanced zones
+      if (relativeY < 0.3) {
+        position = 'above';
+      } else if (relativeY > 0.7) {
+        position = 'below';
+      } else {
+        // 40% center area is "inside" zone
         position = 'inside';
       }
     } else {
