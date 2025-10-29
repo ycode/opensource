@@ -63,7 +63,8 @@ export default function RightSidebar({
   const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
   if (selectedLayerId !== prevSelectedLayerId) {
     setPrevSelectedLayerId(selectedLayerId);
-    setClassesInput(selectedLayer?.classes || '');
+    const classes = selectedLayer?.classes || '';
+    setClassesInput(Array.isArray(classes) ? classes.join(' ') : classes);
     setCustomId(selectedLayer?.attributes?.id || '');
     setIsHidden(selectedLayer?.hidden || false);
   }

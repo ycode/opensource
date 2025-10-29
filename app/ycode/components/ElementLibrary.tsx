@@ -79,7 +79,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
                     className="flex flex-col items-center gap-2 p-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors group"
                   >
                     <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
-                      <Icon name={getIcon(el) || 'box'} className="w-6 h-6 text-zinc-300" />
+                      <Icon name={(getIcon(el) as any) || 'box'} className="w-6 h-6 text-zinc-300" />
                     </div>
                     <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
                   </button>
@@ -98,7 +98,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
                     className="flex flex-col items-center gap-2 p-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors group"
                   >
                     <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
-                      <Icon name={getIcon(el) || 'type'} className="w-6 h-6 text-zinc-300" />
+                      <Icon name={(getIcon(el) as any) || 'type'} className="w-6 h-6 text-zinc-300" />
                     </div>
                     <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
                   </button>
@@ -117,7 +117,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
                     className="flex flex-col items-center gap-2 p-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors group"
                   >
                     <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
-                      <Icon name={getIcon(el) || 'square'} className="w-6 h-6 text-zinc-300" />
+                      <Icon name={(getIcon(el) as any) || 'square'} className="w-6 h-6 text-zinc-300" />
                     </div>
                     <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
                   </button>
@@ -136,7 +136,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
                     className="flex flex-col items-center gap-2 p-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors group"
                   >
                     <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
-                      <Icon name={getIcon(el) || 'image'} className="w-6 h-6 text-zinc-300" />
+                      <Icon name={(getIcon(el) as any) || 'image'} className="w-6 h-6 text-zinc-300" />
                     </div>
                     <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
                   </button>
@@ -155,7 +155,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
                     className="flex flex-col items-center gap-2 p-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors group"
                   >
                     <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
-                      <Icon name={getIcon(el) || 'file-text'} className="w-6 h-6 text-zinc-300" />
+                      <Icon name={(getIcon(el) as any) || 'file-text'} className="w-6 h-6 text-zinc-300" />
                     </div>
                     <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
                   </button>
