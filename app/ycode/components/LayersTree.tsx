@@ -179,7 +179,7 @@ function LayerRow({
     setDropRef(element);
   };
 
-  const hasChildren = (node.layer.children && node.layer.children.length > 0) || (node.layer.items && node.layer.items.length > 0);
+  const hasChildren = node.layer.children && node.layer.children.length > 0;
   const isCollapsed = node.collapsed || false;
   
   const ElementIcon = elementIcons[getIconKey(node.layer)] || Square;
@@ -288,6 +288,7 @@ export default function LayersTree({
   const [overId, setOverId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | 'inside' | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [cursorOffsetY, setCursorOffsetY] = useState<number>(0);
 
   // Flatten the tree for rendering
   const flattenedNodes = useMemo(
@@ -314,6 +315,17 @@ export default function LayersTree({
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const draggedId = event.active.id as string;
     const draggedNode = flattenedNodes.find(n => n.id === draggedId);
+    
+    // Calculate where user clicked within the element
+    const activeRect = event.active.rect.current.initial;
+    if (activeRect && event.activatorEvent) {
+      const clickY = (event.activatorEvent as PointerEvent).clientY;
+      const elementTop = activeRect.top;
+      const offsetWithinElement = clickY - elementTop;
+      setCursorOffsetY(offsetWithinElement);
+    } else if (activeRect) {
+      setCursorOffsetY(activeRect.height / 2); // Fallback to middle
+    }
     
     console.log('🎯 DRAG START:', {
       id: draggedId,
@@ -375,20 +387,24 @@ export default function LayersTree({
     }
     
     const pointerY = activeRect.translated?.top ?? activeRect.initial.top;
-    
     const { top, height } = event.over.rect;
     
-    // Calculate where the pointer is relative to the hovered element
-    // pointerY is the dragged element's position, we need to account for the offset
-    const draggedItemHeight = activeRect.initial.height;
-    const cursorOffset = draggedItemHeight / 2; // Assume cursor is in the middle of dragged item
-    const actualPointerY = pointerY + cursorOffset;
+    // Use the ACTUAL cursor offset captured on drag start
+    const actualPointerY = pointerY + cursorOffsetY;
     
     const offsetY = actualPointerY - top;
     const relativeY = offsetY / height;
     
     // Check if node can have children using the shared utility
     const nodeCanHaveChildren = canHaveChildren(overNode.layer);
+    
+    console.log('🔍 DROP ZONE CHECK:', {
+      overNodeName: overNode.layer.name,
+      overNodeType: overNode.layer.type,
+      overNodeCustomName: overNode.layer.customName,
+      canHaveChildren: nodeCanHaveChildren,
+      relativeY: relativeY.toFixed(2)
+    });
     
     // Container types strongly prefer "inside" drops
     // Check both old type property and new name property
@@ -400,51 +416,57 @@ export default function LayersTree({
     // Determine drop position based on pointer position
     let position: 'above' | 'below' | 'inside';
     
-    // Check if node has visible children (check both children and items)
-    const hasVisibleChildren = ((overNode.layer.children && overNode.layer.children.length > 0) ||
-                                (overNode.layer.items && overNode.layer.items.length > 0)) && 
+    // Check if node has visible children
+    const hasVisibleChildren = overNode.layer.children && 
+                                overNode.layer.children.length > 0 && 
                                 !collapsedIds.has(overNode.id);
     
-    // DEFAULT DND APPROACH: Simple 50/50 split with special handling for containers
-    
-    if (isContainerType && hasVisibleChildren) {
-      // CONTAINERS WITH VISIBLE CHILDREN: Larger "inside" zone
-      if (relativeY < 0.2) {
-        position = 'above';
-      } else if (relativeY > 0.8) {
-        position = 'below';
+    // Clearer, more predictable drop zones
+    if (nodeCanHaveChildren) {
+      // Elements that can have children use generous inside zone
+      if (isContainerType) {
+        // Containers (Block, Section, Container, Form)
+        if (hasVisibleChildren) {
+          // With visible children: 15% top/bottom, 70% inside
+          if (relativeY < 0.15) {
+            position = 'above';
+          } else if (relativeY > 0.85) {
+            position = 'below';
+          } else {
+            position = 'inside';
+          }
+        } else {
+          // Empty/collapsed containers: 10% top/bottom, 80% inside
+          if (relativeY < 0.10) {
+            position = 'above';
+          } else if (relativeY > 0.90) {
+            position = 'below';
+          } else {
+            position = 'inside';
+          }
+        }
       } else {
-        // 60% of the container is "inside" zone
-        position = 'inside';
-      }
-    } else if (nodeCanHaveChildren && isContainerType) {
-      // EMPTY/COLLAPSED CONTAINERS: Most area is inside
-      if (relativeY < 0.15) {
-        position = 'above';
-      } else if (relativeY > 0.85) {
-        position = 'below';
-      } else {
-        // 70% of empty container is "inside" zone
-        position = 'inside';
-      }
-    } else if (nodeCanHaveChildren) {
-      // OTHER ELEMENTS THAT CAN HAVE CHILDREN: Balanced zones
-      if (relativeY < 0.3) {
-        position = 'above';
-      } else if (relativeY > 0.7) {
-        position = 'below';
-      } else {
-        // 40% center area is "inside" zone
-        position = 'inside';
+        // Other elements that can have children (e.g., links with nested content)
+        if (relativeY < 0.20) {
+          position = 'above';
+        } else if (relativeY > 0.80) {
+          position = 'below';
+        } else {
+          position = 'inside';
+        }
       }
     } else {
-      // LEAF NODES: Simple 50/50 split
-      if (relativeY < 0.5) {
-        position = 'above';
-      } else {
-        position = 'below';
-      }
+      // Leaf nodes: simple 50/50 split
+      position = relativeY < 0.5 ? 'above' : 'below';
     }
+
+    console.log('📍 CALCULATED DROP POSITION:', {
+      position,
+      overNode: overNode.layer.customName || overNode.layer.name,
+      isContainerType,
+      nodeCanHaveChildren,
+      hasVisibleChildren
+    });
 
     // CRITICAL: Prevent reordering within same parent from moving outside parent
     // If dragging an element within its own parent, "above/below" should only reorder
@@ -527,7 +549,7 @@ export default function LayersTree({
 
     setOverId(overId);
     setDropPosition(position);
-  }, [flattenedNodes, collapsedIds, activeId]);
+  }, [flattenedNodes, collapsedIds, activeId, cursorOffsetY]);
 
   // Handle drag end - perform the actual reorder
   const handleDragEnd = useCallback(
@@ -539,6 +561,7 @@ export default function LayersTree({
         setActiveId(null);
         setOverId(null);
         setDropPosition(null);
+        setCursorOffsetY(0);
         return;
       }
 
@@ -550,6 +573,7 @@ export default function LayersTree({
         setActiveId(null);
         setOverId(null);
         setDropPosition(null);
+        setCursorOffsetY(0);
         return;
       }
 
@@ -563,6 +587,7 @@ export default function LayersTree({
         setActiveId(null);
         setOverId(null);
         setDropPosition(null);
+        setCursorOffsetY(0);
         return;
       }
 
@@ -585,6 +610,7 @@ export default function LayersTree({
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
+          setCursorOffsetY(0);
           return;
         }
         
@@ -608,6 +634,7 @@ export default function LayersTree({
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
+          setCursorOffsetY(0);
           return;
         }
         
@@ -642,6 +669,7 @@ export default function LayersTree({
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
+          setCursorOffsetY(0);
           return;
         }
       }
@@ -724,6 +752,7 @@ export default function LayersTree({
       setActiveId(null);
       setOverId(null);
       setDropPosition(null);
+      setCursorOffsetY(0);
     },
     [flattenedNodes, dropPosition, onReorder, collapsedIds]
   );
@@ -734,6 +763,7 @@ export default function LayersTree({
     setActiveId(null);
     setOverId(null);
     setDropPosition(null);
+    setCursorOffsetY(0);
   }, []);
 
   // Handle expand/collapse toggle
@@ -894,26 +924,10 @@ function rebuildTree(
     const node = nodeCopy.find(n => n.id === nodeId)!;
     const childNodes = byParent.get(nodeId) || [];
     
-    // Preserve the original property name (items vs children)
     const result: Layer = { ...node.layer };
     
     if (childNodes.length > 0) {
-      const rebuiltChildren = childNodes.map(child => buildNode(child.id));
-      
-      // Use the same property that the original layer had
-      if (node.layer.items !== undefined) {
-        result.items = rebuiltChildren;
-      } else {
-        result.children = rebuiltChildren;
-      }
-    } else {
-      // Preserve empty arrays if they existed
-      if (node.layer.items !== undefined) {
-        result.items = [];
-      }
-      if (node.layer.children !== undefined) {
-        result.children = [];
-      }
+      result.children = childNodes.map(child => buildNode(child.id));
     }
     
     return result;

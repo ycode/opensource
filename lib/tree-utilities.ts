@@ -33,13 +33,10 @@ export function flattenTree(
       collapsed: isCollapsed,
     });
 
-    // Support both 'items' and 'children' properties
-    const nestedLayers = item.items || item.children;
-    
     // Only flatten children if not collapsed
-    if (nestedLayers && nestedLayers.length > 0 && !isCollapsed) {
+    if (item.children && item.children.length > 0 && !isCollapsed) {
       flattened.push(
-        ...flattenTree(nestedLayers, item.id, depth + 1, collapsedIds)
+        ...flattenTree(item.children, item.id, depth + 1, collapsedIds)
       );
     }
   });
@@ -200,29 +197,19 @@ export function findInsertionIndex(
 
 /**
  * Remove an item from the tree
- * Supports both 'items' and 'children' properties
  */
 export function removeItem(items: Layer[], id: string): Layer[] {
   return items
     .filter((item) => item.id !== id)
     .map((item) => {
-      const nestedLayers = item.items || item.children;
-      if (!nestedLayers) return item;
+      if (!item.children) return item;
       
-      const updated = removeItem(nestedLayers, id);
-      
-      // Preserve the original property name
-      if (item.items) {
-        return { ...item, items: updated };
-      } else {
-        return { ...item, children: updated };
-      }
+      return { ...item, children: removeItem(item.children, id) };
     });
 }
 
 /**
  * Insert an item at a specific position in the tree
- * Supports both 'items' and 'children' properties
  */
 export function insertItem(
   items: Layer[],
@@ -240,31 +227,13 @@ export function insertItem(
   // Insert as child of parent
   return items.map((i) => {
     if (i.id === parentId) {
-      const nestedLayers = i.items || i.children || [];
-      const children = [...nestedLayers];
+      const children = [...(i.children || [])];
       children.splice(index, 0, item);
-      
-      // Preserve the original property name or default to 'items'
-      if (i.items !== undefined) {
-        return { ...i, items: children };
-      } else if (i.children !== undefined) {
-        return { ...i, children };
-      } else {
-        // Default to items for new containers
-        return { ...i, items: children };
-      }
+      return { ...i, children };
     }
     
-    const nestedLayers = i.items || i.children;
-    if (nestedLayers) {
-      const updated = insertItem(nestedLayers, item, parentId, index);
-      
-      // Preserve the original property name
-      if (i.items) {
-        return { ...i, items: updated };
-      } else {
-        return { ...i, children: updated };
-      }
+    if (i.children) {
+      return { ...i, children: insertItem(i.children, item, parentId, index) };
     }
     
     return i;

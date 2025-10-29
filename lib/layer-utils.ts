@@ -34,13 +34,6 @@ export function getClassesString(layer: Layer): string {
 }
 
 /**
- * Get children layers (support both items and children)
- */
-export function getChildren(layer: Layer): Layer[] | undefined {
-  return layer.items || layer.children;
-}
-
-/**
  * Get text content (support both text and content properties)
  */
 export function getText(layer: Layer): string | undefined {

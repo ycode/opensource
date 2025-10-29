@@ -63,10 +63,6 @@ export default function LayerContextMenu({
           const found = findLayer(layer.children, id);
           if (found) return found;
         }
-        if (layer.items) {
-          const found = findLayer(layer.items, id);
-          if (found) return found;
-        }
       }
       return null;
     };

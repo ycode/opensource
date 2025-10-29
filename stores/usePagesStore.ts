@@ -42,17 +42,8 @@ function updateLayerInTree(tree: Layer[], layerId: string, updater: (l: Layer) =
       return updater(node);
     }
     
-    // Support both children and items
-    const nestedLayers = node.items || node.children;
-    if (nestedLayers && nestedLayers.length > 0) {
-      const updated = updateLayerInTree(nestedLayers, layerId, updater);
-      
-      // Preserve the original property name
-      if (node.items) {
-        return { ...node, items: updated };
-      } else {
-        return { ...node, children: updated };
-      }
+    if (node.children && node.children.length > 0) {
+      return { ...node, children: updateLayerInTree(node.children, layerId, updater) };
     }
     
     return node;
@@ -279,26 +270,20 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const { getBlockName } = require('../lib/templates/blocks');
     const displayName = getBlockName(templateId);
 
-    // Helper: Ensure children/items compatibility
+    // Set the display name for the root layer
     const normalizeLayer = (layer: Layer, isRoot: boolean = true): Layer => {
       const normalized = { ...layer };
       
-      // Set the display name for the root layer
       if (isRoot && displayName) {
         normalized.customName = displayName;
       }
       
-      // If layer has items but not children, copy items to children
-      if (normalized.items && !normalized.children) {
-        normalized.children = normalized.items;
-      }
-      
-      // If layer has children, recursively normalize them
+      // Recursively normalize children
       if (normalized.children) {
         normalized.children = normalized.children.map(child => normalizeLayer(child, false));
       }
       
-      // Ensure classes is a string (for backwards compatibility)
+      // Ensure classes is a string
       if (Array.isArray(normalized.classes)) {
         normalized.classes = normalized.classes.join(' ');
       }
@@ -314,21 +299,11 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Add to root
       newLayers = [...draft.layers, newLayer];
     } else {
-      // Add as child to parent - preserve the parent's property type (items or children)
-      newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => {
-        const nestedLayers = parent.items || parent.children || [];
-        const updated = [...nestedLayers, newLayer];
-        
-        // Preserve the original property name or default to items
-        if (parent.items !== undefined) {
-          return { ...parent, items: updated };
-        } else if (parent.children !== undefined) {
-          return { ...parent, children: updated };
-        } else {
-          // Default to items for new containers
-          return { ...parent, items: updated };
-        }
-      });
+      // Add as child to parent
+      newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
+        ...parent,
+        children: [...(parent.children || []), newLayer],
+      }));
     }
 
     set({ 
@@ -346,15 +321,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     console.log('🔴 DELETE LAYER:', { pageId, layerId });
 
-    // Helper: Find layer by ID (supports both children and items)
+    // Find layer by ID
     const findLayer = (tree: Layer[]): Layer | null => {
       for (const node of tree) {
         if (node.id === layerId) return node;
         
-        // Check both children and items
-        const nestedLayers = node.items || node.children;
-        if (nestedLayers) {
-          const found = findLayer(nestedLayers);
+        if (node.children) {
+          const found = findLayer(node.children);
           if (found) return found;
         }
       }
@@ -376,17 +349,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       return tree
         .filter(node => node.id !== layerId)
         .map(node => {
-          const nestedLayers = node.items || node.children;
-          if (!nestedLayers) return node;
-          
-          const updated = removeFromTree(nestedLayers);
-          
-          // Preserve the original property name
-          if (node.items) {
-            return { ...node, items: updated };
-          } else {
-            return { ...node, children: updated };
-          }
+          if (!node.children) return node;
+          return { ...node, children: removeFromTree(node.children) };
         });
     };
 
@@ -553,10 +517,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           const found = findLayer(layer.children, id);
           if (found) return found;
         }
-        if (layer.items) {
-          const found = findLayer(layer.items, id);
-          if (found) return found;
-        }
       }
       return null;
     };
@@ -584,7 +544,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         ...layer,
         id: newId,
         children: layer.children?.map(regenerateIds),
-        items: layer.items?.map(regenerateIds),
       };
     };
 
@@ -602,9 +561,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         if (layer.id === targetId) {
           return { parent, index: i };
         }
-        const children = layer.children || layer.items || [];
-        if (children.length > 0) {
-          const found = findParentAndIndex(children, targetId, layer, i);
+        if (layer.children && layer.children.length > 0) {
+          const found = findParentAndIndex(layer.children, targetId, layer, i);
           if (found) return found;
         }
       }
@@ -626,25 +584,15 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Find and update the parent
       return layers.map(layer => {
         if (layer.id === parentLayer.id) {
-          const children = layer.children || layer.items || [];
-          const newChildren = [...children];
-          newChildren.splice(insertIndex + 1, 0, newLayer);
-          
-          if (layer.children) {
-            return { ...layer, children: newChildren };
-          } else if (layer.items) {
-            return { ...layer, items: newChildren };
-          }
-          return { ...layer, children: newChildren };
+          const children = [...(layer.children || [])];
+          children.splice(insertIndex + 1, 0, newLayer);
+          return { ...layer, children };
         }
-        const children = layer.children || layer.items || [];
-        if (children.length > 0) {
-          if (layer.children) {
-            return { ...layer, children: insertAfter(layer.children, parentLayer, insertIndex) };
-          } else if (layer.items) {
-            return { ...layer, items: insertAfter(layer.items, parentLayer, insertIndex) };
-          }
+        
+        if (layer.children && layer.children.length > 0) {
+          return { ...layer, children: insertAfter(layer.children, parentLayer, insertIndex) };
         }
+        
         return layer;
       });
     };
@@ -671,7 +619,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         ...layer,
         id: newId,
         children: layer.children?.map(regenerateIds),
-        items: layer.items?.map(regenerateIds),
       };
     };
 
@@ -692,15 +639,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           return { parent, index: i, propertyName };
         }
         
-        // Search both children and items arrays when they exist
-        // Using || only searches one, missing layers in the other array
+        // Search only children array
         if (layer.children && layer.children.length > 0) {
           const found = findParentAndIndex(layer.children, targetId, layer, 'children');
-          if (found) return found;
-        }
-        
-        if (layer.items && layer.items.length > 0) {
-          const found = findParentAndIndex(layer.items, targetId, layer, 'items');
           if (found) return found;
         }
       }
@@ -731,41 +672,17 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Find and update the parent
       return layers.map(layer => {
         if (layer.id === parentLayer.id) {
-          // Use the property name where the target was actually found
-          const propertyToUse = targetPropertyName || (layer.items ? 'items' : 'children');
-          
-          if (propertyToUse === 'items') {
-            const newItems = [...(layer.items || [])];
-            newItems.splice(insertIndex + 1, 0, newLayer);
-            return { ...layer, items: newItems };
-          } else {
-            const newChildren = [...(layer.children || [])];
-            newChildren.splice(insertIndex + 1, 0, newLayer);
-            return { ...layer, children: newChildren };
-          }
+          const children = [...(layer.children || [])];
+          children.splice(insertIndex + 1, 0, newLayer);
+          return { ...layer, children };
         }
         
-        // Recursively search in both children and items
-        const updatedLayer = { ...layer };
-        let modified = false;
-        
+        // Recursively search in children
         if (layer.children && layer.children.length > 0) {
-          const newChildren = insertAfter(layer.children, parentLayer, insertIndex, targetPropertyName);
-          if (newChildren !== layer.children) {
-            updatedLayer.children = newChildren;
-            modified = true;
-          }
+          return { ...layer, children: insertAfter(layer.children, parentLayer, insertIndex, targetPropertyName) };
         }
         
-        if (layer.items && layer.items.length > 0) {
-          const newItems = insertAfter(layer.items, parentLayer, insertIndex, targetPropertyName);
-          if (newItems !== layer.items) {
-            updatedLayer.items = newItems;
-            modified = true;
-          }
-        }
-        
-        return modified ? updatedLayer : layer;
+        return layer;
       });
     };
 
@@ -793,47 +710,25 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         ...layer,
         id: newId,
         children: layer.children?.map(regenerateIds),
-        items: layer.items?.map(regenerateIds),
       };
     };
 
     const newLayer = regenerateIds(cloneDeep(layerToPaste));
     console.log('🟢 NEW LAYER WITH IDS:', newLayer);
 
-    // Insert as last child of target layer - handle both children and items
+    // Insert as last child of target layer
     const insertInside = (layers: Layer[]): Layer[] => {
       return layers.map(layer => {
         if (layer.id === targetLayerId) {
           console.log('🎯 FOUND TARGET LAYER:', layer);
-          
-          // Determine which property to use (prefer items, fall back to children)
-          const hasItems = layer.items !== undefined;
-          const hasChildren = layer.children !== undefined;
-          
-          if (hasItems) {
-            const updated = { ...layer, items: [...(layer.items || []), newLayer] };
-            console.log('✅ UPDATED LAYER (items):', updated);
-            return updated;
-          } else if (hasChildren) {
-            const updated = { ...layer, children: [...(layer.children || []), newLayer] };
-            console.log('✅ UPDATED LAYER (children):', updated);
-            return updated;
-          } else {
-            // If neither exists, create items array
-            const updated = { ...layer, items: [newLayer] };
-            console.log('✅ CREATED ITEMS ARRAY:', updated);
-            return updated;
-          }
+          const updated = { ...layer, children: [...(layer.children || []), newLayer] };
+          console.log('✅ UPDATED LAYER:', updated);
+          return updated;
         }
         
-        // Recursively search in children/items
-        const hasChildren = (layer.children && layer.children.length > 0);
-        const hasItems = (layer.items && layer.items.length > 0);
-        
-        if (hasItems) {
-          return { ...layer, items: insertInside(layer.items!) };
-        } else if (hasChildren) {
-          return { ...layer, children: insertInside(layer.children!) };
+        // Recursively search in children
+        if (layer.children && layer.children.length > 0) {
+          return { ...layer, children: insertInside(layer.children) };
         }
         
         return layer;

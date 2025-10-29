@@ -18,7 +18,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
       name: 'h2',
       classes: ['text-3xl', 'font-bold', 'text-gray-900'],
       text: 'Heading',
-      items: [], // Can contain inline elements
+      children: [], // Can contain inline elements
       design: {
         typography: {
           isActive: true,
@@ -37,7 +37,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
       name: 'p',
       classes: ['text-base', 'text-gray-700'],
       text: 'This is a paragraph. Edit this text to customize it.',
-      items: [], // Can contain inline elements
+      children: [], // Can contain inline elements
       formattable: true,
       design: {
         typography: {
@@ -56,7 +56,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
       name: 'span',
       classes: ['text-base'],
       text: 'Text',
-      items: [], // Can contain inline elements
+      children: [], // Can contain inline elements
       formattable: true,
       design: {
         typography: {
@@ -74,7 +74,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
       name: 'div',
       classes: ['prose', 'max-w-none'],
       text: '<p>This is rich text content. You can format it with <strong>bold</strong>, <em>italic</em>, and more.</p>',
-      items: [], // Can contain any elements
+      children: [], // Can contain any elements
       formattable: true,
       design: {
         typography: {

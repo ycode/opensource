@@ -107,8 +107,7 @@ export interface Layer {
   style?: string; // Style preset name
   
   // Children
-  items?: Layer[]; // Rename children to items for consistency
-  children?: Layer[]; // Legacy compatibility
+  children?: Layer[];
   open?: boolean; // Collapsed/expanded state in tree
   
   // Attributes (for HTML elements)
@@ -139,9 +138,9 @@ export interface Layer {
   url?: string; // Image URL
   alt?: string;
   
-  // Legacy compatibility
-  content?: string; // For text/heading layers
-  src?: string;     // For image layers
+  // Legacy properties
+  content?: string; // For text/heading layers (use text instead)
+  src?: string;     // For image layers (use url instead)
 }
 
 // Page Types

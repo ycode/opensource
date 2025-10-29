@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
-import { getHtmlTag, getClassesString, getChildren, getText, getImageUrl } from '../../lib/layer-utils';
+import { getHtmlTag, getClassesString, getText, getImageUrl } from '../../lib/layer-utils';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 
 interface LayerRendererProps {
@@ -88,7 +88,7 @@ const LayerItem: React.FC<{
   pageId,
 }) => {
   const isSelected = selectedLayerId === layer.id;
-  const hasChildren = (getChildren(layer) && getChildren(layer)!.length > 0) || false;
+  const hasChildren = (layer.children && layer.children.length > 0) || false;
   const isEditing = editingLayerId === layer.id;
   const isTextEditable = layer.formattable || layer.type === 'text' || layer.type === 'heading';
   const isDragging = activeLayerId === layer.id;
@@ -96,7 +96,7 @@ const LayerItem: React.FC<{
   const classesString = getClassesString(layer);
   const textContent = getText(layer);
   const imageUrl = getImageUrl(layer);
-  const children = getChildren(layer);
+  const children = layer.children;
 
   // Use sortable for drag and drop
   const {
