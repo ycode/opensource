@@ -365,13 +365,26 @@ export default function LayersTree({
       return;
     }
 
-    // Calculate pointer position accounting for drag delta
-    const pointerY = event.activatorEvent && 'clientY' in event.activatorEvent 
-      ? (event.activatorEvent.clientY as number) + event.delta.y
-      : event.over.rect.top + event.over.rect.height / 2;
-
+    // Calculate pointer position relative to the hovered element
+    // Use the current drag event's active position for accurate detection
+    const activeRect = event.active.rect.current;
+    if (!activeRect.initial) {
+      setOverId(overId);
+      setDropPosition(null);
+      return;
+    }
+    
+    const pointerY = activeRect.translated?.top ?? activeRect.initial.top;
+    
     const { top, height } = event.over.rect;
-    const offsetY = pointerY - top;
+    
+    // Calculate where the pointer is relative to the hovered element
+    // pointerY is the dragged element's position, we need to account for the offset
+    const draggedItemHeight = activeRect.initial.height;
+    const cursorOffset = draggedItemHeight / 2; // Assume cursor is in the middle of dragged item
+    const actualPointerY = pointerY + cursorOffset;
+    
+    const offsetY = actualPointerY - top;
     const relativeY = offsetY / height;
     
     // Check if node can have children using the shared utility
