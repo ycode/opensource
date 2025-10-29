@@ -137,6 +137,85 @@ export default function YCodeBuilder() {
         return;
       }
 
+      // Arrow Up/Down - Reorder layer within siblings
+      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && currentPageId && selectedLayerId) {
+        e.preventDefault();
+        
+        const draft = draftsByPageId[currentPageId];
+        if (!draft) return;
+        
+        const direction = e.key === 'ArrowUp' ? -1 : 1;
+        
+        // Find the layer, its parent, and its index within siblings
+        const findLayerInfo = (
+          layers: Layer[], 
+          targetId: string, 
+          parent: Layer | null = null
+        ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
+          for (let i = 0; i < layers.length; i++) {
+            const layer = layers[i];
+            if (layer.id === targetId) {
+              return { layer, parent, siblings: layers, index: i };
+            }
+            if (layer.children) {
+              const found = findLayerInfo(layer.children, targetId, layer);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        
+        const info = findLayerInfo(draft.layers, selectedLayerId);
+        if (!info) return;
+        
+        const { siblings, index } = info;
+        const newIndex = index + direction;
+        
+        // Check bounds
+        if (newIndex < 0 || newIndex >= siblings.length) {
+          console.log('Cannot move - at boundary');
+          return;
+        }
+        
+        // Swap the layers
+        const reorderLayers = (layers: Layer[]): Layer[] => {
+          return layers.map(layer => {
+            // If this is the parent containing our siblings, reorder them
+            if (info.parent && layer.id === info.parent.id) {
+              const newChildren = [...(layer.children || [])];
+              // Swap
+              [newChildren[index], newChildren[newIndex]] = [newChildren[newIndex], newChildren[index]];
+              return { ...layer, children: newChildren };
+            }
+            
+            // Recursively process children
+            if (layer.children) {
+              return { ...layer, children: reorderLayers(layer.children) };
+            }
+            
+            return layer;
+          });
+        };
+        
+        let newLayers: Layer[];
+        
+        // If at root level, reorder root array directly
+        if (!info.parent) {
+          newLayers = [...draft.layers];
+          [newLayers[index], newLayers[newIndex]] = [newLayers[newIndex], newLayers[index]];
+        } else {
+          newLayers = reorderLayers(draft.layers);
+        }
+        
+        // Update the layers
+        const { setDraftLayers } = usePagesStore.getState();
+        setDraftLayers(currentPageId, newLayers);
+        
+        console.log(`Moved layer ${direction === -1 ? 'up' : 'down'}`);
+        
+        return;
+      }
+
       // Don't trigger other shortcuts if no layer is selected or no current page
       if (!selectedLayerId || !currentPageId) return;
 
