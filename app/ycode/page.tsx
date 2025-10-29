@@ -10,6 +10,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useEditorStore } from '../../stores/useEditorStore';
 import { usePagesStore } from '../../stores/usePagesStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useClipboardStore } from '../../stores/useClipboardStore';
 import LeftSidebar from './components/LeftSidebar';
 import CenterCanvas from './components/CenterCanvas';
 import RightSidebar from './components/RightSidebar';
@@ -21,7 +22,8 @@ import type { Layer } from '../../types';
 export default function YCodeBuilder() {
   const { signOut, user } = useAuthStore();
   const { selectedLayerId, setSelectedLayerId, currentPageId, setCurrentPageId, undo, redo, canUndo, canRedo, pushHistory } = useEditorStore();
-  const { updateLayer, draftsByPageId, deleteLayer, saveDraft, loadPages, loadDraft, initDraft } = usePagesStore();
+  const { updateLayer, draftsByPageId, deleteLayer, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, duplicateLayer, pasteAfter } = usePagesStore();
+  const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard } = useClipboardStore();
   const pages = usePagesStore((state) => state.pages);
   const [copiedLayer, setCopiedLayer] = useState<Layer | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -82,6 +84,82 @@ export default function YCodeBuilder() {
       }
     }
   }, [currentPageId, pages, setCurrentPageId, draftsByPageId, loadDraft, initDraft]);
+
+  // Keyboard shortcuts for layer operations
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // Don't trigger if no layer is selected or no current page
+      if (!selectedLayerId || !currentPageId) return;
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const modKey = isMac ? e.metaKey : e.ctrlKey;
+
+      // Copy (Cmd/Ctrl + C)
+      if (modKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        const layer = copyLayerFromStore(currentPageId, selectedLayerId);
+        if (layer) {
+          copyToClipboard(layer, currentPageId);
+          console.log('Layer copied!');
+        }
+      }
+
+      // Cut (Cmd/Ctrl + X)
+      else if (modKey && e.key.toLowerCase() === 'x') {
+        e.preventDefault();
+        // Don't allow cutting Body layer
+        const draft = draftsByPageId[currentPageId];
+        const layerToCut = draft?.layers.find(l => l.id === selectedLayerId);
+        if (layerToCut && layerToCut.id !== 'body' && !layerToCut.locked) {
+          const layer = copyLayerFromStore(currentPageId, selectedLayerId);
+          if (layer) {
+            cutToClipboard(layer, currentPageId);
+            deleteLayer(currentPageId, selectedLayerId);
+            setSelectedLayerId(null);
+            console.log('Layer cut!');
+          }
+        }
+      }
+
+      // Paste (Cmd/Ctrl + V)
+      else if (modKey && e.key.toLowerCase() === 'v' && !e.shiftKey) {
+        e.preventDefault();
+        if (clipboardLayer) {
+          pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
+          console.log('Layer pasted!');
+        }
+      }
+
+      // Duplicate (Cmd/Ctrl + D)
+      else if (modKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        duplicateLayer(currentPageId, selectedLayerId);
+        console.log('Layer duplicated!');
+      }
+
+      // Delete (Delete or Backspace)
+      else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        // Don't allow deleting Body layer
+        const draft = draftsByPageId[currentPageId];
+        const layerToDelete = draft?.layers.find(l => l.id === selectedLayerId);
+        if (layerToDelete && layerToDelete.id !== 'body' && !layerToDelete.locked) {
+          deleteLayer(currentPageId, selectedLayerId);
+          setSelectedLayerId(null);
+          console.log('Layer deleted!');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedLayerId, currentPageId, clipboardLayer, draftsByPageId, copyLayerFromStore, copyToClipboard, cutToClipboard, deleteLayer, duplicateLayer, pasteAfter, setSelectedLayerId]);
 
   // Handle undo
   const handleUndo = () => {

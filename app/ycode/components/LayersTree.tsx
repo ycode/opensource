@@ -18,12 +18,14 @@ import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, F
 import type { Layer } from '../../../types';
 import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
 import { cn } from '../../../lib/utils';
+import LayerContextMenu from './LayerContextMenu';
 
 interface LayersTreeProps {
   layers: Layer[];
   selectedLayerId: string | null;
   onLayerSelect: (layerId: string) => void;
   onReorder: (newLayers: Layer[]) => void;
+  pageId: string;
 }
 
 interface LayerRowProps {
@@ -35,6 +37,7 @@ interface LayerRowProps {
   dropPosition: 'above' | 'below' | 'inside' | null;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
+  pageId: string;
 }
 
 // Element icon mapping - Now supports both old 'type' and new 'name' properties
@@ -150,6 +153,7 @@ function LayerRow({
   dropPosition,
   onSelect,
   onToggle,
+  pageId,
 }: LayerRowProps) {
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
@@ -165,90 +169,95 @@ function LayerRow({
     setDropRef(element);
   };
 
-  const hasChildren = node.layer.children && node.layer.children.length > 0;
+  const hasChildren = (node.layer.children && node.layer.children.length > 0) || (node.layer.items && node.layer.items.length > 0);
   const isCollapsed = node.collapsed || false;
   
   const ElementIcon = elementIcons[getIconKey(node.layer)] || Square;
 
+  // Check if this is the Body layer (locked)
+  const isLocked = node.layer.id === 'body' || node.layer.locked === true;
+
   return (
-    <div className="relative">
-      {/* Vertical connector line */}
-      {node.depth > 0 && (
-        <div
-          className="absolute top-0 bottom-0 w-px bg-zinc-700"
-          style={{
-            left: `${node.depth * 20 - 2}px`,
-          }}
-        />
-      )}
-
-      {/* Drop Indicators */}
-      {isOver && dropPosition === 'above' && (
-        <div 
-          className="absolute top-0 left-0 right-0 h-px bg-blue-500 z-50"
-          style={{
-            marginLeft: `${node.depth * 20}px`,
-          }}
-        >
-          <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-blue-500 border border-zinc-900" />
-        </div>
-      )}
-      {isOver && dropPosition === 'below' && (
-        <div 
-          className="absolute bottom-0 left-0 right-0 h-px bg-blue-500 z-50"
-          style={{
-            marginLeft: `${node.depth * 20}px`,
-          }}
-        >
-          <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-blue-500 border border-zinc-900" />
-        </div>
-      )}
-      {isOver && dropPosition === 'inside' && (
-        <div className="absolute inset-0 border-2 border-blue-500 rounded bg-blue-500/10 z-40 pointer-events-none" />
-      )}
-
-      {/* Main Row */}
-      <div
-        ref={setRefs}
-        {...attributes}
-        {...listeners}
-        data-drag-active={isDragActive}
-        data-layer-id={node.id}
-        className={cn(
-          'group relative flex items-center h-8 px-2 transition-all',
-          !isDragActive && !isDragging && 'hover:bg-zinc-700/80 hover:rounded',
-          isSelected && 'bg-[rgb(0_125_255/0.8)] text-white rounded',
-          isSelected && !isDragActive && !isDragging && 'hover:bg-[rgb(0_125_255/0.8)]',
-          isDragging && 'opacity-40',
-          !isDragActive && 'cursor-grab active:cursor-grabbing'
+    <LayerContextMenu layerId={node.id} pageId={pageId} isLocked={isLocked} onLayerSelect={onSelect}>
+      <div className="relative">
+        {/* Vertical connector line */}
+        {node.depth > 0 && (
+          <div
+            className="absolute top-0 bottom-0 w-px bg-zinc-700"
+            style={{
+              left: `${node.depth * 20 - 2}px`,
+            }}
+          />
         )}
-        style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
-        onClick={() => onSelect(node.id)}
-      >
-        {/* Expand/Collapse Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle(node.id);
-          }}
+
+        {/* Drop Indicators */}
+        {isOver && dropPosition === 'above' && (
+          <div 
+            className="absolute top-0 left-0 right-0 h-px bg-blue-500 z-50"
+            style={{
+              marginLeft: `${node.depth * 20}px`,
+            }}
+          >
+            <div className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-blue-500 border border-zinc-900" />
+          </div>
+        )}
+        {isOver && dropPosition === 'below' && (
+          <div 
+            className="absolute bottom-0 left-0 right-0 h-px bg-blue-500 z-50"
+            style={{
+              marginLeft: `${node.depth * 20}px`,
+            }}
+          >
+            <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-blue-500 border border-zinc-900" />
+          </div>
+        )}
+        {isOver && dropPosition === 'inside' && (
+          <div className="absolute inset-0 border-2 border-blue-500 rounded bg-blue-500/10 z-40 pointer-events-none" />
+        )}
+
+        {/* Main Row */}
+        <div
+          ref={setRefs}
+          {...attributes}
+          {...listeners}
+          data-drag-active={isDragActive}
+          data-layer-id={node.id}
           className={cn(
-            'w-4 h-4 flex items-center justify-center flex-shrink-0 transition-transform duration-150',
-            hasChildren ? '' : 'invisible',
-            isCollapsed ? '' : 'rotate-90'
+            'group relative flex items-center h-8 px-2 transition-all',
+            !isDragActive && !isDragging && 'hover:bg-zinc-700/80 hover:rounded',
+            isSelected && 'bg-[rgb(0_125_255/0.8)] text-white rounded',
+            isSelected && !isDragActive && !isDragging && 'hover:bg-[rgb(0_125_255/0.8)]',
+            isDragging && 'opacity-40',
+            !isDragActive && 'cursor-grab active:cursor-grabbing'
           )}
+          style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
+          onClick={() => onSelect(node.id)}
         >
-          <ChevronRight className="w-3 h-3 text-zinc-400" />
-        </button>
+          {/* Expand/Collapse Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(node.id);
+            }}
+            className={cn(
+              'w-4 h-4 flex items-center justify-center flex-shrink-0 transition-transform duration-150',
+              hasChildren ? '' : 'invisible',
+              isCollapsed ? '' : 'rotate-90'
+            )}
+          >
+            <ChevronRight className="w-3 h-3 text-zinc-400" />
+          </button>
 
-        {/* Layer Icon */}
-        <ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400 mx-1.5" />
+          {/* Layer Icon */}
+          <ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400 mx-1.5" />
 
-        {/* Label */}
-        <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap">
-          {getLayerDisplayName(node.layer)}
-        </span>
+          {/* Label */}
+          <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap">
+            {getLayerDisplayName(node.layer)}
+          </span>
+        </div>
       </div>
-    </div>
+    </LayerContextMenu>
   );
 }
 
@@ -258,6 +267,7 @@ export default function LayersTree({
   selectedLayerId,
   onLayerSelect,
   onReorder,
+  pageId,
 }: LayersTreeProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -705,6 +715,7 @@ export default function LayersTree({
             dropPosition={overId === node.id ? dropPosition : null}
             onSelect={handleSelect}
             onToggle={handleToggle}
+            pageId={pageId}
           />
         ))}
       </div>

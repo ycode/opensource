@@ -5,6 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
 import { getHtmlTag, getClassesString, getChildren, getText, getImageUrl } from '../../lib/layer-utils';
+import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -15,6 +16,7 @@ interface LayerRendererProps {
   enableDragDrop?: boolean;
   activeLayerId?: string | null;
   projected?: { depth: number; parentId: string | null } | null;
+  pageId?: string;
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({ 
@@ -26,6 +28,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   enableDragDrop = false,
   activeLayerId = null,
   projected = null,
+  pageId = '',
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -47,6 +50,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
           setEditingLayerId={setEditingLayerId}
           editingContent={editingContent}
           setEditingContent={setEditingContent}
+          pageId={pageId}
         />
       ))}
     </>
@@ -67,6 +71,7 @@ const LayerItem: React.FC<{
   setEditingLayerId: (id: string | null) => void;
   editingContent: string;
   setEditingContent: (content: string) => void;
+  pageId: string;
 }> = ({
   layer,
   isEditMode,
@@ -80,6 +85,7 @@ const LayerItem: React.FC<{
   setEditingLayerId,
   editingContent,
   setEditingContent,
+  pageId,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const hasChildren = (getChildren(layer) && getChildren(layer)!.length > 0) || false;
@@ -154,6 +160,9 @@ const LayerItem: React.FC<{
     // Check if element is truly empty (no text, no children)
     const isEmpty = !textContent && (!children || children.length === 0);
     
+    // Check if this is the Body layer (locked)
+    const isLocked = layer.id === 'body' || layer.locked === true;
+    
     // Build props for the element
     const elementProps: any = {
       ref: setNodeRef,
@@ -165,15 +174,24 @@ const LayerItem: React.FC<{
       ...(enableDragDrop && !isEditing ? { ...attributes, ...listeners } : attributes),
     };
     
-    // Add editor event handlers if in edit mode
+    // Add editor event handlers if in edit mode (but not for context menu trigger)
     if (isEditMode && !isEditing) {
+      const originalOnClick = elementProps.onClick;
       elementProps.onClick = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onLayerClick?.(layer.id);
+        // Only handle if not a context menu trigger
+        if (e.button !== 2) {
+          e.stopPropagation();
+          onLayerClick?.(layer.id);
+        }
+        originalOnClick?.(e);
       };
       elementProps.onDoubleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         startEditing();
+      };
+      // Prevent context menu from bubbling
+      elementProps.onContextMenu = (e: React.MouseEvent) => {
+        e.stopPropagation();
       };
     }
 
@@ -222,6 +240,7 @@ const LayerItem: React.FC<{
               enableDragDrop={enableDragDrop}
               activeLayerId={activeLayerId}
               projected={projected}
+              pageId={pageId}
             />
           )}
         </Tag>
@@ -282,13 +301,31 @@ const LayerItem: React.FC<{
             enableDragDrop={enableDragDrop}
             activeLayerId={activeLayerId}
             projected={projected}
+            pageId={pageId}
           />
         )}
       </Tag>
     );
   };
 
-  return renderContent();
+  // Wrap with context menu in edit mode
+  const content = renderContent();
+  
+  if (isEditMode && pageId && !isEditing) {
+    const isLocked = layer.id === 'body' || layer.locked === true;
+    return (
+      <LayerContextMenu 
+        layerId={layer.id} 
+        pageId={pageId} 
+        isLocked={isLocked}
+        onLayerSelect={onLayerClick}
+      >
+        {content}
+      </LayerContextMenu>
+    );
+  }
+
+  return content;
 };
 
 export default LayerRenderer;

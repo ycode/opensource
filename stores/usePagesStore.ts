@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import type { Layer, Page, PageVersion } from '../types';
 import { pagesApi, pageVersionsApi } from '../lib/api';
 import { getTemplate } from '../lib/templates/blocks';
+import { cloneDeep } from 'lodash';
 
 interface PagesState {
   pages: Page[];
@@ -27,6 +28,10 @@ interface PagesActions {
   updateLayer: (pageId: string, layerId: string, updates: Partial<Layer>) => void;
   moveLayer: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => boolean;
   setDraftLayers: (pageId: string, layers: Layer[]) => void;
+  copyLayer: (pageId: string, layerId: string) => Layer | null;
+  duplicateLayer: (pageId: string, layerId: string) => void;
+  pasteAfter: (pageId: string, targetLayerId: string, layerToPaste: Layer) => void;
+  pasteInside: (pageId: string, targetLayerId: string, layerToPaste: Layer) => void;
 }
 
 type PagesStore = PagesState & PagesActions;
@@ -36,9 +41,20 @@ function updateLayerInTree(tree: Layer[], layerId: string, updater: (l: Layer) =
     if (node.id === layerId) {
       return updater(node);
     }
-    if (node.children && node.children.length > 0) {
-      return { ...node, children: updateLayerInTree(node.children, layerId, updater) };
+    
+    // Support both children and items
+    const nestedLayers = node.items || node.children;
+    if (nestedLayers && nestedLayers.length > 0) {
+      const updated = updateLayerInTree(nestedLayers, layerId, updater);
+      
+      // Preserve the original property name
+      if (node.items) {
+        return { ...node, items: updated };
+      } else {
+        return { ...node, children: updated };
+      }
     }
+    
     return node;
   });
 }
@@ -298,12 +314,21 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Add to root
       newLayers = [...draft.layers, newLayer];
     } else {
-      // Add as child to parent
-      newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
-        ...parent,
-        children: [...(parent.children || []), newLayer],
-        items: [...(parent.items || parent.children || []), newLayer],
-      }));
+      // Add as child to parent - preserve the parent's property type (items or children)
+      newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => {
+        const nestedLayers = parent.items || parent.children || [];
+        const updated = [...nestedLayers, newLayer];
+        
+        // Preserve the original property name or default to items
+        if (parent.items !== undefined) {
+          return { ...parent, items: updated };
+        } else if (parent.children !== undefined) {
+          return { ...parent, children: updated };
+        } else {
+          // Default to items for new containers
+          return { ...parent, items: updated };
+        }
+      });
     }
 
     set({ 
@@ -319,12 +344,17 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (! draft) return;
 
-    // Helper: Find layer by ID
+    console.log('🔴 DELETE LAYER:', { pageId, layerId });
+
+    // Helper: Find layer by ID (supports both children and items)
     const findLayer = (tree: Layer[]): Layer | null => {
       for (const node of tree) {
         if (node.id === layerId) return node;
-        if (node.children) {
-          const found = findLayer(node.children);
+        
+        // Check both children and items
+        const nestedLayers = node.items || node.children;
+        if (nestedLayers) {
+          const found = findLayer(nestedLayers);
           if (found) return found;
         }
       }
@@ -339,16 +369,30 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       return;
     }
 
+    console.log('🎯 FOUND LAYER TO DELETE:', layerToDelete);
+
+    // Helper: Remove from tree (supports both children and items)
     const removeFromTree = (tree: Layer[]): Layer[] => {
       return tree
         .filter(node => node.id !== layerId)
-        .map(node => ({
-          ...node,
-          children: node.children ? removeFromTree(node.children) : undefined,
-        }));
+        .map(node => {
+          const nestedLayers = node.items || node.children;
+          if (!nestedLayers) return node;
+          
+          const updated = removeFromTree(nestedLayers);
+          
+          // Preserve the original property name
+          if (node.items) {
+            return { ...node, items: updated };
+          } else {
+            return { ...node, children: updated };
+          }
+        });
     };
 
     const newLayers = removeFromTree(draft.layers);
+    console.log('✅ LAYERS AFTER DELETE:', newLayers);
+    
     set({ 
       draftsByPageId: { 
         ...draftsByPageId, 
@@ -495,6 +539,299 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     });
     
     console.log('✅ SET DRAFT LAYERS: State updated successfully');
+  },
+
+  copyLayer: (pageId, layerId) => {
+    const { draftsByPageId } = get();
+    const draft = draftsByPageId[pageId];
+    if (!draft) return null;
+
+    const findLayer = (layers: Layer[], id: string): Layer | null => {
+      for (const layer of layers) {
+        if (layer.id === id) return layer;
+        if (layer.children) {
+          const found = findLayer(layer.children, id);
+          if (found) return found;
+        }
+        if (layer.items) {
+          const found = findLayer(layer.items, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const layer = findLayer(draft.layers, layerId);
+    if (!layer) return null;
+
+    // Deep clone the layer
+    return cloneDeep(layer);
+  },
+
+  duplicateLayer: (pageId, layerId) => {
+    const { draftsByPageId, copyLayer } = get();
+    const draft = draftsByPageId[pageId];
+    if (!draft) return;
+
+    // Copy the layer
+    const layerCopy = copyLayer(pageId, layerId);
+    if (!layerCopy) return;
+
+    // Regenerate IDs for the copy
+    const regenerateIds = (layer: Layer): Layer => {
+      const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      return {
+        ...layer,
+        id: newId,
+        children: layer.children?.map(regenerateIds),
+        items: layer.items?.map(regenerateIds),
+      };
+    };
+
+    const newLayer = regenerateIds(layerCopy);
+
+    // Find parent and index of the original layer
+    const findParentAndIndex = (
+      layers: Layer[],
+      targetId: string,
+      parent: Layer | null = null,
+      index: number = 0
+    ): { parent: Layer | null; index: number } | null => {
+      for (let i = 0; i < layers.length; i++) {
+        const layer = layers[i];
+        if (layer.id === targetId) {
+          return { parent, index: i };
+        }
+        const children = layer.children || layer.items || [];
+        if (children.length > 0) {
+          const found = findParentAndIndex(children, targetId, layer, i);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const result = findParentAndIndex(draft.layers, layerId);
+    if (!result) return;
+
+    // Insert the duplicate after the original layer
+    const insertAfter = (layers: Layer[], parentLayer: Layer | null, insertIndex: number): Layer[] => {
+      if (parentLayer === null) {
+        // Insert at root level
+        const newLayers = [...layers];
+        newLayers.splice(insertIndex + 1, 0, newLayer);
+        return newLayers;
+      }
+
+      // Find and update the parent
+      return layers.map(layer => {
+        if (layer.id === parentLayer.id) {
+          const children = layer.children || layer.items || [];
+          const newChildren = [...children];
+          newChildren.splice(insertIndex + 1, 0, newLayer);
+          
+          if (layer.children) {
+            return { ...layer, children: newChildren };
+          } else if (layer.items) {
+            return { ...layer, items: newChildren };
+          }
+          return { ...layer, children: newChildren };
+        }
+        const children = layer.children || layer.items || [];
+        if (children.length > 0) {
+          if (layer.children) {
+            return { ...layer, children: insertAfter(layer.children, parentLayer, insertIndex) };
+          } else if (layer.items) {
+            return { ...layer, items: insertAfter(layer.items, parentLayer, insertIndex) };
+          }
+        }
+        return layer;
+      });
+    };
+
+    const newLayers = insertAfter(draft.layers, result.parent, result.index);
+
+    set({
+      draftsByPageId: {
+        ...draftsByPageId,
+        [pageId]: { ...draft, layers: newLayers },
+      },
+    });
+  },
+
+  pasteAfter: (pageId, targetLayerId, layerToPaste) => {
+    const { draftsByPageId } = get();
+    const draft = draftsByPageId[pageId];
+    if (!draft) return;
+
+    console.log('🟡 PASTE AFTER:', { pageId, targetLayerId, layerToPaste });
+
+    // Regenerate IDs for the pasted layer
+    const regenerateIds = (layer: Layer): Layer => {
+      const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      return {
+        ...layer,
+        id: newId,
+        children: layer.children?.map(regenerateIds),
+        items: layer.items?.map(regenerateIds),
+      };
+    };
+
+    const newLayer = regenerateIds(cloneDeep(layerToPaste));
+    console.log('🟢 NEW LAYER WITH IDS:', newLayer);
+
+    // Find parent and index of the target layer
+    const findParentAndIndex = (
+      layers: Layer[],
+      targetId: string,
+      parent: Layer | null = null
+    ): { parent: Layer | null; index: number } | null => {
+      for (let i = 0; i < layers.length; i++) {
+        const layer = layers[i];
+        if (layer.id === targetId) {
+          console.log('🎯 FOUND TARGET:', { layer, parent, index: i });
+          return { parent, index: i };
+        }
+        const children = layer.children || layer.items || [];
+        if (children.length > 0) {
+          const found = findParentAndIndex(children, targetId, layer);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const result = findParentAndIndex(draft.layers, targetLayerId);
+    if (!result) {
+      console.error('❌ TARGET LAYER NOT FOUND');
+      return;
+    }
+
+    console.log('📍 INSERT LOCATION:', result);
+
+    // Insert after the target layer
+    const insertAfter = (layers: Layer[], parentLayer: Layer | null, insertIndex: number): Layer[] => {
+      if (parentLayer === null) {
+        // Insert at root level
+        const newLayers = [...layers];
+        newLayers.splice(insertIndex + 1, 0, newLayer);
+        console.log('✅ INSERTED AT ROOT, index:', insertIndex + 1);
+        return newLayers;
+      }
+
+      // Find and update the parent
+      return layers.map(layer => {
+        if (layer.id === parentLayer.id) {
+          const children = layer.children || layer.items || [];
+          const newChildren = [...children];
+          newChildren.splice(insertIndex + 1, 0, newLayer);
+          
+          console.log('✅ INSERTED IN PARENT:', { parentId: parentLayer.id, index: insertIndex + 1, childCount: newChildren.length });
+          
+          if (layer.children) {
+            return { ...layer, children: newChildren };
+          } else if (layer.items) {
+            return { ...layer, items: newChildren };
+          }
+          return { ...layer, children: newChildren };
+        }
+        const children = layer.children || layer.items || [];
+        if (children.length > 0) {
+          if (layer.children) {
+            return { ...layer, children: insertAfter(layer.children, parentLayer, insertIndex) };
+          } else if (layer.items) {
+            return { ...layer, items: insertAfter(layer.items, parentLayer, insertIndex) };
+          }
+        }
+        return layer;
+      });
+    };
+
+    const newLayers = insertAfter(draft.layers, result.parent, result.index);
+    console.log('🔷 NEW LAYERS TREE:', JSON.stringify(newLayers, null, 2));
+
+    set({
+      draftsByPageId: {
+        ...draftsByPageId,
+        [pageId]: { ...draft, layers: newLayers },
+      },
+    });
+    
+    console.log('✅ PASTE AFTER COMPLETE');
+  },
+
+  pasteInside: (pageId, targetLayerId, layerToPaste) => {
+    const { draftsByPageId } = get();
+    const draft = draftsByPageId[pageId];
+    if (!draft) return;
+
+    console.log('🔵 PASTE INSIDE:', { pageId, targetLayerId, layerToPaste });
+
+    // Regenerate IDs for the pasted layer
+    const regenerateIds = (layer: Layer): Layer => {
+      const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      return {
+        ...layer,
+        id: newId,
+        children: layer.children?.map(regenerateIds),
+        items: layer.items?.map(regenerateIds),
+      };
+    };
+
+    const newLayer = regenerateIds(cloneDeep(layerToPaste));
+    console.log('🟢 NEW LAYER WITH IDS:', newLayer);
+
+    // Insert as last child of target layer - handle both children and items
+    const insertInside = (layers: Layer[]): Layer[] => {
+      return layers.map(layer => {
+        if (layer.id === targetLayerId) {
+          console.log('🎯 FOUND TARGET LAYER:', layer);
+          
+          // Determine which property to use (prefer items, fall back to children)
+          const hasItems = layer.items !== undefined;
+          const hasChildren = layer.children !== undefined;
+          
+          if (hasItems) {
+            const updated = { ...layer, items: [...(layer.items || []), newLayer] };
+            console.log('✅ UPDATED LAYER (items):', updated);
+            return updated;
+          } else if (hasChildren) {
+            const updated = { ...layer, children: [...(layer.children || []), newLayer] };
+            console.log('✅ UPDATED LAYER (children):', updated);
+            return updated;
+          } else {
+            // If neither exists, create items array
+            const updated = { ...layer, items: [newLayer] };
+            console.log('✅ CREATED ITEMS ARRAY:', updated);
+            return updated;
+          }
+        }
+        
+        // Recursively search in children/items
+        const hasChildren = (layer.children && layer.children.length > 0);
+        const hasItems = (layer.items && layer.items.length > 0);
+        
+        if (hasItems) {
+          return { ...layer, items: insertInside(layer.items!) };
+        } else if (hasChildren) {
+          return { ...layer, children: insertInside(layer.children!) };
+        }
+        
+        return layer;
+      });
+    };
+
+    const newLayers = insertInside(draft.layers);
+    console.log('🔷 NEW LAYERS TREE:', JSON.stringify(newLayers, null, 2));
+
+    set({
+      draftsByPageId: {
+        ...draftsByPageId,
+        [pageId]: { ...draft, layers: newLayers },
+      },
+    });
+    
+    console.log('✅ PASTE INSIDE COMPLETE');
   },
 }));
 

@@ -289,6 +289,7 @@ export default function LeftSidebar({
                   selectedLayerId={selectedLayerId}
                   onLayerSelect={onLayerSelect}
                   onReorder={handleLayersReorder}
+                  pageId={currentPageId || ''}
                 />
               )}
             </div>

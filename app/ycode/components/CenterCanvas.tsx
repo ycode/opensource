@@ -92,6 +92,7 @@ export default function CenterCanvas({
                 onLayerUpdate={handleLayerUpdate}
                 selectedLayerId={selectedLayerId}
                 isEditMode={true}
+                pageId={currentPageId || ''}
               />
             </div>
           ) : (
