@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
+import { getHtmlTag, getClassesString, getChildren, getText, getImageUrl } from '../../lib/layer-utils';
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -81,10 +82,15 @@ const LayerItem: React.FC<{
   setEditingContent,
 }) => {
   const isSelected = selectedLayerId === layer.id;
-  const hasChildren = layer.children && layer.children.length > 0;
+  const hasChildren = (getChildren(layer) && getChildren(layer)!.length > 0) || false;
   const isEditing = editingLayerId === layer.id;
-  const isTextEditable = layer.type === 'text' || layer.type === 'heading';
+  const isTextEditable = layer.formattable || layer.type === 'text' || layer.type === 'heading';
   const isDragging = activeLayerId === layer.id;
+  const htmlTag = getHtmlTag(layer);
+  const classesString = getClassesString(layer);
+  const textContent = getText(layer);
+  const imageUrl = getImageUrl(layer);
+  const children = getChildren(layer);
 
   // Use sortable for drag and drop
   const {
@@ -105,13 +111,14 @@ const LayerItem: React.FC<{
   const startEditing = () => {
     if (isTextEditable && isEditMode) {
       setEditingLayerId(layer.id);
-      setEditingContent(layer.content || '');
+      setEditingContent(textContent || '');
     }
   };
 
   const finishEditing = () => {
     if (editingLayerId === layer.id && onLayerUpdate) {
-      onLayerUpdate(layer.id, { content: editingContent });
+      // Update both text and content for compatibility
+      onLayerUpdate(layer.id, { text: editingContent, content: editingContent });
       setEditingLayerId(null);
     }
   };
@@ -125,125 +132,163 @@ const LayerItem: React.FC<{
   // Show projection indicator if this is being dragged over
   const showProjection = projected && activeLayerId && activeLayerId !== layer.id;
 
-  return (
-    <div
-      ref={setNodeRef}
-      key={layer.id}
-      className={`${layer.classes} ${
-        isEditMode 
-          ? `relative transition-all duration-100 ${!isEditing && !isDragging ? 'cursor-pointer hover:outline hover:outline-1 hover:outline-blue-400/30 hover:outline-offset-0' : ''} ${enableDragDrop && !isEditing ? 'cursor-grab active:cursor-grabbing' : ''}` 
-          : ''
-      } ${
-        isSelected 
-          ? 'outline outline-2 outline-blue-500 outline-offset-1' 
-          : ''
-      } ${
-        isDragging ? 'opacity-30 outline-none' : ''
-      } ${
-        showProjection ? 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10' : ''
-      }`}
-      style={style}
-      {...(enableDragDrop && !isEditing ? { ...attributes, ...listeners } : {})}
-      onClick={(e) => {
-        if (isEditMode && !isEditing) {
-          e.stopPropagation();
-          onLayerClick?.(layer.id);
-        }
-      }}
-      onDoubleClick={(e) => {
-        if (isEditMode) {
-          e.stopPropagation();
-          startEditing();
-        }
-      }}
-      data-layer-id={layer.id}
-      data-layer-type={layer.type}
-    >
-            {/* Selection Badge */}
-            {isEditMode && isSelected && !isEditing && (
-              <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none">
-                {layer.type.charAt(0).toUpperCase() + layer.type.slice(1)} Selected
-                {isTextEditable && <span className="ml-2 opacity-75">• Double-click to edit</span>}
-              </div>
-            )}
+  // Build className with editor states if in edit mode
+  const editorClasses = isEditMode ? [
+    'relative',
+    'transition-all',
+    'duration-100',
+    !isEditing && !isDragging ? 'cursor-pointer hover:outline hover:outline-1 hover:outline-blue-400/30 hover:outline-offset-0' : '',
+    enableDragDrop && !isEditing ? 'cursor-grab active:cursor-grabbing' : '',
+    isSelected ? 'outline outline-2 outline-blue-500 outline-offset-1' : '',
+    isDragging ? 'opacity-30 outline-none' : '',
+    showProjection ? 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10' : '',
+  ].filter(Boolean).join(' ') : '';
 
-            {/* Render Layer Content */}
-            {layer.type === 'text' && (
-              isEditing ? (
-                <input
-                  type="text"
-                  value={editingContent}
-                  onChange={(e) => setEditingContent(e.target.value)}
-                  onBlur={finishEditing}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      finishEditing();
-                    } else if (e.key === 'Escape') {
-                      setEditingLayerId(null);
-                    }
-                  }}
-                  autoFocus
-                  className="w-full bg-white border-2 border-blue-500 rounded px-2 py-1 outline-none"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <span>{layer.content || 'Text layer'}</span>
-              )
-            )}
-            
-            {layer.type === 'heading' && (
-              isEditing ? (
-                <input
-                  type="text"
-                  value={editingContent}
-                  onChange={(e) => setEditingContent(e.target.value)}
-                  onBlur={finishEditing}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      finishEditing();
-                    } else if (e.key === 'Escape') {
-                      setEditingLayerId(null);
-                    }
-                  }}
-                  autoFocus
-                  className="w-full bg-white border-2 border-blue-500 rounded px-2 py-1 outline-none"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <h1>{layer.content || 'Heading'}</h1>
-              )
-            )}
-            
-            {layer.type === 'image' && (
-              layer.src ? (
-                <img src={layer.src} alt={layer.content || 'Image'} className="max-w-full" />
-              ) : (
-                <div className="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-500">
-                  <div className="text-center">
-                    <svg className="w-12 h-12 mx-auto mb-2 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                    </svg>
-                    <p className="text-sm">No image</p>
-                  </div>
-                </div>
-              )
-            )}
+  const fullClassName = [classesString, editorClasses].filter(Boolean).join(' ');
 
-      {/* Recursively Render Children */}
-      {hasChildren && (
-        <LayerRenderer 
-          layers={layer.children!} 
-          onLayerClick={onLayerClick}
-          onLayerUpdate={onLayerUpdate}
-          selectedLayerId={selectedLayerId}
-          isEditMode={isEditMode}
-          enableDragDrop={enableDragDrop}
-          activeLayerId={activeLayerId}
-          projected={projected}
+  // Render element-specific content
+  const renderContent = () => {
+    const Tag = htmlTag as any;
+    const attributes = layer.attributes || {};
+    
+    // Check if element is truly empty (no text, no children)
+    const isEmpty = !textContent && (!children || children.length === 0);
+    
+    // Build props for the element
+    const elementProps: any = {
+      ref: setNodeRef,
+      className: fullClassName,
+      style,
+      'data-layer-id': layer.id,
+      'data-layer-type': htmlTag,
+      'data-is-empty': isEmpty ? 'true' : 'false',
+      ...(enableDragDrop && !isEditing ? { ...attributes, ...listeners } : attributes),
+    };
+    
+    // Add editor event handlers if in edit mode
+    if (isEditMode && !isEditing) {
+      elementProps.onClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onLayerClick?.(layer.id);
+      };
+      elementProps.onDoubleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        startEditing();
+      };
+    }
+
+    // Handle special cases for void/self-closing elements
+    if (htmlTag === 'img') {
+      return (
+        <Tag
+          {...elementProps}
+          src={imageUrl || ''}
+          alt={layer.alt || 'Image'}
         />
-      )}
-    </div>
-  );
+      );
+    }
+
+    if (htmlTag === 'hr' || htmlTag === 'br') {
+      return <Tag {...elementProps} />;
+    }
+
+    if (htmlTag === 'input') {
+      return <Tag {...elementProps} />;
+    }
+
+    if (htmlTag === 'icon' || layer.icon) {
+      return (
+        <Tag
+          {...elementProps}
+          dangerouslySetInnerHTML={{ __html: layer.icon?.svg_code || '' }}
+        />
+      );
+    }
+
+    if (htmlTag === 'video' || htmlTag === 'audio') {
+      return (
+        <Tag
+          {...elementProps}
+          src={imageUrl || layer.url || ''}
+        >
+          {textContent && textContent}
+          {children && children.length > 0 && (
+            <LayerRenderer 
+              layers={children} 
+              onLayerClick={onLayerClick}
+              onLayerUpdate={onLayerUpdate}
+              selectedLayerId={selectedLayerId}
+              isEditMode={isEditMode}
+              enableDragDrop={enableDragDrop}
+              activeLayerId={activeLayerId}
+              projected={projected}
+            />
+          )}
+        </Tag>
+      );
+    }
+
+    if (htmlTag === 'iframe') {
+      return (
+        <Tag
+          {...elementProps}
+          src={layer.url || attributes.src || ''}
+        />
+      );
+    }
+
+    // Text-editable elements with inline editing
+    if (isTextEditable && isEditing) {
+      return (
+        <input
+          type="text"
+          value={editingContent}
+          onChange={(e) => setEditingContent(e.target.value)}
+          onBlur={finishEditing}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              finishEditing();
+            } else if (e.key === 'Escape') {
+              setEditingLayerId(null);
+            }
+          }}
+          autoFocus
+          className="w-full bg-white border-2 border-blue-500 rounded px-2 py-1 outline-none"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+    }
+
+    // Regular elements with text and/or children
+    return (
+      <Tag {...elementProps}>
+        {/* Selection Badge */}
+        {isEditMode && isSelected && !isEditing && (
+          <div className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none">
+            {htmlTag.charAt(0).toUpperCase() + htmlTag.slice(1)} Selected
+            {isTextEditable && <span className="ml-2 opacity-75">• Double-click to edit</span>}
+          </div>
+        )}
+        
+        {textContent && textContent}
+        
+        {children && children.length > 0 && (
+          <LayerRenderer 
+            layers={children} 
+            onLayerClick={onLayerClick}
+            onLayerUpdate={onLayerUpdate}
+            selectedLayerId={selectedLayerId}
+            isEditMode={isEditMode}
+            enableDragDrop={enableDragDrop}
+            activeLayerId={activeLayerId}
+            projected={projected}
+          />
+        )}
+      </Tag>
+    );
+  };
+
+  return renderContent();
 };
 
 export default LayerRenderer;

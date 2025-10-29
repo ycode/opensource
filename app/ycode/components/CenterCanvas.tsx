@@ -56,7 +56,7 @@ export default function CenterCanvas({
   };
 
   return (
-    <div className="flex-1 bg-neutral-900 flex flex-col">
+    <div className="flex-1 min-w-0 bg-neutral-900 flex flex-col">
       {/* Breakpoint Controls */}
       <div className="flex items-center justify-center p-4 border-b bg-neutral-950">
         <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
@@ -85,7 +85,7 @@ export default function CenterCanvas({
         >
           {/* Preview Content */}
           {layers.length > 0 ? (
-            <div className="w-full h-full relative">
+            <div id="ybody" className="w-full h-full relative">
               <LayerRenderer 
                 layers={layers} 
                 onLayerClick={setSelectedLayerId}
@@ -127,7 +127,8 @@ export default function CenterCanvas({
                         
                         <button
                           onClick={() => {
-                            addLayer(currentPageId, null, 'container');
+                            // Always add inside Body container
+                            addLayer(currentPageId, 'body', 'container');
                             setShowAddBlockPanel(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"
@@ -145,7 +146,8 @@ export default function CenterCanvas({
 
                         <button
                           onClick={() => {
-                            addLayer(currentPageId, null, 'heading');
+                            // Always add inside Body container
+                            addLayer(currentPageId, 'body', 'heading');
                             setShowAddBlockPanel(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"
@@ -163,7 +165,8 @@ export default function CenterCanvas({
 
                         <button
                           onClick={() => {
-                            addLayer(currentPageId, null, 'text');
+                            // Always add inside Body container
+                            addLayer(currentPageId, 'body', 'text');
                             setShowAddBlockPanel(false);
                           }}
                           className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"

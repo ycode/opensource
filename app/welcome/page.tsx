@@ -677,6 +677,7 @@ export default function WelcomePage() {
                 className="w-full bg-zinc-800 border border-zinc-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="••••••••"
                 disabled={loading}
+                autoComplete="new-password"
               />
               <p className="text-xs text-zinc-500 mt-1">
                 At least 6 characters
@@ -695,6 +696,7 @@ export default function WelcomePage() {
                 className="w-full bg-zinc-800 border border-zinc-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="••••••••"
                 disabled={loading}
+                autoComplete="new-password"
               />
             </div>
           </div>

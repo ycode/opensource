@@ -7,13 +7,141 @@
 // Layer Types
 export type LayerType = 'container' | 'text' | 'image' | 'heading';
 
+// Design Property Interfaces
+export interface LayoutDesign {
+  isActive?: boolean;
+  display?: string;
+  flexDirection?: string;
+  justifyContent?: string;
+  alignItems?: string;
+  gap?: string;
+  gridTemplateColumns?: string;
+  gridTemplateRows?: string;
+}
+
+export interface TypographyDesign {
+  isActive?: boolean;
+  fontSize?: string;
+  fontWeight?: string;
+  fontFamily?: string;
+  lineHeight?: string;
+  letterSpacing?: string;
+  textAlign?: string;
+  textTransform?: string;
+  textDecoration?: string;
+  color?: string;
+}
+
+export interface SpacingDesign {
+  isActive?: boolean;
+  margin?: string;
+  marginTop?: string;
+  marginRight?: string;
+  marginBottom?: string;
+  marginLeft?: string;
+  padding?: string;
+  paddingTop?: string;
+  paddingRight?: string;
+  paddingBottom?: string;
+  paddingLeft?: string;
+}
+
+export interface SizingDesign {
+  isActive?: boolean;
+  width?: string;
+  height?: string;
+  minWidth?: string;
+  minHeight?: string;
+  maxWidth?: string;
+  maxHeight?: string;
+}
+
+export interface BordersDesign {
+  isActive?: boolean;
+  borderWidth?: string;
+  borderStyle?: string;
+  borderColor?: string;
+  borderRadius?: string;
+  borderTopLeftRadius?: string;
+  borderTopRightRadius?: string;
+  borderBottomLeftRadius?: string;
+  borderBottomRightRadius?: string;
+}
+
+export interface BackgroundsDesign {
+  isActive?: boolean;
+  backgroundColor?: string;
+  backgroundImage?: string;
+  backgroundSize?: string;
+  backgroundPosition?: string;
+  backgroundRepeat?: string;
+}
+
+export interface EffectsDesign {
+  isActive?: boolean;
+  opacity?: string;
+  boxShadow?: string;
+  filter?: string;
+  backdropFilter?: string;
+}
+
+export interface PositioningDesign {
+  isActive?: boolean;
+  position?: string;
+  top?: string;
+  right?: string;
+  bottom?: string;
+  left?: string;
+  zIndex?: string;
+}
+
 export interface Layer {
   id: string;
-  type: LayerType;
-  classes: string;  // Tailwind CSS classes
+  name?: string; // Element type name: 'div', 'h1', 'button', 'section', etc.
+  customName?: string; // User-defined name
+  type?: LayerType; // For compatibility
+  
+  // Content
+  text?: string; // Text content
+  classes: string | string[]; // Tailwind CSS classes (support both formats)
+  style?: string; // Style preset name
+  
+  // Children
+  items?: Layer[]; // Rename children to items for consistency
+  children?: Layer[]; // Legacy compatibility
+  open?: boolean; // Collapsed/expanded state in tree
+  
+  // Attributes (for HTML elements)
+  attributes?: Record<string, any>;
+  
+  // Design system (structured properties)
+  design?: {
+    layout?: LayoutDesign;
+    typography?: TypographyDesign;
+    spacing?: SpacingDesign;
+    sizing?: SizingDesign;
+    borders?: BordersDesign;
+    backgrounds?: BackgroundsDesign;
+    effects?: EffectsDesign;
+    positioning?: PositioningDesign;
+  };
+  
+  // Settings (element-specific configuration)
+  settings?: Record<string, any>;
+  
+  // Special properties
+  locked?: boolean;
+  hidden?: boolean;
+  formattable?: boolean; // For text elements
+  icon?: { name: string; svg_code: string }; // For icon elements
+  
+  // Image-specific
+  url?: string; // Image URL
+  alt?: string;
+  
+  // Legacy compatibility
   content?: string; // For text/heading layers
   src?: string;     // For image layers
-  children?: Layer[];
 }
 
 // Page Types

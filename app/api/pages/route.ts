@@ -73,9 +73,17 @@ export async function POST(request: NextRequest) {
 
     console.log('[POST /api/pages] Page created:', page.id);
 
-    // Create initial empty draft
-    console.log('[POST /api/pages] Creating initial draft...');
-    await upsertDraft(page.id, []);
+    // Create initial draft with Body container
+    const bodyLayer = {
+      id: 'body',
+      type: 'container' as const,
+      classes: '',
+      children: [],
+      locked: true,
+    };
+
+    console.log('[POST /api/pages] Creating initial draft with Body layer...');
+    await upsertDraft(page.id, [bodyLayer]);
     console.log('[POST /api/pages] Draft created successfully');
 
     return noCache({

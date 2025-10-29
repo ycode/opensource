@@ -6,14 +6,7 @@
  * Displays pages list and layers tree with navigation icons
  */
 
-import React, { useEffect, useMemo, useState, useRef, useCallback, forwardRef } from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { RichTreeViewPro } from '@mui/x-tree-view-pro/RichTreeViewPro';
-import { TreeViewBaseItem } from '@mui/x-tree-view/models';
-import { useTreeItem } from '@mui/x-tree-view/useTreeItem';
-import { TreeItemProvider } from '@mui/x-tree-view/TreeItemProvider';
-import { TreeItemDragAndDropOverlay } from '@mui/x-tree-view/TreeItemDragAndDropOverlay';
-import { animated, useSpring } from '@react-spring/web';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
 import type { Layer, Page } from '../../../types';
@@ -21,26 +14,10 @@ import AssetLibrary from '../../../components/AssetLibrary';
 import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
 import { pagesApi } from '../../../lib/api';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import Icon from "@/components/ui/icon";
-import {Button} from "@/components/ui/button";
-
-// Create dark theme for MUI
-const darkTheme = createTheme({
-  palette: {
-    mode: 'dark',
-    background: {
-      default: '#18181b',
-      paper: '#18181b',
-    },
-    text: {
-      primary: '#d4d4d8',
-      secondary: '#a1a1aa',
-    },
-    primary: {
-      main: '#3b82f6',
-    },
-  },
-});
+import Icon from '@/components/ui/icon';
+import { Button } from '@/components/ui/button';
+import LayersTree from './LayersTree';
+import ElementLibrary from './ElementLibrary';
 
 // Helper function to find layer by ID recursively
 function findLayerById(layers: Layer[], id: string): Layer | null {
@@ -53,172 +30,6 @@ function findLayerById(layers: Layer[], id: string): Layer | null {
   }
   return null;
 }
-
-// TransitionComponent with React Spring animation
-function TransitionComponent(props: any) {
-  const { in: open, children, ...other } = props;
-  
-  const style = useSpring({
-    to: {
-      opacity: open ? 1 : 0,
-      transform: `translate3d(0,${open ? 0 : -10}px,0)`,
-      height: open ? 'auto' : 0,
-    },
-    config: { tension: 200, friction: 20 },
-  });
-
-  return (
-    <animated.ul style={style} {...other}>
-      {children}
-    </animated.ul>
-  );
-}
-
-// Custom Tree Item Component
-interface CustomTreeItemProps {
-  itemId: string;
-  label: string;
-  disabled?: boolean;
-  children?: React.ReactNode;
-  layersForCurrentPage: Layer[];
-  selectedLayerId: string | null;
-}
-
-const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
-  function CustomTreeItem(props, ref) {
-    const { itemId, label, disabled, children, layersForCurrentPage, selectedLayerId } = props;
-
-    const {
-      getRootProps,
-      getContentProps,
-      getIconContainerProps,
-      getLabelProps,
-      getGroupTransitionProps,
-      getDragAndDropOverlayProps,
-      status,
-    } = useTreeItem({ itemId, label, disabled, rootRef: ref });
-
-    // Find layer data to determine icon
-    const layer = useMemo(() => findLayerById(layersForCurrentPage, itemId), [layersForCurrentPage, itemId]);
-
-    const isSelected = selectedLayerId === itemId;
-    const isExpanded = status.expanded;
-    const hasChildren = Boolean(children);
-
-    const contentProps = getContentProps();
-
-    return (
-        <TreeItemProvider itemId={itemId} id={itemId}>
-        <li
-          {...getRootProps()}
-          style={{
-            listStyle: 'none',
-            margin: 0,
-            padding: 0,
-            outline: 0,
-          }}
-        >
-          <div
-            {...contentProps}
-            style={{
-              padding: '4px 8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              cursor: 'grab',
-              borderRadius: '6px',
-              marginBottom: '2px',
-              transition: 'all 150ms cubic-bezier(0.25, 0.1, 0.25, 1)',
-              backgroundColor: isSelected
-                ? '#3b82f6'
-                : status.focused
-                  ? 'rgba(63, 63, 70, 0.4)'
-                  : 'transparent',
-              color: isSelected ? '#ffffff' : '#d4d4d8',
-              position: 'relative',
-            }}
-            className="hover:bg-zinc-700/40"
-            onMouseDown={(e) => {
-              // Change cursor to grabbing on mouse down
-              e.currentTarget.style.cursor = 'grabbing';
-            }}
-            onMouseUp={(e) => {
-              // Reset cursor on mouse up
-              e.currentTarget.style.cursor = 'grab';
-            }}
-          >
-            {/* Expand/Collapse Icon */}
-            <span
-              {...getIconContainerProps()}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '16px',
-                height: '16px',
-                transition: 'transform 150ms ease-out',
-                transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-              }}
-            >
-              {hasChildren ? (
-                <svg
-                  className="w-3 h-3 text-zinc-400"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              ) : (
-                <span style={{ width: '16px' }} />
-              )}
-            </span>
-
-            {/* Layer Icon */}
-            <span
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              {getLayerIcon(layer?.type || 'container')}
-            </span>
-
-            {/* Label */}
-            <span
-              {...getLabelProps()}
-              style={{
-                flexGrow: 1,
-                fontSize: '0.875rem',
-                fontWeight: 500,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {label}
-            </span>
-
-            {/* Drag Overlay */}
-            <TreeItemDragAndDropOverlay {...getDragAndDropOverlayProps()} />
-          </div>
-
-          {/* Animated Children */}
-          {children && (
-            <TransitionComponent {...getGroupTransitionProps()}>
-              {children}
-            </TransitionComponent>
-          )}
-        </li>
-      </TreeItemProvider>
-    );
-  }
-);
 
 interface LeftSidebarProps {
   selectedLayerId: string | null;
@@ -236,13 +47,11 @@ export default function LeftSidebar({
   onActiveTabChange,
 }: LeftSidebarProps) {
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
-  const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
+  const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
-  const [expandedItems, setExpandedItems] = useState<string[]>([]);
-  const addBlockPanelRef = useRef<HTMLDivElement>(null);
-  const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, moveLayer } = usePagesStore();
+  const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
   
@@ -289,30 +98,11 @@ export default function LeftSidebar({
     return draft ? draft.layers : [];
   }, [currentPageId, draftsByPageId]);
 
-  // Convert Layer[] to MUI TreeViewBaseItem[]
-  const convertToTreeItems = useCallback((layers: Layer[]): TreeViewBaseItem[] => {
-    return layers.map((layer) => ({
-      id: layer.id,
-      label: getLayerDisplayName(layer),
-      children: layer.children ? convertToTreeItems(layer.children) : undefined,
-    }));
-  }, []);
-
-  const treeItems = useMemo(() => {
-    return convertToTreeItems(layersForCurrentPage);
-  }, [layersForCurrentPage, convertToTreeItems]);
-
-  // Handle item reordering from MUI Tree View
-  const handleItemPositionChange = useCallback((params: {
-    itemId: string;
-    oldPosition: { parentId: string | null; index: number };
-    newPosition: { parentId: string | null; index: number };
-  }) => {
+  // Handle layer reordering from drag & drop
+  const handleLayersReorder = useCallback((newLayers: Layer[]) => {
     if (!currentPageId) return;
-    
-    const { itemId, newPosition } = params;
-    moveLayer(currentPageId, itemId, newPosition.parentId, newPosition.index);
-  }, [currentPageId, moveLayer]);
+    setDraftLayers(currentPageId, newLayers);
+  }, [currentPageId, setDraftLayers]);
 
   // Helper to find layer in tree
   const findLayer = useCallback((layers: Layer[], id: string): { layer: Layer; parentId: string | null } | null => {
@@ -344,17 +134,30 @@ export default function LeftSidebar({
 
   // Helper to get parent for new layers
   const getParentForNewLayer = useCallback((): string | null => {
-    if (!selectedLayerId) return null;
+    if (!selectedLayerId) {
+      // No layer selected - add inside Body by default
+      const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
+      return bodyLayer ? 'body' : null;
+    }
     
     const selectedItem = findLayer(layersForCurrentPage, selectedLayerId);
-    if (!selectedItem) return null;
+    if (!selectedItem) {
+      // Selected layer not found - add inside Body by default
+      const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
+      return bodyLayer ? 'body' : null;
+    }
     
     // If selected is a container, add as child
     if (selectedItem.layer.type === 'container') {
       return selectedLayerId;
     }
     
-    // Otherwise, add as sibling
+    // Otherwise, add as sibling (same parent)
+    // But if parent is null (would be root level), use Body instead
+    if (selectedItem.parentId === null) {
+      return 'body';
+    }
+    
     return selectedItem.parentId;
   }, [selectedLayerId, layersForCurrentPage, findLayer]);
 
@@ -421,7 +224,8 @@ export default function LeftSidebar({
   };
 
   return (
-    <div className="w-72 shrink-0 bg-neutral-950 border-r border-white/10 flex overflow-hidden p-4">
+    <>
+      <div className="w-72 shrink-0 bg-neutral-950 border-r border-white/10 flex overflow-hidden p-4">
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(value) => {
           const newTab = value as 'pages' | 'layers' | 'cms';
@@ -441,115 +245,15 @@ export default function LeftSidebar({
               <div className="p-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-medium text-zinc-300">Layers</h3>
-                  <div className="relative">
-                    <button 
-                      onClick={() => setShowAddBlockPanel(!showAddBlockPanel)}
-                      className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
-                      title="Add Block"
-                    >
-                      <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-
-                    {/* Add Block Panel */}
-                    {showAddBlockPanel && (
-                      <div
-                        ref={addBlockPanelRef}
-                        className="absolute top-full right-0 mt-2 w-60 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden"
-                      >
-                        <div className="p-2 border-b border-zinc-700">
-                          <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Add Block</h4>
-                        </div>
-                        
-                        <div className="p-2 space-y-1">
-                        <button
-                          onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'container');
-                              setShowAddBlockPanel(false);
-                            }
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
-                        >
-                          <div className="w-8 h-8 bg-zinc-700 rounded flex items-center justify-center">
-                            <svg className="w-4 h-4 text-zinc-300" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-zinc-200">Div</div>
-                            <div className="text-xs text-zinc-500">Container element</div>
-                          </div>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'heading');
-                              setShowAddBlockPanel(false);
-                            }
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
-                        >
-                          <div className="w-8 h-8 bg-zinc-700 rounded flex items-center justify-center">
-                            <svg className="w-4 h-4 text-zinc-300" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6v10h2a1 1 0 010 2H4a1 1 0 010-2h1V5H4a1 1 0 01-1-1zm9 0a1 1 0 011-1h4a1 1 0 110 2h-2v4h2a1 1 0 110 2h-2v4h2a1 1 0 110 2h-4a1 1 0 110-2h1v-4h-1a1 1 0 010-2h1V5h-1a1 1 0 01-1-1z" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-zinc-200">Heading</div>
-                            <div className="text-xs text-zinc-500">Title text</div>
-                          </div>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'text');
-                              setShowAddBlockPanel(false);
-                            }
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
-                        >
-                          <div className="w-8 h-8 bg-zinc-700 rounded flex items-center justify-center">
-                            <svg className="w-4 h-4 text-zinc-300" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M6 4a1 1 0 011-1h6a1 1 0 110 2h-2v10h2a1 1 0 110 2H7a1 1 0 110-2h2V5H7a1 1 0 01-1-1z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-zinc-200">Paragraph</div>
-                            <div className="text-xs text-zinc-500">Body text</div>
-                          </div>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            if (currentPageId) {
-                              const parentId = getParentForNewLayer();
-                              addLayer(currentPageId, parentId, 'image');
-                              setShowAddBlockPanel(false);
-                            }
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-700 rounded text-left transition-colors"
-                        >
-                          <div className="w-8 h-8 bg-zinc-700 rounded flex items-center justify-center">
-                            <svg className="w-4 h-4 text-zinc-300" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-zinc-200">Image</div>
-                            <div className="text-xs text-zinc-500">Picture element</div>
-                          </div>
-                        </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <button 
+                    onClick={() => setShowElementLibrary(true)}
+                    className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
+                    title="Add Element"
+                  >
+                    <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                    </svg>
+                  </button>
                 </div>
 
               {!currentPageId ? (
@@ -577,39 +281,12 @@ export default function LeftSidebar({
                   </p>
                 </div>
               ) : (
-                <ThemeProvider theme={darkTheme}>
-                  <RichTreeViewPro
-                    items={treeItems}
-                    selectedItems={selectedLayerId || null}
-                    onSelectedItemsChange={(event, itemId) => {
-                      if (typeof itemId === 'string') {
-                        onLayerSelect(itemId);
-                      }
-                    }}
-                    expandedItems={expandedItems}
-                    onExpandedItemsChange={(event, itemIds) => {
-                      setExpandedItems(itemIds as string[]);
-                    }}
-                    onItemPositionChange={handleItemPositionChange}
-                    itemsReordering
-                    slots={{
-                      item: (props: any) => (
-                        <CustomTreeItem
-                          {...props}
-                          layersForCurrentPage={layersForCurrentPage}
-                          selectedLayerId={selectedLayerId}
-                        />
-                      ),
-                    }}
-                    sx={{
-                      flexGrow: 1,
-                      '--TreeView-itemChildrenIndentation': '16px',
-                      '& ul': {
-                        paddingLeft: '16px',
-                      },
-                    }}
-                  />
-                </ThemeProvider>
+                <LayersTree
+                  layers={layersForCurrentPage}
+                  selectedLayerId={selectedLayerId}
+                  onLayerSelect={onLayerSelect}
+                  onReorder={handleLayersReorder}
+                />
               )}
               </div>
           </TabsContent>
@@ -714,52 +391,15 @@ export default function LeftSidebar({
           page={editingPage}
           onSave={handleSavePage}
         />
-    </div>
+      </div>
+
+      {/* Element Library Slide-Out */}
+      {showElementLibrary && (
+        <ElementLibrary
+          isOpen={showElementLibrary}
+          onClose={() => setShowElementLibrary(false)}
+        />
+      )}
+    </>
   );
 }
-
-// Helper function to get icon for layer type
-function getLayerIcon(type: Layer['type']) {
-  switch (type) {
-    case 'container':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-        </svg>
-      );
-    case 'text':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M6 4a1 1 0 011-1h6a1 1 0 110 2h-2v10h2a1 1 0 110 2H7a1 1 0 110-2h2V5H7a1 1 0 01-1-1z" clipRule="evenodd" />
-        </svg>
-      );
-    case 'heading':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6v10h2a1 1 0 010 2H4a1 1 0 010-2h1V5H4a1 1 0 01-1-1zm9 0a1 1 0 011-1h4a1 1 0 110 2h-2v4h2a1 1 0 110 2h-2v4h2a1 1 0 110 2h-4a1 1 0 110-2h1v-4h-1a1 1 0 010-2h1V5h-1a1 1 0 01-1-1z" />
-        </svg>
-      );
-    case 'image':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-        </svg>
-      );
-    default:
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-        </svg>
-      );
-  }
-}
-
-// Helper function to get display name for layer
-function getLayerDisplayName(layer: Layer): string {
-  const typeLabel = layer.type.charAt(0).toUpperCase() + layer.type.slice(1);
-  return typeLabel;
-}
-
-
-
-
