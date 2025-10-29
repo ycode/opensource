@@ -12,7 +12,7 @@ interface BlockTemplate {
 
 export const formTemplates: Record<string, BlockTemplate> = {
   form: {
-    icon: 'file-text',
+    icon: 'block',
     name: 'Form',
     template: {
       name: 'form',
@@ -31,7 +31,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   input: {
-    icon: 'edit',
+    icon: 'block',
     name: 'Input',
     template: {
       name: 'input',
@@ -63,7 +63,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   textarea: {
-    icon: 'align-left',
+    icon: 'block',
     name: 'Textarea',
     template: {
       name: 'textarea',
@@ -95,7 +95,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   select: {
-    icon: 'chevron-down',
+    icon: 'block',
     name: 'Select',
     template: {
       name: 'select',
@@ -135,7 +135,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   checkbox: {
-    icon: 'check-square',
+    icon: 'block',
     name: 'Checkbox',
     template: {
       name: 'div',
@@ -171,7 +171,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   radio: {
-    icon: 'circle',
+    icon: 'block',
     name: 'Radio',
     template: {
       name: 'div',
@@ -208,7 +208,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   label: {
-    icon: 'tag',
+    icon: 'block',
     name: 'Label',
     template: {
       name: 'label',
@@ -227,7 +227,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
   
   submit: {
-    icon: 'check',
+    icon: 'block',
     name: 'Submit',
     template: {
       name: 'button',

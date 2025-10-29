@@ -12,7 +12,7 @@ interface BlockTemplate {
 
 export const structureTemplates: Record<string, BlockTemplate> = {
   div: {
-    icon: 'box',
+    icon: 'block',
     name: 'Block',
     template: {
       name: 'div',
@@ -25,7 +25,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
   },
   
   section: {
-    icon: 'layout',
+    icon: 'section',
     name: 'Section',
     template: {
       name: 'section',
@@ -53,7 +53,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
   },
   
   hr: {
-    icon: 'minus',
+    icon: 'separator',
     name: 'Separator',
     template: {
       name: 'hr',
