@@ -6,11 +6,22 @@
  * Shows live preview of the website being built
  */
 
+// 1. React/Next.js
 import { useMemo, useState } from 'react';
-import { usePagesStore } from '../../../stores/usePagesStore';
-import { useEditorStore } from '../../../stores/useEditorStore';
-import LayerRenderer from '../../../components/layers/LayerRenderer';
+
+// 3. ShadCN UI
+import { Button } from '@/components/ui/button';
+import Icon from '@/components/ui/icon';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// 4. Internal components
+import LayerRenderer from '../../../components/layers/LayerRenderer';
+
+// 5. Stores
+import { useEditorStore } from '../../../stores/useEditorStore';
+import { usePagesStore } from '../../../stores/usePagesStore';
+
+// 6. Types
 import type { Layer } from '../../../types';
 
 type ViewportMode = 'desktop' | 'tablet' | 'mobile';
@@ -68,7 +79,7 @@ export default function CenterCanvas({
   };
 
   return (
-    <div className="flex-1 bg-neutral-900 flex flex-col">
+    <div className="flex-1 min-w-0 bg-neutral-900 flex flex-col">
       {/* Breakpoint Controls */}
       <div className="flex items-center justify-center p-4 border-b bg-neutral-950">
         <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
@@ -97,8 +108,8 @@ export default function CenterCanvas({
         >
           {/* Preview Content */}
           {layers.length > 0 ? (
-            <div 
-              className="w-full h-full relative"
+            <div
+              id="ybody"className="w-full h-full relative"
               onClick={(e) => {
                 // Only deselect if clicking on the background (not on a layer)
                 if (e.target === e.currentTarget && onLayerDeselect) {
@@ -112,10 +123,11 @@ export default function CenterCanvas({
                 onLayerUpdate={handleLayerUpdate}
                 selectedLayerId={selectedLayerId}
                 isEditMode={true}
+                pageId={currentPageId || ''}
               />
             </div>
           ) : (
-            <div 
+            <div
               className="w-full h-full flex items-center justify-center p-12"
               onClick={(e) => {
                 // Only deselect if clicking on the background
@@ -126,9 +138,7 @@ export default function CenterCanvas({
             >
               <div className="text-center max-w-md relative">
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
-                  <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z" />
-                  </svg>
+                  <Icon name="layout" className="w-10 h-10 text-blue-500" />
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-3">
                   Start building
@@ -137,15 +147,14 @@ export default function CenterCanvas({
                   Add your first block to begin creating your page.
                 </p>
                 <div className="relative inline-block">
-                  <button 
+                  <Button
                     onClick={() => setShowAddBlockPanel(!showAddBlockPanel)}
-                    className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
+                    size="lg"
+                    className="gap-2"
                   >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                    </svg>
+                    <Icon name="plus" className="w-5 h-5" />
                     Add Block
-                  </button>
+                  </Button>
 
                   {/* Add Block Panel */}
                   {showAddBlockPanel && currentPageId && (
@@ -153,59 +162,59 @@ export default function CenterCanvas({
                       <div className="p-2">
                         <div className="text-xs text-gray-500 px-3 py-2 mb-1 font-medium">Choose a block</div>
                         
-                        <button
+                        <Button
                           onClick={() => {
-                            addLayer(currentPageId, null, 'container');
+                            // Always add inside Body container
+                            addLayer(currentPageId, 'body', 'container');
                             setShowAddBlockPanel(false);
                           }}
-                          className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"
+                          variant="ghost"
+                          className="w-full justify-start gap-3 px-3 py-3 h-auto"
                         >
-                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                            <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                            </svg>
+                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                            <Icon name="container" className="w-5 h-5 text-gray-700" />
                           </div>
-                          <div>
+                          <div className="text-left">
                             <div className="text-sm font-semibold text-gray-900">Div</div>
                             <div className="text-xs text-gray-500">Container element</div>
                           </div>
-                        </button>
+                        </Button>
 
-                        <button
+                        <Button
                           onClick={() => {
-                            addLayer(currentPageId, null, 'heading');
+                            // Always add inside Body container
+                            addLayer(currentPageId, 'body', 'heading');
                             setShowAddBlockPanel(false);
                           }}
-                          className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"
+                          variant="ghost"
+                          className="w-full justify-start gap-3 px-3 py-3 h-auto"
                         >
-                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                            <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6v10h2a1 1 0 010 2H4a1 1 0 010-2h1V5H4a1 1 0 01-1-1zm9 0a1 1 0 011-1h4a1 1 0 110 2h-2v4h2a1 1 0 110 2h-2v4h2a1 1 0 110 2h-4a1 1 0 110-2h1v-4h-1a1 1 0 010-2h1V5h-1a1 1 0 01-1-1z" />
-                            </svg>
+                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                            <Icon name="heading" className="w-5 h-5 text-gray-700" />
                           </div>
-                          <div>
+                          <div className="text-left">
                             <div className="text-sm font-semibold text-gray-900">Heading</div>
                             <div className="text-xs text-gray-500">Title text</div>
                           </div>
-                        </button>
+                        </Button>
 
-                        <button
+                        <Button
                           onClick={() => {
-                            addLayer(currentPageId, null, 'text');
+                            // Always add inside Body container
+                            addLayer(currentPageId, 'body', 'text');
                             setShowAddBlockPanel(false);
                           }}
-                          className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"
+                          variant="ghost"
+                          className="w-full justify-start gap-3 px-3 py-3 h-auto"
                         >
-                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                            <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M6 4a1 1 0 011-1h6a1 1 0 110 2h-2v10h2a1 1 0 110 2H7a1 1 0 110-2h2V5H7a1 1 0 01-1-1z" clipRule="evenodd" />
-                            </svg>
+                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                            <Icon name="type" className="w-5 h-5 text-gray-700" />
                           </div>
-                          <div>
+                          <div className="text-left">
                             <div className="text-sm font-semibold text-gray-900">Paragraph</div>
                             <div className="text-xs text-gray-500">Body text</div>
                           </div>
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   )}

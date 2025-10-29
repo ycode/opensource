@@ -51,8 +51,8 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.546 0.245 262.881);
+  --primary-foreground: oklch(0.97 0.014 254.604);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -85,8 +85,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.61 0.21 256.78);
+  --primary-foreground: oklch(0.97 0.014 254.604);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -119,4 +119,27 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* YCode Editor - Empty Element Placeholders */
+#ybody [data-layer-id][data-is-empty="true"]::before {
+  content: '';
+  display: block;
+  background-color: rgb(191 219 254 / 0.1);
+  border: 1px dashed rgb(59 130 246 / 0.5);
+  border-radius: 0.125rem;
+  color: rgb(59 130 246);
+  font-size: 0.75rem;
+  padding: 2rem;
+  text-align: center;
+  min-height: 3rem;
+}
+
+/* Special handling for void elements (img, input, hr) - they should never show placeholder */
+#ybody img[data-layer-id]::before,
+#ybody input[data-layer-id]::before,
+#ybody hr[data-layer-id]::before,
+#ybody br[data-layer-id]::before {
+  content: none;
+  display: none;
 }

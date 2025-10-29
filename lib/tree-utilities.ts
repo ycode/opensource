@@ -11,6 +11,7 @@ export interface FlattenedItem {
 
 /**
  * Flatten a tree structure into a linear array with depth information
+ * Supports both 'children' and 'items' properties for nested layers
  */
 export function flattenTree(
   items: Layer[],
@@ -200,10 +201,11 @@ export function findInsertionIndex(
 export function removeItem(items: Layer[], id: string): Layer[] {
   return items
     .filter((item) => item.id !== id)
-    .map((item) => ({
-      ...item,
-      children: item.children ? removeItem(item.children, id) : undefined,
-    }));
+    .map((item) => {
+      if (!item.children) return item;
+      
+      return { ...item, children: removeItem(item.children, id) };
+    });
 }
 
 /**
@@ -225,7 +227,7 @@ export function insertItem(
   // Insert as child of parent
   return items.map((i) => {
     if (i.id === parentId) {
-      const children = i.children ? [...i.children] : [];
+      const children = [...(i.children || [])];
       children.splice(index, 0, item);
       return { ...i, children };
     }

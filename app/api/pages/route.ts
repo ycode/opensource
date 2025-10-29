@@ -22,11 +22,11 @@ export async function GET() {
     
     const pages = await getAllPages();
     
-            console.log('[GET /api/pages] Found pages:', pages.length);
+    console.log('[GET /api/pages] Found pages:', pages.length);
 
-            return noCache({
-              data: pages,
-            });
+    return noCache({
+      data: pages,
+    });
   } catch (error) {
     console.error('[GET /api/pages] Error:', error);
     console.error('[GET /api/pages] Error message:', error instanceof Error ? error.message : 'Unknown error');
@@ -73,9 +73,17 @@ export async function POST(request: NextRequest) {
 
     console.log('[POST /api/pages] Page created:', page.id);
 
-    // Create initial empty draft
-    console.log('[POST /api/pages] Creating initial draft...');
-    await upsertDraft(page.id, []);
+    // Create initial draft with Body container
+    const bodyLayer = {
+      id: 'body',
+      type: 'container' as const,
+      classes: '',
+      children: [],
+      locked: true,
+    };
+
+    console.log('[POST /api/pages] Creating initial draft with Body layer...');
+    await upsertDraft(page.id, [bodyLayer]);
     console.log('[POST /api/pages] Draft created successfully');
 
     return noCache({

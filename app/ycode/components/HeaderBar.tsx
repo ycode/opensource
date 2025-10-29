@@ -1,13 +1,13 @@
 'use client';
 
+// 1. React/Next.js
 import { useRef, useEffect } from 'react';
-import { usePagesStore } from '../../../stores/usePagesStore';
-import type { Page } from '../../../types';
-import type { User } from '@supabase/supabase-js';
+
+// 2. External libraries
+import { LogOut } from 'lucide-react';
+
+// 3. ShadCN UI
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +16,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Spinner } from '@/components/ui/spinner';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// 4. Stores
+import { usePagesStore } from '../../../stores/usePagesStore';
+
+// 5. Types
+import type { Page } from '../../../types';
+import type { User } from '@supabase/supabase-js';
 import ActiveUsersInHeader from './ActiveUsersInHeader';
 
 interface HeaderBarProps {
@@ -81,9 +90,37 @@ export default function HeaderBar({
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="sm" className="!size-8">
+            <Button
+              variant="secondary" size="sm"
+              className="!size-8"
+            >
               <div className="text-white">
-                <svg className="size-3.5" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg"><g id="Symbols" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><g id="Sidebar" transform="translate(-30.000000, -30.000000)"><g id="Ycode"><g transform="translate(30.000000, 30.000000)"><rect id="Rectangle" x="0" y="0" width="24" height="24"></rect><path id="CurrentFill" d="M11.4241533,0 L11.4241533,5.85877951 L6.024,8.978 L12.6155735,12.7868008 L10.951,13.749 L23.0465401,6.75101349 L23.0465401,12.6152717 L3.39516096,23.9856666 L3.3703726,24 L3.34318129,23.9827156 L0.96,22.4713365 L0.96,16.7616508 L3.36417551,18.1393242 L7.476,15.76 L0.96,11.9090099 L0.96,6.05375516 L11.4241533,0 Z" fill="#ffffff"></path></g></g></g></g></svg>
+                <svg
+                  className="size-3.5" viewBox="0 0 24 24"
+                  version="1.1" xmlns="http://www.w3.org/2000/svg"
+                >
+                  <g
+                    id="Symbols" stroke="none"
+                    strokeWidth="1" fill="none"
+                    fillRule="evenodd"
+                  >
+                    <g id="Sidebar" transform="translate(-30.000000, -30.000000)">
+                      <g id="Ycode">
+                        <g transform="translate(30.000000, 30.000000)">
+                          <rect
+                            id="Rectangle" x="0"
+                            y="0" width="24"
+                            height="24"
+                          />
+                          <path
+                            id="CurrentFill" d="M11.4241533,0 L11.4241533,5.85877951 L6.024,8.978 L12.6155735,12.7868008 L10.951,13.749 L23.0465401,6.75101349 L23.0465401,12.6152717 L3.39516096,23.9856666 L3.3703726,24 L3.34318129,23.9827156 L0.96,22.4713365 L0.96,16.7616508 L3.36417551,18.1393242 L7.476,15.76 L0.96,11.9090099 L0.96,6.05375516 L11.4241533,0 Z"
+                            fill="#ffffff"
+                          />
+                        </g>
+                      </g>
+                    </g>
+                  </g>
+                </svg>
               </div>
             </Button>
           </DropdownMenuTrigger>
@@ -111,7 +148,7 @@ export default function HeaderBar({
       <div className="flex items-center gap-4">
         {/* Active Users */}
         <ActiveUsersInHeader />
-        
+
         {/* Save Status Indicator */}
         <div className="flex items-center justify-end w-[64px] text-xs text-white/50">
           {isSaving ? (
@@ -134,39 +171,42 @@ export default function HeaderBar({
         </div>
 
         <Popover>
-          <PopoverTrigger>
+          <PopoverTrigger asChild>
             <Button size="sm">Publish</Button>
           </PopoverTrigger>
           <PopoverContent>
             <div className="flex flex-col gap-3">
               <div>
-                <a href={currentPage ? `/${currentPage.slug}` : '/'} target="_blank" className="text-xs text-white/90 hover:underline decoration-white/50">example.com</a>
+                <a
+                  href={currentPage ? `/${currentPage.slug}` : '/'} target="_blank"
+                  className="text-xs text-white/90 hover:underline decoration-white/50"
+                >example.com</a>
               </div>
               <Button
-                  onClick={async () => {
-                    if (!currentPageId) return;
+                onClick={async () => {
+                  if (!currentPageId) return;
 
-                    setIsPublishing(true);
-                    try {
-                      // Save first if there are unsaved changes
-                      if (hasUnsavedChanges) {
-                        await saveImmediately(currentPageId);
-                      }
-
-                      // Then publish
-                      const { publishPage } = usePagesStore.getState();
-                      await publishPage(currentPageId);
-                    } catch (error) {
-                      console.error('Publish failed:', error);
-                    } finally {
-                      setIsPublishing(false);
+                  setIsPublishing(true);
+                  try {
+                    // Save first if there are unsaved changes
+                    if (hasUnsavedChanges) {
+                      await saveImmediately(currentPageId);
                     }
-                  }}
-                  disabled={isPublishing || isSaving}
-                  size="sm"
-                  className="w-full"
+
+                    // Then publish
+                    const { publishPage } = usePagesStore.getState();
+                    await publishPage(currentPageId);
+                  } catch (error) {
+                    console.error('Publish failed:', error);
+                  } finally {
+                    setIsPublishing(false);
+                  }
+                }}
+                disabled={isPublishing || isSaving}
+                size="sm"
+                className="w-full"
               >
-                {isPublishing ? ( <Spinner className="size-3"/> ) : ('Publish')}
+                {isPublishing ? ( <Spinner className="size-3" /> ) : ('Publish')}
               </Button>
             </div>
           </PopoverContent>

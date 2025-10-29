@@ -1,5 +1,6 @@
 'use client';
 
+<<<<<<< HEAD
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
@@ -9,16 +10,58 @@ import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
 import {Button} from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
+=======
+/**
+ * Right Sidebar - Properties Panel
+ * 
+ * Shows properties for selected layer with Tailwind class editor
+ */
+
+// 1. React/Next.js
+import { useCallback, useMemo, useState } from 'react';
+
+// 2. External libraries
+import debounce from 'lodash.debounce';
+import { X } from 'lucide-react';
+
+// 3. ShadCN UI
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import Icon from '@/components/ui/icon';
+import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+
+// 4. Internal components
+import BorderControls from './BorderControls';
+import EffectControls from './EffectControls';
+import LayoutControls from './LayoutControls';
+import SettingsPanel from './SettingsPanel';
+import ToggleGroup from './ToggleGroup';
+import TypographyControls from './TypographyControls';
+
+// 5. Stores
+import { useEditorStore } from '../../../stores/useEditorStore';
+import { usePagesStore } from '../../../stores/usePagesStore';
+
+// 6. Types
+>>>>>>> main
 import type { Layer } from '../../../types';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
+<<<<<<< HEAD
   onLayerUpdate: (layerId: string, updates: any) => void;
   onLayerDeselect?: () => void;
   liveLayerUpdates?: {
     broadcastLayerDelete: (pageId: string, layerId: string) => void;
   };
   currentPageId?: string | null;
+=======
+  onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
+>>>>>>> main
 }
 
 export default function RightSidebar({
@@ -30,6 +73,9 @@ export default function RightSidebar({
   const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'content'>('design');
   const [classesInput, setClassesInput] = useState<string>('');
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
+  const [attributesOpen, setAttributesOpen] = useState(true);
+  const [customId, setCustomId] = useState<string>('');
+  const [isHidden, setIsHidden] = useState<boolean>(false);
 
   const { currentPageId: editorCurrentPageId } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
@@ -57,7 +103,10 @@ export default function RightSidebar({
   const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
   if (selectedLayerId !== prevSelectedLayerId) {
     setPrevSelectedLayerId(selectedLayerId);
-    setClassesInput(selectedLayer?.classes || '');
+    const classes = selectedLayer?.classes || '';
+    setClassesInput(Array.isArray(classes) ? classes.join(' ') : classes);
+    setCustomId(selectedLayer?.attributes?.id || '');
+    setIsHidden(selectedLayer?.hidden || false);
   }
 
   // Lock-aware update function
@@ -163,7 +212,30 @@ export default function RightSidebar({
     onClick: () => addClasses(classes)
   });
 
+<<<<<<< HEAD
   if (!selectedLayer) {
+=======
+  // Handle custom ID change
+  const handleIdChange = (value: string) => {
+    setCustomId(value);
+    if (selectedLayerId) {
+      const currentAttributes = selectedLayer?.attributes || {};
+      onLayerUpdate(selectedLayerId, {
+        attributes: { ...currentAttributes, id: value }
+      });
+    }
+  };
+
+  // Handle visibility toggle
+  const handleVisibilityChange = (hidden: boolean) => {
+    setIsHidden(hidden);
+    if (selectedLayerId) {
+      onLayerUpdate(selectedLayerId, { hidden });
+    }
+  };
+
+  if (! selectedLayerId || ! selectedLayer) {
+>>>>>>> main
     return (
       <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col items-center justify-center p-8">
         <div className="text-center">
@@ -221,17 +293,34 @@ export default function RightSidebar({
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')} className="flex flex-col flex-1">
+      <Tabs
+        value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')}
+        className="flex flex-col flex-1 gap-0"
+      >
         <TabsList className="w-full">
           <TabsTrigger value="design">Design</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-        <hr className="my-2"/>
+        <hr className="mt-4" />
 
         {/* Content */}
+<<<<<<< HEAD
         <TabsContent value="design" className="flex-1 flex flex-col overflow-y-auto data-[state=inactive]:hidden">
           <div className="flex flex-col gap-4 p-4">
+=======
+        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto data-[state=inactive]:hidden overflow-x-hidden">
+
+          <LayoutControls />
+
+          <TypographyControls />
+
+          <BorderControls />
+
+          <EffectControls />
+
+          <div className="flex flex-col gap-4 py-5">
+>>>>>>> main
             <Input
               type="text"
               value={currentClassInput}
@@ -242,6 +331,7 @@ export default function RightSidebar({
               className={isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''}
             />
             <div className="flex flex-wrap gap-1.5">
+<<<<<<< HEAD
                 {classesArray.length === 0 ? (
                     <div></div>
                 ) : (
@@ -279,10 +369,32 @@ export default function RightSidebar({
                   </Button>
                 ))}
               </div>
+=======
+              {classesArray.length === 0 ? (
+                  <div></div>
+              ) : (
+                classesArray.map((cls, index) => (
+                      <Badge
+                        variant="secondary"
+                        key={index}
+                      >
+                        <span>{cls}</span>
+                        <Button
+                          onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1"
+                          variant="outline"
+                        >
+                          <Icon name="x" className="size-2" />
+                        </Button>
+                      </Badge>
+                ))
+              )}
+>>>>>>> main
             </div>
           </div>
+
         </TabsContent>
 
+<<<<<<< HEAD
         <TabsContent value="settings" className="flex-1 flex flex-col overflow-y-auto data-[state=inactive]:hidden">
           <div className="flex flex-col gap-4 p-4">
             <div className="space-y-2">
@@ -321,6 +433,41 @@ export default function RightSidebar({
                 />
               </div>
             )}
+=======
+        <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">
+          <div className="flex flex-col gap-4 p-2">
+            {/* Attributes Panel */}
+            <SettingsPanel
+              title="Attributes"
+              isOpen={attributesOpen}
+              onToggle={() => setAttributesOpen(!attributesOpen)}
+            >
+              {/* ID Field */}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-2">ID</label>
+                <Input
+                  type="text"
+                  value={customId}
+                  onChange={(e) => handleIdChange(e.target.value)}
+                  placeholder="Identifier"
+                  className="w-full bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-600"
+                />
+              </div>
+
+              {/* Element Visibility Toggle */}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-2">Element</label>
+                <ToggleGroup
+                  options={[
+                    { label: 'Shown', value: false },
+                    { label: 'Hidden', value: true },
+                  ]}
+                  value={isHidden}
+                  onChange={(value) => handleVisibilityChange(value as boolean)}
+                />
+              </div>
+            </SettingsPanel>
+>>>>>>> main
           </div>
         </TabsContent>
       </Tabs>

@@ -42,6 +42,11 @@ const eslintConfig = [
             'object-curly-spacing': ['error', 'always'],
             'max-len': 'off',
             '@typescript-eslint/no-unused-vars': 'off',
+            '@typescript-eslint/no-explicit-any': 'off',
+            '@typescript-eslint/no-non-null-asserted-optional-chain': 'warn',
+            '@next/next/no-html-link-for-pages': 'warn',
+            '@next/next/no-img-element': 'warn',
+            'react-hooks/exhaustive-deps': 'warn',
         }
     },
 

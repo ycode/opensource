@@ -6,16 +6,24 @@
  * Displays pages list and layers tree with navigation icons
  */
 
-import React, { useEffect, useMemo, useState, useRef, useCallback, forwardRef } from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { RichTreeViewPro } from '@mui/x-tree-view-pro/RichTreeViewPro';
-import { TreeViewBaseItem } from '@mui/x-tree-view/models';
-import { useTreeItem } from '@mui/x-tree-view/useTreeItem';
-import { TreeItemProvider } from '@mui/x-tree-view/TreeItemProvider';
-import { TreeItemDragAndDropOverlay } from '@mui/x-tree-view/TreeItemDragAndDropOverlay';
-import { animated, useSpring } from '@react-spring/web';
+// 1. React/Next.js
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+
+// 3. ShadCN UI
+import { Button } from '@/components/ui/button';
+import Icon from '@/components/ui/icon';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+
+// 4. Internal components
+import AssetLibrary from '../../../components/AssetLibrary';
+import ElementLibrary from './ElementLibrary';
+import LayersTree from './LayersTree';
+import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
+
+// 5. Stores
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
+<<<<<<< HEAD
 import { useCollaborationPresenceStore } from '../../../stores/useCollaborationPresenceStore';
 import { useLayerLocks } from '../../../hooks/use-layer-locks';
 import { getUserInitials, getDisplayName } from '../../../lib/collaboration-utils';
@@ -26,24 +34,14 @@ import { pagesApi } from '../../../lib/api';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import Icon from "@/components/ui/icon";
 import {Button} from "@/components/ui/button";
+=======
+>>>>>>> main
 
-// Create dark theme for MUI
-const darkTheme = createTheme({
-  palette: {
-    mode: 'dark',
-    background: {
-      default: '#18181b',
-      paper: '#18181b',
-    },
-    text: {
-      primary: '#d4d4d8',
-      secondary: '#a1a1aa',
-    },
-    primary: {
-      main: '#3b82f6',
-    },
-  },
-});
+// 6. Utils/lib
+import { pagesApi } from '../../../lib/api';
+
+// 7. Types
+import type { Layer, Page } from '../../../types';
 
 // Helper function to find layer by ID recursively
 function findLayerById(layers: Layer[], id: string): Layer | null {
@@ -57,6 +55,7 @@ function findLayerById(layers: Layer[], id: string): Layer | null {
   return null;
 }
 
+<<<<<<< HEAD
 // TransitionComponent with React Spring animation
 function TransitionComponent(props: any) {
   const { in: open, children, ...other } = props;
@@ -257,8 +256,11 @@ const CustomTreeItem = forwardRef<HTMLLIElement, CustomTreeItemProps>(
   }
 );
 
+=======
+>>>>>>> main
 interface LeftSidebarProps {
   selectedLayerId: string | null;
+  selectedLayerIds?: string[]; // New multi-select support
   onLayerSelect: (layerId: string) => void;
   currentPageId: string | null;
   onPageSelect: (pageId: string) => void;
@@ -278,6 +280,7 @@ interface LeftSidebarProps {
 
 export default function LeftSidebar({
   selectedLayerId,
+  selectedLayerIds,
   onLayerSelect,
   currentPageId,
   onPageSelect,
@@ -286,10 +289,11 @@ export default function LeftSidebar({
   liveLayerUpdates,
 }: LeftSidebarProps) {
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
-  const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
+  const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
+<<<<<<< HEAD
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const addBlockPanelRef = useRef<HTMLDivElement>(null);
   const { draftsByPageId, loadPages, loadDraft, addLayer, addLayerWithId, updateLayer, moveLayer } = usePagesStore();
@@ -312,6 +316,22 @@ export default function LeftSidebar({
     onLayerSelect(layerId);
   }, [onLayerSelect, layerLocks, selectedLayerId]);
 
+=======
+  const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, setDraftLayers } = usePagesStore();
+  const pages = usePagesStore((state) => state.pages);
+  const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
+  
+  // Listen for keyboard shortcut to toggle ElementLibrary
+  useEffect(() => {
+    const handleToggleElementLibrary = () => {
+      setShowElementLibrary((prev) => !prev);
+    };
+
+    window.addEventListener('toggleElementLibrary', handleToggleElementLibrary);
+    return () => window.removeEventListener('toggleElementLibrary', handleToggleElementLibrary);
+  }, []);
+  
+>>>>>>> main
   // Handler to create a new page
   const handleAddPage = async () => {
     try {
@@ -357,6 +377,7 @@ export default function LeftSidebar({
     return draft ? draft.layers : [];
   }, [currentPageId, draftsByPageId]);
 
+<<<<<<< HEAD
   // Convert Layer[] to MUI TreeViewBaseItem[]
   const convertToTreeItems = useCallback((layers: Layer[]): TreeViewBaseItem[] => {
     return layers.map((layer) => ({
@@ -385,6 +406,13 @@ export default function LeftSidebar({
     // Broadcast the layer move to other users
     liveLayerUpdates.broadcastLayerMove(currentPageId, itemId, newPosition.parentId, newPosition.index);
   }, [currentPageId, moveLayer, liveLayerUpdates]);
+=======
+  // Handle layer reordering from drag & drop
+  const handleLayersReorder = useCallback((newLayers: Layer[]) => {
+    if (!currentPageId) return;
+    setDraftLayers(currentPageId, newLayers);
+  }, [currentPageId, setDraftLayers]);
+>>>>>>> main
 
   // Helper to find layer in tree
   const findLayer = useCallback((layers: Layer[], id: string): { layer: Layer; parentId: string | null } | null => {
@@ -416,17 +444,30 @@ export default function LeftSidebar({
 
   // Helper to get parent for new layers
   const getParentForNewLayer = useCallback((): string | null => {
-    if (!selectedLayerId) return null;
+    if (!selectedLayerId) {
+      // No layer selected - add inside Body by default
+      const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
+      return bodyLayer ? 'body' : null;
+    }
     
     const selectedItem = findLayer(layersForCurrentPage, selectedLayerId);
-    if (!selectedItem) return null;
+    if (!selectedItem) {
+      // Selected layer not found - add inside Body by default
+      const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
+      return bodyLayer ? 'body' : null;
+    }
     
     // If selected is a container, add as child
     if (selectedItem.layer.type === 'container') {
       return selectedLayerId;
     }
     
-    // Otherwise, add as sibling
+    // Otherwise, add as sibling (same parent)
+    // But if parent is null (would be root level), use Body instead
+    if (selectedItem.parentId === null) {
+      return 'body';
+    }
+    
     return selectedItem.parentId;
   }, [selectedLayerId, layersForCurrentPage, findLayer]);
 
@@ -558,37 +599,29 @@ export default function LeftSidebar({
   };
 
   return (
-    <div className="w-72 shrink-0 bg-neutral-950 border-r border-white/10 flex overflow-hidden p-4">
+    <>
+      <div className="w-72 shrink-0 bg-neutral-950 border-r border-white/10 flex overflow-hidden p-4">
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(value) => {
-          const newTab = value as 'pages' | 'layers' | 'cms';
-          setActiveTab(newTab);
-          onActiveTabChange(newTab);
-        }} className="flex-1 gap-0">
+        <Tabs
+          value={activeTab} onValueChange={(value) => {
+            const newTab = value as 'pages' | 'layers' | 'cms';
+            setActiveTab(newTab);
+            onActiveTabChange(newTab);
+          }}
+          className="flex-1 gap-0"
+        >
           <TabsList className="w-full">
             <TabsTrigger value="layers">Layers</TabsTrigger>
             <TabsTrigger value="pages">Pages</TabsTrigger>
             <TabsTrigger value="cms">CMS</TabsTrigger>
           </TabsList>
 
-          <hr className="mt-4"/>
+          <hr className="mt-4" />
 
           {/* Content */}
-          <TabsContent value="layers" className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden">{' '}
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-zinc-300">Layers</h3>
-                  <div className="relative">
-                    <button 
-                      onClick={() => setShowAddBlockPanel(!showAddBlockPanel)}
-                      className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
-                      title="Add Block"
-                    >
-                      <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                      </svg>
-                    </button>
+          <TabsContent value="layers">
 
+<<<<<<< HEAD
                     {/* Add Block Panel */}
                     {showAddBlockPanel && (
                       <div
@@ -676,14 +709,20 @@ export default function LeftSidebar({
                     )}
                   </div>
                 </div>
+=======
+            <header className="py-5 flex justify-between">
+              <span className="font-medium">Layers</span>
+              <div className="-my-1">
+                <Button size="xs" variant="secondary" onClick={() => setShowElementLibrary(prev => !prev)}>
+                  <Icon name="plus" className={showElementLibrary ? "rotate-45" : "rotate-0"} />
+                </Button>
+              </div>
+            </header>
+>>>>>>> main
 
+            <div className="flex flex-col">
               {!currentPageId ? (
                 <div className="text-center py-8 text-zinc-500">
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-800 flex items-center justify-center">
-                    <svg className="w-6 h-6 text-zinc-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                    </svg>
-                  </div>
                   <p className="text-sm text-zinc-400 mb-1">No page selected</p>
                   <p className="text-xs text-zinc-500">
                     Select a page from the Pages tab to start building
@@ -691,17 +730,13 @@ export default function LeftSidebar({
                 </div>
               ) : layersForCurrentPage.length === 0 ? (
                 <div className="text-center py-8 text-zinc-500">
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-800 flex items-center justify-center">
-                    <svg className="w-6 h-6 text-zinc-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                    </svg>
-                  </div>
                   <p className="text-sm text-zinc-400 mb-1">No layers yet</p>
                   <p className="text-xs text-zinc-500">
                     Click the + button above to add your first block
                   </p>
                 </div>
               ) : (
+<<<<<<< HEAD
                 <ThemeProvider theme={darkTheme}>
                   <RichTreeViewPro
                     items={treeItems}
@@ -738,98 +773,105 @@ export default function LeftSidebar({
                     }}
                   />
                 </ThemeProvider>
+=======
+                <LayersTree
+                  layers={layersForCurrentPage}
+                  selectedLayerId={selectedLayerId}
+                  selectedLayerIds={selectedLayerIds}
+                  onLayerSelect={onLayerSelect}
+                  onReorder={handleLayersReorder}
+                  pageId={currentPageId || ''}
+                />
+>>>>>>> main
               )}
-              </div>
+            </div>
+
           </TabsContent>
 
-          <TabsContent value="pages" className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-zinc-300">Pages</h3>
-                <button 
+          <TabsContent value="pages">
+
+            <header className="py-5 flex justify-between">
+              <span className="font-medium">Pages</span>
+              <div className="-my-1">
+                <Button
+                  size="xs" variant="secondary"
                   onClick={handleAddPage}
-                  className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
-                  title="Add Page"
                 >
-                  <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                  </svg>
-                </button>
+                  <Icon name="plus" />
+                </Button>
               </div>
-              
-              <div className="space-y-2">
-                {pages.map((page) => (
-                  <div
-                    key={page.id}
-                    className={`group relative rounded ${
-                      currentPageId === page.id
-                        ? 'bg-zinc-700'
-                        : 'hover:bg-zinc-800'
-                    }`}
+            </header>
+
+            <div className="flex flex-col">
+              {pages.map((page) => (
+                <div
+                  key={page.id}
+                  className={`group relative rounded ${
+                    currentPageId === page.id
+                      ? 'bg-zinc-700'
+                      : 'hover:bg-zinc-800'
+                  }`}
+                >
+                  <Button
+                    onClick={() => {
+                      onPageSelect(page.id);
+                      setCurrentPageId(page.id);
+                    }}
+                    variant="ghost"
+                    className="w-full justify-start px-3 py-1.5 h-auto text-sm text-zinc-300 flex items-center gap-2"
                   >
-                    <button
-                      onClick={() => {
-                        onPageSelect(page.id);
-                        setCurrentPageId(page.id);
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm text-zinc-300 flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                      </svg>
-                      <span className="flex-1 truncate">{page.title}</span>
-                    </button>
-                    
-                    {/* Settings button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditPage(page);
-                      }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-white hover:bg-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Page settings"
-                    >
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
+                    <Icon name="file-text" className="w-4 h-4 text-zinc-400 shrink-0" />
+                    <span className="flex-1 truncate">{page.title}</span>
+                  </Button>
+
+                  {/* Settings button */}
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditPage(page);
+                    }}
+                    variant="ghost"
+                    size="icon-sm"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Page settings"
+                    aria-label="Page settings"
+                  >
+                    <Icon name="edit" className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
             </div>
+
           </TabsContent>
 
           <TabsContent value="cms">
 
-            <div>
-
-              <div className="py-5 flex justify-between">
-                <span className="font-medium">Collections</span>
-                <div className="-my-1">
-                  <Button size="xs" variant="secondary">
-                    <Icon name="plus"/>
-                  </Button>
-                </div>
+            <header className="py-5 flex justify-between">
+              <span className="font-medium">Collections</span>
+              <div
+                className="-my-1"
+              >
+                <Button
+                  size="xs" variant="secondary"
+                >
+                  <Icon name="plus" />
+                </Button>
               </div>
+            </header>
 
-              <div className="flex flex-col">
-
+            <div className="flex flex-col">
                 <div className="px-4 h-8 rounded-lg bg-secondary flex gap-2 items-center">
-                  <Icon name="database" className="size-3"/>
+                  <Icon name="database" className="size-3" />
                   <span>Blog posts</span>
                 </div>
 
-                <div className="px-4 h-8 rounded-lg text-primary/60 flex gap-2 items-center">
-                  <Icon name="database" className="size-3"/>
+                <div className="px-4 h-8 rounded-lg text-muted-foreground flex gap-2 items-center">
+                  <Icon name="database" className="size-3" />
                   <span>Categories</span>
                 </div>
-
-              </div>
-
             </div>
 
           </TabsContent>
-
         </Tabs>
 
         {/* Page Settings Panel */}
@@ -842,52 +884,15 @@ export default function LeftSidebar({
           page={editingPage}
           onSave={handleSavePage}
         />
-    </div>
+      </div>
+
+      {/* Element Library Slide-Out */}
+      {showElementLibrary && (
+        <ElementLibrary
+          isOpen={showElementLibrary}
+          onClose={() => setShowElementLibrary(false)}
+        />
+      )}
+    </>
   );
 }
-
-// Helper function to get icon for layer type
-function getLayerIcon(type: Layer['type']) {
-  switch (type) {
-    case 'container':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-        </svg>
-      );
-    case 'text':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M6 4a1 1 0 011-1h6a1 1 0 110 2h-2v10h2a1 1 0 110 2H7a1 1 0 110-2h2V5H7a1 1 0 01-1-1z" clipRule="evenodd" />
-        </svg>
-      );
-    case 'heading':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6v10h2a1 1 0 010 2H4a1 1 0 010-2h1V5H4a1 1 0 01-1-1zm9 0a1 1 0 011-1h4a1 1 0 110 2h-2v4h2a1 1 0 110 2h-2v4h2a1 1 0 110 2h-4a1 1 0 110-2h1v-4h-1a1 1 0 010-2h1V5h-1a1 1 0 01-1-1z" />
-        </svg>
-      );
-    case 'image':
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-        </svg>
-      );
-    default:
-      return (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-        </svg>
-      );
-  }
-}
-
-// Helper function to get display name for layer
-function getLayerDisplayName(layer: Layer): string {
-  const typeLabel = layer.type.charAt(0).toUpperCase() + layer.type.slice(1);
-  return typeLabel;
-}
-
-
-
-

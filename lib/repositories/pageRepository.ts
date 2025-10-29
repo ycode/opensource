@@ -1,10 +1,22 @@
+/**
+ * Page Repository
+ * 
+ * Data access layer for page operations with Supabase
+ */
+
 import { getSupabaseAdmin } from '../supabase-server';
 import type { Page } from '../../types';
 
+/**
+ * Query filters for page lookups
+ */
 export interface QueryFilters {
-  [key: string]: any;
+  [key: string]: string | number | boolean | null;
 }
 
+/**
+ * Data required to create a new page
+ */
 export interface CreatePageData {
   title: string;
   slug: string;
@@ -12,6 +24,9 @@ export interface CreatePageData {
   published_version_id?: string | null;
 }
 
+/**
+ * Data that can be updated on an existing page
+ */
 export interface UpdatePageData {
   title?: string;
   slug?: string;
@@ -20,8 +35,15 @@ export interface UpdatePageData {
 }
 
 /**
- * Get all pages
- * @param filters - Optional filters to apply (e.g., { status: 'published', category: 'blog' })
+ * Retrieves all pages from the database
+ * 
+ * @param filters - Optional key-value filters to apply (e.g., { status: 'published' })
+ * @returns Promise resolving to array of pages, ordered by creation date (newest first)
+ * @throws Error if Supabase query fails
+ * 
+ * @example
+ * const allPages = await getAllPages();
+ * const publishedPages = await getAllPages({ status: 'published' });
  */
 export async function getAllPages(filters?: QueryFilters): Promise<Page[]> {
   console.log('[pageRepository.getAllPages] Getting Supabase client...');
@@ -158,7 +180,7 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
     throw new Error('Supabase not configured');
   }
 
-  const { data, error} = await client
+  const { data, error } = await client
     .from('pages')
     .update(updates)
     .eq('id', id)
