@@ -6,18 +6,29 @@
  * Displays pages list and layers tree with navigation icons
  */
 
+// 1. React/Next.js
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+
+// 3. ShadCN UI
+import { Button } from '@/components/ui/button';
+import Icon from '@/components/ui/icon';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+
+// 4. Internal components
+import AssetLibrary from '../../../components/AssetLibrary';
+import ElementLibrary from './ElementLibrary';
+import LayersTree from './LayersTree';
+import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
+
+// 5. Stores
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
-import type { Layer, Page } from '../../../types';
-import AssetLibrary from '../../../components/AssetLibrary';
-import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
+
+// 6. Utils/lib
 import { pagesApi } from '../../../lib/api';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import Icon from '@/components/ui/icon';
-import { Button } from '@/components/ui/button';
-import LayersTree from './LayersTree';
-import ElementLibrary from './ElementLibrary';
+
+// 7. Types
+import type { Layer, Page } from '../../../types';
 
 // Helper function to find layer by ID recursively
 function findLayerById(layers: Layer[], id: string): Layer | null {

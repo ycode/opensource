@@ -6,17 +6,24 @@
  * Three-panel editor layout inspired by modern design tools
  */
 
+// 1. React/Next.js
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { useEditorStore } from '../../stores/useEditorStore';
-import { usePagesStore } from '../../stores/usePagesStore';
+
+// 2. Internal components
+import CenterCanvas from './components/CenterCanvas';
+import CMS from './components/CMS';
+import HeaderBar from './components/HeaderBar';
+import LeftSidebar from './components/LeftSidebar';
+import RightSidebar from './components/RightSidebar';
+import UpdateNotification from '../../components/UpdateNotification';
+
+// 3. Stores
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useClipboardStore } from '../../stores/useClipboardStore';
-import LeftSidebar from './components/LeftSidebar';
-import CenterCanvas from './components/CenterCanvas';
-import RightSidebar from './components/RightSidebar';
-import HeaderBar from './components/HeaderBar';
-import CMS from './components/CMS';
-import UpdateNotification from '../../components/UpdateNotification';
+import { useEditorStore } from '../../stores/useEditorStore';
+import { usePagesStore } from '../../stores/usePagesStore';
+
+// 4. Types
 import type { Layer } from '../../types';
 
 export default function YCodeBuilder() {

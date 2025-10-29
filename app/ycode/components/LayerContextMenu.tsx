@@ -18,6 +18,7 @@ import {
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useClipboardStore } from '@/stores/useClipboardStore';
 import { Copy, Scissors, Clipboard, ClipboardPaste, CopyPlus, Trash2 } from 'lucide-react';
+import type { Layer } from '@/types';
 
 interface LayerContextMenuProps {
   layerId: string;
@@ -76,7 +77,7 @@ export default function LayerContextMenu({
     if (!draft) return false;
 
     // Find the layer recursively
-    const findLayer = (layers: any[], id: string): any => {
+    const findLayer = (layers: Layer[], id: string): Layer | null => {
       for (const layer of layers) {
         if (layer.id === id) return layer;
         if (layer.children) {
@@ -95,7 +96,7 @@ export default function LayerContextMenu({
     if (!layer) return false;
 
     // Check if it's a void element by name or type
-    const elementName = layer.name || layer.type;
+    const elementName = (layer.name || layer.type) ?? '';
     return !ELEMENTS_WITHOUT_CHILDREN.includes(elementName);
   }, [draftsByPageId, pageId, layerId]);
 

@@ -154,7 +154,6 @@ const LayerItem: React.FC<{
 
   // Render element-specific content
   const renderContent = () => {
-cl    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Tag = htmlTag as any;
     const attributes = layer.attributes || {};
     
@@ -177,14 +176,16 @@ cl    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     
     // Add editor event handlers if in edit mode (but not for context menu trigger)
     if (isEditMode && !isEditing) {
-      const originalOnClick = elementProps.onClick;
+      const originalOnClick = elementProps.onClick as ((e: React.MouseEvent) => void) | undefined;
       elementProps.onClick = (e: React.MouseEvent) => {
         // Only handle if not a context menu trigger
         if (e.button !== 2) {
           e.stopPropagation();
           onLayerClick?.(layer.id);
         }
-        originalOnClick?.(e);
+        if (originalOnClick) {
+          originalOnClick(e);
+        }
       };
       elementProps.onDoubleClick = (e: React.MouseEvent) => {
         e.stopPropagation();

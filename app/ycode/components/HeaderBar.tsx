@@ -1,13 +1,13 @@
 'use client';
 
+// 1. React/Next.js
 import { useRef, useEffect } from 'react';
-import { usePagesStore } from '../../../stores/usePagesStore';
-import type { Page } from '../../../types';
-import type { User } from '@supabase/supabase-js';
+
+// 2. External libraries
+import { LogOut } from 'lucide-react';
+
+// 3. ShadCN UI
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +16,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Spinner } from '@/components/ui/spinner';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// 4. Stores
+import { usePagesStore } from '../../../stores/usePagesStore';
+
+// 5. Types
+import type { Page } from '../../../types';
+import type { User } from '@supabase/supabase-js';
 
 interface HeaderBarProps {
   user: User | null;

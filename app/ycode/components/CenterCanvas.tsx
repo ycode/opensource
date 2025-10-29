@@ -6,17 +6,22 @@
  * Shows live preview of the website being built
  */
 
+// 1. React/Next.js
 import { useMemo, useState } from 'react';
 
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+// 3. ShadCN UI
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+// 4. Internal components
 import LayerRenderer from '../../../components/layers/LayerRenderer';
 
-import { usePagesStore } from '../../../stores/usePagesStore';
+// 5. Stores
 import { useEditorStore } from '../../../stores/useEditorStore';
+import { usePagesStore } from '../../../stores/usePagesStore';
 
+// 6. Types
 import type { Layer } from '../../../types';
 
 type ViewportMode = 'desktop' | 'tablet' | 'mobile';

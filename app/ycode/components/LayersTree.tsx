@@ -12,13 +12,22 @@
  * - Depth-aware positioning
  */
 
+// 1. React/Next.js
 import React, { useMemo, useState, useCallback } from 'react';
+
+// 2. External libraries
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
 import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder } from 'lucide-react';
-import type { Layer } from '../../../types';
-import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
-import { cn } from '../../../lib/utils';
+
+// 4. Internal components
 import LayerContextMenu from './LayerContextMenu';
+
+// 6. Utils/lib
+import { cn } from '../../../lib/utils';
+import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
+
+// 7. Types
+import type { Layer } from '../../../types';
 
 interface LayersTreeProps {
   layers: Layer[];
@@ -178,7 +187,12 @@ function LayerRow({
   const isLocked = node.layer.id === 'body' || node.layer.locked === true;
 
   return (
-    <LayerContextMenu layerId={node.id} pageId={pageId} isLocked={isLocked} onLayerSelect={onSelect}>
+    <LayerContextMenu
+      layerId={node.id}
+      pageId={pageId}
+      isLocked={isLocked}
+      onLayerSelect={onSelect}
+    >
       <div className="relative">
         {/* Vertical connector line */}
         {node.depth > 0 && (
