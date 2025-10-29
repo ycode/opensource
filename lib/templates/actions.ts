@@ -12,7 +12,7 @@ interface BlockTemplate {
 
 export const actionTemplates: Record<string, BlockTemplate> = {
   button: {
-    icon: 'square',
+    icon: 'block',
     name: 'Button',
     template: {
       name: 'button',

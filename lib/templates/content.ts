@@ -12,7 +12,7 @@ interface BlockTemplate {
 
 export const contentTemplates: Record<string, BlockTemplate> = {
   heading: {
-    icon: 'heading',
+    icon: 'text',
     name: 'Heading',
     template: {
       name: 'h2',
@@ -31,7 +31,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
   },
   
   p: {
-    icon: 'type',
+    icon: 'text',
     name: 'Paragraph',
     template: {
       name: 'p',
@@ -50,7 +50,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
   },
   
   span: {
-    icon: 'type',
+    icon: 'text',
     name: 'Text',
     template: {
       name: 'span',
@@ -68,7 +68,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
   },
   
   richtext: {
-    icon: 'edit',
+    icon: 'text',
     name: 'Rich Text',
     template: {
       name: 'div',

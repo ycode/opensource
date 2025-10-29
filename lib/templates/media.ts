@@ -33,7 +33,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
   },
   
   icon: {
-    icon: 'star',
+    icon: 'icon',
     name: 'Icon',
     template: {
       name: 'div',
@@ -75,7 +75,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
   },
   
   audio: {
-    icon: 'music',
+    icon: 'block',
     name: 'Audio',
     template: {
       name: 'audio',
@@ -122,7 +122,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
   },
   
   iframe: {
-    icon: 'code',
+    icon: 'block',
     name: 'Iframe',
     template: {
       name: 'iframe',
