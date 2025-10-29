@@ -31,7 +31,7 @@ const formElements = ['form', 'input', 'textarea', 'select', 'checkbox', 'radio'
 
 export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps) {
   const { addLayerFromTemplate } = usePagesStore();
-  const { currentPageId, selectedLayerId } = useEditorStore();
+  const { currentPageId, selectedLayerId, setSelectedLayerId } = useEditorStore();
 
   const handleAddElement = (elementType: string) => {
     if (!currentPageId) return;
@@ -40,7 +40,20 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
     const parentId = selectedLayerId || 'body';
 
     // Add the layer using the template
-    addLayerFromTemplate(currentPageId, parentId, elementType);
+    const result = addLayerFromTemplate(currentPageId, parentId, elementType);
+    
+    // Select the newly added layer
+    if (result) {
+      setSelectedLayerId(result.newLayerId);
+      
+      // Note: parentToExpand is handled by LayersTree component
+      // We dispatch a custom event for LayersTree to listen to
+      if (result.parentToExpand) {
+        window.dispatchEvent(new CustomEvent('expandLayer', { 
+          detail: { layerId: result.parentToExpand } 
+        }));
+      }
+    }
 
     // Close the panel
     onClose();

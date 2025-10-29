@@ -13,7 +13,7 @@
  */
 
 // 1. React/Next.js
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 
 // 2. External libraries
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
@@ -316,6 +316,23 @@ export default function LayersTree({
       },
     })
   );
+
+  // Listen for expand events from ElementLibrary
+  useEffect(() => {
+    const handleExpandLayer = (event: CustomEvent) => {
+      const { layerId } = event.detail;
+      if (layerId && collapsedIds.has(layerId)) {
+        setCollapsedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(layerId);
+          return next;
+        });
+      }
+    };
+
+    window.addEventListener('expandLayer', handleExpandLayer as EventListener);
+    return () => window.removeEventListener('expandLayer', handleExpandLayer as EventListener);
+  }, [collapsedIds]);
 
   // Handle drag start
   const handleDragStart = useCallback((event: DragStartEvent) => {

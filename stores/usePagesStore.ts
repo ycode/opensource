@@ -23,7 +23,7 @@ interface PagesActions {
   publishPage: (pageId: string) => Promise<void>;
   setError: (error: string | null) => void;
   addLayer: (pageId: string, parentLayerId: string | null, layerType: Layer['type']) => void;
-  addLayerFromTemplate: (pageId: string, parentLayerId: string | null, templateId: string) => void;
+  addLayerFromTemplate: (pageId: string, parentLayerId: string | null, templateId: string) => { newLayerId: string; parentToExpand: string | null } | null;
   deleteLayer: (pageId: string, layerId: string) => void;
   updateLayer: (pageId: string, layerId: string, updates: Partial<Layer>) => void;
   moveLayer: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => boolean;
@@ -248,7 +248,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     // Initialize draft if it doesn't exist
     if (!draft) {
       const page = pages.find(p => p.id === pageId);
-      if (!page) return;
+      if (!page) return null;
       
       draft = {
         id: `draft-${pageId}`,
@@ -263,7 +263,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const template = getTemplate(templateId);
     if (!template) {
       console.error(`Template ${templateId} not found`);
-      return;
+      return null;
     }
     
     // Import block name function dynamically
@@ -292,8 +292,10 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     };
 
     const newLayer = normalizeLayer(template, true);
+    const newLayerId = newLayer.id;
 
     let newLayers: Layer[];
+    let parentToExpand: string | null = null;
     
     if (! parentLayerId) {
       // Add to root
@@ -329,6 +331,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
             newChildren.splice(selectedIndex + 1, 0, newLayer);
             return { ...grandparent, children: newChildren };
           });
+          // Expand the parent of the selected layer (grandparent)
+          parentToExpand = result.parent.id;
         } else {
           // Selected layer is at root level, insert after it
           const selectedIndex = draft.layers.findIndex(l => l.id === parentLayerId);
@@ -341,6 +345,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           ...parent,
           children: [...(parent.children || []), newLayer],
         }));
+        // Expand the parent that we're adding into
+        parentToExpand = parentLayerId;
       }
     }
 
@@ -350,6 +356,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         [pageId]: { ...draft, layers: newLayers }
       } 
     });
+    
+    return { newLayerId, parentToExpand };
   },
 
   deleteLayer: (pageId, layerId) => {
