@@ -98,8 +98,14 @@ export default function CenterCanvas({
             <div className="w-full h-full flex items-center justify-center p-12">
               <div className="text-center max-w-md relative">
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
-                  <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z" />
+                  <svg
+                    className="w-10 h-10 text-blue-500" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round" strokeLinejoin="round"
+                      strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z"
+                    />
                   </svg>
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-3">
@@ -113,8 +119,14 @@ export default function CenterCanvas({
                     onClick={() => setShowAddBlockPanel(!showAddBlockPanel)}
                     className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
                   >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                    <svg
+                      className="w-5 h-5" fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                     Add Block
                   </button>
@@ -134,8 +146,14 @@ export default function CenterCanvas({
                           className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"
                         >
                           <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                            <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                            <svg
+                              className="w-5 h-5 text-gray-700" fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                                clipRule="evenodd"
+                              />
                             </svg>
                           </div>
                           <div>
@@ -153,7 +171,10 @@ export default function CenterCanvas({
                           className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"
                         >
                           <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                            <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
+                            <svg
+                              className="w-5 h-5 text-gray-700" fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
                               <path d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6v10h2a1 1 0 010 2H4a1 1 0 010-2h1V5H4a1 1 0 01-1-1zm9 0a1 1 0 011-1h4a1 1 0 110 2h-2v4h2a1 1 0 110 2h-2v4h2a1 1 0 110 2h-4a1 1 0 110-2h1v-4h-1a1 1 0 010-2h1V5h-1a1 1 0 01-1-1z" />
                             </svg>
                           </div>
@@ -172,8 +193,14 @@ export default function CenterCanvas({
                           className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 rounded-lg text-left transition-colors"
                         >
                           <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                            <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M6 4a1 1 0 011-1h6a1 1 0 110 2h-2v10h2a1 1 0 110 2H7a1 1 0 110-2h2V5H7a1 1 0 01-1-1z" clipRule="evenodd" />
+                            <svg
+                              className="w-5 h-5 text-gray-700" fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd" d="M6 4a1 1 0 011-1h6a1 1 0 110 2h-2v10h2a1 1 0 110 2H7a1 1 0 110-2h2V5H7a1 1 0 01-1-1z"
+                                clipRule="evenodd"
+                              />
                             </svg>
                           </div>
                           <div>

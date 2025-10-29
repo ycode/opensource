@@ -158,7 +158,7 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
     throw new Error('Supabase not configured');
   }
 
-  const { data, error} = await client
+  const { data, error } = await client
     .from('pages')
     .update(updates)
     .eq('id', id)

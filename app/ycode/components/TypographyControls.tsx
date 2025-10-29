@@ -52,7 +52,7 @@ export default function TypographyControls() {
           <Label variant="muted">Size</Label>
           <div className="col-span-2 *:w-full">
             <InputGroup>
-              <InputGroupInput/>
+              <InputGroupInput />
               <InputGroupAddon align="inline-end">
                 <Select>
                   <SelectTrigger size="xs" variant="ghost">
@@ -76,16 +76,16 @@ export default function TypographyControls() {
             <Tabs defaultValue="left" className="w-full">
               <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="left" className="px-2 text-xs">
-                  <Icon name="textAlignLeft"/>
+                  <Icon name="textAlignLeft" />
                 </TabsTrigger>
                 <TabsTrigger value="center" className="px-2 text-xs">
-                  <Icon name="textAlignCenter"/>
+                  <Icon name="textAlignCenter" />
                 </TabsTrigger>
                 <TabsTrigger value="right" className="px-2 text-xs">
-                  <Icon name="textAlignRight"/>
+                  <Icon name="textAlignRight" />
                 </TabsTrigger>
                 <TabsTrigger value="justify" className="px-2 text-xs">
-                  <Icon name="textAlignJustify"/>
+                  <Icon name="textAlignJustify" />
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -97,15 +97,15 @@ export default function TypographyControls() {
           <div className="col-span-2 grid grid-cols-2 gap-2">
             <InputGroup>
               <InputGroupAddon>
-                <Icon name="letterSpacing" className="size-3"/>
+                <Icon name="letterSpacing" className="size-3" />
               </InputGroupAddon>
-              <InputGroupInput className="!pr-0"/>
+              <InputGroupInput className="!pr-0" />
             </InputGroup>
             <InputGroup>
               <InputGroupAddon>
-                <Icon name="lineHeight" className="size-3"/>
+                <Icon name="lineHeight" className="size-3" />
               </InputGroupAddon>
-              <InputGroupInput className="!pr-0"/>
+              <InputGroupInput className="!pr-0" />
             </InputGroup>
           </div>
         </div>

@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import Icon from '@/components/ui/icon';
-import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
-import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@/components/ui/select';
 
 export default function BorderControls() {
   const [radiusBorderMode, setRadiusBorderMode] = useState<'all-borders' | 'individual-borders'>('all-borders');
@@ -26,40 +26,40 @@ export default function BorderControls() {
           <Label variant="muted" className="h-8">Radius</Label>
           <div className="col-span-2 flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <Input className="flex-1" disabled={radiusBorderMode === 'individual-borders'}/>
+              <Input className="flex-1" disabled={radiusBorderMode === 'individual-borders'} />
               <Button 
                 variant={radiusBorderMode === 'individual-borders' ? 'secondary' : 'ghost'} 
                 size="sm"
                 onClick={() => setRadiusBorderMode(radiusBorderMode === 'all-borders' ? 'individual-borders' : 'all-borders')}
               >
-                <Icon name="individualBorders"/>
+                <Icon name="individualBorders" />
               </Button>
             </div>
             {radiusBorderMode === 'individual-borders' && (
               <div className="grid grid-cols-2 gap-2">
                 <InputGroup>
                   <InputGroupAddon>
-                    <Icon name="borderTopLeft" className="size-3"/>
+                    <Icon name="borderTopLeft" className="size-3" />
                   </InputGroupAddon>
-                  <InputGroupInput className="!pr-0"/>
+                  <InputGroupInput className="!pr-0" />
                 </InputGroup>
                 <InputGroup>
                   <InputGroupAddon>
-                    <Icon name="borderTopLeft" className="size-3 rotate-90"/>
+                    <Icon name="borderTopLeft" className="size-3 rotate-90" />
                   </InputGroupAddon>
-                  <InputGroupInput className="!pr-0"/>
+                  <InputGroupInput className="!pr-0" />
                 </InputGroup>
                 <InputGroup>
                   <InputGroupAddon>
-                    <Icon name="borderTopLeft" className="size-3 rotate-270"/>
+                    <Icon name="borderTopLeft" className="size-3 rotate-270" />
                   </InputGroupAddon>
-                  <InputGroupInput className="!pr-0"/>
+                  <InputGroupInput className="!pr-0" />
                 </InputGroup>
                 <InputGroup>
                   <InputGroupAddon>
-                    <Icon name="borderTopLeft" className="size-3 rotate-180"/>
+                    <Icon name="borderTopLeft" className="size-3 rotate-180" />
                   </InputGroupAddon>
-                  <InputGroupInput className="!pr-0"/>
+                  <InputGroupInput className="!pr-0" />
                 </InputGroup>
               </div>
             )}
@@ -74,8 +74,11 @@ export default function BorderControls() {
 
                 {/*TODO: When not added ⬇️*/}
 
-                <Button size="sm" variant="secondary" className="w-full">
-                  <Icon name="plus"/>
+                <Button
+                  size="sm" variant="secondary"
+                  className="w-full"
+                >
+                  <Icon name="plus" />
                   Add
                 </Button>
 
@@ -99,13 +102,13 @@ export default function BorderControls() {
                     <Label variant="muted" className="h-8">Width</Label>
                     <div className="col-span-2 flex flex-col gap-2">
                       <div className="flex items-center gap-2">
-                        <Input className="flex-1" disabled={widthBorderMode === 'individual-borders'}/>
+                        <Input className="flex-1" disabled={widthBorderMode === 'individual-borders'} />
                         <Button 
                           variant={widthBorderMode === 'individual-borders' ? 'secondary' : 'ghost'} 
                           size="sm"
                           onClick={() => setWidthBorderMode(widthBorderMode === 'all-borders' ? 'individual-borders' : 'all-borders')}
                         >
-                          <Icon name="individualBorders"/>
+                          <Icon name="individualBorders" />
                         </Button>
                       </div>
                       {widthBorderMode === 'individual-borders' && (

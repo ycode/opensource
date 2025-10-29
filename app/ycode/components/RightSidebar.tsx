@@ -13,13 +13,13 @@ import type { Layer } from '../../../types';
 import debounce from 'lodash.debounce';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { X } from 'lucide-react';
-import {Input} from "@/components/ui/input";
-import {Badge} from "@/components/ui/badge";
-import {Button} from "@/components/ui/button";
-import Icon from "@/components/ui/icon";
-import {Label} from "@/components/ui/label";
-import {Select, SelectContent, SelectGroup, SelectItem, SelectTrigger} from "@/components/ui/select";
-import {InputGroup, InputGroupAddon, InputGroupInput} from "@/components/ui/input-group";
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import Icon from '@/components/ui/icon';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import BorderControls from './BorderControls';
 import TypographyControls from './TypographyControls';
 import EffectControls from './EffectControls';
@@ -155,13 +155,16 @@ export default function RightSidebar({
   return (
     <div className="w-72 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col p-4">
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')} className="flex flex-col flex-1 gap-0">
+      <Tabs
+        value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')}
+        className="flex flex-col flex-1 gap-0"
+      >
         <TabsList className="w-full">
           <TabsTrigger value="design">Design</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-        <hr className="mt-4"/>
+        <hr className="mt-4" />
 
         {/* Content */}
         <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto data-[state=inactive]:hidden overflow-x-hidden">
@@ -176,27 +179,30 @@ export default function RightSidebar({
 
           <div className="flex flex-col gap-4 py-5">
             <Input
-                type="text"
-                value={currentClassInput}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentClassInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Type class and press Enter..."
+              type="text"
+              value={currentClassInput}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentClassInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Type class and press Enter..."
             />
             <div className="flex flex-wrap gap-1.5">
               {classesArray.length === 0 ? (
                   <div></div>
               ) : (
-                  classesArray.map((cls, index) => (
+                classesArray.map((cls, index) => (
                       <Badge
-                          variant="secondary"
-                          key={index}
+                        variant="secondary"
+                        key={index}
                       >
                         <span>{cls}</span>
-                        <Button onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1" variant="outline">
-                          <Icon name="x" className="size-2"/>
+                        <Button
+                          onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1"
+                          variant="outline"
+                        >
+                          <Icon name="x" className="size-2" />
                         </Button>
                       </Badge>
-                  ))
+                ))
               )}
             </div>
           </div>

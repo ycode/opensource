@@ -625,8 +625,8 @@ export default function LayersTree({
           explanation: dropPosition === 'above' 
             ? `Will be placed as sibling ABOVE "${getLayerDisplayName(overNode.layer)}" inside "${targetParentNode ? getLayerDisplayName(targetParentNode.layer) : 'ROOT'}" at index ${newOrder}`
             : dropPosition === 'inside'
-            ? `Will be placed INSIDE "${getLayerDisplayName(overNode.layer)}" as child at index ${newOrder}`
-            : `Will be placed as sibling BELOW "${getLayerDisplayName(overNode.layer)}" inside "${targetParentNode ? getLayerDisplayName(targetParentNode.layer) : 'ROOT'}" at index ${newOrder}`
+              ? `Will be placed INSIDE "${getLayerDisplayName(overNode.layer)}" as child at index ${newOrder}`
+              : `Will be placed as sibling BELOW "${getLayerDisplayName(overNode.layer)}" inside "${targetParentNode ? getLayerDisplayName(targetParentNode.layer) : 'ROOT'}" at index ${newOrder}`
         }
       });
 
