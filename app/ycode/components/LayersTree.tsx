@@ -900,14 +900,19 @@ export default function LayersTree({
       <DragOverlay dropAnimation={null}>
         {activeNode ? (
           <div 
-            className="flex items-center gap-2 text-white text-xs bg-zinc-800/90 px-3 py-1.5 rounded shadow-lg border border-zinc-600"
+            className="flex items-center text-white text-xs h-8 rounded-lg"
             style={{ transform: 'translateX(40px)' }}
           >
             {(() => {
               const ElementIcon = elementIcons[getIconKey(activeNode.layer)] || Square;
-              return <ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" />;
+              return (
+                <>
+                  {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" />*/}
+                  <div className="size-3 bg-white/10 rounded mx-1.5" />
+                </>
+              );
             })()}
-            <span>{getLayerDisplayName(activeNode.layer)}</span>
+            <span className="pointer-events-none">{getLayerDisplayName(activeNode.layer)}</span>
           </div>
         ) : null}
       </DragOverlay>
