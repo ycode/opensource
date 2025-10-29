@@ -231,7 +231,7 @@ function LayerRow({
           </div>
         )}
         {isOver && dropPosition === 'inside' && (
-          <div className="absolute inset-0 border-2 border-yellow-500 rounded-lg bg-yellow-500/50 z-40 pointer-events-none" />
+          <div className="absolute inset-0 border-[1.5px] border-primary rounded-lg z-40 pointer-events-none" />
         )}
 
         {/* Main Row */}
