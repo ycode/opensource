@@ -147,11 +147,9 @@ export default function YCodeBuilder() {
         // If parent exists, select it. If no parent (root level), deselect
         if (parentLayer) {
           setSelectedLayerId(parentLayer.id);
-          console.log('Selected parent layer:', parentLayer.customName || parentLayer.name);
         } else {
           // At root level or Body layer selected - deselect
           setSelectedLayerId(null);
-          console.log('At root level - deselected');
         }
         
         return;
@@ -193,7 +191,6 @@ export default function YCodeBuilder() {
         
         // Check bounds
         if (newIndex < 0 || newIndex >= siblings.length) {
-          console.log('Cannot move - at boundary');
           return;
         }
         
@@ -230,8 +227,6 @@ export default function YCodeBuilder() {
         // Update the layers
         const { setDraftLayers } = usePagesStore.getState();
         setDraftLayers(currentPageId, newLayers);
-        
-        console.log(`Moved layer ${direction === -1 ? 'up' : 'down'}`);
         
         return;
       }
@@ -271,9 +266,6 @@ export default function YCodeBuilder() {
         if (index + 1 < siblings.length) {
           const nextSibling = siblings[index + 1];
           setSelectedLayerId(nextSibling.id);
-          console.log('Selected next sibling:', nextSibling.customName || nextSibling.name || nextSibling.type);
-        } else {
-          console.log('No next sibling - already at the last position');
         }
         
         return;
@@ -461,7 +453,6 @@ export default function YCodeBuilder() {
         e.preventDefault(); // Always prevent default browser save dialog
         if (currentPageId) {
           saveImmediately(currentPageId);
-          console.log('Manual save triggered');
         }
       }
 
@@ -488,7 +479,6 @@ export default function YCodeBuilder() {
           if (selectedLayerIds.length > 1) {
             // Multi-select: copy all
             const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
-            console.log(`Copied ${layers.length} layers`);
             // Store first layer in clipboard store for compatibility
             if (layers.length > 0) {
               copyToClipboard(layers[0], currentPageId);
@@ -498,7 +488,6 @@ export default function YCodeBuilder() {
             const layer = copyLayerFromStore(currentPageId, selectedLayerId);
             if (layer) {
               copyToClipboard(layer, currentPageId);
-              console.log('Layer copied!');
             }
           }
         }
@@ -516,7 +505,6 @@ export default function YCodeBuilder() {
               cutToClipboard(layers[0], currentPageId);
               deleteLayers(currentPageId, selectedLayerIds);
               clearSelection();
-              console.log(`Cut ${selectedLayerIds.length} layers`);
             }
           } else if (selectedLayerId) {
             // Single select
@@ -525,7 +513,6 @@ export default function YCodeBuilder() {
               cutToClipboard(layer, currentPageId);
               deleteLayer(currentPageId, selectedLayerId);
               setSelectedLayerId(null);
-              console.log('Layer cut!');
             }
           }
         }
@@ -538,7 +525,6 @@ export default function YCodeBuilder() {
           // Use clipboard store for paste (works with context menu)
           if (clipboardLayer && selectedLayerId) {
             pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
-            console.log('Layer pasted!');
           }
         }
       }
@@ -550,7 +536,6 @@ export default function YCodeBuilder() {
           if (selectedLayerIds.length > 1) {
             // Multi-select: duplicate all
             duplicateLayersFromStore(currentPageId, selectedLayerIds);
-            console.log(`Duplicated ${selectedLayerIds.length} layers`);
           } else if (selectedLayerId) {
             // Single select
             duplicateLayer(currentPageId, selectedLayerId);
@@ -566,7 +551,6 @@ export default function YCodeBuilder() {
             // Multi-select: delete all
             deleteLayers(currentPageId, selectedLayerIds);
             clearSelection();
-            console.log(`Deleted ${selectedLayerIds.length} layers`);
           } else if (selectedLayerId) {
             // Single select
             deleteSelectedLayer();

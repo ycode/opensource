@@ -397,7 +397,6 @@ export default function LayersTree({
   const handleDragStart = useCallback((event: DragStartEvent) => {
     // Prevent starting a new drag while processing the previous one
     if (isProcessing) {
-      console.log('⏸️ DRAG BLOCKED: Previous drag still processing');
       return;
     }
 
@@ -413,18 +412,6 @@ export default function LayersTree({
       setCursorOffsetY(offsetWithinElement);
     } else if (activeRect) {
       setCursorOffsetY(activeRect.height / 2); // Fallback to middle
-    }
-    
-    console.log('🎯 DRAG START:', {
-      id: draggedId,
-      name: getLayerDisplayName(draggedNode?.layer!),
-      type: draggedNode?.layer.type,
-      depth: draggedNode?.depth,
-      isImageLayer: draggedNode?.layer.type === 'image'
-    });
-    
-    if (draggedNode?.layer.type === 'image') {
-      console.log('📷 IMAGE LAYER DRAG DETECTED - This should work!');
     }
     
     setActiveId(draggedId);
@@ -449,13 +436,6 @@ export default function LayersTree({
       return;
     }
 
-    console.log('🎯 DRAG OVER:', {
-      overId,
-      nodeType: overNode.layer.type,
-      hasChildren: !!overNode.layer.children,
-      childrenCount: overNode.layer.children?.length || 0,
-      isCollapsed: collapsedIds.has(overId)
-    });
 
     // CRITICAL: Prevent dropping outside Body layer
     // If hovering over Body itself, only allow "inside" drops
@@ -485,14 +465,6 @@ export default function LayersTree({
     
     // Check if node can have children using the shared utility
     const nodeCanHaveChildren = canHaveChildren(overNode.layer);
-    
-    console.log('🔍 DROP ZONE CHECK:', {
-      overNodeName: overNode.layer.name,
-      overNodeType: overNode.layer.type,
-      overNodeCustomName: overNode.layer.customName,
-      canHaveChildren: nodeCanHaveChildren,
-      relativeY: relativeY.toFixed(2)
-    });
     
     // Container types strongly prefer "inside" drops
     // Check both old type property and new name property
@@ -548,13 +520,6 @@ export default function LayersTree({
       position = relativeY < 0.5 ? 'above' : 'below';
     }
 
-    console.log('📍 CALCULATED DROP POSITION:', {
-      position,
-      overNode: overNode.layer.customName || overNode.layer.name,
-      isContainerType,
-      nodeCanHaveChildren,
-      hasVisibleChildren
-    });
 
     // CRITICAL: Prevent reordering within same parent from moving outside parent
     // If dragging an element within its own parent, "above/below" should only reorder
@@ -568,10 +533,6 @@ export default function LayersTree({
       if (overNode.id === currentParentId && overNode.layer.type === 'container') {
         // Dragging over the container that contains the dragged element
         // "above" or "below" would escape to the grandparent level
-        console.log('🚫 DROP BLOCKED: Would escape own container', {
-          container: getLayerDisplayName(overNode.layer),
-          position,
-        });
         setOverId(null);
         setDropPosition(null);
         return;
@@ -601,13 +562,11 @@ export default function LayersTree({
           // This would place ABOVE the first child
           // In the tree, this means same parent (which is fine)
           // But we need to make sure the depth stays the same
-          console.log('✅ ALLOWING above first sibling (stays in container)');
         }
         
         if (position === 'below' && isLastSibling) {
           // This would place BELOW the last child
           // Should stay at same level
-          console.log('✅ ALLOWING below last sibling (stays in container)');
         }
         
         // Allow reordering within same parent
@@ -624,16 +583,6 @@ export default function LayersTree({
       }
     }
 
-    console.log('📍 DROP ZONE:', {
-      nodeType: overNode.layer.type,
-      position,
-      relativeY: relativeY.toFixed(3),
-      hasChildren: !!overNode.layer.children,
-      hasVisibleChildren,
-      isContainerType,
-      overNodeParent: overNode.parentId,
-      activeNodeParent: activeNode?.parentId,
-    });
 
     setOverId(overId);
     setDropPosition(position);
@@ -645,7 +594,6 @@ export default function LayersTree({
       const { active, over } = event;
 
       if (!over || active.id === over.id) {
-        console.log('❌ DRAG CANCELLED: No valid drop target');
         setActiveId(null);
         setOverId(null);
         setDropPosition(null);
@@ -660,7 +608,6 @@ export default function LayersTree({
       const overNode = flattenedNodes.find((n) => n.id === over.id);
 
       if (!activeNode || !overNode) {
-        console.log('❌ DRAG CANCELLED: Node not found');
         setActiveId(null);
         setOverId(null);
         setDropPosition(null);
@@ -671,11 +618,6 @@ export default function LayersTree({
 
       // Prevent moving into self or descendant
       if (isDescendant(activeNode, overNode, flattenedNodes)) {
-        console.log('🚫 DRAG BLOCKED:', {
-          reason: 'Cannot move node into itself or its descendant',
-          dragged: getLayerDisplayName(activeNode.layer),
-          target: getLayerDisplayName(overNode.layer)
-        });
         setActiveId(null);
         setOverId(null);
         setDropPosition(null);
@@ -696,10 +638,6 @@ export default function LayersTree({
         // CRITICAL: Prevent placement at root level (parentId: null)
         // Everything must be inside Body
         if (newParentId === null) {
-          console.log('🚫 DRAG BLOCKED:', {
-            reason: 'Cannot place layers outside Body container',
-            targetNode: getLayerDisplayName(overNode.layer),
-          });
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
@@ -707,24 +645,10 @@ export default function LayersTree({
           setIsProcessing(false);
           return;
         }
-        
-        console.log('📍 DROP ABOVE:', {
-          targetNode: getLayerDisplayName(overNode.layer),
-          targetParentId: overNode.parentId,
-          targetIndex: overNode.index,
-          willPlaceAt: { parentId: newParentId, index: newOrder }
-        });
       } else if (dropPosition === 'inside') {
         // Drop inside the target - target becomes parent
         // Validate that target can accept children
         if (!canHaveChildren(overNode.layer)) {
-          console.log('🚫 DRAG BLOCKED:', {
-            reason: 'Target element cannot have children',
-            dragged: getLayerDisplayName(activeNode.layer),
-            target: getLayerDisplayName(overNode.layer),
-            targetType: overNode.layer.type,
-            targetName: overNode.layer.name
-          });
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
@@ -741,14 +665,6 @@ export default function LayersTree({
         newOrder = childrenOfOver.length > 0 
           ? Math.max(...childrenOfOver.map(n => n.index)) + 1 
           : 0;
-          
-        console.log('📍 DROP INSIDE:', {
-          targetNode: getLayerDisplayName(overNode.layer),
-          targetId: overNode.id,
-          newParentId: newParentId,
-          existingChildren: childrenOfOver.length,
-          willPlaceAt: { parentId: newParentId, index: newOrder }
-        });
       } else {
         // Drop below the target (default)
         newParentId = overNode.parentId;
@@ -757,10 +673,6 @@ export default function LayersTree({
         // CRITICAL: Prevent placement at root level (parentId: null)
         // Everything must be inside Body
         if (newParentId === null) {
-          console.log('🚫 DRAG BLOCKED:', {
-            reason: 'Cannot place layers outside Body container',
-            targetNode: getLayerDisplayName(overNode.layer),
-          });
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
@@ -769,53 +681,6 @@ export default function LayersTree({
           return;
         }
       }
-
-      // Debug: Find parent name for better logging
-      const newParentNode = flattenedNodes.find(n => n.id === newParentId);
-      const newParentName = newParentNode ? getLayerDisplayName(newParentNode.layer) : 'ROOT';
-      const targetParentNode = overNode.parentId ? flattenedNodes.find(n => n.id === overNode.parentId) : null;
-
-      console.log('✅ DRAG END:', {
-        action: 'MOVE',
-        dragged: {
-          id: activeNode.id,
-          name: getLayerDisplayName(activeNode.layer),
-          oldParent: activeNode.parentId,
-          oldParentName: activeNode.parentId ? getLayerDisplayName(flattenedNodes.find(n => n.id === activeNode.parentId)?.layer!) : 'ROOT',
-          oldOrder: activeNode.index
-        },
-        target: {
-          id: overNode.id,
-          name: getLayerDisplayName(overNode.layer),
-          depth: overNode.depth,
-          parentId: overNode.parentId,
-          parentName: targetParentNode ? getLayerDisplayName(targetParentNode.layer) : 'ROOT',
-          index: overNode.index,
-          dropPosition
-        },
-        result: {
-          newParentId,
-          newParentName,
-          newOrder,
-          expectedDepth: newParentId ? (newParentNode?.depth ?? 0) + 1 : 0,
-          explanation: (() => {
-            const targetParentName = targetParentNode ? getLayerDisplayName(targetParentNode.layer) : 'ROOT';
-            const overLayerName = getLayerDisplayName(overNode.layer);
-            
-            if (dropPosition === 'above') {
-              return `Will be placed as sibling ABOVE "${overLayerName}" inside "${targetParentName}" at index ${newOrder}`;
-            }
-            
-            if (dropPosition === 'inside') {
-              return `Will be placed INSIDE "${overLayerName}" as child at index ${newOrder}`;
-            }
-            
-            return `Will be placed as sibling BELOW "${overLayerName}" inside "${targetParentName}" at index ${newOrder}`;
-          })()
-        }
-      });
-
-      console.log('📋 CALLING onReorder with new tree structure');
       
       // Helper function to get target parent name
       const getTargetParentName = (): string => {
@@ -829,21 +694,9 @@ export default function LayersTree({
         return 'NOT FOUND!';
       };
       
-      // FINAL ASSERTION: Verify parentId before rebuild
-      console.log('🔍 FINAL CHECK before rebuild:', {
-        draggedNodeId: activeNode.id,
-        draggedNodeName: getLayerDisplayName(activeNode.layer),
-        targetParentId: newParentId,
-        targetParentName: getTargetParentName(),
-        targetIndex: newOrder,
-        dropPosition: dropPosition
-      });
-      
       // Rebuild the tree structure
       const newLayers = rebuildTree(flattenedNodes, activeNode.id, newParentId, newOrder);
       onReorder(newLayers);
-      
-      console.log('✔️ onReorder called');
 
       setActiveId(null);
       setOverId(null);
@@ -858,7 +711,6 @@ export default function LayersTree({
 
   // Handle drag cancel
   const handleDragCancel = useCallback(() => {
-    console.log('❌ DRAG CANCELLED');
     setActiveId(null);
     setOverId(null);
     setDropPosition(null);
@@ -1008,13 +860,6 @@ function rebuildTree(
   newParentId: string | null,
   newOrder: number
 ): Layer[] {
-  console.log('🔨 REBUILD TREE START:', {
-    movedId,
-    newParentId,
-    newOrder,
-    totalNodes: flattenedNodes.length
-  });
-  
   // Create a copy of all nodes
   const nodeCopy = flattenedNodes.map(n => ({ ...n, layer: { ...n.layer } }));
   
@@ -1024,15 +869,6 @@ function rebuildTree(
     console.error('❌ REBUILD ERROR: Moved node not found!');
     return [];
   }
-  
-  console.log('📦 Moving node:', {
-    id: movedNode.id,
-    type: movedNode.layer.type,
-    fromParent: movedNode.parentId,
-    toParent: newParentId,
-    fromIndex: movedNode.index,
-    toIndex: newOrder
-  });
   
   // Update moved node's parent and index
   movedNode.parentId = newParentId;
@@ -1072,14 +908,6 @@ function rebuildTree(
       }
       
       children.splice(insertIndex, 0, movedNodeInGroup);
-      
-      console.log('🔄 Reordered group:', {
-        parentId,
-        childCount: children.length,
-        movedNodeId: movedId,
-        insertedAt: insertIndex,
-        children: children.map((c, idx) => ({ id: c.id, oldIndex: c.index, newIndex: idx }))
-      });
     }
     
     // Reassign sequential indices
@@ -1105,21 +933,6 @@ function rebuildTree(
   // Build root level
   const rootNodes = byParent.get(null) || [];
   const result = rootNodes.map(node => buildNode(node.id));
-  
-  console.log('✅ REBUILD TREE COMPLETE:', {
-    rootNodesCount: result.length,
-    result: result.map(layer => ({
-      id: layer.id,
-      type: layer.type,
-      hasChildren: !!layer.children,
-      childrenCount: layer.children?.length || 0,
-      children: layer.children?.map(c => ({
-        id: c.id,
-        type: c.type,
-        hasChildren: !!c.children
-      }))
-    }))
-  });
   
   return result;
 }
