@@ -864,12 +864,31 @@ function rebuildTree(
   // Build tree recursively
   function buildNode(nodeId: string): Layer {
     const node = nodeCopy.find(n => n.id === nodeId)!;
-    const children = byParent.get(nodeId) || [];
+    const childNodes = byParent.get(nodeId) || [];
     
-    return {
-      ...node.layer,
-      children: children.length > 0 ? children.map(child => buildNode(child.id)) : undefined,
-    };
+    // Preserve the original property name (items vs children)
+    const result: Layer = { ...node.layer };
+    
+    if (childNodes.length > 0) {
+      const rebuiltChildren = childNodes.map(child => buildNode(child.id));
+      
+      // Use the same property that the original layer had
+      if (node.layer.items !== undefined) {
+        result.items = rebuiltChildren;
+      } else {
+        result.children = rebuiltChildren;
+      }
+    } else {
+      // Preserve empty arrays if they existed
+      if (node.layer.items !== undefined) {
+        result.items = [];
+      }
+      if (node.layer.children !== undefined) {
+        result.children = [];
+      }
+    }
+    
+    return result;
   }
   
   // Build root level
