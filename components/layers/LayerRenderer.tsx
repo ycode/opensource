@@ -148,6 +148,7 @@ const LayerItem: React.FC<{
 
   // Render element-specific content
   const renderContent = () => {
+cl    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Tag = htmlTag as any;
     const attributes = layer.attributes || {};
     
@@ -155,7 +156,7 @@ const LayerItem: React.FC<{
     const isEmpty = !textContent && (!children || children.length === 0);
     
     // Build props for the element
-    const elementProps: any = {
+    const elementProps: Record<string, unknown> = {
       ref: setNodeRef,
       className: fullClassName,
       style,

@@ -29,7 +29,7 @@ import ToggleGroup from './ToggleGroup';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
-  onLayerUpdate: (layerId: string, updates: any) => void;
+  onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
 }
 
 export default function RightSidebar({

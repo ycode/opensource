@@ -7,9 +7,13 @@
  */
 
 import React from 'react';
+
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
+
 import { getTemplate, getBlockName, getIcon } from '@/lib/templates/blocks';
+
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 
@@ -49,20 +53,14 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
       {/* Header */}
       <div className="sticky top-0 bg-zinc-900 border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-white">Add Element</h2>
-        <button 
+        <Button 
           onClick={onClose}
-          className="w-8 h-8 flex items-center justify-center rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Close element library"
         >
-          <svg
-            className="w-5 h-5" fill="none"
-            stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round" strokeLinejoin="round"
-              strokeWidth={2} d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
+          <Icon name="x" className="w-5 h-5" />
+        </Button>
       </div>
 
         {/* Tabs */}
@@ -79,16 +77,17 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
               <h3 className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wide">Structure</h3>
               <div className="grid grid-cols-2 gap-2">
                 {structureElements.map((el) => (
-                  <button
+                  <Button
                     key={el}
                     onClick={() => handleAddElement(el)}
-                    className="flex flex-col items-center gap-2 p-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors group"
+                    variant="ghost"
+                    className="flex flex-col items-center gap-2 p-4 h-auto bg-zinc-800 hover:bg-zinc-700"
                   >
                     <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
                       <Icon name={(getIcon(el) as any) || 'box'} className="w-6 h-6 text-zinc-300" />
                     </div>
                     <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -98,16 +97,17 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
               <h3 className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wide">Content</h3>
               <div className="grid grid-cols-2 gap-2">
                 {contentElements.map((el) => (
-                  <button
+                  <Button
                     key={el}
                     onClick={() => handleAddElement(el)}
-                    className="flex flex-col items-center gap-2 p-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors group"
+                    variant="ghost"
+                    className="flex flex-col items-center gap-2 p-4 h-auto bg-zinc-800 hover:bg-zinc-700"
                   >
                     <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
                       <Icon name={(getIcon(el) as any) || 'type'} className="w-6 h-6 text-zinc-300" />
                     </div>
                     <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -117,16 +117,17 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
               <h3 className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wide">Actions</h3>
               <div className="grid grid-cols-2 gap-2">
                 {actionElements.map((el) => (
-                  <button
+                  <Button
                     key={el}
                     onClick={() => handleAddElement(el)}
-                    className="flex flex-col items-center gap-2 p-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors group"
+                    variant="ghost"
+                    className="flex flex-col items-center gap-2 p-4 h-auto bg-zinc-800 hover:bg-zinc-700"
                   >
                     <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
                       <Icon name={(getIcon(el) as any) || 'square'} className="w-6 h-6 text-zinc-300" />
                     </div>
                     <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -136,16 +137,17 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
               <h3 className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wide">Media</h3>
               <div className="grid grid-cols-2 gap-2">
                 {mediaElements.map((el) => (
-                  <button
+                  <Button
                     key={el}
                     onClick={() => handleAddElement(el)}
-                    className="flex flex-col items-center gap-2 p-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors group"
+                    variant="ghost"
+                    className="flex flex-col items-center gap-2 p-4 h-auto bg-zinc-800 hover:bg-zinc-700"
                   >
                     <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
                       <Icon name={(getIcon(el) as any) || 'image'} className="w-6 h-6 text-zinc-300" />
                     </div>
                     <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -155,16 +157,17 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
               <h3 className="text-sm font-semibold mb-3 text-zinc-400 uppercase tracking-wide">Forms</h3>
               <div className="grid grid-cols-2 gap-2">
                 {formElements.map((el) => (
-                  <button
+                  <Button
                     key={el}
                     onClick={() => handleAddElement(el)}
-                    className="flex flex-col items-center gap-2 p-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors group"
+                    variant="ghost"
+                    className="flex flex-col items-center gap-2 p-4 h-auto bg-zinc-800 hover:bg-zinc-700"
                   >
                     <div className="w-12 h-12 rounded-lg bg-zinc-700 group-hover:bg-zinc-600 flex items-center justify-center transition-colors">
                       <Icon name={(getIcon(el) as any) || 'file-text'} className="w-6 h-6 text-zinc-300" />
                     </div>
                     <span className="text-xs text-zinc-300">{getBlockName(el)}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>

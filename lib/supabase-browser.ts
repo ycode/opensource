@@ -57,51 +57,7 @@ export async function createBrowserClient(): Promise<SupabaseClient> {
   // Get config from API
   const config = await getSupabaseConfig();
 
-  browserClient = createSupabaseBrowserClient(
-    config.url,
-    config.anonKey,
-    {
-      cookies: {
-        get(name: string) {
-          if (typeof document === 'undefined') return undefined;
-          
-          const value = `; ${document.cookie}`;
-          const parts = value.split(`; ${name}=`);
-          
-          if (parts.length === 2) {
-            return parts.pop()?.split(';').shift();
-          }
-          
-          return undefined;
-        },
-        set(name: string, value: string, options: any) {
-          if (typeof document === 'undefined') return;
-          
-          let cookie = `${name}=${value}`;
-          
-          if (options.maxAge) {
-            cookie += `; max-age=${options.maxAge}`;
-          }
-          if (options.path) {
-            cookie += `; path=${options.path}`;
-          }
-          if (options.sameSite) {
-            cookie += `; samesite=${options.sameSite}`;
-          }
-          if (options.secure) {
-            cookie += '; secure';
-          }
-          
-          document.cookie = cookie;
-        },
-        remove(name: string, options: any) {
-          if (typeof document === 'undefined') return;
-          
-          this.set(name, '', { ...options, maxAge: 0 });
-        },
-      },
-    }
-  );
+  browserClient = createSupabaseBrowserClient(config.url, config.anonKey);
 
   return browserClient;
 }

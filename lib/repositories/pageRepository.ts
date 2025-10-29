@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '../supabase-server';
 import type { Page } from '../../types';
 
 export interface QueryFilters {
-  [key: string]: any;
+  [key: string]: string | number | boolean | null;
 }
 
 export interface CreatePageData {
