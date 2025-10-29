@@ -241,24 +241,18 @@ export default function LeftSidebar({
           <hr className="mt-4"/>
 
           {/* Content */}
-          <TabsContent
-            value="layers"
-            className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden"
-          >
-            <div className="py-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-zinc-300">Layers</h3>
-                <button 
-                  onClick={() => setShowElementLibrary(true)}
-                  className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
-                  title="Add Element"
-                >
-                  <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
+          <TabsContent value="layers">
 
+            <header className="py-5 flex justify-between">
+              <span className="font-medium">Layers</span>
+              <div className="-my-1">
+                <Button size="xs" variant="secondary" onClick={() => setShowElementLibrary(true)}>
+                  <Icon name="plus"/>
+                </Button>
+              </div>
+            </header>
+
+            <div className="flex flex-col">
               {!currentPageId ? (
                 <div className="text-center py-8 text-zinc-500">
                   <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-800 flex items-center justify-center">
@@ -293,84 +287,74 @@ export default function LeftSidebar({
                 />
               )}
             </div>
+
           </TabsContent>
 
-          <TabsContent
-            value="pages"
-            className="flex-1 overflow-y-auto overflow-x-hidden mt-0 data-[state=inactive]:hidden"
-          >
-            <div className="py-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-zinc-300">Pages</h3>
-                <button 
-                  onClick={handleAddPage}
-                  className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
-                  title="Add Page"
+          <TabsContent value="pages">
+
+            <header className="py-5 flex justify-between">
+              <span className="font-medium">Pages</span>
+              <div className="-my-1">
+                <Button size="xs" variant="secondary" onClick={handleAddPage}>
+                  <Icon name="plus"/>
+                </Button>
+              </div>
+            </header>
+
+            <div className="flex flex-col">
+              {pages.map((page) => (
+                <div
+                  key={page.id}
+                  className={`group relative rounded ${
+                    currentPageId === page.id
+                      ? 'bg-zinc-700'
+                      : 'hover:bg-zinc-800'
+                  }`}
                 >
-                  <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-              
-              <div className="space-y-1">
-                {pages.map((page) => (
-                  <div
-                    key={page.id}
-                    className={`group relative rounded ${
-                      currentPageId === page.id
-                        ? 'bg-zinc-700'
-                        : 'hover:bg-zinc-800'
-                    }`}
+                  <button
+                    onClick={() => {
+                      onPageSelect(page.id);
+                      setCurrentPageId(page.id);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-sm text-zinc-300 flex items-center gap-2"
                   >
-                    <button
-                      onClick={() => {
-                        onPageSelect(page.id);
-                        setCurrentPageId(page.id);
-                      }}
-                      className="w-full text-left px-3 py-1.5 text-sm text-zinc-300 flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                      </svg>
-                      <span className="flex-1 truncate">{page.title}</span>
-                    </button>
-                    
-                    {/* Settings button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditPage(page);
-                      }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-white hover:bg-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Page settings"
-                    >
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
+                    <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                    </svg>
+                    <span className="flex-1 truncate">{page.title}</span>
+                  </button>
+
+                  {/* Settings button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditPage(page);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded text-zinc-500 hover:text-white hover:bg-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Page settings"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
             </div>
+
           </TabsContent>
 
           <TabsContent value="cms">
-            <div className="py-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-zinc-300">CMS</h3>
-                <button 
-                  onClick={() => {}}
-                  className="w-6 h-6 bg-zinc-800 hover:bg-zinc-700 rounded flex items-center justify-center border border-zinc-700 transition-colors"
-                  title="Add Collection"
-                >
-                  <svg className="w-4 h-4 text-zinc-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
 
-              <div className="flex flex-col">
+            <header className="py-5 flex justify-between">
+              <span className="font-medium">Collections</span>
+              <div className="-my-1">
+                <Button size="xs" variant="secondary">
+                  <Icon name="plus"/>
+                </Button>
+              </div>
+            </header>
+
+            <div className="flex flex-col">
                 <div className="px-4 h-8 rounded-lg bg-secondary flex gap-2 items-center">
                   <Icon name="database" className="size-3"/>
                   <span>Blog posts</span>
@@ -380,8 +364,8 @@ export default function LeftSidebar({
                   <Icon name="database" className="size-3"/>
                   <span>Categories</span>
                 </div>
-              </div>
             </div>
+
           </TabsContent>
         </Tabs>
 

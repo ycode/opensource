@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
+import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 
 export default function TypographyControls() {
   return (
@@ -97,13 +98,31 @@ export default function TypographyControls() {
           <div className="col-span-2 grid grid-cols-2 gap-2">
             <InputGroup>
               <InputGroupAddon>
-                <Icon name="letterSpacing" className="size-3"/>
+                <div className="flex">
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Icon name="letterSpacing" className="size-3"/>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Letter spacing</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               </InputGroupAddon>
               <InputGroupInput className="!pr-0"/>
             </InputGroup>
             <InputGroup>
               <InputGroupAddon>
-                <Icon name="lineHeight" className="size-3"/>
+                <div className="flex">
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Icon name="lineHeight" className="size-3"/>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Line height</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
               </InputGroupAddon>
               <InputGroupInput className="!pr-0"/>
             </InputGroup>
