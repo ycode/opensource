@@ -8,12 +8,17 @@ import { Layer } from '@/types';
  * Get the HTML tag name for a layer
  */
 export function getHtmlTag(layer: Layer): string {
-  // If layer has a name property (new system), use that
+  // Priority 1: Check settings.tag override
+  if (layer.settings?.tag) {
+    return layer.settings.tag;
+  }
+  
+  // Priority 2: Use name property (new system)
   if (layer.name) {
     return layer.name;
   }
 
-  // Fall back to type-based mapping (old system)
+  // Priority 3: Fall back to type-based mapping (old system)
   if (layer.type === 'container') return 'div';
   if (layer.type === 'heading') return 'h1';
   if (layer.type === 'text') return 'p';

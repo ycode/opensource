@@ -98,6 +98,7 @@ export interface PositioningDesign {
 export interface LayerSettings {
   id?: string;           // Custom HTML ID attribute
   hidden?: boolean;      // Element visibility in canvas
+  tag?: string;          // HTML tag override (e.g., 'h1', 'h2', etc.)
   // Future settings can be added here
 }
 

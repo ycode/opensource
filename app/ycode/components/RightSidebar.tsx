@@ -53,6 +53,7 @@ export default function RightSidebar({
   const [attributesOpen, setAttributesOpen] = useState(true);
   const [customId, setCustomId] = useState<string>('');
   const [isHidden, setIsHidden] = useState<boolean>(false);
+  const [headingTag, setHeadingTag] = useState<string>('h1');
 
   const { currentPageId } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
@@ -70,6 +71,25 @@ export default function RightSidebar({
     return null;
   }, [currentPageId, selectedLayerId, draftsByPageId]);
 
+  // Helper function to check if layer is a heading
+  const isHeadingLayer = (layer: Layer | null): boolean => {
+    if (!layer) return false;
+    const headingTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'heading'];
+    return headingTags.includes(layer.type || '') || 
+           headingTags.includes(layer.name || '') ||
+           headingTags.includes(layer.settings?.tag || '');
+  };
+
+  // Get default heading tag based on layer type/name
+  const getDefaultHeadingTag = (layer: Layer | null): string => {
+    if (!layer) return 'h1';
+    if (layer.settings?.tag) return layer.settings.tag;
+    if (layer.name && ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(layer.name)) {
+      return layer.name;
+    }
+    return 'h1'; // Default to h1
+  };
+
   // Update local state when selected layer changes
   const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
   if (selectedLayerId !== prevSelectedLayerId) {
@@ -78,6 +98,7 @@ export default function RightSidebar({
     setClassesInput(Array.isArray(classes) ? classes.join(' ') : classes);
     setCustomId(selectedLayer?.settings?.id || '');
     setIsHidden(selectedLayer?.settings?.hidden || false);
+    setHeadingTag(selectedLayer?.settings?.tag || getDefaultHeadingTag(selectedLayer));
   }
 
   // Parse classes into array for badge display
@@ -154,6 +175,17 @@ export default function RightSidebar({
       const currentSettings = selectedLayer?.settings || {};
       onLayerUpdate(selectedLayerId, { 
         settings: { ...currentSettings, hidden }
+      });
+    }
+  };
+
+  // Handle heading tag change
+  const handleHeadingTagChange = (tag: string) => {
+    setHeadingTag(tag);
+    if (selectedLayerId) {
+      const currentSettings = selectedLayer?.settings || {};
+      onLayerUpdate(selectedLayerId, { 
+        settings: { ...currentSettings, tag }
       });
     }
   };
@@ -255,6 +287,25 @@ export default function RightSidebar({
                   onChange={(value) => handleVisibilityChange(value as boolean)}
                 />
               </div>
+
+              {/* Heading Tag Selector - Only for headings */}
+              {isHeadingLayer(selectedLayer) && (
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-2">Tag</label>
+                  <ToggleGroup
+                    options={[
+                      { label: 'H1', value: 'h1' },
+                      { label: 'H2', value: 'h2' },
+                      { label: 'H3', value: 'h3' },
+                      { label: 'H4', value: 'h4' },
+                      { label: 'H5', value: 'h5' },
+                      { label: 'H6', value: 'h6' },
+                    ]}
+                    value={headingTag}
+                    onChange={(value) => handleHeadingTagChange(value as string)}
+                  />
+                </div>
+              )}
             </SettingsPanel>
           </div>
         </TabsContent>
