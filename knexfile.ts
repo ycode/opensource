@@ -13,22 +13,36 @@ import { storage } from './lib/storage.ts';
  * Load Supabase config from centralized storage
  * Uses environment variables on Vercel, file-based storage locally
  */
-async function loadSupabaseConfig() {
-  const config = await storage.get<{
-    url: string;
-    anonKey: string;
-    serviceRoleKey: string;
-    dbPassword: string;
-  }>('supabase_config');
+async function getSupabaseConnectionString() {
+  const config = await storage.get<{ connectionString: string }>('supabase_config');
 
-  if (!config || !config.url || !config.dbPassword) {
+  if (!config?.connectionString) {
     throw new Error('Supabase not configured. Please run setup first.');
   }
 
-  return {
-    url: config.url,
-    dbPassword: config.dbPassword,
-  };
+  return config.connectionString;
+}
+
+/**
+ * Parse Supabase connection string
+ * Format: postgresql://user:password@host:port/database?params
+ */
+function parseConnectionString(connectionString: string) {
+  try {
+    const url = new URL(connectionString);
+
+    return {
+      host: url.hostname,
+      port: parseInt(url.port || '6543', 10),
+      database: url.pathname.slice(1), // Remove leading slash
+      user: url.username,
+      password: decodeURIComponent(url.password),
+      ssl: { rejectUnauthorized: false },
+    };
+  } catch (error) {
+    console.error('[Knex] Failed to parse connection string:', error);
+    throw new Error('Invalid connection string format. Expected: postgresql://user:password@host:port/database');
+  }
 }
 
 const createConfig = (): Knex.Config => {
@@ -38,54 +52,20 @@ const createConfig = (): Knex.Config => {
     client: 'pg',
     connection: async () => {
       // Load Supabase credentials from storage
-      const supabaseConfig = await loadSupabaseConfig();
+      const connectionString = await getSupabaseConnectionString();
 
-      // Parse project reference from Supabase URL
-      // Supabase URL format: https://[project-ref].supabase.co
-      const projectRef = supabaseConfig.url.replace('https://', '').replace('.supabase.co', '');
+      // Parse the connection string to get connection parameters
+      const connectionParams = parseConnectionString(connectionString);
 
-      // On Vercel, use connection pooler (recommended for serverless)
-      if (isVercel) {
-        // Try connection pooler format
-        // Format: aws-0-[region].pooler.supabase.com:6543
-        // Common regions: us-east-1, us-west-1, eu-west-1, ap-southeast-1, etc.
-
-        // Try us-east-1 first (most common), then fallback to direct connection if it fails
-        const poolerHost = `aws-0-us-east-1.pooler.supabase.com`;
-
-        console.log('[Knex] Using connection pooler (serverless optimized):', {
-          host: poolerHost,
-          port: 6543,
-          user: `postgres.${projectRef}`,
-          database: 'postgres',
-        });
-
-        return {
-          host: poolerHost,
-          port: 6543,
-          database: 'postgres',
-          user: `postgres.${projectRef}`,
-          password: supabaseConfig.dbPassword,
-          ssl: { rejectUnauthorized: false },
-        };
-      }
-
-      // Local development: use direct connection
-      console.log('[Knex] Creating direct database connection:', {
-        host: `db.${projectRef}.supabase.co`,
-        user: 'postgres',
-        database: 'postgres',
-        passwordLength: supabaseConfig.dbPassword.length,
+      console.log('[Knex] Creating database connection:', {
+        host: connectionParams.host,
+        port: connectionParams.port,
+        user: connectionParams.user,
+        database: connectionParams.database,
+        password: '***' + connectionParams.password.slice(-4), // Only show last 4 chars
       });
 
-      return {
-        host: `db.${projectRef}.supabase.co`,
-        port: 5432,
-        database: 'postgres',
-        user: 'postgres',
-        password: supabaseConfig.dbPassword,
-        ssl: { rejectUnauthorized: false },
-      };
+      return connectionParams;
     },
     migrations: {
       directory: path.join(process.cwd(), 'database/migrations'),

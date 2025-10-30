@@ -1,6 +1,6 @@
 /**
  * Setup API Client
- * 
+ *
  * Handles communication with Next.js setup API routes
  */
 
@@ -35,6 +35,7 @@ export async function connectSupabase(
       anon_key: config.publishable_key,
       service_role_key: config.secret_key,
       db_password: config.db_password,
+      pooler_server: config.pooler_server,
     }),
   });
 

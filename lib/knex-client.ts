@@ -71,3 +71,64 @@ export async function testConnection(): Promise<boolean> {
   }
 }
 
+/**
+ * Test database connection with specific connection string
+ * Used during setup to validate credentials before storing them
+ */
+export async function testConnectionWithString(connectionString: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  let testClient: Knex | null = null;
+
+  try {
+    console.log('[testConnectionWithString] Testing database connection...');
+
+    // Parse connection string to extract connection details
+    const url = new URL(connectionString);
+
+    // Create a temporary knex instance with the provided connection string
+    testClient = knex({
+      client: 'pg',
+      connection: {
+        host: url.hostname,
+        port: parseInt(url.port || '6543', 10),
+        database: url.pathname.slice(1), // Remove leading slash
+        user: url.username,
+        password: decodeURIComponent(url.password),
+        ssl: { rejectUnauthorized: false },
+      },
+      pool: {
+        min: 0,
+        max: 1,
+      },
+    });
+
+    // Test the connection
+    await testClient.raw('SELECT 1');
+    console.log('[testConnectionWithString] ✓ Database connection successful');
+
+    return { success: true };
+  } catch (error) {
+    console.error('[testConnectionWithString] ✗ Database connection test failed:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      code: (error as any)?.code,
+      detail: (error as any)?.detail,
+    });
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Database connection failed',
+    };
+  } finally {
+    // Always clean up the test client
+    if (testClient) {
+      try {
+        await testClient.destroy();
+      } catch (closeError) {
+        console.error('[testConnectionWithString] Error closing test connection:', closeError);
+      }
+    }
+  }
+}
+

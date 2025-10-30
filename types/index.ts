@@ -1,6 +1,6 @@
 /**
  * YCode Type Definitions
- * 
+ *
  * Core types for pages, layers, and editor functionality
  */
 
@@ -113,19 +113,19 @@ export interface Layer {
   name?: string; // Element type name: 'div', 'h1', 'button', 'section', etc.
   customName?: string; // User-defined name
   type?: LayerType; // For compatibility
-  
+
   // Content
   text?: string; // Text content
   classes: string | string[]; // Tailwind CSS classes (support both formats)
   style?: string; // Style preset name
-  
+
   // Children
   children?: Layer[];
   open?: boolean; // Collapsed/expanded state in tree
-  
+
   // Attributes (for HTML elements)
   attributes?: Record<string, any>;
-  
+
   // Design system (structured properties)
   design?: {
     layout?: LayoutDesign;
@@ -137,20 +137,20 @@ export interface Layer {
     effects?: EffectsDesign;
     positioning?: PositioningDesign;
   };
-  
+
   // Settings (element-specific configuration)
   settings?: LayerSettings;
-  
+
   // Special properties
   locked?: boolean;
   hidden?: boolean;
   formattable?: boolean; // For text elements
   icon?: { name: string; svg_code: string }; // For icon elements
-  
+
   // Image-specific
   url?: string; // Image URL
   alt?: string;
-  
+
   // Legacy properties
   content?: string; // For text/heading layers (use text instead)
   src?: string;     // For image layers (use url instead)
@@ -227,6 +227,7 @@ export interface SupabaseConfig {
   publishable_key: string;
   secret_key: string;
   db_password: string;
+  pooler_server: string;
   jwt_secret?: string;
 }
 

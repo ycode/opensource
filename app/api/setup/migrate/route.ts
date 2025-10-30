@@ -4,7 +4,7 @@ import { noCache } from '@/lib/api-response';
 
 /**
  * POST /api/setup/migrate
- * 
+ *
  * Run Supabase migrations using Knex
  */
 export async function POST() {
@@ -28,13 +28,13 @@ export async function POST() {
     return noCache({
       success: true,
       executed: result.executed,
-      message: result.executed.length > 0 
-        ? `Successfully executed ${result.executed.length} migration(s)` 
+      message: result.executed.length > 0
+        ? `Successfully executed ${result.executed.length} migration(s)`
         : 'All migrations already up to date',
     });
   } catch (error) {
     console.error('[setup/migrate] Migration error:', error);
-    
+
     return noCache(
       { error: error instanceof Error ? error.message : 'Migration failed' },
       500
@@ -44,7 +44,7 @@ export async function POST() {
 
 /**
  * GET /api/setup/migrate
- * 
+ *
  * Get migration status (completed and pending)
  */
 export async function GET() {
@@ -62,7 +62,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error('[setup/migrate] Failed to get migration status:', error);
-    
+
     return noCache(
       { error: 'Failed to retrieve migration status' },
       500

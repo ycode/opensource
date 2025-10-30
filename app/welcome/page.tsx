@@ -2,7 +2,7 @@
 
 /**
  * Welcome Wizard Page
- * 
+ *
  * First-run setup experience for YCode
  */
 
@@ -24,7 +24,7 @@ export default function WelcomePage() {
   const [error, setError] = useState<string | null>(null);
   const [isVercel, setIsVercel] = useState<boolean | null>(null); // null = loading
   const [envVarsConfigured, setEnvVarsConfigured] = useState(false);
-  
+
   // Admin account fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -185,7 +185,7 @@ export default function WelcomePage() {
                 Configure Environment Variables
               </h2>
             </div>
-            
+
             <div className="bg-blue-950 border border-blue-800 text-blue-300 px-4 py-3 rounded-lg mb-6">
               <p className="font-semibold mb-1">⚡ Running on Vercel</p>
               <p className="text-sm">
@@ -211,7 +211,7 @@ export default function WelcomePage() {
                   </li>
                   <li className="flex gap-3">
                     <span className="text-white font-semibold">2.</span>
-                    <span>Add these four variables (get values from <strong className="text-white">Supabase Dashboard → Settings</strong>):</span>
+                    <span>Add these five variables (get values from <strong className="text-white">Supabase Dashboard → Settings</strong>):</span>
                   </li>
                 </ol>
               </div>
@@ -231,7 +231,11 @@ export default function WelcomePage() {
                 </div>
                 <div>
                   <code className="text-green-400 font-mono text-sm">SUPABASE_DB_PASSWORD</code>
-                  <p className="text-xs text-zinc-400 mt-1">Your database password (from Settings → Database → Connection String)</p>
+                  <p className="text-xs text-zinc-400 mt-1">Your database password</p>
+                </div>
+                <div>
+                  <code className="text-green-400 font-mono text-sm">SUPABASE_POOLER_SERVER</code>
+                  <p className="text-xs text-zinc-400 mt-1">Your pooler server name (e.g. aws-x-xx-xxxx-x.pooler.supabase.com)</p>
                 </div>
               </div>
 
@@ -321,6 +325,7 @@ export default function WelcomePage() {
           publishable_key: formData.get('publishable_key') as string,
           secret_key: formData.get('secret_key') as string,
           db_password: formData.get('db_password') as string,
+          pooler_server: formData.get('pooler_server') as string,
         };
 
         try {
@@ -332,7 +337,7 @@ export default function WelcomePage() {
           }
 
           setSupabaseConfig(config);
-        
+
           // Go to migration step
           setStep('migrate');
         } catch (err) {
@@ -359,21 +364,21 @@ export default function WelcomePage() {
               Connect Your Supabase
             </h2>
           </div>
-          
-          <div className="bg-green-950 border border-green-800 text-green-300 px-4 py-3 rounded-lg mb-6">
+
+          <div className="bg-green-950 border border-green-800 text-green-300 px-4 py-3 rounded-lg mb-3">
             <p className="font-semibold mb-1">💻 Local Development</p>
             <p className="text-sm">
               Credentials will be saved to <code className="font-mono text-xs">.credentials.json</code> (gitignored)
             </p>
           </div>
 
-          <p className="text-zinc-400 mb-8 leading-5">
+          <p className="text-zinc-400 mb-3 leading-5">
             Enter your Supabase project credentials. <br />
             You can find these in your Supabase dashboard under <span className="text-white/85">Settings → API</span>.
           </p>
 
           {error && (
-            <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-6">
+            <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg my-3">
               {error}
             </div>
           )}
@@ -403,17 +408,13 @@ export default function WelcomePage() {
               >
                 Publishable Key (anon key)
               </label>
-              <textarea
+              <input
                 id="publishable_key"
                 name="publishable_key"
                 required
-                rows={2}
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-sm placeholder-zinc-500"
               />
-              <p className="text-xs text-zinc-500 mt-1">
-                This is safe to use in your frontend code.
-              </p>
             </div>
 
             <div>
@@ -423,17 +424,13 @@ export default function WelcomePage() {
               >
                 Secret Key (service_role key)
               </label>
-              <textarea
+              <input
                 id="secret_key"
                 name="secret_key"
                 required
-                rows={2}
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-sm placeholder-zinc-500"
               />
-              <p className="text-xs text-zinc-500 mt-1">
-                ⚠️ Keep this secret! It has admin access to your database.
-              </p>
             </div>
 
             <div>
@@ -448,11 +445,31 @@ export default function WelcomePage() {
                 id="db_password"
                 name="db_password"
                 required
-                placeholder="Your PostgreSQL database password"
+                placeholder="Supabase database password"
                 className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent placeholder-zinc-500"
               />
               <p className="text-xs text-zinc-500 mt-1">
-                Password you used to create your Supabase project (can be reset in <span className="text-white/85">Database → Settings</span>).
+                Database password created with the project. Can be reset in <span className="text-white/85">Supabase → Database → Settings</span>.
+              </p>
+            </div>
+
+            <div>
+              <label
+                htmlFor="pooler_server"
+                className="block text-sm font-medium text-zinc-300 mb-2"
+              >
+                Pooler server name
+              </label>
+              <input
+                type="text"
+                id="pooler_server"
+                name="pooler_server"
+                required
+                placeholder="aws-x-xx-xxxx-x.pooler.supabase.com"
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-sm placeholder-zinc-500"
+              />
+              <p className="text-xs text-zinc-500 mt-1">
+                Find it in <span className="text-white/85">Connect → ORMs → Prisma → .env.local → DATABASE_URL</span>, look for the server name in the string value: ...:[YOUR-PASSWORD]@<span className="text-white/85">aws-x-xx-xxxx-x.pooler.supabase.com</span>:6543/postgres?...
               </p>
             </div>
 

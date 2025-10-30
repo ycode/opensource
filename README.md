@@ -109,42 +109,47 @@ You'll see:
 3. Click **"Settings"** (top menu)
 4. Click **"Environment Variables"** (left sidebar)
 
-### Part B: Add the Connection Details (Do This 3 Times)
+### Part B: Add the Connection Details (Do This 5 Times)
+
+Make sure **all Environments** is selected when adding new keys.
 
 **Variable 1: Project URL**
 1. In **"Key"**, type: `SUPABASE_URL`
-2. In **"Value"**, go to your Supabase tab and copy your **Project URL**
-3. Make sure **all three checkboxes** are checked (Production, Preview, Development)
-4. Click **"Save"**
+2. In **"Value"**, go to your Supabase tab and copy your **Project URL**  
 
 **Variable 2: Public Key**
 1. Click **"Add Another"**
 2. In **"Key"**, type: `SUPABASE_ANON_KEY`
 3. In **"Value"**, copy the **anon public** key from Supabase
-4. Make sure **all three checkboxes** are checked
-5. Click **"Save"**
 
 **Variable 3: Secret Key**
 1. Click **"Add Another"**
 2. In **"Key"**, type: `SUPABASE_SERVICE_ROLE_KEY`
 3. In **"Value"**, click **"Reveal"** next to service_role in Supabase, then copy it
-4. Make sure **all three checkboxes** are checked
-5. Click **"Save"**
 
-**Variable 4: Database password**
+**Variable 4: Database Password**
 1. Click **"Add Another"**
 2. In **"Key"**, type: `SUPABASE_DB_PASSWORD`
-3. Add your Supabase database password (set up when you created your Supabase project, can be reset in Supabase database settings)
-4. Make sure **all three checkboxes** are checked
-5. Click **"Save"**
+3. In **"Value"**, paste your Supabase database password (the one you created when setting up your Supabase project)
+
+**Variable 5: Pooler Server**
+1. Click **"Add Another"**
+2. In **"Key"**, type: `SUPABASE_POOLER_SERVER`
+3. In **"Value"**, you need to find your pooler server name:
+   - Go to Supabase → Click **"Connect"** (top right)
+   - Click **"ORMs"** tab
+   - Click **"Prisma"**
+   - Look for the **DATABASE_URL** connection string
+   - Copy the server part between `@` and `:6543` (e.g., `aws-1-eu-west-3.pooler.supabase.com`)
+4. Click **"Save"** to save all variables
 
 ### Part C: Restart Your Site
 
-6. Click **"Deployments"** (top menu)
-7. Click the **"..."** menu on your latest deployment
-8. Click **"Redeploy"**
-9. Click **"Redeploy"** again to confirm
-10. Wait 1 minute ☕
+1. Click **"Deployments"** (top menu)
+2. Click the **"..."** menu on your latest deployment
+3. Click **"Redeploy"**
+4. Click **"Redeploy"** again to confirm
+5.  Wait 1 minute ☕
 
 **Done!** Your website can now talk to your database!
 
@@ -279,7 +284,7 @@ Your pages and settings will stay safe - only YCode itself gets updated!
 ### "My website shows an error"
 
 1. **Check Vercel** - Go to your Vercel project → Deployments → Click latest → Look for errors
-2. **Check environment variables** - Make sure all 3 variables are set correctly (Step 4)
+2. **Check environment variables** - Make sure all 5 variables are set correctly (Step 4)
 3. **Redeploy** - Sometimes a fresh deploy fixes issues
 
 ### "I can't log in"

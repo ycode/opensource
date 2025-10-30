@@ -4,7 +4,7 @@ import { migrations } from '../migrations-loader';
 
 /**
  * Migration Service
- * 
+ *
  * Runs database migrations programmatically using manually loaded migrations
  * This avoids Next.js webpack bundling issues with dynamic file loading
  */
@@ -27,7 +27,7 @@ export interface MigrationStatus {
  */
 async function ensureMigrationsTable(knex: any): Promise<void> {
   const hasTable = await knex.schema.hasTable('migrations');
-  
+
   if (!hasTable) {
     await knex.schema.createTable('migrations', (table: any) => {
       table.increments('id').primary();
@@ -43,11 +43,11 @@ async function ensureMigrationsTable(knex: any): Promise<void> {
  */
 async function getCompletedMigrations(knex: any): Promise<Set<string>> {
   await ensureMigrationsTable(knex);
-  
+
   const completed = await knex('migrations')
     .select('name')
     .orderBy('id', 'asc');
-  
+
   return new Set(completed.map((m: any) => m.name));
 }
 
@@ -58,7 +58,7 @@ async function getNextBatch(knex: any): Promise<number> {
   const result = await knex('migrations')
     .max('batch as maxBatch')
     .first();
-  
+
   return (result?.maxBatch || 0) + 1;
 }
 
@@ -88,25 +88,25 @@ export async function runMigrations(): Promise<MigrationResult> {
     for (const migration of migrations) {
       if (!completed.has(migration.name)) {
         console.log(`[runMigrations] Running migration: ${migration.name}`);
-        
+
         try {
           // Run migration in a transaction
           await knex.transaction(async (trx: any) => {
             await migration.up(trx);
-            
+
             // Record migration
             await trx('migrations').insert({
               name: migration.name,
               batch,
             });
           });
-          
+
           executed.push(migration.name);
           console.log(`[runMigrations] ✓ ${migration.name} completed`);
         } catch (error) {
           console.error(`[runMigrations] ✗ ${migration.name} failed:`, error);
           await closeKnexClient();
-          
+
           return {
             success: false,
             executed,
@@ -152,12 +152,12 @@ export async function rollbackMigrations(): Promise<MigrationResult> {
     console.log('[rollbackMigrations] Starting rollback...');
 
     const knex = await getKnexClient();
-    
+
     // Get last batch number
     const lastBatch = await knex('migrations')
       .max('batch as maxBatch')
       .first();
-    
+
     if (!lastBatch?.maxBatch) {
       await closeKnexClient();
       return {
@@ -165,37 +165,37 @@ export async function rollbackMigrations(): Promise<MigrationResult> {
         executed: [],
       };
     }
-    
+
     // Get migrations in last batch
     const toRollback = await knex('migrations')
       .where('batch', lastBatch.maxBatch)
       .orderBy('id', 'desc');
-    
+
     const executed: string[] = [];
-    
+
     // Rollback each migration
     for (const record of toRollback) {
       const migration = migrations.find(m => m.name === record.name);
-      
+
       if (migration) {
         console.log(`[rollbackMigrations] Rolling back: ${migration.name}`);
-        
+
         try {
           await knex.transaction(async (trx: any) => {
             await migration.down(trx);
-            
+
             // Remove migration record
             await trx('migrations')
               .where('name', migration.name)
               .delete();
           });
-          
+
           executed.push(migration.name);
           console.log(`[rollbackMigrations] ✓ ${migration.name} rolled back`);
         } catch (error) {
           console.error(`[rollbackMigrations] ✗ ${migration.name} failed:`, error);
           await closeKnexClient();
-          
+
           return {
             success: false,
             executed,
@@ -236,7 +236,7 @@ export async function getMigrationStatus(): Promise<MigrationStatus[]> {
   try {
     const knex = await getKnexClient();
     await ensureMigrationsTable(knex);
-    
+
     const completed = await knex('migrations')
       .select('*')
       .orderBy('id', 'asc');

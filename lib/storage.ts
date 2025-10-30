@@ -14,6 +14,22 @@ interface StorageData {
 }
 
 /**
+ * Construct PostgreSQL connection string from Supabase config
+ * @param url - Supabase project URL (e.g., https://xxxxx.supabase.co)
+ * @param dbPassword - Database password
+ * @param poolerServer - Pooler server name (e.g., aws-1-eu-west-3.pooler.supabase.com)
+ * @returns PostgreSQL connection string
+ */
+function constructConnectionString(url: string, dbPassword: string, poolerServer: string): string {
+  // Extract project ID from URL
+  const projectId = url.replace('https://', '').replace('.supabase.co', '');
+
+  // Construct the connection string
+  // poolerServer format: aws-x-xx-xxxx-x.pooler.supabase.com
+  return `postgresql://postgres.${projectId}:${encodeURIComponent(dbPassword)}@${poolerServer}:6543/postgres`;
+}
+
+/**
  * Get a value from storage
  * Uses environment variables on Vercel, file-based storage locally
  */
@@ -26,6 +42,7 @@ export async function get<T = unknown>(key: string): Promise<T | null> {
       const anonKey = process.env.SUPABASE_ANON_KEY;
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       const dbPassword = process.env.SUPABASE_DB_PASSWORD;
+      const poolerServer = process.env.SUPABASE_POOLER_SERVER;
 
       // Log what we found (without exposing actual values)
       console.log('[Storage] Environment variable check:', {
@@ -33,9 +50,10 @@ export async function get<T = unknown>(key: string): Promise<T | null> {
         SUPABASE_ANON_KEY: anonKey ? `✓ (${anonKey.length} chars)` : '✗ missing',
         SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey ? `✓ (${serviceRoleKey.length} chars)` : '✗ missing',
         SUPABASE_DB_PASSWORD: dbPassword ? `✓ (${dbPassword.length} chars)` : '✗ missing',
+        SUPABASE_POOLER_SERVER: poolerServer ? `✓ (${poolerServer})` : '✗ missing',
       });
 
-      if (url && anonKey && serviceRoleKey && dbPassword) {
+      if (url && anonKey && serviceRoleKey && dbPassword && poolerServer) {
         console.log('[Storage] ✓ All environment variables present');
 
         return {
@@ -43,6 +61,8 @@ export async function get<T = unknown>(key: string): Promise<T | null> {
           anonKey,
           serviceRoleKey,
           dbPassword,
+          poolerServer,
+          connectionString: constructConnectionString(url, dbPassword, poolerServer),
         } as T;
       }
 
@@ -53,9 +73,23 @@ export async function get<T = unknown>(key: string): Promise<T | null> {
     // Locally, use file-based storage
     console.log(`[Storage] Using file storage: ${STORAGE_FILE}`);
     const data = await readStorage();
-    const value = data[key] as T || null;
+    const value = data[key];
+
     console.log(`[Storage] Key "${key}" ${value ? 'found' : 'not found'}`);
-    return value;
+
+    // If this is supabase_config, construct the connection string
+    if (key === 'supabase_config' && value) {
+      const config = value as any;
+
+      if (config.url && config.dbPassword && config.poolerServer) {
+        return {
+          ...config,
+          connectionString: constructConnectionString(config.url, config.dbPassword, config.poolerServer),
+        } as T;
+      }
+    }
+
+    return value as T || null;
   } catch (error) {
     console.error(`[Storage] Error getting key "${key}":`, error);
     return null;
@@ -72,7 +106,7 @@ export async function set(key: string, value: unknown): Promise<void> {
     throw new Error(
       'Cannot write to file system on Vercel. Please set environment variables instead:\n' +
       '1. Go to Vercel Dashboard → Project Settings → Environment Variables\n' +
-      '2. Add: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_PASSWORD\n' +
+      '2. Add: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_PASSWORD, SUPABASE_POOLER_SERVER\n' +
       '3. Redeploy your application'
     );
   }
