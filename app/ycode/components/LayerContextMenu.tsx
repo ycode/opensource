@@ -12,7 +12,7 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuSeparator,
+  ContextMenuSeparator, ContextMenuShortcut, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { usePagesStore } from '@/stores/usePagesStore';
@@ -128,47 +128,45 @@ export default function LayerContextMenu({
       <ContextMenuTrigger asChild>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-56">
+      <ContextMenuContent className="w-44">
         <ContextMenuItem onClick={handleCut} disabled={isLocked}>
-          <Scissors className="mr-2 h-4 w-4" />
-          <span>Cut</span>
-          <span className="ml-auto text-xs text-muted-foreground">⌘X</span>
+          Cut
+          <ContextMenuShortcut>⌘X</ContextMenuShortcut>
         </ContextMenuItem>
         
         <ContextMenuItem onClick={handleCopy}>
-          <Copy className="mr-2 h-4 w-4" />
-          <span>Copy</span>
-          <span className="ml-auto text-xs text-muted-foreground">⌘C</span>
+          Copy
+          <ContextMenuShortcut>⌘C</ContextMenuShortcut>
         </ContextMenuItem>
-        
-        <ContextMenuItem onClick={handlePasteAfter} disabled={!hasClipboard}>
-          <Clipboard className="mr-2 h-4 w-4" />
-          <span>Paste after</span>
-          <span className="ml-auto text-xs text-muted-foreground">⌘V</span>
-        </ContextMenuItem>
-        
-        <ContextMenuItem onClick={handlePasteInside} disabled={!hasClipboard || !canPasteInside}>
-          <ClipboardPaste className="mr-2 h-4 w-4" />
-          <span>Paste inside</span>
-          <span className="ml-auto text-xs text-muted-foreground">⌘⇧V</span>
-        </ContextMenuItem>
+
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>Paste</ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            <ContextMenuItem onClick={handlePasteAfter} disabled={!hasClipboard}>
+              Paste after
+              <ContextMenuShortcut>⌘V</ContextMenuShortcut>
+            </ContextMenuItem>
+
+            <ContextMenuItem onClick={handlePasteInside} disabled={!hasClipboard || !canPasteInside}>
+              Paste inside
+              <ContextMenuShortcut>⌘⇧V</ContextMenuShortcut>
+            </ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
         
         <ContextMenuSeparator />
         
         <ContextMenuItem onClick={handleDuplicate}>
-          <CopyPlus className="mr-2 h-4 w-4" />
-          <span>Duplicate</span>
-          <span className="ml-auto text-xs text-muted-foreground">⌘D</span>
+          Duplicate
+          <ContextMenuShortcut>⌘D</ContextMenuShortcut>
         </ContextMenuItem>
         
         <ContextMenuItem 
           onClick={handleDelete} 
           disabled={isLocked}
-          className="text-red-600 focus:text-red-600"
         >
-          <Trash2 className="mr-2 h-4 w-4" />
-          <span>Delete</span>
-          <span className="ml-auto text-xs text-muted-foreground">Del</span>
+          Delete
+          <ContextMenuShortcut>⌫</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

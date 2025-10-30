@@ -5,12 +5,12 @@ import React from 'react';
  * Props for Icon component: any SVG attribute plus a fixed "name" key.
  */
 export interface IconProps extends React.SVGProps<SVGSVGElement> {
-  name: (
-    'x' | 'layers' | 'database' | 'plus' | 'chevronCombo' | 'check' | 'textAlignLeft' | 'textAlignRight' | 'textAlignCenter' | 'textAlignJustify' | 'individualBorders'
-    | 'borders' | 'borderTopLeft' | 'letterSpacing' | 'lineHeight' | 'columns' | 'rows' | 'grid' | 'alignStart' | 'alignCenter' | 'alignEnd' | 'alignStretch' | 'verticalGap'
-    | 'horizontalGap' | 'link' | 'paddingSide' | 'block' | 'section' | 'container' | 'separator' | 'image' | 'icon' | 'video' | 'text' | 'layout' | 'heading' | 'type'
-    | 'file-text' | 'edit' | 'box'
-  );
+    name: (
+        'x' | 'layers' | 'database' | 'plus' | 'chevronCombo' | 'check' | 'textAlignLeft' | 'textAlignRight' | 'textAlignCenter' | 'textAlignJustify' | 'individualBorders'
+        | 'borders' | 'borderTopLeft' | 'letterSpacing' | 'lineHeight' | 'columns' | 'rows' | 'grid' | 'alignStart' | 'alignCenter' | 'alignEnd' | 'alignStretch' | 'verticalGap'
+        | 'horizontalGap' | 'link' | 'paddingSide' | 'block' | 'section' | 'container' | 'separator' | 'image' | 'icon' | 'video' | 'text' | 'layout' | 'heading' | 'type'
+        | 'file-text' | 'edit' | 'box' | 'chevronRight'
+        );
 }
 
 /**
@@ -230,6 +230,11 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   box: (
       <>
           <path d="M2.5,1 L9.5,1 C10.3284271,1 11,1.67157288 11,2.5 L11,9.5 C11,10.3284271 10.3284271,11 9.5,11 L2.5,11 C1.67157288,11 1,10.3284271 1,9.5 L1,2.5 C1,1.67157288 1.67157288,1 2.5,1 Z M2.5,0 C1.11928813,0 0,1.11928813 0,2.5 L0,9.5 C0,10.8807119 1.11928813,12 2.5,12 L9.5,12 C10.8807119,12 12,10.8807119 12,9.5 L12,2.5 C12,1.11928813 10.8807119,0 9.5,0 L2.5,0 Z" />
+      </>
+  ),
+  chevronRight: (
+      <>
+    <path xmlns="http://www.w3.org/2000/svg" d="M7.7479998,1.79289322 L8.45510658,2.5 L4.955,5.99989322 L8.45510658,9.5 L7.7479998,10.2071068 L4.247,6.70689322 L3.54,6.00089302 L4.159,5.38089322 L4.24720042,5.29209384 L4.248,5.29289322 L7.7479998,1.79289322 Z" transform="translate(5.9976, 6) scale(-1, 1) translate(-5.9976, -6)"/>
       </>
   ),
 };
