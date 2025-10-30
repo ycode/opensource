@@ -214,6 +214,7 @@ function LayerRow({
                 'absolute z-10 top-0 bottom-0 w-px ',
                 isSelected && 'bg-white/10',
                 !isSelected && 'bg-secondary',
+                !isSelected && isChildOfSelected && 'bg-white/10',
             )}
             style={{
               left: `${node.depth * 18 - 2}px`,
@@ -267,7 +268,7 @@ function LayerRow({
             // Background colors
             !isDragActive && !isDragging && 'hover:bg-secondary/50',
             isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
-            !isSelected && isChildOfSelected && 'bg-primary/20 text-foreground',
+            !isSelected && isChildOfSelected && 'bg-primary/20 text-primary-foreground/80 hover:bg-primary/40',
             isSelected && !isDragActive && !isDragging && '',
             isDragging && '',
             !isDragActive && ''
