@@ -230,7 +230,7 @@ function LayerRow({
               marginLeft: `${node.depth * 18}px`,
             }}
           >
-            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border border-[1.5px] bg-neutral-950 border-primary" />
+            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
           </div>
         )}
         {isOver && dropPosition === 'below' && (
@@ -240,7 +240,7 @@ function LayerRow({
               marginLeft: `${node.depth * 18}px`,
             }}
           >
-            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border border-[1.5px] bg-neutral-950 border-primary" />
+            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
           </div>
         )}
         {isOver && dropPosition === 'inside' && (
@@ -707,7 +707,7 @@ export default function LayersTree({
       // Use setTimeout to reset processing flag after state updates complete
       setTimeout(() => setIsProcessing(false), 0);
     },
-    [flattenedNodes, dropPosition, onReorder, collapsedIds]
+    [flattenedNodes, dropPosition, onReorder]
   );
 
   // Handle drag cancel

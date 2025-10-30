@@ -340,7 +340,7 @@ export default function WelcomePage() {
         } finally {
           setLoading(false);
         }
-    };
+      };
 
       return (
       <div className="min-h-screen flex items-center justify-center bg-black p-4">
