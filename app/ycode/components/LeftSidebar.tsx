@@ -255,6 +255,7 @@ export default function LeftSidebar({
             const newTab = value as 'pages' | 'layers' | 'cms';
             setActiveTab(newTab);
             onActiveTabChange(newTab);
+            setShowElementLibrary(false);
           }}
           className="flex-1 gap-0"
         >
