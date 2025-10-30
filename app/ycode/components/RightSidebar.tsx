@@ -20,7 +20,7 @@ import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 // 4. Internal components
@@ -54,6 +54,7 @@ export default function RightSidebar({
   const [customId, setCustomId] = useState<string>('');
   const [isHidden, setIsHidden] = useState<boolean>(false);
   const [headingTag, setHeadingTag] = useState<string>('h1');
+  const [containerTag, setContainerTag] = useState<string>('div');
 
   const { currentPageId } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
@@ -80,6 +81,19 @@ export default function RightSidebar({
            headingTags.includes(layer.settings?.tag || '');
   };
 
+  // Helper function to check if layer is a container/section/block
+  const isContainerLayer = (layer: Layer | null): boolean => {
+    if (!layer) return false;
+    const containerTags = [
+      'div', 'container', 'section', 'nav', 'main', 'aside', 
+      'header', 'footer', 'article', 'figure', 'figcaption',
+      'details', 'summary'
+    ];
+    return containerTags.includes(layer.type || '') || 
+           containerTags.includes(layer.name || '') ||
+           containerTags.includes(layer.settings?.tag || '');
+  };
+
   // Get default heading tag based on layer type/name
   const getDefaultHeadingTag = (layer: Layer | null): string => {
     if (!layer) return 'h1';
@@ -88,6 +102,24 @@ export default function RightSidebar({
       return layer.name;
     }
     return 'h1'; // Default to h1
+  };
+
+  // Get default container tag based on layer type/name
+  const getDefaultContainerTag = (layer: Layer | null): string => {
+    if (!layer) return 'div';
+    if (layer.settings?.tag) return layer.settings.tag;
+    
+    // Check if layer.name is already a valid semantic tag
+    if (layer.name && ['div', 'section', 'nav', 'main', 'aside', 'header', 'footer', 'article', 'figure', 'figcaption', 'details', 'summary'].includes(layer.name)) {
+      return layer.name;
+    }
+    
+    // Map element types to their default tags:
+    // Section = section, Container = div, Block = div
+    if (layer.type === 'section' || layer.name === 'section') return 'section';
+    if (layer.type === 'container' || layer.name === 'container') return 'div';
+    
+    return 'div'; // Default fallback
   };
 
   // Update local state when selected layer changes
@@ -99,6 +131,7 @@ export default function RightSidebar({
     setCustomId(selectedLayer?.settings?.id || '');
     setIsHidden(selectedLayer?.settings?.hidden || false);
     setHeadingTag(selectedLayer?.settings?.tag || getDefaultHeadingTag(selectedLayer));
+    setContainerTag(selectedLayer?.settings?.tag || getDefaultContainerTag(selectedLayer));
   }
 
   // Parse classes into array for badge display
@@ -182,6 +215,17 @@ export default function RightSidebar({
   // Handle heading tag change
   const handleHeadingTagChange = (tag: string) => {
     setHeadingTag(tag);
+    if (selectedLayerId) {
+      const currentSettings = selectedLayer?.settings || {};
+      onLayerUpdate(selectedLayerId, { 
+        settings: { ...currentSettings, tag }
+      });
+    }
+  };
+
+  // Handle container tag change
+  const handleContainerTagChange = (tag: string) => {
+    setContainerTag(tag);
     if (selectedLayerId) {
       const currentSettings = selectedLayer?.settings || {};
       onLayerUpdate(selectedLayerId, { 
@@ -304,6 +348,34 @@ export default function RightSidebar({
                     value={headingTag}
                     onChange={(value) => handleHeadingTagChange(value as string)}
                   />
+                </div>
+              )}
+
+              {/* Container Tag Selector - Only for containers/sections/blocks */}
+              {isContainerLayer(selectedLayer) && !isHeadingLayer(selectedLayer) && (
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-2">Tag</label>
+                  <Select value={containerTag} onValueChange={handleContainerTagChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="div">Div</SelectItem>
+                        <SelectItem value="nav">Nav</SelectItem>
+                        <SelectItem value="main">Main</SelectItem>
+                        <SelectItem value="aside">Aside</SelectItem>
+                        <SelectItem value="header">Header</SelectItem>
+                        <SelectItem value="figure">Figure</SelectItem>
+                        <SelectItem value="footer">Footer</SelectItem>
+                        <SelectItem value="article">Article</SelectItem>
+                        <SelectItem value="section">Section</SelectItem>
+                        <SelectItem value="figcaption">Figcaption</SelectItem>
+                        <SelectItem value="details">Details</SelectItem>
+                        <SelectItem value="summary">Summary</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </SettingsPanel>
