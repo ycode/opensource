@@ -100,6 +100,11 @@ export interface LayerSettings {
   hidden?: boolean;      // Element visibility in canvas
   tag?: string;          // HTML tag override (e.g., 'h1', 'h2', etc.)
   customAttributes?: Record<string, string>; // Custom HTML attributes { attributeName: attributeValue }
+  linkSettings?: {
+    url: string;
+    target?: string; // Link target ('_self', '_blank', etc.)
+  };
+  embedUrl?: string;     // Embed URL for iframes (YouTube, etc.)
   // Future settings can be added here
 }
 

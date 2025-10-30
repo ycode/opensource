@@ -121,6 +121,11 @@
   }
 }
 
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
 /* YCode Editor - Empty Element Placeholders */
 #ybody [data-layer-id][data-is-empty="true"]::before {
   content: '';

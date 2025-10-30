@@ -119,8 +119,8 @@ export default function RightSidebar({
     
     // Map element types to their default tags:
     // Section = section, Container = div, Block = div
-    if (layer.type === 'section' || layer.name === 'section') return 'section';
-    if (layer.type === 'container' || layer.name === 'container') return 'div';
+    if (String(layer.type) === 'section' || layer.name === 'section') return 'section';
+    if (String(layer.type) === 'container' || layer.name === 'container') return 'div';
     
     return 'div'; // Default fallback
   };
@@ -142,6 +142,22 @@ export default function RightSidebar({
     return classesInput.split(' ').filter(cls => cls.trim() !== '');
   }, [classesInput]);
 
+  // Debounced updater for classes
+  const debouncedUpdate = useMemo(
+    () =>
+      debounce((layerId: string, classes: string) => {
+        onLayerUpdate(layerId, { classes });
+      }, 500),
+    [onLayerUpdate]
+  );
+
+  const handleClassesChange = useCallback((value: string) => {
+    setClassesInput(value);
+    if (selectedLayerId) {
+      debouncedUpdate(selectedLayerId, value);
+    }
+  }, [debouncedUpdate, selectedLayerId]);
+
   // Add a new class
   const addClass = useCallback((newClass: string) => {
     if (!newClass.trim()) return;
@@ -153,14 +169,14 @@ export default function RightSidebar({
     setClassesInput(newClasses);
     handleClassesChange(newClasses);
     setCurrentClassInput('');
-  }, [classesArray]);
+  }, [classesArray, handleClassesChange]);
 
   // Remove a class
   const removeClass = useCallback((classToRemove: string) => {
     const newClasses = classesArray.filter(cls => cls !== classToRemove).join(' ');
     setClassesInput(newClasses);
     handleClassesChange(newClasses);
-  }, [classesArray]);
+  }, [classesArray, handleClassesChange]);
 
   // Handle Enter key press
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
@@ -169,21 +185,6 @@ export default function RightSidebar({
       addClass(currentClassInput);
     }
   }, [currentClassInput, addClass]);
-
-  const debouncedUpdate = useMemo(
-    () =>
-      debounce((layerId: string, classes: string) => {
-        onLayerUpdate(layerId, { classes });
-      }, 500),
-    [onLayerUpdate]
-  );
-
-  const handleClassesChange = (value: string) => {
-    setClassesInput(value);
-    if (selectedLayerId) {
-      debouncedUpdate(selectedLayerId, value);
-    }
-  };
 
   const addClasses = (newClasses: string) => {
     if (!selectedLayerId) return;
@@ -275,11 +276,11 @@ export default function RightSidebar({
   }
 
   return (
-    <div className="w-64 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col p-4">
+    <div className="w-64 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col p-4 pb-0 h-full overflow-hidden">
       {/* Tabs */}
       <Tabs
         value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')}
-        className="flex flex-col flex-1 gap-0"
+        className="flex flex-col flex-1 gap-0 min-h-0"
       >
         <TabsList className="w-full">
           <TabsTrigger value="design">Design</TabsTrigger>
@@ -289,7 +290,7 @@ export default function RightSidebar({
         <hr className="mt-4" />
 
         {/* Content */}
-        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto data-[state=inactive]:hidden overflow-x-hidden">
+        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden">
 
           <LayoutControls />
 
@@ -331,7 +332,7 @@ export default function RightSidebar({
 
         </TabsContent>
 
-        <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">
+        <TabsContent value="settings" className="flex-1 overflow-y-auto no-scrollbar mt-0 data-[state=inactive]:hidden">
           <div className="flex flex-col gap-4 p-2">
             {/* Attributes Panel */}
             <SettingsPanel
@@ -434,7 +435,7 @@ export default function RightSidebar({
                       key={name}
                       className="flex items-center justify-between px-3 py-2 bg-zinc-900 rounded-lg text-sm text-zinc-300"
                     >
-                      <span>{name}="{value}"</span>
+                      <span>{name}=&quot;{value as string}&quot;</span>
                       <button
                         onClick={() => handleRemoveAttribute(name)}
                         className="text-zinc-500 hover:text-white transition-colors"
@@ -444,11 +445,11 @@ export default function RightSidebar({
                     </div>
                   ))}
                 </div>
-              ) : (
+                ) : (
                 <div className="text-center py-6 text-zinc-500 text-xs">
                   HTML attributes can be used to append additional information to your elements.
                 </div>
-              )}
+                )}
             </SettingsPanel>
           </div>
         </TabsContent>
