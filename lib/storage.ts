@@ -26,9 +26,18 @@ export async function get<T = unknown>(key: string): Promise<T | null> {
       const anonKey = process.env.SUPABASE_ANON_KEY;
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       const dbPassword = process.env.SUPABASE_DB_PASSWORD;
-      
+
+      // Log what we found (without exposing actual values)
+      console.log('[Storage] Environment variable check:', {
+        SUPABASE_URL: url ? `✓ (${url})` : '✗ missing',
+        SUPABASE_ANON_KEY: anonKey ? `✓ (${anonKey.length} chars)` : '✗ missing',
+        SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey ? `✓ (${serviceRoleKey.length} chars)` : '✗ missing',
+        SUPABASE_DB_PASSWORD: dbPassword ? `✓ (${dbPassword.length} chars)` : '✗ missing',
+      });
+
       if (url && anonKey && serviceRoleKey && dbPassword) {
-        console.log('[Storage] Using environment variables (Vercel)');
+        console.log('[Storage] ✓ All environment variables present');
+
         return {
           url,
           anonKey,
@@ -36,11 +45,11 @@ export async function get<T = unknown>(key: string): Promise<T | null> {
           dbPassword,
         } as T;
       }
-      
-      console.log('[Storage] Environment variables not set or incomplete');
+
+      console.error('[Storage] ✗ Missing required environment variables. Please check Vercel settings.');
       return null;
     }
-    
+
     // Locally, use file-based storage
     console.log(`[Storage] Using file storage: ${STORAGE_FILE}`);
     const data = await readStorage();
@@ -67,7 +76,7 @@ export async function set(key: string, value: unknown): Promise<void> {
       '3. Redeploy your application'
     );
   }
-  
+
   console.log(`[Storage] Setting key "${key}" in ${STORAGE_FILE}`);
   const data = await readStorage();
   data[key] = value;

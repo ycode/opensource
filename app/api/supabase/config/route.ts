@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { storage } from '@/lib/storage';
 import { noCache } from '@/lib/api-response';
 
@@ -8,14 +7,14 @@ export const revalidate = 0;
 
 /**
  * GET /api/supabase/config
- * 
+ *
  * Returns public Supabase configuration (URL and anon key only)
  * Used by browser client for authentication
  */
 export async function GET() {
   try {
     console.log('GET /api/supabase/config - Fetching config from storage...');
-    
+
     const config = await storage.get<{
       url: string;
       anonKey: string;
@@ -33,7 +32,7 @@ export async function GET() {
     }
 
     console.log('Returning public config (url + anonKey)');
-    
+
     // Only return public config (not service role key)
     return noCache({
       data: {
@@ -43,7 +42,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Failed to get Supabase config:', error);
-    
+
     return noCache(
       { error: `Failed to get configuration: ${error instanceof Error ? error.message : 'Unknown error'}` },
       500
