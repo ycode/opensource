@@ -10,7 +10,7 @@ import React from 'react';
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import Icon from '@/components/ui/icon';
+import Icon, { IconProps } from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
@@ -90,7 +90,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
                     variant="secondary"
                     className="justify-start"
                   >
-                    <Icon name={getIcon(el) || 'box'} />
+                    <Icon name={getIcon(el) as IconProps['name']} />
                     {getBlockName(el)}
                   </Button>
                 ))}
@@ -111,7 +111,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
                     variant="secondary"
                     className="justify-start"
                   >
-                    <Icon name={getIcon(el) || 'box'} />
+                    <Icon name={getIcon(el) as IconProps['name']} />
                     {getBlockName(el)}
                   </Button>
                 ))}
@@ -132,7 +132,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
                     variant="secondary"
                     className="justify-start"
                   >
-                    <Icon name={getIcon(el) || 'box'} />
+                    <Icon name={getIcon(el) as IconProps['name']} />
                     {getBlockName(el)}
                   </Button>
                 ))}
@@ -153,7 +153,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
                     variant="secondary"
                     className="justify-start"
                   >
-                    <Icon name={getIcon(el) || 'box'} />
+                    <Icon name={getIcon(el) as IconProps['name']} />
                     {getBlockName(el)}
                   </Button>
                 ))}
@@ -174,7 +174,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
                     variant="secondary"
                     className="justify-start"
                   >
-                    <Icon name={getIcon(el) || 'box'} />
+                    <Icon name={getIcon(el) as IconProps['name']} />
                     {getBlockName(el)}
                   </Button>
                 ))}

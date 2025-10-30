@@ -6,7 +6,7 @@ import React from 'react';
  */
 export interface IconProps extends React.SVGProps<SVGSVGElement> {
   name: (
-      'x' | 'layers' | 'database' | 'plus' | 'chevronCombo' | 'check' | 'textAlignLeft' | 'textAlignRight' | 'textAlignCenter' | 'textAlignJustify' | 'individualBorders' | 'borders' | 'borderTopLeft' | 'letterSpacing' | 'lineHeight' | 'columns' | 'rows' | 'grid' | 'alignStart' | 'alignCenter' | 'alignEnd' | 'alignStretch' | 'verticalGap' | 'horizontalGap' | 'link' | 'paddingSide' | 'block' | 'section' | 'container' | 'separator' | 'image' | 'icon' | 'video' | 'text'
+      'x' | 'layers' | 'database' | 'plus' | 'chevronCombo' | 'check' | 'textAlignLeft' | 'textAlignRight' | 'textAlignCenter' | 'textAlignJustify' | 'individualBorders' | 'borders' | 'borderTopLeft' | 'letterSpacing' | 'lineHeight' | 'columns' | 'rows' | 'grid' | 'alignStart' | 'alignCenter' | 'alignEnd' | 'alignStretch' | 'verticalGap' | 'horizontalGap' | 'link' | 'paddingSide' | 'block' | 'section' | 'container' | 'separator' | 'image' | 'icon' | 'video' | 'text' | 'heading' | 'type' | 'file-text' | 'edit' | 'box'
       );
 }
 
@@ -201,6 +201,31 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   text: (
       <>
           <path d="M0,1 L0,0 L12,0 L12,1 L6.5,1 L6.5,12 L5.5,12 L5.5,1 L0,1 Z" />
+      </>
+  ),
+  heading: (
+      <>
+          <path d="M1,1 L1,11 L2,11 L2,7 L10,7 L10,11 L11,11 L11,1 L10,1 L10,6 L2,6 L2,1 L1,1 Z" />
+      </>
+  ),
+  type: (
+      <>
+          <path d="M3,2 L3,3 L5,3 L5,10 L4,10 L4,11 L8,11 L8,10 L7,10 L7,3 L9,3 L9,2 L3,2 Z" />
+      </>
+  ),
+  'file-text': (
+      <>
+          <path d="M2,1 L7,1 L7,4 L10,4 L10,11 L2,11 L2,1 Z M8,1.5 L8,3 L9.5,3 L8,1.5 Z M4,5 L8,5 L8,6 L4,6 L4,5 Z M4,7 L8,7 L8,8 L4,8 L4,7 Z M4,9 L8,9 L8,10 L4,10 L4,9 Z" />
+      </>
+  ),
+  edit: (
+      <>
+          <path d="M8.5,1.5 L10.5,3.5 L4,10 L2,10 L2,8 L8.5,1.5 Z M9,2 L10,3 L9.5,3.5 L8.5,2.5 L9,2 Z M8,3 L9,4 L4,9 L3,9 L3,8 L8,3 Z" />
+      </>
+  ),
+  box: (
+      <>
+          <path d="M2,2 L10,2 L10,10 L2,10 L2,2 Z M3,3 L9,3 L9,9 L3,9 L3,3 Z" />
       </>
   ),
 };

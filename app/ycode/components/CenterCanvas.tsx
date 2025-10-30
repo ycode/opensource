@@ -110,7 +110,7 @@ export default function CenterCanvas({
             <div className="w-full h-full flex items-center justify-center p-12">
               <div className="text-center max-w-md relative">
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
-                  <Icon name="layout" className="w-10 h-10 text-blue-500" />
+                  <Icon name="block" className="w-10 h-10 text-blue-500" />
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-3">
                   Start building
