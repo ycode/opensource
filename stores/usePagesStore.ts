@@ -24,11 +24,15 @@ interface PagesActions {
   publishPage: (pageId: string) => Promise<void>;
   setError: (error: string | null) => void;
   addLayer: (pageId: string, parentLayerId: string | null, layerType: Layer['type']) => void;
+  addLayerWithId: (pageId: string, parentLayerId: string | null, layer: Layer) => void;
   addLayerFromTemplate: (pageId: string, parentLayerId: string | null, templateId: string) => { newLayerId: string; parentToExpand: string | null } | null;
   deleteLayer: (pageId: string, layerId: string) => void;
   deleteLayers: (pageId: string, layerIds: string[]) => void; // New batch delete
   updateLayer: (pageId: string, layerId: string, updates: Partial<Layer>) => void;
   moveLayer: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => boolean;
+  addPage: (page: Page) => void;
+  updatePage: (pageId: string, updates: Partial<Page>) => void;
+  removePage: (pageId: string) => void;
   setDraftLayers: (pageId: string, layers: Layer[]) => void;
   copyLayer: (pageId: string, layerId: string) => Layer | null;
   copyLayers: (pageId: string, layerIds: string[]) => Layer[]; // New batch copy
@@ -615,6 +619,68 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     });
 
     return true;
+  },
+
+  addLayerWithId: (pageId, parentLayerId, layer) => {
+    const { pages, draftsByPageId } = get();
+    let draft = draftsByPageId[pageId];
+    
+    // Initialize draft if it doesn't exist
+    if (!draft) {
+      const page = pages.find(p => p.id === pageId);
+      if (!page) return;
+      
+      draft = {
+        id: `draft-${pageId}`,
+        page_id: pageId,
+        layers: [],
+        is_published: false,
+        created_at: new Date().toISOString(),
+      };
+    }
+
+    let newLayers: Layer[];
+    
+    if (! parentLayerId) {
+      // Add to root
+      newLayers = [...draft.layers, layer];
+    } else {
+      // Add as child to parent
+      newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
+        ...parent,
+        children: [...(parent.children || []), layer],
+      }));
+    }
+
+    set({ 
+      draftsByPageId: { 
+        ...draftsByPageId, 
+        [pageId]: { ...draft, layers: newLayers }
+      } 
+    });
+  },
+
+  addPage: (page: Page) => {
+    const { pages } = get();
+    set({ pages: [...pages, page] });
+  },
+
+  updatePage: (pageId: string, updates: Partial<Page>) => {
+    const { pages } = get();
+    const updatedPages = pages.map(page => 
+      page.id === pageId ? { ...page, ...updates } : page
+    );
+    set({ pages: updatedPages });
+  },
+
+  removePage: (pageId: string) => {
+    const { pages, draftsByPageId } = get();
+    const updatedPages = pages.filter(page => page.id !== pageId);
+    const { [pageId]: removedDraft, ...remainingDrafts } = draftsByPageId;
+    set({ 
+      pages: updatedPages,
+      draftsByPageId: remainingDrafts
+    });
   },
 
   setDraftLayers: (pageId, layers) => {

@@ -32,6 +32,11 @@ interface CenterCanvasProps {
   viewportMode: ViewportMode;
   setViewportMode: (mode: ViewportMode) => void;
   zoom: number;
+  onLayerSelect?: (layerId: string) => void;
+  onLayerDeselect?: () => void;
+  liveLayerUpdates?: {
+    broadcastLayerUpdate: (layerId: string, changes: Partial<Layer>) => void;
+  };
 }
 
 const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: string }> = {
@@ -46,6 +51,9 @@ export default function CenterCanvas({
   viewportMode,
   setViewportMode,
   zoom,
+  onLayerSelect,
+  onLayerDeselect,
+  liveLayerUpdates,
 }: CenterCanvasProps) {
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
   const { draftsByPageId, addLayer, updateLayer } = usePagesStore();
@@ -63,6 +71,10 @@ export default function CenterCanvas({
   const handleLayerUpdate = (layerId: string, updates: Partial<Layer>) => {
     if (currentPageId) {
       updateLayer(currentPageId, layerId, updates);
+      // Broadcast the update to other users
+      if (liveLayerUpdates) {
+        liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
+      }
     }
   };
 
@@ -96,10 +108,18 @@ export default function CenterCanvas({
         >
           {/* Preview Content */}
           {layers.length > 0 ? (
-            <div id="ybody" className="w-full h-full relative">
+            <div
+              id="ybody"className="w-full h-full relative"
+              onClick={(e) => {
+                // Only deselect if clicking on the background (not on a layer)
+                if (e.target === e.currentTarget && onLayerDeselect) {
+                  onLayerDeselect();
+                }
+              }}
+            >
               <LayerRenderer 
                 layers={layers} 
-                onLayerClick={setSelectedLayerId}
+                onLayerClick={onLayerSelect || setSelectedLayerId}
                 onLayerUpdate={handleLayerUpdate}
                 selectedLayerId={selectedLayerId}
                 isEditMode={true}
@@ -107,7 +127,15 @@ export default function CenterCanvas({
               />
             </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center p-12">
+            <div
+              className="w-full h-full flex items-center justify-center p-12"
+              onClick={(e) => {
+                // Only deselect if clicking on the background
+                if (e.target === e.currentTarget && onLayerDeselect) {
+                  onLayerDeselect();
+                }
+              }}
+            >
               <div className="text-center max-w-md relative">
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
                   <Icon name="layout" className="w-10 h-10 text-blue-500" />
@@ -119,7 +147,7 @@ export default function CenterCanvas({
                   Add your first block to begin creating your page.
                 </p>
                 <div className="relative inline-block">
-                  <Button 
+                  <Button
                     onClick={() => setShowAddBlockPanel(!showAddBlockPanel)}
                     size="lg"
                     className="gap-2"

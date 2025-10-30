@@ -23,8 +23,18 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useClipboardStore } from '../../stores/useClipboardStore';
 import { useEditorStore } from '../../stores/useEditorStore';
 import { usePagesStore } from '../../stores/usePagesStore';
+import { useCollaborationPresenceStore, startLockExpirationCheck, startNotificationCleanup } from '../../stores/useCollaborationPresenceStore';
 
-// 4. Types
+// 4. Hooks
+import { useLayerLocks } from '../../hooks/use-layer-locks';
+import { useLiveLayerUpdates } from '../../hooks/use-live-layer-updates';
+import { useLivePageUpdates } from '../../hooks/use-live-page-updates';
+
+// 5. Collaboration Components
+import { RealtimeCursors } from '../../components/realtime-cursors';
+import ActivityNotifications from '../../components/collaboration/ActivityNotifications';
+
+// 6. Types
 import type { Layer } from '../../types';
 
 export default function YCodeBuilder() {
@@ -33,6 +43,83 @@ export default function YCodeBuilder() {
   const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter } = usePagesStore();
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard } = useClipboardStore();
   const pages = usePagesStore((state) => state.pages);
+
+  // Get user display name for cursor
+  const userDisplayName = user?.email?.split('@')[0] || 'User';
+
+  // Initialize collaboration features
+  const layerLocks = useLayerLocks();
+  const liveLayerUpdates = useLiveLayerUpdates(currentPageId);
+  const livePageUpdates = useLivePageUpdates();
+  const { currentUserId } = useCollaborationPresenceStore();
+
+  // Layer selection handler with lock checking
+  const handleLayerSelect = useCallback(async (layerId: string) => {
+    if (!currentUserId) {
+      console.warn('No current user ID, cannot select layer');
+      return;
+    }
+
+    try {
+      // Release lock on previously selected layer if different
+      if (selectedLayerId && selectedLayerId !== layerId) {
+        await layerLocks.releaseLock(selectedLayerId);
+      }
+
+      // Check if layer is locked by another user
+      const isLocked = layerLocks.isLayerLocked(layerId);
+      const canEdit = layerLocks.canEditLayer(layerId);
+
+      if (isLocked && !canEdit) {
+        return;
+      }
+
+      // Try to acquire lock and select layer
+      const lockAcquired = await layerLocks.acquireLock(layerId);
+
+      if (lockAcquired) {
+        setSelectedLayerId(layerId);
+      } else {
+        console.warn(`[DEBUG] Failed to acquire lock for layer ${layerId}`);
+      }
+    } catch (error) {
+      console.error(`[DEBUG] Error in handleLayerSelect:`, error);
+    }
+  }, [currentUserId, selectedLayerId, layerLocks, setSelectedLayerId]);
+
+  // Page selection handler with lock release
+  const handlePageSelect = useCallback(async (pageId: string) => {
+    if (!currentUserId) return;
+
+    console.log(`[PAGE-SELECT] Switching from page ${currentPageId} to page ${pageId}`);
+
+    // Release all locks on the current page before switching
+    if (currentPageId) {
+      console.log(`[PAGE-SELECT] Releasing all locks on page ${currentPageId}`);
+      await layerLocks.releaseAllLocks();
+    }
+
+    // Clear selected layer and switch page
+    setSelectedLayerId(null);
+    setCurrentPageId(pageId);
+
+    console.log(`[PAGE-SELECT] Switched to page ${pageId}`);
+  }, [currentUserId, currentPageId, layerLocks, setSelectedLayerId, setCurrentPageId]);
+
+  // Layer deselection handler with lock release
+  const handleLayerDeselect = useCallback(async () => {
+    if (!currentUserId || !selectedLayerId) return;
+
+    console.log(`Deselecting layer ${selectedLayerId} and releasing lock`);
+
+    // Optimistically update UI immediately
+    setSelectedLayerId(null);
+
+    // Then release the lock (will broadcast to others)
+    await layerLocks.releaseLock(selectedLayerId);
+    console.log(`Lock released for layer ${selectedLayerId}`);
+  }, [currentUserId, selectedLayerId, layerLocks, setSelectedLayerId]);
+
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -75,6 +162,17 @@ export default function YCodeBuilder() {
       loadPages();
     }
   }, [loadPages, migrationsComplete]);
+
+  // Initialize collaboration services
+  useEffect(() => {
+    startLockExpirationCheck();
+    startNotificationCleanup();
+
+    return () => {
+      // Cleanup will be handled by the store
+    };
+  }, []);
+
 
   // Set current page to "Home" page by default, or first page if Home doesn't exist
   useEffect(() => {
@@ -332,6 +430,8 @@ export default function YCodeBuilder() {
   const deleteSelectedLayer = () => {
     if (selectedLayerId && currentPageId) {
       deleteLayer(currentPageId, selectedLayerId);
+      // Broadcast the layer deletion to other users
+      liveLayerUpdates.broadcastLayerDelete(currentPageId, selectedLayerId);
       setSelectedLayerId(null);
     }
   };
@@ -655,7 +755,7 @@ export default function YCodeBuilder() {
 
   // Authenticated - show builder (only after migrations complete)
   return (
-    <div className="h-screen flex flex-col bg-zinc-950 text-white">
+    <div className="h-screen flex flex-col bg-zinc-950 text-white relative">
       {/* Update Notification Banner */}
       <UpdateNotification />
       
@@ -681,14 +781,16 @@ export default function YCodeBuilder() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Left Sidebar - Pages & Layers */}
         <LeftSidebar
           selectedLayerId={selectedLayerId}
           selectedLayerIds={selectedLayerIds}
-          onLayerSelect={setSelectedLayerId}
+          onLayerSelect={handleLayerSelect}
           currentPageId={currentPageId}
-          onPageSelect={setCurrentPageId}
+          onPageSelect={handlePageSelect}
+          livePageUpdates={livePageUpdates}
+          liveLayerUpdates={liveLayerUpdates}
           onActiveTabChange={setActiveTab}
         />
 
@@ -704,6 +806,9 @@ export default function YCodeBuilder() {
               viewportMode={viewportMode}
               setViewportMode={setViewportMode}
               zoom={zoom}
+              onLayerSelect={handleLayerSelect}
+              onLayerDeselect={handleLayerDeselect}
+              liveLayerUpdates={liveLayerUpdates}
             />
 
             {/* Right Sidebar - Properties */}
@@ -712,12 +817,40 @@ export default function YCodeBuilder() {
               onLayerUpdate={(layerId, updates) => {
                 if (currentPageId) {
                   updateLayer(currentPageId, layerId, updates);
+                  // Broadcast the update to other users
+                  liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
                 }
               }}
+              liveLayerUpdates={liveLayerUpdates}
+              currentPageId={currentPageId}
             />
           </>
         )}
+
+        {/* Realtime Cursors for Collaboration */}
+        {user && currentPageId && (
+          <RealtimeCursors
+            roomName={`page-${currentPageId}`}
+            username={userDisplayName}
+          />
+        )}
       </div>
+
+      {/* Collaboration Components */}
+      {user && currentPageId && (
+        <>
+          {/* Activity Notifications */}
+          <ActivityNotifications
+            position="bottom-right"
+            maxNotifications={5}
+            autoHide={true}
+            hideDelay={5000}
+          />
+        </>
+      )}
+
+      {/* Update Notification */}
+      <UpdateNotification />
     </div>
   );
 }

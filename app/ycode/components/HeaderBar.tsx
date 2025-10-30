@@ -26,6 +26,7 @@ import { usePagesStore } from '../../../stores/usePagesStore';
 // 5. Types
 import type { Page } from '../../../types';
 import type { User } from '@supabase/supabase-js';
+import ActiveUsersInHeader from './ActiveUsersInHeader';
 
 interface HeaderBarProps {
   user: User | null;
@@ -145,8 +146,10 @@ export default function HeaderBar({
 
       {/* Right: User & Actions */}
       <div className="flex items-center gap-4">
-        {/* Save Status Indicator */}
+        {/* Active Users */}
+        <ActiveUsersInHeader />
 
+        {/* Save Status Indicator */}
         <div className="flex items-center justify-end w-[64px] text-xs text-white/50">
           {isSaving ? (
             <>
