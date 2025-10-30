@@ -16,6 +16,7 @@ import HeaderBar from './components/HeaderBar';
 import LeftSidebar from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
 import UpdateNotification from '../../components/UpdateNotification';
+import MigrationChecker from '../../components/MigrationChecker';
 
 // 3. Stores
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -42,37 +43,37 @@ export default function YCodeBuilder() {
   const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter } = usePagesStore();
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard } = useClipboardStore();
   const pages = usePagesStore((state) => state.pages);
-  
+
   // Get user display name for cursor
   const userDisplayName = user?.email?.split('@')[0] || 'User';
-  
+
   // Initialize collaboration features
   const layerLocks = useLayerLocks();
   const liveLayerUpdates = useLiveLayerUpdates(currentPageId);
   const livePageUpdates = useLivePageUpdates();
   const { currentUserId } = useCollaborationPresenceStore();
-  
+
   // Layer selection handler with lock checking
   const handleLayerSelect = useCallback(async (layerId: string) => {
     if (!currentUserId) {
       console.warn('No current user ID, cannot select layer');
       return;
     }
-    
+
     try {
       // Release lock on previously selected layer if different
       if (selectedLayerId && selectedLayerId !== layerId) {
         await layerLocks.releaseLock(selectedLayerId);
       }
-      
+
       // Check if layer is locked by another user
       const isLocked = layerLocks.isLayerLocked(layerId);
       const canEdit = layerLocks.canEditLayer(layerId);
-      
+
       if (isLocked && !canEdit) {
         return;
       }
-      
+
       // Try to acquire lock and select layer
       const lockAcquired = await layerLocks.acquireLock(layerId);
 
@@ -89,36 +90,36 @@ export default function YCodeBuilder() {
   // Page selection handler with lock release
   const handlePageSelect = useCallback(async (pageId: string) => {
     if (!currentUserId) return;
-    
+
     console.log(`[PAGE-SELECT] Switching from page ${currentPageId} to page ${pageId}`);
-    
+
     // Release all locks on the current page before switching
     if (currentPageId) {
       console.log(`[PAGE-SELECT] Releasing all locks on page ${currentPageId}`);
       await layerLocks.releaseAllLocks();
     }
-    
+
     // Clear selected layer and switch page
     setSelectedLayerId(null);
     setCurrentPageId(pageId);
-    
+
     console.log(`[PAGE-SELECT] Switched to page ${pageId}`);
   }, [currentUserId, currentPageId, layerLocks, setSelectedLayerId, setCurrentPageId]);
 
   // Layer deselection handler with lock release
   const handleLayerDeselect = useCallback(async () => {
     if (!currentUserId || !selectedLayerId) return;
-    
+
     console.log(`Deselecting layer ${selectedLayerId} and releasing lock`);
-    
+
     // Optimistically update UI immediately
     setSelectedLayerId(null);
-    
+
     // Then release the lock (will broadcast to others)
     await layerLocks.releaseLock(selectedLayerId);
     console.log(`Lock released for layer ${selectedLayerId}`);
   }, [currentUserId, selectedLayerId, layerLocks, setSelectedLayerId]);
-  
+
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -130,6 +131,9 @@ export default function YCodeBuilder() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersRef = useRef<string>('');
   const previousPageIdRef = useRef<string | null>(null);
+
+  // Migration state - BLOCKS builder until migrations complete
+  const [migrationsComplete, setMigrationsComplete] = useState(false);
 
   // Login state (when not authenticated)
   const [loginEmail, setLoginEmail] = useState('');
@@ -152,16 +156,18 @@ export default function YCodeBuilder() {
     // If successful, user state will update and component will re-render with builder
   };
 
-  // Load pages on mount
+  // Load pages only after migrations complete
   useEffect(() => {
-    loadPages();
-  }, [loadPages]);
-  
+    if (migrationsComplete) {
+      loadPages();
+    }
+  }, [loadPages, migrationsComplete]);
+
   // Initialize collaboration services
   useEffect(() => {
     startLockExpirationCheck();
     startNotificationCleanup();
-    
+
     return () => {
       // Cleanup will be handled by the store
     };
@@ -742,7 +748,12 @@ export default function YCodeBuilder() {
     );
   }
 
-  // Authenticated - show builder
+  // Check migrations first (BLOCKING) before showing builder
+  if (!migrationsComplete) {
+    return <MigrationChecker onComplete={() => setMigrationsComplete(true)} />;
+  }
+
+  // Authenticated - show builder (only after migrations complete)
   return (
     <div className="h-screen flex flex-col bg-zinc-950 text-white relative">
       {/* Update Notification Banner */}
@@ -818,9 +829,9 @@ export default function YCodeBuilder() {
 
         {/* Realtime Cursors for Collaboration */}
         {user && currentPageId && (
-          <RealtimeCursors 
-            roomName={`page-${currentPageId}`} 
-            username={userDisplayName} 
+          <RealtimeCursors
+            roomName={`page-${currentPageId}`}
+            username={userDisplayName}
           />
         )}
       </div>
@@ -829,7 +840,7 @@ export default function YCodeBuilder() {
       {user && currentPageId && (
         <>
           {/* Activity Notifications */}
-          <ActivityNotifications 
+          <ActivityNotifications
             position="bottom-right"
             maxNotifications={5}
             autoHide={true}

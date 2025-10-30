@@ -5,6 +5,7 @@
  */
 
 import { Layer } from '@/types';
+import { IconProps } from '@/components/ui/icon';
 import { structureTemplates } from './structure';
 import { contentTemplates } from './content';
 import { actionTemplates } from './actions';
@@ -73,8 +74,8 @@ export function getTemplate(
   const assignIds = (layer: Omit<Layer, 'id'>): Layer => {
     const layerWithId = { ...layer, id: generateId() } as Layer;
     
-    if (layerWithId.items && Array.isArray(layerWithId.items)) {
-      layerWithId.items = layerWithId.items.map((child) => assignIds(child as Omit<Layer, 'id'>)) as Layer[];
+    if (layerWithId.children && Array.isArray(layerWithId.children)) {
+      layerWithId.children = layerWithId.children.map((child) => assignIds(child as Omit<Layer, 'id'>)) as Layer[];
     }
     
     return layerWithId;
@@ -92,9 +93,9 @@ export function getTemplate(
 /**
  * Get icon name for a block type
  */
-export function getIcon(index: string): string | null {
+export function getIcon(index: string): IconProps['name'] | null {
   const block = blocks[index as keyof typeof blocks];
-  return block?.icon || null;
+  return (block?.icon as IconProps['name']) || null;
 }
 
 /**

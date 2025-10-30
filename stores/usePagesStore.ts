@@ -3,8 +3,9 @@
 import { create } from 'zustand';
 import type { Layer, Page, PageVersion } from '../types';
 import { pagesApi, pageVersionsApi } from '../lib/api';
-import { getTemplate } from '../lib/templates/blocks';
+import { getTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
+import { canHaveChildren } from '../lib/layer-utils';
 
 interface PagesState {
   pages: Page[];
@@ -273,8 +274,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       return null;
     }
     
-    // Import block name function dynamically
-    const { getBlockName } = require('../lib/templates/blocks');
     const displayName = getBlockName(templateId);
 
     // Set the display name for the root layer
@@ -308,9 +307,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Add to root
       newLayers = [...draft.layers, newLayer];
     } else {
-      // Validate that parent can have children
-      const { canHaveChildren } = require('../lib/layer-utils');
-      
       // Find the parent layer and its parent
       const findLayerWithParent = (tree: Layer[], id: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null => {
         for (const node of tree) {

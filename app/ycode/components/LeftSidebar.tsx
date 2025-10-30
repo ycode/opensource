@@ -713,8 +713,11 @@ export default function LeftSidebar({
             <header className="py-5 flex justify-between">
               <span className="font-medium">Layers</span>
               <div className="-my-1">
-                <Button size="xs" variant="secondary" onClick={() => setShowElementLibrary(prev => !prev)}>
-                  <Icon name="plus" className={showElementLibrary ? "rotate-45" : "rotate-0"} />
+                <Button
+                  size="xs" variant="secondary"
+                  onClick={() => setShowElementLibrary(prev => !prev)}
+                >
+                  <Icon name="plus" className={showElementLibrary ? 'rotate-45' : 'rotate-0'} />
                 </Button>
               </div>
             </header>
