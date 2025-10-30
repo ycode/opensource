@@ -211,9 +211,9 @@ function LayerRow({
         {node.depth > 0 && (
           <div
             className={cn(
-                'absolute z-10 top-0 bottom-0 w-px ',
-                isSelected && 'bg-white/10',
-                !isSelected && 'bg-secondary',
+              'absolute z-10 top-0 bottom-0 w-px ',
+              isSelected && 'bg-white/10',
+              !isSelected && 'bg-secondary',
             )}
             style={{
               left: `${node.depth * 18 - 2}px`,
@@ -304,7 +304,7 @@ function LayerRow({
 
           {/* Layer Icon */}
           {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400 mx-1.5" />*/}
-          <div className="size-3 bg-white/10 rounded mx-1.5"/>
+          <div className="size-3 bg-white/10 rounded mx-1.5" />
 
           {/* Label */}
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
