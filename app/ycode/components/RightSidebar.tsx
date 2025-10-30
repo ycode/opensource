@@ -20,10 +20,11 @@ import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 // 4. Internal components
+import AddAttributeModal from './AddAttributeModal';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
@@ -53,6 +54,10 @@ export default function RightSidebar({
   const [attributesOpen, setAttributesOpen] = useState(true);
   const [customId, setCustomId] = useState<string>('');
   const [isHidden, setIsHidden] = useState<boolean>(false);
+  const [headingTag, setHeadingTag] = useState<string>('h1');
+  const [containerTag, setContainerTag] = useState<string>('div');
+  const [customAttributesOpen, setCustomAttributesOpen] = useState(true);
+  const [showAddAttributeModal, setShowAddAttributeModal] = useState(false);
 
   const { currentPageId } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
@@ -70,14 +75,66 @@ export default function RightSidebar({
     return null;
   }, [currentPageId, selectedLayerId, draftsByPageId]);
 
+  // Helper function to check if layer is a heading
+  const isHeadingLayer = (layer: Layer | null): boolean => {
+    if (!layer) return false;
+    const headingTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'heading'];
+    return headingTags.includes(layer.type || '') || 
+           headingTags.includes(layer.name || '') ||
+           headingTags.includes(layer.settings?.tag || '');
+  };
+
+  // Helper function to check if layer is a container/section/block
+  const isContainerLayer = (layer: Layer | null): boolean => {
+    if (!layer) return false;
+    const containerTags = [
+      'div', 'container', 'section', 'nav', 'main', 'aside', 
+      'header', 'footer', 'article', 'figure', 'figcaption',
+      'details', 'summary'
+    ];
+    return containerTags.includes(layer.type || '') || 
+           containerTags.includes(layer.name || '') ||
+           containerTags.includes(layer.settings?.tag || '');
+  };
+
+  // Get default heading tag based on layer type/name
+  const getDefaultHeadingTag = (layer: Layer | null): string => {
+    if (!layer) return 'h1';
+    if (layer.settings?.tag) return layer.settings.tag;
+    if (layer.name && ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(layer.name)) {
+      return layer.name;
+    }
+    return 'h1'; // Default to h1
+  };
+
+  // Get default container tag based on layer type/name
+  const getDefaultContainerTag = (layer: Layer | null): string => {
+    if (!layer) return 'div';
+    if (layer.settings?.tag) return layer.settings.tag;
+    
+    // Check if layer.name is already a valid semantic tag
+    if (layer.name && ['div', 'section', 'nav', 'main', 'aside', 'header', 'footer', 'article', 'figure', 'figcaption', 'details', 'summary'].includes(layer.name)) {
+      return layer.name;
+    }
+    
+    // Map element types to their default tags:
+    // Section = section, Container = div, Block = div
+    if (layer.type === 'section' || layer.name === 'section') return 'section';
+    if (layer.type === 'container' || layer.name === 'container') return 'div';
+    
+    return 'div'; // Default fallback
+  };
+
   // Update local state when selected layer changes
   const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
   if (selectedLayerId !== prevSelectedLayerId) {
     setPrevSelectedLayerId(selectedLayerId);
     const classes = selectedLayer?.classes || '';
     setClassesInput(Array.isArray(classes) ? classes.join(' ') : classes);
-    setCustomId(selectedLayer?.attributes?.id || '');
-    setIsHidden(selectedLayer?.hidden || false);
+    setCustomId(selectedLayer?.settings?.id || '');
+    setIsHidden(selectedLayer?.settings?.hidden || false);
+    setHeadingTag(selectedLayer?.settings?.tag || getDefaultHeadingTag(selectedLayer));
+    setContainerTag(selectedLayer?.settings?.tag || getDefaultContainerTag(selectedLayer));
   }
 
   // Parse classes into array for badge display
@@ -140,9 +197,9 @@ export default function RightSidebar({
   const handleIdChange = (value: string) => {
     setCustomId(value);
     if (selectedLayerId) {
-      const currentAttributes = selectedLayer?.attributes || {};
+      const currentSettings = selectedLayer?.settings || {};
       onLayerUpdate(selectedLayerId, {
-        attributes: { ...currentAttributes, id: value }
+        settings: { ...currentSettings, id: value }
       });
     }
   };
@@ -151,7 +208,61 @@ export default function RightSidebar({
   const handleVisibilityChange = (hidden: boolean) => {
     setIsHidden(hidden);
     if (selectedLayerId) {
-      onLayerUpdate(selectedLayerId, { hidden });
+      const currentSettings = selectedLayer?.settings || {};
+      onLayerUpdate(selectedLayerId, { 
+        settings: { ...currentSettings, hidden }
+      });
+    }
+  };
+
+  // Handle heading tag change
+  const handleHeadingTagChange = (tag: string) => {
+    setHeadingTag(tag);
+    if (selectedLayerId) {
+      const currentSettings = selectedLayer?.settings || {};
+      onLayerUpdate(selectedLayerId, { 
+        settings: { ...currentSettings, tag }
+      });
+    }
+  };
+
+  // Handle container tag change
+  const handleContainerTagChange = (tag: string) => {
+    setContainerTag(tag);
+    if (selectedLayerId) {
+      const currentSettings = selectedLayer?.settings || {};
+      onLayerUpdate(selectedLayerId, { 
+        settings: { ...currentSettings, tag }
+      });
+    }
+  };
+
+  // Handle adding custom attribute
+  const handleAddAttribute = (name: string, value: string) => {
+    if (selectedLayerId) {
+      const currentSettings = selectedLayer?.settings || {};
+      const currentAttributes = currentSettings.customAttributes || {};
+      onLayerUpdate(selectedLayerId, {
+        settings: {
+          ...currentSettings,
+          customAttributes: { ...currentAttributes, [name]: value }
+        }
+      });
+    }
+  };
+
+  // Handle removing custom attribute
+  const handleRemoveAttribute = (name: string) => {
+    if (selectedLayerId) {
+      const currentSettings = selectedLayer?.settings || {};
+      const currentAttributes = { ...currentSettings.customAttributes };
+      delete currentAttributes[name];
+      onLayerUpdate(selectedLayerId, {
+        settings: {
+          ...currentSettings,
+          customAttributes: currentAttributes
+        }
+      });
     }
   };
 
@@ -252,10 +363,103 @@ export default function RightSidebar({
                   onChange={(value) => handleVisibilityChange(value as boolean)}
                 />
               </div>
+
+              {/* Heading Tag Selector - Only for headings */}
+              {isHeadingLayer(selectedLayer) && (
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-2">Tag</label>
+                  <ToggleGroup
+                    options={[
+                      { label: 'H1', value: 'h1' },
+                      { label: 'H2', value: 'h2' },
+                      { label: 'H3', value: 'h3' },
+                      { label: 'H4', value: 'h4' },
+                      { label: 'H5', value: 'h5' },
+                      { label: 'H6', value: 'h6' },
+                    ]}
+                    value={headingTag}
+                    onChange={(value) => handleHeadingTagChange(value as string)}
+                  />
+                </div>
+              )}
+
+              {/* Container Tag Selector - Only for containers/sections/blocks */}
+              {isContainerLayer(selectedLayer) && !isHeadingLayer(selectedLayer) && (
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-2">Tag</label>
+                  <Select value={containerTag} onValueChange={handleContainerTagChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="div">Div</SelectItem>
+                        <SelectItem value="nav">Nav</SelectItem>
+                        <SelectItem value="main">Main</SelectItem>
+                        <SelectItem value="aside">Aside</SelectItem>
+                        <SelectItem value="header">Header</SelectItem>
+                        <SelectItem value="figure">Figure</SelectItem>
+                        <SelectItem value="footer">Footer</SelectItem>
+                        <SelectItem value="article">Article</SelectItem>
+                        <SelectItem value="section">Section</SelectItem>
+                        <SelectItem value="figcaption">Figcaption</SelectItem>
+                        <SelectItem value="details">Details</SelectItem>
+                        <SelectItem value="summary">Summary</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </SettingsPanel>
+
+            {/* Custom Attributes Panel */}
+            <SettingsPanel
+              title="Custom attributes"
+              isOpen={customAttributesOpen}
+              onToggle={() => setCustomAttributesOpen(!customAttributesOpen)}
+              action={
+                <button
+                  onClick={() => setShowAddAttributeModal(true)}
+                  className="text-zinc-400 hover:text-white transition-colors"
+                >
+                  <Icon name="plus" className="size-4" />
+                </button>
+              }
+            >
+              {selectedLayer?.settings?.customAttributes && 
+               Object.keys(selectedLayer.settings.customAttributes).length > 0 ? (
+                <div className="space-y-2">
+                  {Object.entries(selectedLayer.settings.customAttributes).map(([name, value]) => (
+                    <div
+                      key={name}
+                      className="flex items-center justify-between px-3 py-2 bg-zinc-900 rounded-lg text-sm text-zinc-300"
+                    >
+                      <span>{name}="{value}"</span>
+                      <button
+                        onClick={() => handleRemoveAttribute(name)}
+                        className="text-zinc-500 hover:text-white transition-colors"
+                      >
+                        <Icon name="x" className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-zinc-500 text-xs">
+                  HTML attributes can be used to append additional information to your elements.
+                </div>
+              )}
             </SettingsPanel>
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Add Attribute Modal */}
+      <AddAttributeModal
+        isOpen={showAddAttributeModal}
+        onClose={() => setShowAddAttributeModal(false)}
+        onAdd={handleAddAttribute}
+      />
     </div>
   );
 }

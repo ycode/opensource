@@ -95,6 +95,14 @@ export interface PositioningDesign {
   zIndex?: string;
 }
 
+export interface LayerSettings {
+  id?: string;           // Custom HTML ID attribute
+  hidden?: boolean;      // Element visibility in canvas
+  tag?: string;          // HTML tag override (e.g., 'h1', 'h2', etc.)
+  customAttributes?: Record<string, string>; // Custom HTML attributes { attributeName: attributeValue }
+  // Future settings can be added here
+}
+
 export interface Layer {
   id: string;
   name?: string; // Element type name: 'div', 'h1', 'button', 'section', etc.
@@ -126,7 +134,7 @@ export interface Layer {
   };
   
   // Settings (element-specific configuration)
-  settings?: Record<string, any>;
+  settings?: LayerSettings;
   
   // Special properties
   locked?: boolean;

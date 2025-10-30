@@ -17,7 +17,7 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 
 // 2. External libraries
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
-import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder } from 'lucide-react';
+import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder, EyeOff } from 'lucide-react';
 
 // 4. Internal components
 import LayerContextMenu from './LayerContextMenu';
@@ -311,6 +311,11 @@ function LayerRow({
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
             {getLayerDisplayName(node.layer)}
           </span>
+          
+          {/* Hidden indicator */}
+          {node.layer.settings?.hidden && (
+            <EyeOff className="w-3 h-3 flex-shrink-0 text-zinc-500 mr-2" />
+          )}
         </div>
       </div>
     </LayerContextMenu>
