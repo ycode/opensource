@@ -64,7 +64,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
   if (!isOpen) return null;
 
   return (
-    <div className="fixed left-72 top-14 h-full w-72 bg-background border-r z-50 overflow-y-auto p-4 flex flex-col">
+    <div className="fixed left-64 top-14 h-full w-64 bg-background border-r z-50 overflow-y-auto p-4 flex flex-col">
         {/* Tabs */}
         <Tabs defaultValue="elements" className="flex-1 gap-0">
           <TabsList className="w-full">
