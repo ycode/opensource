@@ -1,0 +1,21 @@
+# top-most EditorConfig file
+root = true
+
+# Default settings for all files
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# TypeScript, JavaScript, JSX, TSX (additional code-specific settings)
+[*.{js,jsx,ts,tsx,mjs,cjs}]
+quote_type = single
+max_line_length = 100
+
+# Markdown files (disable line length and trailing whitespace trimming)
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off

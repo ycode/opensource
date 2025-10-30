@@ -12,7 +12,8 @@
     "migrate:make": "NODE_NO_WARNINGS=1 knex migrate:make --knexfile knexfile.ts -x ts",
     "migrate:latest": "NODE_NO_WARNINGS=1 knex migrate:latest --knexfile knexfile.ts",
     "migrate:rollback": "NODE_NO_WARNINGS=1 knex migrate:rollback --knexfile knexfile.ts",
-    "migrate:status": "NODE_NO_WARNINGS=1 knex migrate:status --knexfile knexfile.ts"
+    "migrate:status": "NODE_NO_WARNINGS=1 knex migrate:status --knexfile knexfile.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -53,6 +54,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
     "punycode": "^2.3.1",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
@@ -63,5 +66,10 @@
     "punycode": "$punycode",
     "whatwg-url": "^14.2.0",
     "tr46": "^5.1.0"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix"
+    ]
   }
 }

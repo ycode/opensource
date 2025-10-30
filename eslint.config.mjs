@@ -13,7 +13,9 @@ const eslintConfig = [
   {
     ignores: ['**/node_modules/**', '**/.next/**'],
   },
+
   ...compat.extends('next/core-web-vitals', 'next/typescript'),
+
   {
     rules: {
       'indent': ['error', 2, {
