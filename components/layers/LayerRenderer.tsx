@@ -152,6 +152,11 @@ const LayerItem: React.FC<{
 
   const fullClassName = [classesString, editorClasses].filter(Boolean).join(' ');
 
+  // Check if layer should be hidden (hide completely in both edit mode and public pages)
+  if (layer.settings?.hidden) {
+    return null;
+  }
+
   // Render element-specific content
   const renderContent = () => {
     const Tag = htmlTag as any;
@@ -173,6 +178,11 @@ const LayerItem: React.FC<{
       'data-is-empty': isEmpty ? 'true' : 'false',
       ...(enableDragDrop && !isEditing ? { ...attributes, ...listeners } : attributes),
     };
+    
+    // Apply custom ID from settings
+    if (layer.settings?.id) {
+      elementProps.id = layer.settings.id;
+    }
     
     // Add editor event handlers if in edit mode (but not for context menu trigger)
     if (isEditMode && !isEditing) {

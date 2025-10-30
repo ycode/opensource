@@ -76,8 +76,8 @@ export default function RightSidebar({
     setPrevSelectedLayerId(selectedLayerId);
     const classes = selectedLayer?.classes || '';
     setClassesInput(Array.isArray(classes) ? classes.join(' ') : classes);
-    setCustomId(selectedLayer?.attributes?.id || '');
-    setIsHidden(selectedLayer?.hidden || false);
+    setCustomId(selectedLayer?.settings?.id || '');
+    setIsHidden(selectedLayer?.settings?.hidden || false);
   }
 
   // Parse classes into array for badge display
@@ -140,9 +140,9 @@ export default function RightSidebar({
   const handleIdChange = (value: string) => {
     setCustomId(value);
     if (selectedLayerId) {
-      const currentAttributes = selectedLayer?.attributes || {};
+      const currentSettings = selectedLayer?.settings || {};
       onLayerUpdate(selectedLayerId, {
-        attributes: { ...currentAttributes, id: value }
+        settings: { ...currentSettings, id: value }
       });
     }
   };
@@ -151,7 +151,10 @@ export default function RightSidebar({
   const handleVisibilityChange = (hidden: boolean) => {
     setIsHidden(hidden);
     if (selectedLayerId) {
-      onLayerUpdate(selectedLayerId, { hidden });
+      const currentSettings = selectedLayer?.settings || {};
+      onLayerUpdate(selectedLayerId, { 
+        settings: { ...currentSettings, hidden }
+      });
     }
   };
 
