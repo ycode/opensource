@@ -91,7 +91,8 @@ export async function GET() {
           `Go to <a href="https://github.com/${vercelGitRepoOwner}/${vercelGitRepoSlug}" target="_blank" class="underline font-semibold">your GitHub repository</a>`,
           'Click the <strong class="text-white">"Sync fork"</strong> button (above the file list)',
           'Click <strong class="text-white">"Update branch"</strong>',
-          'Done! Vercel will automatically redeploy with the latest changes ✨',
+          'Vercel will automatically redeploy with the latest changes',
+          '⚠️ Please reload this page (Ycode builder) after deployment to apply the latest migrations',
         ];
       } else {
         // User deployed directly without forking - needs git pull
@@ -107,7 +108,8 @@ export async function GET() {
           'Fetch latest changes:<br/><code class="bg-blue-800 px-2 py-1 rounded text-xs font-mono">git fetch upstream</code>',
           'Merge updates:<br/><code class="bg-blue-800 px-2 py-1 rounded text-xs font-mono">git merge upstream/main</code>',
           'Push to your repo:<br/><code class="bg-blue-800 px-2 py-1 rounded text-xs font-mono">git push origin main</code>',
-          'Vercel will automatically redeploy ✨',
+          'Vercel will automatically redeploy',
+          '⚠️ Please reload this page (Ycode builder) after deployment to apply the latest migrations',
         ];
       }
     } else {
@@ -119,6 +121,7 @@ export async function GET() {
         'Run: <code class="bg-blue-800 px-2 py-1 rounded">git merge upstream/main</code>',
         'Run: <code class="bg-blue-800 px-2 py-1 rounded">git push origin main</code>',
         'Your deployment will update automatically',
+        '⚠️ Please reload this page (Ycode builder) after deployment to apply the latest migrations',
       ];
     }
 
