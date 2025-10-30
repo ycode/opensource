@@ -28,6 +28,7 @@ import AddAttributeModal from './AddAttributeModal';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
+import PositionControls from './PositionControls';
 import SettingsPanel from './SettingsPanel';
 import ToggleGroup from './ToggleGroup';
 import TypographyControls from './TypographyControls';
@@ -299,6 +300,8 @@ export default function RightSidebar({
           <BorderControls />
 
           <EffectControls />
+
+          <PositionControls />
 
           <div className="flex flex-col gap-4 py-5">
             <Input
