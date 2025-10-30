@@ -183,6 +183,13 @@ const LayerItem: React.FC<{
     if (layer.settings?.id) {
       elementProps.id = layer.settings.id;
     }
+
+    // Apply custom attributes from settings
+    if (layer.settings?.customAttributes) {
+      Object.entries(layer.settings.customAttributes).forEach(([name, value]) => {
+        elementProps[name] = value;
+      });
+    }
     
     // Add editor event handlers if in edit mode (but not for context menu trigger)
     if (isEditMode && !isEditing) {

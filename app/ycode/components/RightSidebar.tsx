@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 // 4. Internal components
+import AddAttributeModal from './AddAttributeModal';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
@@ -55,6 +56,8 @@ export default function RightSidebar({
   const [isHidden, setIsHidden] = useState<boolean>(false);
   const [headingTag, setHeadingTag] = useState<string>('h1');
   const [containerTag, setContainerTag] = useState<string>('div');
+  const [customAttributesOpen, setCustomAttributesOpen] = useState(true);
+  const [showAddAttributeModal, setShowAddAttributeModal] = useState(false);
 
   const { currentPageId } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
@@ -234,6 +237,35 @@ export default function RightSidebar({
     }
   };
 
+  // Handle adding custom attribute
+  const handleAddAttribute = (name: string, value: string) => {
+    if (selectedLayerId) {
+      const currentSettings = selectedLayer?.settings || {};
+      const currentAttributes = currentSettings.customAttributes || {};
+      onLayerUpdate(selectedLayerId, {
+        settings: {
+          ...currentSettings,
+          customAttributes: { ...currentAttributes, [name]: value }
+        }
+      });
+    }
+  };
+
+  // Handle removing custom attribute
+  const handleRemoveAttribute = (name: string) => {
+    if (selectedLayerId) {
+      const currentSettings = selectedLayer?.settings || {};
+      const currentAttributes = { ...currentSettings.customAttributes };
+      delete currentAttributes[name];
+      onLayerUpdate(selectedLayerId, {
+        settings: {
+          ...currentSettings,
+          customAttributes: currentAttributes
+        }
+      });
+    }
+  };
+
   if (! selectedLayerId || ! selectedLayer) {
     return (
       <div className="w-64 shrink-0 bg-neutral-950 border-l border-white/10 flex items-center justify-center">
@@ -379,9 +411,55 @@ export default function RightSidebar({
                 </div>
               )}
             </SettingsPanel>
+
+            {/* Custom Attributes Panel */}
+            <SettingsPanel
+              title="Custom attributes"
+              isOpen={customAttributesOpen}
+              onToggle={() => setCustomAttributesOpen(!customAttributesOpen)}
+              action={
+                <button
+                  onClick={() => setShowAddAttributeModal(true)}
+                  className="text-zinc-400 hover:text-white transition-colors"
+                >
+                  <Icon name="plus" className="size-4" />
+                </button>
+              }
+            >
+              {selectedLayer?.settings?.customAttributes && 
+               Object.keys(selectedLayer.settings.customAttributes).length > 0 ? (
+                <div className="space-y-2">
+                  {Object.entries(selectedLayer.settings.customAttributes).map(([name, value]) => (
+                    <div
+                      key={name}
+                      className="flex items-center justify-between px-3 py-2 bg-zinc-900 rounded-lg text-sm text-zinc-300"
+                    >
+                      <span>{name}="{value}"</span>
+                      <button
+                        onClick={() => handleRemoveAttribute(name)}
+                        className="text-zinc-500 hover:text-white transition-colors"
+                      >
+                        <Icon name="x" className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-zinc-500 text-xs">
+                  HTML attributes can be used to append additional information to your elements.
+                </div>
+              )}
+            </SettingsPanel>
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Add Attribute Modal */}
+      <AddAttributeModal
+        isOpen={showAddAttributeModal}
+        onClose={() => setShowAddAttributeModal(false)}
+        onAdd={handleAddAttribute}
+      />
     </div>
   );
 }

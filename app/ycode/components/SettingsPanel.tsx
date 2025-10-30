@@ -13,6 +13,7 @@ interface SettingsPanelProps {
   isOpen: boolean;
   onToggle: () => void;
   children: React.ReactNode;
+  action?: React.ReactNode; // Optional action button (like +)
 }
 
 export default function SettingsPanel({
@@ -20,6 +21,7 @@ export default function SettingsPanel({
   isOpen,
   onToggle,
   children,
+  action,
 }: SettingsPanelProps) {
   return (
     <div className="border border-zinc-800 rounded-lg overflow-hidden">
@@ -29,17 +31,20 @@ export default function SettingsPanel({
         className="w-full flex items-center justify-between px-4 py-3 bg-zinc-900 hover:bg-zinc-800 transition-colors"
       >
         <span className="text-sm font-medium text-white">{title}</span>
-        <svg 
-          className={`w-4 h-4 text-zinc-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round" strokeLinejoin="round"
-            strokeWidth={2} d="M9 5l7 7-7 7"
-          />
-        </svg>
+        <div className="flex items-center gap-2">
+          {action}
+          <svg 
+            className={`w-4 h-4 text-zinc-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round" strokeLinejoin="round"
+              strokeWidth={2} d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </div>
       </button>
 
       {/* Collapsible Content */}

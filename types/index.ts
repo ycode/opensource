@@ -99,6 +99,7 @@ export interface LayerSettings {
   id?: string;           // Custom HTML ID attribute
   hidden?: boolean;      // Element visibility in canvas
   tag?: string;          // HTML tag override (e.g., 'h1', 'h2', etc.)
+  customAttributes?: Record<string, string>; // Custom HTML attributes { attributeName: attributeValue }
   // Future settings can be added here
 }
 
