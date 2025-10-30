@@ -131,6 +131,13 @@ You'll see:
 4. Make sure **all three checkboxes** are checked
 5. Click **"Save"**
 
+**Variable 4: Database password**
+1. Click **"Add Another"**
+2. In **"Key"**, type: `SUPABASE_DB_PASSWORD`
+3. Add your Supabase database password (set up when you created your Supabase project, can be reset in Supabase database settings)
+4. Make sure **all three checkboxes** are checked
+5. Click **"Save"**
+
 ### Part C: Restart Your Site
 
 6. Click **"Deployments"** (top menu)

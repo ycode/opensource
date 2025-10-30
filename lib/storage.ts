@@ -19,24 +19,25 @@ interface StorageData {
  */
 export async function get<T = unknown>(key: string): Promise<T | null> {
   try {
-    console.log(`[Storage] Getting key "${key}" (Vercel: ${IS_VERCEL})`);
-    
     // On Vercel, use environment variables
     if (IS_VERCEL && key === 'supabase_config') {
+      console.log(`[Storage] Getting key "${key}" from Vercel environment variables`);
       const url = process.env.SUPABASE_URL;
       const anonKey = process.env.SUPABASE_ANON_KEY;
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const dbPassword = process.env.SUPABASE_DB_PASSWORD;
       
-      if (url && anonKey && serviceRoleKey) {
+      if (url && anonKey && serviceRoleKey && dbPassword) {
         console.log('[Storage] Using environment variables (Vercel)');
         return {
           url,
           anonKey,
           serviceRoleKey,
+          dbPassword,
         } as T;
       }
       
-      console.log('[Storage] Environment variables not set');
+      console.log('[Storage] Environment variables not set or incomplete');
       return null;
     }
     
@@ -62,7 +63,7 @@ export async function set(key: string, value: unknown): Promise<void> {
     throw new Error(
       'Cannot write to file system on Vercel. Please set environment variables instead:\n' +
       '1. Go to Vercel Dashboard → Project Settings → Environment Variables\n' +
-      '2. Add: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY\n' +
+      '2. Add: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_PASSWORD\n' +
       '3. Redeploy your application'
     );
   }
