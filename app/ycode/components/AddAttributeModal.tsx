@@ -39,6 +39,12 @@ export default function AddAttributeModal({
     }
   };
 
+  // Handle name change - convert spaces to hyphens
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value.replace(/\s+/g, '-');
+    setName(newValue);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -65,7 +71,7 @@ export default function AddAttributeModal({
           <Input
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={handleNameChange}
             onKeyPress={handleKeyPress}
             placeholder="Name"
             className="w-full"
