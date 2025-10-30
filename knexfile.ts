@@ -40,16 +40,41 @@ const createConfig = (): Knex.Config => {
       // Load Supabase credentials from storage
       const supabaseConfig = await loadSupabaseConfig();
 
-      // Parse connection string from Supabase URL
+      // Parse project reference from Supabase URL
       // Supabase URL format: https://[project-ref].supabase.co
-      // Connection string format: postgres://postgres:[password]@db.[project-ref].supabase.co:5432/postgres
       const projectRef = supabaseConfig.url.replace('https://', '').replace('.supabase.co', '');
 
-      console.log('[Knex] Creating database connection:', {
+      // On Vercel, use connection pooler (recommended for serverless)
+      if (isVercel) {
+        // Try connection pooler format
+        // Format: aws-0-[region].pooler.supabase.com:6543
+        // Common regions: us-east-1, us-west-1, eu-west-1, ap-southeast-1, etc.
+
+        // Try us-east-1 first (most common), then fallback to direct connection if it fails
+        const poolerHost = `aws-0-us-east-1.pooler.supabase.com`;
+
+        console.log('[Knex] Using connection pooler (serverless optimized):', {
+          host: poolerHost,
+          port: 6543,
+          user: `postgres.${projectRef}`,
+          database: 'postgres',
+        });
+
+        return {
+          host: poolerHost,
+          port: 6543,
+          database: 'postgres',
+          user: `postgres.${projectRef}`,
+          password: supabaseConfig.dbPassword,
+          ssl: { rejectUnauthorized: false },
+        };
+      }
+
+      // Local development: use direct connection
+      console.log('[Knex] Creating direct database connection:', {
         host: `db.${projectRef}.supabase.co`,
         user: 'postgres',
         database: 'postgres',
-        isVercel,
         passwordLength: supabaseConfig.dbPassword.length,
       });
 
@@ -58,7 +83,7 @@ const createConfig = (): Knex.Config => {
         port: 5432,
         database: 'postgres',
         user: 'postgres',
-        password: supabaseConfig.dbPassword, // Knex handles encoding internally
+        password: supabaseConfig.dbPassword,
         ssl: { rejectUnauthorized: false },
       };
     },
