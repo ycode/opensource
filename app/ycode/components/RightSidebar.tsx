@@ -30,6 +30,7 @@ import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
 import PositionControls from './PositionControls';
 import SettingsPanel from './SettingsPanel';
+import SizingControls from './SizingControls';
 import ToggleGroup from './ToggleGroup';
 import TypographyControls from './TypographyControls';
 
@@ -301,6 +302,8 @@ export default function RightSidebar({
         <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden">
 
           <LayoutControls />
+
+          <SizingControls />
 
           <TypographyControls />
 

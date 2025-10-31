@@ -26,21 +26,20 @@ export default function SettingsPanel({
 }: SettingsPanelProps) {
   return (
     <div className="py-5">
-      {/* Collapsible Header */}
 
-      <header className="w-full py-4 -mt-4 flex items-center justify-between">
+      <header className="w-full py-5 -mt-5 flex items-center justify-between">
         <Label>{title}</Label>
         <div className="flex items-center gap-2 -my-2">
           {action}
         </div>
       </header>
 
-      {/* Collapsible Content */}
       {isOpen && (
         <div className="flex flex-col gap-2">
           {children}
         </div>
       )}
+
     </div>
   );
 }
