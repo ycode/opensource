@@ -2,11 +2,12 @@
 
 /**
  * Collapsible Settings Panel
- * 
+ *
  * Reusable component for settings sections in the right sidebar
  */
 
 import React from 'react';
+import { Label } from '@/components/ui/label';
 
 interface SettingsPanelProps {
   title: string;
@@ -24,32 +25,19 @@ export default function SettingsPanel({
   action,
 }: SettingsPanelProps) {
   return (
-    <div className="border border-zinc-800 rounded-lg overflow-hidden">
+    <div className="py-5">
       {/* Collapsible Header */}
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-3 bg-zinc-900 hover:bg-zinc-800 transition-colors"
-      >
-        <span className="text-sm font-medium text-white">{title}</span>
-        <div className="flex items-center gap-2">
+
+      <header className="w-full py-4 -mt-4 flex items-center justify-between">
+        <Label>{title}</Label>
+        <div className="flex items-center gap-2 -my-2">
           {action}
-          <svg 
-            className={`w-4 h-4 text-zinc-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round" strokeLinejoin="round"
-              strokeWidth={2} d="M9 5l7 7-7 7"
-            />
-          </svg>
         </div>
-      </button>
+      </header>
 
       {/* Collapsible Content */}
       {isOpen && (
-        <div className="px-4 py-4 space-y-4 bg-zinc-950">
+        <div className="flex flex-col gap-2">
           {children}
         </div>
       )}
