@@ -27,9 +27,9 @@ export default function PositionControls() {
 
       <div className="flex flex-col gap-2">
 
-        <div className="grid grid-cols-3">
-          <Label variant="muted">Type</Label>
-          <div className="col-span-2 *:w-full">
+        <div className="grid grid-cols-3 items-start">
+          <Label variant="muted" className="h-8">Type</Label>
+          <div className="col-span-2 flex flex-col gap-2">
             <Select value={positionType} onValueChange={(v) => setPositionType(v as typeof positionType)}>
               <SelectTrigger>
                 <SelectValue placeholder="Static" />
@@ -44,76 +44,72 @@ export default function PositionControls() {
                 </SelectGroup>
               </SelectContent>
             </Select>
+            {(positionType === 'fixed' || positionType === 'absolute' || positionType === 'sticky') && (
+              <div className="col-span-2 grid grid-cols-2 gap-2">
+                <InputGroup>
+                  <InputGroupAddon>
+                    <div className="flex">
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Icon name="paddingSide" className="size-3" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Left</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </InputGroupAddon>
+                  <InputGroupInput className="!pr-0" />
+                </InputGroup>
+                <InputGroup>
+                  <InputGroupAddon>
+                    <div className="flex">
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Icon name="paddingSide" className="size-3 rotate-90" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Top</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </InputGroupAddon>
+                  <InputGroupInput className="!pr-0" />
+                </InputGroup>
+                <InputGroup>
+                  <InputGroupAddon>
+                    <div className="flex">
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Icon name="paddingSide" className="size-3 rotate-180" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Right</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </InputGroupAddon>
+                  <InputGroupInput className="!pr-0" />
+                </InputGroup>
+                <InputGroup>
+                  <InputGroupAddon>
+                    <div className="flex">
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Icon name="paddingSide" className="size-3 rotate-270" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Bottom</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </InputGroupAddon>
+                  <InputGroupInput className="!pr-0" />
+                </InputGroup>
+              </div>
+            )}
           </div>
         </div>
-
-        {(positionType === 'fixed' || positionType === 'absolute' || positionType === 'sticky') && (
-          <div className="grid grid-cols-3 items-start">
-            <Label variant="muted" className="h-8">Placement</Label>
-            <div className="col-span-2 grid grid-cols-2 gap-2">
-              <InputGroup>
-                <InputGroupAddon>
-                  <div className="flex">
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Icon name="paddingSide" className="size-3" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Left</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                </InputGroupAddon>
-                <InputGroupInput className="!pr-0" />
-              </InputGroup>
-              <InputGroup>
-                <InputGroupAddon>
-                  <div className="flex">
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Icon name="paddingSide" className="size-3 rotate-90" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Top</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                </InputGroupAddon>
-                <InputGroupInput className="!pr-0" />
-              </InputGroup>
-              <InputGroup>
-                <InputGroupAddon>
-                  <div className="flex">
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Icon name="paddingSide" className="size-3 rotate-180" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Right</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                </InputGroupAddon>
-                <InputGroupInput className="!pr-0" />
-              </InputGroup>
-              <InputGroup>
-                <InputGroupAddon>
-                  <div className="flex">
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Icon name="paddingSide" className="size-3 rotate-270" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Bottom</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                </InputGroupAddon>
-                <InputGroupInput className="!pr-0" />
-              </InputGroup>
-            </div>
-          </div>
-        )}
 
         {positionType !== 'static' && (
           <div className="grid grid-cols-3">
