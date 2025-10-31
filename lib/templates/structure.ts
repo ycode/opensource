@@ -57,7 +57,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Separator',
     template: {
       name: 'hr',
-      classes: ['border-t', 'border-gray-300', 'my-4'],
+      classes: ['border-t', 'border-[#d1d5db]', 'my-4'],
       design: {
         borders: { isActive: true, borderWidth: '1px 0 0 0', borderColor: '#d1d5db' },
         spacing: { isActive: true, marginTop: '1rem', marginBottom: '1rem' }

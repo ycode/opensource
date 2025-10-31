@@ -63,9 +63,15 @@ export async function getPublishedVersion(pageId: string): Promise<PageVersion |
  * Create or update draft version
  * @param pageId - Page ID
  * @param layers - Page layers
+ * @param generatedCSS - Generated CSS from Play CDN
  * @param additionalData - Optional additional fields (e.g., metadata)
  */
-export async function upsertDraft(pageId: string, layers: Layer[], additionalData?: Record<string, any>): Promise<PageVersion> {
+export async function upsertDraft(
+  pageId: string,
+  layers: Layer[],
+  generatedCSS?: string | null,
+  additionalData?: Record<string, any>
+): Promise<PageVersion> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
@@ -77,9 +83,14 @@ export async function upsertDraft(pageId: string, layers: Layer[], additionalDat
 
   if (existingDraft) {
     // Update existing draft
+    const updateData: any = { layers };
+    if (generatedCSS !== undefined) {
+      updateData.generated_css = generatedCSS;
+    }
+    
     const { data, error } = await client
       .from('page_versions')
-      .update({ layers })
+      .update(updateData)
       .eq('id', existingDraft.id)
       .select()
       .single();
@@ -91,9 +102,16 @@ export async function upsertDraft(pageId: string, layers: Layer[], additionalDat
     return data;
   } else {
     // Create new draft with any additional data
-    const insertData = additionalData
-      ? { page_id: pageId, layers, is_published: false, ...additionalData }
-      : { page_id: pageId, layers, is_published: false };
+    const insertData: any = {
+      page_id: pageId,
+      layers,
+      is_published: false,
+      ...additionalData
+    };
+    
+    if (generatedCSS !== undefined) {
+      insertData.generated_css = generatedCSS;
+    }
 
     const { data, error } = await client
       .from('page_versions')
@@ -127,12 +145,13 @@ export async function publishPageVersion(pageId: string): Promise<PageVersion> {
     throw new Error('No draft version found to publish');
   }
 
-  // Create new published version with draft's layers
+  // Create new published version with draft's layers and CSS
   const { data, error } = await client
     .from('page_versions')
     .insert({
       page_id: pageId,
       layers: draft.layers,
+      generated_css: draft.generated_css,
       is_published: true,
     })
     .select()

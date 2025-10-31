@@ -18,13 +18,16 @@ import RightSidebar from './components/RightSidebar';
 import UpdateNotification from '../../components/UpdateNotification';
 import MigrationChecker from '../../components/MigrationChecker';
 
-// 3. Stores
+// 3. Hooks
+import { useCanvasCSS } from '../../hooks/use-canvas-css';
+
+// 4. Stores
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useClipboardStore } from '../../stores/useClipboardStore';
 import { useEditorStore } from '../../stores/useEditorStore';
 import { usePagesStore } from '../../stores/usePagesStore';
 
-// 4. Types
+// 5. Types
 import type { Layer } from '../../types';
 
 export default function YCodeBuilder() {
@@ -44,6 +47,16 @@ export default function YCodeBuilder() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersRef = useRef<string>('');
   const previousPageIdRef = useRef<string | null>(null);
+
+  // Compute layers for current page (for CSS Generator)
+  const layersForCurrentPage = useMemo(() => {
+    if (!currentPageId) return [];
+    const draft = draftsByPageId[currentPageId];
+    return draft ? draft.layers : [];
+  }, [currentPageId, draftsByPageId]);
+
+  // Generate and inject CSS for arbitrary value classes on canvas
+  useCanvasCSS(layersForCurrentPage, currentPageId || 'default');
 
   // Migration state - BLOCKS builder until migrations complete
   const [migrationsComplete, setMigrationsComplete] = useState(false);
@@ -655,7 +668,8 @@ export default function YCodeBuilder() {
 
   // Authenticated - show builder (only after migrations complete)
   return (
-    <div className="h-screen flex flex-col bg-zinc-950 text-white">
+    <>
+      <div className="h-screen flex flex-col bg-zinc-950 text-white">
       {/* Update Notification Banner */}
       <UpdateNotification />
       
@@ -719,5 +733,6 @@ export default function YCodeBuilder() {
         )}
       </div>
     </div>
+    </>
   );
 }

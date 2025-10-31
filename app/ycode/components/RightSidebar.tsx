@@ -25,10 +25,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 // 4. Internal components
 import AddAttributeModal from './AddAttributeModal';
+import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
+import PositioningControls from './PositioningControls';
 import SettingsPanel from './SettingsPanel';
+import SizingControls from './SizingControls';
+import SpacingControls from './SpacingControls';
 import ToggleGroup from './ToggleGroup';
 import TypographyControls from './TypographyControls';
 
@@ -49,7 +53,6 @@ export default function RightSidebar({
   onLayerUpdate,
 }: RightSidebarProps) {
   const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'content'>('design');
-  const [classesInput, setClassesInput] = useState<string>('');
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
   const [attributesOpen, setAttributesOpen] = useState(true);
   const [customId, setCustomId] = useState<string>('');
@@ -119,48 +122,53 @@ export default function RightSidebar({
     
     // Map element types to their default tags:
     // Section = section, Container = div, Block = div
-    if (layer.type === 'section' || layer.name === 'section') return 'section';
+    if (layer.name === 'section') return 'section';
     if (layer.type === 'container' || layer.name === 'container') return 'div';
     
     return 'div'; // Default fallback
   };
 
-  // Update local state when selected layer changes
-  const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
-  if (selectedLayerId !== prevSelectedLayerId) {
-    setPrevSelectedLayerId(selectedLayerId);
-    const classes = selectedLayer?.classes || '';
-    setClassesInput(Array.isArray(classes) ? classes.join(' ') : classes);
-    setCustomId(selectedLayer?.settings?.id || '');
-    setIsHidden(selectedLayer?.settings?.hidden || false);
-    setHeadingTag(selectedLayer?.settings?.tag || getDefaultHeadingTag(selectedLayer));
-    setContainerTag(selectedLayer?.settings?.tag || getDefaultContainerTag(selectedLayer));
-  }
+  // Derive classes input directly from selectedLayer (reactive to changes)
+  const classesInput = useMemo(() => {
+    if (!selectedLayer?.classes) return '';
+    return Array.isArray(selectedLayer.classes) 
+      ? selectedLayer.classes.join(' ') 
+      : selectedLayer.classes;
+  }, [selectedLayer?.classes]);
 
   // Parse classes into array for badge display
   const classesArray = useMemo(() => {
     return classesInput.split(' ').filter(cls => cls.trim() !== '');
   }, [classesInput]);
 
+  // Update local state when selected layer changes (for settings fields)
+  const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
+  if (selectedLayerId !== prevSelectedLayerId) {
+    setPrevSelectedLayerId(selectedLayerId);
+    setCustomId(selectedLayer?.settings?.id || '');
+    setIsHidden(selectedLayer?.settings?.hidden || false);
+    setHeadingTag(selectedLayer?.settings?.tag || getDefaultHeadingTag(selectedLayer));
+    setContainerTag(selectedLayer?.settings?.tag || getDefaultContainerTag(selectedLayer));
+  }
+
   // Add a new class
   const addClass = useCallback((newClass: string) => {
-    if (!newClass.trim()) return;
+    if (!newClass.trim() || !selectedLayer) return;
     
     const trimmedClass = newClass.trim();
     if (classesArray.includes(trimmedClass)) return; // Don't add duplicates
     
     const newClasses = [...classesArray, trimmedClass].join(' ');
-    setClassesInput(newClasses);
-    handleClassesChange(newClasses);
+    onLayerUpdate(selectedLayer.id, { classes: newClasses });
     setCurrentClassInput('');
-  }, [classesArray]);
+  }, [classesArray, selectedLayer, onLayerUpdate]);
 
   // Remove a class
   const removeClass = useCallback((classToRemove: string) => {
+    if (!selectedLayer) return;
     const newClasses = classesArray.filter(cls => cls !== classToRemove).join(' ');
-    setClassesInput(newClasses);
-    handleClassesChange(newClasses);
-  }, [classesArray]);
+    onLayerUpdate(selectedLayer.id, { classes: newClasses });
+  }, [classesArray, selectedLayer, onLayerUpdate]);
 
   // Handle Enter key press
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
@@ -179,7 +187,6 @@ export default function RightSidebar({
   );
 
   const handleClassesChange = (value: string) => {
-    setClassesInput(value);
     if (selectedLayerId) {
       debouncedUpdate(selectedLayerId, value);
     }
@@ -189,7 +196,6 @@ export default function RightSidebar({
     if (!selectedLayerId) return;
     const currentClasses = classesInput;
     const updated = currentClasses + ' ' + newClasses;
-    setClassesInput(updated.trim());
     onLayerUpdate(selectedLayerId, { classes: updated.trim() });
   };
 
@@ -268,36 +274,46 @@ export default function RightSidebar({
 
   if (! selectedLayerId || ! selectedLayer) {
     return (
-      <div className="w-64 shrink-0 bg-neutral-950 border-l border-white/10 flex items-center justify-center">
+      <div className="w-64 shrink-0 bg-neutral-950 border-l border-white/10 flex items-center justify-center h-screen">
         <span className="text-xs text-white/50">Select layer</span>
       </div>
     );
   }
 
   return (
-    <div className="w-64 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col p-4">
+    <div className="w-64 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col h-screen">
       {/* Tabs */}
       <Tabs
         value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')}
-        className="flex flex-col flex-1 gap-0"
+        className="flex flex-col flex-1 min-h-0"
       >
-        <TabsList className="w-full">
-          <TabsTrigger value="design">Design</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
+        <div className="p-4 pb-0">
+          <TabsList className="w-full">
+            <TabsTrigger value="design">Design</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <hr className="mt-4" />
+        <hr className="mt-4 mx-4" />
 
         {/* Content */}
-        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto data-[state=inactive]:hidden overflow-x-hidden">
+        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto data-[state=inactive]:hidden overflow-x-hidden px-4 mt-0 pb-12">
 
-          <LayoutControls />
+          <LayoutControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
-          <TypographyControls />
+          <SpacingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
-          <BorderControls />
+          <SizingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
-          <EffectControls />
+          <TypographyControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <BackgroundsControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <BorderControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <EffectControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <PositioningControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <div className="flex flex-col gap-4 py-5">
             <Input
@@ -331,8 +347,8 @@ export default function RightSidebar({
 
         </TabsContent>
 
-        <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden">
-          <div className="flex flex-col gap-4 p-2">
+        <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden px-4 pb-12">
+          <div className="flex flex-col gap-4 py-2">
             {/* Attributes Panel */}
             <SettingsPanel
               title="Attributes"
@@ -434,7 +450,7 @@ export default function RightSidebar({
                       key={name}
                       className="flex items-center justify-between px-3 py-2 bg-zinc-900 rounded-lg text-sm text-zinc-300"
                     >
-                      <span>{name}="{value}"</span>
+                      <span>{name}=&quot;{value}&quot;</span>
                       <button
                         onClick={() => handleRemoveAttribute(name)}
                         className="text-zinc-500 hover:text-white transition-colors"

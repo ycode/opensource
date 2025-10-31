@@ -102,10 +102,10 @@ export const pageVersionsApi = {
   },
 
   // Update draft version
-  async updateDraft(pageId: string, layers: Layer[]): Promise<ApiResponse<PageVersion>> {
+  async updateDraft(pageId: string, layers: Layer[], generatedCSS?: string | null): Promise<ApiResponse<PageVersion>> {
     return apiRequest<PageVersion>(`/api/pages/${pageId}/draft`, {
       method: 'PUT',
-      body: JSON.stringify({ layers }),
+      body: JSON.stringify({ layers, generated_css: generatedCSS }),
     });
   },
 

@@ -124,6 +124,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   // Render the page exactly as it appears in canvas (even if empty)
   return (
     <div className="min-h-screen bg-white">
+      {/* Inject generated CSS from Play CDN */}
+      {version.generated_css && (
+        <style dangerouslySetInnerHTML={{ __html: version.generated_css }} />
+      )}
+      
       <LayerRenderer 
         layers={version.layers || []} 
         isEditMode={false}

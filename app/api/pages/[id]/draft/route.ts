@@ -52,7 +52,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { layers } = body;
+    const { layers, generated_css } = body;
 
     if (!Array.isArray(layers)) {
       return noCache(
@@ -61,7 +61,7 @@ export async function PUT(
       );
     }
 
-    const draft = await upsertDraft(id, layers as Layer[]);
+    const draft = await upsertDraft(id, layers as Layer[], generated_css);
 
     return noCache({
       data: draft,

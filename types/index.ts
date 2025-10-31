@@ -100,6 +100,12 @@ export interface LayerSettings {
   hidden?: boolean;      // Element visibility in canvas
   tag?: string;          // HTML tag override (e.g., 'h1', 'h2', etc.)
   customAttributes?: Record<string, string>; // Custom HTML attributes { attributeName: attributeValue }
+  linkSettings?: {       // For link/button elements
+    href?: string;
+    target?: '_self' | '_blank' | '_parent' | '_top';
+    rel?: string;
+  };
+  embedUrl?: string;     // For embedded content (videos, iframes, etc.)
   // Future settings can be added here
 }
 
@@ -168,6 +174,8 @@ export interface PageVersion {
   layers: Layer[];
   is_published: boolean;
   created_at: string;
+  updated_at?: string;
+  generated_css?: string; // Extracted CSS from Play CDN for published pages
 }
 
 // Asset Types

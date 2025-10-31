@@ -16,7 +16,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     name: 'Heading',
     template: {
       name: 'h2',
-      classes: ['text-3xl', 'font-bold', 'text-gray-900'],
+      classes: ['text-3xl', 'font-bold', 'text-[#111827]'],
       text: 'Heading',
       children: [], // Can contain inline elements
       design: {
@@ -35,7 +35,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     name: 'Paragraph',
     template: {
       name: 'p',
-      classes: ['text-base', 'text-gray-700'],
+      classes: ['text-base', 'text-[#374151]'],
       text: 'This is a paragraph. Edit this text to customize it.',
       children: [], // Can contain inline elements
       formattable: true,
