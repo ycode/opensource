@@ -27,6 +27,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AddAttributeModal from './AddAttributeModal';
 import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
+import ClassAutocompleteInput from './ClassAutocompleteInput';
 import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
 import PositioningControls from './PositioningControls';
@@ -335,11 +336,10 @@ export default function RightSidebar({
           <PositioningControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <div className="flex flex-col gap-4 py-5">
-            <Input
-              type="text"
+            <ClassAutocompleteInput
               value={currentClassInput}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentClassInput(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onChange={setCurrentClassInput}
+              onAccept={addClass}
               placeholder="Type class and press Enter..."
             />
             <div className="flex flex-wrap gap-1.5">

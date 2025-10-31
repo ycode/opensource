@@ -64,22 +64,22 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   backgroundImage: /^bg-(none|gradient-to-t|gradient-to-tr|gradient-to-r|gradient-to-br|gradient-to-b|gradient-to-bl|gradient-to-l|gradient-to-tl|\[.+\])$/,
   
   // Borders
-  borderWidth: /^border(-\d+)?(\[.+\])?$/,
-  borderTopWidth: /^border-t(-\d+)?(\[.+\])?$/,
-  borderRightWidth: /^border-r(-\d+)?(\[.+\])?$/,
-  borderBottomWidth: /^border-b(-\d+)?(\[.+\])?$/,
-  borderLeftWidth: /^border-l(-\d+)?(\[.+\])?$/,
+  borderWidth: /^border(-\d+|-\[.+\])?$/,
+  borderTopWidth: /^border-t(-\d+|-\[.+\])?$/,
+  borderRightWidth: /^border-r(-\d+|-\[.+\])?$/,
+  borderBottomWidth: /^border-b(-\d+|-\[.+\])?$/,
+  borderLeftWidth: /^border-l(-\d+|-\[.+\])?$/,
   borderStyle: /^border-(solid|dashed|dotted|double|hidden|none)$/,
   borderColor: /^border-((\w+)(-\d+)?|\[.+\])$/,
-  borderRadius: /^rounded(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full)?(\[.+\])?$/,
-  borderTopLeftRadius: /^rounded-tl(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full)?(\[.+\])?$/,
-  borderTopRightRadius: /^rounded-tr(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full)?(\[.+\])?$/,
-  borderBottomRightRadius: /^rounded-br(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full)?(\[.+\])?$/,
-  borderBottomLeftRadius: /^rounded-bl(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full)?(\[.+\])?$/,
+  borderRadius: /^rounded(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
+  borderTopLeftRadius: /^rounded-tl(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
+  borderTopRightRadius: /^rounded-tr(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
+  borderBottomRightRadius: /^rounded-br(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
+  borderBottomLeftRadius: /^rounded-bl(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
   
   // Effects
   opacity: /^opacity-(\d+|\[.+\])$/,
-  boxShadow: /^shadow(-none|-sm|-md|-lg|-xl|-2xl|-inner)?(\[.+\])?$/,
+  boxShadow: /^shadow(-none|-sm|-md|-lg|-xl|-2xl|-inner|-\[.+\])?$/,
   
   // Positioning
   position: /^(static|fixed|absolute|relative|sticky)$/,
