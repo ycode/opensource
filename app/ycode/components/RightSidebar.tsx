@@ -40,7 +40,10 @@ import TypographyControls from './TypographyControls';
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
 
-// 6. Types
+// 6. Utils, APIs, lib
+import { classesToDesign, mergeDesign, removeConflictsForClass } from '../../../lib/tailwind-class-mapper';
+
+// 7. Types
 import type { Layer } from '../../../types';
 
 interface RightSidebarProps {
@@ -158,8 +161,24 @@ export default function RightSidebar({
     const trimmedClass = newClass.trim();
     if (classesArray.includes(trimmedClass)) return; // Don't add duplicates
     
-    const newClasses = [...classesArray, trimmedClass].join(' ');
-    onLayerUpdate(selectedLayer.id, { classes: newClasses });
+    // Remove any conflicting classes before adding the new one
+    const classesWithoutConflicts = removeConflictsForClass(classesArray, trimmedClass);
+    
+    // Parse the new class to extract design properties
+    const parsedDesign = classesToDesign([trimmedClass]);
+    
+    // Merge with existing design
+    const updatedDesign = mergeDesign(selectedLayer.design, parsedDesign);
+    
+    // Add the new class (after removing conflicts)
+    const newClasses = [...classesWithoutConflicts, trimmedClass].join(' ');
+    
+    // Update layer with both classes AND design object
+    onLayerUpdate(selectedLayer.id, { 
+      classes: newClasses,
+      design: updatedDesign 
+    });
+    
     setCurrentClassInput('');
   }, [classesArray, selectedLayer, onLayerUpdate]);
 

@@ -358,8 +358,73 @@ export function designToClasses(design?: Layer['design']): string[] {
 }
 
 /**
+ * Detect which design properties a class affects
+ * Returns an array of property names that should have conflicts removed
+ */
+export function getAffectedProperties(className: string): string[] {
+  const properties: string[] = [];
+  
+  // Check each property pattern to see if this class matches
+  for (const [property, pattern] of Object.entries(CLASS_PROPERTY_MAP)) {
+    if (pattern.test(className)) {
+      properties.push(property);
+    }
+  }
+  
+  return properties;
+}
+
+/**
+ * Remove all classes that conflict with the new class being added
+ */
+export function removeConflictsForClass(
+  existingClasses: string[],
+  newClass: string
+): string[] {
+  const affectedProperties = getAffectedProperties(newClass);
+  
+  // Start with existing classes
+  let result = existingClasses;
+  
+  // Remove conflicts for each affected property
+  affectedProperties.forEach(property => {
+    result = removeConflictingClasses(result, property);
+  });
+  
+  return result;
+}
+
+/**
+ * Helper: Extract arbitrary value from class
+ * Example: 'text-[10em]' → '10em'
+ */
+function extractArbitraryValue(className: string): string | null {
+  const match = className.match(/\[(.+)\]/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Helper: Merge two design objects
+ */
+export function mergeDesign(existing: Layer['design'] | undefined, parsed: Layer['design'] | undefined): Layer['design'] {
+  if (!parsed) return existing || {};
+  
+  const result: Layer['design'] = {
+    layout: { ...(existing?.layout || {}), ...(parsed.layout || {}) },
+    typography: { ...(existing?.typography || {}), ...(parsed.typography || {}) },
+    spacing: { ...(existing?.spacing || {}), ...(parsed.spacing || {}) },
+    sizing: { ...(existing?.sizing || {}), ...(parsed.sizing || {}) },
+    borders: { ...(existing?.borders || {}), ...(parsed.borders || {}) },
+    backgrounds: { ...(existing?.backgrounds || {}), ...(parsed.backgrounds || {}) },
+    effects: { ...(existing?.effects || {}), ...(parsed.effects || {}) },
+    positioning: { ...(existing?.positioning || {}), ...(parsed.positioning || {}) },
+  };
+  return result;
+}
+
+/**
  * Parse Tailwind classes back to design object
- * This is a simplified version - full parsing would be complex
+ * Comprehensive parser for all design properties
  */
 export function classesToDesign(classes: string | string[]): Layer['design'] {
   const classList = Array.isArray(classes) ? classes : classes.split(' ').filter(Boolean);
@@ -375,30 +440,279 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     positioning: {},
   };
   
-  // This is a basic parser - can be expanded as needed
   classList.forEach(cls => {
-    // Layout
-    if (cls === 'flex') design.layout!.display = 'flex';
-    if (cls === 'grid') design.layout!.display = 'grid';
+    // ===== LAYOUT =====
+    // Display
     if (cls === 'block') design.layout!.display = 'block';
-    if (cls.startsWith('flex-row')) design.layout!.flexDirection = 'row';
-    if (cls.startsWith('flex-col')) design.layout!.flexDirection = 'column';
-    if (cls.startsWith('justify-')) design.layout!.justifyContent = cls.replace('justify-', '');
-    if (cls.startsWith('items-')) design.layout!.alignItems = cls.replace('items-', '');
+    if (cls === 'inline-block') design.layout!.display = 'inline-block';
+    if (cls === 'inline') design.layout!.display = 'inline';
+    if (cls === 'flex') design.layout!.display = 'flex';
+    if (cls === 'inline-flex') design.layout!.display = 'inline-flex';
+    if (cls === 'grid') design.layout!.display = 'grid';
+    if (cls === 'inline-grid') design.layout!.display = 'inline-grid';
+    if (cls === 'hidden') design.layout!.display = 'hidden';
+    
+    // Flex Direction
+    if (cls === 'flex-row') design.layout!.flexDirection = 'row';
+    if (cls === 'flex-row-reverse') design.layout!.flexDirection = 'row-reverse';
+    if (cls === 'flex-col') design.layout!.flexDirection = 'column';
+    if (cls === 'flex-col-reverse') design.layout!.flexDirection = 'column-reverse';
+    
+    // Justify Content
+    if (cls.startsWith('justify-')) {
+      const value = cls.replace('justify-', '');
+      if (['start', 'end', 'center', 'between', 'around', 'evenly', 'stretch'].includes(value)) {
+        design.layout!.justifyContent = value;
+      }
+    }
+    
+    // Align Items
+    if (cls.startsWith('items-')) {
+      const value = cls.replace('items-', '');
+      if (['start', 'end', 'center', 'baseline', 'stretch'].includes(value)) {
+        design.layout!.alignItems = value;
+      }
+    }
     
     // Gap
     if (cls.startsWith('gap-[')) {
-      const value = cls.match(/gap-\[(.+)\]/)?.[1];
+      const value = extractArbitraryValue(cls);
       if (value) design.layout!.gap = value;
     }
     
-    // Typography
-    if (cls.startsWith('text-[') && !cls.includes('text-[#') && !cls.includes('text-[rgb')) {
-      const value = cls.match(/text-\[(.+)\]/)?.[1];
+    // Grid
+    if (cls.startsWith('grid-cols-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.layout!.gridTemplateColumns = value;
+    }
+    if (cls.startsWith('grid-rows-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.layout!.gridTemplateRows = value;
+    }
+    
+    // ===== TYPOGRAPHY =====
+    // Font Size
+    if (cls.startsWith('text-[') && !cls.includes('#') && !cls.includes('rgb')) {
+      const value = extractArbitraryValue(cls);
       if (value) design.typography!.fontSize = value;
     }
     
-    // Add more parsing as needed...
+    // Font Weight
+    if (cls === 'font-thin') design.typography!.fontWeight = '100';
+    if (cls === 'font-extralight') design.typography!.fontWeight = '200';
+    if (cls === 'font-light') design.typography!.fontWeight = '300';
+    if (cls === 'font-normal') design.typography!.fontWeight = '400';
+    if (cls === 'font-medium') design.typography!.fontWeight = '500';
+    if (cls === 'font-semibold') design.typography!.fontWeight = '600';
+    if (cls === 'font-bold') design.typography!.fontWeight = '700';
+    if (cls === 'font-extrabold') design.typography!.fontWeight = '800';
+    if (cls === 'font-black') design.typography!.fontWeight = '900';
+    
+    // Font Family
+    if (cls === 'font-sans') design.typography!.fontFamily = 'sans-serif';
+    if (cls === 'font-serif') design.typography!.fontFamily = 'serif';
+    if (cls === 'font-mono') design.typography!.fontFamily = 'monospace';
+    
+    // Text Align
+    if (cls === 'text-left') design.typography!.textAlign = 'left';
+    if (cls === 'text-center') design.typography!.textAlign = 'center';
+    if (cls === 'text-right') design.typography!.textAlign = 'right';
+    if (cls === 'text-justify') design.typography!.textAlign = 'justify';
+    
+    // Text Transform
+    if (cls === 'uppercase') design.typography!.textTransform = 'uppercase';
+    if (cls === 'lowercase') design.typography!.textTransform = 'lowercase';
+    if (cls === 'capitalize') design.typography!.textTransform = 'capitalize';
+    if (cls === 'normal-case') design.typography!.textTransform = 'none';
+    
+    // Text Decoration
+    if (cls === 'underline') design.typography!.textDecoration = 'underline';
+    if (cls === 'line-through') design.typography!.textDecoration = 'line-through';
+    if (cls === 'no-underline') design.typography!.textDecoration = 'none';
+    
+    // Line Height
+    if (cls.startsWith('leading-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.typography!.lineHeight = value;
+    }
+    
+    // Letter Spacing
+    if (cls.startsWith('tracking-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.typography!.letterSpacing = value;
+    }
+    
+    // Text Color
+    if (cls.startsWith('text-[#') || cls.startsWith('text-[rgb')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.typography!.color = value;
+    }
+    
+    // ===== SPACING =====
+    // Padding
+    if (cls.startsWith('p-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.spacing!.padding = value;
+    } else if (cls.startsWith('pt-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.spacing!.paddingTop = value;
+    } else if (cls.startsWith('pr-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.spacing!.paddingRight = value;
+    } else if (cls.startsWith('pb-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.spacing!.paddingBottom = value;
+    } else if (cls.startsWith('pl-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.spacing!.paddingLeft = value;
+    }
+    
+    // Margin
+    if (cls.startsWith('m-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.spacing!.margin = value;
+    } else if (cls.startsWith('mt-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.spacing!.marginTop = value;
+    } else if (cls.startsWith('mr-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.spacing!.marginRight = value;
+    } else if (cls.startsWith('mb-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.spacing!.marginBottom = value;
+    } else if (cls.startsWith('ml-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.spacing!.marginLeft = value;
+    }
+    
+    // ===== SIZING =====
+    // Width
+    if (cls.startsWith('w-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.sizing!.width = value;
+    }
+    
+    // Height
+    if (cls.startsWith('h-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.sizing!.height = value;
+    }
+    
+    // Min Width
+    if (cls.startsWith('min-w-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.sizing!.minWidth = value;
+    }
+    
+    // Min Height
+    if (cls.startsWith('min-h-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.sizing!.minHeight = value;
+    }
+    
+    // Max Width
+    if (cls.startsWith('max-w-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.sizing!.maxWidth = value;
+    }
+    
+    // Max Height
+    if (cls.startsWith('max-h-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.sizing!.maxHeight = value;
+    }
+    
+    // ===== BORDERS =====
+    // Border Radius (all)
+    if (cls.startsWith('rounded-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.borders!.borderRadius = value;
+    }
+    // Border Radius (individual corners)
+    else if (cls.startsWith('rounded-tl-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.borders!.borderTopLeftRadius = value;
+    } else if (cls.startsWith('rounded-tr-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.borders!.borderTopRightRadius = value;
+    } else if (cls.startsWith('rounded-br-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.borders!.borderBottomRightRadius = value;
+    } else if (cls.startsWith('rounded-bl-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.borders!.borderBottomLeftRadius = value;
+    }
+    
+    // Border Width (all)
+    if (cls.startsWith('border-[') && !cls.includes('#') && !cls.includes('rgb')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.borders!.borderWidth = value;
+    }
+    
+    // Border Style
+    if (cls === 'border-solid') design.borders!.borderStyle = 'solid';
+    if (cls === 'border-dashed') design.borders!.borderStyle = 'dashed';
+    if (cls === 'border-dotted') design.borders!.borderStyle = 'dotted';
+    if (cls === 'border-double') design.borders!.borderStyle = 'double';
+    if (cls === 'border-none') design.borders!.borderStyle = 'none';
+    
+    // Border Color
+    if (cls.startsWith('border-[#') || cls.startsWith('border-[rgb')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.borders!.borderColor = value;
+    }
+    
+    // ===== BACKGROUNDS =====
+    // Background Color
+    if (cls.startsWith('bg-[#') || cls.startsWith('bg-[rgb')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.backgrounds!.backgroundColor = value;
+    }
+    
+    // ===== EFFECTS =====
+    // Opacity
+    if (cls.startsWith('opacity-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.effects!.opacity = value;
+    }
+    
+    // Box Shadow
+    if (cls.startsWith('shadow-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.effects!.boxShadow = value;
+    }
+    
+    // ===== POSITIONING =====
+    // Position
+    if (cls === 'static') design.positioning!.position = 'static';
+    if (cls === 'relative') design.positioning!.position = 'relative';
+    if (cls === 'absolute') design.positioning!.position = 'absolute';
+    if (cls === 'fixed') design.positioning!.position = 'fixed';
+    if (cls === 'sticky') design.positioning!.position = 'sticky';
+    
+    // Top/Right/Bottom/Left
+    if (cls.startsWith('top-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.positioning!.top = value;
+    }
+    if (cls.startsWith('right-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.positioning!.right = value;
+    }
+    if (cls.startsWith('bottom-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.positioning!.bottom = value;
+    }
+    if (cls.startsWith('left-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.positioning!.left = value;
+    }
+    
+    // Z-Index
+    if (cls.startsWith('z-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.positioning!.zIndex = value;
+    }
   });
   
   return design;
