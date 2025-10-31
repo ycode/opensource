@@ -1,23 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
- * Migration Checker Component
- * 
- * BLOCKING: Checks for and runs pending migrations before allowing builder access
- * This prevents the builder from trying to query tables that don't exist yet
+ * Migration Checker Component: Checks for and runs pending migrations before allowing
+ * builder access. This prevents the builder from trying to query tables that don't exist yet.
  */
-
-interface MigrationStatus {
-  pending: string[];
-  completed: Array<{
-    name: string;
-    batch: number;
-    migration_time: Date;
-  }>;
-  pendingCount: number;
-}
 
 interface MigrationCheckerProps {
   onComplete: () => void;
@@ -25,77 +13,54 @@ interface MigrationCheckerProps {
 
 export default function MigrationChecker({ onComplete }: MigrationCheckerProps) {
   const [isChecking, setIsChecking] = useState(true);
-  const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState('Checking database status...');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkAndRunMigrations();
-  }, []);
+  // Ref to ensure migration only runs once (prevents React Strict Mode double-run)
+  const hasRunRef = useRef(false);
 
-  const checkAndRunMigrations = async () => {
+  const checkAndRunMigrations = useCallback(async () => {
     try {
       setIsChecking(true);
-      setProgress('Checking for pending migrations...');
+      setProgress('Checking and running migrations...');
+      setError(null);
 
-      const response = await fetch('/api/setup/migrate');
-      if (!response.ok) {
-        // If migrations check fails, allow builder to load anyway
-        // (might be first-time setup or different issue)
-        console.error('Failed to check migrations');
-        onComplete();
-        return;
-      }
-
-      const data: MigrationStatus = await response.json();
-      
-      if (data.pendingCount > 0) {
-        // BLOCK: Run migrations before allowing builder access
-        await runPendingMigrations(data.pendingCount);
-      } else {
-        // No pending migrations - allow immediate access
-        onComplete();
-      }
-    } catch (err) {
-      console.error('Failed to check migrations:', err);
-      // Don't block on error - let user proceed
-      onComplete();
-    } finally {
-      setIsChecking(false);
-    }
-  };
-
-  const runPendingMigrations = async (count: number) => {
-    setIsRunning(true);
-    setProgress(`Running ${count} database migration(s)...`);
-    setError(null);
-
-    try {
+      // Single API call: checks AND runs migrations if needed
       const response = await fetch('/api/setup/migrate', {
         method: 'POST',
       });
 
-      const result = await response.json();
-
-      if (!response.ok || result.error) {
-        setError(result.error || 'Failed to run migrations');
-        setIsRunning(false);
-        // Don't call onComplete - keep user on migration screen
+      if (!response.ok) {
+        console.error('Migration request failed');
+        onComplete(); // Allow builder to load anyway
         return;
       }
 
-      setProgress('Migrations completed successfully! Loading builder...');
-      
-      // Wait 1 second to show success message, then allow builder to load
-      setTimeout(() => {
-        onComplete();
-      }, 1000);
+      const result = await response.json();
+
+      if (result.error) {
+        setError(result.error);
+        setIsChecking(false);
+        return;
+      }
+
+      // Successfully ran migrations, allow builder to load
+      onComplete();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to run migrations');
-      setIsRunning(false);
-      // Don't call onComplete - keep user on error screen
+      console.error('Failed to run migrations:', err);
+      setError(err instanceof Error ? err.message : 'Migration failed');
+      setIsChecking(false);
     }
-  };
+  }, [onComplete]);
+
+  useEffect(() => {
+    // Skip if already run (React Strict Mode protection)
+    if (hasRunRef.current) {
+      return;
+    }
+    hasRunRef.current = true;
+    checkAndRunMigrations();
+  }, [checkAndRunMigrations]);
 
   const handleRetry = () => {
     setError(null);
@@ -107,8 +72,8 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
     onComplete();
   };
 
-  // Always show this component while checking or running migrations
-  if (!isChecking && !isRunning && !error) {
+  // Always show this component while checking migrations
+  if (!isChecking && !error) {
     return null;
   }
 
@@ -139,7 +104,7 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
                 </p>
               </div>
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={handleRetry}
@@ -182,12 +147,12 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-white mb-1">
-                  {isRunning ? 'Updating Database' : 'Preparing Builder'}
+                  Preparing Builder
                 </h3>
                 <p className="text-sm text-zinc-400">{progress}</p>
               </div>
             </div>
-            
+
             <div className="bg-zinc-800 rounded-lg p-4">
               <p className="text-xs text-zinc-500 text-center">
                 Please wait while we prepare your workspace...

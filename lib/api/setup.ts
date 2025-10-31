@@ -42,25 +42,7 @@ export async function connectSupabase(
 }
 
 /**
- * Get migration status (completed and pending)
- */
-export async function getMigrationStatus(): Promise<ApiResponse<{
-    completed: Array<{ name: string; batch: number; migration_time: Date }>;
-    pending: string[];
-    completedCount: number;
-    pendingCount: number;
-}>> {
-  const response = await fetch('/api/setup/migrate');
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
-/**
- * Run Supabase migrations
+ * Run Supabase migrations (checks and runs if needed)
  */
 export async function runMigrations(): Promise<ApiResponse<void>> {
   const response = await fetch('/api/setup/migrate', {

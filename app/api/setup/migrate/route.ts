@@ -1,11 +1,10 @@
-import { NextResponse } from 'next/server';
-import { runMigrations, getMigrationStatus, getPendingMigrations } from '@/lib/services/migrationService';
+import { runMigrations } from '@/lib/services/migrationService';
 import { noCache } from '@/lib/api-response';
 
 /**
  * POST /api/setup/migrate
  *
- * Run Supabase migrations using Knex
+ * Automatically runs pending Supabase migrations using Knex, if any
  */
 export async function POST() {
   try {
@@ -37,34 +36,6 @@ export async function POST() {
 
     return noCache(
       { error: error instanceof Error ? error.message : 'Migration failed' },
-      500
-    );
-  }
-}
-
-/**
- * GET /api/setup/migrate
- *
- * Get migration status (completed and pending)
- */
-export async function GET() {
-  try {
-    const [completed, pending] = await Promise.all([
-      getMigrationStatus(),
-      getPendingMigrations(),
-    ]);
-
-    return noCache({
-      completed,
-      pending,
-      completedCount: completed.length,
-      pendingCount: pending.length,
-    });
-  } catch (error) {
-    console.error('[setup/migrate] Failed to get migration status:', error);
-
-    return noCache(
-      { error: 'Failed to retrieve migration status' },
       500
     );
   }

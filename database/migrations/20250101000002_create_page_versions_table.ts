@@ -2,7 +2,7 @@ import type { Knex } from 'knex';
 
 /**
  * Migration: Create Page Versions Table
- * 
+ *
  * Creates the page_versions table with foreign keys and RLS
  */
 
@@ -26,32 +26,62 @@ export async function up(knex: Knex): Promise<void> {
 
   // Create RLS policies
   await knex.schema.raw(`
-    CREATE POLICY "Public can view published versions" 
-      ON page_versions FOR SELECT 
+    CREATE POLICY "Public can view published versions"
+      ON page_versions FOR SELECT
       USING (
-        is_published = TRUE 
+        is_published = TRUE
         AND EXISTS (
-          SELECT 1 FROM pages 
-          WHERE pages.id = page_versions.page_id 
+          SELECT 1 FROM pages
+          WHERE pages.id = page_versions.page_id
           AND pages.status = 'published'
         )
       )
   `);
 
   await knex.schema.raw(`
-    CREATE POLICY "Authenticated users can manage versions" 
-      ON page_versions FOR ALL 
+    CREATE POLICY "Authenticated users can manage versions"
+      ON page_versions FOR ALL
       USING (auth.role() = 'authenticated')
   `);
 
   // Add foreign key constraint for published_version_id in pages table
   await knex.schema.raw(`
-    ALTER TABLE pages 
-      ADD CONSTRAINT fk_pages_published_version 
-      FOREIGN KEY (published_version_id) 
-      REFERENCES page_versions(id) 
+    ALTER TABLE pages
+      ADD CONSTRAINT fk_pages_published_version
+      FOREIGN KEY (published_version_id)
+      REFERENCES page_versions(id)
       ON DELETE SET NULL
   `);
+
+  // Create default homepage with initial draft version
+  const existingHome = await knex('pages').where('slug', 'home').first();
+
+  if (!existingHome) {
+    // Insert homepage
+    const [homepage] = await knex('pages')
+      .insert({
+        title: 'Home',
+        slug: 'home',
+        status: 'draft',
+        published_version_id: null,
+      })
+      .returning('*');
+
+    // Create initial draft with Body container
+    const bodyLayer = {
+      id: 'body',
+      type: 'container',
+      classes: '',
+      children: [],
+      locked: true,
+    };
+
+    await knex('page_versions').insert({
+      page_id: homepage.id,
+      layers: JSON.stringify([bodyLayer]),
+      is_published: false,
+    });
+  }
 }
 
 export async function down(knex: Knex): Promise<void> {
