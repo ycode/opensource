@@ -1,4 +1,4 @@
-import { getKnexClient, closeKnexClient, testConnection } from '../knex-client';
+import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
 import { getSupabaseAdmin } from '../supabase-server';
 import { migrations } from '../migrations-loader';
 
@@ -70,7 +70,7 @@ export async function runMigrations(): Promise<MigrationResult> {
     console.log('[runMigrations] Starting migration process...');
 
     // Test connection first
-    const canConnect = await testConnection();
+    const canConnect = await testKnexConnection();
     if (!canConnect) {
       return {
         success: false,

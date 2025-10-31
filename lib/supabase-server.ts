@@ -1,33 +1,39 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { storage } from './storage';
+import { parseSupabaseConfig } from './supabase-config-parser';
+import type { SupabaseConfig, SupabaseCredentials } from '@/types';
 
 /**
  * Supabase Server Client
- * 
+ *
  * Creates authenticated Supabase clients for server-side operations
- * Credentials are fetched from file-based storage
+ * Credentials are fetched from file-based storage or environment variables
  */
-
-export interface SupabaseCredentials {
-  url: string;
-  anonKey: string;
-  serviceRoleKey: string;
-  dbPassword: string;
-}
 
 /**
  * Get Supabase credentials from storage
+ * Parses the stored config to extract all necessary details
  */
 async function getSupabaseCredentials(): Promise<SupabaseCredentials | null> {
-  return await storage.get<SupabaseCredentials>('supabase_config');
+  const config = await storage.get<SupabaseConfig>('supabase_config');
+
+  if (!config) {
+    return null;
+  }
+
+  try {
+    return parseSupabaseConfig(config);
+  } catch (error) {
+    console.error('[getSupabaseCredentials] Failed to parse config:', error);
+    return null;
+  }
 }
 
 /**
  * Get Supabase configuration (exported for use in knex-client)
+ * Alias for getSupabaseCredentials
  */
-export async function getSupabaseConfig(): Promise<SupabaseCredentials | null> {
-  return await getSupabaseCredentials();
-}
+export const getSupabaseConfig = getSupabaseCredentials;
 
 let cachedClient: SupabaseClient | null = null;
 let cachedCredentials: string | null = null;
@@ -38,20 +44,20 @@ let cachedCredentials: string | null = null;
 export async function getSupabaseAdmin(): Promise<SupabaseClient | null> {
   console.log('[getSupabaseAdmin] Getting credentials...');
   const credentials = await getSupabaseCredentials();
-  
+
   if (!credentials) {
     console.error('[getSupabaseAdmin] No credentials returned!');
     return null;
   }
 
   console.log('[getSupabaseAdmin] Got credentials:', {
-    url: credentials.url ? '✓' : '✗',
+    projectUrl: credentials.projectUrl ? '✓' : '✗',
     anonKey: credentials.anonKey ? '✓' : '✗',
     serviceRoleKey: credentials.serviceRoleKey ? '✓' : '✗',
   });
 
   // Cache client if credentials haven't changed
-  const credKey = `${credentials.url}:${credentials.serviceRoleKey}`;
+  const credKey = `${credentials.projectUrl}:${credentials.serviceRoleKey}`;
   if (cachedClient && cachedCredentials === credKey) {
     console.log('[getSupabaseAdmin] Using cached client');
     return cachedClient;
@@ -59,44 +65,46 @@ export async function getSupabaseAdmin(): Promise<SupabaseClient | null> {
 
   // Create new client
   console.log('[getSupabaseAdmin] Creating new Supabase client');
-  cachedClient = createClient(credentials.url, credentials.serviceRoleKey, {
+  cachedClient = createClient(credentials.projectUrl, credentials.serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   });
-  
+
   cachedCredentials = credKey;
-  
+
   return cachedClient;
 }
 
 /**
- * Test Supabase connection
+ * Test Supabase connection with full config
  */
 export async function testSupabaseConnection(
-  url: string,
-  serviceRoleKey: string
+  config: SupabaseConfig
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const client = createClient(url, serviceRoleKey, {
+    // Parse the config to get the API URL
+    const credentials = parseSupabaseConfig(config);
+
+    const client = createClient(credentials.projectUrl, credentials.serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       },
     });
-    
+
     // Test connection by trying to list users (requires service role key)
     // This verifies both connection and authentication
-    const { data, error } = await client.auth.admin.listUsers({
+    const { error } = await client.auth.admin.listUsers({
       page: 1,
       perPage: 1,
     });
-    
+
     if (error) {
       return { success: false, error: error.message };
     }
-    
+
     return { success: true };
   } catch (error) {
     return {
@@ -111,18 +119,18 @@ export async function testSupabaseConnection(
  */
 export async function executeSql(sql: string): Promise<{ success: boolean; error?: string }> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     return { success: false, error: 'Supabase not configured' };
   }
 
   try {
     const { error } = await client.rpc('exec_sql', { sql });
-    
+
     if (error) {
       return { success: false, error: error.message };
     }
-    
+
     return { success: true };
   } catch (error) {
     return {

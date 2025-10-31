@@ -1,30 +1,50 @@
 import { NextRequest } from 'next/server';
 import { storage } from '@/lib/storage';
 import { testSupabaseConnection } from '@/lib/supabase-server';
-import { testConnectionWithString } from '@/lib/knex-client';
+import { testSupabaseDirectConnection } from '@/lib/knex-client';
+import { parseSupabaseConfig } from '@/lib/supabase-config-parser';
 import { noCache } from '@/lib/api-response';
+import type { SupabaseConfig } from '@/types';
 
 /**
  * POST /api/setup/connect
  *
- * Test and store Supabase credentials
+ * Test and store Supabase credentials (4 fields)
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { url, anon_key, service_role_key, db_password, pooler_server } = body;
+    const { anon_key, service_role_key, connection_url, db_password } = body;
 
     // Validate required fields
-    if (!url || !anon_key || !service_role_key || !db_password || !pooler_server) {
+    if (!anon_key || !service_role_key || !connection_url || !db_password) {
       return noCache(
-        { error: 'Missing required fields. All fields are required.' },
+        { error: 'Missing required fields: anon_key, service_role_key, connection_url, db_password' },
+        400
+      );
+    }
+
+    // Create config object
+    const config: SupabaseConfig = {
+      anonKey: anon_key,
+      serviceRoleKey: service_role_key,
+      connectionUrl: connection_url,
+      dbPassword: db_password,
+    };
+
+    // Parse and validate the config
+    let credentials;
+    try {
+      credentials = parseSupabaseConfig(config);
+    } catch (error) {
+      return noCache(
+        { error: error instanceof Error ? error.message : 'Invalid connection URL format' },
         400
       );
     }
 
     // Test Supabase API connection
-    const supabaseTestResult = await testSupabaseConnection(url, service_role_key);
-
+    const supabaseTestResult = await testSupabaseConnection(config);
     if (!supabaseTestResult.success) {
       return noCache(
         { error: supabaseTestResult.error || 'Supabase API connection test failed' },
@@ -32,38 +52,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract project ID from URL (format: https://xxxxx.supabase.co)
-    const projectId = url.replace('https://', '').replace('.supabase.co', '');
-
-    // Construct the connection string (pooler server format: "aws-x-xx-xxxx-x.pooler.supabase.com")
-    const connectionString = `postgresql://postgres.${projectId}:${encodeURIComponent(db_password)}@${pooler_server}:6543/postgres`;
-
-    // Test database connection with Knex
-    const dbTestResult = await testConnectionWithString(connectionString);
-
+    // Test database connection
+    const dbTestResult = await testSupabaseDirectConnection({
+      dbHost: credentials.dbHost,
+      dbPort: credentials.dbPort,
+      dbName: credentials.dbName,
+      dbUser: credentials.dbUser,
+      dbPassword: credentials.dbPassword,
+    });
     if (!dbTestResult.success) {
       return noCache(
-        { error: `Database connection failed. Please verify the database password and pooler server name.` },
+        { error: `Database connection failed: ${dbTestResult.error || 'Unknown error'}` },
         400
       );
     }
 
-    // Store credentials in file storage
-    await storage.set('supabase_config', {
-      url,
-      anonKey: anon_key,
-      serviceRoleKey: service_role_key,
-      dbPassword: db_password,
-      poolerServer: pooler_server,
-    });
+    // Store credentials
+    await storage.set('supabase_config', config);
 
     return noCache({
       success: true,
       message: 'Supabase connected successfully',
     });
   } catch (error) {
-    console.error('Supabase connection failed:', error);
-
+    console.error('[Setup API] Connection failed:', error);
     return noCache(
       { error: error instanceof Error ? error.message : 'Connection failed' },
       500

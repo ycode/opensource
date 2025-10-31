@@ -223,12 +223,25 @@ export interface PaginatedResponse<T> {
 
 // Supabase Config Types (for setup wizard)
 export interface SupabaseConfig {
-  url: string;
-  publishable_key: string;
-  secret_key: string;
-  db_password: string;
-  pooler_server: string;
-  jwt_secret?: string;
+  anonKey: string;
+  serviceRoleKey: string;
+  connectionUrl: string; // With [YOUR-PASSWORD] placeholder
+  dbPassword: string; // Actual password to replace [YOUR-PASSWORD]
+}
+
+// Internal credentials structure (derived from SupabaseConfig)
+export interface SupabaseCredentials {
+  anonKey: string;
+  serviceRoleKey: string;
+  connectionUrl: string; // Original with placeholder
+  dbPassword: string;
+  // Derived properties
+  projectId: string;
+  projectUrl: string; // API URL: https://[PROJECT_ID].supabase.co
+  dbHost: string;
+  dbPort: number;
+  dbName: string;
+  dbUser: string;
 }
 
 // Vercel Config Types

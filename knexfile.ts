@@ -1,6 +1,8 @@
 import type { Knex } from 'knex';
 import path from 'path';
 import { storage } from './lib/storage.ts';
+import { parseSupabaseConfig } from './lib/supabase-config-parser.ts';
+import type { SupabaseConfig } from './types/index.ts';
 
 /**
  * Knex Configuration for YCode Supabase Migrations
@@ -10,39 +12,27 @@ import { storage } from './lib/storage.ts';
  */
 
 /**
- * Load Supabase config from centralized storage
+ * Load Supabase credentials from centralized storage
  * Uses environment variables on Vercel, file-based storage locally
  */
-async function getSupabaseConnectionString() {
-  const config = await storage.get<{ connectionString: string }>('supabase_config');
+async function getSupabaseConnectionParams() {
+  const config = await storage.get<SupabaseConfig>('supabase_config');
 
-  if (!config?.connectionString) {
+  if (!config?.connectionUrl || !config?.dbPassword) {
     throw new Error('Supabase not configured. Please run setup first.');
   }
 
-  return config.connectionString;
-}
+  // Parse config to get all credentials including connection params
+  const credentials = parseSupabaseConfig(config);
 
-/**
- * Parse Supabase connection string
- * Format: postgresql://user:password@host:port/database?params
- */
-function parseConnectionString(connectionString: string) {
-  try {
-    const url = new URL(connectionString);
-
-    return {
-      host: url.hostname,
-      port: parseInt(url.port || '6543', 10),
-      database: url.pathname.slice(1), // Remove leading slash
-      user: url.username,
-      password: decodeURIComponent(url.password),
-      ssl: { rejectUnauthorized: false },
-    };
-  } catch (error) {
-    console.error('[Knex] Failed to parse connection string:', error);
-    throw new Error('Invalid connection string format. Expected: postgresql://user:password@host:port/database');
-  }
+  return {
+    host: credentials.dbHost,
+    port: credentials.dbPort,
+    database: credentials.dbName,
+    user: credentials.dbUser,
+    password: credentials.dbPassword,
+    ssl: { rejectUnauthorized: false },
+  };
 }
 
 const createConfig = (): Knex.Config => {
@@ -51,18 +41,14 @@ const createConfig = (): Knex.Config => {
   return {
     client: 'pg',
     connection: async () => {
-      // Load Supabase credentials from storage
-      const connectionString = await getSupabaseConnectionString();
-
-      // Parse the connection string to get connection parameters
-      const connectionParams = parseConnectionString(connectionString);
+      const connectionParams = await getSupabaseConnectionParams();
 
       console.log('[Knex] Creating database connection:', {
         host: connectionParams.host,
         port: connectionParams.port,
         user: connectionParams.user,
         database: connectionParams.database,
-        password: '***' + connectionParams.password.slice(-4), // Only show last 4 chars
+        password: '***' + connectionParams.password.slice(-4),
       });
 
       return connectionParams;

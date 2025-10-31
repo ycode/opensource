@@ -22,7 +22,7 @@ export async function checkSetupStatus(): Promise<{
 }
 
 /**
- * Connect Supabase credentials
+ * Connect Supabase credentials (4 fields)
  */
 export async function connectSupabase(
   config: SupabaseConfig
@@ -31,11 +31,10 @@ export async function connectSupabase(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      url: config.url,
-      anon_key: config.publishable_key,
-      service_role_key: config.secret_key,
-      db_password: config.db_password,
-      pooler_server: config.pooler_server,
+      anon_key: config.anonKey,
+      service_role_key: config.serviceRoleKey,
+      connection_url: config.connectionUrl,
+      db_password: config.dbPassword,
     }),
   });
 

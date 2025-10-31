@@ -109,38 +109,33 @@ You'll see:
 3. Click **"Settings"** (top menu)
 4. Click **"Environment Variables"** (left sidebar)
 
-### Part B: Add the Connection Details (Do This 5 Times)
+### Part B: Add the Connection Details (Do This 4 Times)
 
 Make sure **all Environments** is selected when adding new keys.
 
-**Variable 1: Project URL**
-1. In **"Key"**, type: `SUPABASE_URL`
-2. In **"Value"**, go to your Supabase tab and copy your **Project URL**  
+**Variable 1: Anon Key**
+1. In **"Key"**, type: `SUPABASE_ANON_KEY`
+2. In **"Value"**, go to your Supabase tab and copy the **anon public** key
 
-**Variable 2: Public Key**
-1. Click **"Add Another"**
-2. In **"Key"**, type: `SUPABASE_ANON_KEY`
-3. In **"Value"**, copy the **anon public** key from Supabase
-
-**Variable 3: Secret Key**
+**Variable 2: Service Role Key**
 1. Click **"Add Another"**
 2. In **"Key"**, type: `SUPABASE_SERVICE_ROLE_KEY`
 3. In **"Value"**, click **"Reveal"** next to service_role in Supabase, then copy it
 
+**Variable 3: Connection URL**
+1. Click **"Add Another"**
+2. In **"Key"**, type: `SUPABASE_CONNECTION_URL`
+3. In **"Value"**, you need to get your PostgreSQL connection string:
+   - Go to Supabase → Click **"Connect"** (top navbar)
+   - Go to the **"Connection String"** tab (if not already open)
+   - Select the **"Transaction Pooler"** option for the **Method** filter
+   - Copy/Paste the entire connection string **as-is** (no need to update anything)
+   - Example: `postgresql://postgres.xxxxxxxxxxxx:[YOUR-PASSWORD]@aws-x-xx-xxxx-x.pooler.supabase.com:6543/postgres`
+
 **Variable 4: Database Password**
 1. Click **"Add Another"**
 2. In **"Key"**, type: `SUPABASE_DB_PASSWORD`
-3. In **"Value"**, paste your Supabase database password (the one you created when setting up your Supabase project)
-
-**Variable 5: Pooler Server**
-1. Click **"Add Another"**
-2. In **"Key"**, type: `SUPABASE_POOLER_SERVER`
-3. In **"Value"**, you need to find your pooler server name:
-   - Go to Supabase → Click **"Connect"** (top right)
-   - Click **"ORMs"** tab
-   - Click **"Prisma"**
-   - Look for the **DATABASE_URL** connection string
-   - Copy the server part between `@` and `:6543` (e.g., `aws-1-eu-west-3.pooler.supabase.com`)
+3. In **"Value"**, paste your actual database password
 4. Click **"Save"** to save all variables
 
 ### Part C: Restart Your Site

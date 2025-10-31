@@ -44,17 +44,17 @@ export async function closeKnexClient(): Promise<void> {
 }
 
 /**
- * Test database connection
+ * Test database connection using stored credentials
  */
-export async function testConnection(): Promise<boolean> {
+export async function testKnexConnection(): Promise<boolean> {
   try {
-    console.log('[testConnection] Starting database connection test...');
+    console.log('[testKnexConnection] Starting database connection test...');
     const client = await getKnexClient();
     await client.raw('SELECT 1');
-    console.log('[testConnection] ✓ Database connection successful');
+    console.log('[testKnexConnection] ✓ Database connection successful');
     return true;
   } catch (error) {
-    console.error('[testConnection] ✗ Database connection test failed:', {
+    console.error('[testKnexConnection] ✗ Database connection test failed:', {
       message: error instanceof Error ? error.message : 'Unknown error',
       code: (error as any)?.code,
       detail: (error as any)?.detail,
@@ -64,7 +64,7 @@ export async function testConnection(): Promise<boolean> {
     try {
       await closeKnexClient();
     } catch (closeError) {
-      console.error('[testConnection] Error closing failed connection:', closeError);
+      console.error('[testKnexConnection] Error closing failed connection:', closeError);
     }
 
     return false;
@@ -72,30 +72,33 @@ export async function testConnection(): Promise<boolean> {
 }
 
 /**
- * Test database connection with specific connection string
+ * Test database connection with Supabase credentials
  * Used during setup to validate credentials before storing them
  */
-export async function testConnectionWithString(connectionString: string): Promise<{
+export async function testSupabaseDirectConnection(credentials: {
+  dbHost: string;
+  dbPort: number;
+  dbName: string;
+  dbUser: string;
+  dbPassword: string;
+}): Promise<{
   success: boolean;
   error?: string;
 }> {
   let testClient: Knex | null = null;
 
   try {
-    console.log('[testConnectionWithString] Testing database connection...');
+    console.log('[testSupabaseDirectConnection] Testing database connection...');
 
-    // Parse connection string to extract connection details
-    const url = new URL(connectionString);
-
-    // Create a temporary knex instance with the provided connection string
+    // Create a temporary knex instance with the provided credentials
     testClient = knex({
       client: 'pg',
       connection: {
-        host: url.hostname,
-        port: parseInt(url.port || '6543', 10),
-        database: url.pathname.slice(1), // Remove leading slash
-        user: url.username,
-        password: decodeURIComponent(url.password),
+        host: credentials.dbHost,
+        port: credentials.dbPort,
+        database: credentials.dbName,
+        user: credentials.dbUser,
+        password: credentials.dbPassword,
         ssl: { rejectUnauthorized: false },
       },
       pool: {
@@ -106,11 +109,11 @@ export async function testConnectionWithString(connectionString: string): Promis
 
     // Test the connection
     await testClient.raw('SELECT 1');
-    console.log('[testConnectionWithString] ✓ Database connection successful');
+    console.log('[testSupabaseDirectConnection] ✓ Database connection successful');
 
     return { success: true };
   } catch (error) {
-    console.error('[testConnectionWithString] ✗ Database connection test failed:', {
+    console.error('[testSupabaseDirectConnection] ✗ Database connection test failed:', {
       message: error instanceof Error ? error.message : 'Unknown error',
       code: (error as any)?.code,
       detail: (error as any)?.detail,
@@ -126,7 +129,7 @@ export async function testConnectionWithString(connectionString: string): Promis
       try {
         await testClient.destroy();
       } catch (closeError) {
-        console.error('[testConnectionWithString] Error closing test connection:', closeError);
+        console.error('[testSupabaseDirectConnection] Error closing test connection:', closeError);
       }
     }
   }
