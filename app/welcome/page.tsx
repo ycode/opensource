@@ -157,9 +157,14 @@ export default function WelcomePage() {
             // Go to migration step
             setStep('migrate');
           } else {
-            setError(
-              'Environment variables not detected. Please set them in Vercel Dashboard and redeploy.'
-            );
+            // Show specific error from API if available, otherwise generic message
+            if (data.error) {
+              setError(data.error);
+            } else {
+              setError(
+                'Environment variables not detected. Please set them in Vercel Dashboard and redeploy.'
+              );
+            }
           }
         } catch (err) {
           setError('Failed to check configuration');

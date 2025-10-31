@@ -27,7 +27,9 @@ function extractProjectId(connectionUrl: string): string {
 
   if (match) return match[1];
 
-  throw new Error('Invalid connection URL format. Expected: postgresql://postgres.[PROJECT-ID]:...');
+  throw new Error(
+    'Invalid SUPABASE_CONNECTION_URL, the expected format is: postgresql://postgres.xxxxxxxxxx:[YOUR-PASSWORD]@aws-x-xx-xxxx-x.pooler.supabase.com:6543/postgres'
+  );
 }
 
 /**
@@ -70,8 +72,17 @@ export function parseConnectionUrl(connectionUrl: string): {
       dbUser,
     };
   } catch (error) {
+    // If it's already one of our custom errors, just re-throw it
+    if (error instanceof Error && error.message.includes('SUPABASE_CONNECTION_URL')) {
+      throw error;
+    }
+
+    // Otherwise, wrap it with a helpful message
     const message = error instanceof Error ? error.message : 'Invalid format';
-    throw new Error(`Failed to parse Supabase connection URL: ${message}`);
+    throw new Error(
+      `Failed to parse SUPABASE_CONNECTION_URL: ${message}\n\n` +
+      'Expected format: postgresql://postgres.[PROJECT-ID]:[YOUR-PASSWORD]@aws-x-xx-xxxx-x.pooler.supabase.com:6543/postgres'
+    );
   }
 }
 
