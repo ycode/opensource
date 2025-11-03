@@ -28,6 +28,14 @@ async function ensureMigrationsTable(knex: any): Promise<void> {
       table.integer('batch').notNullable();
       table.timestamp('migration_time').defaultTo(knex.fn.now());
     });
+
+    // Revoke any public or client-facing access
+    await knex.raw('REVOKE ALL ON public.migrations FROM PUBLIC');
+    await knex.raw('REVOKE ALL ON public.migrations FROM anon');
+    await knex.raw('REVOKE ALL ON public.migrations FROM authenticated');
+
+    // Grant only to the internal DB role(s) that perform migrations
+    await knex.raw('GRANT SELECT, INSERT, UPDATE, DELETE ON public.migrations TO postgres');
   }
 }
 
