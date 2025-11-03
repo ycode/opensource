@@ -1,6 +1,6 @@
 /**
  * CMS Component
- * 
+ *
  * Content Management System interface for managing site content
  */
 
@@ -13,7 +13,7 @@ export default function CMS() {
   const [activeSection, setActiveSection] = useState<'content' | 'media' | 'settings'>('content');
 
   return (
-    <div className="flex-1 dark:bg-neutral-950 flex flex-col">
+    <div className="flex-1 bg-background flex flex-col">
 
         <div className="p-4 flex">
 

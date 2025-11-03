@@ -83,7 +83,7 @@ export default function HeaderBar({
   }, [showPageDropdown, setShowPageDropdown]);
 
   return (
-    <header className="h-14 bg-neutral-950 border-b border-white/10 flex items-center justify-between px-4">
+    <header className="h-14 bg-background border-b flex items-center justify-between px-4">
       {/* Left: Logo & Page Selector */}
       <div className="flex items-center gap-2">
         {/* User Menu */}
