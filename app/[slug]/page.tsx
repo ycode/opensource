@@ -121,10 +121,10 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
   const { version } = data;
 
-  // Render the page exactly as it appears in canvas (even if empty)
+  // Render the page with extracted CSS from Tailwind JIT (compiled during publish)
   return (
     <div className="min-h-screen bg-white">
-      {/* Inject generated CSS from Play CDN */}
+      {/* Inject CSS extracted from Tailwind JIT CDN during publish */}
       {version.generated_css && (
         <style dangerouslySetInnerHTML={{ __html: version.generated_css }} />
       )}

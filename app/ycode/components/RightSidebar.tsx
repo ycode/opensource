@@ -66,7 +66,7 @@ export default function RightSidebar({
   const [customAttributesOpen, setCustomAttributesOpen] = useState(true);
   const [showAddAttributeModal, setShowAddAttributeModal] = useState(false);
 
-  const { currentPageId } = useEditorStore();
+  const { currentPageId, activeBreakpoint } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
 
   const selectedLayer: Layer | null = useMemo(() => {
@@ -315,6 +315,15 @@ export default function RightSidebar({
         </div>
 
         <hr className="mt-4 mx-4" />
+
+        {/* Breakpoint Indicator (only show on Design tab) */}
+        {activeTab === 'design' && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900/50 border-b border-zinc-800">
+            <span className="text-xs text-zinc-400">
+              Editing: <span className="text-white font-medium capitalize">{activeBreakpoint}</span>
+            </span>
+          </div>
+        )}
 
         {/* Content */}
         <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto data-[state=inactive]:hidden overflow-x-hidden px-4 mt-0 pb-12">

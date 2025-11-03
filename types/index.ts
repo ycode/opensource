@@ -208,6 +208,7 @@ export interface EditorState {
   isDragging: boolean;
   isLoading: boolean;
   isSaving: boolean;
+  activeBreakpoint: 'mobile' | 'tablet' | 'desktop';
 }
 
 // API Response Types

@@ -20,7 +20,7 @@ interface SpacingControlsProps {
 export default function SpacingControls({ layer, onLayerUpdate }: SpacingControlsProps) {
   const { updateDesignProperty, updateDesignProperties, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate,
+    onLayerUpdate
   });
   
   const [marginUnit, setMarginUnit] = useState<'px' | 'rem' | 'em'>('px');

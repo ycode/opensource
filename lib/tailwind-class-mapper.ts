@@ -718,4 +718,150 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
   return design;
 }
 
+/**
+ * Breakpoint Configuration
+ */
+export const BREAKPOINT_CONFIG = {
+  mobile: { prefix: '', minWidth: 0 },
+  tablet: { prefix: 'md:', minWidth: 768 },
+  desktop: { prefix: 'lg:', minWidth: 1024 },
+} as const;
+
+export type Breakpoint = 'mobile' | 'tablet' | 'desktop';
+
+/**
+ * Convert breakpoint to Tailwind prefix
+ * mobile → '', tablet → 'md:', desktop → 'lg:'
+ */
+export function getBreakpointPrefix(breakpoint: Breakpoint): string {
+  return BREAKPOINT_CONFIG[breakpoint].prefix;
+}
+
+/**
+ * Parse breakpoint from class name
+ * "md:w-[100px]" → { breakpoint: 'tablet', baseClass: 'w-[100px]' }
+ * "w-[100px]" → { breakpoint: 'mobile', baseClass: 'w-[100px]' }
+ */
+export function parseBreakpointClass(className: string): {
+  breakpoint: Breakpoint;
+  baseClass: string;
+} {
+  if (className.startsWith('lg:')) {
+    return { breakpoint: 'desktop', baseClass: className.slice(3) };
+  }
+  if (className.startsWith('md:')) {
+    return { breakpoint: 'tablet', baseClass: className.slice(3) };
+  }
+  return { breakpoint: 'mobile', baseClass: className };
+}
+
+/**
+ * Add breakpoint prefix to a class
+ * ('tablet', 'w-[100px]') → 'md:w-[100px]'
+ * ('mobile', 'w-[100px]') → 'w-[100px]'
+ */
+export function addBreakpointPrefix(breakpoint: Breakpoint, className: string): string {
+  const prefix = getBreakpointPrefix(breakpoint);
+  return prefix ? `${prefix}${className}` : className;
+}
+
+/**
+ * Get all classes for a specific breakpoint from a classes array
+ * Returns base classes without the breakpoint prefix
+ */
+export function getBreakpointClasses(classes: string[], breakpoint: Breakpoint): string[] {
+  const prefix = getBreakpointPrefix(breakpoint);
+  
+  return classes
+    .filter(cls => {
+      if (prefix) {
+        return cls.startsWith(prefix);
+      } else {
+        // For mobile (no prefix), return classes that don't have md: or lg: prefix
+        return !cls.startsWith('md:') && !cls.startsWith('lg:');
+      }
+    })
+    .map(cls => (prefix ? cls.slice(prefix.length) : cls));
+}
+
+/**
+ * Get inherited value for a property across breakpoints
+ * Mobile-first cascade: mobile → tablet → desktop
+ */
+export function getInheritedValue(
+  classes: string[],
+  property: string,
+  currentBreakpoint: Breakpoint
+): { value: string | null; source: Breakpoint | null } {
+  const pattern = getConflictingClassPattern(property);
+  if (!pattern) return { value: null, source: null };
+  
+  // Define inheritance chain based on current breakpoint
+  const inheritanceChain: Breakpoint[] = 
+    currentBreakpoint === 'desktop' ? ['mobile', 'tablet', 'desktop'] :
+    currentBreakpoint === 'tablet' ? ['mobile', 'tablet'] :
+    ['mobile'];
+  
+  // Check each breakpoint in order (mobile → tablet → desktop)
+  let lastValue: string | null = null;
+  let lastSource: Breakpoint | null = null;
+  
+  for (const breakpoint of inheritanceChain) {
+    const breakpointClasses = getBreakpointClasses(classes, breakpoint);
+    const matchingClass = breakpointClasses.find(cls => pattern.test(cls));
+    
+    if (matchingClass) {
+      lastValue = matchingClass;
+      lastSource = breakpoint;
+    }
+  }
+  
+  return { value: lastValue, source: lastSource };
+}
+
+/**
+ * Remove conflicting classes for a specific breakpoint
+ */
+export function removeConflictingClassesForBreakpoint(
+  classes: string[],
+  property: string,
+  breakpoint: Breakpoint
+): string[] {
+  const pattern = getConflictingClassPattern(property);
+  if (!pattern) return classes;
+  
+  const prefix = getBreakpointPrefix(breakpoint);
+  
+  return classes.filter(cls => {
+    const parsed = parseBreakpointClass(cls);
+    
+    // Only remove if:
+    // 1. It's from the same breakpoint
+    // 2. It matches the property pattern
+    return !(parsed.breakpoint === breakpoint && pattern.test(parsed.baseClass));
+  });
+}
+
+/**
+ * Add or update a class for a specific breakpoint
+ * Handles conflict resolution automatically
+ */
+export function setBreakpointClass(
+  classes: string[],
+  property: string,
+  newClass: string | null,
+  breakpoint: Breakpoint
+): string[] {
+  // Remove any existing classes for this property at this breakpoint
+  let result = removeConflictingClassesForBreakpoint(classes, property, breakpoint);
+  
+  // Add the new class with breakpoint prefix if provided
+  if (newClass) {
+    const classWithPrefix = addBreakpointPrefix(breakpoint, newClass);
+    result.push(classWithPrefix);
+  }
+  
+  return result;
+}
+
 

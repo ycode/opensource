@@ -14,7 +14,7 @@ interface BackgroundsControlsProps {
 export default function BackgroundsControls({ layer, onLayerUpdate }: BackgroundsControlsProps) {
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate,
+    onLayerUpdate
   });
   
   // Get current values from layer

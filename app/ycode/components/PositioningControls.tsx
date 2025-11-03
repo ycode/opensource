@@ -15,7 +15,7 @@ interface PositioningControlsProps {
 export default function PositioningControls({ layer, onLayerUpdate }: PositioningControlsProps) {
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate,
+    onLayerUpdate
   });
   
   const [positionUnit, setPositionUnit] = useState<'px' | 'rem' | 'em' | '%'>('px');

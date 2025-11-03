@@ -19,7 +19,7 @@ import UpdateNotification from '../../components/UpdateNotification';
 import MigrationChecker from '../../components/MigrationChecker';
 
 // 3. Hooks
-import { useCanvasCSS } from '../../hooks/use-canvas-css';
+// useCanvasCSS removed - now handled by iframe with Tailwind JIT CDN
 
 // 4. Stores
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -32,7 +32,7 @@ import type { Layer } from '../../types';
 
 export default function YCodeBuilder() {
   const { signOut, user } = useAuthStore();
-  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, setSelectedLayerIds, clearSelection, currentPageId, setCurrentPageId, undo, redo, canUndo, canRedo, pushHistory } = useEditorStore();
+  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, setSelectedLayerIds, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, pushHistory } = useEditorStore();
   const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter } = usePagesStore();
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard } = useClipboardStore();
   const pages = usePagesStore((state) => state.pages);
@@ -48,15 +48,12 @@ export default function YCodeBuilder() {
   const lastLayersRef = useRef<string>('');
   const previousPageIdRef = useRef<string | null>(null);
 
-  // Compute layers for current page (for CSS Generator)
-  const layersForCurrentPage = useMemo(() => {
-    if (!currentPageId) return [];
-    const draft = draftsByPageId[currentPageId];
-    return draft ? draft.layers : [];
-  }, [currentPageId, draftsByPageId]);
+  // Sync viewportMode with activeBreakpoint in store
+  useEffect(() => {
+    setActiveBreakpoint(viewportMode);
+  }, [viewportMode, setActiveBreakpoint]);
 
-  // Generate and inject CSS for arbitrary value classes on canvas
-  useCanvasCSS(layersForCurrentPage, currentPageId || 'default');
+  // CSS generation now handled by Tailwind JIT CDN in iframe - no need for custom CSS generation
 
   // Migration state - BLOCKS builder until migrations complete
   const [migrationsComplete, setMigrationsComplete] = useState(false);

@@ -15,7 +15,7 @@ interface SizingControlsProps {
 export default function SizingControls({ layer, onLayerUpdate }: SizingControlsProps) {
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate,
+    onLayerUpdate
   });
   
   const [widthUnit, setWidthUnit] = useState<'px' | 'rem' | 'em' | '%'>('px');

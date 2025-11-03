@@ -20,6 +20,7 @@ interface EditorActions {
   setCurrentPageId: (id: string | null) => void;
   setLoading: (value: boolean) => void;
   setSaving: (value: boolean) => void;
+  setActiveBreakpoint: (breakpoint: 'mobile' | 'tablet' | 'desktop') => void;
   pushHistory: (pageId: string, layers: Layer[]) => void;
   undo: () => HistoryEntry | null;
   redo: () => HistoryEntry | null;
@@ -43,6 +44,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   isDragging: false,
   isLoading: false,
   isSaving: false,
+  activeBreakpoint: 'mobile' as 'mobile' | 'tablet' | 'desktop',
   history: [],
   historyIndex: -1,
   maxHistorySize: 50,
@@ -130,6 +132,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setCurrentPageId: (id) => set({ currentPageId: id }),
   setLoading: (value) => set({ isLoading: value }),
   setSaving: (value) => set({ isSaving: value }),
+  setActiveBreakpoint: (breakpoint) => set({ activeBreakpoint: breakpoint }),
   
   pushHistory: (pageId, layers) => {
     const { history, historyIndex, maxHistorySize } = get();

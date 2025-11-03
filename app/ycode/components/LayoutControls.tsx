@@ -21,7 +21,7 @@ interface LayoutControlsProps {
 export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsProps) {
   const { updateDesignProperty, updateDesignProperties, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate,
+    onLayerUpdate
   });
   
   const [gapUnit, setGapUnit] = useState<'px' | 'rem' | 'em'>('px');

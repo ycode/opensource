@@ -21,7 +21,7 @@ interface BorderControlsProps {
 export default function BorderControls({ layer, onLayerUpdate }: BorderControlsProps) {
   const { updateDesignProperty, updateDesignProperties, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate,
+    onLayerUpdate
   });
   
   // Get current values from layer

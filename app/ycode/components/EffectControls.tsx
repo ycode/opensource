@@ -18,7 +18,7 @@ interface EffectControlsProps {
 export default function EffectControls({ layer, onLayerUpdate }: EffectControlsProps) {
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate,
+    onLayerUpdate
   });
   
   // Get current values from layer

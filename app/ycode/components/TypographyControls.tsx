@@ -18,7 +18,7 @@ interface TypographyControlsProps {
 export default function TypographyControls({ layer, onLayerUpdate }: TypographyControlsProps) {
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate,
+    onLayerUpdate
   });
   
   const [sizeUnit, setSizeUnit] = useState<'px' | 'rem' | 'em'>('px');
