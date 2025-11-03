@@ -1,6 +1,8 @@
 import type { Knex } from 'knex';
 import path from 'path';
 import { storage } from './lib/storage.ts';
+import { parseSupabaseConfig } from './lib/supabase-config-parser.ts';
+import type { SupabaseConfig } from './types/index.ts';
 
 /**
  * Knex Configuration for YCode Supabase Migrations
@@ -10,24 +12,26 @@ import { storage } from './lib/storage.ts';
  */
 
 /**
- * Load Supabase config from centralized storage
+ * Load Supabase credentials from centralized storage
  * Uses environment variables on Vercel, file-based storage locally
  */
-async function loadSupabaseConfig() {
-  const config = await storage.get<{
-    url: string;
-    anonKey: string;
-    serviceRoleKey: string;
-    dbPassword: string;
-  }>('supabase_config');
+async function getSupabaseConnectionParams() {
+  const config = await storage.get<SupabaseConfig>('supabase_config');
 
-  if (!config || !config.url || !config.dbPassword) {
+  if (!config?.connectionUrl || !config?.dbPassword) {
     throw new Error('Supabase not configured. Please run setup first.');
   }
 
+  // Parse config to get all credentials including connection params
+  const credentials = parseSupabaseConfig(config);
+
   return {
-    url: config.url,
-    dbPassword: config.dbPassword,
+    host: credentials.dbHost,
+    port: credentials.dbPort,
+    database: credentials.dbName,
+    user: credentials.dbUser,
+    password: credentials.dbPassword,
+    ssl: { rejectUnauthorized: false },
   };
 }
 
@@ -37,55 +41,17 @@ const createConfig = (): Knex.Config => {
   return {
     client: 'pg',
     connection: async () => {
-      // Load Supabase credentials from storage
-      const supabaseConfig = await loadSupabaseConfig();
+      const connectionParams = await getSupabaseConnectionParams();
 
-      // Parse project reference from Supabase URL
-      // Supabase URL format: https://[project-ref].supabase.co
-      const projectRef = supabaseConfig.url.replace('https://', '').replace('.supabase.co', '');
-
-      // On Vercel, use connection pooler (recommended for serverless)
-      if (isVercel) {
-        // Try connection pooler format
-        // Format: aws-0-[region].pooler.supabase.com:6543
-        // Common regions: us-east-1, us-west-1, eu-west-1, ap-southeast-1, etc.
-
-        // Try us-east-1 first (most common), then fallback to direct connection if it fails
-        const poolerHost = `aws-0-us-east-1.pooler.supabase.com`;
-
-        console.log('[Knex] Using connection pooler (serverless optimized):', {
-          host: poolerHost,
-          port: 6543,
-          user: `postgres.${projectRef}`,
-          database: 'postgres',
-        });
-
-        return {
-          host: poolerHost,
-          port: 6543,
-          database: 'postgres',
-          user: `postgres.${projectRef}`,
-          password: supabaseConfig.dbPassword,
-          ssl: { rejectUnauthorized: false },
-        };
-      }
-
-      // Local development: use direct connection
-      console.log('[Knex] Creating direct database connection:', {
-        host: `db.${projectRef}.supabase.co`,
-        user: 'postgres',
-        database: 'postgres',
-        passwordLength: supabaseConfig.dbPassword.length,
+      console.log('[Knex] Creating database connection:', {
+        host: connectionParams.host,
+        port: connectionParams.port,
+        user: connectionParams.user,
+        database: connectionParams.database,
+        password: '***' + connectionParams.password.slice(-4),
       });
 
-      return {
-        host: `db.${projectRef}.supabase.co`,
-        port: 5432,
-        database: 'postgres',
-        user: 'postgres',
-        password: supabaseConfig.dbPassword,
-        ssl: { rejectUnauthorized: false },
-      };
+      return connectionParams;
     },
     migrations: {
       directory: path.join(process.cwd(), 'database/migrations'),

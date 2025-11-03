@@ -2,7 +2,7 @@
 
 /**
  * Left Sidebar - Pages & Layers
- * 
+ *
  * Displays pages list and layers tree with navigation icons
  */
 
@@ -67,7 +67,7 @@ export default function LeftSidebar({
   const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
-  
+
   // Listen for keyboard shortcut to toggle ElementLibrary
   useEffect(() => {
     const handleToggleElementLibrary = () => {
@@ -77,7 +77,7 @@ export default function LeftSidebar({
     window.addEventListener('toggleElementLibrary', handleToggleElementLibrary);
     return () => window.removeEventListener('toggleElementLibrary', handleToggleElementLibrary);
   }, []);
-  
+
   // Handler to create a new page
   const handleAddPage = async () => {
     try {
@@ -85,19 +85,19 @@ export default function LeftSidebar({
       const timestamp = Date.now();
       const newPageTitle = `Page ${pages.length + 1}`;
       const newPageSlug = `page-${timestamp}`;
-      
+
       const createResponse = await pagesApi.create({
         title: newPageTitle,
         slug: newPageSlug,
         status: 'draft',
         published_version_id: null,
       });
-      
+
       if (createResponse.error) {
         console.error('Error creating page:', createResponse.error);
         return;
       }
-      
+
       if (createResponse.data) {
         // Reload pages to get the updated list
         await loadPages();
@@ -162,25 +162,25 @@ export default function LeftSidebar({
       const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
       return bodyLayer ? 'body' : null;
     }
-    
+
     const selectedItem = findLayer(layersForCurrentPage, selectedLayerId);
     if (!selectedItem) {
       // Selected layer not found - add inside Body by default
       const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
       return bodyLayer ? 'body' : null;
     }
-    
+
     // If selected is a container, add as child
     if (selectedItem.layer.type === 'container') {
       return selectedLayerId;
     }
-    
+
     // Otherwise, add as sibling (same parent)
     // But if parent is null (would be root level), use Body instead
     if (selectedItem.parentId === null) {
       return 'body';
     }
-    
+
     return selectedItem.parentId;
   }, [selectedLayerId, layersForCurrentPage, findLayer]);
 
@@ -192,13 +192,13 @@ export default function LeftSidebar({
 
   const handleSavePage = async (data: PageFormData) => {
     if (!editingPage) return;
-    
+
     try {
       await pagesApi.update(editingPage.id, {
         title: data.title,
         slug: data.slug,
       });
-      
+
       await loadPages();
       setShowPageSettings(false);
       setEditingPage(null);
@@ -223,7 +223,7 @@ export default function LeftSidebar({
 
     // Find the selected layer
     const selectedItem = findLayer(layersForCurrentPage, selectedLayerId);
-    
+
     if (!selectedItem) {
       setAssetMessage('❌ Layer not found');
       setTimeout(() => setAssetMessage(null), 3000);
@@ -248,7 +248,7 @@ export default function LeftSidebar({
 
   return (
     <>
-      <div className="w-64 shrink-0 bg-neutral-950 border-r border-white/10 flex overflow-hidden p-4">
+      <div className="w-64 shrink-0 bg-background border-r flex overflow-hidden p-4">
         {/* Tabs */}
         <Tabs
           value={activeTab} onValueChange={(value) => {

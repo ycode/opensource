@@ -32,7 +32,7 @@ const selectVariants = cva(
     variants: {
       variant: {
         default: 'dark:bg-input/70 dark:hover:bg-input/60',
-        ghost: 'hover:bg-input dark:hover:bg-input/70 border-transparent shadow-none',
+        ghost: 'hover:bg-input dark:hover:bg-input/70 border-transparent shadow-none backdrop-blur',
       },
       size: {
         default: 'h-9',

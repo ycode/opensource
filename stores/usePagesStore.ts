@@ -46,11 +46,11 @@ function updateLayerInTree(tree: Layer[], layerId: string, updater: (l: Layer) =
     if (node.id === layerId) {
       return updater(node);
     }
-    
+
     if (node.children && node.children.length > 0) {
       return { ...node, children: updateLayerInTree(node.children, layerId, updater) };
     }
-    
+
     return node;
   });
 }
@@ -87,40 +87,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       }
       const pages = response.data || [];
       console.log('[usePagesStore.loadPages] Fetched pages:', pages.length);
-      
-      // Auto-create a default "Home" page if none exist
-      if (pages.length === 0) {
-        console.log('[usePagesStore.loadPages] No pages found, creating default Home page...');
-        try {
-          const createResponse = await pagesApi.create({
-            title: 'Home',
-            slug: 'home',
-            status: 'draft',
-            published_version_id: null,
-          });
-          
-          console.log('[usePagesStore.loadPages] Create response:', createResponse);
-          
-          if (createResponse.error) {
-            console.error('[usePagesStore.loadPages] Error creating default page:', createResponse.error);
-            set({ error: createResponse.error, isLoading: false });
-            return;
-          }
-          
-          if (createResponse.data) {
-            console.log('[usePagesStore.loadPages] Default Home page created successfully:', createResponse.data);
-            set({ pages: [createResponse.data], isLoading: false });
-            return;
-          }
-          
-          console.error('[usePagesStore.loadPages] Create succeeded but no data returned');
-        } catch (createError) {
-          console.error('[usePagesStore.loadPages] Exception creating default page:', createError);
-          set({ error: 'Failed to create default page', isLoading: false });
-          return;
-        }
-      }
-      
+
+      // Note: Default homepage with draft version is created during migrations (20250101000002_create_page_versions_table.ts)
+
       console.log('[usePagesStore.loadPages] Setting pages:', pages.length);
       set({ pages, isLoading: false });
     } catch (error) {
@@ -224,12 +193,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   addLayer: (pageId, parentLayerId, layerType) => {
     const { draftsByPageId, pages } = get();
     let draft = draftsByPageId[pageId];
-    
+
     // Initialize draft if it doesn't exist
     if (!draft) {
       const page = pages.find(p => p.id === pageId);
       if (!page) return;
-      
+
       draft = {
         id: `draft-${pageId}`,
         page_id: pageId,
@@ -246,12 +215,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       content: getDefaultContent(layerType),
       children: layerType === 'container' ? [] : undefined,
     };
-    
+
     // Set classes after ID is assigned
     newLayer.classes = getDefaultClasses(layerType, newLayer.id);
 
     let newLayers: Layer[];
-    
+
     if (! parentLayerId) {
       // Add to root
       newLayers = [...draft.layers, newLayer];
@@ -263,23 +232,23 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       }));
     }
 
-    set({ 
-      draftsByPageId: { 
-        ...draftsByPageId, 
+    set({
+      draftsByPageId: {
+        ...draftsByPageId,
         [pageId]: { ...draft, layers: newLayers }
-      } 
+      }
     });
   },
 
   addLayerFromTemplate: (pageId, parentLayerId, templateId) => {
     const { draftsByPageId, pages } = get();
     let draft = draftsByPageId[pageId];
-    
+
     // Initialize draft if it doesn't exist
     if (!draft) {
       const page = pages.find(p => p.id === pageId);
       if (!page) return null;
-      
+
       draft = {
         id: `draft-${pageId}`,
         page_id: pageId,
@@ -295,27 +264,27 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       console.error(`Template ${templateId} not found`);
       return null;
     }
-    
+
     const displayName = getBlockName(templateId);
 
     // Set the display name for the root layer
     const normalizeLayer = (layer: Layer, isRoot: boolean = true): Layer => {
       const normalized = { ...layer };
-      
+
       if (isRoot && displayName) {
         normalized.customName = displayName;
       }
-      
+
       // Recursively normalize children
       if (normalized.children) {
         normalized.children = normalized.children.map(child => normalizeLayer(child, false));
       }
-      
+
       // Ensure classes is a string
       if (Array.isArray(normalized.classes)) {
         normalized.classes = normalized.classes.join(' ');
       }
-      
+
       return normalized;
     };
 
@@ -324,7 +293,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     let newLayers: Layer[];
     let parentToExpand: string | null = null;
-    
+
     if (! parentLayerId) {
       // Add to root
       newLayers = [...draft.layers, newLayer];
@@ -340,13 +309,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         }
         return null;
       };
-      
+
       const result = findLayerWithParent(draft.layers, parentLayerId);
-      
+
       // Check if parent can have children
       if (result && !canHaveChildren(result.layer)) {
         console.log(`🔄 Cannot add child to ${result.layer.name || result.layer.type} - placing after selected layer instead`);
-        
+
         // If parent exists (not root level), insert after the selected layer
         if (result.parent) {
           newLayers = updateLayerInTree(draft.layers, result.parent.id, (grandparent) => {
@@ -375,13 +344,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       }
     }
 
-    set({ 
-      draftsByPageId: { 
-        ...draftsByPageId, 
+    set({
+      draftsByPageId: {
+        ...draftsByPageId,
         [pageId]: { ...draft, layers: newLayers }
-      } 
+      }
     });
-    
+
     return { newLayerId, parentToExpand };
   },
 
@@ -396,7 +365,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const findLayer = (tree: Layer[]): Layer | null => {
       for (const node of tree) {
         if (node.id === layerId) return node;
-        
+
         if (node.children) {
           const found = findLayer(node.children);
           if (found) return found;
@@ -406,7 +375,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     };
 
     const layerToDelete = findLayer(draft.layers);
-    
+
     // Prevent deleting locked layers
     if (layerToDelete?.locked) {
       console.warn('Cannot delete locked layer');
@@ -427,14 +396,14 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     const newLayers = removeFromTree(draft.layers);
     console.log('✅ LAYERS AFTER DELETE:', newLayers);
-    
+
     // Use functional update to ensure we're working with the latest state
     set((state) => ({
       draftsByPageId: {
         ...state.draftsByPageId,
-        [pageId]: { 
-          ...state.draftsByPageId[pageId], 
-          layers: newLayers 
+        [pageId]: {
+          ...state.draftsByPageId[pageId],
+          layers: newLayers
         }
       }
     }));
@@ -551,11 +520,11 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       updatedLayer: findLayerInTree(newLayers, layerId),
     });
 
-    set({ 
-      draftsByPageId: { 
-        ...draftsByPageId, 
-        [pageId]: { ...draft, layers: newLayers } 
-      } 
+    set({
+      draftsByPageId: {
+        ...draftsByPageId,
+        [pageId]: { ...draft, layers: newLayers }
+      }
     });
   },
 
@@ -580,7 +549,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const isDescendant = (parentId: string, childId: string): boolean => {
       const parent = findLayer(draft.layers, parentId);
       if (!parent || !parent.children) return false;
-      
+
       for (const child of parent.children) {
         if (child.id === childId) return true;
         if (child.children && isDescendant(child.id, childId)) return true;
@@ -643,15 +612,15 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     // Remove layer from current position
     let newLayers = removeLayer(draft.layers);
-    
+
     // Insert at new position
     newLayers = insertLayer(newLayers, targetParentId, targetIndex, layerToMove);
 
-    set({ 
-      draftsByPageId: { 
-        ...draftsByPageId, 
-        [pageId]: { ...draft, layers: newLayers } 
-      } 
+    set({
+      draftsByPageId: {
+        ...draftsByPageId,
+        [pageId]: { ...draft, layers: newLayers }
+      }
     });
 
     return true;
@@ -663,7 +632,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       layersCount: layers.length,
       layers: layers.map(l => ({ id: l.id, type: l.type }))
     });
-    
+
     const { draftsByPageId } = get();
     const draft = draftsByPageId[pageId];
     if (!draft) {
@@ -677,7 +646,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         [pageId]: { ...draft, layers },
       },
     });
-    
+
     console.log('✅ SET DRAFT LAYERS: State updated successfully');
   },
 
@@ -764,11 +733,11 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           children.splice(insertIndex + 1, 0, newLayer);
           return { ...layer, children };
         }
-        
+
         if (layer.children && layer.children.length > 0) {
           return { ...layer, children: insertAfter(layer.children, parentLayer, insertIndex) };
         }
-        
+
         return layer;
       });
     };
@@ -940,18 +909,18 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     ): { parent: Layer | null; index: number; propertyName: 'children' | 'items' | null } | null => {
       for (let i = 0; i < layers.length; i++) {
         const layer = layers[i];
-        
+
         if (layer.id === targetId) {
           return { parent, index: i, propertyName };
         }
-        
+
         // Search only children array
         if (layer.children && layer.children.length > 0) {
           const found = findParentAndIndex(layer.children, targetId, layer, 'children');
           if (found) return found;
         }
       }
-      
+
       return null;
     };
 
@@ -963,8 +932,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     // Insert after the target layer
     const insertAfter = (
-      layers: Layer[], 
-      parentLayer: Layer | null, 
+      layers: Layer[],
+      parentLayer: Layer | null,
       insertIndex: number,
       targetPropertyName: 'children' | 'items' | null
     ): Layer[] => {
@@ -982,12 +951,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           children.splice(insertIndex + 1, 0, newLayer);
           return { ...layer, children };
         }
-        
+
         // Recursively search in children
         if (layer.children && layer.children.length > 0) {
           return { ...layer, children: insertAfter(layer.children, parentLayer, insertIndex, targetPropertyName) };
         }
-        
+
         return layer;
       });
     };
@@ -1032,12 +1001,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           console.log('✅ UPDATED LAYER:', updated);
           return updated;
         }
-        
+
         // Recursively search in children
         if (layer.children && layer.children.length > 0) {
           return { ...layer, children: insertInside(layer.children) };
         }
-        
+
         return layer;
       });
     };
@@ -1052,7 +1021,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         [pageId]: { ...state.draftsByPageId[pageId], layers: newLayers },
       },
     }));
-    
+
     console.log('✅ PASTE INSIDE COMPLETE');
   },
 }));
@@ -1060,7 +1029,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 // Helper functions for default layer values
 function getDefaultClasses(type: Layer['type'], id?: string): string {
   if (id === 'body') return '';
-  
+
   switch (type) {
     case 'container':
       return 'flex flex-col gap-4 p-8';

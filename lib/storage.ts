@@ -5,6 +5,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
+import type { SupabaseConfig } from '@/types';
 
 const STORAGE_FILE = path.join(process.cwd(), '.credentials.json');
 const IS_VERCEL = process.env.VERCEL === '1';
@@ -14,48 +15,51 @@ interface StorageData {
 }
 
 /**
+ * Get Supabase config from environment variables
+ */
+function getSupabaseConfigFromEnv(): SupabaseConfig | null {
+  const { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_CONNECTION_URL, SUPABASE_DB_PASSWORD } = process.env;
+
+  console.log('[Storage] Environment variable check:', {
+    SUPABASE_ANON_KEY: SUPABASE_ANON_KEY ? `✓ (${SUPABASE_ANON_KEY.length} chars)` : '✗ missing',
+    SUPABASE_SERVICE_ROLE_KEY: SUPABASE_SERVICE_ROLE_KEY ? `✓ (${SUPABASE_SERVICE_ROLE_KEY.length} chars)` : '✗ missing',
+    SUPABASE_CONNECTION_URL: SUPABASE_CONNECTION_URL ? `✓ (${SUPABASE_CONNECTION_URL.substring(0, 30)}...)` : '✗ missing',
+    SUPABASE_DB_PASSWORD: SUPABASE_DB_PASSWORD ? `✓ (${SUPABASE_DB_PASSWORD.length} chars)` : '✗ missing',
+  });
+
+  if (SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY && SUPABASE_CONNECTION_URL && SUPABASE_DB_PASSWORD) {
+    console.log('[Storage] ✓ All environment variables present');
+    return {
+      anonKey: SUPABASE_ANON_KEY,
+      serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+      connectionUrl: SUPABASE_CONNECTION_URL,
+      dbPassword: SUPABASE_DB_PASSWORD,
+    };
+  }
+
+  console.error('[Storage] ✗ Missing required environment variables');
+  return null;
+}
+
+/**
  * Get a value from storage
  * Uses environment variables on Vercel, file-based storage locally
  */
 export async function get<T = unknown>(key: string): Promise<T | null> {
   try {
-    // On Vercel, use environment variables
+    // On Vercel, use environment variables for Supabase config
     if (IS_VERCEL && key === 'supabase_config') {
-      console.log(`[Storage] Getting key "${key}" from Vercel environment variables`);
-      const url = process.env.SUPABASE_URL;
-      const anonKey = process.env.SUPABASE_ANON_KEY;
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      const dbPassword = process.env.SUPABASE_DB_PASSWORD;
-
-      // Log what we found (without exposing actual values)
-      console.log('[Storage] Environment variable check:', {
-        SUPABASE_URL: url ? `✓ (${url})` : '✗ missing',
-        SUPABASE_ANON_KEY: anonKey ? `✓ (${anonKey.length} chars)` : '✗ missing',
-        SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey ? `✓ (${serviceRoleKey.length} chars)` : '✗ missing',
-        SUPABASE_DB_PASSWORD: dbPassword ? `✓ (${dbPassword.length} chars)` : '✗ missing',
-      });
-
-      if (url && anonKey && serviceRoleKey && dbPassword) {
-        console.log('[Storage] ✓ All environment variables present');
-
-        return {
-          url,
-          anonKey,
-          serviceRoleKey,
-          dbPassword,
-        } as T;
-      }
-
-      console.error('[Storage] ✗ Missing required environment variables. Please check Vercel settings.');
-      return null;
+      console.log(`[Storage] Getting "${key}" from environment variables`);
+      return getSupabaseConfigFromEnv() as T;
     }
 
     // Locally, use file-based storage
-    console.log(`[Storage] Using file storage: ${STORAGE_FILE}`);
+    console.log(`[Storage] Reading "${key}" from ${STORAGE_FILE}`);
     const data = await readStorage();
-    const value = data[key] as T || null;
+    const value = data[key];
+
     console.log(`[Storage] Key "${key}" ${value ? 'found' : 'not found'}`);
-    return value;
+    return (value as T) || null;
   } catch (error) {
     console.error(`[Storage] Error getting key "${key}":`, error);
     return null;
@@ -72,7 +76,7 @@ export async function set(key: string, value: unknown): Promise<void> {
     throw new Error(
       'Cannot write to file system on Vercel. Please set environment variables instead:\n' +
       '1. Go to Vercel Dashboard → Project Settings → Environment Variables\n' +
-      '2. Add: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_PASSWORD\n' +
+      '2. Add: SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_CONNECTION_URL, SUPABASE_DB_PASSWORD\n' +
       '3. Redeploy your application'
     );
   }

@@ -2,7 +2,7 @@
 
 /**
  * Center Canvas - Preview Area with Isolated Iframe
- * 
+ *
  * Shows live preview of the website being built using Tailwind JIT CDN
  */
 
@@ -58,7 +58,7 @@ export default function CenterCanvas({
     if (!currentPageId) {
       return [];
     }
-    
+
     const draft = draftsByPageId[currentPageId];
     return draft ? draft.layers : [];
   }, [currentPageId, draftsByPageId]);
@@ -141,9 +141,9 @@ export default function CenterCanvas({
   }, [currentPageId, setSelectedLayerId, updateLayer]);
 
   return (
-    <div className="flex-1 min-w-0 bg-neutral-900 flex flex-col">
+    <div className="flex-1 min-w-0 flex flex-col">
       {/* Breakpoint Controls */}
-      <div className="flex items-center justify-center p-4 border-b bg-neutral-950">
+      <div className="flex items-center justify-center p-4 border-b bg-background">
         <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
           <TabsList className="w-[240px]">
             <TabsTrigger value="desktop" title="Desktop View">
@@ -160,10 +160,10 @@ export default function CenterCanvas({
       </div>
 
       {/* Canvas Area */}
-      <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-neutral-900">
-        <div 
+      <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-neutral-950/80">
+        <div
           className="bg-white shadow-3xl transition-all origin-top"
-          style={{ 
+          style={{
             transform: `scale(${zoom / 100})`,
             width: viewportSizes[viewportMode].width,
             minHeight: '800px',
@@ -191,7 +191,7 @@ export default function CenterCanvas({
                   Add your first block to begin creating your page.
                 </p>
                 <div className="relative inline-block">
-                  <Button 
+                  <Button
                     onClick={() => setShowAddBlockPanel(!showAddBlockPanel)}
                     size="lg"
                     className="gap-2"
@@ -205,7 +205,7 @@ export default function CenterCanvas({
                     <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 bg-white border border-gray-200 rounded-lg shadow-2xl min-w-[240px]">
                       <div className="p-2">
                         <div className="text-xs text-gray-500 px-3 py-2 mb-1 font-medium">Choose a block</div>
-                        
+
                         <Button
                           onClick={() => {
                             // Always add inside Body container

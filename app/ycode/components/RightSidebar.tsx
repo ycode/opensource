@@ -2,12 +2,12 @@
 
 /**
  * Right Sidebar - Properties Panel
- * 
+ *
  * Shows properties for selected layer with Tailwind class editor
  */
 
 // 1. React/Next.js
-import { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 
 // 2. External libraries
 import debounce from 'lodash.debounce';
@@ -20,6 +20,7 @@ import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
@@ -30,6 +31,7 @@ import BorderControls from './BorderControls';
 import ClassAutocompleteInput from './ClassAutocompleteInput';
 import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
+import PositionControls from './PositionControls';
 import PositioningControls from './PositioningControls';
 import SettingsPanel from './SettingsPanel';
 import SizingControls from './SizingControls';
@@ -46,6 +48,7 @@ import { classesToDesign, mergeDesign, removeConflictsForClass } from '../../../
 
 // 7. Types
 import type { Layer } from '../../../types';
+import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
@@ -64,7 +67,9 @@ export default function RightSidebar({
   const [headingTag, setHeadingTag] = useState<string>('h1');
   const [containerTag, setContainerTag] = useState<string>('div');
   const [customAttributesOpen, setCustomAttributesOpen] = useState(true);
-  const [showAddAttributeModal, setShowAddAttributeModal] = useState(false);
+  const [showAddAttributePopover, setShowAddAttributePopover] = useState(false);
+  const [newAttributeName, setNewAttributeName] = useState('');
+  const [newAttributeValue, setNewAttributeValue] = useState('');
 
   const { currentPageId, activeBreakpoint } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
@@ -86,7 +91,7 @@ export default function RightSidebar({
   const isHeadingLayer = (layer: Layer | null): boolean => {
     if (!layer) return false;
     const headingTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'heading'];
-    return headingTags.includes(layer.type || '') || 
+    return headingTags.includes(layer.type || '') ||
            headingTags.includes(layer.name || '') ||
            headingTags.includes(layer.settings?.tag || '');
   };
@@ -95,11 +100,11 @@ export default function RightSidebar({
   const isContainerLayer = (layer: Layer | null): boolean => {
     if (!layer) return false;
     const containerTags = [
-      'div', 'container', 'section', 'nav', 'main', 'aside', 
+      'div', 'container', 'section', 'nav', 'main', 'aside',
       'header', 'footer', 'article', 'figure', 'figcaption',
       'details', 'summary'
     ];
-    return containerTags.includes(layer.type || '') || 
+    return containerTags.includes(layer.type || '') ||
            containerTags.includes(layer.name || '') ||
            containerTags.includes(layer.settings?.tag || '');
   };
@@ -118,25 +123,25 @@ export default function RightSidebar({
   const getDefaultContainerTag = (layer: Layer | null): string => {
     if (!layer) return 'div';
     if (layer.settings?.tag) return layer.settings.tag;
-    
+
     // Check if layer.name is already a valid semantic tag
     if (layer.name && ['div', 'section', 'nav', 'main', 'aside', 'header', 'footer', 'article', 'figure', 'figcaption', 'details', 'summary'].includes(layer.name)) {
       return layer.name;
     }
-    
+
     // Map element types to their default tags:
     // Section = section, Container = div, Block = div
-    if (layer.name === 'section') return 'section';
-    if (layer.type === 'container' || layer.name === 'container') return 'div';
-    
+    if (String(layer.type) === 'section' || layer.name === 'section') return 'section';
+    if (String(layer.type) === 'container' || layer.name === 'container') return 'div';
+
     return 'div'; // Default fallback
   };
 
   // Derive classes input directly from selectedLayer (reactive to changes)
   const classesInput = useMemo(() => {
     if (!selectedLayer?.classes) return '';
-    return Array.isArray(selectedLayer.classes) 
-      ? selectedLayer.classes.join(' ') 
+    return Array.isArray(selectedLayer.classes)
+      ? selectedLayer.classes.join(' ')
       : selectedLayer.classes;
   }, [selectedLayer?.classes]);
 
@@ -155,49 +160,12 @@ export default function RightSidebar({
     setContainerTag(selectedLayer?.settings?.tag || getDefaultContainerTag(selectedLayer));
   }
 
-  // Add a new class
-  const addClass = useCallback((newClass: string) => {
-    if (!newClass.trim() || !selectedLayer) return;
-    
-    const trimmedClass = newClass.trim();
-    if (classesArray.includes(trimmedClass)) return; // Don't add duplicates
-    
-    // Remove any conflicting classes before adding the new one
-    const classesWithoutConflicts = removeConflictsForClass(classesArray, trimmedClass);
-    
-    // Parse the new class to extract design properties
-    const parsedDesign = classesToDesign([trimmedClass]);
-    
-    // Merge with existing design
-    const updatedDesign = mergeDesign(selectedLayer.design, parsedDesign);
-    
-    // Add the new class (after removing conflicts)
-    const newClasses = [...classesWithoutConflicts, trimmedClass].join(' ');
-    
-    // Update layer with both classes AND design object
-    onLayerUpdate(selectedLayer.id, { 
-      classes: newClasses,
-      design: updatedDesign 
-    });
-    
-    setCurrentClassInput('');
-  }, [classesArray, selectedLayer, onLayerUpdate]);
+  // Parse classes into array for badge display
+  const classesArray = useMemo(() => {
+    return classesInput.split(' ').filter(cls => cls.trim() !== '');
+  }, [classesInput]);
 
-  // Remove a class
-  const removeClass = useCallback((classToRemove: string) => {
-    if (!selectedLayer) return;
-    const newClasses = classesArray.filter(cls => cls !== classToRemove).join(' ');
-    onLayerUpdate(selectedLayer.id, { classes: newClasses });
-  }, [classesArray, selectedLayer, onLayerUpdate]);
-
-  // Handle Enter key press
-  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addClass(currentClassInput);
-    }
-  }, [currentClassInput, addClass]);
-
+  // Debounced updater for classes
   const debouncedUpdate = useMemo(
     () =>
       debounce((layerId: string, classes: string) => {
@@ -206,11 +174,55 @@ export default function RightSidebar({
     [onLayerUpdate]
   );
 
-  const handleClassesChange = (value: string) => {
+  const handleClassesChange = useCallback((value: string) => {
+    setClassesInput(value);
     if (selectedLayerId) {
       debouncedUpdate(selectedLayerId, value);
     }
-  };
+  }, [debouncedUpdate, selectedLayerId]);
+
+  // Add a new class
+  const addClass = useCallback((newClass: string) => {
+    if (!newClass.trim() || !selectedLayer) return;
+    const trimmedClass = newClass.trim();
+    if (classesArray.includes(trimmedClass)) return; // Don't add duplicates
+
+    // Remove any conflicting classes before adding the new one
+    const classesWithoutConflicts = removeConflictsForClass(classesArray, trimmedClass);
+
+    // Parse the new class to extract design properties
+    const parsedDesign = classesToDesign([trimmedClass]);
+
+    // Merge with existing design
+    const updatedDesign = mergeDesign(selectedLayer.design, parsedDesign);
+
+    // Add the new class (after removing conflicts)
+    const newClasses = [...classesWithoutConflicts, trimmedClass].join(' ');
+
+    // Update layer with both classes AND design object
+    onLayerUpdate(selectedLayer.id, {
+      classes: newClasses,
+      design: updatedDesign
+    });
+
+    setCurrentClassInput('');
+  }, [classesArray, handleClassesChange]);
+
+  // Remove a class
+  const removeClass = useCallback((classToRemove: string) => {
+    if (!selectedLayer) return;
+    const newClasses = classesArray.filter(cls => cls !== classToRemove).join(' ');
+    setClassesInput(newClasses);
+    handleClassesChange(newClasses);
+  }, [classesArray, handleClassesChange]);
+
+  // Handle Enter key press
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addClass(currentClassInput);
+    }
+  }, [currentClassInput, addClass]);
 
   const addClasses = (newClasses: string) => {
     if (!selectedLayerId) return;
@@ -235,7 +247,7 @@ export default function RightSidebar({
     setIsHidden(hidden);
     if (selectedLayerId) {
       const currentSettings = selectedLayer?.settings || {};
-      onLayerUpdate(selectedLayerId, { 
+      onLayerUpdate(selectedLayerId, {
         settings: { ...currentSettings, hidden }
       });
     }
@@ -246,7 +258,7 @@ export default function RightSidebar({
     setHeadingTag(tag);
     if (selectedLayerId) {
       const currentSettings = selectedLayer?.settings || {};
-      onLayerUpdate(selectedLayerId, { 
+      onLayerUpdate(selectedLayerId, {
         settings: { ...currentSettings, tag }
       });
     }
@@ -257,23 +269,27 @@ export default function RightSidebar({
     setContainerTag(tag);
     if (selectedLayerId) {
       const currentSettings = selectedLayer?.settings || {};
-      onLayerUpdate(selectedLayerId, { 
+      onLayerUpdate(selectedLayerId, {
         settings: { ...currentSettings, tag }
       });
     }
   };
 
   // Handle adding custom attribute
-  const handleAddAttribute = (name: string, value: string) => {
-    if (selectedLayerId) {
+  const handleAddAttribute = () => {
+    if (selectedLayerId && newAttributeName.trim()) {
       const currentSettings = selectedLayer?.settings || {};
       const currentAttributes = currentSettings.customAttributes || {};
       onLayerUpdate(selectedLayerId, {
         settings: {
           ...currentSettings,
-          customAttributes: { ...currentAttributes, [name]: value }
+          customAttributes: { ...currentAttributes, [newAttributeName.trim()]: newAttributeValue }
         }
       });
+      // Reset form and close popover
+      setNewAttributeName('');
+      setNewAttributeValue('');
+      setShowAddAttributePopover(false);
     }
   };
 
@@ -294,18 +310,18 @@ export default function RightSidebar({
 
   if (! selectedLayerId || ! selectedLayer) {
     return (
-      <div className="w-64 shrink-0 bg-neutral-950 border-l border-white/10 flex items-center justify-center h-screen">
+      <div className="w-64 shrink-0 bg-background border-l flex items-center justify-center h-screen">
         <span className="text-xs text-white/50">Select layer</span>
       </div>
     );
   }
 
   return (
-    <div className="w-64 shrink-0 bg-neutral-950 border-l border-white/10 flex flex-col h-screen">
+    <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
       {/* Tabs */}
       <Tabs
         value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')}
-        className="flex flex-col flex-1 min-h-0"
+        className="flex flex-col flex-1 min-h-0 min-h-0"
       >
         <div className="p-4 pb-0">
           <TabsList className="w-full">
@@ -326,11 +342,15 @@ export default function RightSidebar({
         )}
 
         {/* Content */}
-        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto data-[state=inactive]:hidden overflow-x-hidden px-4 mt-0 pb-12">
+        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden px-4 mt-0 pb-12">
 
           <LayoutControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <SpacingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <SizingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <TypographyControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <SizingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
@@ -343,6 +363,8 @@ export default function RightSidebar({
           <EffectControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <PositioningControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <PositionControls />
 
           <div className="flex flex-col gap-4 py-5">
             <ClassAutocompleteInput
@@ -375,63 +397,71 @@ export default function RightSidebar({
 
         </TabsContent>
 
-        <TabsContent value="settings" className="flex-1 overflow-y-auto mt-0 data-[state=inactive]:hidden px-4 pb-12">
-          <div className="flex flex-col gap-4 py-2">
+        <TabsContent value="settings" className="flex-1 overflow-y-auto no-scrollbar mt-0 data-[state=inactive]:hidden">
+          <div className="flex flex-col divide-y">
             {/* Attributes Panel */}
             <SettingsPanel
               title="Attributes"
               isOpen={attributesOpen}
               onToggle={() => setAttributesOpen(!attributesOpen)}
             >
-              {/* ID Field */}
-              <div>
-                <label className="block text-xs text-zinc-400 mb-2">ID</label>
-                <Input
-                  type="text"
-                  value={customId}
-                  onChange={(e) => handleIdChange(e.target.value)}
-                  placeholder="Identifier"
-                  className="w-full bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-600"
-                />
+
+              <div className="grid grid-cols-3">
+                <Label variant="muted">ID</Label>
+                <div className="col-span-2 *:w-full">
+                  <Input
+                    type="text"
+                    value={customId}
+                    onChange={(e) => handleIdChange(e.target.value)}
+                    placeholder="Identifier"
+                  />
+                </div>
               </div>
 
-              {/* Element Visibility Toggle */}
-              <div>
-                <label className="block text-xs text-zinc-400 mb-2">Element</label>
-                <ToggleGroup
-                  options={[
-                    { label: 'Shown', value: false },
-                    { label: 'Hidden', value: true },
-                  ]}
-                  value={isHidden}
-                  onChange={(value) => handleVisibilityChange(value as boolean)}
-                />
+              <div className="grid grid-cols-3">
+                <Label variant="muted">Element</Label>
+                <div className="col-span-2 *:w-full">
+                  <ToggleGroup
+                    options={[
+                      { label: 'Shown', value: false },
+                      { label: 'Hidden', value: true },
+                    ]}
+                    value={isHidden}
+                    onChange={(value) => handleVisibilityChange(value as boolean)}
+                  />
+                </div>
               </div>
 
               {/* Heading Tag Selector - Only for headings */}
               {isHeadingLayer(selectedLayer) && (
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-2">Tag</label>
-                  <ToggleGroup
-                    options={[
-                      { label: 'H1', value: 'h1' },
-                      { label: 'H2', value: 'h2' },
-                      { label: 'H3', value: 'h3' },
-                      { label: 'H4', value: 'h4' },
-                      { label: 'H5', value: 'h5' },
-                      { label: 'H6', value: 'h6' },
-                    ]}
-                    value={headingTag}
-                    onChange={(value) => handleHeadingTagChange(value as string)}
-                  />
+                <div className="grid grid-cols-3">
+                  <Label variant="muted">Tag</Label>
+                  <div className="col-span-2 *:w-full">
+                    <Select value={headingTag} onValueChange={handleHeadingTagChange}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="h1">H1</SelectItem>
+                          <SelectItem value="h2">H2</SelectItem>
+                          <SelectItem value="h3">H3</SelectItem>
+                          <SelectItem value="h4">H4</SelectItem>
+                          <SelectItem value="h5">H5</SelectItem>
+                          <SelectItem value="h6">H6</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               )}
 
               {/* Container Tag Selector - Only for containers/sections/blocks */}
               {isContainerLayer(selectedLayer) && !isHeadingLayer(selectedLayer) && (
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-2">Tag</label>
-                  <Select value={containerTag} onValueChange={handleContainerTagChange}>
+                <div className="grid grid-cols-3">
+                  <Label variant="muted">Tag</Label>
+                  <div className="col-span-2 *:w-full">
+                    <Select value={containerTag} onValueChange={handleContainerTagChange}>
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -452,8 +482,10 @@ export default function RightSidebar({
                       </SelectGroup>
                     </SelectContent>
                   </Select>
+                  </div>
                 </div>
               )}
+
             </SettingsPanel>
 
             {/* Custom Attributes Panel */}
@@ -462,48 +494,91 @@ export default function RightSidebar({
               isOpen={customAttributesOpen}
               onToggle={() => setCustomAttributesOpen(!customAttributesOpen)}
               action={
-                <button
-                  onClick={() => setShowAddAttributeModal(true)}
-                  className="text-zinc-400 hover:text-white transition-colors"
-                >
-                  <Icon name="plus" className="size-4" />
-                </button>
+                <Popover open={showAddAttributePopover} onOpenChange={setShowAddAttributePopover}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                    >
+                      <Icon name="plus" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64" align="end">
+                    <div className="flex flex-col gap-2">
+                      <div className="grid grid-cols-3">
+                          <Label variant="muted">Name</Label>
+                          <div className="col-span-2 *:w-full">
+                            <Input
+                              value={newAttributeName}
+                              onChange={(e) => setNewAttributeName(e.target.value)}
+                              placeholder="e.g., data-id"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleAddAttribute();
+                                }
+                              }}
+                            />
+                          </div>
+                      </div>
+
+                      <div className="grid grid-cols-3">
+                        <Label>Value</Label>
+                          <div className="col-span-2 *:w-full">
+                            <Input
+                              value={newAttributeValue}
+                              onChange={(e) => setNewAttributeValue(e.target.value)}
+                              placeholder="e.g., 123"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleAddAttribute();
+                                }
+                              }}
+                            />
+                          </div>
+                      </div>
+
+                      <Button
+                        onClick={handleAddAttribute}
+                        disabled={!newAttributeName.trim()}
+                        size="sm"
+                        variant="secondary"
+                      >
+                        Add attribute
+                      </Button>
+
+                    </div>
+                  </PopoverContent>
+                </Popover>
               }
             >
-              {selectedLayer?.settings?.customAttributes && 
+              {selectedLayer?.settings?.customAttributes &&
                Object.keys(selectedLayer.settings.customAttributes).length > 0 ? (
-                <div className="space-y-2">
+                <div className="flex flex-col gap-1">
                   {Object.entries(selectedLayer.settings.customAttributes).map(([name, value]) => (
                     <div
                       key={name}
-                      className="flex items-center justify-between px-3 py-2 bg-zinc-900 rounded-lg text-sm text-zinc-300"
+                      className="flex items-center justify-between pl-3 pr-1 h-8 bg-muted text-muted-foreground rounded-lg"
                     >
-                      <span>{name}=&quot;{value}&quot;</span>
-                      <button
+                      <span>{name}=&quot;{value as string}&quot;</span>
+                      <Button
                         onClick={() => handleRemoveAttribute(name)}
-                        className="text-zinc-500 hover:text-white transition-colors"
+                        variant="ghost"
+                        size="xs"
                       >
-                        <Icon name="x" className="size-3" />
-                      </button>
+                        <Icon name="x" />
+                      </Button>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="text-center py-6 text-zinc-500 text-xs">
-                  HTML attributes can be used to append additional information to your elements.
-                </div>
-              )}
+                ) : (
+                <Empty>
+                  <EmptyDescription>HTML attributes can be used to append additional information to your elements.</EmptyDescription>
+                </Empty>
+                )}
             </SettingsPanel>
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* Add Attribute Modal */}
-      <AddAttributeModal
-        isOpen={showAddAttributeModal}
-        onClose={() => setShowAddAttributeModal(false)}
-        onAdd={handleAddAttribute}
-      />
     </div>
   );
 }

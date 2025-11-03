@@ -1,6 +1,6 @@
 /**
  * Setup API Client
- * 
+ *
  * Handles communication with Next.js setup API routes
  */
 
@@ -22,7 +22,7 @@ export async function checkSetupStatus(): Promise<{
 }
 
 /**
- * Connect Supabase credentials
+ * Connect Supabase credentials (4 fields)
  */
 export async function connectSupabase(
   config: SupabaseConfig
@@ -31,10 +31,10 @@ export async function connectSupabase(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      url: config.url,
-      anon_key: config.publishable_key,
-      service_role_key: config.secret_key,
-      db_password: config.db_password,
+      anon_key: config.anonKey,
+      service_role_key: config.serviceRoleKey,
+      connection_url: config.connectionUrl,
+      db_password: config.dbPassword,
     }),
   });
 
@@ -42,25 +42,7 @@ export async function connectSupabase(
 }
 
 /**
- * Get migration status (completed and pending)
- */
-export async function getMigrationStatus(): Promise<ApiResponse<{
-    completed: Array<{ name: string; batch: number; migration_time: Date }>;
-    pending: string[];
-    completedCount: number;
-    pendingCount: number;
-}>> {
-  const response = await fetch('/api/setup/migrate');
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
-/**
- * Run Supabase migrations
+ * Run Supabase migrations (checks and runs if needed)
  */
 export async function runMigrations(): Promise<ApiResponse<void>> {
   const response = await fetch('/api/setup/migrate', {

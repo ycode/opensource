@@ -1,5 +1,7 @@
 import { storage } from '@/lib/storage';
+import { parseSupabaseConfig } from '@/lib/supabase-config-parser';
 import { noCache } from '@/lib/api-response';
+import type { SupabaseConfig } from '@/types';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -15,11 +17,7 @@ export async function GET() {
   try {
     console.log('GET /api/supabase/config - Fetching config from storage...');
 
-    const config = await storage.get<{
-      url: string;
-      anonKey: string;
-      serviceRoleKey: string;
-    }>('supabase_config');
+    const config = await storage.get<SupabaseConfig>('supabase_config');
 
     console.log('Config from storage:', config ? 'Found' : 'Not found');
 
@@ -31,13 +29,16 @@ export async function GET() {
       );
     }
 
-    console.log('Returning public config (url + anonKey)');
+    // Parse config to get the full credentials including projectUrl
+    const credentials = parseSupabaseConfig(config);
+
+    console.log('Returning public config (projectUrl + anonKey)');
 
     // Only return public config (not service role key)
     return noCache({
       data: {
-        url: config.url,
-        anonKey: config.anonKey,
+        url: credentials.projectUrl,
+        anonKey: credentials.anonKey,
       },
     });
   } catch (error) {

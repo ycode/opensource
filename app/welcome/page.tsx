@@ -2,7 +2,7 @@
 
 /**
  * Welcome Wizard Page
- * 
+ *
  * First-run setup experience for YCode
  */
 
@@ -24,7 +24,7 @@ export default function WelcomePage() {
   const [error, setError] = useState<string | null>(null);
   const [isVercel, setIsVercel] = useState<boolean | null>(null); // null = loading
   const [envVarsConfigured, setEnvVarsConfigured] = useState(false);
-  
+
   // Admin account fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -157,9 +157,14 @@ export default function WelcomePage() {
             // Go to migration step
             setStep('migrate');
           } else {
-            setError(
-              'Environment variables not detected. Please set them in Vercel Dashboard and redeploy.'
-            );
+            // Show specific error from API if available, otherwise generic message
+            if (data.error) {
+              setError(data.error);
+            } else {
+              setError(
+                'Environment variables not detected. Please set them in Vercel Dashboard and redeploy.'
+              );
+            }
           }
         } catch (err) {
           setError('Failed to check configuration');
@@ -185,7 +190,7 @@ export default function WelcomePage() {
                 Configure Environment Variables
               </h2>
             </div>
-            
+
             <div className="bg-blue-950 border border-blue-800 text-blue-300 px-4 py-3 rounded-lg mb-6">
               <p className="font-semibold mb-1">⚡ Running on Vercel</p>
               <p className="text-sm">
@@ -211,16 +216,12 @@ export default function WelcomePage() {
                   </li>
                   <li className="flex gap-3">
                     <span className="text-white font-semibold">2.</span>
-                    <span>Add these four variables (get values from <strong className="text-white">Supabase Dashboard → Settings</strong>):</span>
+                    <span>Add these 4 variables (get values from <strong className="text-white">Supabase Dashboard → Settings</strong>):</span>
                   </li>
                 </ol>
               </div>
 
               <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4 space-y-3">
-                <div>
-                  <code className="text-green-400 font-mono text-sm">SUPABASE_URL</code>
-                  <p className="text-xs text-zinc-400 mt-1">Your Supabase project URL (e.g., https://xxxxx.supabase.co)</p>
-                </div>
                 <div>
                   <code className="text-green-400 font-mono text-sm">SUPABASE_ANON_KEY</code>
                   <p className="text-xs text-zinc-400 mt-1">Your anon/public key (starts with eyJ...)</p>
@@ -230,8 +231,12 @@ export default function WelcomePage() {
                   <p className="text-xs text-zinc-400 mt-1">Your service role key (starts with eyJ...)</p>
                 </div>
                 <div>
+                  <code className="text-green-400 font-mono text-sm">SUPABASE_CONNECTION_URL</code>
+                  <p className="text-xs text-zinc-400 mt-1">PostgreSQL connection string with [YOUR-PASSWORD] placeholder (e.g., postgresql://postgres.xxx:[YOUR-PASSWORD]@aws-x-xx-xxxx-x.pooler.supabase.com:6543/postgres)</p>
+                </div>
+                <div>
                   <code className="text-green-400 font-mono text-sm">SUPABASE_DB_PASSWORD</code>
-                  <p className="text-xs text-zinc-400 mt-1">Your database password (from Settings → Database → Connection String)</p>
+                  <p className="text-xs text-zinc-400 mt-1">Your actual database password</p>
                 </div>
               </div>
 
@@ -317,10 +322,10 @@ export default function WelcomePage() {
 
         const formData = new FormData(e.currentTarget);
         const config: SupabaseConfig = {
-          url: formData.get('url') as string,
-          publishable_key: formData.get('publishable_key') as string,
-          secret_key: formData.get('secret_key') as string,
-          db_password: formData.get('db_password') as string,
+          anonKey: formData.get('anon_key') as string,
+          serviceRoleKey: formData.get('service_role_key') as string,
+          connectionUrl: formData.get('connection_url') as string,
+          dbPassword: formData.get('db_password') as string,
         };
 
         try {
@@ -332,7 +337,7 @@ export default function WelcomePage() {
           }
 
           setSupabaseConfig(config);
-        
+
           // Go to migration step
           setStep('migrate');
         } catch (err) {
@@ -359,21 +364,20 @@ export default function WelcomePage() {
               Connect Your Supabase
             </h2>
           </div>
-          
-          <div className="bg-green-950 border border-green-800 text-green-300 px-4 py-3 rounded-lg mb-6">
+
+          <div className="bg-green-950 border border-green-800 text-green-300 px-4 py-3 rounded-lg mb-3">
             <p className="font-semibold mb-1">💻 Local Development</p>
             <p className="text-sm">
               Credentials will be saved to <code className="font-mono text-xs">.credentials.json</code> (gitignored)
             </p>
           </div>
 
-          <p className="text-zinc-400 mb-8 leading-5">
-            Enter your Supabase project credentials. <br />
-            You can find these in your Supabase dashboard under <span className="text-white/85">Settings → API</span>.
+          <p className="text-zinc-400 mb-3 leading-5">
+            Enter your Supabase project credentials (you can find them in your Supabase project settings).
           </p>
 
           {error && (
-            <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-6">
+            <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg my-3">
               {error}
             </div>
           )}
@@ -381,79 +385,80 @@ export default function WelcomePage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label
-                htmlFor="url"
-                className="block text-sm font-medium text-zinc-300 mb-2"
+                htmlFor="anon_key"
+                className="block text-sm font-medium text-zinc-300"
               >
-                Project URL
+                Anon key (Publishable key)
               </label>
+              <p className="text-xs text-zinc-500 mt-1 mb-1.5">
+                Find it in <span className="text-white/85">Supabase → Project settings → API keys</span>.
+              </p>
               <input
-                type="url"
-                id="url"
-                name="url"
+                id="anon_key"
+                name="anon_key"
                 required
-                placeholder="https://your-project.supabase.co"
-                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent placeholder-zinc-500"
+                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-sm placeholder-zinc-500"
               />
             </div>
 
             <div>
               <label
-                htmlFor="publishable_key"
-                className="block text-sm font-medium text-zinc-300 mb-2"
+                htmlFor="service_role_key"
+                className="block text-sm font-medium text-zinc-300"
               >
-                Publishable Key (anon key)
+                Service role key (Secret key)
               </label>
-              <textarea
-                id="publishable_key"
-                name="publishable_key"
+              <p className="text-xs text-zinc-500 mt-1 mb-1.5">
+                Find it in <span className="text-white/85">Supabase → Project settings → API keys</span>.
+              </p>
+              <input
+                id="service_role_key"
+                name="service_role_key"
                 required
-                rows={2}
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-sm placeholder-zinc-500"
               />
-              <p className="text-xs text-zinc-500 mt-1">
-                This is safe to use in your frontend code.
-              </p>
             </div>
 
             <div>
               <label
-                htmlFor="secret_key"
-                className="block text-sm font-medium text-zinc-300 mb-2"
+                htmlFor="connection_url"
+                className="block text-sm font-medium text-zinc-300"
               >
-                Secret Key (service_role key)
+                Pooler connection URL
               </label>
-              <textarea
-                id="secret_key"
-                name="secret_key"
-                required
-                rows={2}
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-sm placeholder-zinc-500"
-              />
-              <p className="text-xs text-zinc-500 mt-1">
-                ⚠️ Keep this secret! It has admin access to your database.
+              <p className="text-xs text-zinc-500 mt-1 mb-1.5">
+                Find it in <span className="text-white/85">Supabase → Connect → Connection String → Method: Transaction pooler</span>. Copy/Paste as-is.
               </p>
+              <input
+                type="text"
+                id="connection_url"
+                name="connection_url"
+                required
+                placeholder="postgresql://postgres.zxzgetrkwbpvakuzpytt:[YOUR-PASSWORD]@aws-1-eu-west-3.pooler.supabase.com:6543/postgres"
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-xs placeholder-zinc-500"
+              />
             </div>
 
             <div>
               <label
                 htmlFor="db_password"
-                className="block text-sm font-medium text-zinc-300 mb-2"
+                className="block text-sm font-medium text-zinc-300"
               >
                 Database Password
               </label>
+              <p className="text-xs text-zinc-500 mt-1 mb-1.5">
+                The database password was created with the project. It can be reset in Supabase Settings.
+              </p>
               <input
                 type="password"
                 id="db_password"
                 name="db_password"
                 required
-                placeholder="Your PostgreSQL database password"
+                placeholder="••••••••••••••••"
                 className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent placeholder-zinc-500"
               />
-              <p className="text-xs text-zinc-500 mt-1">
-                Password you used to create your Supabase project (can be reset in <span className="text-white/85">Database → Settings</span>).
-              </p>
             </div>
 
             <div className="flex gap-4">
