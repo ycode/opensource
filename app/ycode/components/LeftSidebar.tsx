@@ -90,6 +90,7 @@ export default function LeftSidebar({
         title: newPageTitle,
         slug: newPageSlug,
         is_published: false,
+        page_folder_id: null,
       });
 
       if (createResponse.error) {

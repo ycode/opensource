@@ -60,6 +60,7 @@ export async function up(knex: Knex): Promise<void> {
         title: 'Home',
         slug: 'home',
         is_published: false,
+        page_folder_id: null,
       })
       .returning('*');
 

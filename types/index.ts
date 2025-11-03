@@ -161,6 +161,7 @@ export interface Page {
   id: string;
   slug: string;
   title: string;
+  page_folder_id: string | null; // Reference to page_folders
   is_published: boolean;
   publish_key: string; // Stable key linking draft and published versions
   created_at: string;
@@ -175,6 +176,20 @@ export interface PageLayers {
   is_published: boolean;
   publish_key: string; // Stable key linking draft and published versions
   created_at: string;
+  deleted_at: string | null; // Soft delete timestamp
+}
+
+export interface PageFolder {
+  id: string;
+  page_folder_id: string | null; // Self-referential: parent folder ID
+  name: string;
+  slug: string;
+  depth: number; // Folder depth in hierarchy (0 for root)
+  order: number; // Sort order within parent folder
+  is_published: boolean;
+  publish_key: string; // Stable key linking draft and published versions
+  created_at: string;
+  updated_at: string;
   deleted_at: string | null; // Soft delete timestamp
 }
 

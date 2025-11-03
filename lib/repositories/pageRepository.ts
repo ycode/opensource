@@ -21,6 +21,7 @@ export interface CreatePageData {
   title: string;
   slug: string;
   is_published?: boolean;
+  page_folder_id?: string | null;
 }
 
 /**
@@ -30,6 +31,7 @@ export interface UpdatePageData {
   title?: string;
   slug?: string;
   is_published?: boolean;
+  page_folder_id?: string | null;
 }
 
 /**
@@ -347,6 +349,36 @@ export async function getPublishedPageByPublishKey(publishKey: string): Promise<
   }
 
   return data;
+}
+
+/**
+ * Get all pages in a specific folder
+ * @param folderId - Folder ID (null for root/unorganized pages)
+ */
+export async function getPagesByFolder(folderId: string | null): Promise<Page[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  const query = client
+    .from('pages')
+    .select('*')
+    .is('deleted_at', null);
+
+  // Handle null vs non-null folder_id
+  const finalQuery = folderId === null
+    ? query.is('page_folder_id', null)
+    : query.eq('page_folder_id', folderId);
+
+  const { data, error } = await finalQuery.order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch pages by folder: ${error.message}`);
+  }
+
+  return data || [];
 }
 
 /**

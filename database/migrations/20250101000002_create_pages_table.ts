@@ -10,6 +10,7 @@ export async function up(knex: Knex): Promise<void> {
   // Create pages table
   await knex.schema.createTable('pages', (table) => {
     table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+    table.uuid('page_folder_id').nullable().references('id').inTable('page_folders').onDelete('SET NULL');
     table.string('slug', 255).notNullable();
     table.string('title', 255).notNullable();
     table.boolean('is_published').defaultTo(false);
@@ -20,6 +21,7 @@ export async function up(knex: Knex): Promise<void> {
   });
 
   // Create indexes
+  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_page_folder_id ON pages(page_folder_id) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_slug ON pages(slug) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_is_published ON pages(is_published) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_publish_key ON pages(publish_key) WHERE deleted_at IS NULL');
