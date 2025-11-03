@@ -89,8 +89,7 @@ export default function LeftSidebar({
       const createResponse = await pagesApi.create({
         title: newPageTitle,
         slug: newPageSlug,
-        status: 'draft',
-        published_version_id: null,
+        is_published: false,
       });
 
       if (createResponse.error) {

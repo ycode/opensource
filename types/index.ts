@@ -161,18 +161,21 @@ export interface Page {
   id: string;
   slug: string;
   title: string;
-  status: 'draft' | 'published';
-  published_version_id: string | null;
+  is_published: boolean;
+  publish_key: string; // Stable key linking draft and published versions
   created_at: string;
   updated_at: string;
+  deleted_at: string | null; // Soft delete timestamp
 }
 
-export interface PageVersion {
+export interface PageLayers {
   id: string;
   page_id: string;
   layers: Layer[];
   is_published: boolean;
+  publish_key: string; // Stable key linking draft and published versions
   created_at: string;
+  deleted_at: string | null; // Soft delete timestamp
 }
 
 // Asset Types

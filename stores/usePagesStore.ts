@@ -1,15 +1,15 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Layer, Page, PageVersion } from '../types';
-import { pagesApi, pageVersionsApi } from '../lib/api';
+import type { Layer, Page, PageLayers } from '../types';
+import { pagesApi, pageLayersApi } from '../lib/api';
 import { getTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
 import { canHaveChildren } from '../lib/layer-utils';
 
 interface PagesState {
   pages: Page[];
-  draftsByPageId: Record<string, PageVersion>;
+  draftsByPageId: Record<string, PageLayers>;
   isLoading: boolean;
   error: string | null;
 }
@@ -21,7 +21,6 @@ interface PagesActions {
   initDraft: (page: Page, initialLayers?: Layer[]) => void;
   updateLayerClasses: (pageId: string, layerId: string, classes: string) => void;
   saveDraft: (pageId: string) => Promise<void>;
-  publishPage: (pageId: string) => Promise<void>;
   setError: (error: string | null) => void;
   addLayer: (pageId: string, parentLayerId: string | null, layerType: Layer['type']) => void;
   addLayerFromTemplate: (pageId: string, parentLayerId: string | null, templateId: string) => { newLayerId: string; parentToExpand: string | null } | null;
@@ -76,7 +75,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       const pages = response.data || [];
       console.log('[usePagesStore.loadPages] Fetched pages:', pages.length);
 
-      // Note: Default homepage with draft version is created during migrations (20250101000002_create_page_versions_table.ts)
+      // Note: Default homepage with draft layers is created during migrations (20250101000002_create_page_layers_table.ts)
 
       console.log('[usePagesStore.loadPages] Setting pages:', pages.length);
       set({ pages, isLoading: false });
@@ -89,7 +88,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   loadDraft: async (pageId) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await pageVersionsApi.getDraft(pageId);
+      const response = await pageLayersApi.getDraft(pageId);
       if (response.error) {
         set({ error: response.error, isLoading: false });
         return;
@@ -106,12 +105,14 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   initDraft: (page, initialLayers = []) => {
-    const draft: PageVersion = {
+    const draft: PageLayers = {
       id: `draft-${page.id}`,
       page_id: page.id,
       layers: initialLayers,
       is_published: false,
+      publish_key: page.publish_key,
       created_at: new Date().toISOString(),
+      deleted_at: null,
     };
     set((state) => ({ draftsByPageId: { ...state.draftsByPageId, [page.id]: draft } }));
   },
@@ -131,7 +132,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const response = await pageVersionsApi.updateDraft(pageId, draft.layers);
+      const response = await pageLayersApi.updateDraft(pageId, draft.layers);
       if (response.error) {
         set({ error: response.error, isLoading: false });
         return;
@@ -144,21 +145,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       }
     } catch (error) {
       set({ error: 'Failed to save draft', isLoading: false });
-    }
-  },
-
-  publishPage: async (pageId) => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await pageVersionsApi.publish(pageId);
-      if (response.error) {
-        set({ error: response.error, isLoading: false });
-        return;
-      }
-      // Reload pages to update published status
-      await get().loadPages();
-    } catch (error) {
-      set({ error: 'Failed to publish page', isLoading: false });
     }
   },
 
@@ -178,7 +164,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         page_id: pageId,
         layers: [],
         is_published: false,
+        publish_key: page.publish_key,
         created_at: new Date().toISOString(),
+        deleted_at: null,
       };
     }
 
@@ -228,7 +216,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         page_id: pageId,
         layers: [],
         is_published: false,
+        publish_key: page.publish_key,
         created_at: new Date().toISOString(),
+        deleted_at: null,
       };
     }
 

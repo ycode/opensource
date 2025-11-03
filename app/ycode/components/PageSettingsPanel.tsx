@@ -2,7 +2,7 @@
 
 /**
  * Page Settings Panel
- * 
+ *
  * Slide-out panel for creating and editing pages
  */
 
@@ -19,7 +19,7 @@ interface PageSettingsPanelProps {
 export interface PageFormData {
   title: string;
   slug: string;
-  status: 'draft' | 'published';
+  is_published?: boolean;
 }
 
 export default function PageSettingsPanel({
@@ -76,7 +76,7 @@ export default function PageSettingsPanel({
       await onSave({
         title: title.trim(),
         slug: slug.trim(),
-        status: 'draft',
+        is_published: false,
       });
       onClose();
     } catch (err) {
@@ -91,7 +91,7 @@ export default function PageSettingsPanel({
   return (
     <>
       {/* Backdrop */}
-      <div 
+      <div
         className="fixed inset-0 bg-black/50 z-40"
         onClick={onClose}
       />

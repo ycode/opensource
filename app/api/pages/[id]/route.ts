@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/pages/[id]
- * 
+ *
  * Get a specific page
  */
 export async function GET(
@@ -31,7 +31,7 @@ export async function GET(
     });
   } catch (error) {
     console.error('Failed to fetch page:', error);
-    
+
     return noCache(
       { error: error instanceof Error ? error.message : 'Failed to fetch page' },
       500
@@ -41,7 +41,7 @@ export async function GET(
 
 /**
  * PUT /api/pages/[id]
- * 
+ *
  * Update a page
  */
 export async function PUT(
@@ -51,13 +51,12 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { title, slug, status, published_version_id } = body;
+    const { title, slug, is_published } = body;
 
     const updates: Record<string, any> = {};
     if (title !== undefined) updates.title = title;
     if (slug !== undefined) updates.slug = slug;
-    if (status !== undefined) updates.status = status;
-    if (published_version_id !== undefined) updates.published_version_id = published_version_id;
+    if (is_published !== undefined) updates.is_published = is_published;
 
     const page = await updatePage(id, updates);
 
@@ -66,7 +65,7 @@ export async function PUT(
     });
   } catch (error) {
     console.error('Failed to update page:', error);
-    
+
     return noCache(
       { error: error instanceof Error ? error.message : 'Failed to update page' },
       500
@@ -76,7 +75,7 @@ export async function PUT(
 
 /**
  * DELETE /api/pages/[id]
- * 
+ *
  * Delete a page
  */
 export async function DELETE(
@@ -93,7 +92,7 @@ export async function DELETE(
     });
   } catch (error) {
     console.error('Failed to delete page:', error);
-    
+
     return noCache(
       { error: error instanceof Error ? error.message : 'Failed to delete page' },
       500

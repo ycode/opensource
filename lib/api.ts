@@ -1,10 +1,10 @@
 /**
  * API Client for YCode Builder
- * 
+ *
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageVersion, Layer, Asset, ApiResponse } from '../types';
+import type { Page, PageLayers, Layer, Asset, ApiResponse } from '../types';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -21,7 +21,7 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   const token = await getAuthToken();
-  
+
   const response = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
       'Content-Type': 'application/json',
@@ -71,7 +71,7 @@ export const pagesApi = {
   },
 
   // Create new page
-  async create(page: Omit<Page, 'id' | 'created_at' | 'updated_at'>): Promise<ApiResponse<Page>> {
+  async create(page: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>): Promise<ApiResponse<Page>> {
     return apiRequest<Page>('/api/pages', {
       method: 'POST',
       body: JSON.stringify(page),
@@ -94,31 +94,39 @@ export const pagesApi = {
   },
 };
 
-// Page Versions API
-export const pageVersionsApi = {
-  // Get draft version for page
-  async getDraft(pageId: string): Promise<ApiResponse<PageVersion>> {
-    return apiRequest<PageVersion>(`/api/pages/${pageId}/draft`);
+// Page Layers API
+export const pageLayersApi = {
+  // Get draft layers for page
+  async getDraft(pageId: string): Promise<ApiResponse<PageLayers>> {
+    return apiRequest<PageLayers>(`/api/pages/${pageId}/draft`);
   },
 
-  // Update draft version
-  async updateDraft(pageId: string, layers: Layer[]): Promise<ApiResponse<PageVersion>> {
-    return apiRequest<PageVersion>(`/api/pages/${pageId}/draft`, {
+  // Update draft layers
+  async updateDraft(pageId: string, layers: Layer[]): Promise<ApiResponse<PageLayers>> {
+    return apiRequest<PageLayers>(`/api/pages/${pageId}/draft`, {
       method: 'PUT',
       body: JSON.stringify({ layers }),
     });
   },
 
-  // Publish page
-  async publish(pageId: string): Promise<ApiResponse<PageVersion>> {
-    return apiRequest<PageVersion>(`/api/pages/${pageId}/publish`, {
+  // Get published layers
+  async getPublished(pageId: string): Promise<ApiResponse<PageLayers>> {
+    return apiRequest<PageLayers>(`/api/pages/${pageId}/published`);
+  },
+};
+
+// Publish API
+export const publishApi = {
+  // Publish all draft records (pages, layers, etc.)
+  async publishAll(): Promise<ApiResponse<{
+    published: Array<{ page: Page; layers: PageLayers }>;
+    created: number;
+    updated: number;
+    unchanged: number;
+  }>> {
+    return apiRequest(`/api/publish`, {
       method: 'POST',
     });
-  },
-
-  // Get published version
-  async getPublished(pageId: string): Promise<ApiResponse<PageVersion>> {
-    return apiRequest<PageVersion>(`/api/pages/${pageId}/published`);
   },
 };
 
@@ -130,7 +138,7 @@ export const assetsApi = {
     formData.append('file', file);
 
     const token = await getAuthToken();
-    
+
     const response = await fetch(`${API_BASE}/api/assets/upload`, {
       method: 'POST',
       headers: {

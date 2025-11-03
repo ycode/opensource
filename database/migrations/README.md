@@ -11,7 +11,7 @@ YCode uses [Knex.js](https://knexjs.org/) to manage database migrations programm
 Migrations are numbered and run in order:
 
 1. **20250101000001_create_pages_table.ts** - Creates the `pages` table with RLS policies
-2. **20250101000002_create_page_versions_table.ts** - Creates the `page_versions` table with foreign keys
+2. **20250101000002_create_page_layers_table.ts** - Creates the `page_layers` table with foreign keys (stores page layer data)
 3. **20250101000003_create_assets_table.ts** - Creates the `assets` table for file storage
 4. **20250101000004_create_settings_table.ts** - Creates the `settings` table with default values
 5. **20250101000005_create_storage_bucket.ts** - Creates Supabase storage bucket with policies
