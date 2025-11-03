@@ -120,7 +120,7 @@ export default function CenterCanvas({
         </div>
       </div>
       {/* Canvas Area */}
-      <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-neutral-950/80">
+      <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-neutral-50 dark:bg-neutral-950/80">
         <div
           className="bg-white shadow-3xl transition-all origin-top"
           style={{

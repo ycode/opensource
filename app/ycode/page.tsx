@@ -2,7 +2,7 @@
 
 /**
  * YCode Builder Main Page
- * 
+ *
  * Three-panel editor layout inspired by modern design tools
  */
 
@@ -80,13 +80,13 @@ export default function YCodeBuilder() {
   useEffect(() => {
     if (!currentPageId && pages.length > 0) {
       // Try to find "Home" page first (by slug or title)
-      const homePage = pages.find(p => 
+      const homePage = pages.find(p =>
         p.slug?.toLowerCase() === 'home' || p.title?.toLowerCase() === 'home'
       );
       const defaultPage = homePage || pages[0];
-      
+
       setCurrentPageId(defaultPage.id);
-      
+
       // Load or initialize draft for this page
       if (!draftsByPageId[defaultPage.id]) {
         loadDraft(defaultPage.id).catch(() => {
@@ -130,11 +130,11 @@ export default function YCodeBuilder() {
       // Escape - Select parent layer (doesn't require a selected layer)
       if (e.key === 'Escape' && currentPageId && selectedLayerId) {
         e.preventDefault();
-        
+
         // Find parent of currently selected layer
         const draft = draftsByPageId[currentPageId];
         if (!draft) return;
-        
+
         const findParent = (layers: Layer[], targetId: string, parent: Layer | null = null): Layer | null => {
           for (const layer of layers) {
             if (layer.id === targetId) {
@@ -147,9 +147,9 @@ export default function YCodeBuilder() {
           }
           return undefined as any;
         };
-        
+
         const parentLayer = findParent(draft.layers, selectedLayerId);
-        
+
         // If parent exists, select it. If no parent (root level), deselect
         if (parentLayer) {
           setSelectedLayerId(parentLayer.id);
@@ -157,23 +157,23 @@ export default function YCodeBuilder() {
           // At root level or Body layer selected - deselect
           setSelectedLayerId(null);
         }
-        
+
         return;
       }
 
       // Arrow Up/Down - Reorder layer within siblings
       if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && currentPageId && selectedLayerId) {
         e.preventDefault();
-        
+
         const draft = draftsByPageId[currentPageId];
         if (!draft) return;
-        
+
         const direction = e.key === 'ArrowUp' ? -1 : 1;
-        
+
         // Find the layer, its parent, and its index within siblings
         const findLayerInfo = (
-          layers: Layer[], 
-          targetId: string, 
+          layers: Layer[],
+          targetId: string,
           parent: Layer | null = null
         ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
           for (let i = 0; i < layers.length; i++) {
@@ -188,18 +188,18 @@ export default function YCodeBuilder() {
           }
           return null;
         };
-        
+
         const info = findLayerInfo(draft.layers, selectedLayerId);
         if (!info) return;
-        
+
         const { siblings, index } = info;
         const newIndex = index + direction;
-        
+
         // Check bounds
         if (newIndex < 0 || newIndex >= siblings.length) {
           return;
         }
-        
+
         // Swap the layers
         const reorderLayers = (layers: Layer[]): Layer[] => {
           return layers.map(layer => {
@@ -210,18 +210,18 @@ export default function YCodeBuilder() {
               [newChildren[index], newChildren[newIndex]] = [newChildren[newIndex], newChildren[index]];
               return { ...layer, children: newChildren };
             }
-            
+
             // Recursively process children
             if (layer.children) {
               return { ...layer, children: reorderLayers(layer.children) };
             }
-            
+
             return layer;
           });
         };
-        
+
         let newLayers: Layer[];
-        
+
         // If at root level, reorder root array directly
         if (!info.parent) {
           newLayers = [...draft.layers];
@@ -229,25 +229,25 @@ export default function YCodeBuilder() {
         } else {
           newLayers = reorderLayers(draft.layers);
         }
-        
+
         // Update the layers
         const { setDraftLayers } = usePagesStore.getState();
         setDraftLayers(currentPageId, newLayers);
-        
+
         return;
       }
 
       // Tab - Select next sibling layer
       if (e.key === 'Tab' && currentPageId && selectedLayerId) {
         e.preventDefault();
-        
+
         const draft = draftsByPageId[currentPageId];
         if (!draft) return;
-        
+
         // Find the layer, its parent, and its index within siblings
         const findLayerInfo = (
-          layers: Layer[], 
-          targetId: string, 
+          layers: Layer[],
+          targetId: string,
           parent: Layer | null = null
         ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
           for (let i = 0; i < layers.length; i++) {
@@ -262,18 +262,18 @@ export default function YCodeBuilder() {
           }
           return null;
         };
-        
+
         const info = findLayerInfo(draft.layers, selectedLayerId);
         if (!info) return;
-        
+
         const { siblings, index } = info;
-        
+
         // Check if there's a next sibling
         if (index + 1 < siblings.length) {
           const nextSibling = siblings[index + 1];
           setSelectedLayerId(nextSibling.id);
         }
-        
+
         return;
       }
     };
@@ -285,7 +285,7 @@ export default function YCodeBuilder() {
   // Handle undo
   const handleUndo = () => {
     if (!canUndo()) return;
-    
+
     const historyEntry = undo();
     if (historyEntry && historyEntry.pageId === currentPageId) {
       const { draftsByPageId } = usePagesStore.getState();
@@ -302,7 +302,7 @@ export default function YCodeBuilder() {
   // Handle redo
   const handleRedo = () => {
     if (!canRedo()) return;
-    
+
     const historyEntry = redo();
     if (historyEntry && historyEntry.pageId === currentPageId) {
       const { draftsByPageId } = usePagesStore.getState();
@@ -385,8 +385,8 @@ export default function YCodeBuilder() {
   useEffect(() => {
     const handlePageChange = async () => {
       // If we have a previous page with unsaved changes, save it immediately
-      if (previousPageIdRef.current && 
-          previousPageIdRef.current !== currentPageId && 
+      if (previousPageIdRef.current &&
+          previousPageIdRef.current !== currentPageId &&
           hasUnsavedChanges) {
         try {
           await saveImmediately(previousPageIdRef.current);
@@ -394,7 +394,7 @@ export default function YCodeBuilder() {
           console.error('Failed to save before navigation:', error);
         }
       }
-      
+
       // Update the ref to track current page
       previousPageIdRef.current = currentPageId;
     };
@@ -451,7 +451,7 @@ export default function YCodeBuilder() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isInputFocused = document.activeElement?.tagName === 'INPUT' || 
+      const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
                              document.activeElement?.tagName === 'TEXTAREA';
 
       // Save: Cmd/Ctrl + S
@@ -477,7 +477,7 @@ export default function YCodeBuilder() {
           handleRedo();
         }
       }
-      
+
       // Copy: Cmd/Ctrl + C (supports multi-select)
       if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
         if (!isInputFocused && currentPageId) {
@@ -498,7 +498,7 @@ export default function YCodeBuilder() {
           }
         }
       }
-      
+
       // Cut: Cmd/Ctrl + X (supports multi-select)
       if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
         if (!isInputFocused && currentPageId) {
@@ -523,7 +523,7 @@ export default function YCodeBuilder() {
           }
         }
       }
-      
+
       // Paste: Cmd/Ctrl + V
       if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
         if (!isInputFocused && currentPageId) {
@@ -655,10 +655,10 @@ export default function YCodeBuilder() {
 
   // Authenticated - show builder (only after migrations complete)
   return (
-    <div className="h-screen flex flex-col bg-zinc-950 text-white">
+    <div className="h-screen flex flex-col">
       {/* Update Notification Banner */}
       <UpdateNotification />
-      
+
       {/* Top Header Bar */}
       <HeaderBar
         user={user}
