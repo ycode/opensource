@@ -23,6 +23,13 @@ import { usePagesStore } from '../../../stores/usePagesStore';
 
 // 6. Types
 import type { Layer } from '../../../types';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger
+} from '@/components/ui/select';
 
 type ViewportMode = 'desktop' | 'tablet' | 'mobile';
 
@@ -69,8 +76,22 @@ export default function CenterCanvas({
   return (
     <div className="flex-1 min-w-0 flex flex-col">
       {/* Breakpoint Controls */}
-      <div className="flex items-center justify-center p-4 border-b bg-background">
-        <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
+      <div className="grid grid-cols-3 items-center p-4 border-b bg-background">
+        <div className="w-40 *:w-full">
+          <Select>
+            <SelectTrigger>
+              Homepage
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="1">Homepage</SelectItem>
+                <SelectItem value="2">About</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex justify-center gap-2">
+          <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
           <TabsList className="w-[240px]">
             <TabsTrigger value="desktop" title="Desktop View">
               Desktop
@@ -83,6 +104,20 @@ export default function CenterCanvas({
             </TabsTrigger>
           </TabsList>
         </Tabs>
+          <Select>
+            <SelectTrigger>
+              80%
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="1">Homepage</SelectItem>
+                <SelectItem value="2">About</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex justify-end">
+        </div>
       </div>
       {/* Canvas Area */}
       <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-neutral-950/80">
