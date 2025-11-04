@@ -7,7 +7,7 @@
  */
 
 // 1. React/Next.js
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 
 // 2. External libraries
 import debounce from 'lodash.debounce';
@@ -28,7 +28,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AddAttributeModal from './AddAttributeModal';
 import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
-import ClassAutocompleteInput from './ClassAutocompleteInput';
 import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
 import PositionControls from './PositionControls';
@@ -137,13 +136,20 @@ export default function RightSidebar({
     return 'div'; // Default fallback
   };
 
-  // Derive classes input directly from selectedLayer (reactive to changes)
-  const classesInput = useMemo(() => {
-    if (!selectedLayer?.classes) return '';
-    return Array.isArray(selectedLayer.classes)
-      ? selectedLayer.classes.join(' ')
-      : selectedLayer.classes;
-  }, [selectedLayer?.classes]);
+  // Classes input state (synced with selectedLayer)
+  const [classesInput, setClassesInput] = useState<string>('');
+  
+  // Sync classesInput when selectedLayer changes
+  useEffect(() => {
+    if (!selectedLayer?.classes) {
+      setClassesInput('');
+    } else {
+      const classes = Array.isArray(selectedLayer.classes)
+        ? selectedLayer.classes.join(' ')
+        : selectedLayer.classes;
+      setClassesInput(classes);
+    }
+  }, [selectedLayer]);
 
   // Parse classes into array for badge display
   const classesArray = useMemo(() => {
@@ -159,11 +165,6 @@ export default function RightSidebar({
     setHeadingTag(selectedLayer?.settings?.tag || getDefaultHeadingTag(selectedLayer));
     setContainerTag(selectedLayer?.settings?.tag || getDefaultContainerTag(selectedLayer));
   }
-
-  // Parse classes into array for badge display
-  const classesArray = useMemo(() => {
-    return classesInput.split(' ').filter(cls => cls.trim() !== '');
-  }, [classesInput]);
 
   // Debounced updater for classes
   const debouncedUpdate = useMemo(
@@ -367,10 +368,13 @@ export default function RightSidebar({
           <PositionControls />
 
           <div className="flex flex-col gap-4 py-5">
-            <ClassAutocompleteInput
+            <header className="py-4 -mt-4">
+              <Label>Classes</Label>
+            </header>
+            <Input
               value={currentClassInput}
-              onChange={setCurrentClassInput}
-              onAccept={addClass}
+              onChange={(e) => setCurrentClassInput(e.target.value)}
+              onKeyDown={handleKeyPress}
               placeholder="Type class and press Enter..."
             />
             <div className="flex flex-wrap gap-1.5">

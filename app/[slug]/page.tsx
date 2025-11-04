@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import LayerRenderer from '../../components/layers/LayerRenderer';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import PublishedPageHead from './PublishedPageHead';
+import RemoveDarkMode from './RemoveDarkMode';
 
 // Force static generation with ISR
 export const dynamic = 'force-static';
@@ -123,17 +125,20 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
   // Render the page with extracted CSS from Tailwind JIT (compiled during publish)
   return (
-    <div className="min-h-screen bg-white">
-      {/* Inject CSS extracted from Tailwind JIT CDN during publish */}
-      {version.generated_css && (
-        <style dangerouslySetInnerHTML={{ __html: version.generated_css }} />
-      )}
+    <>
+      {/* Remove dark mode class from <html> element */}
+      <RemoveDarkMode />
       
-      <LayerRenderer 
-        layers={version.layers || []} 
-        isEditMode={false}
-      />
-    </div>
+      {/* Inject minified CSS into <head> */}
+      {version.generated_css && <PublishedPageHead css={version.generated_css} />}
+      
+      <div className="min-h-screen bg-white">
+        <LayerRenderer 
+          layers={version.layers || []} 
+          isEditMode={false}
+        />
+      </div>
+    </>
   );
 }
 

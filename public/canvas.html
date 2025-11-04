@@ -12,6 +12,11 @@
   <script>
     tailwind.config = {
       theme: {
+        screens: {
+          // Desktop-first breakpoints (max-width)
+          'max-lg': {'max': '1023px'},
+          'max-md': {'max': '767px'},
+        },
         extend: {
           // YCode custom theme extensions can be added here
           colors: {

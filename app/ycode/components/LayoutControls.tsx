@@ -10,7 +10,9 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDesignSync } from '@/hooks/use-design-sync';
+import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useModeToggle } from '@/hooks/use-mode-toggle';
+import { useEditorStore } from '@/stores/useEditorStore';
 import type { Layer } from '@/types';
 
 interface LayoutControlsProps {
@@ -19,15 +21,23 @@ interface LayoutControlsProps {
 }
 
 export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsProps) {
+  const { activeBreakpoint } = useEditorStore();
   const { updateDesignProperty, updateDesignProperties, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate
+    onLayerUpdate,
+    activeBreakpoint
   });
   
   const [gapUnit, setGapUnit] = useState<'px' | 'rem' | 'em'>('px');
   const [paddingUnit, setPaddingUnit] = useState<'px' | 'rem' | 'em'>('px');
   
-  // Get current values from layer
+  // Extract numeric value from design property
+  const extractValue = (prop: string): string => {
+    if (!prop) return '';
+    return prop.replace(/[a-z%]+$/i, '');
+  };
+  
+  // Get current values from layer (with inheritance)
   const display = getDesignProperty('layout', 'display') || '';
   const flexDirection = getDesignProperty('layout', 'flexDirection') || 'row';
   const alignItems = getDesignProperty('layout', 'alignItems') || '';
@@ -43,6 +53,27 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   const paddingRight = getDesignProperty('spacing', 'paddingRight') || '';
   const paddingBottom = getDesignProperty('spacing', 'paddingBottom') || '';
   const paddingLeft = getDesignProperty('spacing', 'paddingLeft') || '';
+  
+  // Local controlled inputs (prevents repopulation bug)
+  const inputs = useControlledInputs({
+    gap,
+    columnGap,
+    rowGap,
+    padding,
+    paddingTop,
+    paddingRight,
+    paddingBottom,
+    paddingLeft,
+  }, extractValue);
+
+  const [gapInput, setGapInput] = inputs.gap;
+  const [columnGapInput, setColumnGapInput] = inputs.columnGap;
+  const [rowGapInput, setRowGapInput] = inputs.rowGap;
+  const [paddingInput, setPaddingInput] = inputs.padding;
+  const [paddingTopInput, setPaddingTopInput] = inputs.paddingTop;
+  const [paddingRightInput, setPaddingRightInput] = inputs.paddingRight;
+  const [paddingBottomInput, setPaddingBottomInput] = inputs.paddingBottom;
+  const [paddingLeftInput, setPaddingLeftInput] = inputs.paddingLeft;
   
   // Use mode toggle hooks for gap and padding
   const gapModeToggle = useModeToggle({
@@ -66,8 +97,8 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   // Determine layout type from current values
   const layoutType = 
       display === 'grid' ? 'grid' : 
-      flexDirection === 'column' || flexDirection === 'column-reverse' ? 'rows' : 
-      'columns';
+        flexDirection === 'column' || flexDirection === 'column-reverse' ? 'rows' : 
+          'columns';
   
   const wrapMode = flexWrap === 'wrap' ? 'yes' : 'no';
   
@@ -112,16 +143,19 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   
   // Handle gap changes
   const handleGapChange = (value: string) => {
+    setGapInput(value);
     if (gapModeToggle.mode === 'all-borders') {
       updateDesignProperty('layout', 'gap', value ? `${value}${gapUnit}` : null);
     }
   };
   
   const handleColumnGapChange = (value: string) => {
+    setColumnGapInput(value);
     updateDesignProperty('layout', 'columnGap', value ? `${value}${gapUnit}` : null);
   };
   
   const handleRowGapChange = (value: string) => {
+    setRowGapInput(value);
     updateDesignProperty('layout', 'rowGap', value ? `${value}${gapUnit}` : null);
   };
   
@@ -156,24 +190,29 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   
   // Handle padding changes
   const handlePaddingChange = (value: string) => {
+    setPaddingInput(value);
     if (paddingModeToggle.mode === 'all-borders') {
       updateDesignProperty('spacing', 'padding', value ? `${value}${paddingUnit}` : null);
     }
   };
   
   const handlePaddingTopChange = (value: string) => {
+    setPaddingTopInput(value);
     updateDesignProperty('spacing', 'paddingTop', value ? `${value}${paddingUnit}` : null);
   };
   
   const handlePaddingRightChange = (value: string) => {
+    setPaddingRightInput(value);
     updateDesignProperty('spacing', 'paddingRight', value ? `${value}${paddingUnit}` : null);
   };
   
   const handlePaddingBottomChange = (value: string) => {
+    setPaddingBottomInput(value);
     updateDesignProperty('spacing', 'paddingBottom', value ? `${value}${paddingUnit}` : null);
   };
   
   const handlePaddingLeftChange = (value: string) => {
+    setPaddingLeftInput(value);
     updateDesignProperty('spacing', 'paddingLeft', value ? `${value}${paddingUnit}` : null);
   };
   
@@ -228,11 +267,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   };
   
   // Extract numeric value from design property
-  const extractValue = (prop: string): string => {
-    if (!prop) return '';
-    return prop.replace(/[a-z%]+$/i, '');
-  };
-  
   return (
     <div className="py-5">
       <header className="py-4 -mt-4">
@@ -388,7 +422,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                       <InputGroup className="flex-1">
                           <InputGroupInput
                             disabled={gapModeToggle.mode === 'individual-borders'}
-                            value={extractValue(gap)}
+                            value={gapInput}
                             onChange={(e) => handleGapChange(e.target.value)}
                             placeholder="16"
                           />
@@ -432,7 +466,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                            </InputGroupAddon>
                            <InputGroupInput
                              className="!pr-0"
-                             value={extractValue(columnGap)}
+                             value={columnGapInput}
                              onChange={(e) => handleColumnGapChange(e.target.value)}
                              placeholder="16"
                            />
@@ -452,7 +486,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                            </InputGroupAddon>
                            <InputGroupInput
                              className="!pr-0"
-                             value={extractValue(rowGap)}
+                             value={rowGapInput}
                              onChange={(e) => handleRowGapChange(e.target.value)}
                              placeholder="16"
                            />
@@ -469,7 +503,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                       <InputGroup className="flex-1">
                           <InputGroupInput
                             disabled={paddingModeToggle.mode === 'individual-borders'}
-                            value={extractValue(padding)}
+                            value={paddingInput}
                             onChange={(e) => handlePaddingChange(e.target.value)}
                             placeholder="16"
                           />
@@ -513,7 +547,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                               </InputGroupAddon>
                               <InputGroupInput
                                 className="!pr-0"
-                                value={extractValue(paddingLeft)}
+                                value={paddingLeftInput}
                                 onChange={(e) => handlePaddingLeftChange(e.target.value)}
                                 placeholder="16"
                               />
@@ -533,7 +567,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                               </InputGroupAddon>
                               <InputGroupInput
                                 className="!pr-0"
-                                value={extractValue(paddingTop)}
+                                value={paddingTopInput}
                                 onChange={(e) => handlePaddingTopChange(e.target.value)}
                                 placeholder="16"
                               />
@@ -553,7 +587,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                               </InputGroupAddon>
                               <InputGroupInput
                                 className="!pr-0"
-                                value={extractValue(paddingRight)}
+                                value={paddingRightInput}
                                 onChange={(e) => handlePaddingRightChange(e.target.value)}
                                 placeholder="16"
                               />
@@ -573,7 +607,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                               </InputGroupAddon>
                               <InputGroupInput
                                 className="!pr-0"
-                                value={extractValue(paddingBottom)}
+                                value={paddingBottomInput}
                                 onChange={(e) => handlePaddingBottomChange(e.target.value)}
                                 placeholder="16"
                               />

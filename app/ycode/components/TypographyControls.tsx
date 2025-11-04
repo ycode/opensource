@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -8,6 +8,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDesignSync } from '@/hooks/use-design-sync';
+import { useControlledInput } from '@/hooks/use-controlled-input';
+import { useEditorStore } from '@/stores/useEditorStore';
 import type { Layer } from '@/types';
 
 interface TypographyControlsProps {
@@ -16,33 +18,93 @@ interface TypographyControlsProps {
 }
 
 export default function TypographyControls({ layer, onLayerUpdate }: TypographyControlsProps) {
+  const { activeBreakpoint } = useEditorStore();
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate
+    onLayerUpdate,
+    activeBreakpoint
   });
   
   const [sizeUnit, setSizeUnit] = useState<'px' | 'rem' | 'em'>('px');
   
-  // Get current values from layer
+  // Extract numeric value from design property
+  const extractValue = (prop: string): string => {
+    if (!prop) return '';
+    return prop.replace(/[a-z%]+$/i, '');
+  };
+  
+  // Get current values from layer (with inheritance)
   const fontFamily = getDesignProperty('typography', 'fontFamily') || 'sans';
-  const fontWeight = getDesignProperty('typography', 'fontWeight') || 'normal';
+  const fontWeightRaw = getDesignProperty('typography', 'fontWeight') || 'normal';
   const fontSize = getDesignProperty('typography', 'fontSize') || '';
   const textAlign = getDesignProperty('typography', 'textAlign') || 'left';
   const letterSpacing = getDesignProperty('typography', 'letterSpacing') || '';
   const lineHeight = getDesignProperty('typography', 'lineHeight') || '';
+  const color = getDesignProperty('typography', 'color') || '';
+  const textTransform = getDesignProperty('typography', 'textTransform') || 'none';
+  const textDecoration = getDesignProperty('typography', 'textDecoration') || 'none';
+  
+  // Local controlled inputs (prevents repopulation bug)
+  const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize, extractValue);
+  const [letterSpacingInput, setLetterSpacingInput] = useControlledInput(letterSpacing, extractValue);
+  const [lineHeightInput, setLineHeightInput] = useControlledInput(lineHeight);
+  
+  // Map numeric font weights to named values
+  const fontWeightMap: Record<string, string> = {
+    '100': 'thin',
+    '200': 'extralight',
+    '300': 'light',
+    '400': 'normal',
+    '500': 'medium',
+    '600': 'semibold',
+    '700': 'bold',
+    '800': 'extrabold',
+    '900': 'black',
+  };
+  
+  // Map named font weights to numeric values
+  const fontWeightMapReverse: Record<string, string> = {
+    'thin': '100',
+    'extralight': '200',
+    'light': '300',
+    'normal': '400',
+    'medium': '500',
+    'semibold': '600',
+    'bold': '700',
+    'extrabold': '800',
+    'black': '900',
+  };
+  
+  // Convert numeric weight to named for the Select
+  const fontWeight = fontWeightMap[fontWeightRaw] || fontWeightRaw;
+  
+  // Detect unit from fontSize and update sizeUnit state
+  useEffect(() => {
+    if (fontSize) {
+      if (fontSize.includes('rem')) {
+        setSizeUnit('rem');
+      } else if (fontSize.includes('em') && !fontSize.includes('rem')) {
+        setSizeUnit('em');
+      } else {
+        setSizeUnit('px');
+      }
+    }
+  }, [fontSize]);
   
   // Handle font family change
   const handleFontFamilyChange = (value: string) => {
     updateDesignProperty('typography', 'fontFamily', value === 'inherit' ? null : value);
   };
   
-  // Handle font weight change
+  // Handle font weight change - convert named back to numeric
   const handleFontWeightChange = (value: string) => {
-    updateDesignProperty('typography', 'fontWeight', value);
+    const numericWeight = fontWeightMapReverse[value] || value;
+    updateDesignProperty('typography', 'fontWeight', numericWeight);
   };
   
   // Handle font size change
   const handleFontSizeChange = (value: string) => {
+    setFontSizeInput(value); // Update local state immediately
     updateDesignProperty('typography', 'fontSize', value ? `${value}${sizeUnit}` : null);
   };
   
@@ -50,9 +112,8 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
   const handleFontSizeUnitChange = (newUnit: 'px' | 'rem' | 'em') => {
     setSizeUnit(newUnit);
     // Update the stored value with the new unit
-    const numericValue = extractValue(fontSize);
-    if (numericValue) {
-      updateDesignProperty('typography', 'fontSize', `${numericValue}${newUnit}`);
+    if (fontSizeInput) {
+      updateDesignProperty('typography', 'fontSize', `${fontSizeInput}${newUnit}`);
     }
   };
   
@@ -63,6 +124,7 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
   
   // Handle letter spacing change
   const handleLetterSpacingChange = (value: string) => {
+    setLetterSpacingInput(value); // Update local state immediately
     updateDesignProperty('typography', 'letterSpacing', value ? `${value}${sizeUnit}` : null);
   };
   
@@ -70,21 +132,15 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
   const handleLetterSpacingUnitChange = (newUnit: 'px' | 'rem' | 'em') => {
     setSizeUnit(newUnit);
     // Update the stored value with the new unit
-    const numericValue = extractValue(letterSpacing);
-    if (numericValue) {
-      updateDesignProperty('typography', 'letterSpacing', `${numericValue}${newUnit}`);
+    if (letterSpacingInput) {
+      updateDesignProperty('typography', 'letterSpacing', `${letterSpacingInput}${newUnit}`);
     }
   };
   
   // Handle line height change
   const handleLineHeightChange = (value: string) => {
+    setLineHeightInput(value); // Update local state immediately
     updateDesignProperty('typography', 'lineHeight', value || null);
-  };
-  
-  // Extract numeric value from design property
-  const extractValue = (prop: string): string => {
-    if (!prop) return '';
-    return prop.replace(/[a-z%]+$/i, '');
   };
   
   return (
@@ -142,7 +198,7 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
           <div className="col-span-2 *:w-full">
             <InputGroup>
               <InputGroupInput
-                value={extractValue(fontSize)}
+                value={fontSizeInput}
                 onChange={(e) => handleFontSizeChange(e.target.value)}
                 placeholder="16"
               />
@@ -167,7 +223,10 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
         <div className="grid grid-cols-3">
           <Label variant="muted">Align</Label>
           <div className="col-span-2">
-            <Tabs value={textAlign} onValueChange={handleTextAlignChange} className="w-full">
+            <Tabs
+              value={textAlign} onValueChange={handleTextAlignChange}
+              className="w-full"
+            >
               <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="left" className="px-2 text-xs">
                   <Icon name="textAlignLeft" />
@@ -204,7 +263,7 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
               </InputGroupAddon>
               <InputGroupInput
                 className="!pr-0"
-                value={extractValue(letterSpacing)}
+                value={letterSpacingInput}
                 onChange={(e) => handleLetterSpacingChange(e.target.value)}
                 placeholder="0"
               />
@@ -224,7 +283,7 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
               </InputGroupAddon>
               <InputGroupInput
                 className="!pr-0"
-                value={extractValue(lineHeight)}
+                value={lineHeightInput}
                 onChange={(e) => handleLineHeightChange(e.target.value)}
                 placeholder="1.5"
               />

@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDesignSync } from '@/hooks/use-design-sync';
+import { useEditorStore } from '@/stores/useEditorStore';
 import type { Layer } from '@/types';
 
 interface BackgroundsControlsProps {
@@ -12,12 +13,14 @@ interface BackgroundsControlsProps {
 }
 
 export default function BackgroundsControls({ layer, onLayerUpdate }: BackgroundsControlsProps) {
+  const { activeBreakpoint } = useEditorStore();
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate
+    onLayerUpdate,
+    activeBreakpoint
   });
   
-  // Get current values from layer
+  // Get current values from layer (no inheritance - only exact breakpoint values)
   const backgroundColor = getDesignProperty('backgrounds', 'backgroundColor') || '';
   const backgroundImage = getDesignProperty('backgrounds', 'backgroundImage') || '';
   const backgroundSize = getDesignProperty('backgrounds', 'backgroundSize') || 'cover';

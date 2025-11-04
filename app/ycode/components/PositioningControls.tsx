@@ -5,6 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDesignSync } from '@/hooks/use-design-sync';
+import { useControlledInputs } from '@/hooks/use-controlled-input';
+import { useEditorStore } from '@/stores/useEditorStore';
 import type { Layer } from '@/types';
 
 interface PositioningControlsProps {
@@ -13,14 +15,23 @@ interface PositioningControlsProps {
 }
 
 export default function PositioningControls({ layer, onLayerUpdate }: PositioningControlsProps) {
+  const { activeBreakpoint } = useEditorStore();
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate
+    onLayerUpdate,
+    activeBreakpoint
   });
   
   const [positionUnit, setPositionUnit] = useState<'px' | 'rem' | 'em' | '%'>('px');
   
-  // Get current values from layer
+  // Extract numeric value from design property
+  const extractValue = (prop: string): string => {
+    if (!prop) return '';
+    if (prop === 'auto') return 'auto';
+    return prop.replace(/[a-z%]+$/i, '');
+  };
+  
+  // Get current values from layer (with inheritance)
   const position = getDesignProperty('positioning', 'position') || 'static';
   const top = getDesignProperty('positioning', 'top') || '';
   const right = getDesignProperty('positioning', 'right') || '';
@@ -30,12 +41,20 @@ export default function PositioningControls({ layer, onLayerUpdate }: Positionin
   
   const isPositioned = position !== 'static';
   
-  // Extract numeric value from design property
-  const extractValue = (prop: string): string => {
-    if (!prop) return '';
-    if (prop === 'auto') return 'auto';
-    return prop.replace(/[a-z%]+$/i, '');
-  };
+  // Local controlled inputs (prevents repopulation bug)
+  const inputs = useControlledInputs({
+    top,
+    right,
+    bottom,
+    left,
+    zIndex,
+  }, extractValue);
+
+  const [topInput, setTopInput] = inputs.top;
+  const [rightInput, setRightInput] = inputs.right;
+  const [bottomInput, setBottomInput] = inputs.bottom;
+  const [leftInput, setLeftInput] = inputs.left;
+  const [zIndexInput, setZIndexInput] = inputs.zIndex;
   
   // Handle position change
   const handlePositionChange = (value: string) => {
@@ -44,6 +63,7 @@ export default function PositioningControls({ layer, onLayerUpdate }: Positionin
   
   // Handle top change
   const handleTopChange = (value: string) => {
+    setTopInput(value);
     if (value === 'auto') {
       updateDesignProperty('positioning', 'top', 'auto');
     } else {
@@ -53,6 +73,7 @@ export default function PositioningControls({ layer, onLayerUpdate }: Positionin
   
   // Handle right change
   const handleRightChange = (value: string) => {
+    setRightInput(value);
     if (value === 'auto') {
       updateDesignProperty('positioning', 'right', 'auto');
     } else {
@@ -62,6 +83,7 @@ export default function PositioningControls({ layer, onLayerUpdate }: Positionin
   
   // Handle bottom change
   const handleBottomChange = (value: string) => {
+    setBottomInput(value);
     if (value === 'auto') {
       updateDesignProperty('positioning', 'bottom', 'auto');
     } else {
@@ -71,6 +93,7 @@ export default function PositioningControls({ layer, onLayerUpdate }: Positionin
   
   // Handle left change
   const handleLeftChange = (value: string) => {
+    setLeftInput(value);
     if (value === 'auto') {
       updateDesignProperty('positioning', 'left', 'auto');
     } else {
@@ -80,6 +103,7 @@ export default function PositioningControls({ layer, onLayerUpdate }: Positionin
   
   // Handle z-index change
   const handleZIndexChange = (value: string) => {
+    setZIndexInput(value);
     if (value === 'auto') {
       updateDesignProperty('positioning', 'zIndex', 'auto');
     } else {
@@ -120,7 +144,7 @@ export default function PositioningControls({ layer, onLayerUpdate }: Positionin
               <div>
                 <Label variant="muted" className="mb-2 block text-xs">Top</Label>
                 <Input
-                  value={extractValue(top)}
+                  value={topInput}
                   onChange={(e) => handleTopChange(e.target.value)}
                   placeholder="0"
                 />
@@ -128,7 +152,7 @@ export default function PositioningControls({ layer, onLayerUpdate }: Positionin
               <div>
                 <Label variant="muted" className="mb-2 block text-xs">Right</Label>
                 <Input
-                  value={extractValue(right)}
+                  value={rightInput}
                   onChange={(e) => handleRightChange(e.target.value)}
                   placeholder="0"
                 />
@@ -136,7 +160,7 @@ export default function PositioningControls({ layer, onLayerUpdate }: Positionin
               <div>
                 <Label variant="muted" className="mb-2 block text-xs">Bottom</Label>
                 <Input
-                  value={extractValue(bottom)}
+                  value={bottomInput}
                   onChange={(e) => handleBottomChange(e.target.value)}
                   placeholder="0"
                 />
@@ -144,7 +168,7 @@ export default function PositioningControls({ layer, onLayerUpdate }: Positionin
               <div>
                 <Label variant="muted" className="mb-2 block text-xs">Left</Label>
                 <Input
-                  value={extractValue(left)}
+                  value={leftInput}
                   onChange={(e) => handleLeftChange(e.target.value)}
                   placeholder="0"
                 />
@@ -177,7 +201,7 @@ export default function PositioningControls({ layer, onLayerUpdate }: Positionin
           <div className="col-span-2 *:w-full">
             <Input
               type="text"
-              value={extractValue(zIndex)}
+              value={zIndexInput}
               onChange={(e) => handleZIndexChange(e.target.value)}
               placeholder="auto"
             />

@@ -45,6 +45,10 @@ export async function extractPublishedCSS(layers: Layer[]): Promise<string> {
         <script>
           tailwind.config = {
             theme: {
+              screens: {
+                'max-lg': {'max': '1023px'},
+                'max-md': {'max': '767px'},
+              },
               extend: {}
             }
           }

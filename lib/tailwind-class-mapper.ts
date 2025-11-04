@@ -54,10 +54,10 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   textAlign: /^text-(left|center|right|justify|start|end)$/,
   textTransform: /^(uppercase|lowercase|capitalize|normal-case)$/,
   textDecoration: /^(underline|overline|line-through|no-underline)$/,
-  color: /^text-((\w+)(-\d+)?|\[.+\])$/,
+  color: /^text-(?!(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl|left|center|right|justify|start|end)$)((\w+)(-\d+)?|\[.+\])$/,
   
   // Backgrounds
-  backgroundColor: /^bg-((\w+)(-\d+)?|\[.+\])$/,
+  backgroundColor: /^bg-(?!(?:auto|cover|contain|bottom|center|left|left-bottom|left-top|right|right-bottom|right-top|top|repeat|no-repeat|repeat-x|repeat-y|repeat-round|repeat-space|none|gradient-to-t|gradient-to-tr|gradient-to-r|gradient-to-br|gradient-to-b|gradient-to-bl|gradient-to-l|gradient-to-tl)$)((\w+)(-\d+)?|\[.+\])$/,
   backgroundSize: /^bg-(auto|cover|contain|\[.+\])$/,
   backgroundPosition: /^bg-(bottom|center|left|left-bottom|left-top|right|right-bottom|right-top|top|\[.+\])$/,
   backgroundRepeat: /^bg-(repeat|no-repeat|repeat-x|repeat-y|repeat-round|repeat-space)$/,
@@ -70,7 +70,7 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   borderBottomWidth: /^border-b(-\d+|-\[.+\])?$/,
   borderLeftWidth: /^border-l(-\d+|-\[.+\])?$/,
   borderStyle: /^border-(solid|dashed|dotted|double|hidden|none)$/,
-  borderColor: /^border-((\w+)(-\d+)?|\[.+\])$/,
+  borderColor: /^border-(?!(?:solid|dashed|dotted|double|hidden|none)$)(?!t-|r-|b-|l-|x-|y-)((\w+)(-\d+)?|\[.+\])$/,
   borderRadius: /^rounded(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
   borderTopLeftRadius: /^rounded-tl(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
   borderTopRightRadius: /^rounded-tr(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
@@ -178,9 +178,11 @@ export function propertyToClass(
       case 'fontSize':
         return value.match(/^\d/) ? `text-[${value}]` : `text-${value}`;
       case 'fontWeight':
-        return `font-${value}`;
+        // Always use arbitrary values for numeric weights
+        return value.match(/^\d/) ? `font-[${value}]` : `font-${value}`;
       case 'fontFamily':
-        return `font-${value}`;
+        // Use arbitrary values for custom fonts (containing spaces, commas, etc)
+        return value.match(/[,\s]|^["']/) ? `font-[${value}]` : `font-${value}`;
       case 'lineHeight':
         return value.match(/^\d/) ? `leading-[${value}]` : `leading-${value}`;
       case 'letterSpacing':
@@ -497,7 +499,12 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
       if (value) design.typography!.fontSize = value;
     }
     
-    // Font Weight
+    // Font Weight (arbitrary values)
+    if (cls.startsWith('font-[') && !cls.includes('sans') && !cls.includes('serif') && !cls.includes('mono')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.typography!.fontWeight = value;
+    }
+    // Font Weight (named values)
     if (cls === 'font-thin') design.typography!.fontWeight = '100';
     if (cls === 'font-extralight') design.typography!.fontWeight = '200';
     if (cls === 'font-light') design.typography!.fontWeight = '300';
@@ -508,7 +515,12 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls === 'font-extrabold') design.typography!.fontWeight = '800';
     if (cls === 'font-black') design.typography!.fontWeight = '900';
     
-    // Font Family
+    // Font Family (arbitrary values)
+    if (cls.startsWith('font-[') && (cls.includes('sans') || cls.includes('serif') || cls.includes('mono') || cls.includes(','))) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.typography!.fontFamily = value;
+    }
+    // Font Family (named values)
     if (cls === 'font-sans') design.typography!.fontFamily = 'sans-serif';
     if (cls === 'font-serif') design.typography!.fontFamily = 'serif';
     if (cls === 'font-mono') design.typography!.fontFamily = 'monospace';
@@ -719,46 +731,56 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
 }
 
 /**
- * Breakpoint Configuration
+ * Breakpoint Configuration (Desktop-First)
+ * Desktop is base (no prefix), tablet and mobile use max-width overrides
  */
 export const BREAKPOINT_CONFIG = {
-  mobile: { prefix: '', minWidth: 0 },
-  tablet: { prefix: 'md:', minWidth: 768 },
-  desktop: { prefix: 'lg:', minWidth: 1024 },
+  desktop: { prefix: '', maxWidth: null },
+  tablet: { prefix: 'max-lg:', maxWidth: 1023 },
+  mobile: { prefix: 'max-md:', maxWidth: 767 },
 } as const;
 
 export type Breakpoint = 'mobile' | 'tablet' | 'desktop';
 
 /**
- * Convert breakpoint to Tailwind prefix
- * mobile → '', tablet → 'md:', desktop → 'lg:'
+ * Convert breakpoint to Tailwind prefix (Desktop-First)
+ * desktop → '' (base), tablet → 'max-lg:', mobile → 'max-md:'
  */
 export function getBreakpointPrefix(breakpoint: Breakpoint): string {
   return BREAKPOINT_CONFIG[breakpoint].prefix;
 }
 
 /**
- * Parse breakpoint from class name
- * "md:w-[100px]" → { breakpoint: 'tablet', baseClass: 'w-[100px]' }
- * "w-[100px]" → { breakpoint: 'mobile', baseClass: 'w-[100px]' }
+ * Parse breakpoint from class name (Desktop-First)
+ * "max-lg:w-[100px]" → { breakpoint: 'tablet', baseClass: 'w-[100px]' }
+ * "max-md:w-[100px]" → { breakpoint: 'mobile', baseClass: 'w-[100px]' }
+ * "w-[100px]" → { breakpoint: 'desktop', baseClass: 'w-[100px]' }
  */
 export function parseBreakpointClass(className: string): {
   breakpoint: Breakpoint;
   baseClass: string;
 } {
+  if (className.startsWith('max-md:')) {
+    return { breakpoint: 'mobile', baseClass: className.slice(7) };
+  }
+  if (className.startsWith('max-lg:')) {
+    return { breakpoint: 'tablet', baseClass: className.slice(7) };
+  }
+  // Support legacy mobile-first classes for backward compatibility
   if (className.startsWith('lg:')) {
     return { breakpoint: 'desktop', baseClass: className.slice(3) };
   }
   if (className.startsWith('md:')) {
     return { breakpoint: 'tablet', baseClass: className.slice(3) };
   }
-  return { breakpoint: 'mobile', baseClass: className };
+  return { breakpoint: 'desktop', baseClass: className };
 }
 
 /**
- * Add breakpoint prefix to a class
- * ('tablet', 'w-[100px]') → 'md:w-[100px]'
- * ('mobile', 'w-[100px]') → 'w-[100px]'
+ * Add breakpoint prefix to a class (Desktop-First)
+ * ('desktop', 'w-[100px]') → 'w-[100px]' (no prefix)
+ * ('tablet', 'w-[100px]') → 'max-lg:w-[100px]'
+ * ('mobile', 'w-[100px]') → 'max-md:w-[100px]'
  */
 export function addBreakpointPrefix(breakpoint: Breakpoint, className: string): string {
   const prefix = getBreakpointPrefix(breakpoint);
@@ -766,7 +788,7 @@ export function addBreakpointPrefix(breakpoint: Breakpoint, className: string): 
 }
 
 /**
- * Get all classes for a specific breakpoint from a classes array
+ * Get all classes for a specific breakpoint from a classes array (Desktop-First)
  * Returns base classes without the breakpoint prefix
  */
 export function getBreakpointClasses(classes: string[], breakpoint: Breakpoint): string[] {
@@ -775,10 +797,13 @@ export function getBreakpointClasses(classes: string[], breakpoint: Breakpoint):
   return classes
     .filter(cls => {
       if (prefix) {
+        // For tablet (max-lg:) or mobile (max-md:), match their specific prefix
         return cls.startsWith(prefix);
       } else {
-        // For mobile (no prefix), return classes that don't have md: or lg: prefix
-        return !cls.startsWith('md:') && !cls.startsWith('lg:');
+        // For desktop (no prefix), return classes without max-lg: or max-md: prefix
+        // Also exclude legacy mobile-first prefixes (md:, lg:)
+        return !cls.startsWith('max-lg:') && !cls.startsWith('max-md:') && 
+               !cls.startsWith('md:') && !cls.startsWith('lg:');
       }
     })
     .map(cls => (prefix ? cls.slice(prefix.length) : cls));
@@ -786,7 +811,7 @@ export function getBreakpointClasses(classes: string[], breakpoint: Breakpoint):
 
 /**
  * Get inherited value for a property across breakpoints
- * Mobile-first cascade: mobile → tablet → desktop
+ * Desktop-first cascade: desktop → tablet → mobile
  */
 export function getInheritedValue(
   classes: string[],
@@ -796,13 +821,13 @@ export function getInheritedValue(
   const pattern = getConflictingClassPattern(property);
   if (!pattern) return { value: null, source: null };
   
-  // Define inheritance chain based on current breakpoint
+  // Define inheritance chain based on current breakpoint (desktop-first)
   const inheritanceChain: Breakpoint[] = 
-    currentBreakpoint === 'desktop' ? ['mobile', 'tablet', 'desktop'] :
-    currentBreakpoint === 'tablet' ? ['mobile', 'tablet'] :
-    ['mobile'];
+    currentBreakpoint === 'mobile' ? ['desktop', 'tablet', 'mobile'] :
+      currentBreakpoint === 'tablet' ? ['desktop', 'tablet'] :
+        ['desktop'];
   
-  // Check each breakpoint in order (mobile → tablet → desktop)
+  // Check each breakpoint in order (desktop → tablet → mobile)
   let lastValue: string | null = null;
   let lastSource: Breakpoint | null = null;
   
@@ -853,7 +878,7 @@ export function setBreakpointClass(
   breakpoint: Breakpoint
 ): string[] {
   // Remove any existing classes for this property at this breakpoint
-  let result = removeConflictingClassesForBreakpoint(classes, property, breakpoint);
+  const result = removeConflictingClassesForBreakpoint(classes, property, breakpoint);
   
   // Add the new class with breakpoint prefix if provided
   if (newClass) {

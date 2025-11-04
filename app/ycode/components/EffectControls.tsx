@@ -8,6 +8,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { useDesignSync } from '@/hooks/use-design-sync';
+import { useEditorStore } from '@/stores/useEditorStore';
 import type { Layer } from '@/types';
 
 interface EffectControlsProps {
@@ -16,12 +17,14 @@ interface EffectControlsProps {
 }
 
 export default function EffectControls({ layer, onLayerUpdate }: EffectControlsProps) {
+  const { activeBreakpoint } = useEditorStore();
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate
+    onLayerUpdate,
+    activeBreakpoint
   });
   
-  // Get current values from layer
+  // Get current values from layer (no inheritance - only exact breakpoint values)
   const opacity = getDesignProperty('effects', 'opacity') || '100';
   const boxShadow = getDesignProperty('effects', 'boxShadow') || '';
   

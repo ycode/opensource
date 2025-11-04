@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@
 import Icon from '@/components/ui/icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDesignSync } from '@/hooks/use-design-sync';
+import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useModeToggle } from '@/hooks/use-mode-toggle';
+import { useEditorStore } from '@/stores/useEditorStore';
 import type { Layer } from '@/types';
 
 interface SpacingControlsProps {
@@ -18,19 +20,43 @@ interface SpacingControlsProps {
 }
 
 export default function SpacingControls({ layer, onLayerUpdate }: SpacingControlsProps) {
+  const { activeBreakpoint } = useEditorStore();
   const { updateDesignProperty, updateDesignProperties, getDesignProperty } = useDesignSync({
     layer,
-    onLayerUpdate
+    onLayerUpdate,
+    activeBreakpoint
   });
   
   const [marginUnit, setMarginUnit] = useState<'px' | 'rem' | 'em'>('px');
   
-  // Get current values from layer
+  // Extract numeric value from design property
+  const extractValue = (prop: string): string => {
+    if (!prop) return '';
+    if (prop === 'auto') return 'auto';
+    return prop.replace(/[a-z%]+$/i, '');
+  };
+  
+  // Get current values from layer (with inheritance)
   const margin = getDesignProperty('spacing', 'margin') || '';
   const marginTop = getDesignProperty('spacing', 'marginTop') || '';
   const marginRight = getDesignProperty('spacing', 'marginRight') || '';
   const marginBottom = getDesignProperty('spacing', 'marginBottom') || '';
   const marginLeft = getDesignProperty('spacing', 'marginLeft') || '';
+  
+  // Local controlled inputs (prevents repopulation bug)
+  const inputs = useControlledInputs({
+    margin,
+    marginTop,
+    marginRight,
+    marginBottom,
+    marginLeft,
+  }, extractValue);
+
+  const [marginInput, setMarginInput] = inputs.margin;
+  const [marginTopInput, setMarginTopInput] = inputs.marginTop;
+  const [marginRightInput, setMarginRightInput] = inputs.marginRight;
+  const [marginBottomInput, setMarginBottomInput] = inputs.marginBottom;
+  const [marginLeftInput, setMarginLeftInput] = inputs.marginLeft;
   
   // Use mode toggle hook for margin
   const marginModeToggle = useModeToggle({
@@ -42,15 +68,9 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     getCurrentValue: useCallback((prop: string) => getDesignProperty('spacing', prop) || '', [getDesignProperty]),
   });
   
-  // Extract numeric value from design property
-  const extractValue = (prop: string): string => {
-    if (!prop) return '';
-    if (prop === 'auto') return 'auto';
-    return prop.replace(/[a-z%]+$/i, '');
-  };
-  
   // Handle margin changes
   const handleMarginChange = (value: string) => {
+    setMarginInput(value);
     if (marginModeToggle.mode === 'all-borders') {
       if (value === 'auto') {
         updateDesignProperty('spacing', 'margin', 'auto');
@@ -61,6 +81,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
   };
   
   const handleMarginTopChange = (value: string) => {
+    setMarginTopInput(value);
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginTop', 'auto');
     } else {
@@ -69,6 +90,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
   };
   
   const handleMarginRightChange = (value: string) => {
+    setMarginRightInput(value);
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginRight', 'auto');
     } else {
@@ -77,6 +99,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
   };
   
   const handleMarginBottomChange = (value: string) => {
+    setMarginBottomInput(value);
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginBottom', 'auto');
     } else {
@@ -85,6 +108,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
   };
   
   const handleMarginLeftChange = (value: string) => {
+    setMarginLeftInput(value);
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginLeft', 'auto');
     } else {
@@ -106,7 +130,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
               <InputGroup className="flex-1">
                 <InputGroupInput
                   disabled={marginModeToggle.mode === 'individual-borders'}
-                  value={extractValue(margin)}
+                  value={marginInput}
                   onChange={(e) => handleMarginChange(e.target.value)}
                   placeholder="16"
                 />
@@ -150,7 +174,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   </InputGroupAddon>
                   <InputGroupInput
                     className="!pr-0"
-                    value={extractValue(marginLeft)}
+                    value={marginLeftInput}
                     onChange={(e) => handleMarginLeftChange(e.target.value)}
                     placeholder="0"
                   />
@@ -170,7 +194,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   </InputGroupAddon>
                   <InputGroupInput
                     className="!pr-0"
-                    value={extractValue(marginTop)}
+                    value={marginTopInput}
                     onChange={(e) => handleMarginTopChange(e.target.value)}
                     placeholder="0"
                   />
@@ -190,7 +214,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   </InputGroupAddon>
                   <InputGroupInput
                     className="!pr-0"
-                    value={extractValue(marginRight)}
+                    value={marginRightInput}
                     onChange={(e) => handleMarginRightChange(e.target.value)}
                     placeholder="0"
                   />
@@ -210,7 +234,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   </InputGroupAddon>
                   <InputGroupInput
                     className="!pr-0"
-                    value={extractValue(marginBottom)}
+                    value={marginBottomInput}
                     onChange={(e) => handleMarginBottomChange(e.target.value)}
                     placeholder="0"
                   />

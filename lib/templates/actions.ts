@@ -16,7 +16,7 @@ export const actionTemplates: Record<string, BlockTemplate> = {
     name: 'Button',
     template: {
       name: 'button',
-      classes: ['px-6', 'py-2', 'bg-[#2563eb]', 'text-white', 'rounded-lg', 'hover:bg-[#1d4ed8]', 'transition-colors'],
+      classes: ['px-[1.5rem]', 'py-[0.5rem]', 'bg-[#2563eb]', 'text-[#ffffff]', 'rounded-[0.5rem]', 'hover:bg-[#1d4ed8]', 'transition-colors'],
       text: 'Button',
       children: [], // Can contain icons, spans, etc.
       attributes: {
