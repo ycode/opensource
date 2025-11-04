@@ -9,7 +9,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     'x' | 'layers' | 'database' | 'plus' | 'chevronCombo' | 'check' | 'textAlignLeft' | 'textAlignRight' | 'textAlignCenter' | 'textAlignJustify' | 'individualBorders'
     | 'borders' | 'borderTopLeft' | 'letterSpacing' | 'lineHeight' | 'columns' | 'rows' | 'grid' | 'alignStart' | 'alignCenter' | 'alignEnd' | 'alignStretch' | 'verticalGap'
     | 'horizontalGap' | 'link' | 'paddingSide' | 'block' | 'section' | 'container' | 'separator' | 'image' | 'icon' | 'video' | 'text' | 'layout' | 'heading' | 'type'
-    | 'file-text' | 'edit' | 'box' | 'chevronRight' | 'minSize' | 'maxSize'
+    | 'file-text' | 'edit' | 'box' | 'chevronRight' | 'minSize' | 'maxSize' | 'undo' | 'redo'
   );
 }
 
@@ -240,6 +240,19 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   box: (
     <>
       <path d="M2.5,1 L9.5,1 C10.3284271,1 11,1.67157288 11,2.5 L11,9.5 C11,10.3284271 10.3284271,11 9.5,11 L2.5,11 C1.67157288,11 1,10.3284271 1,9.5 L1,2.5 C1,1.67157288 1.67157288,1 2.5,1 Z M2.5,0 C1.11928813,0 0,1.11928813 0,2.5 L0,9.5 C0,10.8807119 1.11928813,12 2.5,12 L9.5,12 C10.8807119,12 12,10.8807119 12,9.5 L12,2.5 C12,1.11928813 10.8807119,0 9.5,0 L2.5,0 Z" />
+    </>
+  ),
+  undo: (
+    <>
+      <path xmlns="http://www.w3.org/2000/svg" d="M3.414215,3.98236073 L4.68198,5.25332084 L3.974875,5.96220513 L1.5,3.48110257 L3.974875,1 L4.68198,1.70888931 L3.414215,2.97984441 L7,2.97984441 C9.20915,2.97984441 11,4.77521078 11,6.98993474 C11,9.20459353 9.20915,11 7,11 L5.00007629,11 L5.00007629,9.99748368 L7,9.99748368 C8.65685,9.99748368 10,8.65095389 10,6.98993474 C10,5.3288855 8.65685,3.98236073 7,3.98236073 L3.414215,3.98236073 Z" />
+    </>
+  ),
+  redo: (
+    <>
+      <path
+        xmlns="http://www.w3.org/2000/svg" d="M3.414215,3.98236073 L4.68198,5.25332084 L3.974875,5.96220513 L1.5,3.48110257 L3.974875,1 L4.68198,1.70888931 L3.414215,2.97984441 L7,2.97984441 C9.20915,2.97984441 11,4.77521078 11,6.98993474 C11,9.20459353 9.20915,11 7,11 L5.00007629,11 L5.00007629,9.99748368 L7,9.99748368 C8.65685,9.99748368 10,8.65095389 10,6.98993474 C10,5.3288855 8.65685,3.98236073 7,3.98236073 L3.414215,3.98236073 Z"
+        transform="translate(6.25, 6) scale(-1, 1) translate(-6.25, -6)"
+      />
     </>
   ),
   chevronRight: (

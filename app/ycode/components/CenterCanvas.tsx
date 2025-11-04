@@ -30,6 +30,11 @@ import {
   SelectItem,
   SelectTrigger
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 
 type ViewportMode = 'desktop' | 'tablet' | 'mobile';
 
@@ -92,7 +97,7 @@ export default function CenterCanvas({
         </div>
         <div className="flex justify-center gap-2">
           <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
-          <TabsList className="w-[240px]">
+            <TabsList className="w-[240px]">
             <TabsTrigger value="desktop" title="Desktop View">
               Desktop
             </TabsTrigger>
@@ -103,20 +108,48 @@ export default function CenterCanvas({
               Phone
             </TabsTrigger>
           </TabsList>
-        </Tabs>
-          <Select>
-            <SelectTrigger>
-              80%
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="1">Homepage</SelectItem>
-                <SelectItem value="2">About</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          </Tabs>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary" size="sm">
+                80%
+                <div>
+                  <Icon name="chevronCombo" className="!size-2.5 opacity-50" />
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem>
+                Zoom in
+                <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                Zoom out
+                <DropdownMenuShortcut>⌘-</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                Zoom to 100%
+                <DropdownMenuShortcut>⌘0</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                Zoom to Fit
+                <DropdownMenuShortcut>⌘1</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                Autofit
+                <DropdownMenuShortcut>⌘2</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
         </div>
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-0">
+          <Button size="sm" variant="ghost">
+            <Icon name="undo" />
+          </Button>
+          <Button size="sm" variant="ghost">
+            <Icon name="redo" />
+          </Button>
         </div>
       </div>
       {/* Canvas Area */}
