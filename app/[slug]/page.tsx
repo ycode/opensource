@@ -135,7 +135,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
 
-  // Fetch page to get title
+  // Fetch page to get name
   const data = await fetchPublishedPageWithLayers(slug);
 
   if (!data) {
@@ -145,7 +145,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 
   return {
-    title: data.page.title || slug.charAt(0).toUpperCase() + slug.slice(1),
-    description: `${data.page.title} - Built with YCode`,
+    title: data.page.name || slug.charAt(0).toUpperCase() + slug.slice(1),
+    description: `${data.page.name} - Built with YCode`,
   };
 }

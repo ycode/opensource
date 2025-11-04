@@ -22,6 +22,7 @@ export interface CreatePageFolderData {
   slug: string;
   depth?: number;
   order?: number;
+  settings?: Record<string, any>;
   is_published?: boolean;
   page_folder_id?: string | null;
 }
@@ -34,6 +35,7 @@ export interface UpdatePageFolderData {
   slug?: string;
   depth?: number;
   order?: number;
+  settings?: Record<string, any>;
   is_published?: boolean;
   page_folder_id?: string | null;
 }

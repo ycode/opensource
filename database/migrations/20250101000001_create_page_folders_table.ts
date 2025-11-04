@@ -15,6 +15,7 @@ export async function up(knex: Knex): Promise<void> {
     table.string('slug', 255).notNullable();
     table.integer('depth').notNullable().defaultTo(0);
     table.integer('order').notNullable().defaultTo(0);
+    table.jsonb('settings').defaultTo('{}'); // Settings for `auth` (enabled + password)
     table.boolean('is_published').defaultTo(false);
     table.string('publish_key', 255).defaultTo(knex.raw('gen_random_uuid()'));
     table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());

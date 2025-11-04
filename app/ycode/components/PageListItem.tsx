@@ -2,7 +2,7 @@
 
 /**
  * PageListItem Component
- * 
+ *
  * Reusable page list item for LeftSidebar
  */
 
@@ -44,7 +44,7 @@ export function PageListItem({
     >
       <div className='flex items-center gap-2 flex-1 min-w-0'>
         <Icon name='file-text' className='w-4 h-4 shrink-0' />
-        <span className='text-sm truncate'>{page.title || 'Untitled'}</span>
+        <span className='text-sm truncate'>{page.name || 'Untitled'}</span>
       </div>
       <Button
         variant='ghost'

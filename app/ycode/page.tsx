@@ -24,7 +24,10 @@ import { useClipboardStore } from '../../stores/useClipboardStore';
 import { useEditorStore } from '../../stores/useEditorStore';
 import { usePagesStore } from '../../stores/usePagesStore';
 
-// 4. Types
+// 4. Utils
+import { findHomepage } from '../../lib/pages';
+
+// 5. Types
 import type { Layer } from '../../types';
 
 export default function YCodeBuilder() {
@@ -76,13 +79,11 @@ export default function YCodeBuilder() {
     }
   }, [loadPages, migrationsComplete]);
 
-  // Set current page to "Home" page by default, or first page if Home doesn't exist
+  // Set current page to homepage by default, or first page if homepage doesn't exist
   useEffect(() => {
     if (!currentPageId && pages.length > 0) {
-      // Try to find "Home" page first (by slug or title)
-      const homePage = pages.find(p =>
-        p.slug?.toLowerCase() === 'home' || p.title?.toLowerCase() === 'home'
-      );
+      // Find homepage (is_locked=true, is_index=true, depth=0)
+      const homePage = findHomepage(pages);
       const defaultPage = homePage || pages[0];
 
       setCurrentPageId(defaultPage.id);

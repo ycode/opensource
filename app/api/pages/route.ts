@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getAllPages, createPage } from '@/lib/repositories/pageRepository';
 import { upsertDraftLayers } from '@/lib/repositories/pageLayersRepository';
 import { noCache } from '@/lib/api-response';
@@ -10,10 +10,16 @@ export const revalidate = 0;
 /**
  * GET /api/pages
  *
- * Get all draft pages (for the builder)
- * Published pages are only used for the public website
+ * Get all pages with optional filters
+ * Query params: is_published, is_locked, is_index, depth
+ *
+ * Examples:
+ * - /api/pages - Get all draft pages (default)
+ * - /api/pages?is_published=true - Get all published pages
+ * - /api/pages?is_locked=true&is_index=true&depth=0 - Get homepage (draft)
+ * - /api/pages?is_locked=true&is_index=true&depth=0&is_published=true - Get homepage (published)
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     console.log('[GET /api/pages] Starting request');
     console.log('[GET /api/pages] Vercel env:', process.env.VERCEL);
@@ -21,8 +27,38 @@ export async function GET() {
     console.log('[GET /api/pages] Supabase Anon Key set:', !!process.env.SUPABASE_ANON_KEY);
     console.log('[GET /api/pages] Supabase Service Role Key set:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-    // Only return draft pages for the builder
-    const pages = await getAllPages({ is_published: false });
+    // Parse query parameters
+    const { searchParams } = new URL(request.url);
+    const filters: Record<string, any> = {};
+
+    // Default to draft pages if no is_published filter specified
+    const isPublished = searchParams.get('is_published');
+    if (isPublished !== null) {
+      filters.is_published = isPublished === 'true';
+    } else {
+      // Default: only return draft pages for the builder
+      filters.is_published = false;
+    }
+
+    // Optional filters
+    const isLocked = searchParams.get('is_locked');
+    if (isLocked !== null) {
+      filters.is_locked = isLocked === 'true';
+    }
+
+    const isIndex = searchParams.get('is_index');
+    if (isIndex !== null) {
+      filters.is_index = isIndex === 'true';
+    }
+
+    const depth = searchParams.get('depth');
+    if (depth !== null) {
+      filters.depth = parseInt(depth, 10);
+    }
+
+    console.log('[GET /api/pages] Filters:', filters);
+
+    const pages = await getAllPages(filters);
 
     console.log('[GET /api/pages] Found pages:', pages.length);
 
@@ -52,22 +88,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('[POST /api/pages] Request body:', body);
 
-    const { title, slug, is_published = false } = body;
+    const { name, slug, is_published = false } = body;
 
     // Validate required fields
-    if (!title || !slug) {
-      console.error('[POST /api/pages] Validation failed: missing title or slug');
+    if (!name || !slug) {
+      console.error('[POST /api/pages] Validation failed: missing name or slug');
       return noCache(
-        { error: 'Title and slug are required' },
+        { error: 'Name and slug are required' },
         400
       );
     }
 
-    console.log('[POST /api/pages] Creating page:', { title, slug, is_published });
+    console.log('[POST /api/pages] Creating page:', { name, slug, is_published });
 
     // Create page
     const page = await createPage({
-      title,
+      name,
       slug,
       is_published,
     });

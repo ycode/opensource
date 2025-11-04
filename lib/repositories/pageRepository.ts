@@ -18,20 +18,34 @@ export interface QueryFilters {
  * Data required to create a new page
  */
 export interface CreatePageData {
-  title: string;
+  name: string;
   slug: string;
   is_published?: boolean;
   page_folder_id?: string | null;
+  order?: number;
+  depth?: number;
+  is_index?: boolean;
+  is_dynamic?: boolean;
+  is_locked?: boolean;
+  error_page?: number | null;
+  settings?: Record<string, any>;
 }
 
 /**
  * Data that can be updated on an existing page
  */
 export interface UpdatePageData {
-  title?: string;
+  name?: string;
   slug?: string;
   is_published?: boolean;
   page_folder_id?: string | null;
+  order?: number;
+  depth?: number;
+  is_index?: boolean;
+  is_dynamic?: boolean;
+  is_locked?: boolean;
+  error_page?: number | null;
+  settings?: Record<string, any>;
 }
 
 /**
@@ -408,8 +422,16 @@ export async function publishPage(draftPageId: string): Promise<Page> {
   const existingPublished = await getPublishedPageByPublishKey(draftPage.publish_key);
 
   const publishedData = {
-    title: draftPage.title,
+    name: draftPage.name,
     slug: draftPage.slug,
+    page_folder_id: draftPage.page_folder_id,
+    order: draftPage.order,
+    depth: draftPage.depth,
+    is_index: draftPage.is_index,
+    is_dynamic: draftPage.is_dynamic,
+    is_locked: draftPage.is_locked,
+    error_page: draftPage.error_page,
+    settings: draftPage.settings,
     is_published: true,
     publish_key: draftPage.publish_key,
   };
@@ -417,8 +439,16 @@ export async function publishPage(draftPageId: string): Promise<Page> {
   if (existingPublished) {
     // Update existing published version only if data changed
     const hasChanges =
-      existingPublished.title !== draftPage.title ||
-      existingPublished.slug !== draftPage.slug;
+      existingPublished.name !== draftPage.name ||
+      existingPublished.slug !== draftPage.slug ||
+      existingPublished.page_folder_id !== draftPage.page_folder_id ||
+      existingPublished.order !== draftPage.order ||
+      existingPublished.depth !== draftPage.depth ||
+      existingPublished.is_index !== draftPage.is_index ||
+      existingPublished.is_dynamic !== draftPage.is_dynamic ||
+      existingPublished.is_locked !== draftPage.is_locked ||
+      existingPublished.error_page !== draftPage.error_page ||
+      JSON.stringify(existingPublished.settings) !== JSON.stringify(draftPage.settings);
 
     if (hasChanges) {
       const { data, error } = await client

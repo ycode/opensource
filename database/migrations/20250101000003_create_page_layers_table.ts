@@ -51,16 +51,24 @@ export async function up(knex: Knex): Promise<void> {
   `);
 
   // Create default homepage with initial draft layers
-  const existingHome = await knex('pages').where('slug', 'home').first();
+  // Check if homepage already exists (is_locked=true, is_index=true, depth=0)
+  const existingHome = await knex('pages')
+    .where('is_locked', true)
+    .where('is_index', true)
+    .where('depth', 0)
+    .whereNull('deleted_at')
+    .first();
 
   if (!existingHome) {
     // Insert homepage
     const [homepage] = await knex('pages')
       .insert({
-        title: 'Home',
-        slug: 'home',
+        name: 'Homepage',
+        slug: '',
+        depth: 0,
+        is_index: true,
+        is_locked: true,
         is_published: false,
-        page_folder_id: null,
       })
       .returning('*');
 

@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { checkSetupStatus } from '@/lib/api/setup';
 import { pagesApi, pageLayersApi } from '@/lib/api';
+import { findHomepage } from '@/lib/pages';
 import LayerRenderer from '@/components/layers/LayerRenderer';
 import type { Page, PageLayers } from '@/types';
 
@@ -32,23 +33,22 @@ export default function Home() {
           return;
         }
 
-        // Try to load homepage (slug: "home" or "index")
-        let pageResponse = await pagesApi.getBySlug('home');
+        // Get all published pages and find the homepage
+        const pagesResponse = await pagesApi.getAllPublished();
 
-        if (pageResponse.error || !pageResponse.data) {
-          // Try "index" as fallback
-          pageResponse = await pagesApi.getBySlug('index');
-        }
+        if (pagesResponse.data) {
+          const homepagePage = findHomepage(pagesResponse.data);
 
-        if (pageResponse.data && pageResponse.data.is_published) {
-          // Fetch published layers
-          const pageLayersResponse = await pageLayersApi.getPublished(pageResponse.data.id);
+          if (homepagePage) {
+            // Fetch published layers
+            const pageLayersResponse = await pageLayersApi.getPublished(homepagePage.id);
 
-          if (pageLayersResponse.data) {
-            setHomepage({
-              page: pageResponse.data,
-              pageLayers: pageLayersResponse.data,
-            });
+            if (pageLayersResponse.data) {
+              setHomepage({
+                page: homepagePage,
+                pageLayers: pageLayersResponse.data,
+              });
+            }
           }
         }
 

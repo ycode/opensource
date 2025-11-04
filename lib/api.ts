@@ -70,6 +70,11 @@ export const pagesApi = {
     return apiRequest<Page>(`/api/pages/slug/${slug}`);
   },
 
+  // Get all published pages (for public website)
+  async getAllPublished(): Promise<ApiResponse<Page[]>> {
+    return apiRequest<Page[]>('/api/pages?is_published=true');
+  },
+
   // Create new page
   async create(page: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>): Promise<ApiResponse<Page>> {
     return apiRequest<Page>('/api/pages', {

@@ -1,33 +1,18 @@
 'use client';
 
-/**
- * Left Sidebar - Pages & Layers
- *
- * Displays pages list and layers tree with navigation icons
- */
-
-// 1. React/Next.js
-import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-
-// 3. ShadCN UI
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-
-// 4. Internal components
 import AssetLibrary from '../../../components/AssetLibrary';
 import ElementLibrary from './ElementLibrary';
 import LayersTree from './LayersTree';
+import PagesTree from './PagesTree';
 import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
-
-// 5. Stores
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
-
-// 6. Utils/lib
 import { pagesApi } from '../../../lib/api';
-
-// 7. Types
+import { findHomepage } from '../../../lib/pages';
 import type { Layer, Page } from '../../../types';
 
 // Helper function to find layer by ID recursively
@@ -64,8 +49,9 @@ export default function LeftSidebar({
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
-  const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, setDraftLayers } = usePagesStore();
+  const { draftsByPageId, loadPages, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
+  const folders = usePagesStore((state) => state.folders);
   const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
 
   // Listen for keyboard shortcut to toggle ElementLibrary
@@ -83,14 +69,21 @@ export default function LeftSidebar({
     try {
       // Generate a unique slug based on current timestamp
       const timestamp = Date.now();
-      const newPageTitle = `Page ${pages.length + 1}`;
+      const newPageName = `Page ${pages.length + 1}`;
       const newPageSlug = `page-${timestamp}`;
 
       const createResponse = await pagesApi.create({
-        title: newPageTitle,
+        name: newPageName,
         slug: newPageSlug,
         is_published: false,
         page_folder_id: null,
+        order: 0,
+        depth: 0,
+        is_index: false,
+        is_dynamic: false,
+        is_locked: false,
+        error_page: null,
+        settings: {},
       });
 
       if (createResponse.error) {
@@ -143,10 +136,11 @@ export default function LeftSidebar({
     return null;
   }, []);
 
-  // Load pages on mount
+  // Load pages and folders on mount
   useEffect(() => {
     loadPages();
-  }, [loadPages]);
+    loadFolders();
+  }, [loadPages, loadFolders]);
 
   // Load draft when page changes
   useEffect(() => {
@@ -195,7 +189,7 @@ export default function LeftSidebar({
 
     try {
       await pagesApi.update(editingPage.id, {
-        title: data.title,
+        name: data.name,
         slug: data.slug,
       });
 
@@ -204,6 +198,52 @@ export default function LeftSidebar({
       setEditingPage(null);
     } catch (error) {
       console.error('Failed to save page:', error);
+    }
+  };
+
+  // Handle page or folder deletion
+  const deletePageOrFolderItem = async (id: string, type: 'folder' | 'page') => {
+    // TODO: Implement folder deletion when folders are fully supported
+    if (type === 'folder') {
+      console.warn('Folder deletion not yet implemented');
+      return;
+    }
+
+    // Handle page deletion
+    if (type === 'page') {
+      // Find the page for confirmation message
+      const pageToDelete = pages.find(p => p.id === id);
+      if (!pageToDelete) return;
+
+      // Confirm deletion
+      // if (!confirm(`Are you sure you want to delete "${pageToDelete.name}"?`)) {
+      //   return;
+      // }
+
+      // Delete via store (handles homepage protection and API call)
+      const result = await deletePage(id);
+
+      if (!result.success) {
+        console.error('Failed to delete page:', result.error);
+        return;
+      }
+
+      // If we deleted the current page, select a different one
+      if (currentPageId === id) {
+        // Get updated pages list from store
+        const remainingPages = pages.filter(p => p.id !== id);
+        if (remainingPages.length > 0) {
+          // Select the first remaining page (preferably the homepage)
+          const homePage = findHomepage(remainingPages);
+          const nextPage = homePage || remainingPages[0];
+          onPageSelect(nextPage.id);
+          setCurrentPageId(nextPage.id);
+        } else {
+          // No pages left
+          onPageSelect('');
+          setCurrentPageId(null);
+        }
+      }
     }
   };
 
@@ -326,49 +366,21 @@ export default function LeftSidebar({
             </header>
 
             <div className="flex flex-col">
-              {pages.map((page) => (
-                <div
-                  key={page.id}
-                  className={`group relative rounded ${
-                    currentPageId === page.id
-                      ? 'bg-zinc-700'
-                      : 'hover:bg-zinc-800'
-                  }`}
-                >
-                  <Button
-                    onClick={() => {
-                      onPageSelect(page.id);
-                      setCurrentPageId(page.id);
-                    }}
-                    variant="ghost"
-                    className="w-full justify-start px-3 py-1.5 h-auto text-sm text-zinc-300 flex items-center gap-2"
-                  >
-                    <Icon name="file-text" className="w-4 h-4 text-zinc-400 shrink-0" />
-                    <span className="flex-1 truncate">{page.title}</span>
-                  </Button>
-
-                  {/* Settings button */}
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEditPage(page);
-                    }}
-                    variant="ghost"
-                    size="icon-sm"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Page settings"
-                    aria-label="Page settings"
-                  >
-                    <Icon name="edit" className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
+              <PagesTree
+                pages={pages}
+                folders={folders}
+                selectedPageId={currentPageId}
+                onPageSelect={(pageId) => {
+                  onPageSelect(pageId);
+                  setCurrentPageId(pageId);
+                }}
+                onPageSettings={handleEditPage}
+                onDelete={deletePageOrFolderItem}
+              />
             </div>
-
           </TabsContent>
 
           <TabsContent value="cms">
-
             <header className="py-5 flex justify-between">
               <span className="font-medium">Collections</span>
               <div
@@ -393,7 +405,6 @@ export default function LeftSidebar({
                   <span>Categories</span>
                 </div>
             </div>
-
           </TabsContent>
         </Tabs>
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Layer, Page, PageLayers } from '../types';
+import type { Layer, Page, PageLayers, PageFolder } from '../types';
 import { pagesApi, pageLayersApi } from '../lib/api';
 import { getTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
@@ -9,6 +9,7 @@ import { canHaveChildren } from '../lib/layer-utils';
 
 interface PagesState {
   pages: Page[];
+  folders: PageFolder[];
   draftsByPageId: Record<string, PageLayers>;
   isLoading: boolean;
   error: string | null;
@@ -16,8 +17,11 @@ interface PagesState {
 
 interface PagesActions {
   setPages: (pages: Page[]) => void;
+  setFolders: (folders: PageFolder[]) => void;
   loadPages: () => Promise<void>;
+  loadFolders: () => Promise<void>;
   loadDraft: (pageId: string) => Promise<void>;
+  deletePage: (pageId: string) => Promise<{ success: boolean; error?: string }>;
   initDraft: (page: Page, initialLayers?: Layer[]) => void;
   updateLayerClasses: (pageId: string, layerId: string, classes: string) => void;
   saveDraft: (pageId: string) => Promise<void>;
@@ -55,11 +59,13 @@ function updateLayerInTree(tree: Layer[], layerId: string, updater: (l: Layer) =
 
 export const usePagesStore = create<PagesStore>((set, get) => ({
   pages: [],
+  folders: [],
   draftsByPageId: {},
   isLoading: false,
   error: null,
 
   setPages: (pages) => set({ pages }),
+  setFolders: (folders) => set({ folders }),
 
   loadPages: async () => {
     console.log('[usePagesStore.loadPages] Starting...');
@@ -82,6 +88,19 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     } catch (error) {
       console.error('[usePagesStore.loadPages] Exception loading pages:', error);
       set({ error: 'Failed to load pages', isLoading: false });
+    }
+  },
+
+  loadFolders: async () => {
+    console.log('[usePagesStore.loadFolders] Starting...');
+    set({ isLoading: true, error: null });
+    try {
+      // For now, return empty array until we create the API endpoint
+      // TODO: Implement folder API endpoint
+      set({ folders: [], isLoading: false });
+    } catch (error) {
+      console.error('[usePagesStore.loadFolders] Exception loading folders:', error);
+      set({ error: 'Failed to load folders', isLoading: false });
     }
   },
 
@@ -920,6 +939,57 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         [pageId]: { ...state.draftsByPageId[pageId], layers: newLayers },
       },
     }));
+  },
+
+  deletePage: async (pageId) => {
+    console.log('[usePagesStore.deletePage] Starting...', pageId);
+
+    const { pages } = get();
+
+    // Find the page
+    const pageToDelete = pages.find(p => p.id === pageId);
+    if (!pageToDelete) {
+      return { success: false, error: 'Page not found' };
+    }
+
+    // Check if page is locked
+    if (pageToDelete.is_locked) {
+      console.warn('Cannot delete this page: page is locked');
+      return { success: false, error: 'This page is locked and cannot be deleted' };
+    }
+
+    set({ isLoading: true, error: null });
+    try {
+      const response = await pagesApi.delete(pageId);
+
+      if (response.error) {
+        console.error('[usePagesStore.deletePage] Error:', response.error);
+        set({ error: response.error, isLoading: false });
+        return { success: false, error: response.error };
+      }
+
+      // Remove the page from local state
+      const updatedPages = pages.filter(p => p.id !== pageId);
+
+      // Remove associated draft
+      const { draftsByPageId } = get();
+      const updatedDrafts = { ...draftsByPageId };
+      delete updatedDrafts[pageId];
+
+      set({
+        pages: updatedPages,
+        draftsByPageId: updatedDrafts,
+        isLoading: false
+      });
+
+      console.log('[usePagesStore.deletePage] Success');
+      return { success: true };
+    } catch (error) {
+      console.error('[usePagesStore.deletePage] Exception:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to delete page';
+      set({ error: errorMsg, isLoading: false });
+      return { success: false, error: errorMsg };
+    }
   },
 
   pasteInside: (pageId, targetLayerId, layerToPaste) => {

@@ -160,8 +160,15 @@ export interface Layer {
 export interface Page {
   id: string;
   slug: string;
-  title: string;
+  name: string;
   page_folder_id: string | null; // Reference to page_folders
+  order: number; // Sort order
+  depth: number; // Depth in hierarchy
+  is_index: boolean; // Index of the root or parent folder
+  is_dynamic: boolean; // Dynamic page (CMS-driven)
+  is_locked: boolean; // Whether the page is locked (cannot be deleted)
+  error_page: number | null; // Error page type: 401, 404, 500
+  settings: Record<string, any>; // Page-specific settings
   is_published: boolean;
   publish_key: string; // Stable key linking draft and published versions
   created_at: string;
@@ -186,6 +193,7 @@ export interface PageFolder {
   slug: string;
   depth: number; // Folder depth in hierarchy (0 for root)
   order: number; // Sort order within parent folder
+  settings: Record<string, any>; // Settings for auth (enabled + password), etc.
   is_published: boolean;
   publish_key: string; // Stable key linking draft and published versions
   created_at: string;
