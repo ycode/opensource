@@ -119,7 +119,7 @@ function PageRow({
                 isSelected && 'bg-white/10'
               )}
               style={{
-                left: `${(i + 1) * 18 - 2}px`,
+                left: `${i * 14 + 16}px`,
               }}
             />
           ))}
@@ -131,7 +131,7 @@ function PageRow({
         <div
           className="absolute top-0 left-0 right-0 h-[1.5px] bg-primary z-50"
           style={{
-            marginLeft: `${node.depth * 18}px`,
+            marginLeft: `${node.depth * 14 + 8}px`,
           }}
         >
           <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
@@ -141,7 +141,7 @@ function PageRow({
         <div
           className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-primary z-50"
           style={{
-            marginLeft: `${node.depth * 18}px`,
+            marginLeft: `${node.depth * 14 + 8}px`,
           }}
         >
           <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
@@ -164,7 +164,7 @@ function PageRow({
           isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
           !isSelected && 'text-secondary-foreground/80 dark:text-primary-foreground/80'
         )}
-        style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
+        style={{ paddingLeft: `${node.depth * 14 + 8}px` }}
         onClick={() => onSelect(node.id, node.type)}
         onDoubleClick={() => {
           if (node.type === 'page' && onOpen) {

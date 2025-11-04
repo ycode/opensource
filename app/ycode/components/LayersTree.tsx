@@ -221,7 +221,7 @@ function LayerRow({
                   !isSelected && isChildOfSelected && 'bg-white/10',
                 )}
                 style={{
-                  left: `${(i + 1) * 18 - 2}px`,
+                  left: `${i * 14 + 16}px`,
                 }}
               />
             ))}
@@ -233,7 +233,7 @@ function LayerRow({
           <div
             className="absolute top-0 left-0 right-0 h-[1.5px] bg-primary z-50"
             style={{
-              marginLeft: `${node.depth * 18}px`,
+              marginLeft: `${node.depth * 14 + 8}px`,
             }}
           >
             <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
@@ -243,7 +243,7 @@ function LayerRow({
           <div
             className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-primary z-50"
             style={{
-              marginLeft: `${node.depth * 18}px`,
+              marginLeft: `${node.depth * 14 + 8}px`,
             }}
           >
             <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
@@ -279,7 +279,7 @@ function LayerRow({
             isDragging && '',
             !isDragActive && ''
           )}
-          style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
+          style={{ paddingLeft: `${node.depth * 14 + 8}px` }}
           onClick={(e) => {
             // Multi-select support
             if (e.metaKey || e.ctrlKey) {
