@@ -7,13 +7,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AssetLibrary from '../../../components/AssetLibrary';
 import ElementLibrary from './ElementLibrary';
 import LayersTree from './LayersTree';
-import PagesTree from './PagesTree';
-import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
+import LeftSidebarPageTab from './LeftSidebarPageTab';
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
-import { pagesApi } from '../../../lib/api';
-import { findHomepage } from '../../../lib/pages';
-import type { Layer, Page } from '../../../types';
+import type { Layer } from '../../../types';
 
 // Helper function to find layer by ID recursively
 function findLayerById(layers: Layer[], id: string): Layer | null {
@@ -46,8 +43,6 @@ export default function LeftSidebar({
 }: LeftSidebarProps) {
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const [showElementLibrary, setShowElementLibrary] = useState(false);
-  const [showPageSettings, setShowPageSettings] = useState(false);
-  const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
   const { draftsByPageId, loadPages, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
@@ -64,44 +59,6 @@ export default function LeftSidebar({
     return () => window.removeEventListener('toggleElementLibrary', handleToggleElementLibrary);
   }, []);
 
-  // Handler to create a new page
-  const handleAddPage = async () => {
-    try {
-      // Generate a unique slug based on current timestamp
-      const timestamp = Date.now();
-      const newPageName = `Page ${pages.length + 1}`;
-      const newPageSlug = `page-${timestamp}`;
-
-      const createResponse = await pagesApi.create({
-        name: newPageName,
-        slug: newPageSlug,
-        is_published: false,
-        page_folder_id: null,
-        order: 0,
-        depth: 0,
-        is_index: false,
-        is_dynamic: false,
-        is_locked: false,
-        error_page: null,
-        settings: {},
-      });
-
-      if (createResponse.error) {
-        console.error('Error creating page:', createResponse.error);
-        return;
-      }
-
-      if (createResponse.data) {
-        // Reload pages to get the updated list
-        await loadPages();
-        // Switch to the new page
-        onPageSelect(createResponse.data.id);
-        setCurrentPageId(createResponse.data.id);
-      }
-    } catch (error) {
-      console.error('Exception creating page:', error);
-    }
-  };
 
   const currentPage = useMemo(
     () => pages.find(p => p.id === currentPageId) || null,
@@ -142,12 +99,12 @@ export default function LeftSidebar({
     loadFolders();
   }, [loadPages, loadFolders]);
 
-  // Load draft when page changes
+  // Load draft when page changes (only if not already in store)
   useEffect(() => {
-    if (currentPageId) {
+    if (currentPageId && !draftsByPageId[currentPageId]) {
       loadDraft(currentPageId);
     }
-  }, [currentPageId, loadDraft]);
+  }, [currentPageId, loadDraft, draftsByPageId]);
 
   // Helper to get parent for new layers
   const getParentForNewLayer = useCallback((): string | null => {
@@ -178,74 +135,6 @@ export default function LeftSidebar({
     return selectedItem.parentId;
   }, [selectedLayerId, layersForCurrentPage, findLayer]);
 
-  // Handle page editing
-  const handleEditPage = (page: Page) => {
-    setEditingPage(page);
-    setShowPageSettings(true);
-  };
-
-  const handleSavePage = async (data: PageFormData) => {
-    if (!editingPage) return;
-
-    try {
-      await pagesApi.update(editingPage.id, {
-        name: data.name,
-        slug: data.slug,
-      });
-
-      await loadPages();
-      setShowPageSettings(false);
-      setEditingPage(null);
-    } catch (error) {
-      console.error('Failed to save page:', error);
-    }
-  };
-
-  // Handle page or folder deletion
-  const deletePageOrFolderItem = async (id: string, type: 'folder' | 'page') => {
-    // TODO: Implement folder deletion when folders are fully supported
-    if (type === 'folder') {
-      console.warn('Folder deletion not yet implemented');
-      return;
-    }
-
-    // Handle page deletion
-    if (type === 'page') {
-      // Find the page for confirmation message
-      const pageToDelete = pages.find(p => p.id === id);
-      if (!pageToDelete) return;
-
-      // Confirm deletion
-      // if (!confirm(`Are you sure you want to delete "${pageToDelete.name}"?`)) {
-      //   return;
-      // }
-
-      // Delete via store (handles homepage protection and API call)
-      const result = await deletePage(id);
-
-      if (!result.success) {
-        console.error('Failed to delete page:', result.error);
-        return;
-      }
-
-      // If we deleted the current page, select a different one
-      if (currentPageId === id) {
-        // Get updated pages list from store
-        const remainingPages = pages.filter(p => p.id !== id);
-        if (remainingPages.length > 0) {
-          // Select the first remaining page (preferably the homepage)
-          const homePage = findHomepage(remainingPages);
-          const nextPage = homePage || remainingPages[0];
-          onPageSelect(nextPage.id);
-          setCurrentPageId(nextPage.id);
-        } else {
-          // No pages left
-          onPageSelect('');
-          setCurrentPageId(null);
-        }
-      }
-    }
-  };
 
   // Handle asset selection
   const handleAssetSelect = (asset: { id: string; public_url: string; filename: string }) => {
@@ -309,7 +198,6 @@ export default function LeftSidebar({
 
           {/* Content */}
           <TabsContent value="layers">
-
             <header className="py-5 flex justify-between">
               <span className="font-medium">Layers</span>
               <div className="-my-1">
@@ -317,7 +205,7 @@ export default function LeftSidebar({
                   size="xs" variant="secondary"
                   onClick={() => setShowElementLibrary(prev => !prev)}
                 >
-                  <Icon name="plus" className={showElementLibrary ? 'rotate-45' : 'rotate-0'} />
+                  <Icon name="plus" className={`${showElementLibrary ? 'rotate-45' : 'rotate-0'} transition-transform duration-100`} />
                 </Button>
               </div>
             </header>
@@ -352,32 +240,13 @@ export default function LeftSidebar({
           </TabsContent>
 
           <TabsContent value="pages">
-
-            <header className="py-5 flex justify-between">
-              <span className="font-medium">Pages</span>
-              <div className="-my-1">
-                <Button
-                  size="xs" variant="secondary"
-                  onClick={handleAddPage}
-                >
-                  <Icon name="plus" />
-                </Button>
-              </div>
-            </header>
-
-            <div className="flex flex-col">
-              <PagesTree
-                pages={pages}
-                folders={folders}
-                selectedPageId={currentPageId}
-                onPageSelect={(pageId) => {
-                  onPageSelect(pageId);
-                  setCurrentPageId(pageId);
-                }}
-                onPageSettings={handleEditPage}
-                onDelete={deletePageOrFolderItem}
-              />
-            </div>
+            <LeftSidebarPageTab
+              pages={pages}
+              folders={folders}
+              currentPageId={currentPageId}
+              onPageSelect={onPageSelect}
+              setCurrentPageId={setCurrentPageId}
+            />
           </TabsContent>
 
           <TabsContent value="cms">
@@ -407,17 +276,6 @@ export default function LeftSidebar({
             </div>
           </TabsContent>
         </Tabs>
-
-        {/* Page Settings Panel */}
-        <PageSettingsPanel
-          isOpen={showPageSettings}
-          onClose={() => {
-            setShowPageSettings(false);
-            setEditingPage(null);
-          }}
-          page={editingPage}
-          onSave={handleSavePage}
-        />
       </div>
 
       {/* Element Library Slide-Out */}

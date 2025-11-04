@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { checkSetupStatus } from '@/lib/api/setup';
 import { pagesApi, pageLayersApi } from '@/lib/api';
-import { findHomepage } from '@/lib/pages';
+import { findHomepage } from '@/lib/page-utils';
 import LayerRenderer from '@/components/layers/LayerRenderer';
 import type { Page, PageLayers } from '@/types';
 

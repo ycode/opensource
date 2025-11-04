@@ -51,14 +51,9 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { title, slug, is_published } = body;
 
-    const updates: Record<string, any> = {};
-    if (title !== undefined) updates.title = title;
-    if (slug !== undefined) updates.slug = slug;
-    if (is_published !== undefined) updates.is_published = is_published;
-
-    const page = await updatePage(id, updates);
+    // Pass all updates directly to the repository
+    const page = await updatePage(id, body);
 
     return noCache({
       data: page,

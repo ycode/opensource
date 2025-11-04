@@ -2,10 +2,11 @@
 
 import { create } from 'zustand';
 import type { Layer, Page, PageLayers, PageFolder } from '../types';
-import { pagesApi, pageLayersApi } from '../lib/api';
+import { pagesApi, pageLayersApi, foldersApi } from '../lib/api';
 import { getTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
 import { canHaveChildren } from '../lib/layer-utils';
+import { getDescendantFolderIds } from '../lib/page-utils';
 
 interface PagesState {
   pages: Page[];
@@ -21,7 +22,11 @@ interface PagesActions {
   loadPages: () => Promise<void>;
   loadFolders: () => Promise<void>;
   loadDraft: (pageId: string) => Promise<void>;
-  deletePage: (pageId: string) => Promise<{ success: boolean; error?: string }>;
+  createPage: (pageData: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>) => Promise<{ success: boolean; data?: Page; error?: string; tempId?: string }>;
+  updatePage: (pageId: string, updates: Partial<Page>) => Promise<{ success: boolean; error?: string }>;
+  deletePage: (pageId: string, currentPageId?: string | null) => Promise<{ success: boolean; error?: string; currentPageDeleted?: boolean; nextPageId?: string | null }>;
+  createFolder: (folderData: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>) => Promise<{ success: boolean; data?: PageFolder; error?: string; tempId?: string }>;
+  deleteFolder: (folderId: string, currentPageId?: string | null) => Promise<{ success: boolean; error?: string; currentPageAffected?: boolean; nextPageId?: string | null; deletedPageIds?: string[] }>;
   initDraft: (page: Page, initialLayers?: Layer[]) => void;
   updateLayerClasses: (pageId: string, layerId: string, classes: string) => void;
   saveDraft: (pageId: string) => Promise<void>;
@@ -95,9 +100,16 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     console.log('[usePagesStore.loadFolders] Starting...');
     set({ isLoading: true, error: null });
     try {
-      // For now, return empty array until we create the API endpoint
-      // TODO: Implement folder API endpoint
-      set({ folders: [], isLoading: false });
+      console.log('[usePagesStore.loadFolders] Fetching folders...');
+      const response = await foldersApi.getAll();
+      if (response.error) {
+        console.error('[usePagesStore.loadFolders] Error loading folders:', response.error);
+        set({ error: response.error, isLoading: false });
+        return;
+      }
+      const folders = response.data || [];
+      console.log('[usePagesStore.loadFolders] Fetched folders:', folders.length);
+      set({ folders, isLoading: false });
     } catch (error) {
       console.error('[usePagesStore.loadFolders] Exception loading folders:', error);
       set({ error: 'Failed to load folders', isLoading: false });
@@ -941,10 +953,149 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     }));
   },
 
-  deletePage: async (pageId) => {
+  createPage: async (pageData) => {
+    console.log('[usePagesStore.createPage] Starting...', pageData);
+
+    const { pages, draftsByPageId } = get();
+
+    // Generate temporary ID for optimistic update
+    const tempId = `temp-page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const tempPublishKey = `temp-${Date.now()}`;
+
+    // Create temporary page object
+    const tempPage: Page = {
+      id: tempId,
+      ...pageData,
+      publish_key: tempPublishKey,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      deleted_at: null,
+    };
+
+    // Create temporary draft with Body layer
+    const tempDraft: PageLayers = {
+      id: `draft-${tempId}`,
+      page_id: tempId,
+      layers: [{
+        id: 'body',
+        type: 'container' as const,
+        classes: '',
+        children: [],
+        locked: true,
+      }],
+      is_published: false,
+      publish_key: tempPublishKey,
+      created_at: new Date().toISOString(),
+      deleted_at: null,
+    };
+
+    // Optimistic update: Add to UI immediately
+    set({
+      pages: [...pages, tempPage],
+      draftsByPageId: { ...draftsByPageId, [tempId]: tempDraft },
+      isLoading: true,
+      error: null
+    });
+
+    console.log('[usePagesStore.createPage] Optimistic UI update complete, calling API...');
+
+    try {
+      const response = await pagesApi.create(pageData);
+
+      if (response.error) {
+        console.error('[usePagesStore.createPage] Error:', response.error);
+        // Rollback: Remove temp page
+        set({
+          pages: pages, // Original pages without temp
+          draftsByPageId: draftsByPageId, // Original drafts without temp
+          error: response.error,
+          isLoading: false
+        });
+        return { success: false, error: response.error };
+      }
+
+      if (response.data) {
+        // Replace temp page with real one from database
+        const { pages: currentPages, draftsByPageId: currentDrafts } = get();
+        const updatedPages = currentPages.map(p => p.id === tempId ? response.data! : p);
+
+        // Replace temp draft with real one (keeping the same structure but with real ID)
+        const updatedDrafts = { ...currentDrafts };
+        delete updatedDrafts[tempId];
+        updatedDrafts[response.data.id] = {
+          ...tempDraft,
+          id: `draft-${response.data.id}`,
+          page_id: response.data.id,
+          publish_key: response.data.publish_key,
+        };
+
+        set({
+          pages: updatedPages,
+          draftsByPageId: updatedDrafts,
+          isLoading: false
+        });
+
+        console.log('[usePagesStore.createPage] Success - replaced temp ID with real ID');
+        return { success: true, data: response.data, tempId };
+      }
+
+      return { success: false, error: 'No data returned' };
+    } catch (error) {
+      console.error('[usePagesStore.createPage] Exception:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to create page';
+      // Rollback: Remove temp page
+      set({
+        pages: pages,
+        draftsByPageId: draftsByPageId,
+        error: errorMsg,
+        isLoading: false
+      });
+      return { success: false, error: errorMsg };
+    }
+  },
+
+  updatePage: async (pageId, updates) => {
+    console.log('[usePagesStore.updatePage] Starting...', pageId, updates);
+    set({ isLoading: true, error: null });
+
+    try {
+      const response = await pagesApi.update(pageId, updates);
+
+      if (response.error) {
+        console.error('[usePagesStore.updatePage] Error:', response.error);
+        set({ error: response.error, isLoading: false });
+        return { success: false, error: response.error };
+      }
+
+      if (response.data) {
+        // Update page in local state
+        const { pages } = get();
+        const updatedPages = pages.map(p =>
+          p.id === pageId ? response.data! : p
+        );
+
+        set({
+          pages: updatedPages,
+          isLoading: false
+        });
+
+        console.log('[usePagesStore.updatePage] Success');
+        return { success: true };
+      }
+
+      return { success: false, error: 'No data returned' };
+    } catch (error) {
+      console.error('[usePagesStore.updatePage] Exception:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to update page';
+      set({ error: errorMsg, isLoading: false });
+      return { success: false, error: errorMsg };
+    }
+  },
+
+  deletePage: async (pageId, currentPageId?: string | null) => {
     console.log('[usePagesStore.deletePage] Starting...', pageId);
 
-    const { pages } = get();
+    const { pages, draftsByPageId } = get();
 
     // Find the page
     const pageToDelete = pages.find(p => p.id === pageId);
@@ -958,36 +1109,226 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       return { success: false, error: 'This page is locked and cannot be deleted' };
     }
 
-    set({ isLoading: true, error: null });
+    const isCurrentPage = currentPageId === pageId;
+
+    // Store original state for rollback
+    const originalPages = pages;
+    const originalDrafts = draftsByPageId;
+
+    // Optimistic update: Remove from UI immediately
+    const updatedPages = pages.filter(p => p.id !== pageId);
+    const updatedDrafts = { ...draftsByPageId };
+    delete updatedDrafts[pageId];
+
+    set({
+      pages: updatedPages,
+      draftsByPageId: updatedDrafts,
+      isLoading: true,
+      error: null
+    });
+
+    console.log('[usePagesStore.deletePage] Optimistic UI update complete, calling API...');
+
     try {
       const response = await pagesApi.delete(pageId);
 
       if (response.error) {
         console.error('[usePagesStore.deletePage] Error:', response.error);
-        set({ error: response.error, isLoading: false });
+        // Rollback optimistic update
+        set({
+          pages: originalPages,
+          draftsByPageId: originalDrafts,
+          error: response.error,
+          isLoading: false
+        });
         return { success: false, error: response.error };
       }
 
-      // Remove the page from local state
-      const updatedPages = pages.filter(p => p.id !== pageId);
-
-      // Remove associated draft
-      const { draftsByPageId } = get();
-      const updatedDrafts = { ...draftsByPageId };
-      delete updatedDrafts[pageId];
-
-      set({
-        pages: updatedPages,
-        draftsByPageId: updatedDrafts,
-        isLoading: false
-      });
-
+      set({ isLoading: false });
       console.log('[usePagesStore.deletePage] Success');
-      return { success: true };
+
+      // Determine next page to select if current was deleted
+      let nextPageId: string | null = null;
+      if (isCurrentPage && updatedPages.length > 0) {
+        const homePage = updatedPages.find(p => p.is_locked && p.is_index && p.depth === 0);
+        nextPageId = (homePage || updatedPages[0]).id;
+      }
+
+      return {
+        success: true,
+        currentPageDeleted: isCurrentPage,
+        nextPageId,
+      };
     } catch (error) {
       console.error('[usePagesStore.deletePage] Exception:', error);
       const errorMsg = error instanceof Error ? error.message : 'Failed to delete page';
-      set({ error: errorMsg, isLoading: false });
+      // Rollback optimistic update
+      set({
+        pages: originalPages,
+        draftsByPageId: originalDrafts,
+        error: errorMsg,
+        isLoading: false
+      });
+      return { success: false, error: errorMsg };
+    }
+  },
+
+  createFolder: async (folderData) => {
+    console.log('[usePagesStore.createFolder] Starting...', folderData);
+
+    const { folders } = get();
+
+    // Generate temporary ID for optimistic update
+    const tempId = `temp-folder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const tempPublishKey = `temp-${Date.now()}`;
+
+    // Create temporary folder object
+    const tempFolder: PageFolder = {
+      id: tempId,
+      ...folderData,
+      publish_key: tempPublishKey,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      deleted_at: null,
+    };
+
+    // Optimistic update: Add to UI immediately
+    set({
+      folders: [...folders, tempFolder],
+      isLoading: true,
+      error: null
+    });
+
+    console.log('[usePagesStore.createFolder] Optimistic UI update complete, calling API...');
+
+    try {
+      const response = await foldersApi.create(folderData);
+
+      if (response.error) {
+        console.error('[usePagesStore.createFolder] Error:', response.error);
+        // Rollback: Remove temp folder
+        set({
+          folders: folders, // Original folders without temp
+          error: response.error,
+          isLoading: false
+        });
+        return { success: false, error: response.error };
+      }
+
+      if (response.data) {
+        // Replace temp folder with real one from database
+        const { folders: currentFolders } = get();
+        const updatedFolders = currentFolders.map(f => f.id === tempId ? response.data! : f);
+
+        set({
+          folders: updatedFolders,
+          isLoading: false
+        });
+
+        console.log('[usePagesStore.createFolder] Success - replaced temp ID with real ID');
+        return { success: true, data: response.data, tempId };
+      }
+
+      return { success: false, error: 'No data returned' };
+    } catch (error) {
+      console.error('[usePagesStore.createFolder] Exception:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to create folder';
+      // Rollback: Remove temp folder
+      set({
+        folders: folders,
+        error: errorMsg,
+        isLoading: false
+      });
+      return { success: false, error: errorMsg };
+    }
+  },
+
+  deleteFolder: async (folderId, currentPageId?: string | null) => {
+    console.log('[usePagesStore.deleteFolder] Starting...', folderId);
+
+    const { folders, pages, draftsByPageId } = get();
+
+    // Store original state for rollback
+    const originalFolders = folders;
+    const originalPages = pages;
+    const originalDrafts = draftsByPageId;
+
+    // Get all descendant folder IDs using the utility function
+    const descendantFolderIds = getDescendantFolderIds(folderId, folders);
+    const allFolderIds = [folderId, ...descendantFolderIds];
+
+    console.log(`[usePagesStore.deleteFolder] Deleting folder and ${descendantFolderIds.length} descendants`);
+
+    // Check if current page is affected
+    const currentPage = currentPageId ? pages.find(p => p.id === currentPageId) : null;
+    const isCurrentPageAffected = !!(currentPage && currentPage.page_folder_id && allFolderIds.includes(currentPage.page_folder_id));
+
+    // Calculate what will be deleted
+    const updatedFolders = folders.filter(f => !allFolderIds.includes(f.id));
+    const deletedPageIds = pages.filter(p => p.page_folder_id && allFolderIds.includes(p.page_folder_id)).map(p => p.id);
+    const updatedPages = pages.filter(p => !p.page_folder_id || !allFolderIds.includes(p.page_folder_id));
+
+    // Remove drafts for deleted pages
+    const updatedDrafts = { ...draftsByPageId };
+    deletedPageIds.forEach(pageId => {
+      delete updatedDrafts[pageId];
+    });
+
+    // Optimistic update: Remove from UI immediately
+    set({
+      folders: updatedFolders,
+      pages: updatedPages,
+      draftsByPageId: updatedDrafts,
+      isLoading: true,
+      error: null
+    });
+
+    console.log('[usePagesStore.deleteFolder] Optimistic UI update complete, calling API...');
+
+    try {
+      // Delete from API
+      const response = await foldersApi.delete(folderId);
+
+      if (response.error) {
+        console.error('[usePagesStore.deleteFolder] Error:', response.error);
+        // Rollback optimistic update
+        set({
+          folders: originalFolders,
+          pages: originalPages,
+          draftsByPageId: originalDrafts,
+          error: response.error,
+          isLoading: false
+        });
+        return { success: false, error: response.error };
+      }
+
+      set({ isLoading: false });
+      console.log(`[usePagesStore.deleteFolder] Success - removed ${allFolderIds.length} folders and ${deletedPageIds.length} pages`);
+
+      // Determine next page to select if current was affected
+      let nextPageId: string | null = null;
+      if (isCurrentPageAffected && updatedPages.length > 0) {
+        const homePage = updatedPages.find(p => p.is_locked && p.is_index && p.depth === 0);
+        nextPageId = (homePage || updatedPages[0]).id;
+      }
+
+      return {
+        success: true,
+        currentPageAffected: isCurrentPageAffected,
+        nextPageId,
+        deletedPageIds,
+      };
+    } catch (error) {
+      console.error('[usePagesStore.deleteFolder] Exception:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to delete folder';
+      // Rollback optimistic update
+      set({
+        folders: originalFolders,
+        pages: originalPages,
+        draftsByPageId: originalDrafts,
+        error: errorMsg,
+        isLoading: false
+      });
       return { success: false, error: errorMsg };
     }
   },

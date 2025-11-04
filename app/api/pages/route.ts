@@ -88,7 +88,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('[POST /api/pages] Request body:', body);
 
-    const { name, slug, is_published = false } = body;
+    const {
+      name,
+      slug,
+      is_published = false,
+      page_folder_id = null,
+      order = 0,
+      depth = 0,
+      is_index = false,
+      is_dynamic = false,
+      is_locked = false,
+      error_page = null,
+      settings = {},
+    } = body;
 
     // Validate required fields
     if (!name || !slug) {
@@ -99,13 +111,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[POST /api/pages] Creating page:', { name, slug, is_published });
+    console.log('[POST /api/pages] Creating page:', {
+      name,
+      slug,
+      is_published,
+      page_folder_id,
+      order,
+      depth,
+    });
 
     // Create page
     const page = await createPage({
       name,
       slug,
       is_published,
+      page_folder_id,
+      order,
+      depth,
+      is_index,
+      is_dynamic,
+      is_locked,
+      error_page,
+      settings,
     });
 
     console.log('[POST /api/pages] Page created:', page.id);

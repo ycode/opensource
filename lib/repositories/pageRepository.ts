@@ -214,8 +214,9 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
 }
 
 /**
- * Soft delete a page (Laravel-style)
+ * Soft delete a page and its associated page layers
  * Sets deleted_at to current timestamp instead of hard deleting
+ * Also deletes all page_layers (draft and published) for this page
  */
 export async function deletePage(id: string): Promise<void> {
   const client = await getSupabaseAdmin();
@@ -224,15 +225,31 @@ export async function deletePage(id: string): Promise<void> {
     throw new Error('Supabase not configured');
   }
 
+  const deletedAt = new Date().toISOString();
+
+  // Delete all page_layers (draft and published) for this page
+  const { error: layersError } = await client
+    .from('page_layers')
+    .update({ deleted_at: deletedAt })
+    .eq('page_id', id)
+    .is('deleted_at', null);
+
+  if (layersError) {
+    throw new Error(`Failed to delete page layers: ${layersError.message}`);
+  }
+
+  // Delete the page itself
   const { error } = await client
     .from('pages')
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ deleted_at: deletedAt })
     .eq('id', id)
-    .is('deleted_at', null); // Only delete if not already deleted
+    .is('deleted_at', null);
 
   if (error) {
     throw new Error(`Failed to delete page: ${error.message}`);
   }
+
+  console.log(`[deletePage] Successfully deleted page ${id} and its layers`);
 }
 
 /**

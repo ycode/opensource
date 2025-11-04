@@ -208,19 +208,24 @@ function LayerRow({
       onLayerSelect={onSelect}
     >
       <div className="relative">
-        {/* Vertical connector line */}
+        {/* Vertical connector lines - one for each depth level */}
         {node.depth > 0 && (
-          <div
-            className={cn(
-              'absolute z-10 top-0 bottom-0 w-px ',
-              isSelected && 'bg-white/10',
-              !isSelected && 'bg-secondary',
-              !isSelected && isChildOfSelected && 'bg-white/10',
-            )}
-            style={{
-              left: `${node.depth * 18 - 2}px`,
-            }}
-          />
+          <>
+            {Array.from({ length: node.depth }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'absolute z-10 top-0 bottom-0 w-px ',
+                  isSelected && 'bg-white/10',
+                  !isSelected && 'bg-secondary',
+                  !isSelected && isChildOfSelected && 'bg-white/10',
+                )}
+                style={{
+                  left: `${(i + 1) * 18 - 2}px`,
+                }}
+              />
+            ))}
+          </>
         )}
 
         {/* Drop Indicators */}

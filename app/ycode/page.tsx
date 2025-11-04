@@ -25,7 +25,7 @@ import { useEditorStore } from '../../stores/useEditorStore';
 import { usePagesStore } from '../../stores/usePagesStore';
 
 // 4. Utils
-import { findHomepage } from '../../lib/pages';
+import { findHomepage } from '../../lib/page-utils';
 
 // 5. Types
 import type { Layer } from '../../types';
@@ -45,7 +45,7 @@ export default function YCodeBuilder() {
   const [zoom, setZoom] = useState(100);
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastLayersRef = useRef<string>('');
+  const lastLayersByPageRef = useRef<Map<string, string>>(new Map());
   const previousPageIdRef = useRef<string | null>(null);
 
   // Migration state - BLOCKS builder until migrations complete
@@ -391,9 +391,13 @@ export default function YCodeBuilder() {
           hasUnsavedChanges) {
         try {
           await saveImmediately(previousPageIdRef.current);
+          setHasUnsavedChanges(false); // Clear unsaved flag after successful save
         } catch (error) {
           console.error('Failed to save before navigation:', error);
         }
+      } else if (previousPageIdRef.current !== currentPageId) {
+        // Switching to a different page without unsaved changes - clear the flag
+        setHasUnsavedChanges(false);
       }
 
       // Update the ref to track current page
@@ -411,15 +415,16 @@ export default function YCodeBuilder() {
 
     const draft = draftsByPageId[currentPageId];
     const currentLayersJSON = JSON.stringify(draft.layers);
+    const lastLayersJSON = lastLayersByPageRef.current.get(currentPageId);
 
-    // Only trigger save if layers actually changed
-    if (lastLayersRef.current && lastLayersRef.current !== currentLayersJSON) {
+    // Only trigger save if layers actually changed for THIS page
+    if (lastLayersJSON && lastLayersJSON !== currentLayersJSON) {
       setHasUnsavedChanges(true);
       debouncedSave(currentPageId);
     }
 
-    // Update the ref for next comparison
-    lastLayersRef.current = currentLayersJSON;
+    // Update the ref for next comparison (store per page)
+    lastLayersByPageRef.current.set(currentPageId, currentLayersJSON);
 
     // Cleanup timeout on unmount
     return () => {

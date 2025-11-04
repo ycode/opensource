@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
-import { buildPageTree, flattenPageTree, rebuildPageTree, type PageTreeNode, type FlattenedPageNode } from '@/lib/pages';
+import { buildPageTree, flattenPageTree, rebuildPageTree, getNodeIcon, type PageTreeNode, type FlattenedPageNode } from '@/lib/page-utils';
 import Icon from '@/components/ui/icon';
 import PageContextMenu from './PageContextMenu';
 import type { Page, PageFolder } from '@/types';
@@ -11,9 +11,11 @@ import { cn } from '@/lib/utils';
 interface PagesTreeProps {
   pages: Page[];
   folders: PageFolder[];
-  selectedPageId: string | null;
+  selectedItemId: string | null;
+  currentPageId?: string | null;
   onPageSelect: (pageId: string) => void;
   onFolderSelect?: (folderId: string) => void;
+  onPageOpen?: (pageId: string) => void;
   onReorder?: (pages: Page[], folders: PageFolder[]) => void;
   onPageSettings?: (page: Page) => void;
   onDelete?: (id: string, type: 'folder' | 'page') => void;
@@ -29,6 +31,7 @@ interface PageRowProps {
   isDragActive: boolean;
   dropPosition: 'above' | 'below' | 'inside' | null;
   onSelect: (id: string, type: 'folder' | 'page') => void;
+  onOpen?: (id: string) => void;
   onToggle: (id: string) => void;
   onSettings?: (page: Page) => void;
   onDelete?: (id: string, type: 'folder' | 'page') => void;
@@ -70,6 +73,7 @@ function PageRow({
   isDragActive,
   dropPosition,
   onSelect,
+  onOpen,
   onToggle,
   onSettings,
   onDelete,
@@ -97,23 +101,29 @@ function PageRow({
     <PageContextMenu
       item={node.data}
       nodeType={node.type}
+      onOpen={node.type === 'page' && onOpen ? () => onOpen(node.id) : undefined}
       onSettings={node.type === 'page' && onSettings ? () => onSettings(node.data as Page) : undefined}
       onDelete={onDelete ? () => onDelete(node.id, node.type) : undefined}
       onDuplicate={onDuplicate ? () => onDuplicate(node.id, node.type) : undefined}
       onRename={onRename ? () => onRename(node.id, node.type) : undefined}
     >
       <div className="relative">
-      {/* Vertical connector line */}
+      {/* Vertical connector lines - one for each depth level */}
       {node.depth > 0 && (
-        <div
-          className={cn(
-            'absolute z-10 top-0 bottom-0 w-px bg-secondary',
-            isSelected && 'bg-white/10'
-          )}
-          style={{
-            left: `${node.depth * 18 - 2}px`,
-          }}
-        />
+        <>
+          {Array.from({ length: node.depth }).map((_, i) => (
+            <div
+              key={i}
+              className={cn(
+                'absolute z-10 top-0 bottom-0 w-px bg-secondary',
+                isSelected && 'bg-white/10'
+              )}
+              style={{
+                left: `${(i + 1) * 18 - 2}px`,
+              }}
+            />
+          ))}
+        </>
       )}
 
       {/* Drop Indicators */}
@@ -149,13 +159,19 @@ function PageRow({
         data-drag-active={isDragActive}
         data-node-id={node.id}
         className={cn(
-          'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg',
+          'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg cursor-pointer select-none',
           !isDragActive && !isDragging && 'hover:bg-secondary/50',
           isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
           !isSelected && 'text-secondary-foreground/80 dark:text-primary-foreground/80'
         )}
         style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
         onClick={() => onSelect(node.id, node.type)}
+        onDoubleClick={() => {
+          if (node.type === 'page' && onOpen) {
+            onOpen(node.id);
+          }
+        }}
+        onContextMenu={() => onSelect(node.id, node.type)}
       >
         {/* Expand/Collapse Button */}
         {hasChildren ? (
@@ -165,7 +181,7 @@ function PageRow({
               onToggle(node.id);
             }}
             className={cn(
-              'w-4 h-4 flex items-center justify-center flex-shrink-0',
+              'w-4 h-4 flex items-center justify-center flex-shrink-0 cursor-pointer',
               isCollapsed ? '' : 'rotate-90'
             )}
           >
@@ -176,11 +192,9 @@ function PageRow({
         )}
 
         {/* Icon */}
-        <div
-          className={cn(
-            'size-3 bg-secondary rounded mx-1.5',
-            isSelected && 'opacity-10 dark:bg-white'
-          )}
+        <Icon
+          name={getNodeIcon(node)}
+          className={`size-3 ml-1 mr-2 ${isSelected ? 'opacity-90' : 'opacity-50'}`}
         />
 
         {/* Label */}
@@ -189,15 +203,15 @@ function PageRow({
         </span>
 
         {/* Settings button (for pages only) */}
-        {node.type === 'page' && onSettings && (
+        {onSettings && (
           <button
             onClick={(e) => {
               e.stopPropagation();
               onSettings(node.data as Page);
             }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity mr-2"
+            className="opacity-0 group-hover:opacity-80 hover:opacity-100 transition-opacity mr-2.5 cursor-pointer"
           >
-            <Icon name="edit" className="w-3 h-3" />
+            <Icon name="dotsHorizontal" className="size-3" />
           </button>
         )}
       </div>
@@ -210,9 +224,10 @@ function PageRow({
 export default function PagesTree({
   pages,
   folders,
-  selectedPageId,
+  selectedItemId,
   onPageSelect,
   onFolderSelect,
+  onPageOpen,
   onReorder,
   onPageSettings,
   onDelete,
@@ -498,12 +513,13 @@ export default function PagesTree({
           <PageRow
             key={node.id}
             node={node}
-            isSelected={node.type === 'page' && node.id === selectedPageId}
+            isSelected={node.id === selectedItemId}
             isOver={overId === node.id}
             isDragging={activeId === node.id}
             isDragActive={!!activeId}
             dropPosition={overId === node.id ? dropPosition : null}
             onSelect={handleSelect}
+            onOpen={onPageOpen}
             onToggle={handleToggle}
             onSettings={onPageSettings}
             onDelete={onDelete}
@@ -520,7 +536,10 @@ export default function PagesTree({
             className="flex items-center text-white text-xs h-8 rounded-lg"
             style={{ transform: 'translateX(40px)' }}
           >
-            <div className="size-3 bg-white/10 rounded mx-1.5" />
+            <Icon
+              name={getNodeIcon(activeNode)}
+              className="size-3 mr-2"
+            />
             <span className="pointer-events-none">{getNodeDisplayName(activeNode)}</span>
           </div>
         ) : null}

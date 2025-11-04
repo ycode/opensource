@@ -184,8 +184,65 @@ export async function updatePageFolder(id: string, updates: UpdatePageFolderData
 }
 
 /**
- * Soft delete a page folder
+ * Get all descendant folder IDs recursively
+ * Fetches all folders once and traverses in memory for better performance
+ *
+ * This is the database-aware version that fetches folders from Supabase.
+ * For in-memory operations, use the utility function from lib/pages.ts instead.
+ *
+ * @param folderId - Parent folder ID
+ * @returns Array of all descendant folder IDs
+ */
+async function getDescendantFolderIdsFromDB(folderId: string): Promise<string[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // Fetch all non-deleted folders once
+  const { data: allFolders, error } = await client
+    .from('page_folders')
+    .select('id, page_folder_id')
+    .is('deleted_at', null);
+
+  if (error) {
+    throw new Error(`Failed to fetch folders: ${error.message}`);
+  }
+
+  if (!allFolders || allFolders.length === 0) {
+    return [];
+  }
+
+  // Build a map for quick lookup: parentId -> childIds[]
+  const foldersByParent = new Map<string, string[]>();
+  for (const folder of allFolders) {
+    const parentId = folder.page_folder_id || 'root';
+    if (!foldersByParent.has(parentId)) {
+      foldersByParent.set(parentId, []);
+    }
+    foldersByParent.get(parentId)!.push(folder.id);
+  }
+
+  // Recursively collect all descendant IDs using in-memory data
+  const collectDescendants = (parentId: string): string[] => {
+    const children = foldersByParent.get(parentId) || [];
+    const descendants: string[] = [...children];
+
+    for (const childId of children) {
+      descendants.push(...collectDescendants(childId));
+    }
+
+    return descendants;
+  };
+
+  return collectDescendants(folderId);
+}
+
+/**
+ * Soft delete a page folder and all its nested pages and folders
  * Sets deleted_at to current timestamp instead of hard deleting
+ * Recursively deletes all child folders, pages, and their page_layers
  */
 export async function deletePageFolder(id: string): Promise<void> {
   const client = await getSupabaseAdmin();
@@ -194,15 +251,63 @@ export async function deletePageFolder(id: string): Promise<void> {
     throw new Error('Supabase not configured');
   }
 
-  const { error } = await client
-    .from('page_folders')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id)
-    .is('deleted_at', null); // Only delete if not already deleted
+  const deletedAt = new Date().toISOString();
 
-  if (error) {
-    throw new Error(`Failed to delete page folder: ${error.message}`);
+  // Query 1: Get all descendant folder IDs from database
+  const descendantFolderIds = await getDescendantFolderIdsFromDB(id);
+  const allFolderIds = [id, ...descendantFolderIds];
+
+  console.log(`[deletePageFolder] Deleting folder ${id} and ${descendantFolderIds.length} descendant folders`);
+
+  // Query 2: Get all page IDs within these folders
+  const { data: affectedPages, error: fetchPagesError } = await client
+    .from('pages')
+    .select('id')
+    .in('page_folder_id', allFolderIds)
+    .is('deleted_at', null);
+
+  if (fetchPagesError) {
+    throw new Error(`Failed to fetch pages in folder: ${fetchPagesError.message}`);
   }
+
+  const affectedPageIds = affectedPages?.map(p => p.id) || [];
+
+  // Query 3: Delete all page_layers for affected pages (if any)
+  if (affectedPageIds.length > 0) {
+    const { error: layersError } = await client
+      .from('page_layers')
+      .update({ deleted_at: deletedAt })
+      .in('page_id', affectedPageIds)
+      .is('deleted_at', null);
+
+    if (layersError) {
+      throw new Error(`Failed to delete page layers: ${layersError.message}`);
+    }
+  }
+
+  // Query 4: Delete all pages within this folder and its descendants
+  const { error: pagesError } = await client
+    .from('pages')
+    .update({ deleted_at: deletedAt })
+    .in('page_folder_id', allFolderIds)
+    .is('deleted_at', null);
+
+  if (pagesError) {
+    throw new Error(`Failed to delete pages in folder: ${pagesError.message}`);
+  }
+
+  // Query 5: Delete ALL folders (parent + descendants) in a single query
+  const { error: foldersError } = await client
+    .from('page_folders')
+    .update({ deleted_at: deletedAt })
+    .in('id', allFolderIds)
+    .is('deleted_at', null);
+
+  if (foldersError) {
+    throw new Error(`Failed to delete folders: ${foldersError.message}`);
+  }
+
+  console.log(`[deletePageFolder] Successfully deleted folder ${id}, ${affectedPageIds.length} pages, and their layers`);
 }
 
 /**

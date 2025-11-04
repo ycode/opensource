@@ -4,7 +4,7 @@
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageLayers, Layer, Asset, ApiResponse } from '../types';
+import type { Page, PageLayers, Layer, Asset, PageFolder, ApiResponse } from '../types';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -94,6 +94,37 @@ export const pagesApi = {
   // Delete page
   async delete(id: string): Promise<ApiResponse<void>> {
     return apiRequest<void>(`/api/pages/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// Folders API
+export const foldersApi = {
+  // Get all folders
+  async getAll(): Promise<ApiResponse<PageFolder[]>> {
+    return apiRequest<PageFolder[]>('/api/folders');
+  },
+
+  // Create new folder
+  async create(folder: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>): Promise<ApiResponse<PageFolder>> {
+    return apiRequest<PageFolder>('/api/folders', {
+      method: 'POST',
+      body: JSON.stringify(folder),
+    });
+  },
+
+  // Update folder
+  async update(id: string, folder: Partial<PageFolder>): Promise<ApiResponse<PageFolder>> {
+    return apiRequest<PageFolder>(`/api/folders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(folder),
+    });
+  },
+
+  // Delete folder
+  async delete(id: string): Promise<ApiResponse<void>> {
+    return apiRequest<void>(`/api/folders/${id}`, {
       method: 'DELETE',
     });
   },

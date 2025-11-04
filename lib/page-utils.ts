@@ -29,6 +29,65 @@ export function findHomepage(pages: Page[]): Page | null {
 }
 
 /**
+ * Get all descendant folder IDs for a given folder
+ *
+ * This function builds a map for efficient lookup and recursively finds
+ * all child folders at any depth.
+ *
+ * @param folderId - The parent folder ID to find descendants for
+ * @param allFolders - Array of all folders to search through
+ * @returns Array of descendant folder IDs (does not include the parent folder ID)
+ *
+ * @example
+ * const folders = [
+ *   { id: 'a', page_folder_id: null },
+ *   { id: 'b', page_folder_id: 'a' },
+ *   { id: 'c', page_folder_id: 'b' },
+ * ];
+ * getDescendantFolderIds('a', folders); // Returns: ['b', 'c']
+ */
+export function getDescendantFolderIds(
+  folderId: string,
+  allFolders: PageFolder[]
+): string[] {
+  // Build a map for quick lookup: parentId -> childIds[]
+  const foldersByParent = new Map<string, string[]>();
+  for (const folder of allFolders) {
+    const parentId = folder.page_folder_id || 'root';
+    if (!foldersByParent.has(parentId)) {
+      foldersByParent.set(parentId, []);
+    }
+    foldersByParent.get(parentId)!.push(folder.id);
+  }
+
+  // Recursively collect all descendant IDs
+  const collectDescendants = (parentId: string): string[] => {
+    const children = foldersByParent.get(parentId) || [];
+    const descendants: string[] = [...children];
+
+    for (const childId of children) {
+      descendants.push(...collectDescendants(childId));
+    }
+
+    return descendants;
+  };
+
+  return collectDescendants(folderId);
+}
+
+/**
+ * Get icon name based on node type and data
+ */
+export function getNodeIcon(node: FlattenedPageNode | PageTreeNode): 'folder' | 'homepage' | 'page' {
+  if (node.type === 'folder') {
+    return 'folder';
+  } else {
+    const page = node.data as Page;
+    return page.is_index ? 'homepage' : 'page';
+  }
+}
+
+/**
  * Build a tree structure from pages and folders
  */
 export function buildPageTree(

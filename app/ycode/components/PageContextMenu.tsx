@@ -8,6 +8,7 @@ interface PageContextMenuProps {
   item: Page | PageFolder;
   children: React.ReactNode;
   nodeType: 'page' | 'folder';
+  onOpen?: () => void; // For pages
   onRename?: () => void;
   onDuplicate?: () => void;
   onDelete?: () => void;
@@ -20,6 +21,7 @@ export default function PageContextMenu({
   item,
   children,
   nodeType,
+  onOpen,
   onRename,
   onDuplicate,
   onDelete,
@@ -36,14 +38,22 @@ export default function PageContextMenu({
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className="w-44">
-        {nodeType === 'page' && onSettings && (
+        {nodeType === 'page' && onOpen && (
           <>
-            <ContextMenuItem onClick={onSettings}>
-              <span>Edit page</span>
+            <ContextMenuItem onClick={onOpen}>
+              <span>Open</span>
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>
         )}
+
+        {nodeType === 'page' && onSettings && (
+          <ContextMenuItem onClick={onSettings}>
+            <span>Edit page</span>
+          </ContextMenuItem>
+        )}
+
+        {nodeType === 'page' && (onOpen || onSettings) && <ContextMenuSeparator />}
 
         {nodeType === 'folder' && (
           <>

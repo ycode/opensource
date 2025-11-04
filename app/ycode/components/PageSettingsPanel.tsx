@@ -71,7 +71,7 @@ export default function PageSettingsPanel({
       return;
     }
 
-    if (!slug.trim()) {
+    if (!page?.is_locked && !slug.trim()) {
       setError('Slug is required');
       return;
     }
