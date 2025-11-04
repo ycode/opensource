@@ -30,6 +30,17 @@ import {
   FormLabel,
   FormMessage
 } from '@/components/ui/form';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { usePagesStore } from '@/stores/usePagesStore';
+import { Spinner } from '@/components/ui/spinner';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger
+} from '@/components/ui/select';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -73,30 +84,81 @@ export default function CMS() {
 
         <hr />
 
+        <div className="overflow-x-auto">
+
+            <table className="w-full">
+              <thead className="border-b">
+                <tr>
+                  <th className="px-4 py-5 text-left font-normal">
+                    <span>Name</span>
+                  </th>
+                  <th className="px-4 py-5 text-left font-normal">
+                    <span>Slug</span>
+                  </th>
+                  <th className="px-4 py-5 text-left font-normal w-24">
+                    <div className="-my-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button size="sm" variant="ghost">
+                            <Icon name="plus" />
+                            Add field
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="mr-4">
+                          <div className="flex flex-col gap-3">
+                            <div className="grid grid-cols-3">
+                              <Label variant="muted">Name</Label>
+                              <div className="col-span-2 *:w-full">
+                                <Input />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3">
+                              <Label variant="muted">Type</Label>
+                              <div className="col-span-2 *:w-full">
+                                <Select>
+                                  <SelectTrigger>
+                                    Text
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectGroup>
+                                      <SelectItem value="1">Text</SelectItem>
+                                      <SelectItem value="2">Link</SelectItem>
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                            >
+                              Create field
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="group border-b hover:bg-secondary">
+                  <td className="px-4 py-5 text-muted-foreground">
+                    <span>My first blog post</span>
+                  </td>
+                  <td className="px-4 py-5 text-muted-foreground">
+                    <span>my-first-blog-post</span>
+                  </td>
+                  <td className="px-4 py-5"></td>
+                </tr>
+              </tbody>
+            </table>
+
+        </div>
+
         <div>
 
-            <div className="grid grid-flow-col border-b">
-                <div className="px-4 py-5">
-                    <span>Name</span>
-                </div>
-                <div className="px-4 py-5">
-                    <span>Slug</span>
-                </div>
-            </div>
-
-            <div className="group">
-                <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary">
-                    <div className="px-4 py-5">
-                        <span>My first blog post</span>
-                    </div>
-                    <div className="px-4 py-5">
-                        <span>my-first-blog-post</span>
-                    </div>
-                </div>
-                <hr className="ml-4" />
-            </div>
-
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <div className="group">
                 <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary">
