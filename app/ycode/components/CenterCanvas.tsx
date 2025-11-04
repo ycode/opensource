@@ -52,7 +52,7 @@ export default function CenterCanvas({
   const [iframeReady, setIframeReady] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { draftsByPageId, addLayer, updateLayer } = usePagesStore();
-  const { setSelectedLayerId } = useEditorStore();
+  const { setSelectedLayerId, activeUIState } = useEditorStore();
 
   const layers = useMemo(() => {
     if (!currentPageId) {
@@ -86,6 +86,16 @@ export default function CenterCanvas({
       payload: { breakpoint: viewportMode },
     });
   }, [viewportMode, iframeReady]);
+
+  // Send UI state updates to iframe
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    sendToIframe(iframeRef.current, {
+      type: 'UPDATE_UI_STATE',
+      payload: { uiState: activeUIState },
+    });
+  }, [activeUIState, iframeReady]);
 
   // Listen for messages from iframe
   useEffect(() => {

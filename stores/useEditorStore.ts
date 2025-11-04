@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import { EditorState } from '../types';
+import { EditorState, UIState } from '../types';
 import type { Layer } from '../types';
 
 interface HistoryEntry {
@@ -21,6 +21,7 @@ interface EditorActions {
   setLoading: (value: boolean) => void;
   setSaving: (value: boolean) => void;
   setActiveBreakpoint: (breakpoint: 'mobile' | 'tablet' | 'desktop') => void;
+  setActiveUIState: (state: UIState) => void;
   pushHistory: (pageId: string, layers: Layer[]) => void;
   undo: () => HistoryEntry | null;
   redo: () => HistoryEntry | null;
@@ -45,6 +46,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   isLoading: false,
   isSaving: false,
   activeBreakpoint: 'mobile' as 'mobile' | 'tablet' | 'desktop',
+  activeUIState: 'neutral' as UIState,
   history: [],
   historyIndex: -1,
   maxHistorySize: 50,
@@ -129,10 +131,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
   },
   
-  setCurrentPageId: (id) => set({ currentPageId: id }),
+  setCurrentPageId: (id) => set({ 
+    currentPageId: id,
+    activeUIState: 'neutral' // Reset to neutral on page change
+  }),
   setLoading: (value) => set({ isLoading: value }),
   setSaving: (value) => set({ isSaving: value }),
   setActiveBreakpoint: (breakpoint) => set({ activeBreakpoint: breakpoint }),
+  setActiveUIState: (state) => set({ activeUIState: state }),
   
   pushHistory: (pageId, layers) => {
     const { history, historyIndex, maxHistorySize } = get();

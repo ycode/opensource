@@ -21,11 +21,12 @@ interface BorderControlsProps {
 }
 
 export default function BorderControls({ layer, onLayerUpdate }: BorderControlsProps) {
-  const { activeBreakpoint } = useEditorStore();
+  const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, updateDesignProperties, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
-    activeBreakpoint
+    activeBreakpoint,
+    activeUIState,
   });
   
   // Extract numeric value from design property
@@ -82,7 +83,8 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
     individualProperties: ['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomRightRadius', 'borderBottomLeftRadius'],
     updateDesignProperty,
     updateDesignProperties,
-    getCurrentValue: useCallback((prop: string) => getDesignProperty('borders', prop) || '', [getDesignProperty]),
+    // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
+    getCurrentValue: (prop: string) => getDesignProperty('borders', prop) || '',
   });
   
   const widthModeToggle = useModeToggle({
@@ -91,7 +93,8 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
     individualProperties: ['borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth'],
     updateDesignProperty,
     updateDesignProperties,
-    getCurrentValue: useCallback((prop: string) => getDesignProperty('borders', prop) || '', [getDesignProperty]),
+    // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
+    getCurrentValue: (prop: string) => getDesignProperty('borders', prop) || '',
   });
   
   // Extract numeric value from design property

@@ -20,11 +20,12 @@ interface SpacingControlsProps {
 }
 
 export default function SpacingControls({ layer, onLayerUpdate }: SpacingControlsProps) {
-  const { activeBreakpoint } = useEditorStore();
+  const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, updateDesignProperties, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
-    activeBreakpoint
+    activeBreakpoint,
+    activeUIState,
   });
   
   const [marginUnit, setMarginUnit] = useState<'px' | 'rem' | 'em'>('px');
@@ -65,7 +66,8 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     individualProperties: ['marginTop', 'marginRight', 'marginBottom', 'marginLeft'],
     updateDesignProperty,
     updateDesignProperties,
-    getCurrentValue: useCallback((prop: string) => getDesignProperty('spacing', prop) || '', [getDesignProperty]),
+    // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
+    getCurrentValue: (prop: string) => getDesignProperty('spacing', prop) || '',
   });
   
   // Handle margin changes

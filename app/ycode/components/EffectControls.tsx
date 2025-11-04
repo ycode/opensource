@@ -17,11 +17,12 @@ interface EffectControlsProps {
 }
 
 export default function EffectControls({ layer, onLayerUpdate }: EffectControlsProps) {
-  const { activeBreakpoint } = useEditorStore();
+  const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
-    activeBreakpoint
+    activeBreakpoint,
+    activeUIState,
   });
   
   // Get current values from layer (no inheritance - only exact breakpoint values)

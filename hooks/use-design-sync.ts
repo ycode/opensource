@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useMemo } from 'react';
-import type { Layer } from '@/types';
+import type { Layer, UIState } from '@/types';
 import {
   propertyToClass,
   replaceConflictingClasses,
@@ -21,9 +21,15 @@ interface UseDesignSyncProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
   activeBreakpoint?: Breakpoint; // Optional for backward compatibility
+  activeUIState?: UIState; // Optional UI state for state-specific styling
 }
 
-export function useDesignSync({ layer, onLayerUpdate, activeBreakpoint = 'desktop' }: UseDesignSyncProps) {
+export function useDesignSync({ 
+  layer, 
+  onLayerUpdate, 
+  activeBreakpoint = 'desktop',
+  activeUIState = 'neutral'
+}: UseDesignSyncProps) {
   /**
    * Update a single design property and sync to classes
    * Applies breakpoint-aware class prefixes based on active viewport
@@ -62,13 +68,15 @@ export function useDesignSync({ layer, onLayerUpdate, activeBreakpoint = 'deskto
         ? layer.classes
         : (layer.classes || '').split(' ').filter(Boolean);
       
-      // 4. Apply breakpoint-aware class replacement
+      // 4. Apply breakpoint-aware class replacement with UI state support
       // Uses setBreakpointClass which applies correct prefix (desktop → '', tablet → 'max-lg:', mobile → 'max-md:')
+      // and state prefix (neutral → '', hover → 'hover:', etc.)
       const updatedClasses = setBreakpointClass(
         existingClasses,
         property,
         newClass,
-        activeBreakpoint
+        activeBreakpoint,
+        activeUIState
       );
       
       // 5. Update layer with both design object and classes
@@ -79,6 +87,7 @@ export function useDesignSync({ layer, onLayerUpdate, activeBreakpoint = 'deskto
         value,
         newClass,
         activeBreakpoint,
+        activeUIState,
         existingClasses,
         updatedClasses,
         updatedClassesString: updatedClasses.join(' '),
@@ -89,7 +98,7 @@ export function useDesignSync({ layer, onLayerUpdate, activeBreakpoint = 'deskto
         classes: updatedClasses.join(' '),
       });
     },
-    [layer, onLayerUpdate, activeBreakpoint]
+    [layer, onLayerUpdate, activeBreakpoint, activeUIState]
   );
   
   /**
@@ -125,13 +134,14 @@ export function useDesignSync({ layer, onLayerUpdate, activeBreakpoint = 'deskto
           delete updatedDesign[category]![property as keyof typeof categoryData];
         }
         
-        // Update classes with breakpoint awareness
+        // Update classes with breakpoint and UI state awareness
         const newClass = value ? propertyToClass(category, property, value) : null;
         currentClasses = setBreakpointClass(
           currentClasses,
           property,
           newClass,
-          activeBreakpoint
+          activeBreakpoint,
+          activeUIState
         );
       });
       
@@ -141,7 +151,7 @@ export function useDesignSync({ layer, onLayerUpdate, activeBreakpoint = 'deskto
         classes: currentClasses.join(' '),
       });
     },
-    [layer, onLayerUpdate, activeBreakpoint]
+    [layer, onLayerUpdate, activeBreakpoint, activeUIState]
   );
   
   /**
@@ -163,20 +173,26 @@ export function useDesignSync({ layer, onLayerUpdate, activeBreakpoint = 'deskto
         : (layer.classes || '').split(' ').filter(Boolean);
       
       if (classes.length === 0) {
-        // Fallback to design object if no classes
+        // Fallback to design object if no classes at all
         if (!layer.design?.[category]) return undefined;
         const categoryData = layer.design[category] as Record<string, any>;
         return categoryData[property];
       }
       
       // Use inheritance to get the value that will actually apply (desktop → tablet → mobile)
-      const { value: inheritedClass } = getInheritedValue(classes, property, activeBreakpoint);
+      // with UI state support (checks state-specific classes first, then falls back to neutral)
+      const { value: inheritedClass } = getInheritedValue(classes, property, activeBreakpoint, activeUIState);
       
       if (!inheritedClass) {
-        // Final fallback to design object
-        if (!layer.design?.[category]) return undefined;
-        const categoryData = layer.design[category] as Record<string, any>;
-        return categoryData[property];
+        // CRITICAL: Do NOT fall back to design object here
+        // If getInheritedValue returns null, it means:
+        // 1. No neutral/base class exists for this property
+        // 2. AND we're in neutral state (where state-specific classes are ignored)
+        // This is correct behavior - the input should be empty
+        // 
+        // The design object might have corrupted values from before the classesToDesign fix,
+        // so we should only trust the classes as the source of truth
+        return undefined;
       }
       
       // Parse the inherited class to extract the actual value
@@ -187,7 +203,7 @@ export function useDesignSync({ layer, onLayerUpdate, activeBreakpoint = 'deskto
       
       return mapClassToDesignValue(inheritedClass, property);
     },
-    [layer, activeBreakpoint]
+    [layer, activeBreakpoint, activeUIState]
   );
   
   /**
@@ -259,8 +275,8 @@ export function useDesignSync({ layer, onLayerUpdate, activeBreakpoint = 'deskto
  * e.g., "text-3xl" → "3xl", "font-bold" → "700", "bg-blue-500" → "#3b82f6"
  */
 function mapClassToDesignValue(className: string, property: string): string | undefined {
-  // Remove any breakpoint prefix
-  const cleanClass = className.replace(/^(max-lg:|max-md:|lg:|md:)/, '');
+  // Remove any breakpoint and state prefixes
+  const cleanClass = className.replace(/^(max-lg:|max-md:|lg:|md:)?(hover:|focus:|active:|disabled:|visited:)?/, '');
   
   // Extract the value part after the property prefix
   // e.g., "text-3xl" → "3xl", "font-bold" → "bold", "w-full" → "full"

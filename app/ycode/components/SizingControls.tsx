@@ -15,11 +15,12 @@ interface SizingControlsProps {
 }
 
 export default function SizingControls({ layer, onLayerUpdate }: SizingControlsProps) {
-  const { activeBreakpoint } = useEditorStore();
+  const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
-    activeBreakpoint
+    activeBreakpoint,
+    activeUIState,
   });
 
   const [widthUnit, setWidthUnit] = useState<'px' | 'rem' | 'em' | '%'>('px');

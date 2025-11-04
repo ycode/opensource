@@ -13,11 +13,12 @@ interface BackgroundsControlsProps {
 }
 
 export default function BackgroundsControls({ layer, onLayerUpdate }: BackgroundsControlsProps) {
-  const { activeBreakpoint } = useEditorStore();
+  const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
-    activeBreakpoint
+    activeBreakpoint,
+    activeUIState,
   });
   
   // Get current values from layer (no inheritance - only exact breakpoint values)

@@ -7,6 +7,9 @@
 // Layer Types
 export type LayerType = 'container' | 'text' | 'image' | 'heading';
 
+// UI State Types (for state-specific styling: hover, focus, etc.)
+export type UIState = 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current';
+
 // Design Property Interfaces
 export interface LayoutDesign {
   isActive?: boolean;
@@ -209,6 +212,7 @@ export interface EditorState {
   isLoading: boolean;
   isSaving: boolean;
   activeBreakpoint: 'mobile' | 'tablet' | 'desktop';
+  activeUIState: UIState; // Current UI state for editing (hover, focus, etc.)
 }
 
 // API Response Types

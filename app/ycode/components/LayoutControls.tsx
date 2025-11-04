@@ -21,11 +21,12 @@ interface LayoutControlsProps {
 }
 
 export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsProps) {
-  const { activeBreakpoint } = useEditorStore();
+  const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, updateDesignProperties, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
-    activeBreakpoint
+    activeBreakpoint,
+    activeUIState,
   });
   
   const [gapUnit, setGapUnit] = useState<'px' | 'rem' | 'em'>('px');
@@ -82,7 +83,8 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     individualProperties: ['columnGap', 'rowGap'],
     updateDesignProperty,
     updateDesignProperties,
-    getCurrentValue: useCallback((prop: string) => getDesignProperty('layout', prop) || '', [getDesignProperty]),
+    // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
+    getCurrentValue: (prop: string) => getDesignProperty('layout', prop) || '',
   });
   
   const paddingModeToggle = useModeToggle({
@@ -91,7 +93,8 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     individualProperties: ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'],
     updateDesignProperty,
     updateDesignProperties,
-    getCurrentValue: useCallback((prop: string) => getDesignProperty('spacing', prop) || '', [getDesignProperty]),
+    // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
+    getCurrentValue: (prop: string) => getDesignProperty('spacing', prop) || '',
   });
   
   // Determine layout type from current values

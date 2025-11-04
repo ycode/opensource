@@ -33,38 +33,18 @@ export function useModeToggle(config: ModeToggleConfig) {
     const unifiedValue = getCurrentValue(unifiedProperty);
     const individualValues = individualProperties.map(prop => getCurrentValue(prop)).filter(Boolean);
     
-    console.log('🔄 [use-mode-toggle] useEffect:', {
-      unifiedProperty,
-      unifiedValue,
-      individualProperties,
-      individualValues,
-      pendingMode: pendingModeChangeRef.current,
-      currentMode: mode,
-    });
-    
     // If we have a pending mode change, check if the properties are ready for it
     if (pendingModeChangeRef.current) {
       const targetMode = pendingModeChangeRef.current;
       
-      console.log('⏳ [use-mode-toggle] Pending mode change:', {
-        targetMode,
-        unifiedValue,
-        individualValues,
-        individualValuesLength: individualValues.length,
-      });
-      
       if (targetMode === 'individual-borders' && individualValues.length > 0) {
         // Properties are ready, switch to individual mode
-        console.log('✅ [use-mode-toggle] Switching to individual mode - properties ready!');
         setMode('individual-borders');
         pendingModeChangeRef.current = null;
       } else if (targetMode === 'all-borders' && unifiedValue && individualValues.length === 0) {
         // Properties are ready, switch to unified mode
-        console.log('✅ [use-mode-toggle] Switching to unified mode - properties ready!');
         setMode('all-borders');
         pendingModeChangeRef.current = null;
-      } else {
-        console.log('⚠️ [use-mode-toggle] Properties not ready yet');
       }
       return;
     }
@@ -92,13 +72,6 @@ export function useModeToggle(config: ModeToggleConfig) {
   const handleToggle = useCallback(() => {
     const newMode = mode === 'all-borders' ? 'individual-borders' : 'all-borders';
     
-    console.log('🔘 [use-mode-toggle] Toggle clicked:', {
-      currentMode: mode,
-      newMode,
-      unifiedProperty,
-      individualProperties,
-    });
-    
     // Set pending mode change - useEffect will complete it when properties are ready
     pendingModeChangeRef.current = newMode;
     
@@ -108,8 +81,6 @@ export function useModeToggle(config: ModeToggleConfig) {
       const individualValues = individualProperties
         .map(prop => getCurrentValue(prop))
         .filter(Boolean);
-      
-      console.log('→ [use-mode-toggle] Individual to Unified:', { individualValues });
       
       const mostCommon = findMostCommonValue(individualValues);
       if (mostCommon) {
@@ -132,8 +103,6 @@ export function useModeToggle(config: ModeToggleConfig) {
     } else {
       // Unified → Individual: populate all with unified value
       const unifiedValue = getCurrentValue(unifiedProperty);
-      
-      console.log('→ [use-mode-toggle] Unified to Individual:', { unifiedValue });
       
       if (unifiedValue) {
         // Update all properties in ONE call: set individual + clear unified

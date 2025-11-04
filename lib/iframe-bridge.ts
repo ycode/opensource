@@ -9,6 +9,7 @@ export type ParentToIframeMessage =
   | { type: 'UPDATE_LAYERS'; payload: { layers: Layer[]; selectedLayerId: string | null } }
   | { type: 'UPDATE_SELECTION'; payload: { layerId: string | null } }
   | { type: 'UPDATE_BREAKPOINT'; payload: { breakpoint: 'mobile' | 'tablet' | 'desktop' } }
+  | { type: 'UPDATE_UI_STATE'; payload: { uiState: 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current' } }
   | { type: 'ENABLE_EDIT_MODE'; payload: { enabled: boolean } }
   | { type: 'HIGHLIGHT_DROP_ZONE'; payload: { layerId: string | null } };
 

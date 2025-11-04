@@ -5,7 +5,7 @@
  * with intelligent conflict resolution
  */
 
-import type { Layer } from '@/types';
+import type { Layer, UIState } from '@/types';
 
 /**
  * Map of Tailwind class prefixes to their property names
@@ -443,6 +443,23 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
   };
   
   classList.forEach(cls => {
+    // CRITICAL FIX: Skip state-specific classes (they should not be in design object)
+    // The design object should only contain base/neutral values
+    // State-specific values are handled by getInheritedValue based on activeUIState
+    if (cls.match(/^(hover|focus|active|disabled|visited):/)) {
+      return; // Skip this class
+    }
+    
+    // Also skip breakpoint+state combinations
+    if (cls.match(/^(max-lg|max-md|lg|md):(hover|focus|active|disabled|visited):/)) {
+      return; // Skip this class
+    }
+    
+    // Strip breakpoint prefix (but keep base classes)
+    // "max-md:m-[10px]" should still be parsed into design object
+    // But "max-md:hover:m-[10px]" should have been skipped above
+    cls = cls.replace(/^(max-lg|max-md|lg|md):/, '');
+    
     // ===== LAYOUT =====
     // Display
     if (cls === 'block') design.layout!.display = 'block';
@@ -740,6 +757,18 @@ export const BREAKPOINT_CONFIG = {
   mobile: { prefix: 'max-md:', maxWidth: 767 },
 } as const;
 
+/**
+ * UI State Configuration (for hover, focus, active, etc.)
+ */
+export const UI_STATE_CONFIG = {
+  neutral: { prefix: '' },
+  hover: { prefix: 'hover:' },
+  focus: { prefix: 'focus:' },
+  active: { prefix: 'active:' },
+  disabled: { prefix: 'disabled:' },
+  current: { prefix: 'visited:' }, // Tailwind uses 'visited' for current/visited state
+} as const;
+
 export type Breakpoint = 'mobile' | 'tablet' | 'desktop';
 
 /**
@@ -748,6 +777,63 @@ export type Breakpoint = 'mobile' | 'tablet' | 'desktop';
  */
 export function getBreakpointPrefix(breakpoint: Breakpoint): string {
   return BREAKPOINT_CONFIG[breakpoint].prefix;
+}
+
+/**
+ * Get UI state prefix for Tailwind classes
+ */
+export function getUIStatePrefix(state: UIState): string {
+  return UI_STATE_CONFIG[state].prefix;
+}
+
+/**
+ * Parse a full class name to extract breakpoint, UI state, and base class
+ * Tailwind order: responsive prefix first, then state modifier
+ * e.g., "max-md:hover:text-red-500" -> { breakpoint: 'mobile', uiState: 'hover', baseClass: 'text-red-500' }
+ */
+export function parseFullClass(className: string): {
+  breakpoint: Breakpoint;
+  uiState: UIState;
+  baseClass: string;
+} {
+  let remaining = className;
+  let breakpoint: Breakpoint = 'desktop';
+  let uiState: UIState = 'neutral';
+  
+  // Check for responsive prefix first (Tailwind order: responsive then state)
+  if (remaining.startsWith('max-md:')) {
+    breakpoint = 'mobile';
+    remaining = remaining.slice(7);
+  } else if (remaining.startsWith('max-lg:')) {
+    breakpoint = 'tablet';
+    remaining = remaining.slice(7);
+  } else if (remaining.startsWith('lg:')) {
+    breakpoint = 'desktop';
+    remaining = remaining.slice(3);
+  } else if (remaining.startsWith('md:')) {
+    breakpoint = 'tablet';
+    remaining = remaining.slice(3);
+  }
+  
+  // Check for state prefix
+  if (remaining.startsWith('hover:')) {
+    uiState = 'hover';
+    remaining = remaining.slice(6);
+  } else if (remaining.startsWith('focus:')) {
+    uiState = 'focus';
+    remaining = remaining.slice(6);
+  } else if (remaining.startsWith('active:')) {
+    uiState = 'active';
+    remaining = remaining.slice(7);
+  } else if (remaining.startsWith('disabled:')) {
+    uiState = 'disabled';
+    remaining = remaining.slice(9);
+  } else if (remaining.startsWith('visited:')) {
+    uiState = 'current';
+    remaining = remaining.slice(8);
+  }
+  
+  return { breakpoint, uiState, baseClass: remaining };
 }
 
 /**
@@ -816,7 +902,8 @@ export function getBreakpointClasses(classes: string[], breakpoint: Breakpoint):
 export function getInheritedValue(
   classes: string[],
   property: string,
-  currentBreakpoint: Breakpoint
+  currentBreakpoint: Breakpoint,
+  currentUIState: UIState = 'neutral'
 ): { value: string | null; source: Breakpoint | null } {
   const pattern = getConflictingClassPattern(property);
   if (!pattern) return { value: null, source: null };
@@ -832,12 +919,57 @@ export function getInheritedValue(
   let lastSource: Breakpoint | null = null;
   
   for (const breakpoint of inheritanceChain) {
-    const breakpointClasses = getBreakpointClasses(classes, breakpoint);
-    const matchingClass = breakpointClasses.find(cls => pattern.test(cls));
+    const bpPrefix = getBreakpointPrefix(breakpoint);
+    const statePrefix = getUIStatePrefix(currentUIState);
     
-    if (matchingClass) {
-      lastValue = matchingClass;
-      lastSource = breakpoint;
+    // If we're in a specific state (not neutral), check for state-specific class at this breakpoint
+    if (currentUIState !== 'neutral') {
+      const fullPrefix = bpPrefix + statePrefix;
+      const stateClass = classes.find(cls => {
+        const withPrefix = bpPrefix ? cls.startsWith(fullPrefix) : cls.startsWith(statePrefix);
+        if (!withPrefix) return false;
+        const baseClass = cls.slice(fullPrefix.length);
+        return pattern.test(baseClass);
+      });
+      
+      if (stateClass) {
+        lastValue = stateClass.slice(fullPrefix.length);
+        lastSource = breakpoint;
+        // Don't break - keep checking for more specific breakpoints
+      }
+    }
+    
+    // Check for neutral state class at this breakpoint (always check this)
+    const neutralClass = classes.find(cls => {
+      if (bpPrefix) {
+        if (!cls.startsWith(bpPrefix)) return false;
+        const afterBp = cls.slice(bpPrefix.length);
+        // Must not have a state prefix
+        if (afterBp.match(/^(hover|focus|active|disabled|visited):/)) return false;
+        return pattern.test(afterBp);
+      } else {
+        // Desktop: no breakpoint prefix, no state prefix
+        if (cls.match(/^(max-lg|max-md|hover|focus|active|disabled|visited):/)) return false;
+        return pattern.test(cls);
+      }
+    });
+    
+    if (neutralClass) {
+      const baseClass = bpPrefix ? neutralClass.slice(bpPrefix.length) : neutralClass;
+      
+      // CRITICAL FIX: If we're in neutral state, ONLY use neutral classes
+      // If we're in a specific state, only use neutral as fallback if no state-specific value found
+      if (currentUIState === 'neutral') {
+        // In neutral: always update with neutral value (override any state values that shouldn't be here)
+        lastValue = baseClass;
+        lastSource = breakpoint;
+      } else {
+        // In specific state: only use neutral as fallback if no state-specific value exists yet
+        if (!lastValue) {
+          lastValue = baseClass;
+          lastSource = breakpoint;
+        }
+      }
     }
   }
   
@@ -875,18 +1007,29 @@ export function setBreakpointClass(
   classes: string[],
   property: string,
   newClass: string | null,
-  breakpoint: Breakpoint
+  breakpoint: Breakpoint,
+  uiState: UIState = 'neutral'
 ): string[] {
-  // Remove any existing classes for this property at this breakpoint
-  const result = removeConflictingClassesForBreakpoint(classes, property, breakpoint);
-  
-  // Add the new class with breakpoint prefix if provided
+  const pattern = getConflictingClassPattern(property);
+  if (!pattern) return classes;
+
+  const bpPrefix = getBreakpointPrefix(breakpoint);
+  const statePrefix = getUIStatePrefix(uiState);
+  const fullPrefix = bpPrefix + statePrefix;
+
+  // Remove existing class for this property + breakpoint + state
+  const newClasses = classes.filter(cls => {
+    const parsed = parseFullClass(cls);
+    if (parsed.breakpoint !== breakpoint || parsed.uiState !== uiState) return true;
+    return !pattern.test(parsed.baseClass);
+  });
+
+  // Add new class if value is provided
   if (newClass) {
-    const classWithPrefix = addBreakpointPrefix(breakpoint, newClass);
-    result.push(classWithPrefix);
+    newClasses.push(fullPrefix + newClass);
   }
-  
-  return result;
+
+  return newClasses;
 }
 
 

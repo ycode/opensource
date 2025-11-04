@@ -18,11 +18,12 @@ interface TypographyControlsProps {
 }
 
 export default function TypographyControls({ layer, onLayerUpdate }: TypographyControlsProps) {
-  const { activeBreakpoint } = useEditorStore();
+  const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
-    activeBreakpoint
+    activeBreakpoint,
+    activeUIState,
   });
   
   const [sizeUnit, setSizeUnit] = useState<'px' | 'rem' | 'em'>('px');

@@ -37,6 +37,7 @@ import SizingControls from './SizingControls';
 import SpacingControls from './SpacingControls';
 import ToggleGroup from './ToggleGroup';
 import TypographyControls from './TypographyControls';
+import UIStateSelector from './UIStateSelector';
 
 // 5. Stores
 import { useEditorStore } from '../../../stores/useEditorStore';
@@ -335,11 +336,16 @@ export default function RightSidebar({
 
         {/* Breakpoint Indicator (only show on Design tab) */}
         {activeTab === 'design' && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900/50 border-b border-zinc-800">
-            <span className="text-xs text-zinc-400">
-              Editing: <span className="text-white font-medium capitalize">{activeBreakpoint}</span>
-            </span>
-          </div>
+          <>
+            <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900/50 border-b border-zinc-800">
+              <span className="text-xs text-zinc-400">
+                Editing: <span className="text-white font-medium capitalize">{activeBreakpoint}</span>
+              </span>
+            </div>
+            
+            {/* UI State Selector */}
+            <UIStateSelector selectedLayer={selectedLayer} />
+          </>
         )}
 
         {/* Content */}

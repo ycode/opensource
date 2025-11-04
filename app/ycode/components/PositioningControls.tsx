@@ -15,11 +15,12 @@ interface PositioningControlsProps {
 }
 
 export default function PositioningControls({ layer, onLayerUpdate }: PositioningControlsProps) {
-  const { activeBreakpoint } = useEditorStore();
+  const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
-    activeBreakpoint
+    activeBreakpoint,
+    activeUIState,
   });
   
   const [positionUnit, setPositionUnit] = useState<'px' | 'rem' | 'em' | '%'>('px');
