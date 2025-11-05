@@ -5,6 +5,7 @@
  */
 
 import { getSupabaseAdmin } from '../supabase-server';
+import { reorderSiblings } from './pageFolderRepository';
 import type { Page } from '../../types';
 
 /**
@@ -82,7 +83,7 @@ export async function getAllPages(filters?: QueryFilters): Promise<Page[]> {
     });
   }
 
-  const { data, error } = await query.order('created_at', { ascending: false });
+  const { data, error } = await query.order('order', { ascending: true });
 
   if (error) {
     console.error('[pageRepository.getAllPages] Query error:', error);
@@ -214,9 +215,38 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
 }
 
 /**
+ * Batch update order for multiple pages
+ * @param updates - Array of { id, order } objects
+ */
+export async function batchUpdatePageOrder(updates: Array<{ id: string; order: number }>): Promise<void> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // Update each page's order
+  const promises = updates.map(({ id, order }) =>
+    client
+      .from('pages')
+      .update({ order })
+      .eq('id', id)
+      .is('deleted_at', null)
+  );
+
+  const results = await Promise.all(promises);
+
+  const errors = results.filter(r => r.error);
+  if (errors.length > 0) {
+    throw new Error(`Failed to update page order: ${errors[0].error?.message}`);
+  }
+}
+
+/**
  * Soft delete a page and its associated page layers
  * Sets deleted_at to current timestamp instead of hard deleting
  * Also deletes all page_layers (draft and published) for this page
+ * After deletion, reorders remaining pages with the same parent_id
  */
 export async function deletePage(id: string): Promise<void> {
   const client = await getSupabaseAdmin();
@@ -226,6 +256,12 @@ export async function deletePage(id: string): Promise<void> {
   }
 
   const deletedAt = new Date().toISOString();
+
+  // Get the page before deletion to know its parent_id and depth
+  const pageToDelete = await getPageById(id);
+  if (!pageToDelete) {
+    throw new Error('Page not found');
+  }
 
   // Delete all page_layers (draft and published) for this page
   const { error: layersError } = await client
@@ -250,6 +286,15 @@ export async function deletePage(id: string): Promise<void> {
   }
 
   console.log(`[deletePage] Successfully deleted page ${id} and its layers`);
+
+  // Reorder remaining siblings (both pages and folders) with the same parent_id and depth
+  try {
+    await reorderSiblings(pageToDelete.page_folder_id, pageToDelete.depth);
+    console.log(`[deletePage] Reordered siblings under parent ${pageToDelete.page_folder_id || 'root'} at depth ${pageToDelete.depth}`);
+  } catch (reorderError) {
+    console.error('[deletePage] Failed to reorder siblings:', reorderError);
+    // Don't fail the deletion if reordering fails
+  }
 }
 
 /**

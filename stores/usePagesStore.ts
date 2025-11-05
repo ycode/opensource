@@ -62,6 +62,66 @@ function updateLayerInTree(tree: Layer[], layerId: string, updater: (l: Layer) =
   });
 }
 
+/**
+ * Reorder pages and folders together within each parent/depth group after deletion
+ * Ensures no gaps in the order sequence
+ * Mimics backend reorderSiblings logic
+ */
+function reorderPagesAndFoldersTogether(
+  pages: Page[],
+  folders: PageFolder[]
+): { pages: Page[]; folders: PageFolder[] } {
+  // Group items by parent_id AND depth (matching backend logic)
+  const groupsByParentAndDepth = new Map<string, { pages: Page[]; folders: PageFolder[] }>();
+
+  // Helper to create group key
+  const getGroupKey = (parentId: string | null, depth: number) => `${parentId || 'root'}:${depth}`;
+
+  // Group pages
+  for (const page of pages) {
+    const key = getGroupKey(page.page_folder_id, page.depth);
+    if (!groupsByParentAndDepth.has(key)) {
+      groupsByParentAndDepth.set(key, { pages: [], folders: [] });
+    }
+    groupsByParentAndDepth.get(key)!.pages.push(page);
+  }
+
+  // Group folders
+  for (const folder of folders) {
+    const key = getGroupKey(folder.page_folder_id, folder.depth);
+    if (!groupsByParentAndDepth.has(key)) {
+      groupsByParentAndDepth.set(key, { pages: [], folders: [] });
+    }
+    groupsByParentAndDepth.get(key)!.folders.push(folder);
+  }
+
+  const reorderedPages: Page[] = [];
+  const reorderedFolders: PageFolder[] = [];
+
+  // Reorder each group (pages and folders together)
+  for (const [groupKey, group] of groupsByParentAndDepth) {
+    // Combine pages and folders with type markers
+    const combined = [
+      ...group.pages.map(p => ({ item: p, type: 'page' as const, order: p.order || 0 })),
+      ...group.folders.map(f => ({ item: f, type: 'folder' as const, order: f.order || 0 })),
+    ];
+
+    // Sort by current order
+    combined.sort((a, b) => a.order - b.order);
+
+    // Reassign sequential order values to all items (0, 1, 2, ...)
+    combined.forEach((entry, index) => {
+      if (entry.type === 'page') {
+        reorderedPages.push({ ...entry.item, order: index } as Page);
+      } else {
+        reorderedFolders.push({ ...entry.item, order: index } as PageFolder);
+      }
+    });
+  }
+
+  return { pages: reorderedPages, folders: reorderedFolders };
+}
+
 export const usePagesStore = create<PagesStore>((set, get) => ({
   pages: [],
   folders: [],
@@ -1095,7 +1155,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   deletePage: async (pageId, currentPageId?: string | null) => {
     console.log('[usePagesStore.deletePage] Starting...', pageId);
 
-    const { pages, draftsByPageId } = get();
+    const { pages, folders, draftsByPageId } = get();
 
     // Find the page
     const pageToDelete = pages.find(p => p.id === pageId);
@@ -1113,15 +1173,21 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     // Store original state for rollback
     const originalPages = pages;
+    const originalFolders = folders;
     const originalDrafts = draftsByPageId;
 
     // Optimistic update: Remove from UI immediately
-    const updatedPages = pages.filter(p => p.id !== pageId);
+    const filteredPages = pages.filter(p => p.id !== pageId);
+
+    // Reorder pages and folders together to eliminate gaps in the order sequence
+    const { pages: updatedPages, folders: updatedFolders } = reorderPagesAndFoldersTogether(filteredPages, folders);
+
     const updatedDrafts = { ...draftsByPageId };
     delete updatedDrafts[pageId];
 
     set({
       pages: updatedPages,
+      folders: updatedFolders,
       draftsByPageId: updatedDrafts,
       isLoading: true,
       error: null
@@ -1137,6 +1203,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         // Rollback optimistic update
         set({
           pages: originalPages,
+          folders: originalFolders,
           draftsByPageId: originalDrafts,
           error: response.error,
           isLoading: false
@@ -1165,6 +1232,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Rollback optimistic update
       set({
         pages: originalPages,
+        folders: originalFolders,
         draftsByPageId: originalDrafts,
         error: errorMsg,
         isLoading: false
@@ -1264,9 +1332,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const isCurrentPageAffected = !!(currentPage && currentPage.page_folder_id && allFolderIds.includes(currentPage.page_folder_id));
 
     // Calculate what will be deleted
-    const updatedFolders = folders.filter(f => !allFolderIds.includes(f.id));
+    const filteredFolders = folders.filter(f => !allFolderIds.includes(f.id));
     const deletedPageIds = pages.filter(p => p.page_folder_id && allFolderIds.includes(p.page_folder_id)).map(p => p.id);
-    const updatedPages = pages.filter(p => !p.page_folder_id || !allFolderIds.includes(p.page_folder_id));
+    const filteredPages = pages.filter(p => !p.page_folder_id || !allFolderIds.includes(p.page_folder_id));
+
+    // Reorder pages and folders together to eliminate gaps in the order sequence
+    const { pages: updatedPages, folders: updatedFolders } = reorderPagesAndFoldersTogether(filteredPages, filteredFolders);
 
     // Remove drafts for deleted pages
     const updatedDrafts = { ...draftsByPageId };

@@ -9,7 +9,7 @@ import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
 import { usePagesStore } from '@/stores/usePagesStore';
 import type { Page, PageFolder } from '@/types';
 
-interface LeftSidebarPageTabProps {
+interface LeftSidebarPagesProps {
   pages: Page[];
   folders: PageFolder[];
   currentPageId: string | null;
@@ -17,13 +17,13 @@ interface LeftSidebarPageTabProps {
   setCurrentPageId: (pageId: string | null) => void;
 }
 
-export default function LeftSidebarPageTab({
+export default function LeftSidebarPages({
   pages,
   folders,
   currentPageId,
   onPageSelect,
   setCurrentPageId,
-}: LeftSidebarPageTabProps) {
+}: LeftSidebarPagesProps) {
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -201,31 +201,93 @@ export default function LeftSidebarPageTab({
     }
   };
 
+  // Find the best next item to select after deleting an item
+  const findNextSelection = (deletedId: string, deletedType: 'folder' | 'page'): string | null => {
+    // Get the deleted item's parent and depth
+    const deletedItem = deletedType === 'folder'
+      ? folders.find(f => f.id === deletedId)
+      : pages.find(p => p.id === deletedId);
+
+    if (!deletedItem) return null;
+
+    const parentId = deletedType === 'folder'
+      ? deletedItem.page_folder_id
+      : deletedItem.page_folder_id;
+    const depth = deletedItem.depth;
+    const order = deletedItem.order || 0;
+
+    // Get all siblings (pages and folders at same depth and parent)
+    const siblingPages = pages.filter(p =>
+      p.id !== deletedId &&
+      p.page_folder_id === parentId &&
+      p.depth === depth
+    );
+    const siblingFolders = folders.filter(f =>
+      f.id !== deletedId &&
+      f.page_folder_id === parentId &&
+      f.depth === depth
+    );
+
+    // Combine and sort by order
+    const allSiblings = [
+      ...siblingPages.map(p => ({ id: p.id, order: p.order || 0, type: 'page' as const })),
+      ...siblingFolders.map(f => ({ id: f.id, order: f.order || 0, type: 'folder' as const }))
+    ].sort((a, b) => a.order - b.order);
+
+    if (allSiblings.length > 0) {
+      // Try to find the next sibling (item with order greater than deleted item)
+      const nextSibling = allSiblings.find(s => s.order > order);
+      if (nextSibling) {
+        return nextSibling.id;
+      }
+
+      // No next sibling, get the last sibling (previous)
+      return allSiblings[allSiblings.length - 1].id;
+    }
+
+    // No siblings, select parent folder
+    return parentId;
+  };
+
   // Handle page or folder deletion
   const deletePageOrFolderItem = async (id: string, type: 'folder' | 'page') => {
+    const wasSelected = selectedItemId === id;
+    const wasCurrentPage = currentPageId === id;
+
+    // Find next selection BEFORE deletion (while item still exists)
+    const nextSelection = wasSelected ? findNextSelection(id, type) : null;
+
+    // Update selection immediately (optimistically) if item was selected but not opened
+    if (wasSelected && !wasCurrentPage) {
+      setSelectedItemId(nextSelection);
+    }
+
     if (type === 'folder') {
       // Delete folder via store (handles all logic including cascade deletion)
       const result = await deleteFolder(id, currentPageId);
 
       if (!result.success) {
         console.error('Failed to delete folder:', result.error);
+        // Revert selection on error
+        if (wasSelected && !wasCurrentPage) {
+          setSelectedItemId(id);
+        }
         return;
       }
 
-      // Handle UI updates based on what the store tells us
-      if (result.currentPageAffected && result.nextPageId) {
-        // Current page was deleted, switch to the suggested next page
-        onPageSelect(result.nextPageId);
-        setCurrentPageId(result.nextPageId);
-        setSelectedItemId(result.nextPageId);
-      } else if (result.currentPageAffected && !result.nextPageId) {
-        // No pages left
-        onPageSelect('');
-        setCurrentPageId(null);
-        setSelectedItemId(null);
-      } else if (selectedItemId === id) {
-        // Just deleted the selected folder, set selection to current page
-        setSelectedItemId(currentPageId);
+      // Handle current page updates (only if the opened page was affected)
+      if (result.currentPageAffected) {
+        if (result.nextPageId) {
+          // Current page was deleted, switch to the suggested next page
+          onPageSelect(result.nextPageId);
+          setCurrentPageId(result.nextPageId);
+          setSelectedItemId(result.nextPageId);
+        } else {
+          // No pages left
+          onPageSelect('');
+          setCurrentPageId(null);
+          setSelectedItemId(null);
+        }
       }
       return;
     }
@@ -237,23 +299,26 @@ export default function LeftSidebarPageTab({
 
       if (!result.success) {
         console.error('Failed to delete page:', result.error);
+        // Revert selection on error
+        if (wasSelected && !wasCurrentPage) {
+          setSelectedItemId(id);
+        }
         return;
       }
 
-      // Handle UI updates based on what the store tells us
-      if (result.currentPageDeleted && result.nextPageId) {
-        // Current page was deleted, switch to the suggested next page
-        onPageSelect(result.nextPageId);
-        setCurrentPageId(result.nextPageId);
-        setSelectedItemId(result.nextPageId);
-      } else if (result.currentPageDeleted && !result.nextPageId) {
-        // No pages left
-        onPageSelect('');
-        setCurrentPageId(null);
-        setSelectedItemId(null);
-      } else if (selectedItemId === id) {
-        // Just deleted the selected item, set selection to current page
-        setSelectedItemId(currentPageId);
+      // Handle current page updates (only if the opened page was deleted)
+      if (result.currentPageDeleted) {
+        if (result.nextPageId) {
+          // Current page was deleted, switch to the suggested next page
+          onPageSelect(result.nextPageId);
+          setCurrentPageId(result.nextPageId);
+          setSelectedItemId(result.nextPageId);
+        } else {
+          // No pages left
+          onPageSelect('');
+          setCurrentPageId(null);
+          setSelectedItemId(null);
+        }
       }
     }
   };

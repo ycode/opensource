@@ -30,6 +30,7 @@ interface PageRowProps {
   isDragging: boolean;
   isDragActive: boolean;
   dropPosition: 'above' | 'below' | 'inside' | null;
+  highlightedDepths: Set<number>; // Depths that should be highlighted
   onSelect: (id: string, type: 'folder' | 'page') => void;
   onOpen?: (id: string) => void;
   onToggle: (id: string) => void;
@@ -72,6 +73,7 @@ function PageRow({
   isDragging,
   isDragActive,
   dropPosition,
+  highlightedDepths,
   onSelect,
   onOpen,
   onToggle,
@@ -115,8 +117,8 @@ function PageRow({
             <div
               key={i}
               className={cn(
-                'absolute z-10 top-0 bottom-0 w-px bg-secondary',
-                isSelected && 'bg-white/10'
+                'absolute z-10 top-0 bottom-0 w-px',
+                highlightedDepths.has(i) ? 'bg-white/30' : 'bg-white/10'
               )}
               style={{
                 left: `${i * 14 + 16}px`,
@@ -185,10 +187,12 @@ function PageRow({
               isCollapsed ? '' : 'rotate-90'
             )}
           >
-            <Icon name="chevronRight" className="size-2.5 opacity-50" />
+            <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isSelected && 'opacity-80')} />
           </button>
         ) : (
-          <div className="w-4 h-4 flex-shrink-0" />
+          <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+            <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-20', isSelected && 'opacity-60')} />
+          </div>
         )}
 
         {/* Icon */}
@@ -252,6 +256,20 @@ export default function PagesTree({
     () => flattenPageTree(tree, null, 0, collapsedIds),
     [tree, collapsedIds]
   );
+
+  // Calculate which depth levels should be highlighted (selected folders)
+  const highlightedDepths = useMemo(() => {
+    const depths = new Set<number>();
+
+    if (selectedItemId) {
+      const selectedNode = flattenedNodes.find(n => n.id === selectedItemId);
+      if (selectedNode && selectedNode.type === 'folder') {
+        depths.add(selectedNode.depth);
+      }
+    }
+
+    return depths;
+  }, [flattenedNodes, selectedItemId]);
 
   // Get the currently active node being dragged
   const activeNode = useMemo(
@@ -424,16 +442,20 @@ export default function PagesTree({
         const updatedPages: Page[] = [];
         const updatedFolders: PageFolder[] = [];
 
+        // Pages and folders at the same depth share continuous order
         nodes.forEach((node, index) => {
+          const orderValue = currentOrder + index;
+
           if (node.type === 'folder') {
             const folder = node.data as PageFolder;
             updatedFolders.push({
               ...folder,
               page_folder_id: parentId,
-              order: currentOrder + index,
+              order: orderValue,
             });
 
             if (node.children) {
+              // Children start with order 0 within their parent
               const childResults = extractPagesAndFolders(node.children, node.id, 0);
               updatedPages.push(...childResults.pages);
               updatedFolders.push(...childResults.folders);
@@ -443,6 +465,7 @@ export default function PagesTree({
             updatedPages.push({
               ...page,
               page_folder_id: parentId,
+              order: orderValue,
             });
           }
         });
@@ -518,6 +541,7 @@ export default function PagesTree({
             isDragging={activeId === node.id}
             isDragActive={!!activeId}
             dropPosition={overId === node.id ? dropPosition : null}
+            highlightedDepths={highlightedDepths}
             onSelect={handleSelect}
             onOpen={onPageOpen}
             onToggle={handleToggle}

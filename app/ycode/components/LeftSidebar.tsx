@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AssetLibrary from '../../../components/AssetLibrary';
 import ElementLibrary from './ElementLibrary';
 import LayersTree from './LayersTree';
-import LeftSidebarPageTab from './LeftSidebarPageTab';
+import LeftSidebarPages from './LeftSidebarPages';
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
 import type { Layer } from '../../../types';
@@ -237,7 +237,7 @@ export default function LeftSidebar({
           </TabsContent>
 
           <TabsContent value="pages">
-            <LeftSidebarPageTab
+            <LeftSidebarPages
               pages={pages}
               folders={folders}
               currentPageId={currentPageId}

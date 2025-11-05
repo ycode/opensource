@@ -150,28 +150,18 @@ export function buildPageTree(
     }
   });
 
-  // Sort children by order (for folders) and creation date (for pages)
+  // Sort children by order for both folders and pages
   const sortChildren = (nodes: PageTreeNode[]) => {
     nodes.sort((a, b) => {
-      // Folders before pages
-      if (a.type === 'folder' && b.type === 'page') return -1;
-      if (a.type === 'page' && b.type === 'folder') return 1;
+      // Get order values (default to 0 if not set)
+      const orderA = a.type === 'folder' ? (a.data as PageFolder).order : (a.data as Page).order;
+      const orderB = b.type === 'folder' ? (b.data as PageFolder).order : (b.data as Page).order;
 
-      // Both folders: sort by order
-      if (a.type === 'folder' && b.type === 'folder') {
-        const folderA = a.data as PageFolder;
-        const folderB = b.data as PageFolder;
-        return folderA.order - folderB.order;
-      }
+      const finalOrderA = orderA ?? 0;
+      const finalOrderB = orderB ?? 0;
 
-      // Both pages: sort by creation date (newest first)
-      if (a.type === 'page' && b.type === 'page') {
-        const pageA = a.data as Page;
-        const pageB = b.data as Page;
-        return new Date(pageB.created_at).getTime() - new Date(pageA.created_at).getTime();
-      }
-
-      return 0;
+      // Sort by order (ascending: 0, 1, 2, 3...)
+      return finalOrderA - finalOrderB;
     });
 
     // Recursively sort children

@@ -44,7 +44,7 @@ export interface UpdatePageFolderData {
  * Retrieves all page folders from the database
  *
  * @param filters - Optional key-value filters to apply (e.g., { is_published: true })
- * @returns Promise resolving to array of page folders, ordered by creation date (newest first)
+ * @returns Promise resolving to array of page folders, ordered by order field (ascending)
  * @throws Error if Supabase query fails
  */
 export async function getAllPageFolders(filters?: QueryFilters): Promise<PageFolder[]> {
@@ -66,7 +66,7 @@ export async function getAllPageFolders(filters?: QueryFilters): Promise<PageFol
     });
   }
 
-  const { data, error } = await query.order('created_at', { ascending: false });
+  const { data, error } = await query.order('order', { ascending: true });
 
   if (error) {
     throw new Error(`Failed to fetch page folders: ${error.message}`);
@@ -240,9 +240,145 @@ async function getDescendantFolderIdsFromDB(folderId: string): Promise<string[]>
 }
 
 /**
+ * Batch update order for multiple folders
+ * @param updates - Array of { id, order } objects
+ */
+export async function batchUpdateFolderOrder(updates: Array<{ id: string; order: number }>): Promise<void> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // Update each folder's order
+  const promises = updates.map(({ id, order }) =>
+    client
+      .from('page_folders')
+      .update({ order })
+      .eq('id', id)
+      .is('deleted_at', null)
+  );
+
+  const results = await Promise.all(promises);
+
+  const errors = results.filter(r => r.error);
+  if (errors.length > 0) {
+    throw new Error(`Failed to update folder order: ${errors[0].error?.message}`);
+  }
+}
+
+/**
+ * Reorder all siblings (both pages and folders) at the same parent level
+ * This ensures pages and folders share continuous order values
+ * @param parentId - Parent folder ID (null for root)
+ * @param depth - Depth level of the siblings to reorder
+ */
+export async function reorderSiblings(parentId: string | null, depth: number): Promise<void> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // Fetch sibling folders - filter by parent_id AND depth
+  let foldersQuery = client
+    .from('page_folders')
+    .select('id, order')
+    .eq('depth', depth)
+    .is('deleted_at', null);
+
+  if (parentId === null) {
+    foldersQuery = foldersQuery.is('page_folder_id', null);
+  } else {
+    foldersQuery = foldersQuery.eq('page_folder_id', parentId);
+  }
+
+  const { data: siblingFolders, error: foldersError } = await foldersQuery.order('order', { ascending: true });
+
+  if (foldersError) {
+    throw new Error(`Failed to fetch sibling folders: ${foldersError.message}`);
+  }
+
+  // Fetch sibling pages - filter by parent_id AND depth
+  let pagesQuery = client
+    .from('pages')
+    .select('id, order')
+    .eq('depth', depth)
+    .is('deleted_at', null);
+
+  if (parentId === null) {
+    pagesQuery = pagesQuery.is('page_folder_id', null);
+  } else {
+    pagesQuery = pagesQuery.eq('page_folder_id', parentId);
+  }
+
+  const { data: siblingPages, error: pagesError } = await pagesQuery.order('order', { ascending: true });
+
+  if (pagesError) {
+    throw new Error(`Failed to fetch sibling pages: ${pagesError.message}`);
+  }
+
+  // Combine and sort by current order
+  const allSiblings = [
+    ...(siblingFolders || []).map(f => ({ id: f.id, order: f.order ?? 0, type: 'folder' as const })),
+    ...(siblingPages || []).map(p => ({ id: p.id, order: p.order ?? 0, type: 'page' as const })),
+  ].sort((a, b) => a.order - b.order);
+
+  // Update order for all siblings (continuous sequence: 0, 1, 2, ...)
+  // Only update items whose order actually changed
+  const folderUpdates: Array<{ id: string; order: number }> = [];
+  const pageUpdates: Array<{ id: string; order: number }> = [];
+
+  allSiblings.forEach((sibling, index) => {
+    // Only update if order changed
+    if (sibling.order !== index) {
+      if (sibling.type === 'folder') {
+        folderUpdates.push({ id: sibling.id, order: index });
+      } else {
+        pageUpdates.push({ id: sibling.id, order: index });
+      }
+    }
+  });
+
+  // Apply updates
+  if (folderUpdates.length > 0) {
+    const folderPromises = folderUpdates.map(({ id, order }) =>
+      client
+        .from('page_folders')
+        .update({ order })
+        .eq('id', id)
+        .is('deleted_at', null)
+    );
+
+    const folderResults = await Promise.all(folderPromises);
+    const folderErrors = folderResults.filter(r => r.error);
+    if (folderErrors.length > 0) {
+      throw new Error(`Failed to reorder folders: ${folderErrors[0].error?.message}`);
+    }
+  }
+
+  if (pageUpdates.length > 0) {
+    const pagePromises = pageUpdates.map(({ id, order }) =>
+      client
+        .from('pages')
+        .update({ order })
+        .eq('id', id)
+        .is('deleted_at', null)
+    );
+
+    const pageResults = await Promise.all(pagePromises);
+    const pageErrors = pageResults.filter(r => r.error);
+    if (pageErrors.length > 0) {
+      throw new Error(`Failed to reorder pages: ${pageErrors[0].error?.message}`);
+    }
+  }
+}
+
+/**
  * Soft delete a page folder and all its nested pages and folders
  * Sets deleted_at to current timestamp instead of hard deleting
  * Recursively deletes all child folders, pages, and their page_layers
+ * After deletion, reorders remaining folders with the same parent_id
  */
 export async function deletePageFolder(id: string): Promise<void> {
   const client = await getSupabaseAdmin();
@@ -252,6 +388,12 @@ export async function deletePageFolder(id: string): Promise<void> {
   }
 
   const deletedAt = new Date().toISOString();
+
+  // Get the folder before deletion to know its parent_id and depth
+  const folderToDelete = await getPageFolderById(id);
+  if (!folderToDelete) {
+    throw new Error('Folder not found');
+  }
 
   // Query 1: Get all descendant folder IDs from database
   const descendantFolderIds = await getDescendantFolderIdsFromDB(id);
@@ -308,6 +450,15 @@ export async function deletePageFolder(id: string): Promise<void> {
   }
 
   console.log(`[deletePageFolder] Successfully deleted folder ${id}, ${affectedPageIds.length} pages, and their layers`);
+
+  // Reorder remaining siblings (both pages and folders) with the same parent_id and depth
+  try {
+    await reorderSiblings(folderToDelete.page_folder_id, folderToDelete.depth);
+    console.log(`[deletePageFolder] Reordered siblings under parent ${folderToDelete.page_folder_id || 'root'} at depth ${folderToDelete.depth}`);
+  } catch (reorderError) {
+    console.error('[deletePageFolder] Failed to reorder siblings:', reorderError);
+    // Don't fail the deletion if reordering fails
+  }
 }
 
 /**
