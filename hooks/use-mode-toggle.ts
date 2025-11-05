@@ -99,9 +99,13 @@ export function useModeToggle(config: ModeToggleConfig) {
             value: null,
           }))
         ]);
+      } else {
+        // If no individual values, just switch mode
+        setMode('all-borders');
+        pendingModeChangeRef.current = null;
       }
     } else {
-      // Unified → Individual: populate all with unified value
+      // Unified → Individual: populate all with unified value (or allow empty start)
       const unifiedValue = getCurrentValue(unifiedProperty);
       
       if (unifiedValue) {
@@ -120,6 +124,10 @@ export function useModeToggle(config: ModeToggleConfig) {
             value: null,
           }
         ]);
+      } else {
+        // No unified value - just switch to individual mode with empty inputs
+        setMode('individual-borders');
+        pendingModeChangeRef.current = null;
       }
     }
   }, [

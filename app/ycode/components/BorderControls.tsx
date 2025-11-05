@@ -13,6 +13,7 @@ import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useModeToggle } from '@/hooks/use-mode-toggle';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { extractMeasurementValue } from '@/lib/measurement-utils';
 import type { Layer } from '@/types';
 
 interface BorderControlsProps {
@@ -28,12 +29,6 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
     activeBreakpoint,
     activeUIState,
   });
-  
-  // Extract numeric value from design property
-  const extractValue = (prop: string): string => {
-    if (!prop) return '';
-    return prop.replace(/[a-z%]+$/i, '');
-  };
   
   // Get current values from layer (with inheritance)
   const borderRadius = getDesignProperty('borders', 'borderRadius') || '';
@@ -63,7 +58,7 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
     borderRightWidth,
     borderBottomWidth,
     borderLeftWidth,
-  }, extractValue);
+  }, extractMeasurementValue);
 
   const [borderRadiusInput, setBorderRadiusInput] = inputs.borderRadius;
   const [borderTopLeftRadiusInput, setBorderTopLeftRadiusInput] = inputs.borderTopLeftRadius;
@@ -101,49 +96,49 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
   // Handle radius changes
   const handleRadiusChange = (value: string) => {
     setBorderRadiusInput(value);
-    updateDesignProperty('borders', 'borderRadius', value ? `${value}px` : null);
+    updateDesignProperty('borders', 'borderRadius', value || null);
   };
   
   const handleTopLeftRadiusChange = (value: string) => {
     setBorderTopLeftRadiusInput(value);
-    updateDesignProperty('borders', 'borderTopLeftRadius', value ? `${value}px` : null);
+    updateDesignProperty('borders', 'borderTopLeftRadius', value || null);
   };
   
   const handleTopRightRadiusChange = (value: string) => {
     setBorderTopRightRadiusInput(value);
-    updateDesignProperty('borders', 'borderTopRightRadius', value ? `${value}px` : null);
+    updateDesignProperty('borders', 'borderTopRightRadius', value || null);
   };
   
   const handleBottomRightRadiusChange = (value: string) => {
     setBorderBottomRightRadiusInput(value);
-    updateDesignProperty('borders', 'borderBottomRightRadius', value ? `${value}px` : null);
+    updateDesignProperty('borders', 'borderBottomRightRadius', value || null);
   };
   
   const handleBottomLeftRadiusChange = (value: string) => {
     setBorderBottomLeftRadiusInput(value);
-    updateDesignProperty('borders', 'borderBottomLeftRadius', value ? `${value}px` : null);
+    updateDesignProperty('borders', 'borderBottomLeftRadius', value || null);
   };
   
   // Handle border width changes
   const handleBorderWidthChange = (value: string) => {
     setBorderWidthInput(value);
-    updateDesignProperty('borders', 'borderWidth', value ? `${value}px` : null);
+    updateDesignProperty('borders', 'borderWidth', value || null);
   };
   
   const handleTopWidthChange = (value: string) => {
-    updateDesignProperty('borders', 'borderTopWidth', value ? `${value}px` : null);
+    updateDesignProperty('borders', 'borderTopWidth', value || null);
   };
   
   const handleRightWidthChange = (value: string) => {
-    updateDesignProperty('borders', 'borderRightWidth', value ? `${value}px` : null);
+    updateDesignProperty('borders', 'borderRightWidth', value || null);
   };
   
   const handleBottomWidthChange = (value: string) => {
-    updateDesignProperty('borders', 'borderBottomWidth', value ? `${value}px` : null);
+    updateDesignProperty('borders', 'borderBottomWidth', value || null);
   };
   
   const handleLeftWidthChange = (value: string) => {
-    updateDesignProperty('borders', 'borderLeftWidth', value ? `${value}px` : null);
+    updateDesignProperty('borders', 'borderLeftWidth', value || null);
   };
   
   // Handle border style change

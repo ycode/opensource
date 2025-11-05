@@ -1,17 +1,18 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@/components/ui/select';
 import Icon from '@/components/ui/icon';
+import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useModeToggle } from '@/hooks/use-mode-toggle';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { extractMeasurementValue } from '@/lib/measurement-utils';
 import type { Layer } from '@/types';
 
 interface SpacingControlsProps {
@@ -28,15 +29,6 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     activeUIState,
   });
   
-  const [marginUnit, setMarginUnit] = useState<'px' | 'rem' | 'em'>('px');
-  
-  // Extract numeric value from design property
-  const extractValue = (prop: string): string => {
-    if (!prop) return '';
-    if (prop === 'auto') return 'auto';
-    return prop.replace(/[a-z%]+$/i, '');
-  };
-  
   // Get current values from layer (with inheritance)
   const margin = getDesignProperty('spacing', 'margin') || '';
   const marginTop = getDesignProperty('spacing', 'marginTop') || '';
@@ -51,7 +43,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     marginRight,
     marginBottom,
     marginLeft,
-  }, extractValue);
+  }, extractMeasurementValue);
 
   const [marginInput, setMarginInput] = inputs.margin;
   const [marginTopInput, setMarginTopInput] = inputs.marginTop;
@@ -77,7 +69,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
       if (value === 'auto') {
         updateDesignProperty('spacing', 'margin', 'auto');
       } else {
-        updateDesignProperty('spacing', 'margin', value ? `${value}${marginUnit}` : null);
+        updateDesignProperty('spacing', 'margin', value || null);
       }
     }
   };
@@ -87,7 +79,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginTop', 'auto');
     } else {
-      updateDesignProperty('spacing', 'marginTop', value ? `${value}${marginUnit}` : null);
+      updateDesignProperty('spacing', 'marginTop', value || null);
     }
   };
   
@@ -96,7 +88,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginRight', 'auto');
     } else {
-      updateDesignProperty('spacing', 'marginRight', value ? `${value}${marginUnit}` : null);
+      updateDesignProperty('spacing', 'marginRight', value || null);
     }
   };
   
@@ -105,7 +97,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginBottom', 'auto');
     } else {
-      updateDesignProperty('spacing', 'marginBottom', value ? `${value}${marginUnit}` : null);
+      updateDesignProperty('spacing', 'marginBottom', value || null);
     }
   };
   
@@ -114,7 +106,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginLeft', 'auto');
     } else {
-      updateDesignProperty('spacing', 'marginLeft', value ? `${value}${marginUnit}` : null);
+      updateDesignProperty('spacing', 'marginLeft', value || null);
     }
   };
   
@@ -136,20 +128,6 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   onChange={(e) => handleMarginChange(e.target.value)}
                   placeholder="16"
                 />
-                <InputGroupAddon align="inline-end">
-                  <Select value={marginUnit} onValueChange={(value) => setMarginUnit(value as 'px' | 'rem' | 'em')}>
-                    <SelectTrigger size="xs" variant="ghost">
-                      {marginUnit}
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="px">px</SelectItem>
-                        <SelectItem value="rem">rem</SelectItem>
-                        <SelectItem value="em">em</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </InputGroupAddon>
               </InputGroup>
               <Button
                 variant={marginModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
