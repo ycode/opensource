@@ -4,6 +4,10 @@ import { useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Slider } from '@/components/ui/slider';
+import Icon from '@/components/ui/icon';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -22,16 +26,16 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     activeBreakpoint,
     activeUIState,
   });
-  
-  const [positionUnit, setPositionUnit] = useState<'px' | 'rem' | 'em' | '%'>('px');
-  
+
+  const positionUnit = 'px';
+
   // Extract numeric value from design property
   const extractValue = (prop: string): string => {
     if (!prop) return '';
     if (prop === 'auto') return 'auto';
     return prop.replace(/[a-z%]+$/i, '');
   };
-  
+
   // Get current values from layer (with inheritance)
   const position = getDesignProperty('positioning', 'position') || 'relative';
   const top = getDesignProperty('positioning', 'top') || '';
@@ -39,10 +43,10 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
   const bottom = getDesignProperty('positioning', 'bottom') || '';
   const left = getDesignProperty('positioning', 'left') || '';
   const zIndex = getDesignProperty('positioning', 'zIndex') || '';
-  
+
   // Only show position inputs for fixed, absolute, or sticky
   const showPositionInputs = position === 'fixed' || position === 'absolute' || position === 'sticky';
-  
+
   // Local controlled inputs (prevents repopulation bug)
   const inputs = useControlledInputs({
     top,
@@ -57,12 +61,12 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
   const [bottomInput, setBottomInput] = inputs.bottom;
   const [leftInput, setLeftInput] = inputs.left;
   const [zIndexInput, setZIndexInput] = inputs.zIndex;
-  
+
   // Handle position change
   const handlePositionChange = (value: string) => {
     updateDesignProperty('positioning', 'position', value === 'static' ? null : value);
   };
-  
+
   // Handle top change
   const handleTopChange = (value: string) => {
     setTopInput(value);
@@ -72,7 +76,7 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
       updateDesignProperty('positioning', 'top', value ? `${value}${positionUnit}` : null);
     }
   };
-  
+
   // Handle right change
   const handleRightChange = (value: string) => {
     setRightInput(value);
@@ -82,7 +86,7 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
       updateDesignProperty('positioning', 'right', value ? `${value}${positionUnit}` : null);
     }
   };
-  
+
   // Handle bottom change
   const handleBottomChange = (value: string) => {
     setBottomInput(value);
@@ -92,7 +96,7 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
       updateDesignProperty('positioning', 'bottom', value ? `${value}${positionUnit}` : null);
     }
   };
-  
+
   // Handle left change
   const handleLeftChange = (value: string) => {
     setLeftInput(value);
@@ -102,7 +106,7 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
       updateDesignProperty('positioning', 'left', value ? `${value}${positionUnit}` : null);
     }
   };
-  
+
   // Handle z-index change
   const handleZIndexChange = (value: string) => {
     setZIndexInput(value);
@@ -112,7 +116,14 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
       updateDesignProperty('positioning', 'zIndex', value || null);
     }
   };
-  
+
+  // Handle z-index slider change
+  const handleZIndexSliderChange = (values: number[]) => {
+    const value = values[0].toString();
+    setZIndexInput(value);
+    updateDesignProperty('positioning', 'zIndex', value);
+  };
+
   return (
     <div className="py-5">
       <header className="py-4 -mt-4">
@@ -142,70 +153,112 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
 
         {showPositionInputs && (
           <>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label variant="muted" className="mb-2 block text-xs">Top</Label>
-                <Input
-                  value={topInput}
-                  onChange={(e) => handleTopChange(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <Label variant="muted" className="mb-2 block text-xs">Right</Label>
-                <Input
-                  value={rightInput}
-                  onChange={(e) => handleRightChange(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <Label variant="muted" className="mb-2 block text-xs">Bottom</Label>
-                <Input
-                  value={bottomInput}
-                  onChange={(e) => handleBottomChange(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <Label variant="muted" className="mb-2 block text-xs">Left</Label>
-                <Input
-                  value={leftInput}
-                  onChange={(e) => handleLeftChange(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3">
-              <Label variant="muted">Unit</Label>
-              <div className="col-span-2 *:w-full">
-                <Select value={positionUnit} onValueChange={(value) => setPositionUnit(value as 'px' | 'rem' | 'em' | '%')}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="px">px</SelectItem>
-                      <SelectItem value="rem">rem</SelectItem>
-                      <SelectItem value="em">em</SelectItem>
-                      <SelectItem value="%">%</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+            <div className="grid grid-cols-3 items-start">
+              <Label variant="muted" className="h-8">Offset</Label>
+              <div className="col-span-2 flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <div className="flex">
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Icon name="paddingSide" className="size-3" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Left</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      className="!pr-0"
+                      value={leftInput}
+                      onChange={(e) => handleLeftChange(e.target.value)}
+                      placeholder="0"
+                    />
+                  </InputGroup>
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <div className="flex">
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Icon name="paddingSide" className="size-3 rotate-90" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Top</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      className="!pr-0"
+                      value={topInput}
+                      onChange={(e) => handleTopChange(e.target.value)}
+                      placeholder="0"
+                    />
+                  </InputGroup>
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <div className="flex">
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Icon name="paddingSide" className="size-3 rotate-180" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Right</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      className="!pr-0"
+                      value={rightInput}
+                      onChange={(e) => handleRightChange(e.target.value)}
+                      placeholder="0"
+                    />
+                  </InputGroup>
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <div className="flex">
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Icon name="paddingSide" className="size-3 -rotate-90" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Bottom</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      className="!pr-0"
+                      value={bottomInput}
+                      onChange={(e) => handleBottomChange(e.target.value)}
+                      placeholder="0"
+                    />
+                  </InputGroup>
+                </div>
               </div>
             </div>
           </>
         )}
 
         <div className="grid grid-cols-3">
-          <Label variant="muted">Z-Index</Label>
-          <div className="col-span-2 *:w-full">
+          <Label variant="muted">Z Index</Label>
+          <div className="col-span-2 grid grid-cols-2 items-center gap-2">
             <Input
               type="text"
               value={zIndexInput}
               onChange={(e) => handleZIndexChange(e.target.value)}
               placeholder="auto"
+            />
+            <Slider
+              value={[parseInt(zIndexInput) || 0]}
+              onValueChange={handleZIndexSliderChange}
+              min={0}
+              max={100}
+              step={1}
+              className="flex-1"
             />
           </div>
         </div>
