@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import LayerRenderer from '../../components/layers/LayerRenderer';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { resolveComponents } from '@/lib/resolve-components';
 import PublishedPageHead from './PublishedPageHead';
 import RemoveDarkMode from './RemoveDarkMode';
 
@@ -92,10 +93,16 @@ async function fetchPublishedPageWithVersion(slug: string) {
           console.error('Failed to fetch published version:', versionError);
           return null;
         }
+        
+        // Fetch all components to resolve component instances
+        const { data: components } = await supabase
+          .from('components')
+          .select('*');
 
         return {
           page,
           version,
+          components: components || [],
         };
       } catch (error) {
         console.error('Failed to fetch page:', error);
@@ -121,7 +128,10 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     notFound();
   }
 
-  const { version } = data;
+  const { version, components } = data;
+  
+  // Resolve component instances in the layer tree before rendering
+  const resolvedLayers = resolveComponents(version.layers || [], components);
 
   // Render the page with extracted CSS from Tailwind JIT (compiled during publish)
   return (
@@ -134,7 +144,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       
       <div className="min-h-screen bg-white">
         <LayerRenderer 
-          layers={version.layers || []} 
+          layers={resolvedLayers} 
           isEditMode={false}
         />
       </div>

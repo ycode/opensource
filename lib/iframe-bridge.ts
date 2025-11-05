@@ -2,7 +2,7 @@
  * Iframe Bridge - Type-safe postMessage communication between editor and canvas iframe
  */
 
-import type { Layer } from '@/types';
+import type { Layer, Component } from '@/types';
 
 // Message types sent FROM parent TO iframe
 export type ParentToIframeMessage =
@@ -91,10 +91,44 @@ function isIframeToParentMessage(message: any): message is IframeToParentMessage
 }
 
 /**
- * Serialize layer data for iframe (remove circular references, etc.)
+ * Resolve component instances in layer tree
+ * Replaces layers with componentId with the actual component layers
  */
-export function serializeLayers(layers: Layer[]): Layer[] {
+function resolveComponentsInLayers(layers: Layer[], components: Component[]): Layer[] {
+  return layers.map(layer => {
+    // If this layer is a component instance, resolve it
+    if (layer.componentId) {
+      const component = components.find(c => c.id === layer.componentId);
+      
+      if (component && component.layers) {
+        // Return the component instance with component's layers as children
+        return {
+          ...layer,
+          children: component.layers,
+        };
+      }
+    }
+    
+    // Recursively process children
+    if (layer.children && layer.children.length > 0) {
+      return {
+        ...layer,
+        children: resolveComponentsInLayers(layer.children, components),
+      };
+    }
+    
+    return layer;
+  });
+}
+
+/**
+ * Serialize layer data for iframe (remove circular references, resolve components, etc.)
+ */
+export function serializeLayers(layers: Layer[], components: Component[] = []): Layer[] {
+  // First resolve component instances
+  const resolvedLayers = resolveComponentsInLayers(layers, components);
+  
   // Deep clone to avoid mutations
-  return JSON.parse(JSON.stringify(layers));
+  return JSON.parse(JSON.stringify(resolvedLayers));
 }
 

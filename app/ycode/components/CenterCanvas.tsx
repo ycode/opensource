@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 // 5. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
 
 // 6. Utils
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
@@ -65,6 +66,7 @@ export default function CenterCanvas({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { draftsByPageId, addLayer, updateLayer } = usePagesStore();
   const { setSelectedLayerId, activeUIState } = useEditorStore();
+  const components = useComponentsStore((state) => state.components);
 
   const layers = useMemo(() => {
     if (!currentPageId) {
@@ -79,7 +81,7 @@ export default function CenterCanvas({
   useEffect(() => {
     if (!iframeReady || !iframeRef.current) return;
 
-    const serializedLayers = serializeLayers(layers);
+    const serializedLayers = serializeLayers(layers, components);
     sendToIframe(iframeRef.current, {
       type: 'UPDATE_LAYERS',
       payload: {
@@ -87,7 +89,7 @@ export default function CenterCanvas({
         selectedLayerId,
       },
     });
-  }, [layers, selectedLayerId, iframeReady]);
+  }, [layers, selectedLayerId, iframeReady, components]);
 
   // Send breakpoint updates to iframe
   useEffect(() => {

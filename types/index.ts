@@ -134,6 +134,18 @@ export interface LayerStyle {
   updated_at: string;
 }
 
+// Component Types (Reusable Layer Trees)
+export interface Component {
+  id: string;
+  name: string;
+  
+  // Component data - complete layer tree
+  layers: Layer[];
+  
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Layer {
   id: string;
   name?: string; // Element type name: 'div', 'h1', 'button', 'section', etc.
@@ -182,6 +194,10 @@ export interface Layer {
       positioning?: PositioningDesign;
     };
   }; // Tracks local changes after style applied
+
+  // Components (reusable layer trees)
+  componentId?: string; // Reference to applied Component
+  componentOverrides?: Record<string, never>; // Reserved for future use - local modifications to component instances
 
   // Special properties
   locked?: boolean;

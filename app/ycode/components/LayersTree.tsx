@@ -17,7 +17,7 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 
 // 2. External libraries
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
-import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder, EyeOff, Layers as LayersIcon } from 'lucide-react';
+import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder, EyeOff, Layers as LayersIcon, Component as ComponentIcon } from 'lucide-react';
 
 // 4. Internal components
 import LayerContextMenu from './LayerContextMenu';
@@ -25,6 +25,7 @@ import LayerContextMenu from './LayerContextMenu';
 // 5. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
 
 // 6. Utils/lib
 import { cn } from '@/lib/utils';
@@ -117,10 +118,15 @@ const elementIcons: Record<string, React.ElementType> = {
 };
 
 // Helper function to get display name for layer
-function getLayerDisplayName(layer: Layer): string {
+function getLayerDisplayName(layer: Layer, component?: { name: string } | null): string {
   // Special case for Body layer
   if (layer.id === 'body') {
     return 'Body';
+  }
+
+  // Use component name if this is a component instance
+  if (component) {
+    return component.name;
   }
 
   // Use custom name if available
@@ -181,6 +187,7 @@ function LayerRow({
   pageId,
 }: LayerRowProps) {
   const { getStyleById } = useLayerStylesStore();
+  const { getComponentById } = useComponentsStore();
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
   });
@@ -197,6 +204,10 @@ function LayerRow({
 
   const hasChildren = node.layer.children && node.layer.children.length > 0;
   const isCollapsed = node.collapsed || false;
+
+  // Check if this is a component instance
+  const appliedComponent = node.layer.componentId ? getComponentById(node.layer.componentId) : null;
+  const isComponentInstance = !!appliedComponent;
 
   const ElementIcon = elementIcons[getIconKey(node.layer)] || Square;
 
@@ -271,7 +282,9 @@ function LayerRow({
             !isSelected && !isChildOfSelected && 'rounded-lg text-secondary-foreground/80 dark:text-primary-foreground/80',
             // Background colors
             !isDragActive && !isDragging && 'hover:bg-secondary/50',
-            isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
+            // Component instances use purple, regular layers use blue
+            isSelected && !isComponentInstance && 'bg-primary text-primary-foreground hover:bg-primary',
+            isSelected && isComponentInstance && 'bg-purple-500 text-white hover:bg-purple-500',
             !isSelected && isChildOfSelected && 'dark:bg-primary/15 bg-primary/10 text-current/70 hover:bg-primary/15 dark:hover:bg-primary/20',
             isSelected && !isDragActive && !isDragging && '',
             isDragging && '',
@@ -308,19 +321,23 @@ function LayerRow({
           </button>
 
           {/* Layer Icon */}
-          {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400 mx-1.5" />*/}
-          <div
-            className={cn(
-              'size-3 bg-secondary rounded mx-1.5',
-              isSelected && 'opacity-10 dark:bg-white'
-            )}
-          />
+          {isComponentInstance ? (
+            <ComponentIcon className="w-3 h-3 flex-shrink-0 mx-1.5 opacity-75" />
+          ) : (
+            <div
+              className={cn(
+                'size-3 bg-secondary rounded mx-1.5',
+                isSelected && 'opacity-10 dark:bg-white'
+              )}
+            />
+          )}
 
           {/* Label */}
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
-            {getLayerDisplayName(node.layer)}
+            {getLayerDisplayName(node.layer, appliedComponent)}
           </span>
-{/* Style Indicator */}
+          
+          {/* Style Indicator */}
           {node.layer.styleId && (
             <div className="flex items-center gap-1 mr-2 flex-shrink-0">
               <LayersIcon className="w-3 h-3 text-purple-400" />
@@ -361,6 +378,9 @@ export default function LayersTree({
 
   // Pull multi-select state from editor store
   const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange } = useEditorStore();
+  
+  // Get component by ID function for drag overlay
+  const { getComponentById } = useComponentsStore();
 
   // Use prop or store state (prop takes precedence for compatibility)
   const selectedLayerIds = propSelectedLayerIds ?? storeSelectedLayerIds;
@@ -864,15 +884,19 @@ export default function LayersTree({
             style={{ transform: 'translateX(40px)' }}
           >
             {(() => {
+              const draggedComponent = activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId) : null;
               const ElementIcon = elementIcons[getIconKey(activeNode.layer)] || Square;
               return (
                 <>
-                  {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" />*/}
-                  <div className="size-3 bg-white/10 rounded mx-1.5" />
+                  {draggedComponent ? (
+                    <ComponentIcon className="w-3 h-3 flex-shrink-0 mx-1.5 opacity-75" />
+                  ) : (
+                    <div className="size-3 bg-white/10 rounded mx-1.5" />
+                  )}
                 </>
               );
             })()}
-            <span className="pointer-events-none">{getLayerDisplayName(activeNode.layer)}</span>
+            <span className="pointer-events-none">{getLayerDisplayName(activeNode.layer, activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId) : null)}</span>
           </div>
         ) : null}
       </DragOverlay>

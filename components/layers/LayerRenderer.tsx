@@ -6,6 +6,7 @@ import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
 import { getHtmlTag, getClassesString, getText, getImageUrl } from '../../lib/layer-utils';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
+import { useComponentsStore } from '../../stores/useComponentsStore';
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -88,7 +89,6 @@ const LayerItem: React.FC<{
   pageId,
 }) => {
   const isSelected = selectedLayerId === layer.id;
-  const hasChildren = (layer.children && layer.children.length > 0) || false;
   const isEditing = editingLayerId === layer.id;
   const isTextEditable = layer.formattable || layer.type === 'text' || layer.type === 'heading';
   const isDragging = activeLayerId === layer.id;
@@ -96,7 +96,15 @@ const LayerItem: React.FC<{
   const classesString = getClassesString(layer);
   const textContent = getText(layer);
   const imageUrl = getImageUrl(layer);
-  const children = layer.children;
+  
+  // Handle component instances - fetch component and render its layers
+  const getComponentById = useComponentsStore((state) => state.getComponentById);
+  const component = layer.componentId ? getComponentById(layer.componentId) : null;
+  
+  // For component instances, use the component's layers as children
+  // Component stores layers as an array, so we use those directly
+  const children = component && component.layers ? component.layers : layer.children;
+  const hasChildren = (children && children.length > 0) || false;
 
   // Use sortable for drag and drop
   const {

@@ -8,6 +8,7 @@
 
 // 1. React/Next.js
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import Link from 'next/link';
 
 // 2. Internal components
 import CenterCanvas from './components/CenterCanvas';
@@ -26,6 +27,8 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useClipboardStore } from '@/stores/useClipboardStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
+import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
 
 // 6. Utils/lib
 import { findLayerById, getClassesString } from '@/lib/layer-utils';
@@ -86,6 +89,10 @@ export default function YCodeBuilder() {
   useEffect(() => {
     if (migrationsComplete) {
       loadPages();
+      
+      // Also load components and layer styles
+      useComponentsStore.getState().loadComponents();
+      useLayerStylesStore.getState().loadStyles();
     }
   }, [loadPages, migrationsComplete]);
 
@@ -611,7 +618,7 @@ export default function YCodeBuilder() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, selectedLayerIds, currentPageId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately, draftsByPageId, updateLayer, copyStyleToClipboard, pasteStyleFromClipboard]);
+  }, [selectedLayerId, selectedLayerIds, currentPageId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately, draftsByPageId, updateLayer, copyStyleToClipboard, pasteStyleFromClipboard, deleteSelectedLayer, handleUndo, handleRedo]);
 
   // Show login form if not authenticated
   if (!user) {
@@ -682,9 +689,9 @@ export default function YCodeBuilder() {
           <div className="mt-6 text-center">
             <p className="text-sm text-zinc-500">
               First time here?{' '}
-              <a href="/welcome" className="text-blue-400 hover:text-blue-300">
+              <Link href="/welcome" className="text-blue-400 hover:text-blue-300">
                 Complete setup
-              </a>
+              </Link>
             </p>
           </div>
         </div>
