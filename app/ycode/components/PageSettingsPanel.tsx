@@ -2,7 +2,7 @@
 
 /**
  * Page Settings Panel
- * 
+ *
  * Slide-out panel for creating and editing pages
  */
 
@@ -17,9 +17,16 @@ interface PageSettingsPanelProps {
 }
 
 export interface PageFormData {
-  title: string;
+  name: string;
   slug: string;
-  status: 'draft' | 'published';
+  is_published?: boolean;
+  order?: number;
+  depth?: number;
+  is_index?: boolean;
+  is_dynamic?: boolean;
+  is_locked?: boolean;
+  error_page?: number | null;
+  settings?: Record<string, any>;
 }
 
 export default function PageSettingsPanel({
@@ -29,7 +36,7 @@ export default function PageSettingsPanel({
   onSave,
 }: PageSettingsPanelProps) {
   const [activeTab, setActiveTab] = useState<'general' | 'seo' | 'social' | 'code'>('general');
-  const [title, setTitle] = useState('');
+  const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,34 +44,34 @@ export default function PageSettingsPanel({
   // Initialize form when page changes
   useEffect(() => {
     if (page) {
-      setTitle(page.title);
+      setName(page.name);
       setSlug(page.slug);
     } else {
-      setTitle('');
+      setName('');
       setSlug('');
     }
     setError(null);
   }, [page]);
 
-  // Auto-generate slug from title for new pages
+  // Auto-generate slug from name for new pages
   useEffect(() => {
-    if (!page && title) {
-      const autoSlug = title
+    if (!page && name) {
+      const autoSlug = name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
       setSlug(autoSlug);
     }
-  }, [title, page]);
+  }, [name, page]);
 
   const handleSave = async () => {
     // Validation
-    if (!title.trim()) {
+    if (!name.trim()) {
       setError('Page name is required');
       return;
     }
 
-    if (!slug.trim()) {
+    if (!page?.is_locked && !slug.trim()) {
       setError('Slug is required');
       return;
     }
@@ -74,9 +81,9 @@ export default function PageSettingsPanel({
 
     try {
       await onSave({
-        title: title.trim(),
+        name: name.trim(),
         slug: slug.trim(),
-        status: 'draft',
+        is_published: false,
       });
       onClose();
     } catch (err) {
@@ -91,7 +98,7 @@ export default function PageSettingsPanel({
   return (
     <>
       {/* Backdrop */}
-      <div 
+      <div
         className="fixed inset-0 bg-black/50 z-40"
         onClick={onClose}
       />
@@ -101,7 +108,7 @@ export default function PageSettingsPanel({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
           <h2 className="text-lg font-semibold text-white">
-            {page ? page.title : 'New Page'}
+            {page ? page.name : 'New Page'}
           </h2>
           <div className="flex items-center gap-2">
             <button
@@ -181,8 +188,8 @@ export default function PageSettingsPanel({
                 </label>
                 <input
                   type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   placeholder="Homepage"
                   className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />

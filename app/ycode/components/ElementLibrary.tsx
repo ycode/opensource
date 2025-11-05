@@ -53,9 +53,11 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
       
       // Create new layer from template
       const template = getTemplate(elementType);
+      const displayName = getBlockName(elementType);
       const newLayer = {
         ...template,
         id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        customName: displayName || undefined, // Set display name
       };
       
       // Find parent layer and check if it can have children
@@ -72,19 +74,12 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
       
       const parentLayer = findLayerInTree(layers, parentId);
       
-      // Check if parent can have children
-      if (parentLayer && !canHaveChildren(parentLayer)) {
-        console.warn(`Cannot add child to ${parentLayer.name || parentLayer.type} - element cannot have children`);
-        onClose();
-        return;
-      }
-      
       // Find parent and add layer
-      const addLayerToTree = (tree: any[], targetId: string): { success: boolean; newLayers: any[]; newLayerId: string; parentToExpand: string | null } => {
+      const addLayerToTree = (tree: any[], targetId: string, parentNode: any = null): { success: boolean; newLayers: any[]; newLayerId: string; parentToExpand: string | null } => {
         for (let i = 0; i < tree.length; i++) {
           const node = tree[i];
           if (node.id === targetId) {
-            // Found parent, check if it can have children
+            // Found target, check if it can have children
             if (canHaveChildren(node)) {
               // Add as child
               const updatedNode = {
@@ -98,17 +93,17 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
                 parentToExpand: targetId
               };
             } else {
-              // Cannot have children, add as sibling instead
+              // Cannot have children, add as sibling after this node
               return {
                 success: true,
                 newLayers: [...tree.slice(0, i + 1), newLayer, ...tree.slice(i + 1)],
                 newLayerId: newLayer.id,
-                parentToExpand: null
+                parentToExpand: parentNode ? parentNode.id : null
               };
             }
           }
           if (node.children) {
-            const result = addLayerToTree(node.children, targetId);
+            const result = addLayerToTree(node.children, targetId, node);
             if (result.success) {
               return {
                 success: true,

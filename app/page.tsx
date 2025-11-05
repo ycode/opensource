@@ -2,7 +2,7 @@
 
 /**
  * Homepage
- * 
+ *
  * Checks setup status and redirects to welcome wizard if not configured
  * Otherwise renders the published homepage from database
  */
@@ -10,14 +10,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { checkSetupStatus } from '@/lib/api/setup';
-import { pagesApi, pageVersionsApi } from '@/lib/api';
+import { pagesApi, pageLayersApi } from '@/lib/api';
+import { findHomepage } from '@/lib/page-utils';
 import LayerRenderer from '@/components/layers/LayerRenderer';
-import type { Page, PageVersion } from '@/types';
+import type { Page, PageLayers } from '@/types';
 
 export default function Home() {
   const router = useRouter();
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const [homepage, setHomepage] = useState<{ page: Page; version: PageVersion } | null>(null);
+  const [homepage, setHomepage] = useState<{ page: Page; pageLayers: PageLayers } | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -32,23 +33,22 @@ export default function Home() {
           return;
         }
 
-        // Try to load homepage (slug: "home" or "index")
-        let pageResponse = await pagesApi.getBySlug('home');
-        
-        if (pageResponse.error || !pageResponse.data) {
-          // Try "index" as fallback
-          pageResponse = await pagesApi.getBySlug('index');
-        }
+        // Get all published pages and find the homepage
+        const pagesResponse = await pagesApi.getAllPublished();
 
-        if (pageResponse.data && pageResponse.data.published_version_id) {
-          // Fetch published version
-          const versionResponse = await pageVersionsApi.getPublished(pageResponse.data.id);
-          
-          if (versionResponse.data) {
-            setHomepage({
-              page: pageResponse.data,
-              version: versionResponse.data,
-            });
+        if (pagesResponse.data) {
+          const homepagePage = findHomepage(pagesResponse.data);
+
+          if (homepagePage) {
+            // Fetch published layers
+            const pageLayersResponse = await pageLayersApi.getPublished(homepagePage.id);
+
+            if (pageLayersResponse.data) {
+              setHomepage({
+                page: homepagePage,
+                pageLayers: pageLayersResponse.data,
+              });
+            }
           }
         }
 
@@ -82,11 +82,11 @@ export default function Home() {
   }
 
   // Render homepage if it exists
-  if (homepage && homepage.version.layers && homepage.version.layers.length > 0) {
+  if (homepage && homepage.pageLayers.layers && homepage.pageLayers.layers.length > 0) {
     return (
       <div className="min-h-screen bg-white">
-        <LayerRenderer 
-          layers={homepage.version.layers} 
+        <LayerRenderer
+          layers={homepage.pageLayers.layers}
           isEditMode={false}
         />
       </div>

@@ -31,7 +31,8 @@ import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
 
 // 6. Utils/lib
-import { findLayerById, getClassesString } from '@/lib/layer-utils';
+import { findHomepage } from '@/lib/page-utils';
+import { findLayerById, getClassesString, removeLayerById } from '@/lib/layer-utils';
 
 // 5. Types
 import type { Layer } from '@/types';
@@ -39,7 +40,7 @@ import type { Layer } from '@/types';
 export default function YCodeBuilder() {
   const { signOut, user } = useAuthStore();
   const { selectedLayerId, selectedLayerIds, setSelectedLayerId, setSelectedLayerIds, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, pushHistory, editingComponentId } = useEditorStore();
-  const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter } = usePagesStore();
+  const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter, setDraftLayers } = usePagesStore();
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard, copyStyle: copyStyleToClipboard, pasteStyle: pasteStyleFromClipboard } = useClipboardStore();
   const componentIsSaving = useComponentsStore((state) => state.isSaving);
   const pages = usePagesStore((state) => state.pages);
@@ -52,11 +53,34 @@ export default function YCodeBuilder() {
   const [zoom, setZoom] = useState(100);
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastLayersRef = useRef<string>('');
+  const lastLayersByPageRef = useRef<Map<string, string>>(new Map());
   const previousPageIdRef = useRef<string | null>(null);
   
   // Combined saving state - either page or component
   const isCurrentlySaving = editingComponentId ? componentIsSaving : isSaving;
+  
+  // Helper: Get current layers (from page or component)
+  const getCurrentLayers = useCallback((): Layer[] => {
+    if (editingComponentId) {
+      const { componentDrafts } = useComponentsStore.getState();
+      return componentDrafts[editingComponentId] || [];
+    }
+    if (currentPageId) {
+      const draft = draftsByPageId[currentPageId];
+      return draft ? draft.layers : [];
+    }
+    return [];
+  }, [editingComponentId, currentPageId, draftsByPageId]);
+  
+  // Helper: Update current layers (page or component)
+  const updateCurrentLayers = useCallback((newLayers: Layer[]) => {
+    if (editingComponentId) {
+      const { updateComponentDraft } = useComponentsStore.getState();
+      updateComponentDraft(editingComponentId, newLayers);
+    } else if (currentPageId) {
+      setDraftLayers(currentPageId, newLayers);
+    }
+  }, [editingComponentId, currentPageId, setDraftLayers]);
 
   // Sync viewportMode with activeBreakpoint in store
   useEffect(() => {
@@ -100,13 +124,11 @@ export default function YCodeBuilder() {
     }
   }, [loadPages, migrationsComplete]);
 
-  // Set current page to "Home" page by default, or first page if Home doesn't exist
+  // Set current page to homepage by default, or first page if homepage doesn't exist
   useEffect(() => {
     if (!currentPageId && pages.length > 0) {
-      // Try to find "Home" page first (by slug or title)
-      const homePage = pages.find(p =>
-        p.slug?.toLowerCase() === 'home' || p.title?.toLowerCase() === 'home'
-      );
+      // Find homepage (is_locked=true, is_index=true, depth=0)
+      const homePage = findHomepage(pages);
       const defaultPage = homePage || pages[0];
 
       setCurrentPageId(defaultPage.id);
@@ -151,13 +173,12 @@ export default function YCodeBuilder() {
         return;
       }
 
-      // Escape - Select parent layer (doesn't require a selected layer)
-      if (e.key === 'Escape' && currentPageId && selectedLayerId) {
+      // Escape - Select parent layer
+      if (e.key === 'Escape' && (currentPageId || editingComponentId) && selectedLayerId) {
         e.preventDefault();
 
-        // Find parent of currently selected layer
-        const draft = draftsByPageId[currentPageId];
-        if (!draft) return;
+        const layers = getCurrentLayers();
+        if (!layers.length) return;
 
         const findParent = (layers: Layer[], targetId: string, parent: Layer | null = null): Layer | null => {
           for (const layer of layers) {
@@ -172,7 +193,7 @@ export default function YCodeBuilder() {
           return undefined as any;
         };
 
-        const parentLayer = findParent(draft.layers, selectedLayerId);
+        const parentLayer = findParent(layers, selectedLayerId);
 
         // If parent exists, select it. If no parent (root level), deselect
         if (parentLayer) {
@@ -186,11 +207,11 @@ export default function YCodeBuilder() {
       }
 
       // Arrow Up/Down - Reorder layer within siblings
-      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && currentPageId && selectedLayerId) {
+      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (currentPageId || editingComponentId) && selectedLayerId) {
         e.preventDefault();
 
-        const draft = draftsByPageId[currentPageId];
-        if (!draft) return;
+        const layers = getCurrentLayers();
+        if (!layers.length) return;
 
         const direction = e.key === 'ArrowUp' ? -1 : 1;
 
@@ -213,7 +234,7 @@ export default function YCodeBuilder() {
           return null;
         };
 
-        const info = findLayerInfo(draft.layers, selectedLayerId);
+        const info = findLayerInfo(layers, selectedLayerId);
         if (!info) return;
 
         const { siblings, index } = info;
@@ -248,25 +269,23 @@ export default function YCodeBuilder() {
 
         // If at root level, reorder root array directly
         if (!info.parent) {
-          newLayers = [...draft.layers];
+          newLayers = [...layers];
           [newLayers[index], newLayers[newIndex]] = [newLayers[newIndex], newLayers[index]];
         } else {
-          newLayers = reorderLayers(draft.layers);
+          newLayers = reorderLayers(layers);
         }
 
-        // Update the layers
-        const { setDraftLayers } = usePagesStore.getState();
-        setDraftLayers(currentPageId, newLayers);
+        updateCurrentLayers(newLayers);
 
         return;
       }
 
       // Tab - Select next sibling layer
-      if (e.key === 'Tab' && currentPageId && selectedLayerId) {
+      if (e.key === 'Tab' && (currentPageId || editingComponentId) && selectedLayerId) {
         e.preventDefault();
 
-        const draft = draftsByPageId[currentPageId];
-        if (!draft) return;
+        const layers = getCurrentLayers();
+        if (!layers.length) return;
 
         // Find the layer, its parent, and its index within siblings
         const findLayerInfo = (
@@ -287,7 +306,7 @@ export default function YCodeBuilder() {
           return null;
         };
 
-        const info = findLayerInfo(draft.layers, selectedLayerId);
+        const info = findLayerInfo(layers, selectedLayerId);
         if (!info) return;
 
         const { siblings, index } = info;
@@ -304,7 +323,7 @@ export default function YCodeBuilder() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, currentPageId, draftsByPageId, setSelectedLayerId, activeTab]);
+  }, [selectedLayerId, currentPageId, editingComponentId, draftsByPageId, setSelectedLayerId, activeTab, getCurrentLayers, updateCurrentLayers]);
 
   // Handle undo
   const handleUndo = () => {
@@ -353,12 +372,21 @@ export default function YCodeBuilder() {
   }, [currentPageId, selectedLayerId, draftsByPageId]);
 
   // Delete selected layer
-  const deleteSelectedLayer = () => {
-    if (selectedLayerId && currentPageId) {
+  const deleteSelectedLayer = useCallback(() => {
+    if (!selectedLayerId) return;
+    
+    if (editingComponentId) {
+      // Delete from component draft
+      const layers = getCurrentLayers();
+      const newLayers = removeLayerById(layers, selectedLayerId);
+      updateCurrentLayers(newLayers);
+      setSelectedLayerId(null);
+    } else if (currentPageId) {
+      // Delete from page
       deleteLayer(currentPageId, selectedLayerId);
       setSelectedLayerId(null);
     }
-  };
+  }, [selectedLayerId, editingComponentId, currentPageId, getCurrentLayers, updateCurrentLayers, deleteLayer, setSelectedLayerId]);
 
   // Immediate save function (bypasses debouncing)
   const saveImmediately = useCallback(async (pageId: string) => {
@@ -414,9 +442,13 @@ export default function YCodeBuilder() {
           hasUnsavedChanges) {
         try {
           await saveImmediately(previousPageIdRef.current);
+          setHasUnsavedChanges(false); // Clear unsaved flag after successful save
         } catch (error) {
           console.error('Failed to save before navigation:', error);
         }
+      } else if (previousPageIdRef.current !== currentPageId) {
+        // Switching to a different page without unsaved changes - clear the flag
+        setHasUnsavedChanges(false);
       }
 
       // Update the ref to track current page
@@ -434,15 +466,16 @@ export default function YCodeBuilder() {
 
     const draft = draftsByPageId[currentPageId];
     const currentLayersJSON = JSON.stringify(draft.layers);
+    const lastLayersJSON = lastLayersByPageRef.current.get(currentPageId);
 
-    // Only trigger save if layers actually changed
-    if (lastLayersRef.current && lastLayersRef.current !== currentLayersJSON) {
+    // Only trigger save if layers actually changed for THIS page
+    if (lastLayersJSON && lastLayersJSON !== currentLayersJSON) {
       setHasUnsavedChanges(true);
       debouncedSave(currentPageId);
     }
 
-    // Update the ref for next comparison
-    lastLayersRef.current = currentLayersJSON;
+    // Update the ref for next comparison (store per page)
+    lastLayersByPageRef.current.set(currentPageId, currentLayersJSON);
 
     // Cleanup timeout on unmount
     return () => {
@@ -514,6 +547,10 @@ export default function YCodeBuilder() {
       // Save: Cmd/Ctrl + S
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault(); // Always prevent default browser save dialog
+        if (editingComponentId) {
+          // Component save is automatic via store, no manual save needed
+          return;
+        }
         if (currentPageId) {
           saveImmediately(currentPageId);
         }
@@ -608,12 +645,23 @@ export default function YCodeBuilder() {
 
       // Delete: Delete or Backspace (supports multi-select)
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
-        if (!isInputFocused && currentPageId) {
+        if (!isInputFocused && (currentPageId || editingComponentId)) {
           e.preventDefault();
           if (selectedLayerIds.length > 1) {
             // Multi-select: delete all
-            deleteLayers(currentPageId, selectedLayerIds);
-            clearSelection();
+            if (editingComponentId) {
+              // Delete multiple from component
+              const layers = getCurrentLayers();
+              let newLayers = layers;
+              for (const layerId of selectedLayerIds) {
+                newLayers = removeLayerById(newLayers, layerId);
+              }
+              updateCurrentLayers(newLayers);
+              clearSelection();
+            } else if (currentPageId) {
+              deleteLayers(currentPageId, selectedLayerIds);
+              clearSelection();
+            }
           } else if (selectedLayerId) {
             // Single select
             deleteSelectedLayer();
@@ -623,31 +671,52 @@ export default function YCodeBuilder() {
 
       // Copy Style: Option + Cmd + C
       if (e.altKey && e.metaKey && e.key === 'c') {
-        if (!isInputFocused && currentPageId && selectedLayerId) {
+        if (!isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
           e.preventDefault();
-          const draft = draftsByPageId[currentPageId];
-          if (draft) {
-            const layer = findLayerById(draft.layers, selectedLayerId);
-            if (layer) {
-              const classes = getClassesString(layer);
-              copyStyleToClipboard(classes, layer.design, layer.styleId, layer.styleOverrides);
-            }
+          const layers = getCurrentLayers();
+          const layer = findLayerById(layers, selectedLayerId);
+          if (layer) {
+            const classes = getClassesString(layer);
+            copyStyleToClipboard(classes, layer.design, layer.styleId, layer.styleOverrides);
           }
         }
       }
 
       // Paste Style: Option + Cmd + V
       if (e.altKey && e.metaKey && e.key === 'v') {
-        if (!isInputFocused && currentPageId && selectedLayerId) {
+        if (!isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
           e.preventDefault();
           const style = pasteStyleFromClipboard();
           if (style) {
-            updateLayer(currentPageId, selectedLayerId, {
-              classes: style.classes,
-              design: style.design,
-              styleId: style.styleId,
-              styleOverrides: style.styleOverrides,
-            });
+            if (editingComponentId) {
+              // Update style in component
+              const layers = getCurrentLayers();
+              const updateLayerStyle = (layers: Layer[]): Layer[] => {
+                return layers.map(layer => {
+                  if (layer.id === selectedLayerId) {
+                    return {
+                      ...layer,
+                      classes: style.classes,
+                      design: style.design,
+                      styleId: style.styleId,
+                      styleOverrides: style.styleOverrides,
+                    };
+                  }
+                  if (layer.children) {
+                    return { ...layer, children: updateLayerStyle(layer.children) };
+                  }
+                  return layer;
+                });
+              };
+              updateCurrentLayers(updateLayerStyle(layers));
+            } else if (currentPageId) {
+              updateLayer(currentPageId, selectedLayerId, {
+                classes: style.classes,
+                design: style.design,
+                styleId: style.styleId,
+                styleOverrides: style.styleOverrides,
+              });
+            }
           }
         }
       }
@@ -655,7 +724,7 @@ export default function YCodeBuilder() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, selectedLayerIds, currentPageId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately, draftsByPageId, updateLayer, copyStyleToClipboard, pasteStyleFromClipboard, deleteSelectedLayer, handleUndo, handleRedo]);
+  }, [selectedLayerId, selectedLayerIds, currentPageId, editingComponentId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately, draftsByPageId, updateLayer, copyStyleToClipboard, pasteStyleFromClipboard, deleteSelectedLayer, handleUndo, handleRedo, getCurrentLayers, updateCurrentLayers, removeLayerById]);
 
   // Show login form if not authenticated
   if (!user) {

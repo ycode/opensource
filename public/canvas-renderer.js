@@ -14,6 +14,8 @@
   let editMode = true;
   let currentBreakpoint = 'desktop';
   let currentUIState = 'neutral'; // Active UI state for visual preview
+  let componentMap = {}; // Maps layer IDs to their root component layer ID
+  let editingComponentId = null; // ID of component being edited
   
   // Root element
   const root = document.getElementById('canvas-root');
@@ -39,6 +41,8 @@
       case 'UPDATE_LAYERS':
         layers = message.payload.layers || [];
         selectedLayerId = message.payload.selectedLayerId;
+        componentMap = message.payload.componentMap || {};
+        editingComponentId = message.payload.editingComponentId;
         render();
         break;
         
@@ -455,8 +459,19 @@
     // Click to select
     element.addEventListener('click', function(e) {
       e.stopPropagation();
+      
+      // If this layer is part of a component (and we're NOT editing it), select the component root instead
+      const componentRootId = componentMap[layer.id];
+      const isPartOfComponent = !!componentRootId;
+      const isEditingThisComponent = editingComponentId && componentRootId === editingComponentId;
+      
+      let targetLayerId = layer.id;
+      if (isPartOfComponent && !isEditingThisComponent) {
+        targetLayerId = componentRootId;
+      }
+      
       sendToParent('LAYER_CLICK', {
-        layerId: layer.id,
+        layerId: targetLayerId,
         metaKey: e.metaKey || e.ctrlKey,
         shiftKey: e.shiftKey
       });
@@ -484,13 +499,39 @@
     // Hover effects
     element.addEventListener('mouseenter', function(e) {
       if (editingLayerId !== layer.id) {
-        element.classList.add('ycode-hover');
+        // Check if this layer is part of a component (and we're NOT editing that component)
+        const componentRootId = componentMap[layer.id];
+        const isPartOfComponent = !!componentRootId;
+        const isEditingThisComponent = editingComponentId && componentRootId === editingComponentId;
+        
+        if (isPartOfComponent && !isEditingThisComponent) {
+          // Find the root component element and apply pink hover to it
+          const rootElement = document.querySelector('[data-layer-id="' + componentRootId + '"]');
+          if (rootElement) {
+            rootElement.classList.add('ycode-component-hover');
+          }
+        } else {
+          // Normal hover for non-component layers
+          element.classList.add('ycode-hover');
+        }
+        
         hoveredLayerId = layer.id;
       }
     });
     
     element.addEventListener('mouseleave', function(e) {
+      // Remove both types of hover classes
       element.classList.remove('ycode-hover');
+      
+      // Remove component hover from root if applicable
+      const componentRootId = componentMap[layer.id];
+      if (componentRootId) {
+        const rootElement = document.querySelector('[data-layer-id="' + componentRootId + '"]');
+        if (rootElement) {
+          rootElement.classList.remove('ycode-component-hover');
+        }
+      }
+      
       hoveredLayerId = null;
     });
   }

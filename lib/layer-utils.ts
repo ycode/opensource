@@ -110,3 +110,21 @@ export function canHaveChildren(layer: Layer): boolean {
   return !ELEMENTS_WITHOUT_CHILDREN.includes(elementName);
 }
 
+/**
+ * Remove a layer by ID from a tree structure
+ * Returns a new array with the layer removed
+ */
+export function removeLayerById(layers: Layer[], id: string): Layer[] {
+  return layers
+    .filter(layer => layer.id !== id)
+    .map(layer => {
+      if (layer.children) {
+        return {
+          ...layer,
+          children: removeLayerById(layer.children, id)
+        };
+      }
+      return layer;
+    });
+}
+

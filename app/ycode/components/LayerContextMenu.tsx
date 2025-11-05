@@ -177,7 +177,7 @@ export default function LayerContextMenu({
     if (!layer?.componentId) return;
     
     const { setEditingComponentId, setSelectedLayerId } = useEditorStore.getState();
-    const { loadComponentDraft } = useComponentsStore.getState();
+    const { loadComponentDraft, getComponentById } = useComponentsStore.getState();
     
     // Enter edit mode
     setEditingComponentId(layer.componentId, pageId);
@@ -185,8 +185,13 @@ export default function LayerContextMenu({
     // Load component into draft
     loadComponentDraft(layer.componentId);
     
-    // Clear selection
-    setSelectedLayerId(null);
+    // Select the first (top-level) layer of the component
+    const component = getComponentById(layer.componentId);
+    if (component && component.layers && component.layers.length > 0) {
+      setSelectedLayerId(component.layers[0].id);
+    } else {
+      setSelectedLayerId(null);
+    }
   };
   
   const handleDetachFromComponent = () => {

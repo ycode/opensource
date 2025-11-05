@@ -1,12 +1,7 @@
 'use client';
 
-// 1. React/Next.js
 import { useRef, useEffect, useState } from 'react';
-
-// 2. External libraries
 import { ArrowLeft, LogOut, Monitor, Moon, Sun } from 'lucide-react';
-
-// 3. ShadCN UI
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -29,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { publishApi } from '@/lib/api';
 
 // 5. Types
 import type { Page } from '@/types';
@@ -85,7 +81,7 @@ export default function HeaderBar({
     }
     return 'dark';
   });
-  
+
   // Get component and return page info for edit mode
   const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
   const returnToPage = returnToPageId ? pages.find(p => p.id === returnToPageId) : null;
@@ -213,7 +209,7 @@ export default function HeaderBar({
             className="gap-1"
           >
             <ArrowLeft className="size-4" />
-            Back to {returnToPage.title}
+            Back to {returnToPage.name}
           </Button>
         ) : null}
 
@@ -245,7 +241,7 @@ export default function HeaderBar({
         {/* Publish button - purple in component edit mode */}
         <Popover>
           <PopoverTrigger asChild>
-            <Button 
+            <Button
               size="sm"
               className={editingComponentId ? 'bg-purple-500 hover:bg-purple-600' : ''}
             >
@@ -271,9 +267,15 @@ export default function HeaderBar({
                       await saveImmediately(currentPageId);
                     }
 
-                    // Then publish
-                    const { publishPage } = usePagesStore.getState();
-                    await publishPage(currentPageId);
+                    // Publish all draft records
+                    const response = await publishApi.publishAll();
+                    if (response.error) {
+                      console.error('Publish failed:', response.error);
+                    } else {
+                      // Reload pages to update published status
+                      const { loadPages } = usePagesStore.getState();
+                      await loadPages();
+                    }
                   } catch (error) {
                     console.error('Publish failed:', error);
                   } finally {

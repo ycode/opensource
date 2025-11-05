@@ -1,15 +1,6 @@
 'use client';
 
-/**
- * Left Sidebar - Pages & Layers
- *
- * Displays pages list and layers tree with navigation icons
- */
-
-// 1. React/Next.js
-import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-
-// 3. ShadCN UI
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -18,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AssetLibrary from '@/components/AssetLibrary';
 import ElementLibrary from './ElementLibrary';
 import LayersTree from './LayersTree';
+import LeftSidebarPages from './LeftSidebarPages';
 import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
 
 // 5. Stores
@@ -54,14 +46,13 @@ export default function LeftSidebar({
 }: LeftSidebarProps) {
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const [showElementLibrary, setShowElementLibrary] = useState(false);
-  const [showPageSettings, setShowPageSettings] = useState(false);
-  const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
-  const { draftsByPageId, loadPages, loadDraft, addLayer, updateLayer, setDraftLayers } = usePagesStore();
+  const { draftsByPageId, loadPages, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
+  const folders = usePagesStore((state) => state.folders);
   const { setSelectedLayerId, setCurrentPageId, editingComponentId } = useEditorStore();
   const { componentDrafts, getComponentById, updateComponentDraft } = useComponentsStore();
-  
+
   // Get component layers if in edit mode
   const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
 
@@ -75,37 +66,6 @@ export default function LeftSidebar({
     return () => window.removeEventListener('toggleElementLibrary', handleToggleElementLibrary);
   }, []);
 
-  // Handler to create a new page
-  const handleAddPage = async () => {
-    try {
-      // Generate a unique slug based on current timestamp
-      const timestamp = Date.now();
-      const newPageTitle = `Page ${pages.length + 1}`;
-      const newPageSlug = `page-${timestamp}`;
-
-      const createResponse = await pagesApi.create({
-        title: newPageTitle,
-        slug: newPageSlug,
-        status: 'draft',
-        published_version_id: null,
-      });
-
-      if (createResponse.error) {
-        console.error('Error creating page:', createResponse.error);
-        return;
-      }
-
-      if (createResponse.data) {
-        // Reload pages to get the updated list
-        await loadPages();
-        // Switch to the new page
-        onPageSelect(createResponse.data.id);
-        setCurrentPageId(createResponse.data.id);
-      }
-    } catch (error) {
-      console.error('Exception creating page:', error);
-    }
-  };
 
   const currentPage = useMemo(
     () => pages.find(p => p.id === currentPageId) || null,
@@ -117,7 +77,7 @@ export default function LeftSidebar({
     if (editingComponentId) {
       return componentDrafts[editingComponentId] || [];
     }
-    
+
     // Otherwise show page layers
     if (!currentPageId) return [];
     const draft = draftsByPageId[currentPageId];
@@ -131,7 +91,7 @@ export default function LeftSidebar({
       updateComponentDraft(editingComponentId, newLayers);
       return;
     }
-    
+
     // Otherwise update page draft
     if (!currentPageId) return;
     setDraftLayers(currentPageId, newLayers);
@@ -153,17 +113,18 @@ export default function LeftSidebar({
     return null;
   }, []);
 
-  // Load pages on mount
+  // Load pages and folders on mount
   useEffect(() => {
     loadPages();
-  }, [loadPages]);
+    loadFolders();
+  }, [loadPages, loadFolders]);
 
-  // Load draft when page changes
+  // Load draft when page changes (only if not already in store)
   useEffect(() => {
-    if (currentPageId) {
+    if (currentPageId && !draftsByPageId[currentPageId]) {
       loadDraft(currentPageId);
     }
-  }, [currentPageId, loadDraft]);
+  }, [currentPageId, loadDraft, draftsByPageId]);
 
   // Helper to get parent for new layers
   const getParentForNewLayer = useCallback((): string | null => {
@@ -194,28 +155,6 @@ export default function LeftSidebar({
     return selectedItem.parentId;
   }, [selectedLayerId, layersForCurrentPage, findLayer]);
 
-  // Handle page editing
-  const handleEditPage = (page: Page) => {
-    setEditingPage(page);
-    setShowPageSettings(true);
-  };
-
-  const handleSavePage = async (data: PageFormData) => {
-    if (!editingPage) return;
-
-    try {
-      await pagesApi.update(editingPage.id, {
-        title: data.title,
-        slug: data.slug,
-      });
-
-      await loadPages();
-      setShowPageSettings(false);
-      setEditingPage(null);
-    } catch (error) {
-      console.error('Failed to save page:', error);
-    }
-  };
 
   // Handle asset selection
   const handleAssetSelect = (asset: { id: string; public_url: string; filename: string }) => {
@@ -282,7 +221,6 @@ export default function LeftSidebar({
 
           {/* Content */}
           <TabsContent value="layers">
-
             <header className="py-5 flex justify-between">
               <span className="font-medium">
                 {editingComponentId && editingComponent
@@ -295,7 +233,7 @@ export default function LeftSidebar({
                   size="xs" variant="secondary"
                   onClick={() => setShowElementLibrary(prev => !prev)}
                 >
-                  <Icon name="plus" className={showElementLibrary ? 'rotate-45' : 'rotate-0'} />
+                  <Icon name="plus" className={`${showElementLibrary ? 'rotate-45' : 'rotate-0'} transition-transform duration-100`} />
                 </Button>
               </div>
             </header>
@@ -326,63 +264,16 @@ export default function LeftSidebar({
           </TabsContent>
 
           <TabsContent value="pages">
-
-            <header className="py-5 flex justify-between">
-              <span className="font-medium">Pages</span>
-              <div className="-my-1">
-                <Button
-                  size="xs" variant="secondary"
-                  onClick={handleAddPage}
-                >
-                  <Icon name="plus" />
-                </Button>
-              </div>
-            </header>
-
-            <div className="flex flex-col">
-              {pages.map((page) => (
-                <div
-                  key={page.id}
-                  className={`group relative rounded ${
-                    currentPageId === page.id
-                      ? 'bg-zinc-700'
-                      : 'hover:bg-zinc-800'
-                  }`}
-                >
-                  <Button
-                    onClick={() => {
-                      onPageSelect(page.id);
-                      setCurrentPageId(page.id);
-                    }}
-                    variant="ghost"
-                    className="w-full justify-start px-3 py-1.5 h-auto text-sm text-zinc-300 flex items-center gap-2"
-                  >
-                    <Icon name="file-text" className="w-4 h-4 text-zinc-400 shrink-0" />
-                    <span className="flex-1 truncate">{page.title}</span>
-                  </Button>
-
-                  {/* Settings button */}
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEditPage(page);
-                    }}
-                    variant="ghost"
-                    size="icon-sm"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Page settings"
-                    aria-label="Page settings"
-                  >
-                    <Icon name="edit" className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-
+            <LeftSidebarPages
+              pages={pages}
+              folders={folders}
+              currentPageId={currentPageId}
+              onPageSelect={onPageSelect}
+              setCurrentPageId={setCurrentPageId}
+            />
           </TabsContent>
 
           <TabsContent value="cms">
-
             <header className="py-5 flex justify-between">
               <span className="font-medium">Collections</span>
               <div
@@ -407,20 +298,8 @@ export default function LeftSidebar({
                   <span>Categories</span>
                 </div>
             </div>
-
           </TabsContent>
         </Tabs>
-
-        {/* Page Settings Panel */}
-        <PageSettingsPanel
-          isOpen={showPageSettings}
-          onClose={() => {
-            setShowPageSettings(false);
-            setEditingPage(null);
-          }}
-          page={editingPage}
-          onSave={handleSavePage}
-        />
       </div>
 
       {/* Element Library Slide-Out */}

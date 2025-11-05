@@ -47,10 +47,10 @@ import { Icon } from '@/components/ui/icon';
 
 export function SearchBar({ onSearch }: SearchBarProps) {
   const [query, setQuery] = useState('');
-  
+
   return (
     <div className="flex gap-2">
-      <Input 
+      <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search pages..."
@@ -159,12 +159,12 @@ Move reusable logic into custom hooks:
 // ✅ GOOD: Reusable hook
 export function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
-  
+
   useEffect(() => {
     const handler = setTimeout(() => setDebouncedValue(value), delay);
     return () => clearTimeout(handler);
   }, [value, delay]);
-  
+
   return debouncedValue;
 }
 
@@ -172,7 +172,7 @@ export function useDebounce<T>(value: T, delay: number): T {
 function SearchInput() {
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 500);
-  
+
   useEffect(() => {
     if (debouncedQuery) {
       performSearch(debouncedQuery);
@@ -286,7 +286,7 @@ import { cn } from '@/lib/utils';
 import { findLayerById } from '@/lib/layer-utils';
 
 // 7. Types (always last, alphabetical)
-import type { Layer, Page, PageVersion, Asset } from '@/types';
+import type { Layer, Page, PageLayers, Asset } from '@/types';
 ```
 
 ---
@@ -395,11 +395,11 @@ export async function GET(
 ) {
   try {
     const page = await getPageById(params.id);
-    
+
     if (!page) {
       return NextResponse.json({ error: 'Page not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({ data: page });
   } catch (error) {
     console.error('Error fetching page:', error);
@@ -434,7 +434,7 @@ export async function getAllPages(): Promise<Page[]> {
     .from('pages')
     .select('*')
     .order('created_at', { ascending: false });
-  
+
   if (error) throw new Error(`Failed to fetch pages: ${error.message}`);
   return data || [];
 }
@@ -446,11 +446,11 @@ export async function getPageById(id: string): Promise<Page | null> {
     .select('*')
     .eq('id', id)
     .single();
-  
+
   if (error && error.code !== 'PGRST116') {
     throw new Error(`Failed to fetch page: ${error.message}`);
   }
-  
+
   return data;
 }
 
@@ -461,7 +461,7 @@ export async function createPage(pageData: Omit<Page, 'id' | 'created_at' | 'upd
     .insert(pageData)
     .select()
     .single();
-  
+
   if (error) throw new Error(`Failed to create page: ${error.message}`);
   return data;
 }
@@ -477,17 +477,17 @@ Use the `ApiResponse<T>` type from `/types/index.ts`:
 
 ```typescript
 // ✅ Success response
-return NextResponse.json({ 
-  data: result 
+return NextResponse.json({
+  data: result
 }, { status: 200 });
 
 // ✅ Error response
-return NextResponse.json({ 
-  error: 'Descriptive error message' 
+return NextResponse.json({
+  error: 'Descriptive error message'
 }, { status: 400 });
 
 // ✅ With optional message
-return NextResponse.json({ 
+return NextResponse.json({
   data: result,
   message: 'Page published successfully'
 }, { status: 200 });
@@ -513,9 +513,9 @@ const handleAction = async () => {
   try {
     setLoading(true);
     setError(null); // Clear previous errors
-    
+
     const result = await apiCall();
-    
+
     // Success handling
     setData(result);
   } catch (error) {
@@ -534,7 +534,7 @@ function PageEditor({ pageId }: PageEditorProps) {
   const [page, setPage] = useState<Page | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   useEffect(() => {
     const loadPage = async () => {
       try {
@@ -547,14 +547,14 @@ function PageEditor({ pageId }: PageEditorProps) {
         setLoading(false);
       }
     };
-    
+
     loadPage();
   }, [pageId]);
-  
+
   if (loading) return <Spinner />;
   if (error) return <ErrorMessage error={error} />;
   if (!page) return null;
-  
+
   return <div>{/* Render page */}</div>;
 }
 ```
@@ -570,26 +570,26 @@ function PageEditor({ pageId }: PageEditorProps) {
 function PageList() {
   const [pages, setPages] = useState<Page[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     fetchPages().then(setPages).finally(() => setLoading(false));
   }, []);
-  
+
   if (loading) {
     return <Spinner />;
   }
-  
+
   return <div>{/* Render pages */}</div>;
 }
 
 // ❌ WRONG: No loading state
 function PageList() {
   const [pages, setPages] = useState<Page[]>([]);
-  
+
   useEffect(() => {
     fetchPages().then(setPages);
   }, []);
-  
+
   return <div>{/* Flashes empty state, then content */}</div>;
 }
 ```
@@ -617,19 +617,19 @@ if (loading) return (
 // ✅ GOOD: Early returns (clean, readable)
 function PageEditor({ pageId }: PageEditorProps) {
   const { page, loading, error } = usePageData(pageId);
-  
+
   if (loading) {
     return <Spinner />;
   }
-  
+
   if (error) {
     return <ErrorMessage error={error} />;
   }
-  
+
   if (!page) {
     return <EmptyState message="Page not found" />;
   }
-  
+
   return (
     <div>
       <h1>{page.title}</h1>
@@ -641,7 +641,7 @@ function PageEditor({ pageId }: PageEditorProps) {
 // ❌ BAD: Nested ternaries (hard to read, hard to maintain)
 function PageEditor({ pageId }: PageEditorProps) {
   const { page, loading, error } = usePageData(pageId);
-  
+
   return loading ? (
     <Spinner />
   ) : error ? (
@@ -701,7 +701,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   currentPageId: null,
   isLoading: false,
   isSaving: false,
-  
+
   setSelectedLayerId: (id) => set({ selectedLayerId: id }),
   setCurrentPageId: (id) => set({ currentPageId: id }),
   setLoading: (value) => set({ isLoading: value }),
@@ -751,7 +751,7 @@ function LayersList({ layers }: LayersListProps) {
   const handleSelect = useCallback((id: string) => {
     console.log('Selected:', id);
   }, []); // Empty deps - function never changes
-  
+
   return (
     <>
       {layers.map(layer => (
@@ -768,14 +768,14 @@ function LayersList({ layers }: LayersListProps) {
 // ✅ useMemo caches expensive computations
 function PageEditor({ pageId }: PageEditorProps) {
   const { draftsByPageId } = usePagesStore();
-  
+
   // Expensive: traverse tree structure
   const layersForCurrentPage = useMemo(() => {
     if (!pageId) return [];
     const draft = draftsByPageId[pageId];
     return draft ? draft.layers : [];
   }, [pageId, draftsByPageId]);
-  
+
   return <LayerRenderer layers={layersForCurrentPage} />;
 }
 ```

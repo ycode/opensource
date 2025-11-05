@@ -88,15 +88,17 @@ export default function CenterCanvas({
   useEffect(() => {
     if (!iframeReady || !iframeRef.current) return;
 
-    const serializedLayers = serializeLayers(layers, components);
+    const { layers: serializedLayers, componentMap } = serializeLayers(layers, components);
     sendToIframe(iframeRef.current, {
       type: 'UPDATE_LAYERS',
       payload: {
         layers: serializedLayers,
         selectedLayerId,
+        componentMap,
+        editingComponentId: editingComponentId || null,
       },
     });
-  }, [layers, selectedLayerId, iframeReady, components]);
+  }, [layers, selectedLayerId, iframeReady, components, editingComponentId]);
 
   // Send breakpoint updates to iframe
   useEffect(() => {
