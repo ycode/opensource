@@ -269,6 +269,18 @@ function mapClassToDesignValue(className: string, property: string): string | un
   // Remove any breakpoint and state prefixes
   const cleanClass = className.replace(/^(max-lg:|max-md:|lg:|md:)?(hover:|focus:|active:|disabled:|visited:)?/, '');
   
+  // Special cases for properties where classes don't have dashes or are complete values
+  const noSplitProperties = [
+    'position',        // static, absolute, relative, fixed, sticky
+    'display',         // block, inline, flex, grid, hidden (some have dashes like inline-block)
+    'textTransform',   // uppercase, lowercase, capitalize, normal-case
+    'textDecoration',  // underline, overline, line-through, no-underline
+  ];
+  
+  if (noSplitProperties.includes(property)) {
+    return cleanClass;
+  }
+  
   // Extract the value part after the property prefix
   // e.g., "text-3xl" → "3xl", "font-bold" → "bold", "w-full" → "full"
   const parts = cleanClass.split('-');
@@ -304,6 +316,17 @@ function mapClassToDesignValue(className: string, property: string): string | un
       '7xl': '4.5rem',
       '8xl': '6rem',
       '9xl': '8rem',
+    },
+    flexDirection: {
+      'row': 'row',
+      'col': 'column',
+      'row-reverse': 'row-reverse',
+      'col-reverse': 'column-reverse',
+    },
+    flexWrap: {
+      'wrap': 'wrap',
+      'wrap-reverse': 'wrap-reverse',
+      'nowrap': 'nowrap',
     },
   };
   

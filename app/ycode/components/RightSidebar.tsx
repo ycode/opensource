@@ -32,7 +32,6 @@ import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
 import LayerStylesPanel from './LayerStylesPanel';
 import PositionControls from './PositionControls';
-import PositioningControls from './PositioningControls';
 import SettingsPanel from './SettingsPanel';
 import SizingControls from './SizingControls';
 import SpacingControls from './SpacingControls';
@@ -140,7 +139,7 @@ export default function RightSidebar({
 
   // Classes input state (synced with selectedLayer)
   const [classesInput, setClassesInput] = useState<string>('');
-  
+
   // Sync classesInput when selectedLayer changes
   useEffect(() => {
     if (!selectedLayer?.classes) {
@@ -326,32 +325,18 @@ export default function RightSidebar({
         value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')}
         className="flex flex-col flex-1 min-h-0 min-h-0"
       >
-        <div className="p-4 pb-0">
+        <div className="">
           <TabsList className="w-full">
             <TabsTrigger value="design">Design</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
         </div>
 
-        <hr className="mt-4 mx-4" />
-
-        {/* Breakpoint Indicator (only show on Design tab) */}
-        {activeTab === 'design' && (
-          <>
-            <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900/50 border-b border-zinc-800">
-              <span className="text-xs text-zinc-400">
-                Editing: <span className="text-white font-medium capitalize">{activeBreakpoint}</span>
-              </span>
-            </div>
-            
-            {/* UI State Selector */}
-            <UIStateSelector selectedLayer={selectedLayer} />
-          </>
-        )}
+        <hr className="mt-2" />
 
         {/* Content */}
-        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden px-4 mt-0 pb-12">
-          
+        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden mt-0 pb-12">
+
           {/* Layer Styles Panel */}
           <LayerStylesPanel
             layer={selectedLayer}
@@ -359,13 +344,15 @@ export default function RightSidebar({
             onLayerUpdate={onLayerUpdate}
           />
 
+          {activeTab === 'design' && (
+            <>
+              <UIStateSelector selectedLayer={selectedLayer} />
+            </>
+          )}
+
           <LayoutControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <SpacingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
-
-          <SizingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
-
-          <TypographyControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <SizingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
@@ -377,9 +364,7 @@ export default function RightSidebar({
 
           <EffectControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
-          <PositioningControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
-
-          <PositionControls />
+          <PositionControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <div className="flex flex-col gap-4 py-5">
             <header className="py-4 -mt-4">
