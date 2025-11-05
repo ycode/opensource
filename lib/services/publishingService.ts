@@ -231,16 +231,23 @@ export async function publishAllPages(): Promise<PublishAllResult> {
 
     const existingPublishedLayers = publishedLayersByKey.get(draftLayers.publish_key);
 
-    const publishedData = {
+    const publishedData: any = {
       page_id: publishedPage.id, // Reference published page, not draft
       layers: draftLayers.layers,
       is_published: true,
       publish_key: draftLayers.publish_key,
     };
 
+    // Copy generated_css if it exists
+    if (draftLayers.generated_css) {
+      publishedData.generated_css = draftLayers.generated_css;
+    }
+
     if (existingPublishedLayers) {
-      // Check if update is needed
-      const hasChanges = JSON.stringify(existingPublishedLayers.layers) !== JSON.stringify(draftLayers.layers);
+      // Check if update is needed (layers or CSS changed)
+      const layersChanged = JSON.stringify(existingPublishedLayers.layers) !== JSON.stringify(draftLayers.layers);
+      const cssChanged = existingPublishedLayers.generated_css !== draftLayers.generated_css;
+      const hasChanges = layersChanged || cssChanged;
 
       if (hasChanges) {
         layersToUpdate.push({
