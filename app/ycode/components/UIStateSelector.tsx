@@ -27,7 +27,7 @@ export default function UIStateSelector({ selectedLayer }: UIStateSelectorProps)
   };
 
   return (
-    <div className="px-4 py-3 border-b border-zinc-800">
+    <div className="py-4">
       <Select value={activeUIState} onValueChange={(value) => setActiveUIState(value as UIState)}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Select state" />
