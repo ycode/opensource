@@ -37,7 +37,7 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
   };
 
   // Get current values from layer (with inheritance)
-  const position = getDesignProperty('positioning', 'position') || 'relative';
+  const position = getDesignProperty('positioning', 'position') || 'static';
   const top = getDesignProperty('positioning', 'top') || '';
   const right = getDesignProperty('positioning', 'right') || '';
   const bottom = getDesignProperty('positioning', 'bottom') || '';
@@ -64,7 +64,7 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
 
   // Handle position change
   const handlePositionChange = (value: string) => {
-    updateDesignProperty('positioning', 'position', value === 'static' ? null : value);
+    updateDesignProperty('positioning', 'position', value);
   };
 
   // Handle top change
@@ -243,25 +243,27 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
           </>
         )}
 
-        <div className="grid grid-cols-3">
-          <Label variant="muted">Z Index</Label>
-          <div className="col-span-2 grid grid-cols-2 items-center gap-2">
-            <Input
-              type="text"
-              value={zIndexInput}
-              onChange={(e) => handleZIndexChange(e.target.value)}
-              placeholder="auto"
-            />
-            <Slider
-              value={[parseInt(zIndexInput) || 0]}
-              onValueChange={handleZIndexSliderChange}
-              min={0}
-              max={100}
-              step={1}
-              className="flex-1"
-            />
+        {position !== 'static' && (
+          <div className="grid grid-cols-3">
+            <Label variant="muted">Z Index</Label>
+            <div className="col-span-2 grid grid-cols-2 items-center gap-2">
+              <Input
+                type="text"
+                value={zIndexInput}
+                onChange={(e) => handleZIndexChange(e.target.value)}
+                placeholder="auto"
+              />
+              <Slider
+                value={[parseInt(zIndexInput) || 0]}
+                onValueChange={handleZIndexSliderChange}
+                min={0}
+                max={100}
+                step={1}
+                className="flex-1"
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
