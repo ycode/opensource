@@ -4,7 +4,7 @@
 import { useRef, useEffect, useState } from 'react';
 
 // 2. External libraries
-import { LogOut, Monitor, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, LogOut, Monitor, Moon, Sun } from 'lucide-react';
 
 // 3. ShadCN UI
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,8 @@ import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // 4. Stores
+import { useEditorStore } from '@/stores/useEditorStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 
 // 5. Types
@@ -50,6 +52,7 @@ interface HeaderBarProps {
   setIsPublishing: (isPublishing: boolean) => void;
   saveImmediately: (pageId: string) => Promise<void>;
   activeTab: 'pages' | 'layers' | 'cms';
+  onExitComponentEditMode?: () => void;
 }
 
 export default function HeaderBar({
@@ -70,8 +73,11 @@ export default function HeaderBar({
   setIsPublishing,
   saveImmediately,
   activeTab,
+  onExitComponentEditMode,
 }: HeaderBarProps) {
   const pageDropdownRef = useRef<HTMLDivElement>(null);
+  const { editingComponentId, returnToPageId } = useEditorStore();
+  const { getComponentById } = useComponentsStore();
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme') as 'system' | 'light' | 'dark' | null;
@@ -79,6 +85,10 @@ export default function HeaderBar({
     }
     return 'dark';
   });
+  
+  // Get component and return page info for edit mode
+  const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
+  const returnToPage = returnToPageId ? pages.find(p => p.id === returnToPageId) : null;
 
   // Apply theme to HTML element
   useEffect(() => {
@@ -116,7 +126,7 @@ export default function HeaderBar({
 
   return (
     <header className="h-14 bg-background border-b flex items-center justify-between px-4">
-      {/* Left: Logo & Page Selector */}
+      {/* Left: Logo & Navigation */}
       <div className="flex items-center gap-2">
         {/* User Menu */}
         <DropdownMenu>
@@ -194,12 +204,24 @@ export default function HeaderBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
+        {/* Component Edit Mode: Back to Page Button */}
+        {editingComponentId && returnToPage ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onExitComponentEditMode}
+            className="gap-1"
+          >
+            <ArrowLeft className="size-4" />
+            Back to {returnToPage.title}
+          </Button>
+        ) : null}
+
       </div>
 
       {/* Right: User & Actions */}
       <div className="flex items-center gap-4">
         {/* Save Status Indicator */}
-
         <div className="flex items-center justify-end w-[64px] text-xs text-white/50">
           {isSaving ? (
             <>
@@ -220,9 +242,15 @@ export default function HeaderBar({
           )}
         </div>
 
+        {/* Publish button - purple in component edit mode */}
         <Popover>
           <PopoverTrigger asChild>
-            <Button size="sm">Publish</Button>
+            <Button 
+              size="sm"
+              className={editingComponentId ? 'bg-purple-500 hover:bg-purple-600' : ''}
+            >
+              Publish
+            </Button>
           </PopoverTrigger>
           <PopoverContent>
             <div className="flex flex-col gap-3">

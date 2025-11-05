@@ -41,6 +41,7 @@ import UIStateSelector from './UIStateSelector';
 
 // 5. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 
 // 6. Utils, APIs, lib
@@ -73,6 +74,7 @@ export default function RightSidebar({
 
   const { currentPageId, activeBreakpoint } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
+  const { getComponentById } = useComponentsStore();
 
   const selectedLayer: Layer | null = useMemo(() => {
     if (! currentPageId || ! selectedLayerId) return null;
@@ -314,6 +316,26 @@ export default function RightSidebar({
     return (
       <div className="w-64 shrink-0 bg-background border-l flex items-center justify-center h-screen">
         <span className="text-xs text-white/50">Select layer</span>
+      </div>
+    );
+  }
+
+  // Check if selected layer is a component instance
+  const isComponentInstance = !!selectedLayer.componentId;
+  const component = isComponentInstance ? getComponentById(selectedLayer.componentId!) : null;
+
+  // If it's a component instance, show a message instead of design properties
+  if (isComponentInstance && component) {
+    return (
+      <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
+        <div className="flex-1 flex items-center justify-center">
+          <Empty>
+            <EmptyTitle>Component Instance</EmptyTitle>
+            <EmptyDescription>
+              This is an instance of &quot;{component.name}&quot;. To edit this component, right-click and select &quot;Edit master component&quot;.
+            </EmptyDescription>
+          </Empty>
+        </div>
       </div>
     );
   }

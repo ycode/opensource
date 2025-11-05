@@ -65,17 +65,24 @@ export default function CenterCanvas({
   const [iframeReady, setIframeReady] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { draftsByPageId, addLayer, updateLayer } = usePagesStore();
-  const { setSelectedLayerId, activeUIState } = useEditorStore();
+  const { setSelectedLayerId, activeUIState, editingComponentId } = useEditorStore();
   const components = useComponentsStore((state) => state.components);
+  const componentDrafts = useComponentsStore((state) => state.componentDrafts);
 
   const layers = useMemo(() => {
+    // If editing a component, show component layers
+    if (editingComponentId) {
+      return componentDrafts[editingComponentId] || [];
+    }
+    
+    // Otherwise show page layers
     if (!currentPageId) {
       return [];
     }
 
     const draft = draftsByPageId[currentPageId];
     return draft ? draft.layers : [];
-  }, [currentPageId, draftsByPageId]);
+  }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
   // Send layers to iframe whenever they change
   useEffect(() => {

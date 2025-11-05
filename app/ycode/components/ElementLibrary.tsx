@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
 import { getTemplate, getBlockName, getIcon } from '@/lib/templates/blocks';
+import { canHaveChildren } from '@/lib/layer-utils';
 
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -33,9 +34,9 @@ const mediaElements = ['image', 'icon', 'video', 'audio', 'youtube', 'iframe'];
 const formElements = ['form', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label', 'submit'];
 
 export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps) {
-  const { addLayerFromTemplate, updateLayer } = usePagesStore();
-  const { currentPageId, selectedLayerId, setSelectedLayerId } = useEditorStore();
-  const { components, loadComponents } = useComponentsStore();
+  const { addLayerFromTemplate, updateLayer, setDraftLayers, draftsByPageId } = usePagesStore();
+  const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId } = useEditorStore();
+  const { components, loadComponents, componentDrafts, updateComponentDraft } = useComponentsStore();
 
   // Load components on mount
   useEffect(() => {
@@ -45,6 +46,102 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
   }, [isOpen, loadComponents]);
 
   const handleAddElement = (elementType: string) => {
+    // If editing component, use component draft instead
+    if (editingComponentId) {
+      const layers = componentDrafts[editingComponentId] || [];
+      const parentId = selectedLayerId || layers[0]?.id || 'body';
+      
+      // Create new layer from template
+      const template = getTemplate(elementType);
+      const newLayer = {
+        ...template,
+        id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      };
+      
+      // Find parent layer and check if it can have children
+      const findLayerInTree = (tree: any[], targetId: string): any | null => {
+        for (const node of tree) {
+          if (node.id === targetId) return node;
+          if (node.children) {
+            const found = findLayerInTree(node.children, targetId);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      
+      const parentLayer = findLayerInTree(layers, parentId);
+      
+      // Check if parent can have children
+      if (parentLayer && !canHaveChildren(parentLayer)) {
+        console.warn(`Cannot add child to ${parentLayer.name || parentLayer.type} - element cannot have children`);
+        onClose();
+        return;
+      }
+      
+      // Find parent and add layer
+      const addLayerToTree = (tree: any[], targetId: string): { success: boolean; newLayers: any[]; newLayerId: string; parentToExpand: string | null } => {
+        for (let i = 0; i < tree.length; i++) {
+          const node = tree[i];
+          if (node.id === targetId) {
+            // Found parent, check if it can have children
+            if (canHaveChildren(node)) {
+              // Add as child
+              const updatedNode = {
+                ...node,
+                children: [...(node.children || []), newLayer]
+              };
+              return {
+                success: true,
+                newLayers: [...tree.slice(0, i), updatedNode, ...tree.slice(i + 1)],
+                newLayerId: newLayer.id,
+                parentToExpand: targetId
+              };
+            } else {
+              // Cannot have children, add as sibling instead
+              return {
+                success: true,
+                newLayers: [...tree.slice(0, i + 1), newLayer, ...tree.slice(i + 1)],
+                newLayerId: newLayer.id,
+                parentToExpand: null
+              };
+            }
+          }
+          if (node.children) {
+            const result = addLayerToTree(node.children, targetId);
+            if (result.success) {
+              return {
+                success: true,
+                newLayers: [
+                  ...tree.slice(0, i),
+                  { ...node, children: result.newLayers },
+                  ...tree.slice(i + 1)
+                ],
+                newLayerId: result.newLayerId,
+                parentToExpand: result.parentToExpand
+              };
+            }
+          }
+        }
+        return { success: false, newLayers: tree, newLayerId: '', parentToExpand: null };
+      };
+      
+      const result = addLayerToTree(layers, parentId);
+      if (result.success) {
+        updateComponentDraft(editingComponentId, result.newLayers);
+        setSelectedLayerId(result.newLayerId);
+        if (result.parentToExpand) {
+          window.dispatchEvent(new CustomEvent('expandLayer', { 
+            detail: { layerId: result.parentToExpand } 
+          }));
+        }
+      }
+      
+      onClose();
+      return;
+    }
+    
+    // Regular page mode
     if (!currentPageId) return;
 
     // Determine parent (selected container or Body)

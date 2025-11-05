@@ -12,6 +12,9 @@ interface ComponentsState {
   components: Component[];
   isLoading: boolean;
   error: string | null;
+  componentDrafts: Record<string, Layer[]>;
+  isSaving: boolean;
+  saveTimeouts: Record<string, NodeJS.Timeout>;
 }
 
 interface ComponentsActions {
@@ -23,6 +26,12 @@ interface ComponentsActions {
   updateComponent: (id: string, updates: Partial<Pick<Component, 'name' | 'layers'>>) => Promise<void>;
   deleteComponent: (id: string) => Promise<void>;
   
+  // Draft management (for editing mode)
+  loadComponentDraft: (componentId: string) => void;
+  updateComponentDraft: (componentId: string, layers: Layer[]) => void;
+  saveComponentDraft: (componentId: string) => Promise<void>;
+  clearComponentDraft: (componentId: string) => void;
+  
   // Convenience actions
   renameComponent: (id: string, newName: string) => Promise<void>;
   getComponentById: (id: string) => Component | undefined;
@@ -30,6 +39,7 @@ interface ComponentsActions {
   // State management
   setError: (error: string | null) => void;
   clearError: () => void;
+  setSaving: (value: boolean) => void;
 }
 
 type ComponentsStore = ComponentsState & ComponentsActions;
@@ -39,6 +49,9 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
   components: [],
   isLoading: false,
   error: null,
+  componentDrafts: {},
+  isSaving: false,
+  saveTimeouts: {},
   
   // Load all components
   loadComponents: async () => {
@@ -150,6 +163,114 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     }
   },
   
+  // Load component into draft for editing
+  loadComponentDraft: (componentId) => {
+    const component = get().components.find((c) => c.id === componentId);
+    if (component) {
+      set((state) => ({
+        componentDrafts: {
+          ...state.componentDrafts,
+          [componentId]: JSON.parse(JSON.stringify(component.layers)), // Deep clone
+        },
+      }));
+    }
+  },
+  
+  // Update component draft (triggers auto-save)
+  updateComponentDraft: (componentId, layers) => {
+    set((state) => ({
+      componentDrafts: {
+        ...state.componentDrafts,
+        [componentId]: layers,
+      },
+    }));
+    
+    // Clear existing timeout for this component
+    const { saveTimeouts } = get();
+    if (saveTimeouts[componentId]) {
+      clearTimeout(saveTimeouts[componentId]);
+    }
+    
+    // Set new timeout for auto-save (500ms debounce)
+    const timeout = setTimeout(() => {
+      get().saveComponentDraft(componentId);
+    }, 500);
+    
+    set((state) => ({
+      saveTimeouts: {
+        ...state.saveTimeouts,
+        [componentId]: timeout,
+      },
+    }));
+  },
+  
+  // Save component draft to database
+  saveComponentDraft: async (componentId) => {
+    const { componentDrafts } = get();
+    const draftLayers = componentDrafts[componentId];
+    
+    if (!draftLayers) {
+      console.warn(`No draft found for component ${componentId}`);
+      return;
+    }
+    
+    set({ isSaving: true });
+    
+    try {
+      const response = await fetch(`/api/components/${componentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layers: draftLayers }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.error) {
+        console.error('Failed to save component draft:', result.error);
+        set({ isSaving: false });
+        return;
+      }
+      
+      const updatedComponent = result.data;
+      
+      // Update the component in the store
+      set((state) => ({
+        components: state.components.map((c) => (c.id === componentId ? updatedComponent : c)),
+        isSaving: false,
+      }));
+      
+      // Trigger component sync across all pages
+      // This will be handled by usePagesStore.updateComponentOnLayers
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('componentUpdated', {
+          detail: { componentId, layers: draftLayers }
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to save component draft:', error);
+      set({ isSaving: false });
+    }
+  },
+  
+  // Clear component draft from memory
+  clearComponentDraft: (componentId) => {
+    set((state) => {
+      const newDrafts = { ...state.componentDrafts };
+      delete newDrafts[componentId];
+      
+      const newTimeouts = { ...state.saveTimeouts };
+      if (newTimeouts[componentId]) {
+        clearTimeout(newTimeouts[componentId]);
+        delete newTimeouts[componentId];
+      }
+      
+      return {
+        componentDrafts: newDrafts,
+        saveTimeouts: newTimeouts,
+      };
+    });
+  },
+  
   // Rename a component (convenience method)
   renameComponent: async (id, newName) => {
     await get().updateComponent(id, { name: newName });
@@ -163,5 +284,6 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
   // Error management
   setError: (error) => set({ error }),
   clearError: () => set({ error: null }),
+  setSaving: (value) => set({ isSaving: value }),
 }));
 

@@ -22,6 +22,7 @@ interface EditorActions {
   setSaving: (value: boolean) => void;
   setActiveBreakpoint: (breakpoint: 'mobile' | 'tablet' | 'desktop') => void;
   setActiveUIState: (state: UIState) => void;
+  setEditingComponentId: (id: string | null, returnPageId?: string | null) => void;
   pushHistory: (pageId: string, layers: Layer[]) => void;
   undo: () => HistoryEntry | null;
   redo: () => HistoryEntry | null;
@@ -33,6 +34,8 @@ interface EditorStoreWithHistory extends EditorState {
   history: HistoryEntry[];
   historyIndex: number;
   maxHistorySize: number;
+  editingComponentId: string | null;
+  returnToPageId: string | null;
 }
 
 type EditorStore = EditorStoreWithHistory & EditorActions;
@@ -50,6 +53,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   history: [],
   historyIndex: -1,
   maxHistorySize: 50,
+  editingComponentId: null,
+  returnToPageId: null,
   
   setSelectedLayerId: (id) => {
     // Legacy support - also update selectedLayerIds
@@ -139,6 +144,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setSaving: (value) => set({ isSaving: value }),
   setActiveBreakpoint: (breakpoint) => set({ activeBreakpoint: breakpoint }),
   setActiveUIState: (state) => set({ activeUIState: state }),
+  setEditingComponentId: (id, returnPageId = null) => set({
+    editingComponentId: id,
+    returnToPageId: returnPageId,
+  }),
   
   pushHistory: (pageId, layers) => {
     const { history, historyIndex, maxHistorySize } = get();

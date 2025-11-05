@@ -188,6 +188,7 @@ function LayerRow({
 }: LayerRowProps) {
   const { getStyleById } = useLayerStylesStore();
   const { getComponentById } = useComponentsStore();
+  const { editingComponentId } = useEditorStore();
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
   });
@@ -208,6 +209,9 @@ function LayerRow({
   // Check if this is a component instance
   const appliedComponent = node.layer.componentId ? getComponentById(node.layer.componentId) : null;
   const isComponentInstance = !!appliedComponent;
+  
+  // Use purple for component instances OR when editing a component
+  const usePurpleStyle = isComponentInstance || !!editingComponentId;
 
   const ElementIcon = elementIcons[getIconKey(node.layer)] || Square;
 
@@ -282,10 +286,11 @@ function LayerRow({
             !isSelected && !isChildOfSelected && 'rounded-lg text-secondary-foreground/80 dark:text-primary-foreground/80',
             // Background colors
             !isDragActive && !isDragging && 'hover:bg-secondary/50',
-            // Component instances use purple, regular layers use blue
-            isSelected && !isComponentInstance && 'bg-primary text-primary-foreground hover:bg-primary',
-            isSelected && isComponentInstance && 'bg-purple-500 text-white hover:bg-purple-500',
-            !isSelected && isChildOfSelected && 'dark:bg-primary/15 bg-primary/10 text-current/70 hover:bg-primary/15 dark:hover:bg-primary/20',
+            // Component instances OR component edit mode use purple, regular layers use blue
+            isSelected && !usePurpleStyle && 'bg-primary text-primary-foreground hover:bg-primary',
+            isSelected && usePurpleStyle && 'bg-purple-500 text-white hover:bg-purple-500',
+            !isSelected && isChildOfSelected && !usePurpleStyle && 'dark:bg-primary/15 bg-primary/10 text-current/70 hover:bg-primary/15 dark:hover:bg-primary/20',
+            !isSelected && isChildOfSelected && usePurpleStyle && 'dark:bg-purple-500/15 bg-purple-500/10 text-current/70 hover:bg-purple-500/15 dark:hover:bg-purple-500/20',
             isSelected && !isDragActive && !isDragging && '',
             isDragging && '',
             !isDragActive && ''

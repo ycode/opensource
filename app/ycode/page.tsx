@@ -38,9 +38,10 @@ import type { Layer } from '@/types';
 
 export default function YCodeBuilder() {
   const { signOut, user } = useAuthStore();
-  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, setSelectedLayerIds, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, pushHistory } = useEditorStore();
+  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, setSelectedLayerIds, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, pushHistory, editingComponentId } = useEditorStore();
   const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter } = usePagesStore();
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard, copyStyle: copyStyleToClipboard, pasteStyle: pasteStyleFromClipboard } = useClipboardStore();
+  const componentIsSaving = useComponentsStore((state) => state.isSaving);
   const pages = usePagesStore((state) => state.pages);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -53,6 +54,9 @@ export default function YCodeBuilder() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersRef = useRef<string>('');
   const previousPageIdRef = useRef<string | null>(null);
+  
+  // Combined saving state - either page or component
+  const isCurrentlySaving = editingComponentId ? componentIsSaving : isSaving;
 
   // Sync viewportMode with activeBreakpoint in store
   useEffect(() => {
@@ -467,6 +471,39 @@ export default function YCodeBuilder() {
     if (!Array.isArray(pages)) return undefined;
     return pages.find(p => p.id === currentPageId);
   }, [pages, currentPageId]);
+  
+  // Exit component edit mode handler
+  const handleExitComponentEditMode = useCallback(async () => {
+    const { editingComponentId, returnToPageId, setEditingComponentId } = useEditorStore.getState();
+    const { saveComponentDraft, clearComponentDraft, componentDrafts, getComponentById } = useComponentsStore.getState();
+    const { updateComponentOnLayers } = usePagesStore.getState();
+    
+    if (!editingComponentId) return;
+    
+    // Save component draft
+    await saveComponentDraft(editingComponentId);
+    
+    // Get the updated component to get its layers
+    const updatedComponent = getComponentById(editingComponentId);
+    if (updatedComponent) {
+      // Update all instances across pages with the new layers
+      await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
+    }
+    
+    // Clear component draft
+    clearComponentDraft(editingComponentId);
+    
+    // Return to previous page
+    if (returnToPageId) {
+      setCurrentPageId(returnToPageId);
+    }
+    
+    // Exit edit mode
+    setEditingComponentId(null, null);
+    
+    // Clear selection
+    setSelectedLayerId(null);
+  }, [setCurrentPageId, setSelectedLayerId]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -723,13 +760,14 @@ export default function YCodeBuilder() {
         setCurrentPageId={setCurrentPageId}
         zoom={zoom}
         setZoom={setZoom}
-        isSaving={isSaving}
+        isSaving={isCurrentlySaving}
         hasUnsavedChanges={hasUnsavedChanges}
         lastSaved={lastSaved}
         isPublishing={isPublishing}
         setIsPublishing={setIsPublishing}
         saveImmediately={saveImmediately}
         activeTab={activeTab}
+        onExitComponentEditMode={handleExitComponentEditMode}
       />
 
       {/* Main Content Area */}
@@ -762,7 +800,28 @@ export default function YCodeBuilder() {
             <RightSidebar
               selectedLayerId={selectedLayerId}
               onLayerUpdate={(layerId, updates) => {
-                if (currentPageId) {
+                // If editing component, update component draft
+                if (editingComponentId) {
+                  const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
+                  const layers = componentDrafts[editingComponentId] || [];
+                  
+                  // Find and update layer in tree
+                  const updateLayerInTree = (tree: Layer[]): Layer[] => {
+                    return tree.map(layer => {
+                      if (layer.id === layerId) {
+                        return { ...layer, ...updates };
+                      }
+                      if (layer.children) {
+                        return { ...layer, children: updateLayerInTree(layer.children) };
+                      }
+                      return layer;
+                    });
+                  };
+                  
+                  const updatedLayers = updateLayerInTree(layers);
+                  updateComponentDraft(editingComponentId, updatedLayers);
+                } else if (currentPageId) {
+                  // Regular page mode
                   updateLayer(currentPageId, layerId, updates);
                 }
               }}

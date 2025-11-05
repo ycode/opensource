@@ -15,6 +15,7 @@ import {
   ContextMenuSeparator, ContextMenuShortcut, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useClipboardStore } from '@/stores/useClipboardStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
@@ -173,11 +174,19 @@ export default function LayerContextMenu({
   };
   
   const handleEditMasterComponent = () => {
-    // TODO: Open component editor or navigate to component edit view
-    // For now, just show an alert
-    if (componentName) {
-      alert(`Edit master component: ${componentName}\n\nComponent editing UI coming soon!`);
-    }
+    if (!layer?.componentId) return;
+    
+    const { setEditingComponentId, setSelectedLayerId } = useEditorStore.getState();
+    const { loadComponentDraft } = useComponentsStore.getState();
+    
+    // Enter edit mode
+    setEditingComponentId(layer.componentId, pageId);
+    
+    // Load component into draft
+    loadComponentDraft(layer.componentId);
+    
+    // Clear selection
+    setSelectedLayerId(null);
   };
   
   const handleDetachFromComponent = () => {
