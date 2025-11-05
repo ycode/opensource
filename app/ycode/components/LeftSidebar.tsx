@@ -29,6 +29,7 @@ import { pagesApi } from '../../../lib/api';
 
 // 7. Types
 import type { Layer, Page } from '../../../types';
+import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
 // Helper function to find layer by ID recursively
 function findLayerById(layers: Layer[], id: string): Layer | null {
@@ -282,21 +283,17 @@ export default function LeftSidebar({
               </div>
             </header>
 
-            <div className="flex flex-col">
+            <div className="flex flex-col flex-1">
               {!currentPageId ? (
-                <div className="text-center py-8 text-zinc-500">
-                  <p className="text-sm text-zinc-400 mb-1">No page selected</p>
-                  <p className="text-xs text-zinc-500">
-                    Select a page from the Pages tab to start building
-                  </p>
-                </div>
+                <Empty>
+                  <EmptyTitle>No page selected</EmptyTitle>
+                  <EmptyDescription>Select a page from the Pages tab to start building</EmptyDescription>
+                </Empty>
               ) : layersForCurrentPage.length === 0 ? (
-                <div className="text-center py-8 text-zinc-500">
-                  <p className="text-sm text-zinc-400 mb-1">No layers yet</p>
-                  <p className="text-xs text-zinc-500">
-                    Click the + button above to add your first block
-                  </p>
-                </div>
+                  <Empty>
+                    <EmptyTitle>No layers yet</EmptyTitle>
+                    <EmptyDescription>Click the + button above to add your first block</EmptyDescription>
+                  </Empty>
               ) : (
                 <LayersTree
                   layers={layersForCurrentPage}
