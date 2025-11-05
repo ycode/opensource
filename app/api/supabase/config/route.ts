@@ -15,11 +15,9 @@ export const revalidate = 0;
  */
 export async function GET() {
   try {
-    console.log('GET /api/supabase/config - Fetching config from storage...');
 
     const config = await storage.get<SupabaseConfig>('supabase_config');
 
-    console.log('Config from storage:', config ? 'Found' : 'Not found');
 
     if (!config) {
       console.error('Supabase config not found in storage');
@@ -32,7 +30,6 @@ export async function GET() {
     // Parse config to get the full credentials including projectUrl
     const credentials = parseSupabaseConfig(config);
 
-    console.log('Returning public config (projectUrl + anonKey)');
 
     // Only return public config (not service role key)
     return noCache({

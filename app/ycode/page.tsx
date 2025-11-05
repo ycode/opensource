@@ -18,20 +18,26 @@ import RightSidebar from './components/RightSidebar';
 import UpdateNotification from '../../components/UpdateNotification';
 import MigrationChecker from '../../components/MigrationChecker';
 
-// 3. Stores
+// 3. Hooks
+// useCanvasCSS removed - now handled by iframe with Tailwind JIT CDN
+
+// 4. Stores
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useClipboardStore } from '../../stores/useClipboardStore';
 import { useEditorStore } from '../../stores/useEditorStore';
 import { usePagesStore } from '../../stores/usePagesStore';
 
-// 4. Types
+// 6. Utils/lib
+import { findLayerById, getClassesString } from '../../lib/layer-utils';
+
+// 5. Types
 import type { Layer } from '../../types';
 
 export default function YCodeBuilder() {
   const { signOut, user } = useAuthStore();
-  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, setSelectedLayerIds, clearSelection, currentPageId, setCurrentPageId, undo, redo, canUndo, canRedo, pushHistory } = useEditorStore();
+  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, setSelectedLayerIds, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, pushHistory } = useEditorStore();
   const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter } = usePagesStore();
-  const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard } = useClipboardStore();
+  const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard, copyStyle: copyStyleToClipboard, pasteStyle: pasteStyleFromClipboard } = useClipboardStore();
   const pages = usePagesStore((state) => state.pages);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -44,6 +50,13 @@ export default function YCodeBuilder() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersRef = useRef<string>('');
   const previousPageIdRef = useRef<string | null>(null);
+
+  // Sync viewportMode with activeBreakpoint in store
+  useEffect(() => {
+    setActiveBreakpoint(viewportMode);
+  }, [viewportMode, setActiveBreakpoint]);
+
+  // CSS generation now handled by Tailwind JIT CDN in iframe - no need for custom CSS generation
 
   // Migration state - BLOCKS builder until migrations complete
   const [migrationsComplete, setMigrationsComplete] = useState(false);
@@ -563,11 +576,42 @@ export default function YCodeBuilder() {
           }
         }
       }
+
+      // Copy Style: Option + Cmd + C
+      if (e.altKey && e.metaKey && e.key === 'c') {
+        if (!isInputFocused && currentPageId && selectedLayerId) {
+          e.preventDefault();
+          const draft = draftsByPageId[currentPageId];
+          if (draft) {
+            const layer = findLayerById(draft.layers, selectedLayerId);
+            if (layer) {
+              const classes = getClassesString(layer);
+              copyStyleToClipboard(classes, layer.design, layer.styleId, layer.styleOverrides);
+            }
+          }
+        }
+      }
+
+      // Paste Style: Option + Cmd + V
+      if (e.altKey && e.metaKey && e.key === 'v') {
+        if (!isInputFocused && currentPageId && selectedLayerId) {
+          e.preventDefault();
+          const style = pasteStyleFromClipboard();
+          if (style) {
+            updateLayer(currentPageId, selectedLayerId, {
+              classes: style.classes,
+              design: style.design,
+              styleId: style.styleId,
+              styleOverrides: style.styleOverrides,
+            });
+          }
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, selectedLayerIds, currentPageId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately]);
+  }, [selectedLayerId, selectedLayerIds, currentPageId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately, draftsByPageId, updateLayer, copyStyleToClipboard, pasteStyleFromClipboard]);
 
   // Show login form if not authenticated
   if (!user) {
@@ -655,7 +699,8 @@ export default function YCodeBuilder() {
 
   // Authenticated - show builder (only after migrations complete)
   return (
-    <div className="h-screen flex flex-col">
+    <>
+      <div className="h-screen flex flex-col">
       {/* Update Notification Banner */}
       <UpdateNotification />
 
@@ -719,5 +764,6 @@ export default function YCodeBuilder() {
         )}
       </div>
     </div>
+    </>
   );
 }

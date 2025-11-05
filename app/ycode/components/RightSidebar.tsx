@@ -7,7 +7,7 @@
  */
 
 // 1. React/Next.js
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 
 // 2. External libraries
 import debounce from 'lodash.debounce';
@@ -25,20 +25,29 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 // 4. Internal components
+import AddAttributeModal from './AddAttributeModal';
+import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
+import LayerStylesPanel from './LayerStylesPanel';
 import PositionControls from './PositionControls';
+import PositioningControls from './PositioningControls';
 import SettingsPanel from './SettingsPanel';
 import SizingControls from './SizingControls';
+import SpacingControls from './SpacingControls';
 import ToggleGroup from './ToggleGroup';
 import TypographyControls from './TypographyControls';
+import UIStateSelector from './UIStateSelector';
 
 // 5. Stores
 import { useEditorStore } from '../../../stores/useEditorStore';
 import { usePagesStore } from '../../../stores/usePagesStore';
 
-// 6. Types
+// 6. Utils, APIs, lib
+import { classesToDesign, mergeDesign, removeConflictsForClass } from '../../../lib/tailwind-class-mapper';
+
+// 7. Types
 import type { Layer } from '../../../types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
@@ -52,7 +61,6 @@ export default function RightSidebar({
   onLayerUpdate,
 }: RightSidebarProps) {
   const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'content'>('design');
-  const [classesInput, setClassesInput] = useState<string>('');
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
   const [attributesOpen, setAttributesOpen] = useState(true);
   const [customId, setCustomId] = useState<string>('');
@@ -64,7 +72,7 @@ export default function RightSidebar({
   const [newAttributeName, setNewAttributeName] = useState('');
   const [newAttributeValue, setNewAttributeValue] = useState('');
 
-  const { currentPageId } = useEditorStore();
+  const { currentPageId, activeBreakpoint } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
 
   const selectedLayer: Layer | null = useMemo(() => {
@@ -130,22 +138,35 @@ export default function RightSidebar({
     return 'div'; // Default fallback
   };
 
-  // Update local state when selected layer changes
-  const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
-  if (selectedLayerId !== prevSelectedLayerId) {
-    setPrevSelectedLayerId(selectedLayerId);
-    const classes = selectedLayer?.classes || '';
-    setClassesInput(Array.isArray(classes) ? classes.join(' ') : classes);
-    setCustomId(selectedLayer?.settings?.id || '');
-    setIsHidden(selectedLayer?.settings?.hidden || false);
-    setHeadingTag(selectedLayer?.settings?.tag || getDefaultHeadingTag(selectedLayer));
-    setContainerTag(selectedLayer?.settings?.tag || getDefaultContainerTag(selectedLayer));
-  }
+  // Classes input state (synced with selectedLayer)
+  const [classesInput, setClassesInput] = useState<string>('');
+  
+  // Sync classesInput when selectedLayer changes
+  useEffect(() => {
+    if (!selectedLayer?.classes) {
+      setClassesInput('');
+    } else {
+      const classes = Array.isArray(selectedLayer.classes)
+        ? selectedLayer.classes.join(' ')
+        : selectedLayer.classes;
+      setClassesInput(classes);
+    }
+  }, [selectedLayer]);
 
   // Parse classes into array for badge display
   const classesArray = useMemo(() => {
     return classesInput.split(' ').filter(cls => cls.trim() !== '');
   }, [classesInput]);
+
+  // Update local state when selected layer changes (for settings fields)
+  const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
+  if (selectedLayerId !== prevSelectedLayerId) {
+    setPrevSelectedLayerId(selectedLayerId);
+    setCustomId(selectedLayer?.settings?.id || '');
+    setIsHidden(selectedLayer?.settings?.hidden || false);
+    setHeadingTag(selectedLayer?.settings?.tag || getDefaultHeadingTag(selectedLayer));
+    setContainerTag(selectedLayer?.settings?.tag || getDefaultContainerTag(selectedLayer));
+  }
 
   // Debounced updater for classes
   const debouncedUpdate = useMemo(
@@ -165,19 +186,34 @@ export default function RightSidebar({
 
   // Add a new class
   const addClass = useCallback((newClass: string) => {
-    if (!newClass.trim()) return;
-
+    if (!newClass.trim() || !selectedLayer) return;
     const trimmedClass = newClass.trim();
     if (classesArray.includes(trimmedClass)) return; // Don't add duplicates
 
-    const newClasses = [...classesArray, trimmedClass].join(' ');
-    setClassesInput(newClasses);
-    handleClassesChange(newClasses);
+    // Remove any conflicting classes before adding the new one
+    const classesWithoutConflicts = removeConflictsForClass(classesArray, trimmedClass);
+
+    // Parse the new class to extract design properties
+    const parsedDesign = classesToDesign([trimmedClass]);
+
+    // Merge with existing design
+    const updatedDesign = mergeDesign(selectedLayer.design, parsedDesign);
+
+    // Add the new class (after removing conflicts)
+    const newClasses = [...classesWithoutConflicts, trimmedClass].join(' ');
+
+    // Update layer with both classes AND design object
+    onLayerUpdate(selectedLayer.id, {
+      classes: newClasses,
+      design: updatedDesign
+    });
+
     setCurrentClassInput('');
   }, [classesArray, handleClassesChange]);
 
   // Remove a class
   const removeClass = useCallback((classToRemove: string) => {
+    if (!selectedLayer) return;
     const newClasses = classesArray.filter(cls => cls !== classToRemove).join(' ');
     setClassesInput(newClasses);
     handleClassesChange(newClasses);
@@ -195,7 +231,6 @@ export default function RightSidebar({
     if (!selectedLayerId) return;
     const currentClasses = classesInput;
     const updated = currentClasses + ' ' + newClasses;
-    setClassesInput(updated.trim());
     onLayerUpdate(selectedLayerId, { classes: updated.trim() });
   };
 
@@ -278,7 +313,7 @@ export default function RightSidebar({
 
   if (! selectedLayerId || ! selectedLayer) {
     return (
-      <div className="w-64 shrink-0 bg-background border-l flex items-center justify-center">
+      <div className="w-64 shrink-0 bg-background border-l flex items-center justify-center h-screen">
         <span className="text-xs text-white/50">Select layer</span>
       </div>
     );
@@ -289,36 +324,71 @@ export default function RightSidebar({
       {/* Tabs */}
       <Tabs
         value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')}
-        className="flex flex-col flex-1 gap-0 min-h-0"
+        className="flex flex-col flex-1 min-h-0 min-h-0"
       >
-        <TabsList className="w-full">
-          <TabsTrigger value="design">Design</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
+        <div className="p-4 pb-0">
+          <TabsList className="w-full">
+            <TabsTrigger value="design">Design</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <hr className="mt-4" />
+        <hr className="mt-4 mx-4" />
+
+        {/* Breakpoint Indicator (only show on Design tab) */}
+        {activeTab === 'design' && (
+          <>
+            <div className="flex items-center gap-2 px-4 py-2 bg-zinc-900/50 border-b border-zinc-800">
+              <span className="text-xs text-zinc-400">
+                Editing: <span className="text-white font-medium capitalize">{activeBreakpoint}</span>
+              </span>
+            </div>
+            
+            {/* UI State Selector */}
+            <UIStateSelector selectedLayer={selectedLayer} />
+          </>
+        )}
 
         {/* Content */}
-        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden">
+        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden px-4 mt-0 pb-12">
+          
+          {/* Layer Styles Panel */}
+          <LayerStylesPanel
+            layer={selectedLayer}
+            pageId={currentPageId}
+            onLayerUpdate={onLayerUpdate}
+          />
 
-          <LayoutControls />
+          <LayoutControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
-          <SizingControls />
+          <SpacingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
-          <TypographyControls />
+          <SizingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
-          <BorderControls />
+          <TypographyControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
-          <EffectControls />
+          <SizingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <TypographyControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <BackgroundsControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <BorderControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <EffectControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+
+          <PositioningControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <PositionControls />
 
           <div className="flex flex-col gap-4 py-5">
+            <header className="py-4 -mt-4">
+              <Label>Classes</Label>
+            </header>
             <Input
-              type="text"
               value={currentClassInput}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentClassInput(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onChange={(e) => setCurrentClassInput(e.target.value)}
+              onKeyDown={handleKeyPress}
               placeholder="Type class and press Enter..."
             />
             <div className="flex flex-wrap gap-1.5">

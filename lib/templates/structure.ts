@@ -29,7 +29,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Section',
     template: {
       name: 'section',
-      classes: ['flex', 'flex-col', 'gap-4', 'py-12'],
+      classes: ['flex', 'flex-col', 'gap-[1rem]', 'py-[3rem]'],
       children: [],
       design: {
         layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
@@ -43,7 +43,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Container',
     template: {
       name: 'div',
-      classes: ['max-w-7xl', 'mx-auto', 'px-4'],
+      classes: ['max-w-[80rem]', 'mx-auto', 'px-[1rem]'],
       children: [],
       design: {
         sizing: { isActive: true, maxWidth: '80rem' },
@@ -57,7 +57,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Separator',
     template: {
       name: 'hr',
-      classes: ['border-t', 'border-gray-300', 'my-4'],
+      classes: ['border-t', 'border-[#d1d5db]', 'my-[1rem]'],
       design: {
         borders: { isActive: true, borderWidth: '1px 0 0 0', borderColor: '#d1d5db' },
         spacing: { isActive: true, marginTop: '1rem', marginBottom: '1rem' }
@@ -70,11 +70,11 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Columns',
     template: {
       name: 'div',
-      classes: ['flex', 'gap-4'],
+      classes: ['flex', 'gap-[1rem]'],
       children: [
         {
           name: 'div',
-          classes: ['w-full'],
+          classes: ['w-[100%]'],
           children: [],
           design: {
             sizing: {
@@ -85,7 +85,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
         },
         {
           name: 'div',
-          classes: ['w-full'],
+          classes: ['w-[100%]'],
           children: [],
           design: {
             sizing: {
@@ -106,7 +106,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Rows',
     template: {
       name: 'div',
-      classes: ['flex', 'flex-col', 'gap-4'],
+      classes: ['flex', 'flex-col', 'gap-[1rem]'],
       children: [
         {
           name: 'div',
@@ -130,7 +130,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Grid',
     template: {
       name: 'div',
-      classes: ['grid', 'grid-cols-2', 'gap-4'],
+      classes: ['grid', 'grid-cols-[repeat(2,1fr)]', 'gap-[1rem]'],
       children: [
         {
           name: 'div',

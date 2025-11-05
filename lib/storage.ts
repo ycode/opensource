@@ -20,15 +20,8 @@ interface StorageData {
 function getSupabaseConfigFromEnv(): SupabaseConfig | null {
   const { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_CONNECTION_URL, SUPABASE_DB_PASSWORD } = process.env;
 
-  console.log('[Storage] Environment variable check:', {
-    SUPABASE_ANON_KEY: SUPABASE_ANON_KEY ? `✓ (${SUPABASE_ANON_KEY.length} chars)` : '✗ missing',
-    SUPABASE_SERVICE_ROLE_KEY: SUPABASE_SERVICE_ROLE_KEY ? `✓ (${SUPABASE_SERVICE_ROLE_KEY.length} chars)` : '✗ missing',
-    SUPABASE_CONNECTION_URL: SUPABASE_CONNECTION_URL ? `✓ (${SUPABASE_CONNECTION_URL.substring(0, 30)}...)` : '✗ missing',
-    SUPABASE_DB_PASSWORD: SUPABASE_DB_PASSWORD ? `✓ (${SUPABASE_DB_PASSWORD.length} chars)` : '✗ missing',
-  });
 
   if (SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY && SUPABASE_CONNECTION_URL && SUPABASE_DB_PASSWORD) {
-    console.log('[Storage] ✓ All environment variables present');
     return {
       anonKey: SUPABASE_ANON_KEY,
       serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
@@ -49,16 +42,13 @@ export async function get<T = unknown>(key: string): Promise<T | null> {
   try {
     // On Vercel, use environment variables for Supabase config
     if (IS_VERCEL && key === 'supabase_config') {
-      console.log(`[Storage] Getting "${key}" from environment variables`);
       return getSupabaseConfigFromEnv() as T;
     }
 
     // Locally, use file-based storage
-    console.log(`[Storage] Reading "${key}" from ${STORAGE_FILE}`);
     const data = await readStorage();
     const value = data[key];
 
-    console.log(`[Storage] Key "${key}" ${value ? 'found' : 'not found'}`);
     return (value as T) || null;
   } catch (error) {
     console.error(`[Storage] Error getting key "${key}":`, error);
@@ -81,11 +71,9 @@ export async function set(key: string, value: unknown): Promise<void> {
     );
   }
 
-  console.log(`[Storage] Setting key "${key}" in ${STORAGE_FILE}`);
   const data = await readStorage();
   data[key] = value;
   await writeStorage(data);
-  console.log(`[Storage] Key "${key}" saved successfully`);
 }
 
 /**

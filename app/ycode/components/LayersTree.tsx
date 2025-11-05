@@ -17,18 +17,20 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 
 // 2. External libraries
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
-import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder, EyeOff } from 'lucide-react';
+import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder, EyeOff, Layers as LayersIcon } from 'lucide-react';
 
 // 4. Internal components
 import LayerContextMenu from './LayerContextMenu';
 
 // 5. Stores
 import { useEditorStore } from '../../../stores/useEditorStore';
+import { useLayerStylesStore } from '../../../stores/useLayerStylesStore';
 
 // 6. Utils/lib
 import { cn } from '../../../lib/utils';
 import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
 import { canHaveChildren } from '../../../lib/layer-utils';
+import { hasStyleOverrides } from '../../../lib/layer-style-utils';
 
 // 7. Types
 import type { Layer } from '../../../types';
@@ -178,6 +180,7 @@ function LayerRow({
   onToggle,
   pageId,
 }: LayerRowProps) {
+  const { getStyleById } = useLayerStylesStore();
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
   });
@@ -317,6 +320,18 @@ function LayerRow({
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
             {getLayerDisplayName(node.layer)}
           </span>
+{/* Style Indicator */}
+          {node.layer.styleId && (
+            <div className="flex items-center gap-1 mr-2 flex-shrink-0">
+              <LayersIcon className="w-3 h-3 text-purple-400" />
+              {(() => {
+                const appliedStyle = getStyleById(node.layer.styleId);
+                return appliedStyle && hasStyleOverrides(node.layer, appliedStyle) && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-orange-400" title="Style overridden" />
+                );
+              })()}
+            </div>
+          )}
 
           {/* Hidden indicator */}
           {node.layer.settings?.hidden && (
