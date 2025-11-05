@@ -26,10 +26,10 @@ import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // 4. Stores
-import { usePagesStore } from '../../../stores/usePagesStore';
+import { usePagesStore } from '@/stores/usePagesStore';
 
 // 5. Types
-import type { Page } from '../../../types';
+import type { Page } from '@/types';
 import type { User } from '@supabase/supabase-js';
 
 interface HeaderBarProps {

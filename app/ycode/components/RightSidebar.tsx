@@ -41,14 +41,14 @@ import TypographyControls from './TypographyControls';
 import UIStateSelector from './UIStateSelector';
 
 // 5. Stores
-import { useEditorStore } from '../../../stores/useEditorStore';
-import { usePagesStore } from '../../../stores/usePagesStore';
+import { useEditorStore } from '@/stores/useEditorStore';
+import { usePagesStore } from '@/stores/usePagesStore';
 
 // 6. Utils, APIs, lib
-import { classesToDesign, mergeDesign, removeConflictsForClass } from '../../../lib/tailwind-class-mapper';
+import { classesToDesign, mergeDesign, removeConflictsForClass } from '@/lib/tailwind-class-mapper';
 
 // 7. Types
-import type { Layer } from '../../../types';
+import type { Layer } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
 interface RightSidebarProps {

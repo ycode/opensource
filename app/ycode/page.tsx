@@ -15,23 +15,23 @@ import CMS from './components/CMS';
 import HeaderBar from './components/HeaderBar';
 import LeftSidebar from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
-import UpdateNotification from '../../components/UpdateNotification';
-import MigrationChecker from '../../components/MigrationChecker';
+import UpdateNotification from '@/components/UpdateNotification';
+import MigrationChecker from '@/components/MigrationChecker';
 
 // 3. Hooks
 // useCanvasCSS removed - now handled by iframe with Tailwind JIT CDN
 
 // 4. Stores
-import { useAuthStore } from '../../stores/useAuthStore';
-import { useClipboardStore } from '../../stores/useClipboardStore';
-import { useEditorStore } from '../../stores/useEditorStore';
-import { usePagesStore } from '../../stores/usePagesStore';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useClipboardStore } from '@/stores/useClipboardStore';
+import { useEditorStore } from '@/stores/useEditorStore';
+import { usePagesStore } from '@/stores/usePagesStore';
 
 // 6. Utils/lib
-import { findLayerById, getClassesString } from '../../lib/layer-utils';
+import { findLayerById, getClassesString } from '@/lib/layer-utils';
 
 // 5. Types
-import type { Layer } from '../../types';
+import type { Layer } from '@/types';
 
 export default function YCodeBuilder() {
   const { signOut, user } = useAuthStore();

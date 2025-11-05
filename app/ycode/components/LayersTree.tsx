@@ -23,17 +23,17 @@ import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, F
 import LayerContextMenu from './LayerContextMenu';
 
 // 5. Stores
-import { useEditorStore } from '../../../stores/useEditorStore';
-import { useLayerStylesStore } from '../../../stores/useLayerStylesStore';
+import { useEditorStore } from '@/stores/useEditorStore';
+import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
 
 // 6. Utils/lib
-import { cn } from '../../../lib/utils';
-import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
-import { canHaveChildren } from '../../../lib/layer-utils';
-import { hasStyleOverrides } from '../../../lib/layer-style-utils';
+import { cn } from '@/lib/utils';
+import { flattenTree, type FlattenedItem } from '@/lib/tree-utilities';
+import { canHaveChildren } from '@/lib/layer-utils';
+import { hasStyleOverrides } from '@/lib/layer-style-utils';
 
 // 7. Types
-import type { Layer } from '../../../types';
+import type { Layer } from '@/types';
 import Icon from '@/components/ui/icon';
 
 interface LayersTreeProps {
