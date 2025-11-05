@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInput } from '@/hooks/use-controlled-input';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { extractMeasurementValue } from '@/lib/measurement-utils';
 import type { Layer } from '@/types';
 
 interface TypographyControlsProps {
@@ -26,14 +27,6 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
     activeUIState,
   });
   
-  const [sizeUnit, setSizeUnit] = useState<'px' | 'rem' | 'em'>('px');
-  
-  // Extract numeric value from design property
-  const extractValue = (prop: string): string => {
-    if (!prop) return '';
-    return prop.replace(/[a-z%]+$/i, '');
-  };
-  
   // Get current values from layer (with inheritance)
   const fontFamily = getDesignProperty('typography', 'fontFamily') || 'sans';
   const fontWeightRaw = getDesignProperty('typography', 'fontWeight') || 'normal';
@@ -46,8 +39,8 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
   const textDecoration = getDesignProperty('typography', 'textDecoration') || 'none';
   
   // Local controlled inputs (prevents repopulation bug)
-  const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize, extractValue);
-  const [letterSpacingInput, setLetterSpacingInput] = useControlledInput(letterSpacing, extractValue);
+  const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize, extractMeasurementValue);
+  const [letterSpacingInput, setLetterSpacingInput] = useControlledInput(letterSpacing, extractMeasurementValue);
   const [lineHeightInput, setLineHeightInput] = useControlledInput(lineHeight);
   
   // Map numeric font weights to named values
@@ -79,19 +72,6 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
   // Convert numeric weight to named for the Select
   const fontWeight = fontWeightMap[fontWeightRaw] || fontWeightRaw;
   
-  // Detect unit from fontSize and update sizeUnit state
-  useEffect(() => {
-    if (fontSize) {
-      if (fontSize.includes('rem')) {
-        setSizeUnit('rem');
-      } else if (fontSize.includes('em') && !fontSize.includes('rem')) {
-        setSizeUnit('em');
-      } else {
-        setSizeUnit('px');
-      }
-    }
-  }, [fontSize]);
-  
   // Handle font family change
   const handleFontFamilyChange = (value: string) => {
     updateDesignProperty('typography', 'fontFamily', value === 'inherit' ? null : value);
@@ -106,16 +86,7 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
   // Handle font size change
   const handleFontSizeChange = (value: string) => {
     setFontSizeInput(value); // Update local state immediately
-    updateDesignProperty('typography', 'fontSize', value ? `${value}${sizeUnit}` : null);
-  };
-  
-  // Handle font size unit change
-  const handleFontSizeUnitChange = (newUnit: 'px' | 'rem' | 'em') => {
-    setSizeUnit(newUnit);
-    // Update the stored value with the new unit
-    if (fontSizeInput) {
-      updateDesignProperty('typography', 'fontSize', `${fontSizeInput}${newUnit}`);
-    }
+    updateDesignProperty('typography', 'fontSize', value || null);
   };
   
   // Handle text align change
@@ -126,16 +97,7 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
   // Handle letter spacing change
   const handleLetterSpacingChange = (value: string) => {
     setLetterSpacingInput(value); // Update local state immediately
-    updateDesignProperty('typography', 'letterSpacing', value ? `${value}${sizeUnit}` : null);
-  };
-  
-  // Handle letter spacing unit change
-  const handleLetterSpacingUnitChange = (newUnit: 'px' | 'rem' | 'em') => {
-    setSizeUnit(newUnit);
-    // Update the stored value with the new unit
-    if (letterSpacingInput) {
-      updateDesignProperty('typography', 'letterSpacing', `${letterSpacingInput}${newUnit}`);
-    }
+    updateDesignProperty('typography', 'letterSpacing', value || null);
   };
   
   // Handle line height change
@@ -203,20 +165,6 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
                 onChange={(e) => handleFontSizeChange(e.target.value)}
                 placeholder="16"
               />
-              <InputGroupAddon align="inline-end">
-                <Select value={sizeUnit} onValueChange={handleFontSizeUnitChange}>
-                  <SelectTrigger size="xs" variant="ghost">
-                    {sizeUnit}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="px">px</SelectItem>
-                      <SelectItem value="rem">rem</SelectItem>
-                      <SelectItem value="em">em</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </InputGroupAddon>
             </InputGroup>
           </div>
         </div>

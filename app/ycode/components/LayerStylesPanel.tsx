@@ -354,7 +354,10 @@ export default function LayerStylesPanel({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="ghost" className="px-2">
+              <Button
+                size="sm" variant="ghost"
+                className="px-2"
+              >
                 •••
               </Button>
             </DropdownMenuTrigger>

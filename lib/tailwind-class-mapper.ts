@@ -8,6 +8,52 @@
 import type { Layer, UIState } from '@/types';
 
 /**
+ * Helper: Format measurement value for Tailwind class generation
+ * Handles plain numbers by adding 'px', preserves explicit units
+ * 
+ * @param value - The measurement value (e.g., "100", "100px", "10rem")
+ * @param prefix - The Tailwind prefix (e.g., "w", "m", "text")
+ * @param allowedNamedValues - Optional array of named values (e.g., ["auto", "full"])
+ * @returns Formatted Tailwind class
+ * 
+ * @example
+ * formatMeasurementClass("100", "w") // "w-[100px]"
+ * formatMeasurementClass("100px", "m") // "m-[100px]"
+ * formatMeasurementClass("10rem", "text") // "text-[10rem]"
+ * formatMeasurementClass("auto", "w", ["auto"]) // "w-auto"
+ */
+function formatMeasurementClass(
+  value: string, 
+  prefix: string,
+  allowedNamedValues: string[] = []
+): string {
+  // Check for named values first (e.g., "auto", "full")
+  if (allowedNamedValues.includes(value)) {
+    return `${prefix}-${value}`;
+  }
+  
+  // Check if value already ends with px - don't add it again
+  if (value.endsWith('px')) {
+    return `${prefix}-[${value}]`;
+  }
+  
+  // Check if value is just a number (e.g., "100" without any unit)
+  const isPlainNumber = /^-?\d*\.?\d+$/.test(value);
+  if (isPlainNumber) {
+    // Add px to plain numbers
+    return `${prefix}-[${value}px]`;
+  }
+  
+  // For values with other units (rem, em, %, etc.), wrap in arbitrary value
+  if (value.match(/^\d/)) {
+    return `${prefix}-[${value}]`;
+  }
+  
+  // Otherwise use as named class (e.g., "large", "small")
+  return `${prefix}-${value}`;
+}
+
+/**
  * Map of Tailwind class prefixes to their property names
  * Used for conflict detection and removal
  */
@@ -160,11 +206,11 @@ export function propertyToClass(
       case 'alignContent':
         return `content-${value}`;
       case 'gap':
-        return value.match(/^\d/) ? `gap-[${value}]` : `gap-${value}`;
+        return formatMeasurementClass(value, 'gap');
       case 'columnGap':
-        return value.match(/^\d/) ? `gap-x-[${value}]` : `gap-x-${value}`;
+        return formatMeasurementClass(value, 'gap-x');
       case 'rowGap':
-        return value.match(/^\d/) ? `gap-y-[${value}]` : `gap-y-${value}`;
+        return formatMeasurementClass(value, 'gap-y');
       case 'gridTemplateColumns':
         return `grid-cols-[${value}]`;
       case 'gridTemplateRows':
@@ -176,7 +222,7 @@ export function propertyToClass(
   if (category === 'typography') {
     switch (property) {
       case 'fontSize':
-        return value.match(/^\d/) ? `text-[${value}]` : `text-${value}`;
+        return formatMeasurementClass(value, 'text');
       case 'fontWeight':
         // Always use arbitrary values for numeric weights
         return value.match(/^\d/) ? `font-[${value}]` : `font-${value}`;
@@ -186,7 +232,7 @@ export function propertyToClass(
       case 'lineHeight':
         return value.match(/^\d/) ? `leading-[${value}]` : `leading-${value}`;
       case 'letterSpacing':
-        return value.match(/^\d/) ? `tracking-[${value}]` : `tracking-${value}`;
+        return formatMeasurementClass(value, 'tracking');
       case 'textAlign':
         return `text-${value}`;
       case 'textTransform':
@@ -217,8 +263,11 @@ export function propertyToClass(
     
     const prefix = prefixMap[property];
     if (prefix) {
-      if (value === 'auto') return `${prefix}-auto`;
-      return value.match(/^\d/) ? `${prefix}-[${value}]` : `${prefix}-${value}`;
+      // Margin can be auto
+      if (property.startsWith('margin')) {
+        return formatMeasurementClass(value, prefix, ['auto']);
+      }
+      return formatMeasurementClass(value, prefix);
     }
   }
   
@@ -235,11 +284,11 @@ export function propertyToClass(
     
     const prefix = prefixMap[property];
     if (prefix) {
-      if (['auto', 'full', 'screen', 'min', 'max', 'fit'].includes(value)) {
-        return `${prefix}-${value}`;
-      }
+      // Special case: 100% → full
       if (value === '100%') return `${prefix}-full`;
-      return value.match(/^\d/) ? `${prefix}-[${value}]` : `${prefix}-${value}`;
+      
+      // Use abstracted helper with allowed named values
+      return formatMeasurementClass(value, prefix, ['auto', 'full', 'screen', 'min', 'max', 'fit']);
     }
   }
   
@@ -247,29 +296,34 @@ export function propertyToClass(
   if (category === 'borders') {
     switch (property) {
       case 'borderWidth':
-        return value === '1px' ? 'border' : `border-[${value}]`;
+        if (value === '1px') return 'border';
+        return formatMeasurementClass(value, 'border');
       case 'borderTopWidth':
-        return value === '1px' ? 'border-t' : `border-t-[${value}]`;
+        if (value === '1px') return 'border-t';
+        return formatMeasurementClass(value, 'border-t');
       case 'borderRightWidth':
-        return value === '1px' ? 'border-r' : `border-r-[${value}]`;
+        if (value === '1px') return 'border-r';
+        return formatMeasurementClass(value, 'border-r');
       case 'borderBottomWidth':
-        return value === '1px' ? 'border-b' : `border-b-[${value}]`;
+        if (value === '1px') return 'border-b';
+        return formatMeasurementClass(value, 'border-b');
       case 'borderLeftWidth':
-        return value === '1px' ? 'border-l' : `border-l-[${value}]`;
+        if (value === '1px') return 'border-l';
+        return formatMeasurementClass(value, 'border-l');
       case 'borderStyle':
         return `border-${value}`;
       case 'borderColor':
         return value.match(/^#|^rgb/) ? `border-[${value}]` : `border-${value}`;
       case 'borderRadius':
-        return value.match(/^\d/) ? `rounded-[${value}]` : `rounded${value !== 'none' ? '-' + value : ''}`;
+        return formatMeasurementClass(value, 'rounded');
       case 'borderTopLeftRadius':
-        return value.match(/^\d/) ? `rounded-tl-[${value}]` : `rounded-tl${value !== 'none' ? '-' + value : ''}`;
+        return formatMeasurementClass(value, 'rounded-tl');
       case 'borderTopRightRadius':
-        return value.match(/^\d/) ? `rounded-tr-[${value}]` : `rounded-tr${value !== 'none' ? '-' + value : ''}`;
+        return formatMeasurementClass(value, 'rounded-tr');
       case 'borderBottomRightRadius':
-        return value.match(/^\d/) ? `rounded-br-[${value}]` : `rounded-br${value !== 'none' ? '-' + value : ''}`;
+        return formatMeasurementClass(value, 'rounded-br');
       case 'borderBottomLeftRadius':
-        return value.match(/^\d/) ? `rounded-bl-[${value}]` : `rounded-bl${value !== 'none' ? '-' + value : ''}`;
+        return formatMeasurementClass(value, 'rounded-bl');
     }
   }
   
@@ -318,8 +372,7 @@ export function propertyToClass(
       case 'right':
       case 'bottom':
       case 'left':
-        if (value === 'auto') return `${property}-auto`;
-        return value.match(/^\d/) ? `${property}-[${value}]` : `${property}-${value}`;
+        return formatMeasurementClass(value, property, ['auto']);
       case 'zIndex':
         if (value === 'auto') return 'z-auto';
         return value.match(/^\d/) ? `z-[${value}]` : `z-${value}`;

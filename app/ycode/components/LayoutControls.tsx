@@ -13,6 +13,7 @@ import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useModeToggle } from '@/hooks/use-mode-toggle';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { extractMeasurementValue } from '@/lib/measurement-utils';
 import type { Layer } from '@/types';
 
 interface LayoutControlsProps {
@@ -28,15 +29,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     activeBreakpoint,
     activeUIState,
   });
-  
-  const [gapUnit, setGapUnit] = useState<'px' | 'rem' | 'em'>('px');
-  const [paddingUnit, setPaddingUnit] = useState<'px' | 'rem' | 'em'>('px');
-  
-  // Extract numeric value from design property
-  const extractValue = (prop: string): string => {
-    if (!prop) return '';
-    return prop.replace(/[a-z%]+$/i, '');
-  };
   
   // Get current values from layer (with inheritance)
   const display = getDesignProperty('layout', 'display') || '';
@@ -65,7 +57,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     paddingRight,
     paddingBottom,
     paddingLeft,
-  }, extractValue);
+  }, extractMeasurementValue);
 
   const [gapInput, setGapInput] = inputs.gap;
   const [columnGapInput, setColumnGapInput] = inputs.columnGap;
@@ -148,116 +140,46 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   const handleGapChange = (value: string) => {
     setGapInput(value);
     if (gapModeToggle.mode === 'all-borders') {
-      updateDesignProperty('layout', 'gap', value ? `${value}${gapUnit}` : null);
+      updateDesignProperty('layout', 'gap', value || null);
     }
   };
   
   const handleColumnGapChange = (value: string) => {
     setColumnGapInput(value);
-    updateDesignProperty('layout', 'columnGap', value ? `${value}${gapUnit}` : null);
+    updateDesignProperty('layout', 'columnGap', value || null);
   };
   
   const handleRowGapChange = (value: string) => {
     setRowGapInput(value);
-    updateDesignProperty('layout', 'rowGap', value ? `${value}${gapUnit}` : null);
-  };
-  
-  // Handle gap unit change
-  const handleGapUnitChange = (newUnit: 'px' | 'rem' | 'em') => {
-    setGapUnit(newUnit);
-    // Update stored values with new unit
-    if (gapModeToggle.mode === 'all-borders' && gap) {
-      const numericValue = extractValue(gap);
-      if (numericValue) {
-        updateDesignProperty('layout', 'gap', `${numericValue}${newUnit}`);
-      }
-    } else {
-      const updates: { category: 'layout'; property: string; value: string | null }[] = [];
-      if (columnGap) {
-        const numericValue = extractValue(columnGap);
-        if (numericValue) {
-          updates.push({ category: 'layout', property: 'columnGap', value: `${numericValue}${newUnit}` });
-        }
-      }
-      if (rowGap) {
-        const numericValue = extractValue(rowGap);
-        if (numericValue) {
-          updates.push({ category: 'layout', property: 'rowGap', value: `${numericValue}${newUnit}` });
-        }
-      }
-      if (updates.length > 0) {
-        updateDesignProperties(updates);
-      }
-    }
+    updateDesignProperty('layout', 'rowGap', value || null);
   };
   
   // Handle padding changes
   const handlePaddingChange = (value: string) => {
     setPaddingInput(value);
     if (paddingModeToggle.mode === 'all-borders') {
-      updateDesignProperty('spacing', 'padding', value ? `${value}${paddingUnit}` : null);
+      updateDesignProperty('spacing', 'padding', value || null);
     }
   };
   
   const handlePaddingTopChange = (value: string) => {
     setPaddingTopInput(value);
-    updateDesignProperty('spacing', 'paddingTop', value ? `${value}${paddingUnit}` : null);
+    updateDesignProperty('spacing', 'paddingTop', value || null);
   };
   
   const handlePaddingRightChange = (value: string) => {
     setPaddingRightInput(value);
-    updateDesignProperty('spacing', 'paddingRight', value ? `${value}${paddingUnit}` : null);
+    updateDesignProperty('spacing', 'paddingRight', value || null);
   };
   
   const handlePaddingBottomChange = (value: string) => {
     setPaddingBottomInput(value);
-    updateDesignProperty('spacing', 'paddingBottom', value ? `${value}${paddingUnit}` : null);
+    updateDesignProperty('spacing', 'paddingBottom', value || null);
   };
   
   const handlePaddingLeftChange = (value: string) => {
     setPaddingLeftInput(value);
-    updateDesignProperty('spacing', 'paddingLeft', value ? `${value}${paddingUnit}` : null);
-  };
-  
-  // Handle padding unit change
-  const handlePaddingUnitChange = (newUnit: 'px' | 'rem' | 'em') => {
-    setPaddingUnit(newUnit);
-    // Update stored values with new unit
-    if (paddingModeToggle.mode === 'all-borders' && padding) {
-      const numericValue = extractValue(padding);
-      if (numericValue) {
-        updateDesignProperty('spacing', 'padding', `${numericValue}${newUnit}`);
-      }
-    } else {
-      const updates: { category: 'spacing'; property: string; value: string | null }[] = [];
-      if (paddingTop) {
-        const numericValue = extractValue(paddingTop);
-        if (numericValue) {
-          updates.push({ category: 'spacing', property: 'paddingTop', value: `${numericValue}${newUnit}` });
-        }
-      }
-      if (paddingRight) {
-        const numericValue = extractValue(paddingRight);
-        if (numericValue) {
-          updates.push({ category: 'spacing', property: 'paddingRight', value: `${numericValue}${newUnit}` });
-        }
-      }
-      if (paddingBottom) {
-        const numericValue = extractValue(paddingBottom);
-        if (numericValue) {
-          updates.push({ category: 'spacing', property: 'paddingBottom', value: `${numericValue}${newUnit}` });
-        }
-      }
-      if (paddingLeft) {
-        const numericValue = extractValue(paddingLeft);
-        if (numericValue) {
-          updates.push({ category: 'spacing', property: 'paddingLeft', value: `${numericValue}${newUnit}` });
-        }
-      }
-      if (updates.length > 0) {
-        updateDesignProperties(updates);
-      }
-    }
+    updateDesignProperty('spacing', 'paddingLeft', value || null);
   };
   
   // Handle grid template changes
@@ -429,20 +351,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                             onChange={(e) => handleGapChange(e.target.value)}
                             placeholder="16"
                           />
-                          <InputGroupAddon align="inline-end">
-                              <Select value={gapUnit} onValueChange={handleGapUnitChange}>
-                                  <SelectTrigger size="xs" variant="ghost">
-                                      {gapUnit}
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                      <SelectGroup>
-                                          <SelectItem value="px">px</SelectItem>
-                                          <SelectItem value="rem">rem</SelectItem>
-                                          <SelectItem value="em">em</SelectItem>
-                                      </SelectGroup>
-                                  </SelectContent>
-                              </Select>
-                          </InputGroupAddon>
                       </InputGroup>
                       <Button
                         variant={gapModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
@@ -510,20 +418,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                             onChange={(e) => handlePaddingChange(e.target.value)}
                             placeholder="16"
                           />
-                          <InputGroupAddon align="inline-end">
-                              <Select value={paddingUnit} onValueChange={handlePaddingUnitChange}>
-                                  <SelectTrigger size="xs" variant="ghost">
-                                      {paddingUnit}
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                      <SelectGroup>
-                                          <SelectItem value="px">px</SelectItem>
-                                          <SelectItem value="rem">rem</SelectItem>
-                                          <SelectItem value="em">em</SelectItem>
-                                      </SelectGroup>
-                                  </SelectContent>
-                              </Select>
-                          </InputGroupAddon>
                       </InputGroup>
                       <Button
                         variant={paddingModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
