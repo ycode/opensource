@@ -22,7 +22,6 @@ export async function getKnexClient(): Promise<Knex> {
   const environment = process.env.NODE_ENV || 'development';
   const config = knexfileConfig[environment];
 
-  console.log('[getKnexClient] Using knex configuration:', environment, config);
 
   if (!config) {
     throw new Error(`No knex configuration found for environment: ${environment}`);
@@ -48,10 +47,8 @@ export async function closeKnexClient(): Promise<void> {
  */
 export async function testKnexConnection(): Promise<boolean> {
   try {
-    console.log('[testKnexConnection] Starting database connection test...');
     const client = await getKnexClient();
     await client.raw('SELECT 1');
-    console.log('[testKnexConnection] ✓ Database connection successful');
     return true;
   } catch (error) {
     console.error('[testKnexConnection] ✗ Database connection test failed:', {
@@ -88,7 +85,6 @@ export async function testSupabaseDirectConnection(credentials: {
   let testClient: Knex | null = null;
 
   try {
-    console.log('[testSupabaseDirectConnection] Testing database connection...');
 
     // Create a temporary knex instance with the provided credentials
     testClient = knex({
@@ -109,7 +105,6 @@ export async function testSupabaseDirectConnection(credentials: {
 
     // Test the connection
     await testClient.raw('SELECT 1');
-    console.log('[testSupabaseDirectConnection] ✓ Database connection successful');
 
     return { success: true };
   } catch (error) {

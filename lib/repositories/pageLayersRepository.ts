@@ -65,9 +65,15 @@ export async function getPublishedLayers(pageId: string): Promise<PageLayers | n
  * Create or update draft layers
  * @param pageId - Page ID
  * @param layers - Page layers
+ * @param generatedCSS - Optional CSS generated from Tailwind JIT for published pages
  * @param additionalData - Optional additional fields (e.g., metadata)
  */
-export async function upsertDraftLayers(pageId: string, layers: Layer[], additionalData?: Record<string, any>): Promise<PageLayers> {
+export async function upsertDraftLayers(
+  pageId: string,
+  layers: Layer[],
+  generatedCSS?: string | null,
+  additionalData?: Record<string, any>
+): Promise<PageLayers> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
@@ -77,11 +83,20 @@ export async function upsertDraftLayers(pageId: string, layers: Layer[], additio
   // Check if draft exists
   const existingDraft = await getDraftLayers(pageId);
 
+  // Prepare update data
+  const updateData: any = { layers };
+  if (generatedCSS !== undefined) {
+    updateData.generated_css = generatedCSS;
+  }
+  if (additionalData) {
+    Object.assign(updateData, additionalData);
+  }
+
   if (existingDraft) {
     // Update existing draft
     const { data, error } = await client
       .from('page_layers')
-      .update({ layers })
+      .update(updateData)
       .eq('id', existingDraft.id)
       .select()
       .single();
@@ -93,9 +108,16 @@ export async function upsertDraftLayers(pageId: string, layers: Layer[], additio
     return data;
   } else {
     // Create new draft with any additional data
-    const insertData = additionalData
-      ? { page_id: pageId, layers, is_published: false, ...additionalData }
-      : { page_id: pageId, layers, is_published: false };
+    const insertData: any = {
+      page_id: pageId,
+      layers,
+      is_published: false,
+      ...additionalData
+    };
+
+    if (generatedCSS !== undefined) {
+      insertData.generated_css = generatedCSS;
+    }
 
     const { data, error } = await client
       .from('page_layers')
@@ -222,16 +244,23 @@ export async function publishPageLayers(draftPageId: string, publishedPageId: st
   // Check if published version exists
   const existingPublished = await getPublishedLayersByPublishKey(draftLayers.publish_key);
 
-  const publishedData = {
+  const publishedData: any = {
     page_id: publishedPageId, // Reference the published page, not the draft
     layers: draftLayers.layers,
     is_published: true,
     publish_key: draftLayers.publish_key,
   };
 
+  // Copy generated_css if it exists
+  if (draftLayers.generated_css) {
+    publishedData.generated_css = draftLayers.generated_css;
+  }
+
   if (existingPublished) {
-    // Update existing published version only if layers changed
-    const hasChanges = JSON.stringify(existingPublished.layers) !== JSON.stringify(draftLayers.layers);
+    // Update existing published version only if layers or CSS changed
+    const layersChanged = JSON.stringify(existingPublished.layers) !== JSON.stringify(draftLayers.layers);
+    const cssChanged = existingPublished.generated_css !== draftLayers.generated_css;
+    const hasChanges = layersChanged || cssChanged;
 
     if (hasChanges) {
       const { data, error } = await client

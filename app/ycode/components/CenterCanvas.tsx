@@ -1,28 +1,29 @@
 'use client';
 
 /**
- * Center Canvas - Preview Area
+ * Center Canvas - Preview Area with Isolated Iframe
  *
- * Shows live preview of the website being built
+ * Shows live preview of the website being built using Tailwind JIT CDN
  */
 
 // 1. React/Next.js
-import { useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 
 // 3. ShadCN UI
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-// 4. Internal components
-import LayerRenderer from '../../../components/layers/LayerRenderer';
-
 // 5. Stores
-import { useEditorStore } from '../../../stores/useEditorStore';
-import { usePagesStore } from '../../../stores/usePagesStore';
+import { useEditorStore } from '@/stores/useEditorStore';
+import { usePagesStore } from '@/stores/usePagesStore';
 
-// 6. Types
-import type { Layer } from '../../../types';
+// 6. Utils
+import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
+import type { IframeToParentMessage } from '@/lib/iframe-bridge';
+
+// 7. Types
+import type { Layer } from '@/types';
 import {
   Select,
   SelectContent,
@@ -60,11 +61,13 @@ export default function CenterCanvas({
   zoom,
 }: CenterCanvasProps) {
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
+  const [iframeReady, setIframeReady] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const { draftsByPageId, addLayer, updateLayer } = usePagesStore();
-  const { setSelectedLayerId } = useEditorStore();
+  const { setSelectedLayerId, activeUIState } = useEditorStore();
 
   const layers = useMemo(() => {
-    if (! currentPageId) {
+    if (!currentPageId) {
       return [];
     }
 
@@ -72,11 +75,84 @@ export default function CenterCanvas({
     return draft ? draft.layers : [];
   }, [currentPageId, draftsByPageId]);
 
-  const handleLayerUpdate = (layerId: string, updates: Partial<Layer>) => {
-    if (currentPageId) {
-      updateLayer(currentPageId, layerId, updates);
-    }
-  };
+  // Send layers to iframe whenever they change
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    const serializedLayers = serializeLayers(layers);
+    sendToIframe(iframeRef.current, {
+      type: 'UPDATE_LAYERS',
+      payload: {
+        layers: serializedLayers,
+        selectedLayerId,
+      },
+    });
+  }, [layers, selectedLayerId, iframeReady]);
+
+  // Send breakpoint updates to iframe
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    sendToIframe(iframeRef.current, {
+      type: 'UPDATE_BREAKPOINT',
+      payload: { breakpoint: viewportMode },
+    });
+  }, [viewportMode, iframeReady]);
+
+  // Send UI state updates to iframe
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    sendToIframe(iframeRef.current, {
+      type: 'UPDATE_UI_STATE',
+      payload: { uiState: activeUIState },
+    });
+  }, [activeUIState, iframeReady]);
+
+  // Listen for messages from iframe
+  useEffect(() => {
+    const handleIframeMessage = (message: IframeToParentMessage) => {
+
+      switch (message.type) {
+        case 'READY':
+          setIframeReady(true);
+          break;
+
+        case 'LAYER_CLICK':
+          setSelectedLayerId(message.payload.layerId);
+          break;
+
+        case 'LAYER_DOUBLE_CLICK':
+          // Text editing is handled inside iframe
+          break;
+
+        case 'TEXT_CHANGE_START':
+          break;
+
+        case 'TEXT_CHANGE_END':
+          if (currentPageId) {
+            updateLayer(currentPageId, message.payload.layerId, {
+              text: message.payload.text,
+              content: message.payload.text,
+            });
+          }
+          break;
+
+        case 'CONTEXT_MENU':
+          // Context menu will be handled later
+          break;
+
+        case 'DRAG_START':
+        case 'DRAG_OVER':
+        case 'DROP':
+          // Drag-and-drop will be handled later
+          break;
+      }
+    };
+
+    const cleanup = listenToIframe(handleIframeMessage);
+    return cleanup;
+  }, [currentPageId, setSelectedLayerId, updateLayer]);
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">
@@ -152,6 +228,7 @@ export default function CenterCanvas({
           </Button>
         </div>
       </div>
+
       {/* Canvas Area */}
       <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-neutral-50 dark:bg-neutral-950/80">
         <div
@@ -162,18 +239,15 @@ export default function CenterCanvas({
             minHeight: '800px',
           }}
         >
-          {/* Preview Content */}
+          {/* Iframe Canvas */}
           {layers.length > 0 ? (
-            <div id="ybody" className="w-full h-full relative">
-              <LayerRenderer
-                layers={layers}
-                onLayerClick={setSelectedLayerId}
-                onLayerUpdate={handleLayerUpdate}
-                selectedLayerId={selectedLayerId}
-                isEditMode={true}
-                pageId={currentPageId || ''}
-              />
-            </div>
+            <iframe
+              ref={iframeRef}
+              src="/canvas.html"
+              className="w-full h-full border-0"
+              style={{ minHeight: '800px' }}
+              title="Canvas Preview"
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center p-12">
               <div className="text-center max-w-md relative">

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YCode Canvas</title>
+  
+  <!-- Tailwind CSS Play CDN (JIT) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Tailwind Configuration -->
+  <script>
+    tailwind.config = {
+      theme: {
+        screens: {
+          // Desktop-first breakpoints (max-width)
+          'max-lg': {'max': '1023px'},
+          'max-md': {'max': '767px'},
+        },
+        extend: {
+          // YCode custom theme extensions can be added here
+          colors: {
+            // Add custom colors if needed
+          },
+          spacing: {
+            // Add custom spacing if needed
+          },
+        }
+      },
+      // Enable all variants
+      variants: {
+        extend: {
+          backgroundColor: ['active', 'disabled'],
+          textColor: ['active', 'disabled'],
+          borderColor: ['active', 'disabled'],
+          opacity: ['disabled'],
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      min-height: 100vh;
+      background: white;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    
+    /* Editor-specific styles */
+    .ycode-selected {
+      outline: 2px solid #3b82f6 !important;
+      outline-offset: 2px !important;
+    }
+    
+    .ycode-hover {
+      outline: 1px solid rgba(59, 130, 246, 0.3) !important;
+      outline-offset: 0 !important;
+    }
+    
+    .ycode-editing {
+      outline: 2px solid #10b981 !important;
+      outline-offset: 2px !important;
+    }
+    
+    .ycode-drop-target {
+      outline: 2px dashed #3b82f6 !important;
+      outline-offset: 2px !important;
+      background-color: rgba(59, 130, 246, 0.05) !important;
+    }
+    
+    .ycode-layer {
+      position: relative;
+      transition: outline 100ms ease;
+    }
+    
+    .ycode-layer:hover {
+      cursor: pointer;
+    }
+    
+    /* Selection badge */
+    .ycode-selection-badge {
+      position: absolute;
+      top: -28px;
+      left: 0;
+      background-color: #3b82f6;
+      color: white;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Text editing input */
+    .ycode-text-editor {
+      width: 100%;
+      background: white;
+      border: 2px solid #10b981;
+      border-radius: 4px;
+      padding: 4px 8px;
+      outline: none;
+      font-family: inherit;
+      font-size: inherit;
+      font-weight: inherit;
+      color: inherit;
+    }
+  </style>
+</head>
+<body id="canvas-root">
+  <!-- Layers will be dynamically rendered here -->
+  
+  <!-- Canvas Renderer Script -->
+  <script src="/canvas-renderer.js"></script>
+</body>
+</html>
+

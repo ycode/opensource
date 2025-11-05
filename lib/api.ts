@@ -138,10 +138,10 @@ export const pageLayersApi = {
   },
 
   // Update draft layers
-  async updateDraft(pageId: string, layers: Layer[]): Promise<ApiResponse<PageLayers>> {
+  async updateDraft(pageId: string, layers: Layer[], generatedCSS?: string | null): Promise<ApiResponse<PageLayers>> {
     return apiRequest<PageLayers>(`/api/pages/${pageId}/draft`, {
       method: 'PUT',
-      body: JSON.stringify({ layers }),
+      body: JSON.stringify({ layers, generated_css: generatedCSS }),
     });
   },
 

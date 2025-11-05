@@ -4,26 +4,27 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import AssetLibrary from '../../../components/AssetLibrary';
+
+// 4. Internal components
+import AssetLibrary from '@/components/AssetLibrary';
 import ElementLibrary from './ElementLibrary';
 import LayersTree from './LayersTree';
 import LeftSidebarPages from './LeftSidebarPages';
-import { useEditorStore } from '../../../stores/useEditorStore';
-import { usePagesStore } from '../../../stores/usePagesStore';
-import type { Layer } from '../../../types';
+import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
+
+// 5. Stores
+import { useEditorStore } from '@/stores/useEditorStore';
+import { usePagesStore } from '@/stores/usePagesStore';
+
+// 6. Utils/lib
+import { pagesApi } from '@/lib/api';
+import { findLayerById } from '@/lib/layer-utils';
+
+// 7. Types
+import type { Layer, Page } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
-// Helper function to find layer by ID recursively
-function findLayerById(layers: Layer[], id: string): Layer | null {
-  for (const layer of layers) {
-    if (layer.id === id) return layer;
-    if (layer.children) {
-      const found = findLayerById(layer.children, id);
-      if (found) return found;
-    }
-  }
-  return null;
-}
+// Helper function to find layer with parent context
 
 interface LeftSidebarProps {
   selectedLayerId: string | null;

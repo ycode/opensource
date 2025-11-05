@@ -31,7 +31,6 @@ async function getSupabaseConfig(): Promise<{ url: string; anonKey: string }> {
           console.error('Invalid response from /api/supabase/config:', data);
           throw new Error('Invalid config response');
         }
-        console.log('Supabase config loaded successfully');
         return data.data;
       })
       .catch((error) => {

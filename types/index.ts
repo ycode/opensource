@@ -7,6 +7,9 @@
 // Layer Types
 export type LayerType = 'container' | 'text' | 'image' | 'heading';
 
+// UI State Types (for state-specific styling: hover, focus, etc.)
+export type UIState = 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current';
+
 // Design Property Interfaces
 export interface LayoutDesign {
   isActive?: boolean;
@@ -100,12 +103,35 @@ export interface LayerSettings {
   hidden?: boolean;      // Element visibility in canvas
   tag?: string;          // HTML tag override (e.g., 'h1', 'h2', etc.)
   customAttributes?: Record<string, string>; // Custom HTML attributes { attributeName: attributeValue }
-  linkSettings?: {
-    url: string;
-    target?: string; // Link target ('_self', '_blank', etc.)
+  linkSettings?: {       // For link/button elements
+    href?: string;
+    target?: '_self' | '_blank' | '_parent' | '_top';
+    rel?: string;
   };
-  embedUrl?: string;     // Embed URL for iframes (YouTube, etc.)
+  embedUrl?: string;     // For embedded content (videos, iframes, etc.)
   // Future settings can be added here
+}
+
+// Layer Style Types
+export interface LayerStyle {
+  id: string;
+  name: string;
+
+  // Style data (single version - published with page)
+  classes: string;
+  design?: {
+    layout?: LayoutDesign;
+    typography?: TypographyDesign;
+    spacing?: SpacingDesign;
+    sizing?: SizingDesign;
+    borders?: BordersDesign;
+    backgrounds?: BackgroundsDesign;
+    effects?: EffectsDesign;
+    positioning?: PositioningDesign;
+  };
+
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Layer {
@@ -117,7 +143,7 @@ export interface Layer {
   // Content
   text?: string; // Text content
   classes: string | string[]; // Tailwind CSS classes (support both formats)
-  style?: string; // Style preset name
+  style?: string; // Style preset name (legacy)
 
   // Children
   children?: Layer[];
@@ -140,6 +166,22 @@ export interface Layer {
 
   // Settings (element-specific configuration)
   settings?: LayerSettings;
+
+  // Layer Styles (reusable design system)
+  styleId?: string; // Reference to applied LayerStyle
+  styleOverrides?: {
+    classes?: string;
+    design?: {
+      layout?: LayoutDesign;
+      typography?: TypographyDesign;
+      spacing?: SpacingDesign;
+      sizing?: SizingDesign;
+      borders?: BordersDesign;
+      backgrounds?: BackgroundsDesign;
+      effects?: EffectsDesign;
+      positioning?: PositioningDesign;
+    };
+  }; // Tracks local changes after style applied
 
   // Special properties
   locked?: boolean;
@@ -183,7 +225,9 @@ export interface PageLayers {
   is_published: boolean;
   publish_key: string; // Stable key linking draft and published versions
   created_at: string;
+  updated_at?: string;
   deleted_at: string | null; // Soft delete timestamp
+  generated_css?: string; // Extracted CSS from Play CDN for published pages
 }
 
 export interface PageFolder {
@@ -231,6 +275,8 @@ export interface EditorState {
   isDragging: boolean;
   isLoading: boolean;
   isSaving: boolean;
+  activeBreakpoint: 'mobile' | 'tablet' | 'desktop';
+  activeUIState: UIState; // Current UI state for editing (hover, focus, etc.)
 }
 
 // API Response Types

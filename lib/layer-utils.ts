@@ -5,6 +5,21 @@
 import { Layer } from '@/types';
 
 /**
+ * Find a layer by ID in a tree structure
+ * Recursively searches through layer tree
+ */
+export function findLayerById(layers: Layer[], id: string): Layer | null {
+  for (const layer of layers) {
+    if (layer.id === id) return layer;
+    if (layer.children) {
+      const found = findLayerById(layer.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
  * Get the HTML tag name for a layer
  */
 export function getHtmlTag(layer: Layer): string {

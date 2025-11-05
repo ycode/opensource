@@ -16,7 +16,7 @@ export const actionTemplates: Record<string, BlockTemplate> = {
     name: 'Button',
     template: {
       name: 'button',
-      classes: ['px-6', 'py-2', 'bg-blue-600', 'text-white', 'rounded-lg', 'hover:bg-blue-700', 'transition-colors'],
+      classes: ['px-[1.5rem]', 'py-[0.5rem]', 'bg-[#2563eb]', 'text-[#ffffff]', 'rounded-[0.5rem]', 'hover:bg-[#1d4ed8]', 'transition-colors'],
       text: 'Button',
       children: [], // Can contain icons, spans, etc.
       attributes: {
@@ -24,7 +24,7 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       },
       settings: {
         linkSettings: {
-          url: '',
+          href: '',
           target: '_self'
         }
       },
@@ -57,7 +57,7 @@ export const actionTemplates: Record<string, BlockTemplate> = {
     name: 'Link',
     template: {
       name: 'a',
-      classes: ['text-blue-600', 'hover:underline'],
+      classes: ['text-[#2563eb]', 'hover:underline'],
       text: 'Link text',
       children: [], // Can contain icons, images, text
       attributes: {
@@ -66,7 +66,7 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       },
       settings: {
         linkSettings: {
-          url: '#',
+          href: '#',
           target: '_self'
         }
       },

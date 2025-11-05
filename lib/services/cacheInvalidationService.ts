@@ -18,7 +18,6 @@ export async function invalidatePage(slug: string): Promise<boolean> {
     // Also revalidate the path to ensure all caches are cleared
     revalidatePath(`/${slug}`);
     
-    console.log(`✅ Cache invalidated for page: /${slug} (tag: page-${slug})`);
     return true;
   } catch (error) {
     console.error('❌ Cache invalidation error:', error);

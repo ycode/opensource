@@ -42,7 +42,6 @@ let cachedCredentials: string | null = null;
  * Get Supabase client with service role key (admin access)
  */
 export async function getSupabaseAdmin(): Promise<SupabaseClient | null> {
-  console.log('[getSupabaseAdmin] Getting credentials...');
   const credentials = await getSupabaseCredentials();
 
   if (!credentials) {
@@ -50,21 +49,14 @@ export async function getSupabaseAdmin(): Promise<SupabaseClient | null> {
     return null;
   }
 
-  console.log('[getSupabaseAdmin] Got credentials:', {
-    projectUrl: credentials.projectUrl ? '✓' : '✗',
-    anonKey: credentials.anonKey ? '✓' : '✗',
-    serviceRoleKey: credentials.serviceRoleKey ? '✓' : '✗',
-  });
 
   // Cache client if credentials haven't changed
   const credKey = `${credentials.projectUrl}:${credentials.serviceRoleKey}`;
   if (cachedClient && cachedCredentials === credKey) {
-    console.log('[getSupabaseAdmin] Using cached client');
     return cachedClient;
   }
 
   // Create new client
-  console.log('[getSupabaseAdmin] Creating new Supabase client');
   cachedClient = createClient(credentials.projectUrl, credentials.serviceRoleKey, {
     auth: {
       autoRefreshToken: false,

@@ -18,9 +18,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
-import { usePagesStore } from '../../../stores/usePagesStore';
-import { publishApi } from '../../../lib/api';
-import type { Page } from '../../../types';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// 4. Stores
+import { usePagesStore } from '@/stores/usePagesStore';
+import { publishApi } from '@/lib/api';
+
+// 5. Types
+import type { Page } from '@/types';
 import type { User } from '@supabase/supabase-js';
 
 interface HeaderBarProps {

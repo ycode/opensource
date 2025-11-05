@@ -61,7 +61,6 @@ export interface UpdatePageData {
  * const publishedPages = await getAllPages({ is_published: true });
  */
 export async function getAllPages(filters?: QueryFilters): Promise<Page[]> {
-  console.log('[pageRepository.getAllPages] Getting Supabase client...');
   const client = await getSupabaseAdmin();
 
   if (!client) {
@@ -90,7 +89,6 @@ export async function getAllPages(filters?: QueryFilters): Promise<Page[]> {
     throw new Error(`Failed to fetch pages: ${error.message}`);
   }
 
-  console.log('[pageRepository.getAllPages] Query success, rows:', data?.length || 0);
   return data || [];
 }
 
@@ -175,7 +173,6 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
     ? { ...pageData, ...additionalData }
     : pageData;
 
-  console.log('[pageRepository.createPage] Creating page:', insertData);
 
   const { data, error } = await client
     .from('pages')

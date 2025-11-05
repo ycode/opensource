@@ -68,7 +68,6 @@ async function getNextBatch(knex: any): Promise<number> {
  */
 export async function runMigrations(): Promise<MigrationResult> {
   try {
-    console.log('[runMigrations] Starting migration process...');
 
     // Test connection first
     const canConnect = await testKnexConnection();
@@ -88,7 +87,6 @@ export async function runMigrations(): Promise<MigrationResult> {
     // Run each pending migration
     for (const migration of migrations) {
       if (!completed.has(migration.name)) {
-        console.log(`[runMigrations] Running migration: ${migration.name}`);
 
         try {
           // Run migration in a transaction
@@ -103,7 +101,6 @@ export async function runMigrations(): Promise<MigrationResult> {
           });
 
           executed.push(migration.name);
-          console.log(`[runMigrations] ✓ ${migration.name} completed`);
         } catch (error) {
           console.error(`[runMigrations] ✗ ${migration.name} failed:`, error);
           await closeKnexClient();
@@ -118,7 +115,6 @@ export async function runMigrations(): Promise<MigrationResult> {
       }
     }
 
-    console.log('[runMigrations] All migrations completed:', executed);
 
     // Close connection
     await closeKnexClient();

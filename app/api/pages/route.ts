@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
 
     console.log('[GET /api/pages] Found pages:', pages.length);
 
+
     return noCache({
       data: pages,
     });
@@ -84,7 +85,6 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    console.log('[POST /api/pages] Starting request');
     const body = await request.json();
     console.log('[POST /api/pages] Request body:', body);
 
@@ -135,7 +135,6 @@ export async function POST(request: NextRequest) {
       settings,
     });
 
-    console.log('[POST /api/pages] Page created:', page.id);
 
     // Create initial draft with Body container
     const bodyLayer = {
