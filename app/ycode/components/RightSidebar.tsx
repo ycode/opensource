@@ -72,22 +72,33 @@ export default function RightSidebar({
   const [newAttributeName, setNewAttributeName] = useState('');
   const [newAttributeValue, setNewAttributeValue] = useState('');
 
-  const { currentPageId, activeBreakpoint } = useEditorStore();
+  const { currentPageId, activeBreakpoint, editingComponentId } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
-  const { getComponentById } = useComponentsStore();
+  const { getComponentById, componentDrafts } = useComponentsStore();
 
   const selectedLayer: Layer | null = useMemo(() => {
-    if (! currentPageId || ! selectedLayerId) return null;
-    const draft = draftsByPageId[currentPageId];
-    if (! draft) return null;
-    const stack: Layer[] = [...draft.layers];
+    if (!selectedLayerId) return null;
+    
+    // Get layers from either component draft or page draft
+    let layers: Layer[] = [];
+    if (editingComponentId) {
+      layers = componentDrafts[editingComponentId] || [];
+    } else if (currentPageId) {
+      const draft = draftsByPageId[currentPageId];
+      layers = draft ? draft.layers : [];
+    }
+    
+    if (!layers.length) return null;
+    
+    // Find the selected layer in the tree
+    const stack: Layer[] = [...layers];
     while (stack.length) {
       const node = stack.shift()!;
       if (node.id === selectedLayerId) return node;
       if (node.children) stack.push(...node.children);
     }
     return null;
-  }, [currentPageId, selectedLayerId, draftsByPageId]);
+  }, [editingComponentId, componentDrafts, currentPageId, selectedLayerId, draftsByPageId]);
 
   // Helper function to check if layer is a heading
   const isHeadingLayer = (layer: Layer | null): boolean => {

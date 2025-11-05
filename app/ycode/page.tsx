@@ -508,12 +508,17 @@ export default function YCodeBuilder() {
   // Exit component edit mode handler
   const handleExitComponentEditMode = useCallback(async () => {
     const { editingComponentId, returnToPageId, setEditingComponentId } = useEditorStore.getState();
-    const { saveComponentDraft, clearComponentDraft, componentDrafts, getComponentById } = useComponentsStore.getState();
+    const { saveComponentDraft, clearComponentDraft, componentDrafts, getComponentById, saveTimeouts } = useComponentsStore.getState();
     const { updateComponentOnLayers } = usePagesStore.getState();
     
     if (!editingComponentId) return;
     
-    // Save component draft
+    // Clear any pending auto-save timeout to avoid duplicate saves
+    if (saveTimeouts[editingComponentId]) {
+      clearTimeout(saveTimeouts[editingComponentId]);
+    }
+    
+    // Immediately save component draft (ensures all changes are persisted)
     await saveComponentDraft(editingComponentId);
     
     // Get the updated component to get its layers
