@@ -1,10 +1,10 @@
 /**
  * API Client for YCode Builder
- * 
+ *
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageVersion, Layer, Asset, ApiResponse } from '../types';
+import type { Page, PageLayers, Layer, Asset, PageFolder, ApiResponse } from '../types';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -21,7 +21,7 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   const token = await getAuthToken();
-  
+
   const response = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
       'Content-Type': 'application/json',
@@ -70,8 +70,13 @@ export const pagesApi = {
     return apiRequest<Page>(`/api/pages/slug/${slug}`);
   },
 
+  // Get all published pages (for public website)
+  async getAllPublished(): Promise<ApiResponse<Page[]>> {
+    return apiRequest<Page[]>('/api/pages?is_published=true');
+  },
+
   // Create new page
-  async create(page: Omit<Page, 'id' | 'created_at' | 'updated_at'>): Promise<ApiResponse<Page>> {
+  async create(page: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>): Promise<ApiResponse<Page>> {
     return apiRequest<Page>('/api/pages', {
       method: 'POST',
       body: JSON.stringify(page),
@@ -94,31 +99,70 @@ export const pagesApi = {
   },
 };
 
-// Page Versions API
-export const pageVersionsApi = {
-  // Get draft version for page
-  async getDraft(pageId: string): Promise<ApiResponse<PageVersion>> {
-    return apiRequest<PageVersion>(`/api/pages/${pageId}/draft`);
+// Folders API
+export const foldersApi = {
+  // Get all folders
+  async getAll(): Promise<ApiResponse<PageFolder[]>> {
+    return apiRequest<PageFolder[]>('/api/folders');
   },
 
-  // Update draft version
-  async updateDraft(pageId: string, layers: Layer[], generatedCSS?: string | null): Promise<ApiResponse<PageVersion>> {
-    return apiRequest<PageVersion>(`/api/pages/${pageId}/draft`, {
+  // Create new folder
+  async create(folder: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>): Promise<ApiResponse<PageFolder>> {
+    return apiRequest<PageFolder>('/api/folders', {
+      method: 'POST',
+      body: JSON.stringify(folder),
+    });
+  },
+
+  // Update folder
+  async update(id: string, folder: Partial<PageFolder>): Promise<ApiResponse<PageFolder>> {
+    return apiRequest<PageFolder>(`/api/folders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(folder),
+    });
+  },
+
+  // Delete folder
+  async delete(id: string): Promise<ApiResponse<void>> {
+    return apiRequest<void>(`/api/folders/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// Page Layers API
+export const pageLayersApi = {
+  // Get draft layers for page
+  async getDraft(pageId: string): Promise<ApiResponse<PageLayers>> {
+    return apiRequest<PageLayers>(`/api/pages/${pageId}/draft`);
+  },
+
+  // Update draft layers
+  async updateDraft(pageId: string, layers: Layer[], generatedCSS?: string | null): Promise<ApiResponse<PageLayers>> {
+    return apiRequest<PageLayers>(`/api/pages/${pageId}/draft`, {
       method: 'PUT',
       body: JSON.stringify({ layers, generated_css: generatedCSS }),
     });
   },
 
-  // Publish page
-  async publish(pageId: string): Promise<ApiResponse<PageVersion>> {
-    return apiRequest<PageVersion>(`/api/pages/${pageId}/publish`, {
+  // Get published layers
+  async getPublished(pageId: string): Promise<ApiResponse<PageLayers>> {
+    return apiRequest<PageLayers>(`/api/pages/${pageId}/published`);
+  },
+};
+
+// Publish API
+export const publishApi = {
+  // Publish all draft records (pages, layers, etc.)
+  async publishAll(): Promise<ApiResponse<{
+    published: Array<{ page: Page; layers: PageLayers }>;
+    created: number;
+    updated: number;
+    unchanged: number;
+  }>> {
+    return apiRequest(`/api/publish`, {
       method: 'POST',
     });
-  },
-
-  // Get published version
-  async getPublished(pageId: string): Promise<ApiResponse<PageVersion>> {
-    return apiRequest<PageVersion>(`/api/pages/${pageId}/published`);
   },
 };
 
@@ -130,7 +174,7 @@ export const assetsApi = {
     formData.append('file', file);
 
     const token = await getAuthToken();
-    
+
     const response = await fetch(`${API_BASE}/api/assets/upload`, {
       method: 'POST',
       headers: {

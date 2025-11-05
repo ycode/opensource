@@ -28,6 +28,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 
 // 6. Utils/lib
+import { findHomepage } from '@/lib/page-utils';
 import { findLayerById, getClassesString } from '@/lib/layer-utils';
 
 // 5. Types
@@ -48,7 +49,7 @@ export default function YCodeBuilder() {
   const [zoom, setZoom] = useState(100);
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastLayersRef = useRef<string>('');
+  const lastLayersByPageRef = useRef<Map<string, string>>(new Map());
   const previousPageIdRef = useRef<string | null>(null);
 
   // Sync viewportMode with activeBreakpoint in store
@@ -89,13 +90,11 @@ export default function YCodeBuilder() {
     }
   }, [loadPages, migrationsComplete]);
 
-  // Set current page to "Home" page by default, or first page if Home doesn't exist
+  // Set current page to homepage by default, or first page if homepage doesn't exist
   useEffect(() => {
     if (!currentPageId && pages.length > 0) {
-      // Try to find "Home" page first (by slug or title)
-      const homePage = pages.find(p =>
-        p.slug?.toLowerCase() === 'home' || p.title?.toLowerCase() === 'home'
-      );
+      // Find homepage (is_locked=true, is_index=true, depth=0)
+      const homePage = findHomepage(pages);
       const defaultPage = homePage || pages[0];
 
       setCurrentPageId(defaultPage.id);
@@ -403,9 +402,13 @@ export default function YCodeBuilder() {
           hasUnsavedChanges) {
         try {
           await saveImmediately(previousPageIdRef.current);
+          setHasUnsavedChanges(false); // Clear unsaved flag after successful save
         } catch (error) {
           console.error('Failed to save before navigation:', error);
         }
+      } else if (previousPageIdRef.current !== currentPageId) {
+        // Switching to a different page without unsaved changes - clear the flag
+        setHasUnsavedChanges(false);
       }
 
       // Update the ref to track current page
@@ -423,15 +426,16 @@ export default function YCodeBuilder() {
 
     const draft = draftsByPageId[currentPageId];
     const currentLayersJSON = JSON.stringify(draft.layers);
+    const lastLayersJSON = lastLayersByPageRef.current.get(currentPageId);
 
-    // Only trigger save if layers actually changed
-    if (lastLayersRef.current && lastLayersRef.current !== currentLayersJSON) {
+    // Only trigger save if layers actually changed for THIS page
+    if (lastLayersJSON && lastLayersJSON !== currentLayersJSON) {
       setHasUnsavedChanges(true);
       debouncedSave(currentPageId);
     }
 
-    // Update the ref for next comparison
-    lastLayersRef.current = currentLayersJSON;
+    // Update the ref for next comparison (store per page)
+    lastLayersByPageRef.current.set(currentPageId, currentLayersJSON);
 
     // Cleanup timeout on unmount
     return () => {

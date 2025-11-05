@@ -1,12 +1,7 @@
 'use client';
 
-// 1. React/Next.js
 import { useRef, useEffect, useState } from 'react';
-
-// 2. External libraries
 import { LogOut, Monitor, Moon, Sun } from 'lucide-react';
-
-// 3. ShadCN UI
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -27,6 +22,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // 4. Stores
 import { usePagesStore } from '@/stores/usePagesStore';
+import { publishApi } from '@/lib/api';
 
 // 5. Types
 import type { Page } from '@/types';
@@ -243,9 +239,15 @@ export default function HeaderBar({
                       await saveImmediately(currentPageId);
                     }
 
-                    // Then publish
-                    const { publishPage } = usePagesStore.getState();
-                    await publishPage(currentPageId);
+                    // Publish all draft records
+                    const response = await publishApi.publishAll();
+                    if (response.error) {
+                      console.error('Publish failed:', response.error);
+                    } else {
+                      // Reload pages to update published status
+                      const { loadPages } = usePagesStore.getState();
+                      await loadPages();
+                    }
                   } catch (error) {
                     console.error('Publish failed:', error);
                   } finally {

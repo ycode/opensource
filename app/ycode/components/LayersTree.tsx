@@ -51,10 +51,12 @@ interface LayerRowProps {
   isChildOfSelected: boolean; // New: indicates this is a child of selected parent
   isLastVisibleDescendant: boolean; // New: last visible descendant of selected parent
   hasVisibleChildren: boolean; // New: has visible children
+  canHaveChildren: boolean; // Pre-calculated from node.canHaveChildren
   isOver: boolean;
   isDragging: boolean;
   isDragActive: boolean;
   dropPosition: 'above' | 'below' | 'inside' | null;
+  highlightedDepths: Set<number>; // Depths that should be highlighted
   onSelect: (id: string) => void;
   onMultiSelect: (id: string, modifiers: { meta: boolean; shift: boolean }) => void;
   onToggle: (id: string) => void;
@@ -171,10 +173,12 @@ function LayerRow({
   isChildOfSelected,
   isLastVisibleDescendant,
   hasVisibleChildren,
+  canHaveChildren,
   isOver,
   isDragging,
   isDragActive,
   dropPosition,
+  highlightedDepths,
   onSelect,
   onMultiSelect,
   onToggle,
@@ -211,19 +215,24 @@ function LayerRow({
       onLayerSelect={onSelect}
     >
       <div className="relative">
-        {/* Vertical connector line */}
+        {/* Vertical connector lines - one for each depth level */}
         {node.depth > 0 && (
-          <div
-            className={cn(
-              'absolute z-10 top-0 bottom-0 w-px ',
-              isSelected && 'bg-white/10',
-              !isSelected && 'bg-secondary',
-              !isSelected && isChildOfSelected && 'bg-white/10',
-            )}
-            style={{
-              left: `${node.depth * 18 - 2}px`,
-            }}
-          />
+          <>
+            {Array.from({ length: node.depth }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'absolute z-10 top-0 bottom-0 w-px ',
+                  highlightedDepths.has(i) && 'bg-white/30',
+                  !highlightedDepths.has(i) && 'bg-secondary',
+                  !highlightedDepths.has(i) && isChildOfSelected && 'bg-white/10',
+                )}
+                style={{
+                  left: `${i * 14 + 16}px`,
+                }}
+              />
+            ))}
+          </>
         )}
 
         {/* Drop Indicators */}
@@ -231,7 +240,7 @@ function LayerRow({
           <div
             className="absolute top-0 left-0 right-0 h-[1.5px] bg-primary z-50"
             style={{
-              marginLeft: `${node.depth * 18}px`,
+              marginLeft: `${node.depth * 14 + 8}px`,
             }}
           >
             <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
@@ -241,7 +250,7 @@ function LayerRow({
           <div
             className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-primary z-50"
             style={{
-              marginLeft: `${node.depth * 18}px`,
+              marginLeft: `${node.depth * 14 + 8}px`,
             }}
           >
             <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
@@ -277,7 +286,7 @@ function LayerRow({
             isDragging && '',
             !isDragActive && ''
           )}
-          style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
+          style={{ paddingLeft: `${node.depth * 14 + 8}px` }}
           onClick={(e) => {
             // Multi-select support
             if (e.metaKey || e.ctrlKey) {
@@ -293,19 +302,24 @@ function LayerRow({
           }}
         >
           {/* Expand/Collapse Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggle(node.id);
-            }}
-            className={cn(
-              'w-4 h-4 flex items-center justify-center flex-shrink-0',
-              hasChildren ? '' : 'invisible',
-              isCollapsed ? '' : 'rotate-90'
-            )}
-          >
-            <Icon name="chevronRight" className="size-2.5 opacity-50" />
-          </button>
+          {canHaveChildren ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle(node.id);
+              }}
+              className={cn(
+                'w-4 h-4 flex items-center justify-center flex-shrink-0',
+                isCollapsed ? '' : 'rotate-90',
+              )}
+            >
+              <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isSelected && 'opacity-80')} />
+            </button>
+          ) : (
+            <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+              <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-20', isSelected && 'opacity-60')} />
+            </div>
+          )}
 
           {/* Layer Icon */}
           {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400 mx-1.5" />*/}
@@ -370,6 +384,21 @@ export default function LayersTree({
     () => flattenTree(layers, null, 0, collapsedIds),
     [layers, collapsedIds]
   );
+
+  // Calculate which depth levels should be highlighted (selected containers)
+  const highlightedDepths = useMemo(() => {
+    const depths = new Set<number>();
+    const selectedIds = selectedLayerId ? [selectedLayerId, ...selectedLayerIds] : selectedLayerIds;
+
+    selectedIds.forEach(id => {
+      const node = flattenedNodes.find(n => n.id === id);
+      if (node && node.canHaveChildren) {
+        depths.add(node.depth);
+      }
+    });
+
+    return depths;
+  }, [flattenedNodes, selectedLayerId, selectedLayerIds]);
 
   // Get the currently active node being dragged
   const activeNode = useMemo(
@@ -490,8 +519,8 @@ export default function LayersTree({
     const offsetY = actualPointerY - top;
     const relativeY = offsetY / height;
 
-    // Check if node can have children using the shared utility
-    const nodeCanHaveChildren = canHaveChildren(overNode.layer);
+    // Use pre-calculated canHaveChildren from the node
+    const nodeCanHaveChildren = overNode.canHaveChildren;
 
     // Container types strongly prefer "inside" drops
     // Check both old type property and new name property
@@ -675,7 +704,7 @@ export default function LayersTree({
       } else if (dropPosition === 'inside') {
         // Drop inside the target - target becomes parent
         // Validate that target can accept children
-        if (!canHaveChildren(overNode.layer)) {
+        if (!overNode.canHaveChildren) {
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
@@ -843,10 +872,12 @@ export default function LayersTree({
               isChildOfSelected={isChildOfSelected}
               isLastVisibleDescendant={isLastVisibleDescendant}
               hasVisibleChildren={hasVisibleChildren}
+              canHaveChildren={node.canHaveChildren}
               isOver={overId === node.id}
               isDragging={activeId === node.id}
               isDragActive={!!activeId}
               dropPosition={overId === node.id ? dropPosition : null}
+              highlightedDepths={highlightedDepths}
               onSelect={handleSelect}
               onMultiSelect={handleMultiSelect}
               onToggle={handleToggle}
@@ -963,4 +994,3 @@ function rebuildTree(
 
   return result;
 }
-

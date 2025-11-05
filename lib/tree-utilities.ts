@@ -1,4 +1,5 @@
 import type { Layer } from '../types';
+import { canHaveChildren } from './layer-utils';
 
 export interface FlattenedItem {
   id: string;
@@ -7,6 +8,7 @@ export interface FlattenedItem {
   parentId: string | null;
   index: number;
   collapsed?: boolean;
+  canHaveChildren: boolean;
 }
 
 /**
@@ -23,7 +25,7 @@ export function flattenTree(
 
   items.forEach((item, index) => {
     const isCollapsed = collapsedIds.has(item.id);
-    
+
     flattened.push({
       id: item.id,
       layer: item,
@@ -31,6 +33,7 @@ export function flattenTree(
       parentId,
       index,
       collapsed: isCollapsed,
+      canHaveChildren: canHaveChildren(item),
     });
 
     // Only flatten children if not collapsed
@@ -53,7 +56,7 @@ function getMaxDepth(layer: Layer): number {
   if (layer.type !== 'container') {
     return 0;
   }
-  
+
   // Allow unlimited nesting for containers
   if (!layer.children || layer.children.length === 0) {
     return Number.MAX_SAFE_INTEGER; // No limit
@@ -67,16 +70,16 @@ function getMaxDepth(layer: Layer): number {
  */
 function getMinDepth(item: FlattenedItem, flattenedItems: FlattenedItem[]): number {
   const itemIndex = flattenedItems.findIndex((i) => i.id === item.id);
-  
+
   if (itemIndex === 0) {
     return 0;
   }
 
   const previousItem = flattenedItems[itemIndex - 1];
-  
+
   // Can be at same level as previous
   let minDepth = previousItem.depth;
-  
+
   // Or one level deeper if previous is a container
   if (previousItem.layer.type === 'container') {
     minDepth = previousItem.depth + 1;
@@ -101,32 +104,32 @@ export function getProjection(
 } | null {
   const overItemIndex = items.findIndex((item) => item.id === overId);
   const activeItemIndex = items.findIndex((item) => item.id === activeId);
-  
+
   if (overItemIndex === -1 || activeItemIndex === -1) {
     return null;
   }
 
   const activeItem = items[activeItemIndex];
   const overItem = items[overItemIndex];
-  
+
   // Calculate depth constraints
   const maxDepth = getMaxDepth(activeItem.layer);
   const minDepth = 0; // Can always go to root
-  
+
   // Calculate new depth based on drag offset
   let depth = overItem.depth + dragDepth;
-  
+
   // Special case: if dragging right (dragDepth > 0) over a container, drop INTO it
   if (dragDepth > 0 && overItem.layer.type === 'container') {
     depth = overItem.depth + 1;
   }
-  
+
   // Constrain depth
   depth = Math.max(minDepth, depth);
-  
+
   // Find parent based on depth
   let parentId: string | null = null;
-  
+
   if (depth > 0) {
     // If dragging into the overItem itself (it's a container)
     if (dragDepth > 0 && overItem.layer.type === 'container' && depth === overItem.depth + 1) {
@@ -144,7 +147,7 @@ export function getProjection(
       }
     }
   }
-  
+
   return {
     depth,
     maxDepth,
@@ -163,16 +166,16 @@ export function findInsertionIndex(
   projection: { parentId: string | null; depth: number }
 ): number {
   const overIndex = items.findIndex((item) => item.id === overId);
-  
+
   if (overIndex === -1) {
     return items.length;
   }
 
   const { parentId, depth } = projection;
-  
+
   // Find the insertion point considering the depth
   let insertIndex = overIndex;
-  
+
   // If dropping at a different depth, adjust insertion point
   if (depth !== items[overIndex].depth) {
     // Find next item at same or shallower depth
@@ -203,7 +206,7 @@ export function removeItem(items: Layer[], id: string): Layer[] {
     .filter((item) => item.id !== id)
     .map((item) => {
       if (!item.children) return item;
-      
+
       return { ...item, children: removeItem(item.children, id) };
     });
 }
@@ -231,11 +234,11 @@ export function insertItem(
       children.splice(index, 0, item);
       return { ...i, children };
     }
-    
+
     if (i.children) {
       return { ...i, children: insertItem(i.children, item, parentId, index) };
     }
-    
+
     return i;
   });
 }
@@ -264,7 +267,7 @@ export function moveItem(
 
   // Remove item from tree
   const withoutActive = removeItem(items, activeId);
-  
+
   // Insert at new position
   return insertItem(
     withoutActive,

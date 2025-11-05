@@ -532,7 +532,7 @@ export default function WelcomePage() {
             </p>
             <ul className="text-zinc-400 text-sm space-y-1 ml-4 list-disc">
               <li>Pages table (for your website pages)</li>
-              <li>Page versions table (draft and published versions)</li>
+              <li>Page layers table (draft and published layers)</li>
               <li>Assets table (for uploaded images)</li>
               <li>Settings table (site configuration)</li>
               <li>Storage bucket (for file uploads)</li>

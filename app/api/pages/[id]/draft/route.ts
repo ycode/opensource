@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getDraftVersion, upsertDraft } from '@/lib/repositories/pageVersionRepository';
+import { NextRequest } from 'next/server';
+import { getDraftLayers, upsertDraftLayers } from '@/lib/repositories/pageLayersRepository';
 import type { Layer } from '@/types';
 import { noCache } from '@/lib/api-response';
 
@@ -9,7 +9,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/pages/[id]/draft
- * 
+ *
  * Get draft version of a page
  */
 export async function GET(
@@ -18,7 +18,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const draft = await getDraftVersion(id);
+    const draft = await getDraftLayers(id);
 
     if (!draft) {
       return noCache(
@@ -32,7 +32,7 @@ export async function GET(
     });
   } catch (error) {
     console.error('Failed to fetch draft:', error);
-    
+
     return noCache(
       { error: error instanceof Error ? error.message : 'Failed to fetch draft' },
       500
@@ -42,7 +42,7 @@ export async function GET(
 
 /**
  * PUT /api/pages/[id]/draft
- * 
+ *
  * Update draft version
  */
 export async function PUT(
@@ -61,14 +61,14 @@ export async function PUT(
       );
     }
 
-    const draft = await upsertDraft(id, layers as Layer[], generated_css);
+    const draft = await upsertDraftLayers(id, layers as Layer[], generated_css);
 
     return noCache({
       data: draft,
     });
   } catch (error) {
     console.error('Failed to update draft:', error);
-    
+
     return noCache(
       { error: error instanceof Error ? error.message : 'Failed to update draft' },
       500

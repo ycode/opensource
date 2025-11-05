@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
+import type { Metadata } from 'next';
 import LayerRenderer from '../../components/layers/LayerRenderer';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import PublishedPageHead from './PublishedPageHead';
@@ -17,16 +18,17 @@ export const dynamicParams = true; // Allow dynamic slugs not in generateStaticP
 export async function generateStaticParams() {
   try {
     const supabase = await getSupabaseAdmin();
-    
+
     if (!supabase) {
       return [];
     }
 
-    // Get all published pages
+    // Get all published pages (excluding soft-deleted)
     const { data: pages, error } = await supabase
       .from('pages')
       .select('slug')
-      .not('published_version_id', 'is', null);
+      .eq('is_published', true)
+      .is('deleted_at', null);
 
     if (error || !pages) {
       return [];
@@ -42,26 +44,28 @@ export async function generateStaticParams() {
 }
 
 /**
- * Fetch published page and version data from database
+ * Fetch published page and layers data from database
  * Cached per slug for revalidation
  */
-async function fetchPublishedPageWithVersion(slug: string) {
+async function fetchPublishedPageWithLayers(slug: string) {
   // Use unstable_cache to cache this fetch with tags
   return unstable_cache(
     async () => {
       try {
         const supabase = await getSupabaseAdmin();
-        
+
         if (!supabase) {
           console.error('Supabase not configured');
           return null;
         }
 
-        // Get page by slug
+        // Get page by slug (only published, non-deleted)
         const { data: page, error: pageError } = await supabase
           .from('pages')
           .select('*')
           .eq('slug', slug)
+          .eq('is_published', true)
+          .is('deleted_at', null)
           .single();
 
         if (pageError) {
@@ -72,30 +76,25 @@ async function fetchPublishedPageWithVersion(slug: string) {
           throw pageError;
         }
 
-        // Check if page is published
-        if (page.status === 'draft' && !page.published_version_id) {
-          return null; // Unpublished page
-        }
-
-        // Get published version
-        if (!page.published_version_id) {
-          return null; // No published version
-        }
-
-        const { data: version, error: versionError } = await supabase
-          .from('page_versions')
+        // Get published layers (only non-deleted)
+        const { data: pageLayers, error: layersError } = await supabase
+          .from('page_layers')
           .select('*')
-          .eq('id', page.published_version_id)
+          .eq('page_id', page.id)
+          .eq('is_published', true)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .single();
 
-        if (versionError) {
-          console.error('Failed to fetch published version:', versionError);
+        if (layersError) {
+          console.error('Failed to fetch published layers:', layersError);
           return null;
         }
 
         return {
           page,
-          version,
+          pageLayers,
         };
       } catch (error) {
         console.error('Failed to fetch page:', error);
@@ -113,28 +112,28 @@ async function fetchPublishedPageWithVersion(slug: string) {
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   // Await params (Next.js 15 requirement)
   const { slug } = await params;
-  
-  // Fetch page and version data in one go
-  const data = await fetchPublishedPageWithVersion(slug);
-  
+
+  // Fetch page and layers data in one go
+  const data = await fetchPublishedPageWithLayers(slug);
+
   if (!data) {
     notFound();
   }
 
-  const { version } = data;
+  const { pageLayers } = data;
 
   // Render the page with extracted CSS from Tailwind JIT (compiled during publish)
   return (
     <>
       {/* Remove dark mode class from <html> element */}
       <RemoveDarkMode />
-      
+
       {/* Inject minified CSS into <head> */}
-      {version.generated_css && <PublishedPageHead css={version.generated_css} />}
-      
+      {pageLayers.generated_css && <PublishedPageHead css={pageLayers.generated_css} />}
+
       <div className="min-h-screen bg-white">
-        <LayerRenderer 
-          layers={version.layers || []} 
+        <LayerRenderer
+          layers={pageLayers.layers || []}
           isEditMode={false}
         />
       </div>
@@ -143,12 +142,12 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 }
 
 // Generate metadata
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  
-  // Fetch page to get title
-  const data = await fetchPublishedPageWithVersion(slug);
-  
+
+  // Fetch page to get name
+  const data = await fetchPublishedPageWithLayers(slug);
+
   if (!data) {
     return {
       title: 'Page Not Found',
@@ -156,7 +155,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 
   return {
-    title: data.page.title || slug.charAt(0).toUpperCase() + slug.slice(1),
-    description: `${data.page.title} - Built with YCode`,
+    title: data.page.name || slug.charAt(0).toUpperCase() + slug.slice(1),
+    description: `${data.page.name} - Built with YCode`,
   };
 }

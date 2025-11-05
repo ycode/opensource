@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getAllPages, createPage } from '@/lib/repositories/pageRepository';
-import { upsertDraft } from '@/lib/repositories/pageVersionRepository';
+import { upsertDraftLayers } from '@/lib/repositories/pageLayersRepository';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -9,14 +9,59 @@ export const revalidate = 0;
 
 /**
  * GET /api/pages
- * 
- * Get all pages
+ *
+ * Get all pages with optional filters
+ * Query params: is_published, is_locked, is_index, depth
+ *
+ * Examples:
+ * - /api/pages - Get all draft pages (default)
+ * - /api/pages?is_published=true - Get all published pages
+ * - /api/pages?is_locked=true&is_index=true&depth=0 - Get homepage (draft)
+ * - /api/pages?is_locked=true&is_index=true&depth=0&is_published=true - Get homepage (published)
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    
-    const pages = await getAllPages();
-    
+    console.log('[GET /api/pages] Starting request');
+    console.log('[GET /api/pages] Vercel env:', process.env.VERCEL);
+    console.log('[GET /api/pages] Supabase URL set:', !!process.env.SUPABASE_URL);
+    console.log('[GET /api/pages] Supabase Anon Key set:', !!process.env.SUPABASE_ANON_KEY);
+    console.log('[GET /api/pages] Supabase Service Role Key set:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+    // Parse query parameters
+    const { searchParams } = new URL(request.url);
+    const filters: Record<string, any> = {};
+
+    // Default to draft pages if no is_published filter specified
+    const isPublished = searchParams.get('is_published');
+    if (isPublished !== null) {
+      filters.is_published = isPublished === 'true';
+    } else {
+      // Default: only return draft pages for the builder
+      filters.is_published = false;
+    }
+
+    // Optional filters
+    const isLocked = searchParams.get('is_locked');
+    if (isLocked !== null) {
+      filters.is_locked = isLocked === 'true';
+    }
+
+    const isIndex = searchParams.get('is_index');
+    if (isIndex !== null) {
+      filters.is_index = isIndex === 'true';
+    }
+
+    const depth = searchParams.get('depth');
+    if (depth !== null) {
+      filters.depth = parseInt(depth, 10);
+    }
+
+    console.log('[GET /api/pages] Filters:', filters);
+
+    const pages = await getAllPages(filters);
+
+    console.log('[GET /api/pages] Found pages:', pages.length);
+
 
     return noCache({
       data: pages,
@@ -25,7 +70,7 @@ export async function GET() {
     console.error('[GET /api/pages] Error:', error);
     console.error('[GET /api/pages] Error message:', error instanceof Error ? error.message : 'Unknown error');
     console.error('[GET /api/pages] Error stack:', error instanceof Error ? error.stack : 'No stack');
-    
+
     return noCache(
       { error: error instanceof Error ? error.message : 'Failed to fetch pages' },
       500
@@ -35,31 +80,59 @@ export async function GET() {
 
 /**
  * POST /api/pages
- * 
+ *
  * Create a new page
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
-    const { title, slug, status = 'draft', published_version_id = null } = body;
+    console.log('[POST /api/pages] Request body:', body);
+
+    const {
+      name,
+      slug,
+      is_published = false,
+      page_folder_id = null,
+      order = 0,
+      depth = 0,
+      is_index = false,
+      is_dynamic = false,
+      is_locked = false,
+      error_page = null,
+      settings = {},
+    } = body;
 
     // Validate required fields
-    if (!title || !slug) {
-      console.error('[POST /api/pages] Validation failed: missing title or slug');
+    if (!name || !slug) {
+      console.error('[POST /api/pages] Validation failed: missing name or slug');
       return noCache(
-        { error: 'Title and slug are required' },
+        { error: 'Name and slug are required' },
         400
       );
     }
 
-    
+    console.log('[POST /api/pages] Creating page:', {
+      name,
+      slug,
+      is_published,
+      page_folder_id,
+      order,
+      depth,
+    });
+
     // Create page
     const page = await createPage({
-      title,
+      name,
       slug,
-      status,
-      published_version_id,
+      is_published,
+      page_folder_id,
+      order,
+      depth,
+      is_index,
+      is_dynamic,
+      is_locked,
+      error_page,
+      settings,
     });
 
 
@@ -72,7 +145,9 @@ export async function POST(request: NextRequest) {
       locked: true,
     };
 
-    await upsertDraft(page.id, [bodyLayer]);
+    console.log('[POST /api/pages] Creating initial draft with Body layer...');
+    await upsertDraftLayers(page.id, [bodyLayer]);
+    console.log('[POST /api/pages] Draft created successfully');
 
     return noCache({
       data: page,
@@ -81,7 +156,7 @@ export async function POST(request: NextRequest) {
     console.error('[POST /api/pages] Error:', error);
     console.error('[POST /api/pages] Error message:', error instanceof Error ? error.message : 'Unknown');
     console.error('[POST /api/pages] Error stack:', error instanceof Error ? error.stack : 'No stack');
-    
+
     return noCache(
       { error: error instanceof Error ? error.message : 'Failed to create page' },
       500

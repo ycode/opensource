@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPageBySlug } from '@/lib/repositories/pageRepository';
-import { getPublishedVersion } from '@/lib/repositories/pageVersionRepository';
+import { getPublishedLayers } from '@/lib/repositories/pageLayersRepository';
 import { noCache } from '@/lib/api-response';
 
 /**
  * GET /api/pages/slug/[slug]
- * 
+ *
  * Get a page by slug
  */
 export async function GET(
@@ -28,7 +28,7 @@ export async function GET(
     });
   } catch (error) {
     console.error('Failed to fetch page:', error);
-    
+
     return noCache(
       { error: error instanceof Error ? error.message : 'Failed to fetch page' },
       500
