@@ -30,6 +30,7 @@ import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
+import LayerStylesPanel from './LayerStylesPanel';
 import PositionControls from './PositionControls';
 import PositioningControls from './PositioningControls';
 import SettingsPanel from './SettingsPanel';
@@ -350,6 +351,13 @@ export default function RightSidebar({
 
         {/* Content */}
         <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden px-4 mt-0 pb-12">
+          
+          {/* Layer Styles Panel */}
+          <LayerStylesPanel
+            layer={selectedLayer}
+            pageId={currentPageId}
+            onLayerUpdate={onLayerUpdate}
+          />
 
           <LayoutControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 

@@ -15,7 +15,6 @@ import type { Layer } from '@/types';
  */
 export async function extractPublishedCSS(layers: Layer[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    console.log('[extractPublishedCSS] Starting CSS extraction for', layers.length, 'layers');
     
     // Create temporary hidden iframe
     const iframe = document.createElement('iframe');
@@ -115,11 +114,6 @@ export async function extractPublishedCSS(layers: Layer[]): Promise<string> {
             // Minify CSS
             const minifiedCSS = minifyCSS(css);
             
-            console.log('[extractPublishedCSS] Extracted CSS:', {
-              originalLength: css.length,
-              minifiedLength: minifiedCSS.length,
-              reduction: ((1 - minifiedCSS.length / css.length) * 100).toFixed(1) + '%'
-            });
             
             // Cleanup
             document.body.removeChild(iframe);

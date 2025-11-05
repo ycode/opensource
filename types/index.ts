@@ -112,6 +112,28 @@ export interface LayerSettings {
   // Future settings can be added here
 }
 
+// Layer Style Types
+export interface LayerStyle {
+  id: string;
+  name: string;
+  
+  // Style data (single version - published with page)
+  classes: string;
+  design?: {
+    layout?: LayoutDesign;
+    typography?: TypographyDesign;
+    spacing?: SpacingDesign;
+    sizing?: SizingDesign;
+    borders?: BordersDesign;
+    backgrounds?: BackgroundsDesign;
+    effects?: EffectsDesign;
+    positioning?: PositioningDesign;
+  };
+  
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Layer {
   id: string;
   name?: string; // Element type name: 'div', 'h1', 'button', 'section', etc.
@@ -121,7 +143,7 @@ export interface Layer {
   // Content
   text?: string; // Text content
   classes: string | string[]; // Tailwind CSS classes (support both formats)
-  style?: string; // Style preset name
+  style?: string; // Style preset name (legacy)
 
   // Children
   children?: Layer[];
@@ -144,6 +166,22 @@ export interface Layer {
 
   // Settings (element-specific configuration)
   settings?: LayerSettings;
+
+  // Layer Styles (reusable design system)
+  styleId?: string; // Reference to applied LayerStyle
+  styleOverrides?: {
+    classes?: string;
+    design?: {
+      layout?: LayoutDesign;
+      typography?: TypographyDesign;
+      spacing?: SpacingDesign;
+      sizing?: SizingDesign;
+      borders?: BordersDesign;
+      backgrounds?: BackgroundsDesign;
+      effects?: EffectsDesign;
+      positioning?: PositioningDesign;
+    };
+  }; // Tracks local changes after style applied
 
   // Special properties
   locked?: boolean;

@@ -8,7 +8,6 @@ import { noCache } from '@/lib/api-response';
  */
 export async function POST() {
   try {
-    console.log('[setup/migrate] Starting migrations...');
     const result = await runMigrations();
 
     if (!result.success) {
@@ -23,7 +22,6 @@ export async function POST() {
       );
     }
 
-    console.log('[setup/migrate] Migrations completed successfully');
     return noCache({
       success: true,
       executed: result.executed,

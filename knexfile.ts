@@ -43,13 +43,6 @@ const createConfig = (): Knex.Config => {
     connection: async () => {
       const connectionParams = await getSupabaseConnectionParams();
 
-      console.log('[Knex] Creating database connection:', {
-        host: connectionParams.host,
-        port: connectionParams.port,
-        user: connectionParams.user,
-        database: connectionParams.database,
-        password: '***' + connectionParams.password.slice(-4),
-      });
 
       return connectionParams;
     },

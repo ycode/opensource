@@ -100,30 +100,24 @@ export default function CenterCanvas({
   // Listen for messages from iframe
   useEffect(() => {
     const handleIframeMessage = (message: IframeToParentMessage) => {
-      console.log('[CenterCanvas] Received message from iframe:', message.type);
 
       switch (message.type) {
         case 'READY':
-          console.log('[CenterCanvas] Iframe ready');
           setIframeReady(true);
           break;
 
         case 'LAYER_CLICK':
-          console.log('[CenterCanvas] Layer clicked:', message.payload.layerId);
           setSelectedLayerId(message.payload.layerId);
           break;
 
         case 'LAYER_DOUBLE_CLICK':
-          console.log('[CenterCanvas] Layer double-clicked:', message.payload.layerId);
           // Text editing is handled inside iframe
           break;
 
         case 'TEXT_CHANGE_START':
-          console.log('[CenterCanvas] Text editing started:', message.payload.layerId);
           break;
 
         case 'TEXT_CHANGE_END':
-          console.log('[CenterCanvas] Text changed:', message.payload);
           if (currentPageId) {
             updateLayer(currentPageId, message.payload.layerId, {
               text: message.payload.text,
@@ -133,14 +127,12 @@ export default function CenterCanvas({
           break;
 
         case 'CONTEXT_MENU':
-          console.log('[CenterCanvas] Context menu requested:', message.payload);
           // Context menu will be handled later
           break;
 
         case 'DRAG_START':
         case 'DRAG_OVER':
         case 'DROP':
-          console.log('[CenterCanvas] Drag event:', message.type, message.payload);
           // Drag-and-drop will be handled later
           break;
       }

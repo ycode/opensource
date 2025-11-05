@@ -14,15 +14,9 @@ export const revalidate = 0;
  */
 export async function GET() {
   try {
-    console.log('[GET /api/pages] Starting request');
-    console.log('[GET /api/pages] Vercel env:', process.env.VERCEL);
-    console.log('[GET /api/pages] Supabase URL set:', !!process.env.SUPABASE_URL);
-    console.log('[GET /api/pages] Supabase Anon Key set:', !!process.env.SUPABASE_ANON_KEY);
-    console.log('[GET /api/pages] Supabase Service Role Key set:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
     
     const pages = await getAllPages();
     
-    console.log('[GET /api/pages] Found pages:', pages.length);
 
     return noCache({
       data: pages,
@@ -46,9 +40,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    console.log('[POST /api/pages] Starting request');
     const body = await request.json();
-    console.log('[POST /api/pages] Request body:', body);
     
     const { title, slug, status = 'draft', published_version_id = null } = body;
 
@@ -61,7 +53,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[POST /api/pages] Creating page:', { title, slug, status });
     
     // Create page
     const page = await createPage({
@@ -71,7 +62,6 @@ export async function POST(request: NextRequest) {
       published_version_id,
     });
 
-    console.log('[POST /api/pages] Page created:', page.id);
 
     // Create initial draft with Body container
     const bodyLayer = {
@@ -82,9 +72,7 @@ export async function POST(request: NextRequest) {
       locked: true,
     };
 
-    console.log('[POST /api/pages] Creating initial draft with Body layer...');
     await upsertDraft(page.id, [bodyLayer]);
-    console.log('[POST /api/pages] Draft created successfully');
 
     return noCache({
       data: page,

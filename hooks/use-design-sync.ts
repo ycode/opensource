@@ -16,6 +16,7 @@ import {
   getConflictingClassPattern,
   type Breakpoint,
 } from '@/lib/tailwind-class-mapper';
+import { updateStyledLayer } from '@/lib/layer-style-utils';
 
 interface UseDesignSyncProps {
   layer: Layer | null;
@@ -80,23 +81,13 @@ export function useDesignSync({
       );
       
       // 5. Update layer with both design object and classes
-      console.log('🎨 [use-design-sync] updateDesignProperty:', {
-        layerId: layer.id,
-        category,
-        property,
-        value,
-        newClass,
-        activeBreakpoint,
-        activeUIState,
-        existingClasses,
-        updatedClasses,
-        updatedClassesString: updatedClasses.join(' '),
-      });
-      
-      onLayerUpdate(layer.id, {
+      // If layer has a style applied, track changes as overrides
+      const finalUpdate = updateStyledLayer(layer, {
         design: updatedDesign,
         classes: updatedClasses.join(' '),
       });
+      
+      onLayerUpdate(layer.id, finalUpdate);
     },
     [layer, onLayerUpdate, activeBreakpoint, activeUIState]
   );

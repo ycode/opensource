@@ -7,6 +7,7 @@ import { getTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
 import { canHaveChildren } from '../lib/layer-utils';
 import { extractPublishedCSS } from '../lib/extract-published-css';
+import { updateLayersWithStyle, detachStyleFromLayers } from '../lib/layer-style-utils';
 
 interface PagesState {
   pages: Page[];
@@ -37,6 +38,10 @@ interface PagesActions {
   duplicateLayers: (pageId: string, layerIds: string[]) => void; // New batch duplicate
   pasteAfter: (pageId: string, targetLayerId: string, layerToPaste: Layer) => void;
   pasteInside: (pageId: string, targetLayerId: string, layerToPaste: Layer) => void;
+  
+  // Layer Style actions
+  updateStyleOnLayers: (styleId: string, newClasses: string, newDesign?: Layer['design']) => void;
+  detachStyleFromAllLayers: (styleId: string) => void;
 }
 
 type PagesStore = PagesState & PagesActions;
@@ -75,10 +80,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   setPages: (pages) => set({ pages }),
 
   loadPages: async () => {
-    console.log('[usePagesStore.loadPages] Starting...');
     set({ isLoading: true, error: null });
     try {
-      console.log('[usePagesStore.loadPages] Fetching pages...');
       const response = await pagesApi.getAll();
       if (response.error) {
         console.error('[usePagesStore.loadPages] Error loading pages:', response.error);
@@ -86,11 +89,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         return;
       }
       const pages = response.data || [];
-      console.log('[usePagesStore.loadPages] Fetched pages:', pages.length);
 
       // Note: Default homepage with draft version is created during migrations (20250101000002_create_page_versions_table.ts)
 
-      console.log('[usePagesStore.loadPages] Setting pages:', pages.length);
       set({ pages, isLoading: false });
     } catch (error) {
       console.error('[usePagesStore.loadPages] Exception loading pages:', error);
@@ -99,6 +100,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   loadDraft: async (pageId) => {
+    // Check if we already have a draft with unsaved changes
+    const existingDraft = get().draftsByPageId[pageId];
+    
     set({ isLoading: true, error: null });
     try {
       const response = await pageVersionsApi.getDraft(pageId);
@@ -107,6 +111,14 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         return;
       }
       if (response.data) {
+        // If we had local changes, we need to decide what to do
+        // For now, we'll prefer server data when explicitly loading (e.g., page switch)
+        // but log a warning if we're overwriting local changes
+        if (existingDraft && 
+            JSON.stringify(existingDraft.layers) !== JSON.stringify(response.data.layers)) {
+          console.warn('⚠️ loadDraft: Overwriting local changes with server data');
+        }
+        
         set((state) => ({
           draftsByPageId: { ...state.draftsByPageId, [pageId]: response.data! },
           isLoading: false,
@@ -141,15 +153,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (! draft) return;
 
+    // Capture the layers we're about to save
+    const layersBeingSaved = draft.layers;
+
     set({ isLoading: true, error: null });
     try {
       // Extract CSS from Tailwind JIT for published pages
       const generatedCSS = await extractPublishedCSS(draft.layers);
-      
-      console.log('💾 Saving draft with extracted CSS:', {
-        cssLength: generatedCSS?.length || 0,
-        layersCount: draft.layers.length
-      });
       
       const response = await pageVersionsApi.updateDraft(
         pageId, 
@@ -162,10 +172,32 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         return;
       }
       if (response.data) {
-        set((state) => ({
-          draftsByPageId: { ...state.draftsByPageId, [pageId]: response.data! },
-          isLoading: false,
-        }));
+        // IMPORTANT: Only update state if layers haven't changed since we started saving
+        // This prevents race conditions where new changes are overwritten by stale server data
+        const currentDraft = get().draftsByPageId[pageId];
+        const currentLayersJSON = JSON.stringify(currentDraft?.layers || []);
+        const savedLayersJSON = JSON.stringify(layersBeingSaved);
+        
+        if (currentLayersJSON === savedLayersJSON) {
+          // Safe to update - no changes made during save
+          set((state) => ({
+            draftsByPageId: { ...state.draftsByPageId, [pageId]: response.data! },
+            isLoading: false,
+          }));
+        } else {
+          // Layers changed during save - keep local changes, but update metadata
+          console.warn('⚠️ Layers changed during save - keeping local changes');
+          set((state) => ({
+            draftsByPageId: {
+              ...state.draftsByPageId,
+              [pageId]: {
+                ...response.data!,
+                layers: currentDraft!.layers, // Keep current layers, not server's
+              }
+            },
+            isLoading: false,
+          }));
+        }
       }
     } catch (error) {
       console.error('Failed to save draft:', error);
@@ -314,7 +346,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
       // Check if parent can have children
       if (result && !canHaveChildren(result.layer)) {
-        console.log(`🔄 Cannot add child to ${result.layer.name || result.layer.type} - placing after selected layer instead`);
 
         // If parent exists (not root level), insert after the selected layer
         if (result.parent) {
@@ -359,7 +390,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (! draft) return;
 
-    console.log('🔴 DELETE LAYER:', { pageId, layerId });
 
     // Find layer by ID
     const findLayer = (tree: Layer[]): Layer | null => {
@@ -382,7 +412,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       return;
     }
 
-    console.log('🎯 FOUND LAYER TO DELETE:', layerToDelete);
 
     // Helper: Remove from tree (supports both children and items)
     const removeFromTree = (tree: Layer[]): Layer[] => {
@@ -395,7 +424,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     };
 
     const newLayers = removeFromTree(draft.layers);
-    console.log('✅ LAYERS AFTER DELETE:', newLayers);
 
     // Use functional update to ensure we're working with the latest state
     set((state) => ({
@@ -414,7 +442,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (!draft || layerIds.length === 0) return;
 
-    console.log('🔴 DELETE MULTIPLE LAYERS:', { pageId, layerIds });
 
     // Filter out body and locked layers
     const validIds = new Set<string>();
@@ -483,7 +510,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     };
 
     const newLayers = removeMultipleFromTree(draft.layers);
-    console.log('✅ LAYERS AFTER MULTI-DELETE:', { deleted: finalIds.size, remaining: newLayers.length });
 
     set((state) => ({
       draftsByPageId: {
@@ -497,11 +523,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   updateLayer: (pageId, layerId, updates) => {
-    console.log('🏬 [usePagesStore] updateLayer called:', {
-      pageId,
-      layerId,
-      updates,
-    });
     
     const { draftsByPageId } = get();
     const draft = draftsByPageId[pageId];
@@ -515,10 +536,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       ...updates,
     }));
     
-    console.log('✅ [usePagesStore] updateLayer completed, newLayers:', {
-      layersCount: newLayers.length,
-      updatedLayer: findLayerInTree(newLayers, layerId),
-    });
 
     set({
       draftsByPageId: {
@@ -627,11 +644,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   setDraftLayers: (pageId, layers) => {
-    console.log('💾 SET DRAFT LAYERS called:', {
-      pageId,
-      layersCount: layers.length,
-      layers: layers.map(l => ({ id: l.id, type: l.type }))
-    });
 
     const { draftsByPageId } = get();
     const draft = draftsByPageId[pageId];
@@ -647,7 +659,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       },
     });
 
-    console.log('✅ SET DRAFT LAYERS: State updated successfully');
   },
 
   copyLayer: (pageId, layerId) => {
@@ -773,7 +784,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (!draft || layerIds.length === 0) return;
 
-    console.log('📋 DUPLICATE MULTIPLE LAYERS:', { pageId, layerIds });
 
     // Filter out body and locked layers
     const validIds: string[] = [];
@@ -871,7 +881,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       newLayers = insertAfter(newLayers, result.parent, result.index);
     }
 
-    console.log('✅ LAYERS AFTER MULTI-DUPLICATE:', { duplicated: validIds.length });
 
     // Use functional update to ensure latest state
     set((state) => ({
@@ -977,7 +986,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (!draft) return;
 
-    console.log('🔵 PASTE INSIDE:', { pageId, targetLayerId, layerToPaste });
 
     // Regenerate IDs for the pasted layer
     const regenerateIds = (layer: Layer): Layer => {
@@ -990,15 +998,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     };
 
     const newLayer = regenerateIds(cloneDeep(layerToPaste));
-    console.log('🟢 NEW LAYER WITH IDS:', newLayer);
 
     // Insert as last child of target layer
     const insertInside = (layers: Layer[]): Layer[] => {
       return layers.map(layer => {
         if (layer.id === targetLayerId) {
-          console.log('🎯 FOUND TARGET LAYER:', layer);
           const updated = { ...layer, children: [...(layer.children || []), newLayer] };
-          console.log('✅ UPDATED LAYER:', updated);
           return updated;
         }
 
@@ -1012,7 +1017,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     };
 
     const newLayers = insertInside(draft.layers);
-    console.log('🔷 NEW LAYERS TREE:', JSON.stringify(newLayers, null, 2));
 
     // Use functional update to ensure latest state
     set((state) => ({
@@ -1022,7 +1026,48 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       },
     }));
 
-    console.log('✅ PASTE INSIDE COMPLETE');
+  },
+
+  /**
+   * Update all layers using a specific style across all pages
+   * Used when a style is updated
+   * Updates the classes/design on layers that have the style applied
+   */
+  updateStyleOnLayers: (styleId, newClasses, newDesign) => {
+    const { draftsByPageId } = get();
+    
+    const updatedDrafts = { ...draftsByPageId };
+    
+    Object.keys(updatedDrafts).forEach(pageId => {
+      const draft = updatedDrafts[pageId];
+      updatedDrafts[pageId] = {
+        ...draft,
+        layers: updateLayersWithStyle(draft.layers, styleId, newClasses, newDesign),
+      };
+    });
+    
+    set({ draftsByPageId: updatedDrafts });
+  },
+  
+  /**
+   * Detach a style from all layers across all pages
+   * Used when a style is deleted
+   * Keeps current classes/design values but removes the style link
+   */
+  detachStyleFromAllLayers: (styleId) => {
+    const { draftsByPageId } = get();
+    
+    const updatedDrafts = { ...draftsByPageId };
+    
+    Object.keys(updatedDrafts).forEach(pageId => {
+      const draft = updatedDrafts[pageId];
+      updatedDrafts[pageId] = {
+        ...draft,
+        layers: detachStyleFromLayers(draft.layers, styleId),
+      };
+    });
+    
+    set({ draftsByPageId: updatedDrafts });
   },
 }));
 
