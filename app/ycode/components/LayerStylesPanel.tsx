@@ -362,10 +362,13 @@ export default function LayerStylesPanel({
           Detach
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="ghost">
-              <Icon name="more" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm" variant="ghost"
+
+              >
+                <Icon name="more" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { extractMeasurementValue } from '@/lib/measurement-utils';
 import type { Layer } from '@/types';
 
 interface PositionControlsProps {
@@ -26,15 +27,6 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     activeBreakpoint,
     activeUIState,
   });
-
-  const positionUnit = 'px';
-
-  // Extract numeric value from design property
-  const extractValue = (prop: string): string => {
-    if (!prop) return '';
-    if (prop === 'auto') return 'auto';
-    return prop.replace(/[a-z%]+$/i, '');
-  };
 
   // Get current values from layer (with inheritance)
   const position = getDesignProperty('positioning', 'position') || 'static';
@@ -54,7 +46,7 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     bottom,
     left,
     zIndex,
-  }, extractValue);
+  }, extractMeasurementValue);
 
   const [topInput, setTopInput] = inputs.top;
   const [rightInput, setRightInput] = inputs.right;
@@ -73,7 +65,7 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     if (value === 'auto') {
       updateDesignProperty('positioning', 'top', 'auto');
     } else {
-      updateDesignProperty('positioning', 'top', value ? `${value}${positionUnit}` : null);
+      updateDesignProperty('positioning', 'top', value || null);
     }
   };
 
@@ -83,7 +75,7 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     if (value === 'auto') {
       updateDesignProperty('positioning', 'right', 'auto');
     } else {
-      updateDesignProperty('positioning', 'right', value ? `${value}${positionUnit}` : null);
+      updateDesignProperty('positioning', 'right', value || null);
     }
   };
 
@@ -93,7 +85,7 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     if (value === 'auto') {
       updateDesignProperty('positioning', 'bottom', 'auto');
     } else {
-      updateDesignProperty('positioning', 'bottom', value ? `${value}${positionUnit}` : null);
+      updateDesignProperty('positioning', 'bottom', value || null);
     }
   };
 
@@ -103,7 +95,7 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     if (value === 'auto') {
       updateDesignProperty('positioning', 'left', 'auto');
     } else {
-      updateDesignProperty('positioning', 'left', value ? `${value}${positionUnit}` : null);
+      updateDesignProperty('positioning', 'left', value || null);
     }
   };
 

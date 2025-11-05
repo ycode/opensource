@@ -1,12 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group';
+import Icon from '@/components/ui/icon';
+import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import SettingsPanel from '@/app/ycode/components/SettingsPanel';
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { extractMeasurementValue, formatMeasurementValue } from '@/lib/measurement-utils';
 import type { Layer } from '@/types';
 
 interface SizingControlsProps {
@@ -23,17 +30,7 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
     activeUIState,
   });
 
-  const [widthUnit, setWidthUnit] = useState<'px' | 'rem' | 'em' | '%'>('px');
-  const [heightUnit, setHeightUnit] = useState<'px' | 'rem' | 'em' | '%'>('px');
-
-  // Extract numeric value from design property
-  const extractValue = (prop: string): string => {
-    if (!prop) return '';
-    // Handle special keywords
-    if (['auto', 'full', 'screen', 'min', 'max', 'fit'].includes(prop)) return prop;
-    if (prop === '100%') return 'full';
-    return prop.replace(/[a-z%]+$/i, '');
-  };
+  const [isOpen, setIsOpen] = useState(true);
 
   // Get current values from layer (with inheritance)
   const width = getDesignProperty('sizing', 'width') || '';
@@ -51,7 +48,7 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
     minHeight,
     maxWidth,
     maxHeight,
-  }, extractValue);
+  }, extractMeasurementValue);
 
   const [widthInput, setWidthInput] = inputs.width;
   const [heightInput, setHeightInput] = inputs.height;
@@ -60,275 +57,289 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
   const [maxWidthInput, setMaxWidthInput] = inputs.maxWidth;
   const [maxHeightInput, setMaxHeightInput] = inputs.maxHeight;
 
-  // Handle width change
+  // Handle width changes
   const handleWidthChange = (value: string) => {
     setWidthInput(value);
-    if (['auto', 'full', 'screen', 'min', 'max', 'fit'].includes(value)) {
-      updateDesignProperty('sizing', 'width', value);
-    } else if (value === '') {
-      updateDesignProperty('sizing', 'width', null);
-    } else {
-      updateDesignProperty('sizing', 'width', `${value}${widthUnit}`);
+    updateDesignProperty('sizing', 'width', formatMeasurementValue(value));
+  };
+
+  const handleWidthPresetChange = (value: string) => {
+    if (value === 'w-[100%]') {
+      setWidthInput('100%');
+      updateDesignProperty('sizing', 'width', '100%');
+    } else if (value === 'w-fit-content') {
+      setWidthInput('fit');
+      updateDesignProperty('sizing', 'width', 'fit');
+    } else if (value === 'w-[100vw]') {
+      setWidthInput('100vw');
+      updateDesignProperty('sizing', 'width', '100vw');
     }
   };
 
-  // Handle height change
+  // Handle height changes
   const handleHeightChange = (value: string) => {
     setHeightInput(value);
-    if (['auto', 'full', 'screen', 'min', 'max', 'fit'].includes(value)) {
-      updateDesignProperty('sizing', 'height', value);
-    } else if (value === '') {
-      updateDesignProperty('sizing', 'height', null);
-    } else {
-      updateDesignProperty('sizing', 'height', `${value}${heightUnit}`);
+    updateDesignProperty('sizing', 'height', formatMeasurementValue(value));
+  };
+
+  const handleHeightPresetChange = (value: string) => {
+    if (value === 'h-[100%]') {
+      setHeightInput('100%');
+      updateDesignProperty('sizing', 'height', '100%');
+    } else if (value === 'h-[100svh]') {
+      setHeightInput('100svh');
+      updateDesignProperty('sizing', 'height', '100svh');
     }
   };
 
-  // Handle min width change
+  // Handle min/max width changes
   const handleMinWidthChange = (value: string) => {
     setMinWidthInput(value);
-    if (['auto', 'full', 'min', 'max', 'fit'].includes(value)) {
-      updateDesignProperty('sizing', 'minWidth', value);
-    } else {
-      updateDesignProperty('sizing', 'minWidth', value ? `${value}${widthUnit}` : null);
-    }
+    updateDesignProperty('sizing', 'minWidth', formatMeasurementValue(value));
   };
 
-  // Handle min height change
-  const handleMinHeightChange = (value: string) => {
-    setMinHeightInput(value);
-    if (['auto', 'full', 'screen', 'min', 'max', 'fit'].includes(value)) {
-      updateDesignProperty('sizing', 'minHeight', value);
-    } else {
-      updateDesignProperty('sizing', 'minHeight', value ? `${value}${heightUnit}` : null);
-    }
-  };
-
-  // Handle max width change
   const handleMaxWidthChange = (value: string) => {
     setMaxWidthInput(value);
-    if (['none', 'full', 'min', 'max', 'fit', 'prose'].includes(value)) {
-      updateDesignProperty('sizing', 'maxWidth', value);
-    } else {
-      updateDesignProperty('sizing', 'maxWidth', value ? `${value}${widthUnit}` : null);
-    }
+    updateDesignProperty('sizing', 'maxWidth', formatMeasurementValue(value));
   };
 
-  // Handle max height change
+  // Handle min/max height changes
+  const handleMinHeightChange = (value: string) => {
+    setMinHeightInput(value);
+    updateDesignProperty('sizing', 'minHeight', formatMeasurementValue(value));
+  };
+
   const handleMaxHeightChange = (value: string) => {
     setMaxHeightInput(value);
-    if (['none', 'full', 'screen', 'min', 'max', 'fit'].includes(value)) {
-      updateDesignProperty('sizing', 'maxHeight', value);
-    } else {
-      updateDesignProperty('sizing', 'maxHeight', value ? `${value}${heightUnit}` : null);
-    }
+    updateDesignProperty('sizing', 'maxHeight', formatMeasurementValue(value));
   };
 
   return (
-    <div className="py-5">
-      <header className="py-4 -mt-4">
-        <Label>Sizing</Label>
-      </header>
-
-      {/* Width */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <Label variant="muted" className="h-8 content-center">Width</Label>
-        <div className="col-span-2">
-          <InputGroup>
-            <InputGroupInput
-              type="text"
-              value={widthInput}
-              onChange={(e) => handleWidthChange(e.target.value)}
-              placeholder="auto"
+    <SettingsPanel
+      title="Sizing" isOpen={isOpen}
+      onToggle={() => setIsOpen(!isOpen)}
+    >
+      <div className="grid grid-cols-3 items-start">
+        <Label variant="muted" className="h-8">Width</Label>
+        <div className="col-span-2 flex flex-col gap-2">
+          <ButtonGroup>
+            <Input
+              value={widthInput} onChange={(e) => handleWidthChange(e.target.value)}
+              placeholder="0"
             />
-            <InputGroupAddon>
-              <Select value={widthUnit} onValueChange={(value: any) => setWidthUnit(value)}>
-                <SelectTrigger
-                  size="xs" variant="ghost"
-                  className="border-0"
-                >
-                  {widthUnit}
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="px">px</SelectItem>
-                    <SelectItem value="rem">rem</SelectItem>
-                    <SelectItem value="em">em</SelectItem>
-                    <SelectItem value="%">%</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </InputGroupAddon>
-          </InputGroup>
+            <ButtonGroupSeparator />
+            <Select onValueChange={handleWidthPresetChange}>
+              <SelectTrigger />
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="w-[100%]">Fill</SelectItem>
+                  <SelectItem value="w-fit-content">Fit</SelectItem>
+                  <SelectItem value="w-[100vw]">Screen</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </ButtonGroup>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="w-full group relative">
+              <ButtonGroup className="w-full">
+                <InputGroup>
+                  <InputGroupAddon>
+                    <div className="flex">
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Icon name="minSize" className="size-3" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Min width</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    placeholder="Min" value={minWidthInput}
+                    onChange={(e) => handleMinWidthChange(e.target.value)}
+                  />
+                </InputGroup>
+              </ButtonGroup>
+              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-100">
+                <Select>
+                  <SelectTrigger size="xs" variant="ghost" />
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="w-[100%]">Fill</SelectItem>
+                      <SelectItem value="w-fit-content">Fit</SelectItem>
+                      <SelectItem value="w-[100vw]">Screen</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="w-full group relative">
+              <ButtonGroup className="w-full">
+                <InputGroup>
+                  <InputGroupAddon>
+                    <div className="flex">
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Icon name="maxSize" className="size-3" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Max width</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    placeholder="Max" value={maxWidthInput}
+                    onChange={(e) => handleMaxWidthChange(e.target.value)}
+                  />
+                </InputGroup>
+              </ButtonGroup>
+              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-100">
+                <Select>
+                  <SelectTrigger size="xs" variant="ghost" />
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="w-[100%]">Fill</SelectItem>
+                      <SelectItem value="w-fit-content">Fit</SelectItem>
+                      <SelectItem value="w-[100vw]">Screen</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Height */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <Label variant="muted" className="h-8 content-center">Height</Label>
-        <div className="col-span-2">
-          <InputGroup>
-            <InputGroupInput
-              type="text"
-              value={heightInput}
-              onChange={(e) => handleHeightChange(e.target.value)}
-              placeholder="auto"
+      <div className="grid grid-cols-3 items-start">
+        <Label variant="muted" className="h-8">Height</Label>
+        <div className="col-span-2 flex flex-col gap-2">
+          <ButtonGroup>
+            <Input
+              value={heightInput} onChange={(e) => handleHeightChange(e.target.value)}
+              placeholder="0"
             />
-            <InputGroupAddon>
-              <Select value={heightUnit} onValueChange={(value: any) => setHeightUnit(value)}>
-                <SelectTrigger
-                  size="xs" variant="ghost"
-                  className="border-0"
-                >
-                  {heightUnit}
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="px">px</SelectItem>
-                    <SelectItem value="rem">rem</SelectItem>
-                    <SelectItem value="em">em</SelectItem>
-                    <SelectItem value="%">%</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </InputGroupAddon>
-          </InputGroup>
+            <ButtonGroupSeparator />
+            <Select onValueChange={handleHeightPresetChange}>
+              <SelectTrigger />
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="h-[100%]">Fill</SelectItem>
+                  <SelectItem value="h-[100svh]">Screen</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </ButtonGroup>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="w-full group relative">
+              <ButtonGroup className="w-full">
+                <InputGroup>
+                  <InputGroupAddon>
+                    <div className="flex">
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Icon name="minSize" className="size-3 rotate-90" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Min height</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    placeholder="Min" value={minHeightInput}
+                    onChange={(e) => handleMinHeightChange(e.target.value)}
+                  />
+                </InputGroup>
+              </ButtonGroup>
+              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-100">
+                <Select>
+                  <SelectTrigger size="xs" variant="ghost" />
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="w-[100%]">Fill</SelectItem>
+                      <SelectItem value="w-fit-content">Fit</SelectItem>
+                      <SelectItem value="w-[100vw]">Screen</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="w-full group relative">
+              <ButtonGroup className="w-full">
+                <InputGroup>
+                  <InputGroupAddon>
+                    <div className="flex">
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Icon name="maxSize" className="size-3 rotate-90" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Max height</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    placeholder="Max" value={maxHeightInput}
+                    onChange={(e) => handleMaxHeightChange(e.target.value)}
+                  />
+                </InputGroup>
+              </ButtonGroup>
+              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-100">
+                <Select>
+                  <SelectTrigger size="xs" variant="ghost" />
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="w-[100%]">Fill</SelectItem>
+                      <SelectItem value="w-fit-content">Fit</SelectItem>
+                      <SelectItem value="w-[100vw]">Screen</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Min Width */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <Label variant="muted" className="h-8 content-center">Min W</Label>
-        <div className="col-span-2">
-          <InputGroup>
-            <InputGroupInput
-              type="text"
-              value={minWidthInput}
-              onChange={(e) => handleMinWidthChange(e.target.value)}
-              placeholder="auto"
-            />
-            <InputGroupAddon>
-              <Select value={widthUnit} onValueChange={(value: any) => setWidthUnit(value)}>
-                <SelectTrigger
-                  size="xs" variant="ghost"
-                  className="border-0"
-                >
-                  {widthUnit}
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="px">px</SelectItem>
-                    <SelectItem value="rem">rem</SelectItem>
-                    <SelectItem value="em">em</SelectItem>
-                    <SelectItem value="%">%</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </InputGroupAddon>
-          </InputGroup>
+      <div className="grid grid-cols-3">
+        <Label variant="muted">Overflow</Label>
+        <div className="col-span-2 *:w-full">
+          <Select>
+            <SelectTrigger>
+              Visible
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="1">Visible</SelectItem>
+                <SelectItem value="2">Hidden</SelectItem>
+                <SelectItem value="3">Scroll</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {/* Max Width */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <Label variant="muted" className="h-8 content-center">Max W</Label>
-        <div className="col-span-2">
-          <InputGroup>
-            <InputGroupInput
-              type="text"
-              value={maxWidthInput}
-              onChange={(e) => handleMaxWidthChange(e.target.value)}
-              placeholder="none"
-            />
-            <InputGroupAddon>
-              <Select value={widthUnit} onValueChange={(value: any) => setWidthUnit(value)}>
-                <SelectTrigger
-                  size="xs" variant="ghost"
-                  className="border-0"
-                >
-                  {widthUnit}
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="px">px</SelectItem>
-                    <SelectItem value="rem">rem</SelectItem>
-                    <SelectItem value="em">em</SelectItem>
-                    <SelectItem value="%">%</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </InputGroupAddon>
-          </InputGroup>
+      <div className="grid grid-cols-3 items-start">
+        <Label variant="muted" className="h-8">Aspect ratio</Label>
+        <div className="col-span-2 flex flex-col gap-2">
+          <ButtonGroup>
+            <Input />
+            <ButtonGroupSeparator />
+            <Select>
+              <SelectTrigger />
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="1">Video</SelectItem>
+                  <SelectItem value="2">Square</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </ButtonGroup>
         </div>
       </div>
-
-      {/* Min Height */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <Label variant="muted" className="h-8 content-center">Min H</Label>
-        <div className="col-span-2">
-          <InputGroup>
-            <InputGroupInput
-              type="text"
-              value={minHeightInput}
-              onChange={(e) => handleMinHeightChange(e.target.value)}
-              placeholder="auto"
-            />
-            <InputGroupAddon>
-              <Select value={heightUnit} onValueChange={(value: any) => setHeightUnit(value)}>
-                <SelectTrigger
-                  size="xs" variant="ghost"
-                  className="border-0"
-                >
-                  {heightUnit}
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="px">px</SelectItem>
-                    <SelectItem value="rem">rem</SelectItem>
-                    <SelectItem value="em">em</SelectItem>
-                    <SelectItem value="%">%</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </InputGroupAddon>
-          </InputGroup>
-        </div>
-      </div>
-
-      {/* Max Height */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <Label variant="muted" className="h-8 content-center">Max H</Label>
-        <div className="col-span-2">
-          <InputGroup>
-            <InputGroupInput
-              type="text"
-              value={maxHeightInput}
-              onChange={(e) => handleMaxHeightChange(e.target.value)}
-              placeholder="none"
-            />
-            <InputGroupAddon>
-              <Select value={heightUnit} onValueChange={(value: any) => setHeightUnit(value)}>
-                <SelectTrigger
-                  size="xs" variant="ghost"
-                  className="border-0"
-                >
-                  {heightUnit}
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="px">px</SelectItem>
-                    <SelectItem value="rem">rem</SelectItem>
-                    <SelectItem value="em">em</SelectItem>
-                    <SelectItem value="%">%</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </InputGroupAddon>
-          </InputGroup>
-        </div>
-      </div>
-    </div>
+    </SettingsPanel>
   );
 }
-
-
