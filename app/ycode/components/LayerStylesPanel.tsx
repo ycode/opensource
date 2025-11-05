@@ -37,6 +37,7 @@ import {
   resetLayerToStyle,
 } from '@/lib/layer-style-utils';
 import { Spinner } from '@/components/ui/spinner';
+import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 
 interface LayerStylesPanelProps {
   layer: Layer | null;
@@ -182,7 +183,7 @@ export default function LayerStylesPanel({
 
     // Delete the style (backend will detach from all page versions in the database)
     await deleteStyle(styleId);
-    
+
     // Reload the current page draft to get updated layers from the database
     // The backend has already removed styleId from all layers
     if (pageId) {
@@ -210,77 +211,88 @@ export default function LayerStylesPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4 pb-4">
-      {/* Style Selector or Rename Input */}
-      {appliedStyle && isRenaming ? (
-        <div className="flex gap-2">
-          <Input
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleRenameStyle();
-              if (e.key === 'Escape') {
-                setIsRenaming(false);
-                setRenameValue('');
-              }
-            }}
-            className="flex-1"
-            autoFocus
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleRenameStyle}
-            className="px-2"
-          >
-            <Icon name="check" className="w-4 h-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              setIsRenaming(false);
-              setRenameValue('');
-            }}
-            className="px-2"
-          >
-            <Icon name="x" className="w-4 h-4" />
-          </Button>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <Select
-              onValueChange={handleApplyStyle}
-              value={layer?.styleId || undefined}
-            >
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Select a style..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {styles.map((style) => (
-                    <SelectItem key={style.id} value={style.id}>
-                      {style.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+    <div className="flex flex-col gap-2 pb-4 pt-2">
 
-            {/* Show "Customised" badge when there are overrides */}
-            {hasOverrides && (
-              <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30 shrink-0">
-                Customised
-              </Badge>
-            )}
-          </div>
-        </div>
+      {/* Style Selector or Rename Input */}
+      {!isCreating && (
+        <>
+          {appliedStyle && isRenaming ? (
+            <div className="flex flex-col gap-2">
+              <Input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRenameStyle();
+                  if (e.key === 'Escape') {
+                    setIsRenaming(false);
+                    setRenameValue('');
+                  }
+                }}
+                autoFocus
+              />
+              <div className="grid grid-cols-2 gap-2">
+              <Button
+                size="sm"
+                variant="default"
+                onClick={handleRenameStyle}
+              >
+                Save changes
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setIsRenaming(false);
+                  setRenameValue('');
+                }}
+              >
+                Cancel
+              </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Select
+                  onValueChange={handleApplyStyle}
+                  value={layer?.styleId || undefined}
+                >
+                  <SelectTrigger className="flex-1">
+                    {styles.length === 0 ? (
+                    <span className="opacity-50">Select a style...</span>
+                    ) : (
+                    <SelectValue placeholder="Select a style..." />
+                    )}
+                    {/* Show "Customised" badge when there are overrides */}
+                    {hasOverrides && (
+                      <span className="ml-auto text-yellow-400 text-[10px] pr-1">Customized</span>
+                    )}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {styles.length === 0 ? (
+                      <Empty>
+                        <EmptyTitle>No layers styles</EmptyTitle>
+                      </Empty>
+                    ) : (
+                      <SelectGroup>
+                        {styles.map((style) => (
+                          <SelectItem key={style.id} value={style.id}>
+                            {style.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Create New Style Modal/Form */}
       {isCreating && (
-        <div className="flex flex-col gap-2 p-3 bg-zinc-900 border border-zinc-800 rounded">
+        <div className="flex flex-col gap-2">
           <Input
             placeholder="Style name..."
             value={newStyleName}
@@ -294,7 +306,7 @@ export default function LayerStylesPanel({
             }}
             autoFocus
           />
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button
               size="sm"
               variant="default"
@@ -306,7 +318,7 @@ export default function LayerStylesPanel({
             </Button>
             <Button
               size="sm"
-              variant="ghost"
+              variant="secondary"
               onClick={() => {
                 setIsCreating(false);
                 setNewStyleName('');
@@ -319,84 +331,71 @@ export default function LayerStylesPanel({
         </div>
       )}
 
-      {/* Action Buttons - only show when style is applied */}
-      {appliedStyle && !isRenaming && (
-        <div className="grid grid-cols-2 gap-1">
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={() => setIsCreating(true)}
-            className="px-2"
-          >
-            <Icon name="plus" className="w-2 h-2 mr-1" />
-            New
-          </Button>
+      {!isCreating && !isRenaming && (
+        <div className="flex">
 
-          <Button
-            size="xs"
-            variant="secondary"
-            onClick={handleUpdateStyle}
-            disabled={!hasOverrides}
-            className="flex-1"
-          >
-            <Icon name="edit" className="w-2 h-2 mr-1" />
-            Update
-          </Button>
-
-          <Button
-            size="xs"
-            variant="secondary"
-            onClick={handleDetachStyle}
-            className="flex-1"
-          >
-            Detach
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="ghost" className="px-2">
-                •••
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem 
-                onClick={handleResetOverrides}
-                disabled={!hasOverrides}
-              >
-                Reset
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  if (!appliedStyle) return;
-                  setRenameValue(appliedStyle.name);
-                  setIsRenaming(true);
-                }}
-              >
-                Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => appliedStyle && handleDeleteStyle(appliedStyle.id)}
-                className="text-red-500"
-              >
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
-
-      {/* New button when no style is applied */}
-      {!appliedStyle && (
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           onClick={() => setIsCreating(true)}
-          className="w-full"
+          className="flex-1"
         >
-          <Icon name="plus" className="w-2 h-2 mr-1" />
-          New Style
+          <Icon name="plus" />
+          New
         </Button>
+
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleUpdateStyle}
+          disabled={!hasOverrides}
+        >
+          Update
+        </Button>
+
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleDetachStyle}
+          disabled={!appliedStyle}
+        >
+          Detach
+        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="ghost">
+              <Icon name="more" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={handleResetOverrides}
+              disabled={!hasOverrides}
+            >
+              Reset
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (!appliedStyle) return;
+                setRenameValue(appliedStyle.name);
+                setIsRenaming(true);
+              }}
+            >
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => appliedStyle && handleDeleteStyle(appliedStyle.id)}
+              className="text-red-500"
+            >
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+      </div>
       )}
+
     </div>
   );
 }
