@@ -32,7 +32,6 @@ import EffectControls from './EffectControls';
 import LayoutControls from './LayoutControls';
 import LayerStylesPanel from './LayerStylesPanel';
 import PositionControls from './PositionControls';
-import PositioningControls from './PositioningControls';
 import SettingsPanel from './SettingsPanel';
 import SizingControls from './SizingControls';
 import SpacingControls from './SpacingControls';
@@ -367,19 +366,13 @@ export default function RightSidebar({
 
           <TypographyControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
-          <SizingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
-
-          <TypographyControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
-
           <BackgroundsControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <BorderControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <EffectControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
-          <PositioningControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
-
-          <PositionControls />
+          <PositionControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
           <div className="flex flex-col gap-4 py-5">
             <header className="py-4 -mt-4">
