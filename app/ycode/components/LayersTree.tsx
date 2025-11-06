@@ -317,7 +317,7 @@ function LayerRow({
             </button>
           ) : (
             <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
-              <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-20', isSelected && 'opacity-60')} />
+              <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-0', isSelected && 'opacity-0')} />
             </div>
           )}
 
