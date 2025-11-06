@@ -15,6 +15,13 @@ import {
   runMigrations,
   completeSetup,
 } from '@/lib/api/setup';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSet } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import Icon from '@/components/ui/icon';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Spinner } from '@/components/ui/spinner';
 
 export default function WelcomePage() {
   const router = useRouter();
@@ -50,65 +57,64 @@ export default function WelcomePage() {
   // Step 1: Welcome
   if (currentStep === 'welcome') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="bg-zinc-900 p-12 rounded-2xl shadow-2xl max-w-2xl border border-zinc-800">
-          <h1 className="text-5xl font-bold text-white mb-4">
-            Welcome to YCode
-          </h1>
-          <p className="text-xl text-zinc-400 mb-8">
-            Build your website on your website. Let&apos;s get you set up in just a
-            few steps.
-          </p>
+      <div className="min-h-screen flex items-center justify-center bg-neutral-950 overflow-y-auto py-8">
 
-          <div className="space-y-4 mb-8">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-8 h-8 bg-white rounded-full flex items-center justify-center text-black font-semibold">
-                1
-              </div>
-              <div>
-                <h3 className="font-semibold text-white">
-                  Connect Supabase
-                </h3>
-                <p className="text-zinc-400 text-sm">
-                  Link your Supabase instance for data storage
-                </p>
-              </div>
+          <div className="flex-1 flex items-center text-center flex-col gap-2 text-balance">
+
+            <svg
+              className="size-8 fill-current absolute animate-out fade-out slide-in-from-bottom-1 duration-700"
+              style={{ animationDelay: '2000ms', animationFillMode: 'both' }}
+              viewBox="0 0 24 24"
+              version="1.1" xmlns="http://www.w3.org/2000/svg"
+            >
+              <g
+                id="Symbols" stroke="none"
+                strokeWidth="1" fill="none"
+                fillRule="evenodd"
+              >
+                <g id="Sidebar" transform="translate(-30.000000, -30.000000)">
+                  <g id="Ycode">
+                    <g transform="translate(30.000000, 30.000000)">
+                      <rect
+                        id="Rectangle" x="0"
+                        y="0" width="24"
+                        height="24"
+                      />
+                      <path
+                        id="CurrentFill" d="M11.4241533,0 L11.4241533,5.85877951 L6.024,8.978 L12.6155735,12.7868008 L10.951,13.749 L23.0465401,6.75101349 L23.0465401,12.6152717 L3.39516096,23.9856666 L3.3703726,24 L3.34318129,23.9827156 L0.96,22.4713365 L0.96,16.7616508 L3.36417551,18.1393242 L7.476,15.76 L0.96,11.9090099 L0.96,6.05375516 L11.4241533,0 Z"
+                        className="fill-current"
+                      />
+                    </g>
+                  </g>
+                </g>
+              </g>
+            </svg>
+
+            <Label
+              className="animate-in fade-in slide-in-from-bottom-1 duration-700"
+              style={{ animationDelay: '2500ms', animationFillMode: 'both' }}
+            >
+              Welcome to Ycode
+            </Label>
+            <Label
+              variant="muted"
+              className="animate-in fade-in slide-in-from-bottom-1 duration-700"
+              style={{ animationDelay: '2700ms', animationFillMode: 'both' }}
+            >
+              Let&apos;s get you set up in just a few steps.
+            </Label>
+
+            <div
+              className="mt-2 animate-in fade-in slide-in-from-bottom-1 duration-700"
+              style={{ animationDelay: '3700ms', animationFillMode: 'both' }}
+            >
+              <Button onClick={() => setStep('supabase')} size="sm">
+                Get started
+              </Button>
             </div>
 
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-8 h-8 bg-zinc-700 rounded-full flex items-center justify-center text-white font-semibold">
-                2
-              </div>
-              <div>
-                <h3 className="font-semibold text-white">Run Migrations</h3>
-                <p className="text-zinc-400 text-sm">
-                  Set up database tables automatically
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-8 h-8 bg-zinc-700 rounded-full flex items-center justify-center text-white font-semibold">
-                3
-              </div>
-              <div>
-                <h3 className="font-semibold text-white">
-                  Create Admin Account
-                </h3>
-                <p className="text-zinc-400 text-sm">
-                  Your first user to access the builder
-                </p>
-              </div>
-            </div>
           </div>
 
-          <button
-            onClick={() => setStep('supabase')}
-            className="w-full bg-white hover:bg-zinc-200 text-black font-semibold py-4 px-6 rounded-lg transition-colors"
-          >
-            Get Started →
-          </button>
-        </div>
       </div>
     );
   }
@@ -118,26 +124,17 @@ export default function WelcomePage() {
     // Show loading while checking environment
     if (isVercel === null) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-black">
-          <div className="bg-zinc-900 p-12 rounded-2xl shadow-2xl max-w-2xl border border-zinc-800">
-            <div className="flex items-center justify-center gap-3">
-              <svg
-                className="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg"
-                fill="none" viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25" cx="12"
-                  cy="12" r="10"
-                  stroke="currentColor" strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75" fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              <p className="text-xl text-zinc-300">Detecting environment...</p>
-            </div>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 py-10">
+
+          <div className="flex-1 flex items-center text-center flex-col gap-2">
+            <Label>
+              Please wait
+            </Label>
+            <Label variant="muted" className="bg-gradient-to-r from-muted-foreground via-muted-foreground/40 to-muted-foreground bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent !font-normal">
+              Detecting environment...
+            </Label>
           </div>
+
         </div>
       );
     }
@@ -174,7 +171,7 @@ export default function WelcomePage() {
       };
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-black p-4">
+        <div className="min-h-screen flex items-center justify-center bg-black p-4 overflow-y-auto py-8">
           <div className="bg-zinc-900 p-8 rounded-2xl shadow-2xl max-w-3xl w-full border border-zinc-800">
             <div className="flex items-center gap-3 mb-4">
               <svg
@@ -348,138 +345,122 @@ export default function WelcomePage() {
       };
 
       return (
-      <div className="min-h-screen flex items-center justify-center bg-black p-4">
-        <div className="bg-zinc-900 p-8 rounded-2xl shadow-2xl max-w-2xl w-full border border-zinc-800">
-          <div className="flex items-center gap-3 mb-2">
-            <svg
-              className="w-8 h-8 text-green-400" fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <h2 className="text-3xl font-bold text-white">
-              Connect Your Supabase
-            </h2>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 py-10">
+
+        <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
+
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+            <Label variant="muted">Step 1</Label>
+            <Label>Connect Supabase</Label>
           </div>
 
-          <div className="bg-green-950 border border-green-800 text-green-300 px-4 py-3 rounded-lg mb-3">
-            <p className="font-semibold mb-1">💻 Local Development</p>
-            <p className="text-sm">
-              Credentials will be saved to <code className="font-mono text-xs">.credentials.json</code> (gitignored)
-            </p>
+          <div className="border-t-2 border-white/50 py-4 flex flex-col gap-1.5 opacity-50">
+            <Label variant="muted">Step 2</Label>
+            <Label>Run migrations</Label>
           </div>
 
-          <p className="text-zinc-400 mb-3 leading-5">
-            Enter your Supabase project credentials (you can find them in your Supabase project settings).
-          </p>
+          <div className="border-t-2 border-white/50 py-4 flex flex-col gap-1.5 opacity-50">
+            <Label variant="muted">Step 3</Label>
+            <Label>Create account</Label>
+          </div>
 
-          {error && (
-            <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg my-3">
-              {error}
-            </div>
-          )}
+        </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label
-                htmlFor="anon_key"
-                className="block text-sm font-medium text-zinc-300"
-              >
-                Anon key (Publishable key)
-              </label>
-              <p className="text-xs text-zinc-500 mt-1 mb-1.5">
-                Find it in <span className="text-white/85">Supabase → Project settings → API keys</span>.
-              </p>
-              <input
-                id="anon_key"
-                name="anon_key"
-                required
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-sm placeholder-zinc-500"
-              />
-            </div>
+        <div className="w-full max-w-xl py-10">
 
-            <div>
-              <label
-                htmlFor="service_role_key"
-                className="block text-sm font-medium text-zinc-300"
-              >
-                Service role key (Secret key)
-              </label>
-              <p className="text-xs text-zinc-500 mt-1 mb-1.5">
-                Find it in <span className="text-white/85">Supabase → Project settings → API keys</span>.
-              </p>
-              <input
-                id="service_role_key"
-                name="service_role_key"
-                required
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-sm placeholder-zinc-500"
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="">
 
-            <div>
-              <label
-                htmlFor="connection_url"
-                className="block text-sm font-medium text-zinc-300"
-              >
-                Pooler connection URL
-              </label>
-              <p className="text-xs text-zinc-500 mt-1 mb-1.5">
-                Find it in <span className="text-white/85">Supabase → Connect → Connection String → Method: Transaction pooler</span>. Copy/Paste as-is.
-              </p>
-              <input
-                type="text"
-                id="connection_url"
-                name="connection_url"
-                required
-                placeholder="postgresql://postgres.zxzgetrkwbpvakuzpytt:[YOUR-PASSWORD]@aws-1-eu-west-3.pooler.supabase.com:6543/postgres"
-                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent font-mono text-xs placeholder-zinc-500"
-              />
-            </div>
+            <FieldGroup className="animate-in fade-in slide-in-from-bottom-1 duration-700" style={{ animationFillMode: 'both' }}>
+              <FieldSet>
+                <FieldGroup>
 
-            <div>
-              <label
-                htmlFor="db_password"
-                className="block text-sm font-medium text-zinc-300"
-              >
-                Database Password
-              </label>
-              <p className="text-xs text-zinc-500 mt-1 mb-1.5">
-                The database password was created with the project. It can be reset in Supabase Settings.
-              </p>
-              <input
-                type="password"
-                id="db_password"
-                name="db_password"
-                required
-                placeholder="••••••••••••••••"
-                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 text-white rounded-lg focus:ring-2 focus:ring-white focus:border-transparent placeholder-zinc-500"
-              />
-            </div>
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
 
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => setStep('welcome')}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors border border-zinc-700"
-                disabled={loading}
-              >
-                ← Back
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 bg-white hover:bg-zinc-200 text-black font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {loading ? 'Connecting...' : 'Continue →'}
-              </button>
-            </div>
+                  <Field>
+                    <FieldLabel htmlFor="anon_key">Publishable key</FieldLabel>
+                    <Input
+                      id="anon_key"
+                      name="anon_key"
+                      required
+                      placeholder="sb_publishable_ABCABCABCABCABC"
+                    />
+                    <FieldDescription>
+                      Find it in <span className="text-white/85">Supabase → Project settings → API keys</span>.
+                    </FieldDescription>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="service_role_key">Secret key</FieldLabel>
+                    <Input
+                      id="service_role_key"
+                      name="service_role_key"
+                      required
+                      placeholder="sb_secret_ABCABCABCABCABC"
+                    />
+                    <FieldDescription>
+                      Find it in <span className="text-white/85">Supabase → Project settings → API keys</span>.
+                    </FieldDescription>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="connection_url">Pooler connection URL</FieldLabel>
+                    <Input
+                      type="text"
+                      id="connection_url"
+                      name="connection_url"
+                      required
+                      placeholder="postgresql://postgres.zxzgetrkwbpvakuzpytt:[YOUR-PASSWORD]@aws-1-eu-west-3.pooler.supabase.com:6543/postgres"
+                    />
+                    <FieldDescription>
+                      Find it in <span className="text-white/85">Supabase → Connect → Connection String → Method: Transaction pooler</span>.
+                    </FieldDescription>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="connection_url">Database Password</FieldLabel>
+                    <Input
+                      type="password"
+                      id="db_password"
+                      name="db_password"
+                      required
+                      placeholder="••••••••••••••••"
+                    />
+                    <FieldDescription>
+                      The database password was created with the project. It can be reset in <span className="text-white/85">Database → Settings</span>.
+                    </FieldDescription>
+                  </Field>
+
+
+                  <div className="flex flex-col gap-2 mt-4">
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={loading}
+                    >
+                      {loading ? <Spinner /> : 'Continue'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setStep('welcome')}
+                      disabled={loading}
+                    >
+                      Return back
+                    </Button>
+                  </div>
+
+                </FieldGroup>
+              </FieldSet>
+            </FieldGroup>
+
           </form>
         </div>
+
       </div>
       );
     }
@@ -511,14 +492,28 @@ export default function WelcomePage() {
     };
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black p-4">
-        <div className="bg-zinc-900 p-8 rounded-2xl shadow-2xl max-w-2xl w-full border border-zinc-800">
-          <h2 className="text-3xl font-bold text-white mb-2">
-            Setup Database 🗄️
-          </h2>
-          <p className="text-zinc-400 mb-8">
-            We&apos;ll automatically create the necessary database tables and storage buckets in your Supabase project.
-          </p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 py-10">
+
+        <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
+
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+            <Label variant="muted">Step 1</Label>
+            <Label>Connect Supabase</Label>
+          </div>
+
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+            <Label variant="muted">Step 2</Label>
+            <Label>Run migrations</Label>
+          </div>
+
+          <div className="border-t-2 border-white/50 py-4 flex flex-col gap-1.5 opacity-50">
+            <Label variant="muted">Step 3</Label>
+            <Label>Create account</Label>
+          </div>
+
+        </div>
+
+        <div className="w-full max-w-xl py-10">
 
           {error && (
             <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-6">
@@ -526,35 +521,33 @@ export default function WelcomePage() {
             </div>
           )}
 
-          <div className="bg-zinc-800 border border-zinc-700 px-4 py-3 rounded-lg mb-8">
-            <p className="text-zinc-300 text-sm font-medium mb-2">
-              ✨ What will be created:
-            </p>
-            <ul className="text-zinc-400 text-sm space-y-1 ml-4 list-disc">
-              <li>Pages table (for your website pages)</li>
-              <li>Page layers table (draft and published layers)</li>
-              <li>Assets table (for uploaded images)</li>
-              <li>Settings table (site configuration)</li>
-              <li>Storage bucket (for file uploads)</li>
-            </ul>
-          </div>
+          <div className="flex flex-col gap-10 animate-in fade-in slide-in-from-bottom-1 duration-700" style={{ animationFillMode: 'both' }}>
 
-          <div className="flex gap-4">
-            <button
-              type="button"
-              onClick={() => setStep('supabase')}
-              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors border border-zinc-700"
-              disabled={loading}
-            >
-              ← Back
-            </button>
-            <button
-              onClick={handleMigrate}
-              disabled={loading}
-              className="flex-1 bg-white hover:bg-zinc-200 text-black font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Setting up database...' : 'Run Setup →'}
-            </button>
+            <div className="flex-1 flex items-center text-center flex-col gap-2 bg-white/5 py-10 rounded-2xl">
+              <Icon name="database" className="size-3 mb-2" />
+              <Label>Setup database</Label>
+              <Label variant="muted" className="leading-relaxed max-w-96">We&apos;ll automatically create the necessary database tables and storage buckets in your Supabase project.</Label>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Button
+                size="sm"
+                onClick={handleMigrate}
+                disabled={loading}
+              >
+                {loading ? <Spinner /> : 'Run migrations'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setStep('supabase')}
+                disabled={loading}
+              >
+                Return back
+              </Button>
+            </div>
+
           </div>
         </div>
       </div>
@@ -618,89 +611,93 @@ export default function WelcomePage() {
     };
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black p-4">
-        <div className="bg-zinc-900 p-8 rounded-2xl shadow-2xl max-w-2xl w-full border border-zinc-800">
-          <h2 className="text-3xl font-bold text-white mb-2">
-            Create Admin Account 👤
-          </h2>
-          <p className="text-zinc-400 mb-8">
-            Create your admin account to access the YCode builder. This will be
-            stored securely in Supabase Auth.
-          </p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 py-10">
 
-          {error && (
-            <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-6">
-              {error}
-            </div>
-          )}
+        <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
 
-          <div className="bg-zinc-800 border border-zinc-700 px-4 py-3 rounded-lg mb-6">
-            <p className="text-zinc-300">
-              ✓ Supabase connected
-              <br />✓ Database migrated
-              <br />✓ Ready for admin account
-            </p>
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+            <Label variant="muted">Step 1</Label>
+            <Label>Connect Supabase</Label>
           </div>
 
-          <div className="space-y-4 mb-6">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-zinc-300 mb-2">
-                Admin Email
-              </label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="admin@yourdomain.com"
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-zinc-300 mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="••••••••"
-                disabled={loading}
-                autoComplete="new-password"
-              />
-              <p className="text-xs text-zinc-500 mt-1">
-                At least 6 characters
-              </p>
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-zinc-300 mb-2">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                id="confirmPassword"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="••••••••"
-                disabled={loading}
-                autoComplete="new-password"
-              />
-            </div>
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+            <Label variant="muted">Step 2</Label>
+            <Label>Run migrations</Label>
           </div>
 
-          <button
-            onClick={handleComplete}
-            disabled={loading}
-            className="w-full bg-white hover:bg-zinc-200 text-black font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Creating Account...' : 'Create Account & Go to Builder →'}
-          </button>
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+            <Label variant="muted">Step 3</Label>
+            <Label>Create account</Label>
+          </div>
+
+        </div>
+
+        <div className="w-full max-w-xl py-10 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-1 duration-700" style={{ animationFillMode: 'both' }}>
+
+          <FieldGroup>
+            <FieldSet>
+              <FieldGroup>
+
+
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertTitle>{error}</AlertTitle>
+                  </Alert>
+                )}
+
+                <Field>
+                  <FieldLabel htmlFor="email">Email</FieldLabel>
+                  <Input
+                    type="email"
+                    id="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@yourdomain.com"
+                    disabled={loading}
+                  />
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <Input
+                    type="password"
+                    id="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    disabled={loading}
+                  />
+                  <FieldDescription>At least 6 characters</FieldDescription>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="confirmPassword">Confirm password</FieldLabel>
+                  <Input
+                    type="password"
+                    id="confirmPassword"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    disabled={loading}
+                  />
+                </Field>
+
+                <div className="flex flex-col gap-4 mt-4">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    onClick={handleComplete}
+                    disabled={loading}
+                  >
+                    {loading ? <Spinner /> : 'Create account'}
+                  </Button>
+                  <FieldDescription className="text-center text-[10px] opacity-60">This will be stored securely in Supabase Auth.</FieldDescription>
+                </div>
+
+              </FieldGroup>
+            </FieldSet>
+          </FieldGroup>
+
         </div>
       </div>
     );

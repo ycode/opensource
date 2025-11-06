@@ -36,6 +36,12 @@ import { findLayerById, getClassesString, removeLayerById } from '@/lib/layer-ut
 
 // 5. Types
 import type { Layer } from '@/types';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Field } from '@/components/ui/field';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 
 export default function YCodeBuilder() {
   const { signOut, user } = useAuthStore();
@@ -55,10 +61,10 @@ export default function YCodeBuilder() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersByPageRef = useRef<Map<string, string>>(new Map());
   const previousPageIdRef = useRef<string | null>(null);
-  
+
   // Combined saving state - either page or component
   const isCurrentlySaving = editingComponentId ? componentIsSaving : isSaving;
-  
+
   // Helper: Get current layers (from page or component)
   const getCurrentLayers = useCallback((): Layer[] => {
     if (editingComponentId) {
@@ -71,7 +77,7 @@ export default function YCodeBuilder() {
     }
     return [];
   }, [editingComponentId, currentPageId, draftsByPageId]);
-  
+
   // Helper: Update current layers (page or component)
   const updateCurrentLayers = useCallback((newLayers: Layer[]) => {
     if (editingComponentId) {
@@ -91,6 +97,14 @@ export default function YCodeBuilder() {
 
   // Migration state - BLOCKS builder until migrations complete
   const [migrationsComplete, setMigrationsComplete] = useState(false);
+
+  // Add overflow-hidden to body when builder is mounted
+  useEffect(() => {
+    document.body.classList.add('overflow-hidden');
+    return () => {
+      document.body.classList.remove('overflow-hidden');
+    };
+  }, []);
 
   // Login state (when not authenticated)
   const [loginEmail, setLoginEmail] = useState('');
@@ -117,7 +131,7 @@ export default function YCodeBuilder() {
   useEffect(() => {
     if (migrationsComplete) {
       loadPages();
-      
+
       // Also load components and layer styles
       useComponentsStore.getState().loadComponents();
       useLayerStylesStore.getState().loadStyles();
@@ -376,17 +390,17 @@ export default function YCodeBuilder() {
   const findNextLayerToSelect = (layers: Layer[], layerIdToDelete: string): string | null => {
     // Helper to find layer with its parent and siblings
     const findLayerContext = (
-      tree: Layer[], 
-      targetId: string, 
+      tree: Layer[],
+      targetId: string,
       parent: Layer | null = null
     ): { layer: Layer; parent: Layer | null; siblings: Layer[] } | null => {
       for (let i = 0; i < tree.length; i++) {
         const node = tree[i];
-        
+
         if (node.id === targetId) {
           return { layer: node, parent, siblings: tree };
         }
-        
+
         if (node.children) {
           const found = findLayerContext(node.children, targetId, node);
           if (found) return found;
@@ -394,45 +408,45 @@ export default function YCodeBuilder() {
       }
       return null;
     };
-    
+
     const context = findLayerContext(layers, layerIdToDelete);
     if (!context) return null;
-    
+
     const { parent, siblings } = context;
     const currentIndex = siblings.findIndex(s => s.id === layerIdToDelete);
-    
+
     // Try next sibling
     if (currentIndex < siblings.length - 1) {
       return siblings[currentIndex + 1].id;
     }
-    
+
     // Try previous sibling
     if (currentIndex > 0) {
       return siblings[currentIndex - 1].id;
     }
-    
+
     // Fall back to parent
     if (parent) {
       return parent.id;
     }
-    
+
     // If no parent and no siblings, try to find any other layer
     const allLayers = layers.filter(l => l.id !== layerIdToDelete);
     if (allLayers.length > 0) {
       return allLayers[0].id;
     }
-    
+
     return null;
   };
 
   // Delete selected layer
   const deleteSelectedLayer = useCallback(() => {
     if (!selectedLayerId) return;
-    
+
     // Find the next layer to select before deleting
     const layers = getCurrentLayers();
     const nextLayerId = findNextLayerToSelect(layers, selectedLayerId);
-    
+
     if (editingComponentId) {
       // Delete from component draft
       const newLayers = removeLayerById(layers, selectedLayerId);
@@ -561,41 +575,41 @@ export default function YCodeBuilder() {
     if (!Array.isArray(pages)) return undefined;
     return pages.find(p => p.id === currentPageId);
   }, [pages, currentPageId]);
-  
+
   // Exit component edit mode handler
   const handleExitComponentEditMode = useCallback(async () => {
     const { editingComponentId, returnToPageId, setEditingComponentId } = useEditorStore.getState();
     const { saveComponentDraft, clearComponentDraft, componentDrafts, getComponentById, saveTimeouts } = useComponentsStore.getState();
     const { updateComponentOnLayers } = usePagesStore.getState();
-    
+
     if (!editingComponentId) return;
-    
+
     // Clear any pending auto-save timeout to avoid duplicate saves
     if (saveTimeouts[editingComponentId]) {
       clearTimeout(saveTimeouts[editingComponentId]);
     }
-    
+
     // Immediately save component draft (ensures all changes are persisted)
     await saveComponentDraft(editingComponentId);
-    
+
     // Get the updated component to get its layers
     const updatedComponent = getComponentById(editingComponentId);
     if (updatedComponent) {
       // Update all instances across pages with the new layers
       await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
     }
-    
+
     // Clear component draft
     clearComponentDraft(editingComponentId);
-    
+
     // Return to previous page
     if (returnToPageId) {
       setCurrentPageId(returnToPageId);
     }
-    
+
     // Exit edit mode
     setEditingComponentId(null, null);
-    
+
     // Clear selection
     setSelectedLayerId(null);
   }, [setCurrentPageId, setSelectedLayerId]);
@@ -791,78 +805,96 @@ export default function YCodeBuilder() {
   // Show login form if not authenticated
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black p-4">
-        <div className="bg-zinc-900 p-8 rounded-2xl shadow-2xl max-w-md w-full border border-zinc-800">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center mx-auto mb-4">
-              <span className="text-gray-900 font-bold text-2xl">Y</span>
-            </div>
-            <h1 className="text-3xl font-bold text-white mb-2">
-              YCode Builder
-            </h1>
-            <p className="text-zinc-400">
-              Sign in to access the visual builder
-            </p>
-          </div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 py-10">
 
-          {loginError && (
-            <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-6">
-              {loginError}
-            </div>
-          )}
+        <svg
+          className="size-5 fill-current absolute bottom-10"
+          viewBox="0 0 24 24"
+          version="1.1" xmlns="http://www.w3.org/2000/svg"
+        >
+          <g
+            id="Symbols" stroke="none"
+            strokeWidth="1" fill="none"
+            fillRule="evenodd"
+          >
+            <g id="Sidebar" transform="translate(-30.000000, -30.000000)">
+              <g id="Ycode">
+                <g transform="translate(30.000000, 30.000000)">
+                  <rect
+                    id="Rectangle" x="0"
+                    y="0" width="24"
+                    height="24"
+                  />
+                  <path
+                    id="CurrentFill" d="M11.4241533,0 L11.4241533,5.85877951 L6.024,8.978 L12.6155735,12.7868008 L10.951,13.749 L23.0465401,6.75101349 L23.0465401,12.6152717 L3.39516096,23.9856666 L3.3703726,24 L3.34318129,23.9827156 L0.96,22.4713365 L0.96,16.7616508 L3.36417551,18.1393242 L7.476,15.76 L0.96,11.9090099 L0.96,6.05375516 L11.4241533,0 Z"
+                    className="fill-current"
+                  />
+                </g>
+              </g>
+            </g>
+          </g>
+        </svg>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-zinc-300 mb-2">
+        <div className="w-full max-w-sm animate-in fade-in slide-in-from-bottom-1 duration-700" style={{ animationFillMode: 'both' }}>
+
+          <form onSubmit={handleLogin} className="flex flex-col gap-6">
+
+            {loginError && (
+              <Alert variant="destructive">
+                <AlertTitle>{loginError}</AlertTitle>
+              </Alert>
+            )}
+
+            <Field>
+              <Label htmlFor="email">
                 Email
-              </label>
-              <input
+              </Label>
+              <Input
                 type="email"
                 id="email"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="you@example.com"
                 disabled={isLoggingIn}
                 required
               />
-            </div>
+            </Field>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-zinc-300 mb-2">
+            <Field>
+              <Label htmlFor="password">
                 Password
-              </label>
-              <input
+              </Label>
+              <Input
                 type="password"
                 id="password"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="••••••••"
                 disabled={isLoggingIn}
                 autoComplete="current-password"
                 required
               />
-            </div>
+            </Field>
 
-            <button
+            <Button
               type="submit"
+              size="sm"
               disabled={isLoggingIn}
-              className="w-full bg-white hover:bg-zinc-200 text-black font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoggingIn ? 'Signing in...' : 'Sign In'}
-            </button>
+              {isLoggingIn ? <Spinner /> : 'Sign In'}
+            </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-zinc-500">
+          <div className="mt-4 text-center">
+            <p className="text-xs text-white/50">
               First time here?{' '}
-              <Link href="/welcome" className="text-blue-400 hover:text-blue-300">
+              <Link href="/welcome" className="text-white/80">
                 Complete setup
               </Link>
             </p>
           </div>
         </div>
+
       </div>
     );
   }
@@ -935,7 +967,7 @@ export default function YCodeBuilder() {
                 if (editingComponentId) {
                   const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
                   const layers = componentDrafts[editingComponentId] || [];
-                  
+
                   // Find and update layer in tree
                   const updateLayerInTree = (tree: Layer[]): Layer[] => {
                     return tree.map(layer => {
@@ -948,7 +980,7 @@ export default function YCodeBuilder() {
                       return layer;
                     });
                   };
-                  
+
                   const updatedLayers = updateLayerInTree(layers);
                   updateComponentDraft(editingComponentId, updatedLayers);
                 } else if (currentPageId) {

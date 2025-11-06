@@ -18,6 +18,7 @@ interface PagesTreeProps {
   onPageOpen?: (pageId: string) => void;
   onReorder?: (pages: Page[], folders: PageFolder[]) => void;
   onPageSettings?: (page: Page) => void;
+  onFolderSettings?: (folder: PageFolder) => void;
   onDelete?: (id: string, type: 'folder' | 'page') => void;
   onDuplicate?: (id: string, type: 'folder' | 'page') => void;
   onRename?: (id: string, type: 'folder' | 'page') => void;
@@ -34,7 +35,7 @@ interface PageRowProps {
   onSelect: (id: string, type: 'folder' | 'page') => void;
   onOpen?: (id: string) => void;
   onToggle: (id: string) => void;
-  onSettings?: (page: Page) => void;
+  onSettings?: (item: Page | PageFolder) => void;
   onDelete?: (id: string, type: 'folder' | 'page') => void;
   onDuplicate?: (id: string, type: 'folder' | 'page') => void;
   onRename?: (id: string, type: 'folder' | 'page') => void;
@@ -104,7 +105,7 @@ function PageRow({
       item={node.data}
       nodeType={node.type}
       onOpen={node.type === 'page' && onOpen ? () => onOpen(node.id) : undefined}
-      onSettings={node.type === 'page' && onSettings ? () => onSettings(node.data as Page) : undefined}
+      onSettings={onSettings ? () => onSettings(node.data) : undefined}
       onDelete={onDelete ? () => onDelete(node.id, node.type) : undefined}
       onDuplicate={onDuplicate ? () => onDuplicate(node.id, node.type) : undefined}
       onRename={onRename ? () => onRename(node.id, node.type) : undefined}
@@ -211,7 +212,7 @@ function PageRow({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onSettings(node.data as Page);
+              onSettings(node.data as Page | PageFolder);
             }}
             className="opacity-0 group-hover:opacity-80 hover:opacity-100 transition-opacity mr-2.5 cursor-pointer"
           >
@@ -234,6 +235,7 @@ export default function PagesTree({
   onPageOpen,
   onReorder,
   onPageSettings,
+  onFolderSettings,
   onDelete,
   onDuplicate,
   onRename,
@@ -545,7 +547,11 @@ export default function PagesTree({
             onSelect={handleSelect}
             onOpen={onPageOpen}
             onToggle={handleToggle}
-            onSettings={onPageSettings}
+            onSettings={
+              node.type === 'page'
+                ? (onPageSettings ? () => onPageSettings(node.data as Page) : undefined)
+                : (onFolderSettings ? () => onFolderSettings(node.data as PageFolder) : undefined)
+            }
             onDelete={onDelete}
             onDuplicate={onDuplicate}
             onRename={onRename}
