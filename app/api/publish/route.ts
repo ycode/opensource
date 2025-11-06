@@ -1,4 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { publishAllPages } from '@/lib/services/publishingService';
 import { invalidatePage } from '@/lib/services/cacheInvalidationService';
 import { noCache } from '@/lib/api-response';
@@ -14,7 +13,7 @@ export const revalidate = 0;
  * Optimized with batch queries
  * Draft records remain unchanged
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     console.log('[Publish] Starting publish all pages...');
 
@@ -29,9 +28,9 @@ export async function POST(request: NextRequest) {
     });
 
     // Invalidate cache for all published pages
-    const invalidations = result.published.map(({ page }) =>
-      invalidatePage(page.slug)
-    );
+    // @TODO: Use full route paths instead of slugs (e.g. `folder-1/folder-2/page-1`)
+    const invalidations = result.published.map(({ page }) => invalidatePage(page.slug));
+
     await Promise.all(invalidations);
 
     return noCache({
