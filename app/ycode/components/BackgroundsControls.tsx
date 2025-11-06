@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
 
 interface BackgroundsControlsProps {
@@ -30,13 +31,17 @@ export default function BackgroundsControls({ layer, onLayerUpdate }: Background
   
   // Handle background color change
   const handleBackgroundColorChange = (value: string) => {
-    updateDesignProperty('backgrounds', 'backgroundColor', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('backgrounds', 'backgroundColor', sanitized || null);
   };
   
   // Handle background image change
   const handleBackgroundImageChange = (value: string) => {
-    if (value && !value.startsWith('url(')) {
-      value = `url(${value})`;
+    const sanitized = removeSpaces(value);
+    if (sanitized && !sanitized.startsWith('url(')) {
+      value = `url(${sanitized})`;
+    } else {
+      value = sanitized;
     }
     updateDesignProperty('backgrounds', 'backgroundImage', value || null);
   };

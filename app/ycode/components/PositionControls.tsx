@@ -12,6 +12,7 @@ import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
+import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
 
 interface PositionControlsProps {
@@ -65,7 +66,8 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     if (value === 'auto') {
       updateDesignProperty('positioning', 'top', 'auto');
     } else {
-      updateDesignProperty('positioning', 'top', value || null);
+      const sanitized = removeSpaces(value);
+      updateDesignProperty('positioning', 'top', sanitized || null);
     }
   };
 
@@ -75,7 +77,8 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     if (value === 'auto') {
       updateDesignProperty('positioning', 'right', 'auto');
     } else {
-      updateDesignProperty('positioning', 'right', value || null);
+      const sanitized = removeSpaces(value);
+      updateDesignProperty('positioning', 'right', sanitized || null);
     }
   };
 
@@ -85,7 +88,8 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     if (value === 'auto') {
       updateDesignProperty('positioning', 'bottom', 'auto');
     } else {
-      updateDesignProperty('positioning', 'bottom', value || null);
+      const sanitized = removeSpaces(value);
+      updateDesignProperty('positioning', 'bottom', sanitized || null);
     }
   };
 
@@ -95,7 +99,8 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     if (value === 'auto') {
       updateDesignProperty('positioning', 'left', 'auto');
     } else {
-      updateDesignProperty('positioning', 'left', value || null);
+      const sanitized = removeSpaces(value);
+      updateDesignProperty('positioning', 'left', sanitized || null);
     }
   };
 
@@ -105,7 +110,8 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     if (value === 'auto') {
       updateDesignProperty('positioning', 'zIndex', 'auto');
     } else {
-      updateDesignProperty('positioning', 'zIndex', value || null);
+      const sanitized = removeSpaces(value);
+      updateDesignProperty('positioning', 'zIndex', sanitized || null);
     }
   };
 

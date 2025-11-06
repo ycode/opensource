@@ -14,6 +14,7 @@ import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useModeToggle } from '@/hooks/use-mode-toggle';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
+import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
 
 interface BorderControlsProps {
@@ -96,49 +97,59 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
   // Handle radius changes
   const handleRadiusChange = (value: string) => {
     setBorderRadiusInput(value);
-    updateDesignProperty('borders', 'borderRadius', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderRadius', sanitized || null);
   };
   
   const handleTopLeftRadiusChange = (value: string) => {
     setBorderTopLeftRadiusInput(value);
-    updateDesignProperty('borders', 'borderTopLeftRadius', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderTopLeftRadius', sanitized || null);
   };
   
   const handleTopRightRadiusChange = (value: string) => {
     setBorderTopRightRadiusInput(value);
-    updateDesignProperty('borders', 'borderTopRightRadius', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderTopRightRadius', sanitized || null);
   };
   
   const handleBottomRightRadiusChange = (value: string) => {
     setBorderBottomRightRadiusInput(value);
-    updateDesignProperty('borders', 'borderBottomRightRadius', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderBottomRightRadius', sanitized || null);
   };
   
   const handleBottomLeftRadiusChange = (value: string) => {
     setBorderBottomLeftRadiusInput(value);
-    updateDesignProperty('borders', 'borderBottomLeftRadius', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderBottomLeftRadius', sanitized || null);
   };
   
   // Handle border width changes
   const handleBorderWidthChange = (value: string) => {
     setBorderWidthInput(value);
-    updateDesignProperty('borders', 'borderWidth', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderWidth', sanitized || null);
   };
   
   const handleTopWidthChange = (value: string) => {
-    updateDesignProperty('borders', 'borderTopWidth', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderTopWidth', sanitized || null);
   };
   
   const handleRightWidthChange = (value: string) => {
-    updateDesignProperty('borders', 'borderRightWidth', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderRightWidth', sanitized || null);
   };
   
   const handleBottomWidthChange = (value: string) => {
-    updateDesignProperty('borders', 'borderBottomWidth', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderBottomWidth', sanitized || null);
   };
   
   const handleLeftWidthChange = (value: string) => {
-    updateDesignProperty('borders', 'borderLeftWidth', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderLeftWidth', sanitized || null);
   };
   
   // Handle border style change
@@ -148,7 +159,8 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
   
   // Handle border color change
   const handleBorderColorChange = (value: string) => {
-    updateDesignProperty('borders', 'borderColor', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('borders', 'borderColor', sanitized || null);
   };
   
   // Add border

@@ -14,6 +14,7 @@ import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useModeToggle } from '@/hooks/use-mode-toggle';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
+import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
 
 interface LayoutControlsProps {
@@ -140,55 +141,65 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   const handleGapChange = (value: string) => {
     setGapInput(value);
     if (gapModeToggle.mode === 'all-borders') {
-      updateDesignProperty('layout', 'gap', value || null);
+      const sanitized = removeSpaces(value);
+      updateDesignProperty('layout', 'gap', sanitized || null);
     }
   };
   
   const handleColumnGapChange = (value: string) => {
     setColumnGapInput(value);
-    updateDesignProperty('layout', 'columnGap', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('layout', 'columnGap', sanitized || null);
   };
   
   const handleRowGapChange = (value: string) => {
     setRowGapInput(value);
-    updateDesignProperty('layout', 'rowGap', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('layout', 'rowGap', sanitized || null);
   };
   
   // Handle padding changes
   const handlePaddingChange = (value: string) => {
     setPaddingInput(value);
     if (paddingModeToggle.mode === 'all-borders') {
-      updateDesignProperty('spacing', 'padding', value || null);
+      const sanitized = removeSpaces(value);
+      updateDesignProperty('spacing', 'padding', sanitized || null);
     }
   };
   
   const handlePaddingTopChange = (value: string) => {
     setPaddingTopInput(value);
-    updateDesignProperty('spacing', 'paddingTop', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('spacing', 'paddingTop', sanitized || null);
   };
   
   const handlePaddingRightChange = (value: string) => {
     setPaddingRightInput(value);
-    updateDesignProperty('spacing', 'paddingRight', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('spacing', 'paddingRight', sanitized || null);
   };
   
   const handlePaddingBottomChange = (value: string) => {
     setPaddingBottomInput(value);
-    updateDesignProperty('spacing', 'paddingBottom', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('spacing', 'paddingBottom', sanitized || null);
   };
   
   const handlePaddingLeftChange = (value: string) => {
     setPaddingLeftInput(value);
-    updateDesignProperty('spacing', 'paddingLeft', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('spacing', 'paddingLeft', sanitized || null);
   };
   
   // Handle grid template changes
   const handleGridColsChange = (value: string) => {
-    updateDesignProperty('layout', 'gridTemplateColumns', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('layout', 'gridTemplateColumns', sanitized || null);
   };
   
   const handleGridRowsChange = (value: string) => {
-    updateDesignProperty('layout', 'gridTemplateRows', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('layout', 'gridTemplateRows', sanitized || null);
   };
   
   // Extract numeric value from design property

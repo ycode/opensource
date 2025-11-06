@@ -34,19 +34,22 @@ export function extractMeasurementValue(value: string): string {
 }
 
 /**
- * Format a measurement value (no-op, kept for compatibility)
- * The value is stored exactly as typed, tailwind-class-mapper handles px defaults
+ * Format a measurement value
+ * Strips spaces to ensure valid Tailwind syntax
+ * The value is stored exactly as typed (minus spaces), tailwind-class-mapper handles px defaults
  * 
  * @param value - The value from the input
- * @returns The value to store (exactly as typed)
+ * @returns The value to store (without spaces)
  * 
  * @example
  * formatMeasurementValue("100") // "100"
  * formatMeasurementValue("100px") // "100px"
- * formatMeasurementValue("10rem") // "10rem"
+ * formatMeasurementValue("10 rem") // "10rem" (spaces stripped)
+ * formatMeasurementValue("10 0 px") // "100px" (spaces stripped)
  */
 export function formatMeasurementValue(value: string): string | null {
   if (!value) return null;
-  return value;
+  // Strip all spaces to ensure valid Tailwind class syntax
+  return value.replace(/\s+/g, '');
 }
 

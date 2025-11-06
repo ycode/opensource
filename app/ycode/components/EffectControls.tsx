@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Slider } from '@/components/ui/slider';
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
 
 interface EffectControlsProps {
@@ -51,7 +52,8 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
   
   // Handle box shadow change
   const handleBoxShadowChange = (value: string) => {
-    updateDesignProperty('effects', 'boxShadow', value || null);
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('effects', 'boxShadow', sanitized || null);
   };
   
   return (

@@ -5,6 +5,9 @@
  * This solves the "input repopulation bug" where typing gets overwritten
  * by async state updates from the layer classes.
  * 
+ * Automatically sanitizes input values to prevent invalid Tailwind classes
+ * (removes spaces by default).
+ * 
  * @example
  * ```typescript
  * const fontSize = getDesignProperty('typography', 'fontSize') || '';
@@ -13,7 +16,7 @@
  * <Input 
  *   value={fontSizeInput} 
  *   onChange={(e) => {
- *     setFontSizeInput(e.target.value);
+ *     setFontSizeInput(e.target.value); // Spaces automatically stripped
  *     updateDesignProperty('typography', 'fontSize', e.target.value);
  *   }}
  * />
@@ -21,17 +24,21 @@
  */
 
 import { useState, useEffect } from 'react';
+import { removeSpaces } from '@/lib/utils';
 
 /**
  * Hook for controlled input state that syncs with external value
+ * Automatically sanitizes input to prevent invalid Tailwind classes
  * 
  * @param externalValue - The value from layer/design property
  * @param transform - Optional transform function to extract/format the value (e.g., extractValue)
+ * @param sanitize - Enable input sanitization (default: true, removes spaces)
  * @returns [localValue, setLocalValue] - Tuple of local state and setter
  */
 export function useControlledInput(
   externalValue: string | undefined,
-  transform?: (value: string) => string
+  transform?: (value: string) => string,
+  sanitize: boolean = true
 ): [string, (value: string) => void] {
   const [localValue, setLocalValue] = useState('');
 
@@ -42,7 +49,13 @@ export function useControlledInput(
     setLocalValue(transformedValue);
   }, [externalValue, transform]);
 
-  return [localValue, setLocalValue];
+  // Wrapper setter with optional sanitization
+  const setValueSafely = (value: string) => {
+    const processedValue = sanitize ? removeSpaces(value) : value;
+    setLocalValue(processedValue);
+  };
+
+  return [localValue, setValueSafely];
 }
 
 /**

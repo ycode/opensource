@@ -866,7 +866,141 @@ export function findLayerById(layers: Layer[], id: string): Layer | null {
 
 ---
 
-## 🌍 16. Environment Variables
+## 🧹 16. Input Sanitization (MANDATORY for Design Properties)
+
+### ALWAYS Sanitize User Input for Tailwind Classes
+
+Design property inputs (fontSize, width, padding, etc.) MUST be sanitized to prevent invalid Tailwind classes. Spaces break Tailwind syntax.
+
+### Use Centralized Utilities
+
+**Location**: `/lib/utils.ts`
+
+```typescript
+import { removeSpaces, sanitizeInput } from '@/lib/utils';
+
+// ✅ CORRECT: Use removeSpaces for Tailwind values
+const handleFontSizeChange = (value: string) => {
+  const sanitized = removeSpaces(value); // "10 rem" → "10rem"
+  updateDesignProperty('typography', 'fontSize', sanitized || null);
+};
+
+// ✅ CORRECT: Use controlled input hook (auto-sanitizes)
+const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize);
+// Spaces automatically stripped at input level - never appear in the field
+
+// ❌ WRONG: No sanitization
+const handleChange = (value: string) => {
+  updateDesignProperty('typography', 'fontSize', value); // "10 rem" creates invalid class!
+};
+```
+
+### useControlledInput Hook
+
+The `useControlledInput` hook automatically sanitizes input values by default:
+
+```typescript
+import { useControlledInput } from '@/hooks/use-controlled-input';
+
+// Auto-sanitizes by default (removes spaces)
+const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize);
+
+// Opt-out of sanitization if needed (rare)
+const [customInput, setCustomInput] = useControlledInput(value, undefined, false);
+```
+
+### Available Sanitization Functions
+
+```typescript
+// Quick helper: Remove all spaces
+removeSpaces('10 rem')  // '10rem'
+
+// Advanced: Custom sanitization
+sanitizeInput('  100px  ', {
+  removeSpaces: false,
+  trim: true  // '100px'
+})
+
+sanitizeInput('#FF 00 00', {
+  removeSpaces: true  // '#FF0000'
+})
+```
+
+### Rules
+
+1. **ALWAYS** use `removeSpaces()` from `@/lib/utils` for design property handlers
+2. **NEVER** create duplicate `const sanitize =` helpers in components
+3. **USE** `useControlledInput` hook for design property inputs (auto-sanitizes)
+4. **IMPORT** from `@/lib/utils`, not inline implementations
+
+### Defense in Depth
+
+We use **two layers** of protection:
+
+1. **Hook Level**: `useControlledInput` strips spaces before they appear in the input field
+2. **Handler Level**: `removeSpaces()` ensures spaces don't get saved
+
+### Example: Complete Implementation
+
+```typescript
+import { useControlledInput } from '@/hooks/use-controlled-input';
+import { removeSpaces } from '@/lib/utils';
+import { extractMeasurementValue } from '@/lib/measurement-utils';
+
+export default function TypographyControls({ layer, onLayerUpdate }) {
+  const { updateDesignProperty, getDesignProperty } = useDesignSync({
+    layer,
+    onLayerUpdate,
+    activeBreakpoint,
+    activeUIState,
+  });
+  
+  const fontSize = getDesignProperty('typography', 'fontSize') || '';
+  
+  // Hook automatically strips spaces
+  const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize, extractMeasurementValue);
+  
+  const handleFontSizeChange = (value: string) => {
+    setFontSizeInput(value); // Spaces never appear in input
+    const sanitized = removeSpaces(value); // Extra safety layer
+    updateDesignProperty('typography', 'fontSize', sanitized || null);
+  };
+  
+  return (
+    <Input 
+      value={fontSizeInput}
+      onChange={(e) => handleFontSizeChange(e.target.value)}
+    />
+  );
+}
+```
+
+### Why This Matters
+
+```typescript
+// ❌ WITHOUT sanitization:
+User types: "10 rem"
+Creates class: "text-[10 rem]"  // INVALID Tailwind!
+Result: Broken styling, compilation errors
+
+// ✅ WITH sanitization:
+User types: "10 rem"
+Sanitized to: "10rem"
+Creates class: "text-[10rem]"  // VALID Tailwind!
+Result: Perfect styling ✓
+```
+
+### Checklist for Design Property Inputs
+
+- [ ] Import `removeSpaces` from `@/lib/utils`
+- [ ] Use `useControlledInput` hook for state management
+- [ ] Call `removeSpaces()` in change handlers
+- [ ] Never create local `const sanitize =` helpers
+- [ ] Test that spaces don't appear when typing
+
+---
+
+## 🌍 17. Environment Variables
 
 ### Client vs Server
 
@@ -889,7 +1023,7 @@ const secret = process.env.SECRET_KEY; // Undefined in browser!
 
 ---
 
-## 🧪 17. TypeScript Standards
+## 🧪 18. TypeScript Standards
 
 ### NEVER Use `any`
 
@@ -941,7 +1075,7 @@ const [data, setData] = useState<Page | null>(null);
 
 ---
 
-## ✅ 18. ESLint & Code Quality
+## ✅ 19. ESLint & Code Quality
 
 ### Always Run Before Committing
 
@@ -1077,6 +1211,8 @@ const debouncedValue = useDebounce(value, 500);
 - [ ] Event handlers named `handleX`?
 - [ ] Boolean props named `isX`, `hasX`, `shouldX`?
 - [ ] Run `npm run lint:fix` and `npm run type-check`?
+- [ ] Sanitize design property inputs with `removeSpaces`?
+- [ ] Use `useControlledInput` for input state management?
 
 ---
 

@@ -138,14 +138,18 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   
   // Typography
   fontFamily: /^font-(sans|serif|mono|\[.+\])$/,
-  fontSize: /^text-(xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl|\[.+\])$/,
+  // Updated to match partial arbitrary values like text-n, text-no, text-non (not just complete text-[10rem])
+  // Excludes text-align values (left, center, right, justify, start, end)
+  fontSize: /^text-(?!(?:left|center|right|justify|start|end)(?:\s|$)).+$/,
   fontWeight: /^font-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black|\[.+\])$/,
   lineHeight: /^leading-(none|tight|snug|normal|relaxed|loose|\d+|\[.+\])$/,
   letterSpacing: /^tracking-(tighter|tight|normal|wide|wider|widest|\[.+\])$/,
   textAlign: /^text-(left|center|right|justify|start|end)$/,
   textTransform: /^(uppercase|lowercase|capitalize|normal-case)$/,
   textDecoration: /^(underline|overline|line-through|no-underline)$/,
-  color: /^text-(?!(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl|left|center|right|justify|start|end)$)((\w+)(-\d+)?|\[.+\])$/,
+  // Updated to match partial arbitrary values like text-r, text-re, text-red (not just complete text-[#FF0000])
+  // Excludes fontSize named values and text-align values
+  color: /^text-(?!(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl|left|center|right|justify|start|end)(?:\s|$)).+$/,
   
   // Backgrounds
   backgroundColor: /^bg-(?!(?:auto|cover|contain|bottom|center|left|left-bottom|left-top|right|right-bottom|right-top|top|repeat|no-repeat|repeat-x|repeat-y|repeat-round|repeat-space|none|gradient-to-t|gradient-to-tr|gradient-to-r|gradient-to-br|gradient-to-b|gradient-to-bl|gradient-to-l|gradient-to-tl)$)((\w+)(-\d+)?|\[.+\])$/,

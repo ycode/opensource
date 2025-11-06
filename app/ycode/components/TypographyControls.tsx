@@ -11,6 +11,7 @@ import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInput } from '@/hooks/use-controlled-input';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
+import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
 
 interface TypographyControlsProps {
@@ -85,8 +86,9 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
   
   // Handle font size change
   const handleFontSizeChange = (value: string) => {
-    setFontSizeInput(value); // Update local state immediately
-    updateDesignProperty('typography', 'fontSize', value || null);
+    setFontSizeInput(value); // Update local state immediately (spaces auto-stripped by hook)
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('typography', 'fontSize', sanitized || null);
   };
   
   // Handle text align change
@@ -96,14 +98,16 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
   
   // Handle letter spacing change
   const handleLetterSpacingChange = (value: string) => {
-    setLetterSpacingInput(value); // Update local state immediately
-    updateDesignProperty('typography', 'letterSpacing', value || null);
+    setLetterSpacingInput(value); // Update local state immediately (spaces auto-stripped by hook)
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('typography', 'letterSpacing', sanitized || null);
   };
   
   // Handle line height change
   const handleLineHeightChange = (value: string) => {
-    setLineHeightInput(value); // Update local state immediately
-    updateDesignProperty('typography', 'lineHeight', value || null);
+    setLineHeightInput(value); // Update local state immediately (spaces auto-stripped by hook)
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('typography', 'lineHeight', sanitized || null);
   };
   
   return (

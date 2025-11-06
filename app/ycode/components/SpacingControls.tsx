@@ -13,6 +13,7 @@ import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useModeToggle } from '@/hooks/use-mode-toggle';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
+import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
 
 interface SpacingControlsProps {
@@ -69,7 +70,8 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
       if (value === 'auto') {
         updateDesignProperty('spacing', 'margin', 'auto');
       } else {
-        updateDesignProperty('spacing', 'margin', value || null);
+        const sanitized = removeSpaces(value);
+        updateDesignProperty('spacing', 'margin', sanitized || null);
       }
     }
   };
@@ -79,7 +81,8 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginTop', 'auto');
     } else {
-      updateDesignProperty('spacing', 'marginTop', value || null);
+      const sanitized = removeSpaces(value);
+      updateDesignProperty('spacing', 'marginTop', sanitized || null);
     }
   };
   
@@ -88,7 +91,8 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginRight', 'auto');
     } else {
-      updateDesignProperty('spacing', 'marginRight', value || null);
+      const sanitized = removeSpaces(value);
+      updateDesignProperty('spacing', 'marginRight', sanitized || null);
     }
   };
   
@@ -97,7 +101,8 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginBottom', 'auto');
     } else {
-      updateDesignProperty('spacing', 'marginBottom', value || null);
+      const sanitized = removeSpaces(value);
+      updateDesignProperty('spacing', 'marginBottom', sanitized || null);
     }
   };
   
@@ -106,7 +111,8 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     if (value === 'auto') {
       updateDesignProperty('spacing', 'marginLeft', 'auto');
     } else {
-      updateDesignProperty('spacing', 'marginLeft', value || null);
+      const sanitized = removeSpaces(value);
+      updateDesignProperty('spacing', 'marginLeft', sanitized || null);
     }
   };
   
