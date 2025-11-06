@@ -106,6 +106,12 @@ const ELEMENTS_WITHOUT_CHILDREN = [
  * Check if a layer can have children based on its name/type
  */
 export function canHaveChildren(layer: Layer): boolean {
+  // Component instances cannot have children added to them
+  // Children can only be edited in the master component
+  if (layer.componentId) {
+    return false;
+  }
+  
   const elementName = (layer.name || layer.type) ?? '';
   return !ELEMENTS_WITHOUT_CHILDREN.includes(elementName);
 }

@@ -178,8 +178,8 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
       name: 'div',
       customName: component.name,
       componentId: component.id,
-      classes: '',
-      children: undefined, // Children will come from component
+      classes: ['block'], // Ensure it renders as a block element
+      children: [], // Will be populated by resolveComponents on published pages
     };
 
     // Use the internal addLayerFromTemplate to properly add to tree

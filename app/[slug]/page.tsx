@@ -108,10 +108,10 @@ async function fetchPublishedPageWithLayers(slug: string) {
         return null;
       }
     },
-    [`page-data-${slug}`], // Unique cache key per slug
+    [`page-data-${slug}-v2`], // Unique cache key per slug (v2 for component fix)
     {
       tags: [`page-${slug}`], // Tag for revalidation on publish
-      revalidate: 3600, // Cache for 1 hour
+      revalidate: 60, // Cache for 1 minute (reduced for testing)
     }
   )();
 }

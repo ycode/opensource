@@ -119,16 +119,33 @@ function buildComponentMap(layers: Layer[], componentMap: Record<string, string>
  */
 function resolveComponentsInLayers(layers: Layer[], components: Component[]): Layer[] {
   return layers.map(layer => {
-    // If this layer is a component instance, resolve it
+    // If this layer is a component instance, populate its children from the component
     if (layer.componentId) {
       const component = components.find(c => c.id === layer.componentId);
       
-      if (component && component.layers) {
-        // Return the component instance with component's layers as children
-        return {
+      if (component && component.layers && component.layers.length > 0) {
+        // The component's first layer is the actual content (Section, etc.)
+        const componentContent = component.layers[0];
+        
+        // Recursively resolve any nested components within the component's content
+        const resolvedChildren = componentContent.children 
+          ? resolveComponentsInLayers(componentContent.children, components)
+          : [];
+        
+        // Return the wrapper with the component's content merged in
+        const resolved = {
           ...layer,
-          children: component.layers,
+          ...componentContent, // Merge the component's properties (classes, design, etc.)
+          id: layer.id, // Keep the instance's ID
+          // Remove componentId so it's treated as a normal resolved layer
+          componentId: undefined,
+          children: resolvedChildren,
         };
+        
+        // Clean up undefined properties
+        delete resolved.componentId;
+        
+        return resolved;
       }
     }
     

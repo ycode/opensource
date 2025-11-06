@@ -141,7 +141,32 @@ export default function CenterCanvas({
           break;
 
         case 'TEXT_CHANGE_END':
-          if (currentPageId) {
+          if (editingComponentId) {
+            // Update layer in component draft
+            const { updateComponentDraft } = useComponentsStore.getState();
+            const currentDraft = componentDrafts[editingComponentId] || [];
+            
+            // Helper to update a layer in the tree
+            const updateLayerInTree = (layers: Layer[], layerId: string, updates: Partial<Layer>): Layer[] => {
+              return layers.map(layer => {
+                if (layer.id === layerId) {
+                  return { ...layer, ...updates };
+                }
+                if (layer.children) {
+                  return { ...layer, children: updateLayerInTree(layer.children, layerId, updates) };
+                }
+                return layer;
+              });
+            };
+            
+            const updatedLayers = updateLayerInTree(currentDraft, message.payload.layerId, {
+              text: message.payload.text,
+              content: message.payload.text,
+            });
+            
+            updateComponentDraft(editingComponentId, updatedLayers);
+          } else if (currentPageId) {
+            // Update layer in page draft
             updateLayer(currentPageId, message.payload.layerId, {
               text: message.payload.text,
               content: message.payload.text,
@@ -163,7 +188,7 @@ export default function CenterCanvas({
 
     const cleanup = listenToIframe(handleIframeMessage);
     return cleanup;
-  }, [currentPageId, setSelectedLayerId, updateLayer]);
+  }, [currentPageId, editingComponentId, componentDrafts, setSelectedLayerId, updateLayer]);
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">

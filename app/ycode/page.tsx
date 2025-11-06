@@ -371,20 +371,77 @@ export default function YCodeBuilder() {
     return null;
   }, [currentPageId, selectedLayerId, draftsByPageId]);
 
+  // Find the next layer to select after deletion
+  // Priority: next sibling > previous sibling > parent
+  const findNextLayerToSelect = (layers: Layer[], layerIdToDelete: string): string | null => {
+    // Helper to find layer with its parent and siblings
+    const findLayerContext = (
+      tree: Layer[], 
+      targetId: string, 
+      parent: Layer | null = null
+    ): { layer: Layer; parent: Layer | null; siblings: Layer[] } | null => {
+      for (let i = 0; i < tree.length; i++) {
+        const node = tree[i];
+        
+        if (node.id === targetId) {
+          return { layer: node, parent, siblings: tree };
+        }
+        
+        if (node.children) {
+          const found = findLayerContext(node.children, targetId, node);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    const context = findLayerContext(layers, layerIdToDelete);
+    if (!context) return null;
+    
+    const { parent, siblings } = context;
+    const currentIndex = siblings.findIndex(s => s.id === layerIdToDelete);
+    
+    // Try next sibling
+    if (currentIndex < siblings.length - 1) {
+      return siblings[currentIndex + 1].id;
+    }
+    
+    // Try previous sibling
+    if (currentIndex > 0) {
+      return siblings[currentIndex - 1].id;
+    }
+    
+    // Fall back to parent
+    if (parent) {
+      return parent.id;
+    }
+    
+    // If no parent and no siblings, try to find any other layer
+    const allLayers = layers.filter(l => l.id !== layerIdToDelete);
+    if (allLayers.length > 0) {
+      return allLayers[0].id;
+    }
+    
+    return null;
+  };
+
   // Delete selected layer
   const deleteSelectedLayer = useCallback(() => {
     if (!selectedLayerId) return;
     
+    // Find the next layer to select before deleting
+    const layers = getCurrentLayers();
+    const nextLayerId = findNextLayerToSelect(layers, selectedLayerId);
+    
     if (editingComponentId) {
       // Delete from component draft
-      const layers = getCurrentLayers();
       const newLayers = removeLayerById(layers, selectedLayerId);
       updateCurrentLayers(newLayers);
-      setSelectedLayerId(null);
+      setSelectedLayerId(nextLayerId);
     } else if (currentPageId) {
       // Delete from page
       deleteLayer(currentPageId, selectedLayerId);
-      setSelectedLayerId(null);
+      setSelectedLayerId(nextLayerId);
     }
   }, [selectedLayerId, editingComponentId, currentPageId, getCurrentLayers, updateCurrentLayers, deleteLayer, setSelectedLayerId]);
 

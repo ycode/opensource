@@ -214,6 +214,11 @@ function LayerRow({
   const appliedComponent = node.layer.componentId ? getComponentById(node.layer.componentId) : null;
   const isComponentInstance = !!appliedComponent;
   
+  // Component instances should not show children in the tree (unless editing master)
+  // Children can only be edited via "Edit master component"
+  const shouldHideChildren = isComponentInstance && !editingComponentId;
+  const effectiveHasChildren = hasChildren && !shouldHideChildren;
+  
   // Use purple for component instances OR when editing a component
   const usePurpleStyle = isComponentInstance || !!editingComponentId;
 
@@ -316,6 +321,8 @@ function LayerRow({
             !isSelected && !isChildOfSelected && 'rounded-lg text-secondary-foreground/80 dark:text-primary-foreground/80',
             // Background colors
             !isDragActive && !isDragging && 'hover:bg-secondary/50',
+            // Component instances get cursor-default when not expandable
+            shouldHideChildren && 'cursor-default',
             // Component instances OR component edit mode use purple, regular layers use blue
             isSelected && !usePurpleStyle && 'bg-primary text-primary-foreground hover:bg-primary',
             isSelected && usePurpleStyle && 'bg-purple-500 text-white hover:bg-purple-500',
@@ -327,31 +334,26 @@ function LayerRow({
           )}
           style={{ paddingLeft: `${node.depth * 14 + 8}px` }}
           onClick={(e) => {
-            // Multi-select support
-            if (e.metaKey || e.ctrlKey) {
-              // Cmd/Ctrl+Click: Toggle this layer in selection
-              onMultiSelect(node.id, { meta: true, shift: false });
-            } else if (e.shiftKey) {
-              // Shift+Click: Select range
-              onMultiSelect(node.id, { meta: false, shift: true });
-            } else {
-              // Normal click: Select only this layer
-              onSelect(node.id);
-            }
+            // Normal click: Select only this layer
+            onSelect(node.id);
           }}
         >
           {/* Expand/Collapse Button - only show for elements that can have children */}
           {node.canHaveChildren ? (
-            hasChildren ? (
+            effectiveHasChildren ? (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onToggle(node.id);
+                  if (!shouldHideChildren) {
+                    onToggle(node.id);
+                  }
                 }}
                 className={cn(
                   'w-4 h-4 flex items-center justify-center flex-shrink-0',
                   isCollapsed ? '' : 'rotate-90',
+                  shouldHideChildren && 'opacity-30 cursor-not-allowed'
                 )}
+                disabled={shouldHideChildren}
               >
                 <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isSelected && 'opacity-80')} />
               </button>

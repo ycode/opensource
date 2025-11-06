@@ -336,16 +336,46 @@ export default function RightSidebar({
   const isComponentInstance = !!selectedLayer.componentId;
   const component = isComponentInstance ? getComponentById(selectedLayer.componentId!) : null;
 
-  // If it's a component instance, show a message instead of design properties
-  if (isComponentInstance && component) {
+  // If it's a component instance, show a message with edit button instead of design properties
+  if (isComponentInstance && component && !editingComponentId) {
+    const handleEditMasterComponent = () => {
+      const { setEditingComponentId } = useEditorStore.getState();
+      const { loadComponentDraft } = useComponentsStore.getState();
+      const { setSelectedLayerId } = useEditorStore.getState();
+      
+      // Enter edit mode with the current page as return destination
+      setEditingComponentId(component.id, currentPageId);
+      
+      // Load the component's layers into draft
+      loadComponentDraft(component.id);
+      
+      // Select the first layer of the component
+      if (component.layers && component.layers.length > 0) {
+        setSelectedLayerId(component.layers[0].id);
+      } else {
+        setSelectedLayerId(null);
+      }
+    };
+    
     return (
       <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
           <Empty>
             <EmptyTitle>Component Instance</EmptyTitle>
             <EmptyDescription>
-              This is an instance of &quot;{component.name}&quot;. To edit this component, right-click and select &quot;Edit master component&quot;.
+              This is an instance of &quot;{component.name}&quot;. To edit this component, click the button below or right-click and select &quot;Edit master component&quot;.
             </EmptyDescription>
+            <div className="mt-4">
+              <Button 
+                onClick={handleEditMasterComponent}
+                variant="default"
+                size="sm"
+                className="bg-purple-500 hover:bg-purple-600"
+              >
+                <Icon name="edit" className="mr-2" />
+                Edit Master Component
+              </Button>
+            </div>
           </Empty>
         </div>
       </div>

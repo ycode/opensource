@@ -1564,12 +1564,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     
     try {
       // Create the component via API
+      // The component should store the ENTIRE layer tree including the wrapper
       const response = await fetch('/api/components', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: componentName,
-          layers: [layerToCopy], // Component stores the layer tree
+          layers: [layerToCopy], // Store the complete layer tree with wrapper
         }),
       });
       
@@ -1586,13 +1587,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       const updateLayerToInstance = (layers: Layer[]): Layer[] => {
         return layers.map(layer => {
           if (layer.id === layerId) {
-            // Replace with component instance
+            // Keep the original layer but mark it as a component instance
+            // Remove children since they'll come from the component
             return {
               ...layer,
               componentId: newComponent.id,
-              // Keep the layer's id and customName but remove children
-              // (they'll be rendered from the component)
-              children: undefined,
+              children: [],
             };
           }
           
