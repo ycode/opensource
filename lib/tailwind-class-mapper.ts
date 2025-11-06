@@ -203,6 +203,7 @@ function extractArbitraryValue(className: string): string | null {
 /**
  * Remove conflicting classes based on property name
  * Smart handling for text-[...] to distinguish between fontSize and color
+ * Smart handling for bg-[...] to distinguish between backgroundColor and backgroundImage
  */
 export function removeConflictingClasses(
   classes: string[],
@@ -230,6 +231,25 @@ export function removeConflictingClasses(
         // If we're removing color conflicts, keep size classes
         if (property === 'color' && !isColor) {
           return true; // Keep this class, it's a size not a color
+        }
+      }
+    }
+    
+    // Special handling for bg-[...] arbitrary values
+    // Need to distinguish between backgroundColor (bg-[#0000FF]) and backgroundImage (bg-[url(...)])
+    if (cls.startsWith('bg-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) {
+        const isImage = isImageValue(value);
+        
+        // If we're removing backgroundColor conflicts, keep image classes
+        if (property === 'backgroundColor' && isImage) {
+          return true; // Keep this class, it's an image not a color
+        }
+        
+        // If we're removing backgroundImage conflicts, keep color classes
+        if (property === 'backgroundImage' && !isImage) {
+          return true; // Keep this class, it's a color not an image
         }
       }
     }
@@ -509,6 +529,7 @@ export function designToClassString(design?: Layer['design']): string {
  * Detect which design properties a class affects
  * Returns an array of property names that should have conflicts removed
  * Smart handling for text-[...] to distinguish between fontSize and color
+ * Smart handling for bg-[...] to distinguish between backgroundColor and backgroundImage
  */
 export function getAffectedProperties(className: string): string[] {
   const properties: string[] = [];
@@ -527,6 +548,25 @@ export function getAffectedProperties(className: string): string[] {
       } else {
         // This is a fontSize class, only affects fontSize property
         properties.push('fontSize');
+        return properties;
+      }
+    }
+  }
+  
+  // Special handling for bg-[...] arbitrary values
+  // Must distinguish between backgroundColor and backgroundImage
+  if (className.startsWith('bg-[')) {
+    const value = extractArbitraryValue(className);
+    if (value) {
+      const isImage = isImageValue(value);
+      
+      if (isImage) {
+        // This is an image class, only affects backgroundImage property
+        properties.push('backgroundImage');
+        return properties;
+      } else {
+        // This is a color class, only affects backgroundColor property
+        properties.push('backgroundColor');
         return properties;
       }
     }
@@ -1056,14 +1096,38 @@ export function getBreakpointClasses(classes: string[], breakpoint: Breakpoint):
 }
 
 /**
+ * Helper: Check if a value is likely a background image (URL or gradient)
+ */
+function isImageValue(value: string): boolean {
+  // Check for URLs
+  if (value.startsWith('url(') || value.includes('http://') || value.includes('https://') || value.includes('data:')) {
+    return true;
+  }
+  
+  // Check for gradients
+  if (value.includes('gradient(') || value.includes('linear-gradient') || value.includes('radial-gradient') || value.includes('conic-gradient')) {
+    return true;
+  }
+  
+  // If it's a color, it's not an image
+  if (isColorValue(value)) {
+    return false;
+  }
+  
+  // Default: if we can't determine, treat as color (safer default for bg-[...])
+  return false;
+}
+
+/**
  * Helper: Check if a class should be included when looking for a specific property
  * Smart filtering for text-[...] to distinguish between fontSize and color
+ * Smart filtering for bg-[...] to distinguish between backgroundColor and backgroundImage
  */
 function shouldIncludeClassForProperty(className: string, property: string, pattern: RegExp): boolean {
   // First check if pattern matches
   if (!pattern.test(className)) return false;
   
-  // Special handling for text-[...] arbitrary values
+  // Special handling for text-[...] arbitrary values (fontSize vs color)
   if (className.startsWith('text-[')) {
     const value = extractArbitraryValue(className);
     if (value) {
@@ -1076,6 +1140,24 @@ function shouldIncludeClassForProperty(className: string, property: string, patt
       
       // If looking for color, exclude size values
       if (property === 'color' && !isColor) {
+        return false;
+      }
+    }
+  }
+  
+  // Special handling for bg-[...] arbitrary values (backgroundColor vs backgroundImage)
+  if (className.startsWith('bg-[')) {
+    const value = extractArbitraryValue(className);
+    if (value) {
+      const isImage = isImageValue(value);
+      
+      // If looking for backgroundColor, exclude image values
+      if (property === 'backgroundColor' && isImage) {
+        return false;
+      }
+      
+      // If looking for backgroundImage, exclude color values
+      if (property === 'backgroundImage' && !isImage) {
         return false;
       }
     }
