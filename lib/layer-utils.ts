@@ -3,6 +3,7 @@
  */
 
 import { Layer } from '@/types';
+import { cn } from '@/lib/utils';
 
 /**
  * Find a layer by ID in a tree structure
@@ -45,12 +46,13 @@ export function getHtmlTag(layer: Layer): string {
 
 /**
  * Get classes as string (support both string and array formats)
+ * Uses cn() to ensure proper class merging and conflict resolution
  */
 export function getClassesString(layer: Layer): string {
   if (Array.isArray(layer.classes)) {
-    return layer.classes.join(' ');
+    return cn(...layer.classes);
   }
-  return layer.classes || '';
+  return cn(layer.classes || '');
 }
 
 /**

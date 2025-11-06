@@ -6,6 +6,51 @@
  */
 
 import type { Layer, UIState } from '@/types';
+import { cn } from '@/lib/utils';
+
+/**
+ * Helper: Check if a value looks like a color (hex, rgb, rgba, hsl, hsla, or color name)
+ * Used to distinguish between text-[color] and text-[size] arbitrary values
+ */
+function isColorValue(value: string): boolean {
+  // Check for hex colors (with or without #)
+  // Supports: #RGB, RGB, #RRGGBB, RRGGBB, #RRGGBBAA, RRGGBBAA
+  if (/^#?[0-9A-Fa-f]{3}$/.test(value)) return true; // #RGB or RGB
+  if (/^#?[0-9A-Fa-f]{6}$/.test(value)) return true; // #RRGGBB or RRGGBB
+  if (/^#?[0-9A-Fa-f]{8}$/.test(value)) return true; // #RRGGBBAA or RRGGBBAA
+  
+  // Check for rgb/rgba functions
+  // Supports: rgb(r,g,b), rgba(r,g,b,a), with or without spaces
+  if (/^rgba?\s*\(/i.test(value)) return true;
+  
+  // Check for hsl/hsla functions
+  // Supports: hsl(h,s,l), hsla(h,s,l,a), with or without spaces
+  if (/^hsla?\s*\(/i.test(value)) return true;
+  
+  // Check for CSS color keywords (common ones)
+  const colorKeywords = [
+    'transparent', 'currentcolor', 'inherit',
+    'black', 'white', 'red', 'green', 'blue',
+    'yellow', 'purple', 'pink', 'gray', 'grey', 'orange', 'cyan', 'magenta',
+    'indigo', 'violet', 'brown', 'lime', 'teal', 'navy', 'maroon', 'olive'
+  ];
+  if (colorKeywords.includes(value.toLowerCase())) return true;
+  
+  // If it has a size unit, it's definitely NOT a color
+  // Units: px, rem, em, %, vh, vw, vmin, vmax, ch, ex, cm, mm, in, pt, pc
+  if (/^-?\d*\.?\d+(px|rem|em|%|vh|vw|vmin|vmax|ch|ex|cm|mm|in|pt|pc)$/i.test(value)) {
+    return false;
+  }
+  
+  // If it's just a number (with optional decimal), it's a size, not a color
+  // Examples: 10, 1.5, 100, 0.5
+  if (/^-?\d*\.?\d+$/.test(value)) {
+    return false;
+  }
+  
+  // Default: if we can't determine, assume it's NOT a color (safer default)
+  return false;
+}
 
 /**
  * Helper: Format measurement value for Tailwind class generation
@@ -144,7 +189,16 @@ export function getConflictingClassPattern(property: string): RegExp | null {
 }
 
 /**
+ * Helper: Extract arbitrary value from Tailwind class
+ */
+function extractArbitraryValue(className: string): string | null {
+  const match = className.match(/\[([^\]]+)\]/);
+  return match ? match[1] : null;
+}
+
+/**
  * Remove conflicting classes based on property name
+ * Smart handling for text-[...] to distinguish between fontSize and color
  */
 export function removeConflictingClasses(
   classes: string[],
@@ -153,11 +207,38 @@ export function removeConflictingClasses(
   const pattern = getConflictingClassPattern(property);
   if (!pattern) return classes;
   
-  return classes.filter(cls => !pattern.test(cls));
+  return classes.filter(cls => {
+    // Check if this class matches the pattern
+    if (!pattern.test(cls)) return true; // Keep it if it doesn't match
+    
+    // Special handling for text-[...] arbitrary values
+    // Need to distinguish between fontSize (text-[10rem]) and color (text-[#0000FF])
+    if (cls.startsWith('text-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) {
+        const isColor = isColorValue(value);
+        
+        // If we're removing fontSize conflicts, keep color classes
+        if (property === 'fontSize' && isColor) {
+          return true; // Keep this class, it's a color not a size
+        }
+        
+        // If we're removing color conflicts, keep size classes
+        if (property === 'color' && !isColor) {
+          return true; // Keep this class, it's a size not a color
+        }
+      }
+    }
+    
+    // For all other cases, remove the conflicting class
+    return false;
+  });
 }
 
 /**
  * Replace a conflicting class with a new one
+ * Note: Does NOT use cn() here because our property-aware conflict detection
+ * is more precise than tailwind-merge for arbitrary values
  */
 export function replaceConflictingClasses(
   existingClasses: string[],
@@ -413,13 +494,41 @@ export function designToClasses(design?: Layer['design']): string[] {
 }
 
 /**
+ * Convert design object to merged Tailwind class string
+ * Uses cn() to ensure proper conflict resolution
+ */
+export function designToClassString(design?: Layer['design']): string {
+  return cn(designToClasses(design));
+}
+
+/**
  * Detect which design properties a class affects
  * Returns an array of property names that should have conflicts removed
+ * Smart handling for text-[...] to distinguish between fontSize and color
  */
 export function getAffectedProperties(className: string): string[] {
   const properties: string[] = [];
   
-  // Check each property pattern to see if this class matches
+  // Special handling for text-[...] arbitrary values
+  // Must distinguish between fontSize and color
+  if (className.startsWith('text-[')) {
+    const value = extractArbitraryValue(className);
+    if (value) {
+      const isColor = isColorValue(value);
+      
+      if (isColor) {
+        // This is a color class, only affects color property
+        properties.push('color');
+        return properties;
+      } else {
+        // This is a fontSize class, only affects fontSize property
+        properties.push('fontSize');
+        return properties;
+      }
+    }
+  }
+  
+  // For all other classes, check each property pattern
   for (const [property, pattern] of Object.entries(CLASS_PROPERTY_MAP)) {
     if (pattern.test(className)) {
       properties.push(property);
@@ -447,15 +556,6 @@ export function removeConflictsForClass(
   });
   
   return result;
-}
-
-/**
- * Helper: Extract arbitrary value from class
- * Example: 'text-[10em]' → '10em'
- */
-function extractArbitraryValue(className: string): string | null {
-  const match = className.match(/\[(.+)\]/);
-  return match ? match[1] : null;
 }
 
 /**
@@ -563,8 +663,17 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     }
     
     // ===== TYPOGRAPHY =====
-    // Font Size
-    if (cls.startsWith('text-[') && !cls.includes('#') && !cls.includes('rgb')) {
+    // Color - Check FIRST before fontSize to avoid confusion
+    if (cls.startsWith('text-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value && isColorValue(value)) {
+        design.typography!.color = value;
+        return; // Skip further checks for this class
+      }
+    }
+    
+    // Font Size - Only if not a color
+    if (cls.startsWith('text-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.typography!.fontSize = value;
     }
@@ -622,12 +731,6 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls.startsWith('tracking-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.typography!.letterSpacing = value;
-    }
-    
-    // Text Color
-    if (cls.startsWith('text-[#') || cls.startsWith('text-[rgb')) {
-      const value = extractArbitraryValue(cls);
-      if (value) design.typography!.color = value;
     }
     
     // ===== SPACING =====
@@ -949,6 +1052,35 @@ export function getBreakpointClasses(classes: string[], breakpoint: Breakpoint):
 }
 
 /**
+ * Helper: Check if a class should be included when looking for a specific property
+ * Smart filtering for text-[...] to distinguish between fontSize and color
+ */
+function shouldIncludeClassForProperty(className: string, property: string, pattern: RegExp): boolean {
+  // First check if pattern matches
+  if (!pattern.test(className)) return false;
+  
+  // Special handling for text-[...] arbitrary values
+  if (className.startsWith('text-[')) {
+    const value = extractArbitraryValue(className);
+    if (value) {
+      const isColor = isColorValue(value);
+      
+      // If looking for fontSize, exclude color values
+      if (property === 'fontSize' && isColor) {
+        return false;
+      }
+      
+      // If looking for color, exclude size values
+      if (property === 'color' && !isColor) {
+        return false;
+      }
+    }
+  }
+  
+  return true;
+}
+
+/**
  * Get inherited value for a property across breakpoints
  * Desktop-first cascade: desktop → tablet → mobile
  */
@@ -982,7 +1114,8 @@ export function getInheritedValue(
         const withPrefix = bpPrefix ? cls.startsWith(fullPrefix) : cls.startsWith(statePrefix);
         if (!withPrefix) return false;
         const baseClass = cls.slice(fullPrefix.length);
-        return pattern.test(baseClass);
+        // Smart filtering for text-[...] classes
+        return shouldIncludeClassForProperty(baseClass, property, pattern);
       });
       
       if (stateClass) {
@@ -999,11 +1132,13 @@ export function getInheritedValue(
         const afterBp = cls.slice(bpPrefix.length);
         // Must not have a state prefix
         if (afterBp.match(/^(hover|focus|active|disabled|visited):/)) return false;
-        return pattern.test(afterBp);
+        // Smart filtering for text-[...] classes
+        return shouldIncludeClassForProperty(afterBp, property, pattern);
       } else {
         // Desktop: no breakpoint prefix, no state prefix
         if (cls.match(/^(max-lg|max-md|hover|focus|active|disabled|visited):/)) return false;
-        return pattern.test(cls);
+        // Smart filtering for text-[...] classes
+        return shouldIncludeClassForProperty(cls, property, pattern);
       }
     });
     
@@ -1031,6 +1166,7 @@ export function getInheritedValue(
 
 /**
  * Remove conflicting classes for a specific breakpoint
+ * Uses smart filtering for text-[...] to distinguish between fontSize and color
  */
 export function removeConflictingClassesForBreakpoint(
   classes: string[],
@@ -1047,14 +1183,19 @@ export function removeConflictingClassesForBreakpoint(
     
     // Only remove if:
     // 1. It's from the same breakpoint
-    // 2. It matches the property pattern
-    return !(parsed.breakpoint === breakpoint && pattern.test(parsed.baseClass));
+    // 2. It matches the property pattern AND passes smart filtering
+    if (parsed.breakpoint === breakpoint) {
+      // Use smart filtering to distinguish text-[size] from text-[color]
+      return !shouldIncludeClassForProperty(parsed.baseClass, property, pattern);
+    }
+    
+    return true; // Keep classes from other breakpoints
   });
 }
 
 /**
  * Add or update a class for a specific breakpoint
- * Handles conflict resolution automatically
+ * Handles conflict resolution automatically with smart filtering
  */
 export function setBreakpointClass(
   classes: string[],
@@ -1071,10 +1212,12 @@ export function setBreakpointClass(
   const fullPrefix = bpPrefix + statePrefix;
 
   // Remove existing class for this property + breakpoint + state
+  // Use smart filtering to preserve text-[color] when adding text-[size] and vice versa
   const newClasses = classes.filter(cls => {
     const parsed = parseFullClass(cls);
     if (parsed.breakpoint !== breakpoint || parsed.uiState !== uiState) return true;
-    return !pattern.test(parsed.baseClass);
+    // Use smart filtering instead of plain pattern test
+    return !shouldIncludeClassForProperty(parsed.baseClass, property, pattern);
   });
 
   // Add new class if value is provided

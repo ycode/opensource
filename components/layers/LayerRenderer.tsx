@@ -7,6 +7,7 @@ import type { Layer } from '../../types';
 import { getHtmlTag, getClassesString, getText, getImageUrl } from '../../lib/layer-utils';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 import { useComponentsStore } from '../../stores/useComponentsStore';
+import { cn } from '@/lib/utils';
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -148,18 +149,18 @@ const LayerItem: React.FC<{
   const showProjection = projected && activeLayerId && activeLayerId !== layer.id;
 
   // Build className with editor states if in edit mode
-  const editorClasses = isEditMode ? [
+  // Use cn() for cleaner conditional class handling and automatic conflict resolution
+  const fullClassName = isEditMode ? cn(
+    classesString,
     'relative',
     'transition-all',
     'duration-100',
-    !isEditing && !isDragging ? 'cursor-pointer hover:outline hover:outline-1 hover:outline-blue-400/30 hover:outline-offset-0' : '',
-    enableDragDrop && !isEditing ? 'cursor-grab active:cursor-grabbing' : '',
-    isSelected ? 'outline outline-2 outline-blue-500 outline-offset-1' : '',
-    isDragging ? 'opacity-30 outline-none' : '',
-    showProjection ? 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10' : '',
-  ].filter(Boolean).join(' ') : '';
-
-  const fullClassName = [classesString, editorClasses].filter(Boolean).join(' ');
+    !isEditing && !isDragging && 'cursor-pointer hover:outline hover:outline-1 hover:outline-blue-400/30 hover:outline-offset-0',
+    enableDragDrop && !isEditing && 'cursor-grab active:cursor-grabbing',
+    isSelected && 'outline outline-2 outline-blue-500 outline-offset-1',
+    isDragging && 'opacity-30 outline-none',
+    showProjection && 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10'
+  ) : classesString;
 
   // Check if layer should be hidden (hide completely in both edit mode and public pages)
   if (layer.settings?.hidden) {

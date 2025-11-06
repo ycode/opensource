@@ -46,6 +46,7 @@ import { usePagesStore } from '@/stores/usePagesStore';
 
 // 6. Utils, APIs, lib
 import { classesToDesign, mergeDesign, removeConflictsForClass } from '@/lib/tailwind-class-mapper';
+import { cn } from '@/lib/utils';
 
 // 7. Types
 import type { Layer } from '@/types';
@@ -213,6 +214,8 @@ export default function RightSidebar({
     const updatedDesign = mergeDesign(selectedLayer.design, parsedDesign);
 
     // Add the new class (after removing conflicts)
+    // Note: Use join instead of cn() here because removeConflictsForClass
+    // already handles property-aware conflict resolution
     const newClasses = [...classesWithoutConflicts, trimmedClass].join(' ');
 
     // Update layer with both classes AND design object
@@ -243,8 +246,9 @@ export default function RightSidebar({
   const addClasses = (newClasses: string) => {
     if (!selectedLayerId) return;
     const currentClasses = classesInput;
-    const updated = currentClasses + ' ' + newClasses;
-    onLayerUpdate(selectedLayerId, { classes: updated.trim() });
+    // Use cn() to ensure proper merging and avoid duplicates
+    const updated = cn(currentClasses, newClasses);
+    onLayerUpdate(selectedLayerId, { classes: updated });
   };
 
   // Handle custom ID change
