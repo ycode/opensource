@@ -84,10 +84,15 @@ export async function upsertDraftLayers(
   const existingDraft = await getDraftLayers(pageId);
 
   // Prepare update data
-  const updateData: any = { layers };
+  const updateData: any = {
+    layers,
+    updated_at: new Date().toISOString()
+  };
+
   if (generatedCSS !== undefined) {
     updateData.generated_css = generatedCSS;
   }
+
   if (additionalData) {
     Object.assign(updateData, additionalData);
   }

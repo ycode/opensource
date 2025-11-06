@@ -233,6 +233,7 @@ export default function HeaderBar({
                   if (!currentPageId) return;
 
                   setIsPublishing(true);
+
                   try {
                     // Save first if there are unsaved changes
                     if (hasUnsavedChanges) {
@@ -241,6 +242,7 @@ export default function HeaderBar({
 
                     // Publish all draft records
                     const response = await publishApi.publishAll();
+
                     if (response.error) {
                       console.error('Publish failed:', response.error);
                     } else {
@@ -258,7 +260,7 @@ export default function HeaderBar({
                 size="sm"
                 className="w-full"
               >
-                {isPublishing ? ( <Spinner className="size-3" /> ) : ('Publish')}
+                {isPublishing ? <Spinner className="size-3" /> : 'Publish'}
               </Button>
             </div>
           </PopoverContent>

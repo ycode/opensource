@@ -1,115 +1,130 @@
-'use client';
+import { unstable_cache } from 'next/cache';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
+import Link from 'next/link';
+import LayerRenderer from '@/components/layers/LayerRenderer';
+import PublishedPageHead from './[slug]/PublishedPageHead';
+import RemoveDarkMode from './[slug]/RemoveDarkMode';
+import type { Metadata } from 'next';
+
+// Force dynamic rendering with on-demand revalidation
+export const dynamic = 'force-static';
+export const revalidate = 3600;
+export const dynamicParams = true;
 
 /**
- * Homepage
- *
- * Checks setup status and redirects to welcome wizard if not configured
- * Otherwise renders the published homepage from database
+ * Fetch homepage data from database with caching
  */
-
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { checkSetupStatus } from '@/lib/api/setup';
-import { pagesApi, pageLayersApi } from '@/lib/api';
-import { findHomepage } from '@/lib/page-utils';
-import LayerRenderer from '@/components/layers/LayerRenderer';
-import type { Page, PageLayers } from '@/types';
-
-export default function Home() {
-  const router = useRouter();
-  const [isRedirecting, setIsRedirecting] = useState(false);
-  const [homepage, setHomepage] = useState<{ page: Page; pageLayers: PageLayers } | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    async function checkSetup() {
+async function fetchHomepage() {
+  return unstable_cache(
+    async () => {
       try {
-        const status = await checkSetupStatus();
+        const supabase = await getSupabaseAdmin();
 
-        if (! status.is_configured) {
-          // Not configured yet - redirect to welcome wizard
-          setIsRedirecting(true);
-          router.push('/welcome');
-          return;
+        if (!supabase) {
+          return null;
         }
 
-        // Get all published pages and find the homepage
-        const pagesResponse = await pagesApi.getAllPublished();
+        // Get the homepage
+        const { data: homepage } = await supabase
+          .from('pages')
+          .select('*')
+          .eq('depth', 0)
+          .eq('is_index', true)
+          .eq('is_locked', true)
+          .eq('is_published', true)
+          .is('deleted_at', null)
+          .limit(1)
+          .single();
 
-        if (pagesResponse.data) {
-          const homepagePage = findHomepage(pagesResponse.data);
-
-          if (homepagePage) {
-            // Fetch published layers
-            const pageLayersResponse = await pageLayersApi.getPublished(homepagePage.id);
-
-            if (pageLayersResponse.data) {
-              setHomepage({
-                page: homepagePage,
-                pageLayers: pageLayersResponse.data,
-              });
-            }
-          }
+        if (!homepage) {
+          return null;
         }
 
-        setIsLoaded(true);
+        // Get published layers for homepage
+        const { data: pageLayers, error: layersError } = await supabase
+          .from('page_layers')
+          .select('*')
+          .eq('page_id', homepage.id)
+          .eq('is_published', true)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (layersError) {
+          return null;
+        }
+
+        return {
+          page: homepage,
+          pageLayers,
+        };
       } catch (error) {
-        console.error('Failed to check setup status:', error);
-        // Assume not configured if check fails
-        setIsRedirecting(true);
-        router.push('/welcome');
+        return null;
       }
+    },
+    ['data-for-route-/'], // Cache key
+    {
+      tags: ['route-/'], // Tags for revalidation (empty slug = homepage)
+      revalidate: 3600, // Cache for 1 hour
     }
+  )();
+}
 
-    checkSetup();
-  }, [router]);
+export default async function Home() {
+  // Fetch homepage data
+  const data = await fetchHomepage();
 
-  // Only show loading spinner if we're redirecting to setup
-  if (isRedirecting) {
+  // If no homepage, show default landing page
+  if (!data || !data.pageLayers.layers || data.pageLayers.layers.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Redirecting to setup...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center p-8">
+          <h1 className="text-6xl font-bold text-gray-900 mb-4">
+            YCode
+          </h1>
+          <p className="text-xl text-gray-600 mb-8">
+            Your website is ready! Create pages in the builder.
+          </p>
+          <Link
+            href="/ycode"
+            className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
+          >
+            Open Builder →
+          </Link>
         </div>
       </div>
     );
   }
 
-  // Don't render anything until loaded (prevents flash)
-  if (!isLoaded) {
-    return null;
-  }
-
-  // Render homepage if it exists
-  if (homepage && homepage.pageLayers.layers && homepage.pageLayers.layers.length > 0) {
-    return (
-      <div className="min-h-screen bg-white">
-        <LayerRenderer
-          layers={homepage.pageLayers.layers}
-          isEditMode={false}
-        />
-      </div>
-    );
-  }
-
-  // Default landing page if no homepage
+  // Render homepage
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="text-center p-8">
-        <h1 className="text-6xl font-bold text-gray-900 mb-4">
-          YCode
-        </h1>
-        <p className="text-xl text-gray-600 mb-8">
-          Your website is ready! Create pages in the builder.
-        </p>
-        <a
-          href="/ycode"
-          className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
-        >
-          Open Builder →
-        </a>
-      </div>
+    <div className="min-h-screen bg-white">
+      <RemoveDarkMode />
+      {data.pageLayers.generated_css && (
+        <PublishedPageHead css={data.pageLayers.generated_css} />
+      )}
+      <LayerRenderer
+        layers={data.pageLayers.layers}
+        isEditMode={false}
+      />
     </div>
   );
+}
+
+// Generate metadata
+export async function generateMetadata(): Promise<Metadata> {
+  const data = await fetchHomepage();
+
+  if (!data) {
+    return {
+      title: 'YCode',
+      description: 'Built with YCode',
+    };
+  }
+
+  return {
+    title: data.page.name || 'Home',
+    description: `${data.page.name} - Built with YCode`,
+  };
 }
