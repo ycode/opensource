@@ -6,6 +6,7 @@ import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
 import { getHtmlTag, getClassesString, getText, getImageUrl } from '../../lib/layer-utils';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
+import { useComponentsStore } from '../../stores/useComponentsStore';
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -19,8 +20,8 @@ interface LayerRendererProps {
   pageId?: string;
 }
 
-const LayerRenderer: React.FC<LayerRendererProps> = ({ 
-  layers, 
+const LayerRenderer: React.FC<LayerRendererProps> = ({
+  layers,
   onLayerClick,
   onLayerUpdate,
   selectedLayerId,
@@ -32,7 +33,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
-  
+
   return (
     <>
       {layers.map((layer) => (
@@ -88,7 +89,6 @@ const LayerItem: React.FC<{
   pageId,
 }) => {
   const isSelected = selectedLayerId === layer.id;
-  const hasChildren = (layer.children && layer.children.length > 0) || false;
   const isEditing = editingLayerId === layer.id;
   const isTextEditable = layer.formattable || layer.type === 'text' || layer.type === 'heading';
   const isDragging = activeLayerId === layer.id;
@@ -96,7 +96,16 @@ const LayerItem: React.FC<{
   const classesString = getClassesString(layer);
   const textContent = getText(layer);
   const imageUrl = getImageUrl(layer);
-  const children = layer.children;
+
+  // Handle component instances - only fetch from store in edit mode
+  // In published pages, components are pre-resolved server-side via resolveComponents()
+  const getComponentById = useComponentsStore((state) => state.getComponentById);
+  const component = (isEditMode && layer.componentId) ? getComponentById(layer.componentId) : null;
+
+  // For component instances in edit mode, use the component's layers as children
+  // For published pages, children are already resolved server-side
+  const children = (isEditMode && component && component.layers) ? component.layers : layer.children;
+  const hasChildren = (children && children.length > 0) || false;
 
   // Use sortable for drag and drop
   const {
@@ -161,13 +170,13 @@ const LayerItem: React.FC<{
   const renderContent = () => {
     const Tag = htmlTag as any;
     const attributes = layer.attributes || {};
-    
+
     // Check if element is truly empty (no text, no children)
     const isEmpty = !textContent && (!children || children.length === 0);
-    
+
     // Check if this is the Body layer (locked)
     const isLocked = layer.id === 'body' || layer.locked === true;
-    
+
     // Build props for the element
     const elementProps: Record<string, unknown> = {
       ref: setNodeRef,
@@ -178,7 +187,7 @@ const LayerItem: React.FC<{
       'data-is-empty': isEmpty ? 'true' : 'false',
       ...(enableDragDrop && !isEditing ? { ...attributes, ...listeners } : attributes),
     };
-    
+
     // Apply custom ID from settings
     if (layer.settings?.id) {
       elementProps.id = layer.settings.id;
@@ -190,7 +199,7 @@ const LayerItem: React.FC<{
         elementProps[name] = value;
       });
     }
-    
+
     // Add editor event handlers if in edit mode (but not for context menu trigger)
     if (isEditMode && !isEditing) {
       const originalOnClick = elementProps.onClick as ((e: React.MouseEvent) => void) | undefined;
@@ -250,8 +259,8 @@ const LayerItem: React.FC<{
         >
           {textContent && textContent}
           {children && children.length > 0 && (
-            <LayerRenderer 
-              layers={children} 
+            <LayerRenderer
+              layers={children}
               onLayerClick={onLayerClick}
               onLayerUpdate={onLayerUpdate}
               selectedLayerId={selectedLayerId}
@@ -307,12 +316,12 @@ const LayerItem: React.FC<{
             {isTextEditable && <span className="ml-2 opacity-75">• Double-click to edit</span>}
           </span>
         )}
-        
+
         {textContent && textContent}
-        
+
         {children && children.length > 0 && (
-          <LayerRenderer 
-            layers={children} 
+          <LayerRenderer
+            layers={children}
             onLayerClick={onLayerClick}
             onLayerUpdate={onLayerUpdate}
             selectedLayerId={selectedLayerId}
@@ -329,13 +338,13 @@ const LayerItem: React.FC<{
 
   // Wrap with context menu in edit mode
   const content = renderContent();
-  
+
   if (isEditMode && pageId && !isEditing) {
     const isLocked = layer.id === 'body' || layer.locked === true;
     return (
-      <LayerContextMenu 
-        layerId={layer.id} 
-        pageId={pageId} 
+      <LayerContextMenu
+        layerId={layer.id}
+        pageId={pageId}
         isLocked={isLocked}
         onLayerSelect={onLayerClick}
       >

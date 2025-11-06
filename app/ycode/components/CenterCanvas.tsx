@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 // 5. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
 
 // 6. Utils
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
@@ -64,30 +65,40 @@ export default function CenterCanvas({
   const [iframeReady, setIframeReady] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { draftsByPageId, addLayer, updateLayer } = usePagesStore();
-  const { setSelectedLayerId, activeUIState } = useEditorStore();
+  const { setSelectedLayerId, activeUIState, editingComponentId } = useEditorStore();
+  const components = useComponentsStore((state) => state.components);
+  const componentDrafts = useComponentsStore((state) => state.componentDrafts);
 
   const layers = useMemo(() => {
+    // If editing a component, show component layers
+    if (editingComponentId) {
+      return componentDrafts[editingComponentId] || [];
+    }
+    
+    // Otherwise show page layers
     if (!currentPageId) {
       return [];
     }
 
     const draft = draftsByPageId[currentPageId];
     return draft ? draft.layers : [];
-  }, [currentPageId, draftsByPageId]);
+  }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
   // Send layers to iframe whenever they change
   useEffect(() => {
     if (!iframeReady || !iframeRef.current) return;
 
-    const serializedLayers = serializeLayers(layers);
+    const { layers: serializedLayers, componentMap } = serializeLayers(layers, components);
     sendToIframe(iframeRef.current, {
       type: 'UPDATE_LAYERS',
       payload: {
         layers: serializedLayers,
         selectedLayerId,
+        componentMap,
+        editingComponentId: editingComponentId || null,
       },
     });
-  }, [layers, selectedLayerId, iframeReady]);
+  }, [layers, selectedLayerId, iframeReady, components, editingComponentId]);
 
   // Send breakpoint updates to iframe
   useEffect(() => {
@@ -130,7 +141,32 @@ export default function CenterCanvas({
           break;
 
         case 'TEXT_CHANGE_END':
-          if (currentPageId) {
+          if (editingComponentId) {
+            // Update layer in component draft
+            const { updateComponentDraft } = useComponentsStore.getState();
+            const currentDraft = componentDrafts[editingComponentId] || [];
+            
+            // Helper to update a layer in the tree
+            const updateLayerInTree = (layers: Layer[], layerId: string, updates: Partial<Layer>): Layer[] => {
+              return layers.map(layer => {
+                if (layer.id === layerId) {
+                  return { ...layer, ...updates };
+                }
+                if (layer.children) {
+                  return { ...layer, children: updateLayerInTree(layer.children, layerId, updates) };
+                }
+                return layer;
+              });
+            };
+            
+            const updatedLayers = updateLayerInTree(currentDraft, message.payload.layerId, {
+              text: message.payload.text,
+              content: message.payload.text,
+            });
+            
+            updateComponentDraft(editingComponentId, updatedLayers);
+          } else if (currentPageId) {
+            // Update layer in page draft
             updateLayer(currentPageId, message.payload.layerId, {
               text: message.payload.text,
               content: message.payload.text,
@@ -152,7 +188,7 @@ export default function CenterCanvas({
 
     const cleanup = listenToIframe(handleIframeMessage);
     return cleanup;
-  }, [currentPageId, setSelectedLayerId, updateLayer]);
+  }, [currentPageId, editingComponentId, componentDrafts, setSelectedLayerId, updateLayer]);
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">

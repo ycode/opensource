@@ -14,6 +14,8 @@
   let editMode = true;
   let currentBreakpoint = 'desktop';
   let currentUIState = 'neutral'; // Active UI state for visual preview
+  let componentMap = {}; // Maps layer IDs to their root component layer ID
+  let editingComponentId = null; // ID of component being edited
   
   // Root element
   const root = document.getElementById('canvas-root');
@@ -39,6 +41,8 @@
       case 'UPDATE_LAYERS':
         layers = message.payload.layers || [];
         selectedLayerId = message.payload.selectedLayerId;
+        componentMap = message.payload.componentMap || {};
+        editingComponentId = message.payload.editingComponentId;
         render();
         break;
         
@@ -441,8 +445,9 @@
     
     // Apply selection state
     if (selectedLayerId === layer.id) {
-      element.classList.add('ycode-selected');
-      addSelectionBadge(element, tag);
+      const selectionClass = editingComponentId ? 'ycode-selected-purple' : 'ycode-selected';
+      element.classList.add(selectionClass);
+      addSelectionBadge(element, tag, !!editingComponentId);
     }
     
     return element;
@@ -455,8 +460,19 @@
     // Click to select
     element.addEventListener('click', function(e) {
       e.stopPropagation();
+      
+      // If this layer is part of a component (and we're NOT editing it), select the component root instead
+      const componentRootId = componentMap[layer.id];
+      const isPartOfComponent = !!componentRootId;
+      const isEditingThisComponent = editingComponentId && componentRootId === editingComponentId;
+      
+      let targetLayerId = layer.id;
+      if (isPartOfComponent && !isEditingThisComponent) {
+        targetLayerId = componentRootId;
+      }
+      
       sendToParent('LAYER_CLICK', {
-        layerId: layer.id,
+        layerId: targetLayerId,
         metaKey: e.metaKey || e.ctrlKey,
         shiftKey: e.shiftKey
       });
@@ -484,13 +500,41 @@
     // Hover effects
     element.addEventListener('mouseenter', function(e) {
       if (editingLayerId !== layer.id) {
-        element.classList.add('ycode-hover');
+        // Check if this layer is part of a component (and we're NOT editing that component)
+        const componentRootId = componentMap[layer.id];
+        const isPartOfComponent = !!componentRootId;
+        const isEditingThisComponent = editingComponentId && componentRootId === editingComponentId;
+        
+        if (isPartOfComponent && !isEditingThisComponent) {
+          // Find the root component element and apply pink hover to it
+          const rootElement = document.querySelector('[data-layer-id="' + componentRootId + '"]');
+          if (rootElement) {
+            rootElement.classList.add('ycode-component-hover');
+          }
+        } else {
+          // Normal hover - use purple in component edit mode, blue otherwise
+          const hoverClass = editingComponentId ? 'ycode-hover-purple' : 'ycode-hover';
+          element.classList.add(hoverClass);
+        }
+        
         hoveredLayerId = layer.id;
       }
     });
     
     element.addEventListener('mouseleave', function(e) {
+      // Remove both types of hover classes
       element.classList.remove('ycode-hover');
+      element.classList.remove('ycode-hover-purple');
+      
+      // Remove component hover from root if applicable
+      const componentRootId = componentMap[layer.id];
+      if (componentRootId) {
+        const rootElement = document.querySelector('[data-layer-id="' + componentRootId + '"]');
+        if (rootElement) {
+          rootElement.classList.remove('ycode-component-hover');
+        }
+      }
+      
       hoveredLayerId = null;
     });
   }
@@ -557,11 +601,12 @@
    * Update selection state without full re-render
    */
   function updateSelection() {
-    // Remove previous selection
-    document.querySelectorAll('.ycode-selected').forEach(el => {
+    // Remove previous selection (both blue and purple)
+    document.querySelectorAll('.ycode-selected, .ycode-selected-purple').forEach(el => {
       el.classList.remove('ycode-selected');
-      // Remove badge
-      const badge = el.querySelector('.ycode-selection-badge');
+      el.classList.remove('ycode-selected-purple');
+      // Remove badge (both types)
+      const badge = el.querySelector('.ycode-selection-badge, .ycode-selection-badge-purple');
       if (badge) badge.remove();
     });
     
@@ -569,9 +614,10 @@
     if (selectedLayerId) {
       const element = document.querySelector(`[data-layer-id="${selectedLayerId}"]`);
       if (element) {
-        element.classList.add('ycode-selected');
+        const selectionClass = editingComponentId ? 'ycode-selected-purple' : 'ycode-selected';
+        element.classList.add(selectionClass);
         const tag = element.getAttribute('data-layer-type');
-        addSelectionBadge(element, tag);
+        addSelectionBadge(element, tag, !!editingComponentId);
       }
     }
   }
@@ -579,13 +625,13 @@
   /**
    * Add selection badge to element
    */
-  function addSelectionBadge(element, tag) {
-    // Remove existing badge
-    const existingBadge = element.querySelector('.ycode-selection-badge');
+  function addSelectionBadge(element, tag, isPurple) {
+    // Remove existing badge (both types)
+    const existingBadge = element.querySelector('.ycode-selection-badge, .ycode-selection-badge-purple');
     if (existingBadge) existingBadge.remove();
     
     const badge = document.createElement('span');
-    badge.className = 'ycode-selection-badge';
+    badge.className = isPurple ? 'ycode-selection-badge-purple' : 'ycode-selection-badge';
     badge.textContent = tag.charAt(0).toUpperCase() + tag.slice(1) + ' Selected';
     
     // Position badge

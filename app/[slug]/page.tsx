@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
 import LayerRenderer from '../../components/layers/LayerRenderer';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { resolveComponents } from '@/lib/resolve-components';
 import PublishedPageHead from './PublishedPageHead';
 import RemoveDarkMode from './RemoveDarkMode';
 
@@ -92,19 +93,25 @@ async function fetchPublishedPageWithLayers(slug: string) {
           return null;
         }
 
+        // Fetch all components to resolve component instances
+        const { data: components } = await supabase
+          .from('components')
+          .select('*');
+
         return {
           page,
           pageLayers,
+          components: components || [],
         };
       } catch (error) {
         console.error('Failed to fetch page:', error);
         return null;
       }
     },
-    [`data-for-route-/${slug}`], // Unique cache key per slug
+    [`data-for-route-/${slug}-v2`], // Unique cache key per slug (v2 for component fix)
     {
       tags: [`route-/${slug}`], // Tag for revalidation on publish
-      revalidate: 3600, // Cache for 1 hour
+      revalidate: 60, // Cache for 1 minute (reduced for testing)
     }
   )();
 }
@@ -120,7 +127,10 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     notFound();
   }
 
-  const { pageLayers } = data;
+  const { page, pageLayers, components } = data;
+
+  // Resolve component instances in the layer tree before rendering
+  const resolvedLayers = resolveComponents(pageLayers.layers || [], components);
 
   // Render the page with extracted CSS from Tailwind JIT (compiled during publish)
   return (
@@ -133,7 +143,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
       <div className="min-h-screen bg-white">
         <LayerRenderer
-          layers={pageLayers.layers || []}
+          layers={resolvedLayers}
           isEditMode={false}
         />
       </div>

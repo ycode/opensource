@@ -17,7 +17,7 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 
 // 2. External libraries
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
-import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder, EyeOff, Layers as LayersIcon } from 'lucide-react';
+import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder, EyeOff, Layers as LayersIcon, Component as ComponentIcon } from 'lucide-react';
 
 // 4. Internal components
 import LayerContextMenu from './LayerContextMenu';
@@ -25,6 +25,7 @@ import LayerContextMenu from './LayerContextMenu';
 // 5. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
 
 // 6. Utils/lib
 import { cn } from '@/lib/utils';
@@ -119,10 +120,15 @@ const elementIcons: Record<string, React.ElementType> = {
 };
 
 // Helper function to get display name for layer
-function getLayerDisplayName(layer: Layer): string {
+function getLayerDisplayName(layer: Layer, component?: { name: string } | null): string {
   // Special case for Body layer
   if (layer.id === 'body') {
     return 'Body';
+  }
+
+  // Use component name if this is a component instance
+  if (component) {
+    return component.name;
   }
 
   // Use custom name if available
@@ -185,6 +191,8 @@ function LayerRow({
   pageId,
 }: LayerRowProps) {
   const { getStyleById } = useLayerStylesStore();
+  const { getComponentById } = useComponentsStore();
+  const { editingComponentId } = useEditorStore();
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
   });
@@ -201,6 +209,18 @@ function LayerRow({
 
   const hasChildren = node.layer.children && node.layer.children.length > 0;
   const isCollapsed = node.collapsed || false;
+
+  // Check if this is a component instance
+  const appliedComponent = node.layer.componentId ? getComponentById(node.layer.componentId) : null;
+  const isComponentInstance = !!appliedComponent;
+
+  // Component instances should not show children in the tree (unless editing master)
+  // Children can only be edited via "Edit master component"
+  const shouldHideChildren = isComponentInstance && !editingComponentId;
+  const effectiveHasChildren = hasChildren && !shouldHideChildren;
+
+  // Use purple for component instances OR when editing a component
+  const usePurpleStyle = isComponentInstance || !!editingComponentId;
 
   const ElementIcon = elementIcons[getIconKey(node.layer)] || Square;
 
@@ -238,26 +258,47 @@ function LayerRow({
         {/* Drop Indicators */}
         {isOver && dropPosition === 'above' && (
           <div
-            className="absolute top-0 left-0 right-0 h-[1.5px] bg-primary z-50"
+            className={cn(
+              'absolute top-0 left-0 right-0 h-[1.5px] z-50',
+              editingComponentId ? 'bg-purple-500' : 'bg-primary'
+            )}
             style={{
               marginLeft: `${node.depth * 14 + 8}px`,
             }}
           >
-            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
+            <div
+              className={cn(
+                'absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950',
+                editingComponentId ? 'border-purple-500' : 'border-primary'
+              )}
+            />
           </div>
         )}
         {isOver && dropPosition === 'below' && (
           <div
-            className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-primary z-50"
+            className={cn(
+              'absolute bottom-0 left-0 right-0 h-[1.5px] z-50',
+              editingComponentId ? 'bg-purple-500' : 'bg-primary'
+            )}
             style={{
               marginLeft: `${node.depth * 14 + 8}px`,
             }}
           >
-            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
+            <div
+              className={cn(
+                'absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950',
+                editingComponentId ? 'border-purple-500' : 'border-primary'
+              )}
+            />
           </div>
         )}
         {isOver && dropPosition === 'inside' && (
-          <div className="absolute inset-0 border-[1.5px] border-primary rounded-lg z-40 pointer-events-none" />
+          <div
+            className={cn(
+              'absolute inset-0 border-[1.5px] rounded-lg z-40 pointer-events-none',
+              editingComponentId ? 'border-purple-500' : 'border-primary'
+            )}
+          />
         )}
 
         {/* Main Row */}
@@ -280,41 +321,45 @@ function LayerRow({
             !isSelected && !isChildOfSelected && 'rounded-lg text-secondary-foreground/80 dark:text-primary-foreground/80',
             // Background colors
             !isDragActive && !isDragging && 'hover:bg-secondary/50',
-            isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
-            !isSelected && isChildOfSelected && 'dark:bg-primary/15 bg-primary/10 text-current/70 hover:bg-primary/15 dark:hover:bg-primary/20',
+            // Component instances get cursor-default when not expandable
+            shouldHideChildren && 'cursor-default',
+            // Component instances OR component edit mode use purple, regular layers use blue
+            isSelected && !usePurpleStyle && 'bg-primary text-primary-foreground hover:bg-primary',
+            isSelected && usePurpleStyle && 'bg-purple-500 text-white hover:bg-purple-500',
+            !isSelected && isChildOfSelected && !usePurpleStyle && 'dark:bg-primary/15 bg-primary/10 text-current/70 hover:bg-primary/15 dark:hover:bg-primary/20',
+            !isSelected && isChildOfSelected && usePurpleStyle && 'dark:bg-purple-500/15 bg-purple-500/10 text-current/70 hover:bg-purple-500/15 dark:hover:bg-purple-500/20',
             isSelected && !isDragActive && !isDragging && '',
             isDragging && '',
             !isDragActive && ''
           )}
           style={{ paddingLeft: `${node.depth * 14 + 8}px` }}
           onClick={(e) => {
-            // Multi-select support
-            if (e.metaKey || e.ctrlKey) {
-              // Cmd/Ctrl+Click: Toggle this layer in selection
-              onMultiSelect(node.id, { meta: true, shift: false });
-            } else if (e.shiftKey) {
-              // Shift+Click: Select range
-              onMultiSelect(node.id, { meta: false, shift: true });
-            } else {
-              // Normal click: Select only this layer
-              onSelect(node.id);
-            }
+            // Normal click: Select only this layer
+            onSelect(node.id);
           }}
         >
-          {/* Expand/Collapse Button */}
-          {canHaveChildren ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggle(node.id);
-              }}
-              className={cn(
-                'w-4 h-4 flex items-center justify-center flex-shrink-0',
-                isCollapsed ? '' : 'rotate-90',
-              )}
-            >
-              <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isSelected && 'opacity-80')} />
-            </button>
+          {/* Expand/Collapse Button - only show for elements that can have children */}
+          {node.canHaveChildren ? (
+            effectiveHasChildren ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!shouldHideChildren) {
+                    onToggle(node.id);
+                  }
+                }}
+                className={cn(
+                  'w-4 h-4 flex items-center justify-center flex-shrink-0',
+                  isCollapsed ? '' : 'rotate-90',
+                  shouldHideChildren && 'opacity-30 cursor-not-allowed'
+                )}
+                disabled={shouldHideChildren}
+              >
+                <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isSelected && 'opacity-80')} />
+              </button>
+            ) : (
+              <div className="w-4 h-4 flex-shrink-0" />
+            )
           ) : (
             <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
               <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-0', isSelected && 'opacity-0')} />
@@ -322,19 +367,23 @@ function LayerRow({
           )}
 
           {/* Layer Icon */}
-          {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400 mx-1.5" />*/}
-          <div
-            className={cn(
-              'size-3 bg-secondary rounded mx-1.5',
-              isSelected && 'opacity-10 dark:bg-white'
-            )}
-          />
+          {isComponentInstance ? (
+            <ComponentIcon className="w-3 h-3 flex-shrink-0 mx-1.5 opacity-75" />
+          ) : (
+            <div
+              className={cn(
+                'size-3 bg-secondary rounded mx-1.5',
+                isSelected && 'opacity-10 dark:bg-white'
+              )}
+            />
+          )}
 
           {/* Label */}
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
-            {getLayerDisplayName(node.layer)}
+            {getLayerDisplayName(node.layer, appliedComponent)}
           </span>
-{/* Style Indicator */}
+
+          {/* Style Indicator */}
           {node.layer.styleId && (
             <div className="flex items-center gap-1 mr-2 flex-shrink-0">
               <LayersIcon className="w-3 h-3 text-purple-400" />
@@ -375,6 +424,9 @@ export default function LayersTree({
 
   // Pull multi-select state from editor store
   const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange } = useEditorStore();
+
+  // Get component by ID function for drag overlay
+  const { getComponentById } = useComponentsStore();
 
   // Use prop or store state (prop takes precedence for compatibility)
   const selectedLayerIds = propSelectedLayerIds ?? storeSelectedLayerIds;
@@ -895,15 +947,19 @@ export default function LayersTree({
             style={{ transform: 'translateX(40px)' }}
           >
             {(() => {
+              const draggedComponent = activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId) : null;
               const ElementIcon = elementIcons[getIconKey(activeNode.layer)] || Square;
               return (
                 <>
-                  {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" />*/}
-                  <div className="size-3 bg-white/10 rounded mx-1.5" />
+                  {draggedComponent ? (
+                    <ComponentIcon className="w-3 h-3 flex-shrink-0 mx-1.5 opacity-75" />
+                  ) : (
+                    <div className="size-3 bg-white/10 rounded mx-1.5" />
+                  )}
                 </>
               );
             })()}
-            <span className="pointer-events-none">{getLayerDisplayName(activeNode.layer)}</span>
+            <span className="pointer-events-none">{getLayerDisplayName(activeNode.layer, activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId) : null)}</span>
           </div>
         ) : null}
       </DragOverlay>

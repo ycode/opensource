@@ -106,7 +106,31 @@ const ELEMENTS_WITHOUT_CHILDREN = [
  * Check if a layer can have children based on its name/type
  */
 export function canHaveChildren(layer: Layer): boolean {
+  // Component instances cannot have children added to them
+  // Children can only be edited in the master component
+  if (layer.componentId) {
+    return false;
+  }
+  
   const elementName = (layer.name || layer.type) ?? '';
   return !ELEMENTS_WITHOUT_CHILDREN.includes(elementName);
+}
+
+/**
+ * Remove a layer by ID from a tree structure
+ * Returns a new array with the layer removed
+ */
+export function removeLayerById(layers: Layer[], id: string): Layer[] {
+  return layers
+    .filter(layer => layer.id !== id)
+    .map(layer => {
+      if (layer.children) {
+        return {
+          ...layer,
+          children: removeLayerById(layer.children, id)
+        };
+      }
+      return layer;
+    });
 }
 

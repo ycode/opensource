@@ -9,6 +9,7 @@ import { canHaveChildren } from '../lib/layer-utils';
 import { getDescendantFolderIds } from '../lib/page-utils';
 import { extractPublishedCSS } from '../lib/extract-published-css';
 import { updateLayersWithStyle, detachStyleFromLayers } from '../lib/layer-style-utils';
+import { updateLayersWithComponent, detachComponentFromLayers } from '../lib/component-utils';
 
 interface PagesState {
   pages: Page[];
@@ -50,6 +51,11 @@ interface PagesActions {
   // Layer Style actions
   updateStyleOnLayers: (styleId: string, newClasses: string, newDesign?: Layer['design']) => void;
   detachStyleFromAllLayers: (styleId: string) => void;
+  
+  // Component actions
+  createComponentFromLayer: (pageId: string, layerId: string, componentName: string) => Promise<string | null>;
+  updateComponentOnLayers: (componentId: string, newLayers: Layer[]) => void;
+  detachComponentFromAllLayers: (componentId: string) => void;
 }
 
 type PagesStore = PagesState & PagesActions;
@@ -1539,6 +1545,122 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       };
     });
 
+    set({ draftsByPageId: updatedDrafts });
+  },
+  
+  /**
+   * Create a component from a layer
+   * Extracts the layer tree and creates a component
+   * Then replaces the original layer with a component instance
+   */
+  createComponentFromLayer: async (pageId, layerId, componentName) => {
+    const { draftsByPageId, copyLayer } = get();
+    const draft = draftsByPageId[pageId];
+    if (!draft) return null;
+    
+    // Get the layer to convert
+    const layerToCopy = copyLayer(pageId, layerId);
+    if (!layerToCopy) return null;
+    
+    try {
+      // Create the component via API
+      // The component should store the ENTIRE layer tree including the wrapper
+      const response = await fetch('/api/components', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: componentName,
+          layers: [layerToCopy], // Store the complete layer tree with wrapper
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.error || !result.data) {
+        console.error('Failed to create component:', result.error);
+        return null;
+      }
+      
+      const newComponent = result.data;
+      
+      // Replace the layer with a component instance
+      const updateLayerToInstance = (layers: Layer[]): Layer[] => {
+        return layers.map(layer => {
+          if (layer.id === layerId) {
+            // Keep the original layer but mark it as a component instance
+            // Remove children since they'll come from the component
+            return {
+              ...layer,
+              componentId: newComponent.id,
+              children: [],
+            };
+          }
+          
+          if (layer.children && layer.children.length > 0) {
+            return {
+              ...layer,
+              children: updateLayerToInstance(layer.children),
+            };
+          }
+          
+          return layer;
+        });
+      };
+      
+      const newLayers = updateLayerToInstance(draft.layers);
+      
+      set({
+        draftsByPageId: {
+          ...draftsByPageId,
+          [pageId]: { ...draft, layers: newLayers }
+        }
+      });
+      
+      return newComponent.id;
+    } catch (error) {
+      console.error('Failed to create component:', error);
+      return null;
+    }
+  },
+  
+  /**
+   * Update all layers using a specific component across all pages
+   * Used when a component is updated
+   */
+  updateComponentOnLayers: (componentId, newLayers) => {
+    const { draftsByPageId } = get();
+    
+    const updatedDrafts = { ...draftsByPageId };
+    
+    Object.keys(updatedDrafts).forEach(pageId => {
+      const draft = updatedDrafts[pageId];
+      updatedDrafts[pageId] = {
+        ...draft,
+        layers: updateLayersWithComponent(draft.layers, componentId, newLayers),
+      };
+    });
+    
+    set({ draftsByPageId: updatedDrafts });
+  },
+  
+  /**
+   * Detach a component from all layers across all pages
+   * Used when a component is deleted
+   * Removes the component link from all instances
+   */
+  detachComponentFromAllLayers: (componentId) => {
+    const { draftsByPageId } = get();
+    
+    const updatedDrafts = { ...draftsByPageId };
+    
+    Object.keys(updatedDrafts).forEach(pageId => {
+      const draft = updatedDrafts[pageId];
+      updatedDrafts[pageId] = {
+        ...draft,
+        layers: detachComponentFromLayers(draft.layers, componentId),
+      };
+    });
+    
     set({ draftsByPageId: updatedDrafts });
   },
 }));

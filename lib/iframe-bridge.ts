@@ -2,11 +2,11 @@
  * Iframe Bridge - Type-safe postMessage communication between editor and canvas iframe
  */
 
-import type { Layer } from '@/types';
+import type { Layer, Component } from '@/types';
 
 // Message types sent FROM parent TO iframe
 export type ParentToIframeMessage =
-  | { type: 'UPDATE_LAYERS'; payload: { layers: Layer[]; selectedLayerId: string | null } }
+  | { type: 'UPDATE_LAYERS'; payload: { layers: Layer[]; selectedLayerId: string | null; componentMap: Record<string, string>; editingComponentId: string | null } }
   | { type: 'UPDATE_SELECTION'; payload: { layerId: string | null } }
   | { type: 'UPDATE_BREAKPOINT'; payload: { breakpoint: 'mobile' | 'tablet' | 'desktop' } }
   | { type: 'UPDATE_UI_STATE'; payload: { uiState: 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current' } }
@@ -91,10 +91,91 @@ function isIframeToParentMessage(message: any): message is IframeToParentMessage
 }
 
 /**
- * Serialize layer data for iframe (remove circular references, etc.)
+ * Build a map of layer IDs to their root component layer ID
+ * This helps the iframe know which layers belong to which component
  */
-export function serializeLayers(layers: Layer[]): Layer[] {
+function buildComponentMap(layers: Layer[], componentMap: Record<string, string> = {}, currentComponentRootId: string | null = null): Record<string, string> {
+  layers.forEach(layer => {
+    // If this is a component instance root, track it
+    const rootId = layer.componentId ? layer.id : currentComponentRootId;
+    
+    // Map all descendants to this component root
+    if (rootId) {
+      componentMap[layer.id] = rootId;
+    }
+    
+    // Recursively process children
+    if (layer.children && layer.children.length > 0) {
+      buildComponentMap(layer.children, componentMap, rootId);
+    }
+  });
+  
+  return componentMap;
+}
+
+/**
+ * Resolve component instances in layer tree
+ * Replaces layers with componentId with the actual component layers
+ */
+function resolveComponentsInLayers(layers: Layer[], components: Component[]): Layer[] {
+  return layers.map(layer => {
+    // If this layer is a component instance, populate its children from the component
+    if (layer.componentId) {
+      const component = components.find(c => c.id === layer.componentId);
+      
+      if (component && component.layers && component.layers.length > 0) {
+        // The component's first layer is the actual content (Section, etc.)
+        const componentContent = component.layers[0];
+        
+        // Recursively resolve any nested components within the component's content
+        const resolvedChildren = componentContent.children 
+          ? resolveComponentsInLayers(componentContent.children, components)
+          : [];
+        
+        // Return the wrapper with the component's content merged in
+        const resolved = {
+          ...layer,
+          ...componentContent, // Merge the component's properties (classes, design, etc.)
+          id: layer.id, // Keep the instance's ID
+          // Remove componentId so it's treated as a normal resolved layer
+          componentId: undefined,
+          children: resolvedChildren,
+        };
+        
+        // Clean up undefined properties
+        delete resolved.componentId;
+        
+        return resolved;
+      }
+    }
+    
+    // Recursively process children
+    if (layer.children && layer.children.length > 0) {
+      return {
+        ...layer,
+        children: resolveComponentsInLayers(layer.children, components),
+      };
+    }
+    
+    return layer;
+  });
+}
+
+/**
+ * Serialize layer data for iframe (remove circular references, resolve components, etc.)
+ * Returns both the resolved layers and a map of layer IDs to their component root IDs
+ */
+export function serializeLayers(layers: Layer[], components: Component[] = []): { layers: Layer[]; componentMap: Record<string, string> } {
+  // First build the component map (before resolving)
+  const componentMap = buildComponentMap(layers);
+  
+  // Then resolve component instances
+  const resolvedLayers = resolveComponentsInLayers(layers, components);
+  
   // Deep clone to avoid mutations
-  return JSON.parse(JSON.stringify(layers));
+  return {
+    layers: JSON.parse(JSON.stringify(resolvedLayers)),
+    componentMap,
+  };
 }
 

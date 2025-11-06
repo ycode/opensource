@@ -58,9 +58,24 @@
       outline-offset: 2px !important;
     }
     
+    .ycode-selected-purple {
+      outline: 2px solid #a855f7 !important;
+      outline-offset: 2px !important;
+    }
+    
     .ycode-hover {
       outline: 1px solid rgba(59, 130, 246, 0.3) !important;
       outline-offset: 0 !important;
+    }
+    
+    .ycode-hover-purple {
+      outline: 1px solid rgba(168, 85, 247, 0.3) !important;
+      outline-offset: 0 !important;
+    }
+    
+    .ycode-component-hover {
+      outline: 2px solid rgba(168, 85, 247, 0.5) !important;
+      outline-offset: 2px !important;
     }
     
     .ycode-editing {
@@ -89,6 +104,21 @@
       top: -28px;
       left: 0;
       background-color: #3b82f6;
+      color: white;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    
+    .ycode-selection-badge-purple {
+      position: absolute;
+      top: -28px;
+      left: 0;
+      background-color: #a855f7;
       color: white;
       font-size: 12px;
       padding: 4px 8px;

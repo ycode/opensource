@@ -14,6 +14,7 @@ import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
 
 // 5. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 
 // 6. Utils/lib
@@ -49,7 +50,11 @@ export default function LeftSidebar({
   const { draftsByPageId, loadPages, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
-  const { setSelectedLayerId, setCurrentPageId } = useEditorStore();
+  const { setSelectedLayerId, setCurrentPageId, editingComponentId } = useEditorStore();
+  const { componentDrafts, getComponentById, updateComponentDraft } = useComponentsStore();
+
+  // Get component layers if in edit mode
+  const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
 
   // Listen for keyboard shortcut to toggle ElementLibrary
   useEffect(() => {
@@ -68,16 +73,29 @@ export default function LeftSidebar({
   );
 
   const layersForCurrentPage = useMemo(() => {
+    // If editing a component, show component layers instead
+    if (editingComponentId) {
+      return componentDrafts[editingComponentId] || [];
+    }
+
+    // Otherwise show page layers
     if (!currentPageId) return [];
     const draft = draftsByPageId[currentPageId];
     return draft ? draft.layers : [];
-  }, [currentPageId, draftsByPageId]);
+  }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
   // Handle layer reordering from drag & drop
   const handleLayersReorder = useCallback((newLayers: Layer[]) => {
+    // If editing component, update component draft
+    if (editingComponentId) {
+      updateComponentDraft(editingComponentId, newLayers);
+      return;
+    }
+
+    // Otherwise update page draft
     if (!currentPageId) return;
     setDraftLayers(currentPageId, newLayers);
-  }, [currentPageId, setDraftLayers]);
+  }, [editingComponentId, updateComponentDraft, currentPageId, setDraftLayers]);
 
   // Helper to find layer in tree
   const findLayer = useCallback((layers: Layer[], id: string): { layer: Layer; parentId: string | null } | null => {
@@ -190,18 +208,26 @@ export default function LeftSidebar({
           }}
           className="flex-1 gap-0"
         >
-          <TabsList className="w-full">
-            <TabsTrigger value="layers">Layers</TabsTrigger>
-            <TabsTrigger value="pages">Pages</TabsTrigger>
-            <TabsTrigger value="cms">CMS</TabsTrigger>
-          </TabsList>
+          {/* Hide tabs when editing component - only show layers */}
+          {!editingComponentId && (
+            <TabsList className="w-full">
+              <TabsTrigger value="layers">Layers</TabsTrigger>
+              <TabsTrigger value="pages">Pages</TabsTrigger>
+              <TabsTrigger value="cms">CMS</TabsTrigger>
+            </TabsList>
+          )}
 
           <hr className="mt-4" />
 
           {/* Content */}
           <TabsContent value="layers">
             <header className="py-5 flex justify-between">
-              <span className="font-medium">Layers</span>
+              <span className="font-medium">
+                {editingComponentId && editingComponent
+                  ? `Editing: ${editingComponent.name}`
+                  : 'Layers'
+                }
+              </span>
               <div className="-my-1">
                 <Button
                   size="xs" variant="secondary"
@@ -213,7 +239,7 @@ export default function LeftSidebar({
             </header>
 
             <div className="flex flex-col flex-1">
-              {!currentPageId ? (
+              {!currentPageId && !editingComponentId ? (
                 <Empty>
                   <EmptyTitle>No page selected</EmptyTitle>
                   <EmptyDescription>Select a page from the Pages tab to start building</EmptyDescription>

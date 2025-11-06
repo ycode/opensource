@@ -41,6 +41,7 @@ import UIStateSelector from './UIStateSelector';
 
 // 5. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 
 // 6. Utils, APIs, lib
@@ -72,21 +73,33 @@ export default function RightSidebar({
   const [newAttributeValue, setNewAttributeValue] = useState('');
   const [classesOpen, setClassesOpen] = useState(true);
 
-  const { currentPageId, activeBreakpoint } = useEditorStore();
+  const { currentPageId, activeBreakpoint, editingComponentId } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
+  const { getComponentById, componentDrafts } = useComponentsStore();
 
   const selectedLayer: Layer | null = useMemo(() => {
-    if (! currentPageId || ! selectedLayerId) return null;
-    const draft = draftsByPageId[currentPageId];
-    if (! draft) return null;
-    const stack: Layer[] = [...draft.layers];
+    if (!selectedLayerId) return null;
+    
+    // Get layers from either component draft or page draft
+    let layers: Layer[] = [];
+    if (editingComponentId) {
+      layers = componentDrafts[editingComponentId] || [];
+    } else if (currentPageId) {
+      const draft = draftsByPageId[currentPageId];
+      layers = draft ? draft.layers : [];
+    }
+    
+    if (!layers.length) return null;
+    
+    // Find the selected layer in the tree
+    const stack: Layer[] = [...layers];
     while (stack.length) {
       const node = stack.shift()!;
       if (node.id === selectedLayerId) return node;
       if (node.children) stack.push(...node.children);
     }
     return null;
-  }, [currentPageId, selectedLayerId, draftsByPageId]);
+  }, [editingComponentId, componentDrafts, currentPageId, selectedLayerId, draftsByPageId]);
 
   // Helper function to check if layer is a heading
   const isHeadingLayer = (layer: Layer | null): boolean => {
@@ -315,6 +328,56 @@ export default function RightSidebar({
     return (
       <div className="w-64 shrink-0 bg-background border-l flex items-center justify-center h-screen">
         <span className="text-xs text-white/50">Select layer</span>
+      </div>
+    );
+  }
+
+  // Check if selected layer is a component instance
+  const isComponentInstance = !!selectedLayer.componentId;
+  const component = isComponentInstance ? getComponentById(selectedLayer.componentId!) : null;
+
+  // If it's a component instance, show a message with edit button instead of design properties
+  if (isComponentInstance && component && !editingComponentId) {
+    const handleEditMasterComponent = () => {
+      const { setEditingComponentId } = useEditorStore.getState();
+      const { loadComponentDraft } = useComponentsStore.getState();
+      const { setSelectedLayerId } = useEditorStore.getState();
+      
+      // Enter edit mode with the current page as return destination
+      setEditingComponentId(component.id, currentPageId);
+      
+      // Load the component's layers into draft
+      loadComponentDraft(component.id);
+      
+      // Select the first layer of the component
+      if (component.layers && component.layers.length > 0) {
+        setSelectedLayerId(component.layers[0].id);
+      } else {
+        setSelectedLayerId(null);
+      }
+    };
+    
+    return (
+      <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
+        <div className="flex-1 flex items-center justify-center">
+          <Empty>
+            <EmptyTitle>Component Instance</EmptyTitle>
+            <EmptyDescription>
+              This is an instance of &quot;{component.name}&quot;. To edit this component, click the button below or right-click and select &quot;Edit master component&quot;.
+            </EmptyDescription>
+            <div className="mt-4">
+              <Button 
+                onClick={handleEditMasterComponent}
+                variant="default"
+                size="sm"
+                className="bg-purple-500 hover:bg-purple-600"
+              >
+                <Icon name="edit" className="mr-2" />
+                Edit Master Component
+              </Button>
+            </div>
+          </Empty>
+        </div>
       </div>
     );
   }
