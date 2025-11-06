@@ -48,7 +48,7 @@ export default function PageContextMenu({
         {nodeType === 'page' && onOpen && (
           <>
             <ContextMenuItem onClick={onOpen}>
-              <span>Go to layers</span>
+              <span>Open page</span>
             </ContextMenuItem>
           </>
         )}

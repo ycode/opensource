@@ -6,8 +6,8 @@
  * Slide-out panel for creating and editing pages
  */
 
-import React, { useState, useEffect } from 'react';
-import type { Page } from '@/types';
+import React, { useState, useEffect, useMemo } from 'react';
+import type { Page, PageFolder } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -27,7 +27,8 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
-  SelectTrigger
+  SelectTrigger,
+  SelectValue
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import Icon from '@/components/ui/icon';
@@ -43,6 +44,7 @@ interface PageSettingsPanelProps {
 export interface PageFormData {
   name: string;
   slug: string;
+  page_folder_id?: string | null;
   is_published?: boolean;
   order?: number;
   depth?: number;
@@ -61,19 +63,23 @@ export default function PageSettingsPanel({
 }: PageSettingsPanelProps) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [pageFolderId, setPageFolderId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const pages = usePagesStore((state) => state.pages);
+  const folders = usePagesStore((state) => state.folders);
 
   // Initialize form when page changes
   useEffect(() => {
     if (page) {
       setName(page.name);
       setSlug(page.slug);
+      setPageFolderId(page.page_folder_id);
     } else {
       setName('');
       setSlug('');
+      setPageFolderId(null);
     }
     setError(null);
   }, [page]);
@@ -88,6 +94,29 @@ export default function PageSettingsPanel({
       setSlug(autoSlug);
     }
   }, [name, page]);
+
+  // Build hierarchical folder list for select dropdown
+  const folderOptions = useMemo(() => {
+    const buildFolderPath = (folder: PageFolder, allFolders: PageFolder[]): string => {
+      if (!folder.page_folder_id) {
+        return folder.name;
+      }
+      const parent = allFolders.find(f => f.id === folder.page_folder_id);
+      if (!parent) {
+        return folder.name;
+      }
+      return `${buildFolderPath(parent, allFolders)} / ${folder.name}`;
+    };
+
+    return folders
+      .map(folder => ({
+        id: folder.id,
+        name: folder.name,
+        path: buildFolderPath(folder, folders),
+        depth: folder.depth,
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }, [folders]);
 
   const handleSave = async () => {
     // Validation
@@ -123,6 +152,7 @@ export default function PageSettingsPanel({
       await onSave({
         name: name.trim(),
         slug: trimmedSlug,
+        page_folder_id: pageFolderId,
         is_published: false,
       });
     } catch (err) {
@@ -209,14 +239,31 @@ export default function PageSettingsPanel({
                     </Field>
 
                     <Field>
-                      <FieldLabel>Folder</FieldLabel>
-                      <Select>
+                      <FieldLabel>Parent folder</FieldLabel>
+                      <Select
+                        value={pageFolderId || 'root'}
+                        onValueChange={(value) => setPageFolderId(value === 'root' ? null : value)}
+                      >
                         <SelectTrigger>
-                          Coming soon
+                          <SelectValue placeholder="None" />
                         </SelectTrigger>
+
                         <SelectContent>
                           <SelectGroup>
-                            <SelectItem value="1">Coming soon</SelectItem>
+                            <SelectItem value="root">
+                              <div className="flex items-center gap-2">
+                                <Icon name="folder" className="size-3" />
+                                None
+                              </div>
+                            </SelectItem>
+                            {folderOptions.map((folder) => (
+                              <SelectItem key={folder.id} value={folder.id}>
+                                <div className="flex items-center gap-2">
+                                  <Icon name="folder" className="size-3" />
+                                  <span>{folder.path}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
                           </SelectGroup>
                         </SelectContent>
                       </Select>

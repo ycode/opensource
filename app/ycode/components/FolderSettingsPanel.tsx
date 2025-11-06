@@ -6,7 +6,7 @@
  * Slide-out panel for creating and editing folders
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { PageFolder } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,8 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
-  SelectTrigger
+  SelectTrigger,
+  SelectValue
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import Icon from '@/components/ui/icon';
@@ -40,6 +41,7 @@ interface FolderSettingsPanelProps {
 export interface FolderFormData {
   name: string;
   slug: string;
+  page_folder_id?: string | null;
   is_published?: boolean;
   order?: number;
   depth?: number;
@@ -58,6 +60,7 @@ export default function FolderSettingsPanel({
 }: FolderSettingsPanelProps) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [pageFolderId, setPageFolderId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,9 +71,11 @@ export default function FolderSettingsPanel({
     if (folder) {
       setName(folder.name);
       setSlug(folder.slug);
+      setPageFolderId(folder.page_folder_id);
     } else {
       setName('');
       setSlug('');
+      setPageFolderId(null);
     }
     setError(null);
   }, [folder]);
@@ -85,6 +90,44 @@ export default function FolderSettingsPanel({
       setSlug(autoSlug);
     }
   }, [name, folder]);
+
+  // Build hierarchical folder list for select dropdown (exclude current folder and its descendants)
+  const folderOptions = useMemo(() => {
+    const buildFolderPath = (targetFolder: PageFolder, allFolders: PageFolder[]): string => {
+      if (!targetFolder.page_folder_id) {
+        return targetFolder.name;
+      }
+      const parent = allFolders.find(f => f.id === targetFolder.page_folder_id);
+      if (!parent) {
+        return targetFolder.name;
+      }
+      return `${buildFolderPath(parent, allFolders)} / ${targetFolder.name}`;
+    };
+
+    // Helper to check if a folder is a descendant of the current folder
+    const isDescendant = (folderId: string, currentFolderId: string): boolean => {
+      const targetFolder = folders.find(f => f.id === folderId);
+      if (!targetFolder || !targetFolder.page_folder_id) return false;
+      if (targetFolder.page_folder_id === currentFolderId) return true;
+      return isDescendant(targetFolder.page_folder_id, currentFolderId);
+    };
+
+    return folders
+      .filter(f => {
+        // Exclude current folder and its descendants (can't move a folder into itself or its children)
+        if (folder && (f.id === folder.id || isDescendant(f.id, folder.id))) {
+          return false;
+        }
+        return true;
+      })
+      .map(f => ({
+        id: f.id,
+        name: f.name,
+        path: buildFolderPath(f, folders),
+        depth: f.depth,
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }, [folders, folder]);
 
   const handleSave = async () => {
     // Validation
@@ -104,7 +147,7 @@ export default function FolderSettingsPanel({
       (f) =>
         f.id !== folder?.id && // Exclude current folder
         f.slug === trimmedSlug &&
-        f.page_folder_id === folder?.page_folder_id // Same parent folder
+        f.page_folder_id === pageFolderId // Check against the selected parent folder
     );
 
     if (duplicateSlug) {
@@ -119,9 +162,9 @@ export default function FolderSettingsPanel({
       await onSave({
         name: name.trim(),
         slug: trimmedSlug,
+        page_folder_id: pageFolderId,
         is_published: false,
       });
-      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save folder');
     } finally {
@@ -193,14 +236,31 @@ export default function FolderSettingsPanel({
                   </Field>
 
                   <Field>
-                    <FieldLabel>Folder</FieldLabel>
-                    <Select>
+                    <FieldLabel>Parent folder</FieldLabel>
+                    <Select
+                      value={pageFolderId || 'root'}
+                      onValueChange={(value) => setPageFolderId(value === 'root' ? null : value)}
+                    >
                       <SelectTrigger>
-                        Coming soon
+                        <SelectValue placeholder="None" />
                       </SelectTrigger>
+
                       <SelectContent>
                         <SelectGroup>
-                          <SelectItem value="1">Coming soon</SelectItem>
+                          <SelectItem value="root">
+                            <div className="flex items-center gap-2">
+                              <Icon name="folder" className="size-3" />
+                              None
+                            </div>
+                          </SelectItem>
+                          {folderOptions.map((f) => (
+                            <SelectItem key={f.id} value={f.id}>
+                              <div className="flex items-center gap-2">
+                                <Icon name="folder" className="size-3" />
+                                <span>{f.path}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
                         </SelectGroup>
                       </SelectContent>
                     </Select>

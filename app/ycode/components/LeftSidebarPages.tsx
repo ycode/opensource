@@ -234,6 +234,7 @@ export default function LeftSidebarPages({
     const result = await updatePage(editingPage.id, {
       name: data.name,
       slug: data.slug,
+      page_folder_id: data.page_folder_id,
     });
 
     if (result.error) {
@@ -249,6 +250,7 @@ export default function LeftSidebarPages({
     const result = await updateFolder(editingFolder.id, {
       name: data.name,
       slug: data.slug,
+      page_folder_id: data.page_folder_id,
     });
 
     if (result.error) {
