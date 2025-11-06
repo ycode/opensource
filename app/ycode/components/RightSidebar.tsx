@@ -71,6 +71,7 @@ export default function RightSidebar({
   const [showAddAttributePopover, setShowAddAttributePopover] = useState(false);
   const [newAttributeName, setNewAttributeName] = useState('');
   const [newAttributeValue, setNewAttributeValue] = useState('');
+  const [classesOpen, setClassesOpen] = useState(true);
 
   const { currentPageId, activeBreakpoint, editingComponentId } = useEditorStore();
   const { draftsByPageId } = usePagesStore();
@@ -368,7 +369,7 @@ export default function RightSidebar({
         <hr className="mt-2" />
 
         {/* Content */}
-        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden mt-0 pb-12">
+        <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden mt-0">
 
           {/* Layer Styles Panel */}
           <LayerStylesPanel
@@ -399,37 +400,40 @@ export default function RightSidebar({
 
           <PositionControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
 
-          <div className="flex flex-col gap-4 py-5">
-            <header className="py-4 -mt-4">
-              <Label>Classes</Label>
-            </header>
-            <Input
-              value={currentClassInput}
-              onChange={(e) => setCurrentClassInput(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder="Type class and press Enter..."
-            />
-            <div className="flex flex-wrap gap-1.5">
-              {classesArray.length === 0 ? (
+          <SettingsPanel
+            title="Classes"
+            isOpen={classesOpen}
+            onToggle={() => setClassesOpen(!classesOpen)}
+          >
+            <div className="flex flex-col gap-3">
+              <Input
+                value={currentClassInput}
+                onChange={(e) => setCurrentClassInput(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder="Type class and press Enter..."
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {classesArray.length === 0 ? (
                   <div></div>
-              ) : (
-                classesArray.map((cls, index) => (
-                      <Badge
-                        variant="secondary"
-                        key={index}
+                ) : (
+                  classesArray.map((cls, index) => (
+                    <Badge
+                      variant="secondary"
+                      key={index}
+                    >
+                      <span>{cls}</span>
+                      <Button
+                        onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1"
+                        variant="outline"
                       >
-                        <span>{cls}</span>
-                        <Button
-                          onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1"
-                          variant="outline"
-                        >
-                          <Icon name="x" className="size-2" />
-                        </Button>
-                      </Badge>
-                ))
-              )}
+                        <Icon name="x" className="size-2" />
+                      </Button>
+                    </Badge>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
+          </SettingsPanel>
 
         </TabsContent>
 
