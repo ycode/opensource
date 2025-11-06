@@ -2,7 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import Icon from '@/components/ui/icon';
 import PagesTree from './PagesTree';
 import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
@@ -336,12 +342,18 @@ export default function LeftSidebarPages({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="bottom">
               <DropdownMenuItem onClick={handleAddPage}>
-                <Icon name="page" className="size-3" />
-                Add Page
+                Regular
               </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>CMS</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem>Example 1</DropdownMenuItem>
+                  <DropdownMenuItem>Example 2</DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleAddFolder}>
-                <Icon name="folder" className="size-3" />
-                Add Folder
+                Folder
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

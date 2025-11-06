@@ -213,12 +213,12 @@ function LayerRow({
   // Check if this is a component instance
   const appliedComponent = node.layer.componentId ? getComponentById(node.layer.componentId) : null;
   const isComponentInstance = !!appliedComponent;
-  
+
   // Component instances should not show children in the tree (unless editing master)
   // Children can only be edited via "Edit master component"
   const shouldHideChildren = isComponentInstance && !editingComponentId;
   const effectiveHasChildren = hasChildren && !shouldHideChildren;
-  
+
   // Use purple for component instances OR when editing a component
   const usePurpleStyle = isComponentInstance || !!editingComponentId;
 
@@ -361,7 +361,9 @@ function LayerRow({
               <div className="w-4 h-4 flex-shrink-0" />
             )
           ) : (
-            <div className="w-4 h-4 flex-shrink-0" />
+            <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+              <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-0', isSelected && 'opacity-0')} />
+            </div>
           )}
 
           {/* Layer Icon */}
@@ -380,7 +382,7 @@ function LayerRow({
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
             {getLayerDisplayName(node.layer, appliedComponent)}
           </span>
-          
+
           {/* Style Indicator */}
           {node.layer.styleId && (
             <div className="flex items-center gap-1 mr-2 flex-shrink-0">
@@ -422,7 +424,7 @@ export default function LayersTree({
 
   // Pull multi-select state from editor store
   const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange } = useEditorStore();
-  
+
   // Get component by ID function for drag overlay
   const { getComponentById } = useComponentsStore();
 
