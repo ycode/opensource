@@ -92,6 +92,14 @@ export default function YCodeBuilder() {
   // Migration state - BLOCKS builder until migrations complete
   const [migrationsComplete, setMigrationsComplete] = useState(false);
 
+  // Add overflow-hidden to body when builder is mounted
+  useEffect(() => {
+    document.body.classList.add('overflow-hidden');
+    return () => {
+      document.body.classList.remove('overflow-hidden');
+    };
+  }, []);
+
   // Login state (when not authenticated)
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');

@@ -80,7 +80,7 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
   }
 
   return (
-    <div className="fixed inset-0 z-[100] bg-zinc-950 flex items-center justify-center">
+    <div className="fixed inset-0 z-[100] bg-neutral-950 flex items-center justify-center">
       <div className="max-w-md w-full mx-4">
         {error ? (
         // Error state - BLOCKING
