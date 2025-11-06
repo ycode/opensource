@@ -453,3 +453,105 @@ export async function getPagesByFolder(folderId: string | null): Promise<Page[]>
 
   return data || [];
 }
+
+/**
+ * Duplicate a page with its draft layers
+ * Creates a copy of the page and its draft layers with a new slug
+ *
+ * @param pageId - ID of the page to duplicate
+ * @returns Promise resolving to the new duplicated page
+ */
+export async function duplicatePage(pageId: string): Promise<Page> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // Get the original page
+  const originalPage = await getPageById(pageId);
+  if (!originalPage) {
+    throw new Error('Page not found');
+  }
+
+  // Generate new slug with timestamp to ensure uniqueness
+  const timestamp = Date.now();
+  const newSlug = `page-${timestamp}`;
+  const newName = `${originalPage.name} (Copy)`;
+
+  // Get the max order for siblings
+  const query = client
+    .from('pages')
+    .select('order')
+    .eq('depth', originalPage.depth)
+    .is('deleted_at', null);
+
+  // Handle null vs non-null folder_id
+  const orderQuery = originalPage.page_folder_id === null
+    ? query.is('page_folder_id', null)
+    : query.eq('page_folder_id', originalPage.page_folder_id);
+
+  const { data: siblings, error: orderError } = await orderQuery.order('order', { ascending: false }).limit(1);
+
+  if (orderError) {
+    throw new Error(`Failed to get sibling order: ${orderError.message}`);
+  }
+
+  const maxOrder = siblings && siblings.length > 0 ? siblings[0].order : -1;
+  const newOrder = maxOrder + 1;
+
+  // Create the new page
+  const { data: newPage, error: pageError } = await client
+    .from('pages')
+    .insert({
+      name: newName,
+      slug: newSlug,
+      is_published: false, // Always create as unpublished
+      page_folder_id: originalPage.page_folder_id,
+      order: newOrder,
+      depth: originalPage.depth,
+      is_index: false, // Don't duplicate index status
+      is_dynamic: originalPage.is_dynamic,
+      is_locked: false, // Don't duplicate locked status
+      error_page: originalPage.error_page,
+      settings: originalPage.settings || {},
+    })
+    .select()
+    .single();
+
+  if (pageError) {
+    throw new Error(`Failed to create duplicate page: ${pageError.message}`);
+  }
+
+  // Get the original page's draft layers
+  const { data: originalLayers, error: layersError } = await client
+    .from('page_layers')
+    .select('*')
+    .eq('page_id', pageId)
+    .eq('is_published', false)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  // If there are draft layers, duplicate them for the new page
+  if (!layersError && originalLayers) {
+    const { error: newLayersError } = await client
+      .from('page_layers')
+      .insert({
+        page_id: newPage.id,
+        layers: originalLayers.layers,
+        is_published: false,
+        publish_key: newPage.publish_key,
+        generated_css: null, // Don't copy generated CSS
+      });
+
+    if (newLayersError) {
+      // If layer duplication fails, we should still return the page
+      // but log the error
+      console.error('Failed to duplicate layers:', newLayersError);
+    }
+  }
+
+  return newPage;
+}

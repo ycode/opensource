@@ -38,22 +38,22 @@ export default function PageContextMenu({
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className="w-44">
-        {nodeType === 'page' && onOpen && (
-          <>
-            <ContextMenuItem onClick={onOpen}>
-              <span>Open</span>
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-          </>
-        )}
 
         {onSettings && (
           <ContextMenuItem onClick={onSettings}>
-            <span>Edit settings</span>
+            <span>{nodeType === 'page' ? 'Page settings' : 'Folder settings'}</span>
           </ContextMenuItem>
         )}
 
-        {nodeType === 'page' && (onOpen || onSettings) && <ContextMenuSeparator />}
+        {nodeType === 'page' && onOpen && (
+          <>
+            <ContextMenuItem onClick={onOpen}>
+              <span>Go to layers</span>
+            </ContextMenuItem>
+          </>
+        )}
+
+        {((nodeType === 'folder' && (onAddPage || onAddFolder)) || onRename) && <ContextMenuSeparator />}
 
         {nodeType === 'folder' && (
           <>
@@ -67,7 +67,6 @@ export default function PageContextMenu({
                 <span>Add Folder</span>
               </ContextMenuItem>
             )}
-            <ContextMenuSeparator />
           </>
         )}
 
@@ -77,13 +76,13 @@ export default function PageContextMenu({
           </ContextMenuItem>
         )}
 
-        {onDuplicate && (
+        {((nodeType === 'page' && onDuplicate) || onDelete) && <ContextMenuSeparator />}
+
+        {nodeType === 'page' && onDuplicate && (
           <ContextMenuItem onClick={onDuplicate}>
             <span>Duplicate</span>
           </ContextMenuItem>
         )}
-
-        {onDelete && (onRename || onDuplicate) && <ContextMenuSeparator />}
 
         {onDelete && (
           <ContextMenuItem onClick={onDelete} disabled={isLocked}>

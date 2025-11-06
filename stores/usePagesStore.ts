@@ -27,6 +27,7 @@ interface PagesActions {
   loadDraft: (pageId: string) => Promise<void>;
   createPage: (pageData: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>) => Promise<{ success: boolean; data?: Page; error?: string; tempId?: string }>;
   updatePage: (pageId: string, updates: Partial<Page>) => Promise<{ success: boolean; error?: string }>;
+  duplicatePage: (pageId: string) => Promise<{ success: boolean; data?: Page; error?: string }>;
   deletePage: (pageId: string, currentPageId?: string | null) => Promise<{ success: boolean; error?: string; currentPageDeleted?: boolean; nextPageId?: string | null }>;
   createFolder: (folderData: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>) => Promise<{ success: boolean; data?: PageFolder; error?: string; tempId?: string }>;
   updateFolder: (folderId: string, updates: Partial<PageFolder>) => Promise<{ success: boolean; error?: string }>;
@@ -1239,6 +1240,128 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Rollback optimistic update
       set({
         pages: originalPages,
+        error: errorMsg,
+        isLoading: false
+      });
+      return { success: false, error: errorMsg };
+    }
+  },
+
+  duplicatePage: async (pageId) => {
+    console.log('[usePagesStore.duplicatePage] Starting...', pageId);
+
+    const { pages, draftsByPageId } = get();
+
+    // Find the original page
+    const originalPage = pages.find(p => p.id === pageId);
+    if (!originalPage) {
+      return { success: false, error: 'Page not found' };
+    }
+
+    // Generate temporary ID for optimistic update
+    const tempId = `temp-page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const tempPublishKey = `temp-${Date.now()}`;
+
+    // Create temporary duplicated page
+    const tempPage: Page = {
+      id: tempId,
+      name: `${originalPage.name} (Copy)`,
+      slug: `${originalPage.slug}-copy-${Date.now()}`,
+      is_published: false,
+      page_folder_id: originalPage.page_folder_id,
+      order: originalPage.order + 1, // Place right after original
+      depth: originalPage.depth,
+      is_index: false,
+      is_dynamic: originalPage.is_dynamic,
+      is_locked: false,
+      error_page: originalPage.error_page,
+      settings: originalPage.settings || {},
+      publish_key: tempPublishKey,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      deleted_at: null,
+    };
+
+    // Optimistic update: Add to UI immediately
+    // Insert right after the original page
+    const pageIndex = pages.findIndex(p => p.id === pageId);
+    const updatedPages = [...pages];
+    updatedPages.splice(pageIndex + 1, 0, tempPage);
+
+    // Create temporary draft with same layers as original (if exists)
+    const originalDraft = draftsByPageId[pageId];
+    const tempDraft = originalDraft ? {
+      ...originalDraft,
+      id: `draft-${tempId}`,
+      page_id: tempId,
+      publish_key: tempPublishKey,
+      is_published: false,
+      created_at: new Date().toISOString(),
+    } : undefined;
+
+    const updatedDrafts = tempDraft
+      ? { ...draftsByPageId, [tempId]: tempDraft }
+      : draftsByPageId;
+
+    set({
+      pages: updatedPages,
+      draftsByPageId: updatedDrafts,
+      isLoading: true,
+      error: null
+    });
+
+    console.log('[usePagesStore.duplicatePage] Optimistic UI update complete, calling API...');
+
+    try {
+      const response = await fetch(`/api/pages/${pageId}/duplicate`, {
+        method: 'POST',
+      });
+
+      const result = await response.json();
+
+      if (result.error || !result.data) {
+        console.error('[usePagesStore.duplicatePage] Error:', result.error);
+        // Rollback: Remove temp page
+        set({
+          pages: pages,
+          draftsByPageId: draftsByPageId,
+          error: result.error,
+          isLoading: false
+        });
+        return { success: false, error: result.error };
+      }
+
+      // Replace temp page with real one from database
+      const { pages: currentPages, draftsByPageId: currentDrafts } = get();
+      const finalPages = currentPages.map(p => p.id === tempId ? result.data : p);
+
+      // Replace temp draft with real one
+      const finalDrafts = { ...currentDrafts };
+      if (finalDrafts[tempId]) {
+        delete finalDrafts[tempId];
+        finalDrafts[result.data.id] = {
+          ...finalDrafts[tempId],
+          id: `draft-${result.data.id}`,
+          page_id: result.data.id,
+          publish_key: result.data.publish_key,
+        };
+      }
+
+      set({
+        pages: finalPages,
+        draftsByPageId: finalDrafts,
+        isLoading: false
+      });
+
+      console.log('[usePagesStore.duplicatePage] Success - replaced temp ID with real ID');
+      return { success: true, data: result.data };
+    } catch (error) {
+      console.error('[usePagesStore.duplicatePage] Exception:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to duplicate page';
+      // Rollback: Remove temp page
+      set({
+        pages: pages,
+        draftsByPageId: draftsByPageId,
         error: errorMsg,
         isLoading: false
       });

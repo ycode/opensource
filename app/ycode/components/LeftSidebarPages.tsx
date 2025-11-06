@@ -67,7 +67,7 @@ export default function LeftSidebarPages({
   }, [selectedPage, selectedFolder, showPageSettings, showFolderSettings]);
 
   // Get store actions
-  const { createPage, updatePage, deletePage, createFolder, updateFolder, deleteFolder } = usePagesStore();
+  const { createPage, updatePage, duplicatePage, deletePage, createFolder, updateFolder, deleteFolder } = usePagesStore();
 
   // Sync selection with current page when it changes externally
   useEffect(() => {
@@ -230,10 +230,6 @@ export default function LeftSidebarPages({
   const handleSavePage = async (data: PageFormData) => {
     if (!editingPage) return;
 
-    // Optimistically close the panel immediately
-    setShowPageSettings(false);
-    setEditingPage(null);
-
     // Update in background
     const result = await updatePage(editingPage.id, {
       name: data.name,
@@ -249,10 +245,6 @@ export default function LeftSidebarPages({
   const handleSaveFolder = async (data: FolderFormData) => {
     if (!editingFolder) return;
 
-    // Optimistically close the panel immediately
-    setShowFolderSettings(false);
-    setEditingFolder(null);
-
     // Update in background
     const result = await updateFolder(editingFolder.id, {
       name: data.name,
@@ -261,6 +253,26 @@ export default function LeftSidebarPages({
 
     if (result.error) {
       console.error('Failed to save folder:', result.error);
+      // Could show a toast notification here
+    }
+  };
+
+  // Handle duplicate page/folder
+  const handleDuplicate = async (id: string, type: 'folder' | 'page') => {
+    if (type === 'folder') {
+      // Folders cannot be duplicated
+      console.warn('Folder duplication is not supported');
+      return;
+    }
+
+    // Duplicate the page
+    const result = await duplicatePage(id);
+
+    if (result.success && result.data) {
+      // Select the newly duplicated page
+      setSelectedItemId(result.data.id);
+    } else if (result.error) {
+      console.error('Failed to duplicate page:', result.error);
       // Could show a toast notification here
     }
   };
@@ -439,6 +451,7 @@ export default function LeftSidebarPages({
           }}
           onPageSettings={handleEditPage}
           onFolderSettings={handleEditFolder}
+          onDuplicate={handleDuplicate}
           onDelete={deletePageOrFolderItem}
         />
       </div>

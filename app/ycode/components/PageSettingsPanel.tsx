@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
+import { usePagesStore } from '@/stores/usePagesStore';
 import {
   Field,
   FieldContent,
@@ -29,11 +30,13 @@ import {
   SelectTrigger
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import Icon from '@/components/ui/icon';
+import { getPageIcon } from '@/lib/page-utils';
 
 interface PageSettingsPanelProps {
   isOpen: boolean;
-  onClose: () => void;
   page?: Page | null;
+  onClose: () => void;
   onSave: (pageData: PageFormData) => Promise<void>;
 }
 
@@ -60,6 +63,8 @@ export default function PageSettingsPanel({
   const [slug, setSlug] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const pages = usePagesStore((state) => state.pages);
 
   // Initialize form when page changes
   useEffect(() => {
@@ -96,16 +101,30 @@ export default function PageSettingsPanel({
       return;
     }
 
+    // Check for duplicate slug (globally unique per published state)
+    // The database has a unique constraint on (slug, is_published)
+    const trimmedSlug = slug.trim();
+    const duplicateSlug = pages.find(
+      (p) =>
+        p.id !== page?.id && // Exclude current page
+        p.slug === trimmedSlug &&
+        p.is_published === (page?.is_published || false) // Same published state
+    );
+
+    if (duplicateSlug) {
+      setError('This slug is already used by another page');
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
 
     try {
       await onSave({
         name: name.trim(),
-        slug: slug.trim(),
+        slug: trimmedSlug,
         is_published: false,
       });
-      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save page');
     } finally {
@@ -125,11 +144,12 @@ export default function PageSettingsPanel({
 
       {/* Panel */}
       <div className="fixed top-14 left-64 bottom-0 w-[500px] bg-background border-r z-50 flex flex-col">
-
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4">
-
-          <Label>{page ? page.name : 'New Page'}</Label>
+          <div className="flex items-center justify-center gap-1.5">
+            <Icon name={page ? getPageIcon(page) : 'page'} className="size-3" />
+            <Label>{page ? page.name : 'New Page'}</Label>
+          </div>
 
           <div className="flex items-center gap-2">
             <Button
@@ -141,13 +161,12 @@ export default function PageSettingsPanel({
               size="sm"
             >Save</Button>
           </div>
-
         </div>
 
         <hr className="mx-5" />
 
         {/* Tabs */}
-        <Tabs defaultValue="general" className="flex-1 flex flex-col px-4 py-3.5">
+        <Tabs defaultValue="general" className="flex-1 flex flex-col px-5 py-3.5">
           <TabsList className="w-full">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="seo">SEO</TabsTrigger>
@@ -164,12 +183,10 @@ export default function PageSettingsPanel({
               </div>
             )}
 
-          <TabsContent value="general">
-
+            <TabsContent value="general">
               <FieldGroup>
                 <FieldSet>
                   <FieldGroup>
-
                     <Field>
                       <FieldLabel>Page name</FieldLabel>
                       <Input
@@ -185,8 +202,9 @@ export default function PageSettingsPanel({
                       <Input
                         type="text"
                         value={slug}
+                        disabled={page?.is_index}
                         onChange={(e) => setSlug(e.target.value)}
-                        placeholder="index"
+                        placeholder={page?.is_index ? 'Index pages do not have a slug.' : undefined}
                       />
                     </Field>
 
@@ -221,29 +239,31 @@ export default function PageSettingsPanel({
                           Set this page to a homepage.
                         </FieldDescription>
                       </FieldContent>
-                      <Switch id="homepage" />
-                    </Field>
 
+                      <Switch
+                        id="homepage"
+                        checked={page?.is_index}
+                        disabled={page?.is_index}
+                      />
+                    </Field>
                   </FieldGroup>
                 </FieldSet>
               </FieldGroup>
+            </TabsContent>
 
-          </TabsContent>
+            <TabsContent value="seo">
+              <Empty>
+                <EmptyTitle>Coming soon</EmptyTitle>
+                <EmptyDescription>Configure meta tags, descriptions, and more</EmptyDescription>
+              </Empty>
+            </TabsContent>
 
-          <TabsContent value="seo">
-            <Empty>
-              <EmptyTitle>Coming soon</EmptyTitle>
-              <EmptyDescription>Configure meta tags, descriptions, and more</EmptyDescription>
-            </Empty>
-          </TabsContent>
-
-          <TabsContent value="code">
-            <Empty>
-              <EmptyTitle>Coming soon</EmptyTitle>
-              <EmptyDescription>Add custom HTML, CSS, and JavaScript</EmptyDescription>
-            </Empty>
-          </TabsContent>
-
+            <TabsContent value="code">
+              <Empty>
+                <EmptyTitle>Coming soon</EmptyTitle>
+                <EmptyDescription>Add custom HTML, CSS, and JavaScript</EmptyDescription>
+              </Empty>
+            </TabsContent>
           </div>
         </Tabs>
       </div>

@@ -2,6 +2,7 @@
  * Utilities for pages and folders
  */
 
+import { IconProps } from '@/components/ui/icon';
 import type { Page, PageFolder } from '../types';
 
 export interface PageTreeNode {
@@ -78,13 +79,19 @@ export function getDescendantFolderIds(
 /**
  * Get icon name based on node type and data
  */
-export function getNodeIcon(node: FlattenedPageNode | PageTreeNode): 'folder' | 'homepage' | 'page' {
+export function getNodeIcon(node: FlattenedPageNode | PageTreeNode): IconProps['name'] {
   if (node.type === 'folder') {
     return 'folder';
   } else {
-    const page = node.data as Page;
-    return page.is_index ? 'homepage' : 'page';
+    return getPageIcon(node.data as Page);
   }
+}
+
+/**
+ * Get icon name based on node type and data
+ */
+export function getPageIcon(page: Page): IconProps['name'] {
+  return page.is_index ? 'homepage' : 'page';
 }
 
 /**

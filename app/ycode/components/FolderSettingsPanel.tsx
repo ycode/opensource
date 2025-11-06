@@ -7,12 +7,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { Page, PageFolder } from '@/types';
+import type { PageFolder } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
+import { usePagesStore } from '@/stores/usePagesStore';
 import {
   Field,
   FieldContent,
@@ -29,6 +28,7 @@ import {
   SelectTrigger
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import Icon from '@/components/ui/icon';
 
 interface FolderSettingsPanelProps {
   isOpen: boolean;
@@ -60,6 +60,8 @@ export default function FolderSettingsPanel({
   const [slug, setSlug] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const folders = usePagesStore((state) => state.folders);
 
   // Initialize form when folder changes
   useEffect(() => {
@@ -96,13 +98,27 @@ export default function FolderSettingsPanel({
       return;
     }
 
+    // Check for duplicate slug in the same parent folder
+    const trimmedSlug = slug.trim();
+    const duplicateSlug = folders.find(
+      (f) =>
+        f.id !== folder?.id && // Exclude current folder
+        f.slug === trimmedSlug &&
+        f.page_folder_id === folder?.page_folder_id // Same parent folder
+    );
+
+    if (duplicateSlug) {
+      setError('This slug is already used by another folder in the same location');
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
 
     try {
       await onSave({
         name: name.trim(),
-        slug: slug.trim(),
+        slug: trimmedSlug,
         is_published: false,
       });
       onClose();
@@ -125,10 +141,12 @@ export default function FolderSettingsPanel({
 
       {/* Panel */}
       <div className="fixed top-14 left-64 bottom-0 w-[500px] bg-background border-r z-50 flex flex-col">
-
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4">
-          <Label>{folder ? folder.name : 'New Folder'}</Label>
+          <div className="flex items-center justify-center gap-1.5">
+            <Icon name="folder" className="size-3" />
+            <Label>{folder ? folder.name : 'New Folder'}</Label>
+          </div>
 
           <div className="flex items-center gap-2">
             <Button
@@ -144,7 +162,7 @@ export default function FolderSettingsPanel({
 
         <hr className="mx-5" />
           {/* Content */}
-          <div className="p-4 flex-1 overflow-y-auto">
+          <div className="px-5 py-6 flex-1 overflow-y-auto">
             {error && (
               <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">
                 {error}
