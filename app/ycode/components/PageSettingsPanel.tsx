@@ -271,12 +271,15 @@ export default function PageSettingsPanel({
 
                     <Field orientation="horizontal" className="flex !flex-row-reverse">
                       <FieldContent>
-                        <FieldLabel htmlFor="passwordProtected">Password protected</FieldLabel>
+                        <FieldLabel htmlFor="passwordProtected">
+                          Password protected
+                          <span className="ml-2 text-xs text-muted-foreground font-normal">(Coming soon)</span>
+                        </FieldLabel>
                         <FieldDescription>
                           Restrict access to this page. Setting a password will override any password set on a parent folder. Passwords are case-sensitive.
                         </FieldDescription>
                       </FieldContent>
-                      <Switch id="passwordProtected" />
+                      <Switch id="passwordProtected" disabled />
                     </Field>
 
                     <Field orientation="horizontal" className="flex !flex-row-reverse">
