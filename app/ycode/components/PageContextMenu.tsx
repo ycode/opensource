@@ -47,9 +47,9 @@ export default function PageContextMenu({
           </>
         )}
 
-        {nodeType === 'page' && onSettings && (
+        {onSettings && (
           <ContextMenuItem onClick={onSettings}>
-            <span>Edit page</span>
+            <span>Edit settings</span>
           </ContextMenuItem>
         )}
 

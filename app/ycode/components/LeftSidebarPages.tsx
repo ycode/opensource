@@ -2,16 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Icon from '@/components/ui/icon';
 import PagesTree from './PagesTree';
 import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
+import FolderSettingsPanel, { FolderFormData } from './FolderSettingsPanel';
 import { usePagesStore } from '@/stores/usePagesStore';
 import type { Page, PageFolder } from '@/types';
 
@@ -31,18 +26,48 @@ export default function LeftSidebarPages({
   setCurrentPageId,
 }: LeftSidebarPagesProps) {
   const [showPageSettings, setShowPageSettings] = useState(false);
+  const [showFolderSettings, setShowFolderSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
+  const [editingFolder, setEditingFolder] = useState<PageFolder | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(currentPageId);
   const selectedItemIdRef = React.useRef<string | null>(currentPageId);
+
+  const selectedPage = React.useMemo(() => {
+    if (!selectedItemId) return null;
+    return pages.find((page) => page.id === selectedItemId) || null;
+  }, [pages, selectedItemId]);
+
+  const selectedFolder = React.useMemo(() => {
+    if (!selectedItemId) return null;
+    return folders.find((folder) => folder.id === selectedItemId) || null;
+  }, [folders, selectedItemId]);
 
   // Keep ref in sync with state
   useEffect(() => {
     selectedItemIdRef.current = selectedItemId;
   }, [selectedItemId]);
 
+  // Switch page or folder settings when selecting another item
+  useEffect(() => {
+    // Don't open settings panel if it's not already open
+    if (!showPageSettings && !showFolderSettings) return;
+
+    if (selectedPage) {
+      setEditingPage(selectedPage);
+      setEditingFolder(null);
+      setShowPageSettings(true);
+      setShowFolderSettings(false);
+    } else if (selectedFolder) {
+      setEditingPage(null);
+      setEditingFolder(selectedFolder);
+      setShowPageSettings(false);
+      setShowFolderSettings(true);
+    }
+  }, [selectedPage, selectedFolder, showPageSettings, showFolderSettings]);
+
   // Get store actions
-  const { createPage, updatePage, deletePage, createFolder, deleteFolder } = usePagesStore();
+  const { createPage, updatePage, deletePage, createFolder, updateFolder, deleteFolder } = usePagesStore();
 
   // Sync selection with current page when it changes externally
   useEffect(() => {
@@ -187,23 +212,56 @@ export default function LeftSidebarPages({
 
   // Handle page editing
   const handleEditPage = (page: Page) => {
+    setSelectedItemId(page.id);
     setEditingPage(page);
     setShowPageSettings(true);
+    setEditingFolder(null);
+    setShowFolderSettings(false);
+  };
+
+  const handleEditFolder = (folder: PageFolder) => {
+    setSelectedItemId(folder.id);
+    setEditingFolder(folder);
+    setShowFolderSettings(true);
+    setEditingPage(null);
+    setShowPageSettings(false);
   };
 
   const handleSavePage = async (data: PageFormData) => {
     if (!editingPage) return;
 
+    // Optimistically close the panel immediately
+    setShowPageSettings(false);
+    setEditingPage(null);
+
+    // Update in background
     const result = await updatePage(editingPage.id, {
       name: data.name,
       slug: data.slug,
     });
 
-    if (result.success) {
-      setShowPageSettings(false);
-      setEditingPage(null);
-    } else if (result.error) {
+    if (result.error) {
       console.error('Failed to save page:', result.error);
+      // Could show a toast notification here
+    }
+  };
+
+  const handleSaveFolder = async (data: FolderFormData) => {
+    if (!editingFolder) return;
+
+    // Optimistically close the panel immediately
+    setShowFolderSettings(false);
+    setEditingFolder(null);
+
+    // Update in background
+    const result = await updateFolder(editingFolder.id, {
+      name: data.name,
+      slug: data.slug,
+    });
+
+    if (result.error) {
+      console.error('Failed to save folder:', result.error);
+      // Could show a toast notification here
     }
   };
 
@@ -347,8 +405,8 @@ export default function LeftSidebarPages({
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>CMS</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
-                  <DropdownMenuItem>Example 1</DropdownMenuItem>
-                  <DropdownMenuItem>Example 2</DropdownMenuItem>
+                  <DropdownMenuItem>Collection 1</DropdownMenuItem>
+                  <DropdownMenuItem>Collection 2</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSeparator />
@@ -380,11 +438,12 @@ export default function LeftSidebarPages({
             setSelectedItemId(pageId);
           }}
           onPageSettings={handleEditPage}
+          onFolderSettings={handleEditFolder}
           onDelete={deletePageOrFolderItem}
         />
       </div>
 
-      {/* Page Settings Panel */}
+      {/* Page settings panel */}
       <PageSettingsPanel
         isOpen={showPageSettings}
         onClose={() => {
@@ -393,6 +452,17 @@ export default function LeftSidebarPages({
         }}
         page={editingPage}
         onSave={handleSavePage}
+      />
+
+      {/* Folder settings panel */}
+      <FolderSettingsPanel
+        isOpen={showFolderSettings}
+        onClose={() => {
+          setShowFolderSettings(false);
+          setEditingFolder(null);
+        }}
+        folder={editingFolder}
+        onSave={handleSaveFolder}
       />
     </>
   );

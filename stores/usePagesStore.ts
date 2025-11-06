@@ -29,6 +29,7 @@ interface PagesActions {
   updatePage: (pageId: string, updates: Partial<Page>) => Promise<{ success: boolean; error?: string }>;
   deletePage: (pageId: string, currentPageId?: string | null) => Promise<{ success: boolean; error?: string; currentPageDeleted?: boolean; nextPageId?: string | null }>;
   createFolder: (folderData: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>) => Promise<{ success: boolean; data?: PageFolder; error?: string; tempId?: string }>;
+  updateFolder: (folderId: string, updates: Partial<PageFolder>) => Promise<{ success: boolean; error?: string }>;
   deleteFolder: (folderId: string, currentPageId?: string | null) => Promise<{ success: boolean; error?: string; currentPageAffected?: boolean; nextPageId?: string | null; deletedPageIds?: string[] }>;
   initDraft: (page: Page, initialLayers?: Layer[]) => void;
   updateLayerClasses: (pageId: string, layerId: string, classes: string) => void;
@@ -51,7 +52,7 @@ interface PagesActions {
   // Layer Style actions
   updateStyleOnLayers: (styleId: string, newClasses: string, newDesign?: Layer['design']) => void;
   detachStyleFromAllLayers: (styleId: string) => void;
-  
+
   // Component actions
   createComponentFromLayer: (pageId: string, layerId: string, componentName: string) => Promise<string | null>;
   updateComponentOnLayers: (componentId: string, newLayers: Layer[]) => void;
@@ -1171,26 +1172,54 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
   updatePage: async (pageId, updates) => {
     console.log('[usePagesStore.updatePage] Starting...', pageId, updates);
-    set({ isLoading: true, error: null });
+
+    const { pages } = get();
+
+    // Store original state for rollback
+    const originalPages = pages;
+
+    // Find the page to update
+    const pageToUpdate = pages.find(p => p.id === pageId);
+    if (!pageToUpdate) {
+      return { success: false, error: 'Page not found' };
+    }
+
+    // Optimistic update: Update UI immediately
+    const updatedPages = pages.map(p =>
+      p.id === pageId ? { ...p, ...updates, updated_at: new Date().toISOString() } : p
+    );
+
+    set({
+      pages: updatedPages,
+      isLoading: true,
+      error: null
+    });
+
+    console.log('[usePagesStore.updatePage] Optimistic UI update complete, calling API...');
 
     try {
       const response = await pagesApi.update(pageId, updates);
 
       if (response.error) {
         console.error('[usePagesStore.updatePage] Error:', response.error);
-        set({ error: response.error, isLoading: false });
+        // Rollback optimistic update
+        set({
+          pages: originalPages,
+          error: response.error,
+          isLoading: false
+        });
         return { success: false, error: response.error };
       }
 
       if (response.data) {
-        // Update page in local state
-        const { pages } = get();
-        const updatedPages = pages.map(p =>
+        // Replace optimistic update with server data
+        const { pages: currentPages } = get();
+        const finalPages = currentPages.map(p =>
           p.id === pageId ? response.data! : p
         );
 
         set({
-          pages: updatedPages,
+          pages: finalPages,
           isLoading: false
         });
 
@@ -1198,11 +1227,21 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         return { success: true };
       }
 
+      // Rollback if no data returned
+      set({
+        pages: originalPages,
+        isLoading: false
+      });
       return { success: false, error: 'No data returned' };
     } catch (error) {
       console.error('[usePagesStore.updatePage] Exception:', error);
       const errorMsg = error instanceof Error ? error.message : 'Failed to update page';
-      set({ error: errorMsg, isLoading: false });
+      // Rollback optimistic update
+      set({
+        pages: originalPages,
+        error: errorMsg,
+        isLoading: false
+      });
       return { success: false, error: errorMsg };
     }
   },
@@ -1359,6 +1398,82 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Rollback: Remove temp folder
       set({
         folders: folders,
+        error: errorMsg,
+        isLoading: false
+      });
+      return { success: false, error: errorMsg };
+    }
+  },
+
+  updateFolder: async (folderId, updates) => {
+    console.log('[usePagesStore.updateFolder] Starting...', folderId, updates);
+
+    const { folders } = get();
+
+    // Store original state for rollback
+    const originalFolders = folders;
+
+    // Find the folder to update
+    const folderToUpdate = folders.find(f => f.id === folderId);
+    if (!folderToUpdate) {
+      return { success: false, error: 'Folder not found' };
+    }
+
+    // Optimistic update: Update UI immediately
+    const updatedFolders = folders.map(f =>
+      f.id === folderId ? { ...f, ...updates, updated_at: new Date().toISOString() } : f
+    );
+
+    set({
+      folders: updatedFolders,
+      isLoading: true,
+      error: null
+    });
+
+    console.log('[usePagesStore.updateFolder] Optimistic UI update complete, calling API...');
+
+    try {
+      const response = await foldersApi.update(folderId, updates);
+
+      if (response.error) {
+        console.error('[usePagesStore.updateFolder] Error:', response.error);
+        // Rollback optimistic update
+        set({
+          folders: originalFolders,
+          error: response.error,
+          isLoading: false
+        });
+        return { success: false, error: response.error };
+      }
+
+      if (response.data) {
+        // Replace optimistic update with server data
+        const { folders: currentFolders } = get();
+        const finalFolders = currentFolders.map(f =>
+          f.id === folderId ? response.data! : f
+        );
+
+        set({
+          folders: finalFolders,
+          isLoading: false
+        });
+
+        console.log('[usePagesStore.updateFolder] Success');
+        return { success: true };
+      }
+
+      // Rollback if no data returned
+      set({
+        folders: originalFolders,
+        isLoading: false
+      });
+      return { success: false, error: 'No data returned' };
+    } catch (error) {
+      console.error('[usePagesStore.updateFolder] Exception:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to update folder';
+      // Rollback optimistic update
+      set({
+        folders: originalFolders,
         error: errorMsg,
         isLoading: false
       });
@@ -1547,7 +1662,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     set({ draftsByPageId: updatedDrafts });
   },
-  
+
   /**
    * Create a component from a layer
    * Extracts the layer tree and creates a component
@@ -1557,11 +1672,11 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const { draftsByPageId, copyLayer } = get();
     const draft = draftsByPageId[pageId];
     if (!draft) return null;
-    
+
     // Get the layer to convert
     const layerToCopy = copyLayer(pageId, layerId);
     if (!layerToCopy) return null;
-    
+
     try {
       // Create the component via API
       // The component should store the ENTIRE layer tree including the wrapper
@@ -1573,16 +1688,16 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           layers: [layerToCopy], // Store the complete layer tree with wrapper
         }),
       });
-      
+
       const result = await response.json();
-      
+
       if (result.error || !result.data) {
         console.error('Failed to create component:', result.error);
         return null;
       }
-      
+
       const newComponent = result.data;
-      
+
       // Replace the layer with a component instance
       const updateLayerToInstance = (layers: Layer[]): Layer[] => {
         return layers.map(layer => {
@@ -1595,43 +1710,43 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
               children: [],
             };
           }
-          
+
           if (layer.children && layer.children.length > 0) {
             return {
               ...layer,
               children: updateLayerToInstance(layer.children),
             };
           }
-          
+
           return layer;
         });
       };
-      
+
       const newLayers = updateLayerToInstance(draft.layers);
-      
+
       set({
         draftsByPageId: {
           ...draftsByPageId,
           [pageId]: { ...draft, layers: newLayers }
         }
       });
-      
+
       return newComponent.id;
     } catch (error) {
       console.error('Failed to create component:', error);
       return null;
     }
   },
-  
+
   /**
    * Update all layers using a specific component across all pages
    * Used when a component is updated
    */
   updateComponentOnLayers: (componentId, newLayers) => {
     const { draftsByPageId } = get();
-    
+
     const updatedDrafts = { ...draftsByPageId };
-    
+
     Object.keys(updatedDrafts).forEach(pageId => {
       const draft = updatedDrafts[pageId];
       updatedDrafts[pageId] = {
@@ -1639,10 +1754,10 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         layers: updateLayersWithComponent(draft.layers, componentId, newLayers),
       };
     });
-    
+
     set({ draftsByPageId: updatedDrafts });
   },
-  
+
   /**
    * Detach a component from all layers across all pages
    * Used when a component is deleted
@@ -1650,9 +1765,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
    */
   detachComponentFromAllLayers: (componentId) => {
     const { draftsByPageId } = get();
-    
+
     const updatedDrafts = { ...draftsByPageId };
-    
+
     Object.keys(updatedDrafts).forEach(pageId => {
       const draft = updatedDrafts[pageId];
       updatedDrafts[pageId] = {
@@ -1660,7 +1775,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         layers: detachComponentFromLayers(draft.layers, componentId),
       };
     });
-    
+
     set({ draftsByPageId: updatedDrafts });
   },
 }));
