@@ -200,10 +200,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   loadFolders: async () => {
-    console.log('[usePagesStore.loadFolders] Starting...');
     set({ isLoading: true, error: null });
     try {
-      console.log('[usePagesStore.loadFolders] Fetching folders...');
       const response = await foldersApi.getAll();
       if (response.error) {
         console.error('[usePagesStore.loadFolders] Error loading folders:', response.error);
@@ -211,7 +209,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         return;
       }
       const folders = response.data || [];
-      console.log('[usePagesStore.loadFolders] Fetched folders:', folders.length);
       set({ folders, isLoading: false });
     } catch (error) {
       console.error('[usePagesStore.loadFolders] Exception loading folders:', error);
@@ -1093,8 +1090,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   createPage: async (pageData) => {
-    console.log('[usePagesStore.createPage] Starting...', pageData);
-
     const { pages, draftsByPageId } = get();
 
     // Generate temporary ID for optimistic update
@@ -1136,8 +1131,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       error: null
     });
 
-    console.log('[usePagesStore.createPage] Optimistic UI update complete, calling API...');
-
     try {
       const response = await pagesApi.create(pageData);
 
@@ -1174,7 +1167,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           isLoading: false
         });
 
-        console.log('[usePagesStore.createPage] Success - replaced temp ID with real ID');
         return { success: true, data: response.data, tempId };
       }
 
@@ -1194,8 +1186,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   updatePage: async (pageId, updates) => {
-    console.log('[usePagesStore.updatePage] Starting...', pageId, updates);
-
     const { pages } = get();
 
     // Store original state for rollback
@@ -1262,8 +1252,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       error: null
     });
 
-    console.log('[usePagesStore.updatePage] Optimistic UI update complete, calling API...');
-
     try {
       const response = await pagesApi.update(pageId, updates);
 
@@ -1282,7 +1270,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         // If is_index was updated, reload all pages to sync with server
         // (in case slug generation differs from our optimistic version)
         if (updates.is_index !== undefined) {
-          console.log('[usePagesStore.updatePage] Index status changed, reloading all pages...');
           await get().loadPages();
         } else {
           // Replace optimistic update with server data
@@ -1297,7 +1284,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           });
         }
 
-        console.log('[usePagesStore.updatePage] Success');
         return { success: true };
       }
 
@@ -1321,9 +1307,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   duplicatePage: async (pageId) => {
-    console.log('[usePagesStore.duplicatePage] Starting...', pageId);
-
-    const { pages, draftsByPageId } = get();
+    const { pages, folders, draftsByPageId } = get();
 
     // Find the original page
     const originalPage = pages.find(p => p.id === pageId);
@@ -1334,6 +1318,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     // Generate temporary ID for optimistic update
     const tempId = `temp-page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const tempPublishKey = `temp-${Date.now()}`;
+    const newOrder = originalPage.order + 1;
 
     // Create temporary duplicated page
     const tempPage: Page = {
@@ -1342,7 +1327,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       slug: `${originalPage.slug}-copy-${Date.now()}`,
       is_published: false,
       page_folder_id: originalPage.page_folder_id,
-      order: originalPage.order + 1, // Place right after original
+      order: newOrder, // Place right after original
       depth: originalPage.depth,
       is_index: false,
       is_dynamic: originalPage.is_dynamic,
@@ -1354,11 +1339,36 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       deleted_at: null,
     };
 
-    // Optimistic update: Add to UI immediately
-    // Insert right after the original page
-    const pageIndex = pages.findIndex(p => p.id === pageId);
-    const updatedPages = [...pages];
+    // Optimistic update: Increment order for all siblings that come after the original
+    // This matches the backend behavior
+    const updatedPages = pages.map(p => {
+      // If it's a sibling (same parent and depth) with order >= newOrder, increment its order
+      if (
+        p.page_folder_id === originalPage.page_folder_id &&
+        p.depth === originalPage.depth &&
+        p.order >= newOrder
+      ) {
+        return { ...p, order: p.order + 1 };
+      }
+      return p;
+    });
+
+    // Insert the temp page
+    const pageIndex = updatedPages.findIndex(p => p.id === pageId);
     updatedPages.splice(pageIndex + 1, 0, tempPage);
+
+    // Also increment order for folders that come after
+    const updatedFolders = folders.map(f => {
+      // If it's a sibling folder (same parent and depth) with order >= newOrder, increment its order
+      if (
+        f.page_folder_id === originalPage.page_folder_id &&
+        f.depth === originalPage.depth &&
+        f.order >= newOrder
+      ) {
+        return { ...f, order: f.order + 1 };
+      }
+      return f;
+    });
 
     // Create temporary draft with same layers as original (if exists)
     const originalDraft = draftsByPageId[pageId];
@@ -1377,15 +1387,15 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     set({
       pages: updatedPages,
+      folders: updatedFolders,
       draftsByPageId: updatedDrafts,
       isLoading: true,
       error: null
     });
 
-    console.log('[usePagesStore.duplicatePage] Optimistic UI update complete, calling API...');
-
     // Store original state for rollback
     const originalPages = pages;
+    const originalFolders = folders;
     const originalDrafts = draftsByPageId;
 
     // Return temp page immediately so it can be selected
@@ -1408,9 +1418,10 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
         if (result.error || !result.data) {
           console.error('[usePagesStore.duplicatePage] Error:', result.error);
-          // Rollback: Remove temp page
+          // Rollback: Remove temp page and restore original order
           set({
             pages: originalPages,
+            folders: originalFolders,
             draftsByPageId: originalDrafts,
             error: result.error,
             isLoading: false
@@ -1418,36 +1429,59 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           return;
         }
 
-        // Replace temp page with real one from database
-        const { pages: currentPages, draftsByPageId: currentDrafts } = get();
-        const finalPages = currentPages.map(p => p.id === tempId ? result.data : p);
+        // Success! Reload all data from database to get updated order values
+        // (The backend increments the order of siblings when duplicating)
+        try {
+          const [pagesResponse, foldersResponse] = await Promise.all([
+            fetch('/api/pages'),
+            fetch('/api/folders')
+          ]);
 
-        // Replace temp draft with real one
-        const finalDrafts = { ...currentDrafts };
-        if (finalDrafts[tempId]) {
-          const tempDraftData = finalDrafts[tempId];
-          delete finalDrafts[tempId];
-          finalDrafts[result.data.id] = {
-            ...tempDraftData,
-            id: `draft-${result.data.id}`,
-            page_id: result.data.id,
-            publish_key: result.data.publish_key,
-          };
+          const pagesData = await pagesResponse.json();
+          const foldersData = await foldersResponse.json();
+
+          if (pagesData.data && foldersData.data) {
+            const realPages = pagesData.data as Page[];
+            const realFolders = foldersData.data as PageFolder[];
+
+            // Handle draft for the duplicated page
+            const { draftsByPageId: currentDrafts } = get();
+            const finalDrafts = { ...currentDrafts };
+
+            // If there was a temp draft, replace it with the real one
+            if (finalDrafts[tempId]) {
+              const tempDraftData = finalDrafts[tempId];
+              delete finalDrafts[tempId];
+              finalDrafts[result.data.id] = {
+                ...tempDraftData,
+                id: `draft-${result.data.id}`,
+                page_id: result.data.id,
+                publish_key: result.data.publish_key,
+              };
+            }
+
+            // Update state with real data from database
+            set({
+              pages: realPages,
+              folders: realFolders,
+              draftsByPageId: finalDrafts,
+              isLoading: false
+            });
+          } else {
+            // If fetch failed, just turn off loading
+            set({ isLoading: false });
+          }
+        } catch (fetchError) {
+          console.error('[usePagesStore.duplicatePage] Failed to reload data:', fetchError);
+          set({ isLoading: false });
         }
-
-        set({
-          pages: finalPages,
-          draftsByPageId: finalDrafts,
-          isLoading: false
-        });
-
-        console.log('[usePagesStore.duplicatePage] Success - replaced temp ID with real ID');
       } catch (error) {
         console.error('[usePagesStore.duplicatePage] Exception:', error);
         const errorMsg = error instanceof Error ? error.message : 'Failed to duplicate page';
-        // Rollback: Remove temp page
+        // Rollback: Remove temp page and restore original order
         set({
           pages: originalPages,
+          folders: originalFolders,
           draftsByPageId: originalDrafts,
           error: errorMsg,
           isLoading: false
@@ -1464,8 +1498,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   deletePage: async (pageId, currentPageId?: string | null) => {
-    console.log('[usePagesStore.deletePage] Starting...', pageId);
-
     const { pages, folders, draftsByPageId } = get();
 
     // Find the page
@@ -1504,8 +1536,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       error: null
     });
 
-    console.log('[usePagesStore.deletePage] Optimistic UI update complete, calling API...');
-
     try {
       const response = await pagesApi.delete(pageId);
 
@@ -1523,7 +1553,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       }
 
       set({ isLoading: false });
-      console.log('[usePagesStore.deletePage] Success');
 
       // Determine next page to select if current was deleted
       let nextPageId: string | null = null;
@@ -1553,8 +1582,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   createFolder: async (folderData) => {
-    console.log('[usePagesStore.createFolder] Starting...', folderData);
-
     const { folders } = get();
 
     // Generate temporary ID for optimistic update
@@ -1577,8 +1604,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       isLoading: true,
       error: null
     });
-
-    console.log('[usePagesStore.createFolder] Optimistic UI update complete, calling API...');
 
     try {
       const response = await foldersApi.create(folderData);
@@ -1604,7 +1629,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           isLoading: false
         });
 
-        console.log('[usePagesStore.createFolder] Success - replaced temp ID with real ID');
         return { success: true, data: response.data, tempId };
       }
 
@@ -1623,8 +1647,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   updateFolder: async (folderId, updates) => {
-    console.log('[usePagesStore.updateFolder] Starting...', folderId, updates);
-
     const { folders } = get();
 
     // Store original state for rollback
@@ -1646,8 +1668,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       isLoading: true,
       error: null
     });
-
-    console.log('[usePagesStore.updateFolder] Optimistic UI update complete, calling API...');
 
     try {
       const response = await foldersApi.update(folderId, updates);
@@ -1675,7 +1695,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           isLoading: false
         });
 
-        console.log('[usePagesStore.updateFolder] Success');
         return { success: true };
       }
 
@@ -1699,8 +1718,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   duplicateFolder: async (folderId) => {
-    console.log('[usePagesStore.duplicateFolder] Starting...', folderId);
-
     const { folders, pages, draftsByPageId } = get();
 
     // Find the original folder
@@ -1842,12 +1859,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       error: null
     });
 
-    console.log('[usePagesStore.duplicateFolder] Optimistic UI update complete:', {
-      folders: tempFolders.length,
-      pages: tempPages.length,
-      drafts: Object.keys(tempDrafts).length
-    });
-
     // Return temp folder immediately so it can be selected
     // Also return metadata to find the real folder after reload
     const duplicateMetadata = {
@@ -1882,8 +1893,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         // Success! Now fetch fresh data and replace ALL temp items with real ones
         // Since we can't reliably match by slug (backend generates different timestamps),
         // we'll just replace all temp items with all new real items
-        console.log('[usePagesStore.duplicateFolder] Success - fetching real data...');
-
         try {
           // Fetch fresh data from database
           const [pagesResponse, foldersResponse] = await Promise.all([
@@ -1904,8 +1913,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
               folders: realFolders,
               isLoading: false
             });
-
-            console.log('[usePagesStore.duplicateFolder] Replaced temp items with real data');
           } else {
             // If fetch failed, just turn off loading
             set({ isLoading: false });
@@ -1938,8 +1945,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   deleteFolder: async (folderId, currentPageId?: string | null) => {
-    console.log('[usePagesStore.deleteFolder] Starting...', folderId);
-
     const { folders, pages, draftsByPageId } = get();
 
     // Store original state for rollback
@@ -1950,8 +1955,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     // Get all descendant folder IDs using the utility function
     const descendantFolderIds = getDescendantFolderIds(folderId, folders);
     const allFolderIds = [folderId, ...descendantFolderIds];
-
-    console.log(`[usePagesStore.deleteFolder] Deleting folder and ${descendantFolderIds.length} descendants`);
 
     // Check if current page is affected
     const currentPage = currentPageId ? pages.find(p => p.id === currentPageId) : null;
@@ -1980,8 +1983,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       error: null
     });
 
-    console.log('[usePagesStore.deleteFolder] Optimistic UI update complete, calling API...');
-
     try {
       // Delete from API
       const response = await foldersApi.delete(folderId);
@@ -2000,7 +2001,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       }
 
       set({ isLoading: false });
-      console.log(`[usePagesStore.deleteFolder] Success - removed ${allFolderIds.length} folders and ${deletedPageIds.length} pages`);
 
       // Determine next page to select if current was affected
       let nextPageId: string | null = null;
@@ -2031,11 +2031,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   batchReorderPagesAndFolders: async (updatedPages, updatedFolders) => {
-    console.log('[usePagesStore.batchReorderPagesAndFolders] Starting...', {
-      pagesCount: updatedPages.length,
-      foldersCount: updatedFolders.length,
-    });
-
     const { pages, folders } = get();
 
     // Store original state for rollback
@@ -2093,7 +2088,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
       set({ isLoading: false });
 
-      console.log('[usePagesStore.batchReorderPagesAndFolders] Success');
       return { success: true };
     } catch (error) {
       console.error('[usePagesStore.batchReorderPagesAndFolders] Exception:', error);

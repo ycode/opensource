@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import Icon from '@/components/ui/icon';
-import { getPageIcon, isHomepage } from '@/lib/page-utils';
+import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage } from '@/lib/page-utils';
 
 interface PageSettingsPanelProps {
   isOpen: boolean;
@@ -113,26 +113,16 @@ export default function PageSettingsPanel({
 
   // Build hierarchical folder list for select dropdown
   const folderOptions = useMemo(() => {
-    const buildFolderPath = (folder: PageFolder, allFolders: PageFolder[]): string => {
-      if (!folder.page_folder_id) {
-        return folder.name;
-      }
-      const parent = allFolders.find(f => f.id === folder.page_folder_id);
-      if (!parent) {
-        return folder.name;
-      }
-      return `${buildFolderPath(parent, allFolders)} / ${folder.name}`;
-    };
-
     return folders
       .map(folder => ({
         id: folder.id,
         name: folder.name,
         path: buildFolderPath(folder, folders),
         depth: folder.depth,
+        disabled: isIndex && folderHasIndexPage(folder.id, pages, page?.id), // Disable if this page is index and folder already has an index
       }))
       .sort((a, b) => a.path.localeCompare(b.path));
-  }, [folders]);
+  }, [folders, pages, page, isIndex]);
 
   // Check if this is the last index page in root folder
   // If so, disable the switch to prevent removing it
@@ -153,6 +143,18 @@ export default function PageSettingsPanel({
   }, [page, pageFolderId, pages]);
 
   const isOnRootFolder = useMemo(() => page?.page_folder_id === null, [page]);
+
+  // Build the slug path preview based on current form values
+  const slugPathPreview = useMemo(() => {
+    // Create a temporary page object with current form values
+    const tempPage: Partial<Page> = {
+      slug: slug,
+      page_folder_id: pageFolderId,
+      is_index: isIndex,
+    };
+
+    return buildSlugPath(tempPage as Page, folders, 'page');
+  }, [pageFolderId, slug, isIndex, folders]);
 
   const handleSave = async () => {
     // Validation
@@ -295,7 +297,17 @@ export default function PageSettingsPanel({
                     </Field>
 
                     <Field>
-                      <FieldLabel>Slug</FieldLabel>
+                      <div className="flex items-center gap-3">
+                        <FieldLabel>Slug</FieldLabel>
+
+                        <a
+                          href={slugPathPreview}
+                          target="_blank"
+                          className="text-muted-foreground hover:underline"
+                        >
+                          {slugPathPreview}
+                        </a>
+                      </div>
                       <Input
                         type="text"
                         value={slug}
@@ -306,11 +318,11 @@ export default function PageSettingsPanel({
                     </Field>
 
                     <Field>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <FieldLabel>Parent folder</FieldLabel>
                         {page && isHomepage(page) && (
                           <FieldDescription className="text-xs text-muted-foreground">
-                            (Homepage must remain in the root folder)
+                            Homepage cannot be moved
                           </FieldDescription>
                         )}
                       </div>
@@ -326,17 +338,30 @@ export default function PageSettingsPanel({
 
                         <SelectContent>
                           <SelectGroup>
-                            <SelectItem value="root">
+                            <SelectItem
+                              value="root"
+                              disabled={isIndex && folderHasIndexPage(null, pages, page?.id)}
+                            >
                               <div className="flex items-center gap-2">
                                 <Icon name="folder" className="size-3" />
                                 None
+                                {isIndex && folderHasIndexPage(null, pages, page?.id) && (
+                                  <span>(has a homepage)</span>
+                                )}
                               </div>
                             </SelectItem>
+
                             {folderOptions.map((folder) => (
-                              <SelectItem key={folder.id} value={folder.id}>
+                              <SelectItem
+                                key={folder.id} value={folder.id}
+                                disabled={folder.disabled}
+                              >
                                 <div className="flex items-center gap-2">
                                   <Icon name="folder" className="size-3" />
                                   <span>{folder.path}</span>
+                                  {folder.disabled && (
+                                    <span>(has a index page)</span>
+                                  )}
                                 </div>
                               </SelectItem>
                             ))}
@@ -367,7 +392,7 @@ export default function PageSettingsPanel({
                           {
                             isLastRootIndexPage
                               ? 'The root folder must have an homepage. Please open the settings of another page at this level and set it as homepage to change this.'
-                              : `Set this page as the ${isOnRootFolder ? 'homepage of the website' : 'index (default) page for its parent folder'}. If another ${isOnRootFolder ? 'homepage' : 'index page'} exists, it will automatically be converted to a regular page with a slug.`
+                              : `Set this page as the ${isOnRootFolder ? 'homepage of the website' : 'index (default) page for its parent folder'}. If another ${isOnRootFolder ? 'homepage' : 'index page'} exists, it will converted to a regular page with a slug.`
                           }
                         </FieldDescription>
                       </FieldContent>

@@ -37,6 +37,107 @@ export function isHomepage(page: Page): boolean {
 }
 
 /**
+ * Build the full slug path for a page or folder
+ * Returns the full URL path starting with "/"
+ *
+ * @example
+ * buildSlugPath(page, folders) // "/products/item-1"
+ * buildSlugPath(indexPage, folders) // "/products" (index pages don't have slug)
+ * buildSlugPath(folder, folders) // "/products"
+ */
+export function buildSlugPath(
+  item: Page | PageFolder | null,
+  allFolders: PageFolder[],
+  itemType: 'page' | 'folder'
+): string {
+  if (!item) return '/';
+
+  const slugParts: string[] = [];
+
+  // Build folder path
+  let currentFolderId = item.page_folder_id;
+  while (currentFolderId) {
+    const folder = allFolders.find(f => f.id === currentFolderId);
+    if (!folder) break;
+    slugParts.unshift(folder.slug);
+    currentFolderId = folder.page_folder_id;
+  }
+
+  // Add item's own slug (for folders or non-index pages)
+  if (itemType === 'folder') {
+    slugParts.push((item as PageFolder).slug);
+  } else if (itemType === 'page') {
+    const page = item as Page;
+    // Index pages don't have their own slug, just the folder path
+    if (!page.is_index && page.slug) {
+      slugParts.push(page.slug);
+    }
+  }
+
+  return '/' + slugParts.filter(Boolean).join('/');
+}
+
+/**
+ * Build a hierarchical folder path string (e.g., "Products / Electronics / Phones")
+ * Used for displaying folder paths in UI
+ *
+ * @example
+ * buildFolderPath(folder, allFolders) // "Products / Electronics"
+ */
+export function buildFolderPath(folder: PageFolder, allFolders: PageFolder[]): string {
+  if (!folder.page_folder_id) {
+    return folder.name;
+  }
+  const parent = allFolders.find(f => f.id === folder.page_folder_id);
+  if (!parent) {
+    return folder.name;
+  }
+  return `${buildFolderPath(parent, allFolders)} / ${folder.name}`;
+}
+
+/**
+ * Check if one folder is a descendant of another folder
+ *
+ * @example
+ * isDescendantFolder(childId, parentId, allFolders) // true if child is nested under parent
+ */
+export function isDescendantFolder(
+  folderId: string,
+  potentialAncestorId: string,
+  allFolders: PageFolder[]
+): boolean {
+  const targetFolder = allFolders.find(f => f.id === folderId);
+  if (!targetFolder || !targetFolder.page_folder_id) return false;
+  if (targetFolder.page_folder_id === potentialAncestorId) return true;
+  return isDescendantFolder(targetFolder.page_folder_id, potentialAncestorId, allFolders);
+}
+
+/**
+ * Check if a folder contains an index page
+ *
+ * @param folderId - The folder ID to check (null for root folder)
+ * @param pages - Array of all pages
+ * @param excludePageId - Optional page ID to exclude from check (useful when editing a page)
+ * @returns true if the folder has an index page
+ *
+ * @example
+ * folderHasIndexPage(folderId, pages) // true if folder has an index page
+ * folderHasIndexPage(null, pages) // check if root folder has homepage
+ * folderHasIndexPage(folderId, pages, currentPageId) // exclude current page from check
+ */
+export function folderHasIndexPage(
+  folderId: string | null,
+  pages: Page[],
+  excludePageId?: string
+): boolean {
+  return pages.some(
+    p => p.id !== excludePageId &&
+        p.is_index &&
+        p.page_folder_id === folderId
+  );
+}
+
+/**
  * Get all descendant folder IDs for a given folder
  *
  * This function builds a map for efficient lookup and recursively finds

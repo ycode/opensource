@@ -6,6 +6,7 @@
 
 import { getSupabaseAdmin } from '../supabase-server';
 import type { PageFolder } from '../../types';
+import { incrementSiblingOrders } from '../services/pageService';
 
 /**
  * Query filters for page folder lookups
@@ -620,26 +621,11 @@ export async function duplicatePageFolder(folderId: string): Promise<PageFolder>
   const newSlug = `folder-${timestamp}`;
   const newName = `${originalFolder.name} (Copy)`;
 
-  // Get the max order for siblings
-  const query = client
-    .from('page_folders')
-    .select('order')
-    .eq('depth', originalFolder.depth)
-    .is('deleted_at', null);
+  // Place the duplicate right after the original folder
+  const newOrder = originalFolder.order + 1;
 
-  // Handle null vs non-null folder_id
-  const orderQuery = originalFolder.page_folder_id === null
-    ? query.is('page_folder_id', null)
-    : query.eq('page_folder_id', originalFolder.page_folder_id);
-
-  const { data: siblings, error: orderError } = await orderQuery.order('order', { ascending: false }).limit(1);
-
-  if (orderError) {
-    throw new Error(`Failed to get sibling order: ${orderError.message}`);
-  }
-
-  const maxOrder = siblings && siblings.length > 0 ? siblings[0].order : -1;
-  const newOrder = maxOrder + 1;
+  // Increment order for all siblings (folders and pages) that come after the original folder
+  await incrementSiblingOrders(newOrder, originalFolder.depth, originalFolder.page_folder_id);
 
   // Create the new folder
   const { data: newFolder, error: folderError } = await client

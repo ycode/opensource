@@ -302,8 +302,6 @@ export default function LeftSidebarPages({
           );
 
           if (duplicatedFolder) {
-            console.log('[LeftSidebarPages] Found real duplicated folder, selecting:', duplicatedFolder.id);
-
             // Update selection if user is selecting any temp item from this duplication
             if (isSelectingTempFromDuplication) {
               // Try to find the corresponding real item based on what was selected
@@ -335,11 +333,9 @@ export default function LeftSidebarPages({
                            !p.id.startsWith('temp-')
                     );
                     if (realPage) {
-                      console.log('[LeftSidebarPages] Found real duplicated page inside folder, selecting:', realPage.id);
                       setSelectedItemId(realPage.id);
                     } else {
                       // Fall back to selecting the folder
-                      console.log('[LeftSidebarPages] Could not find real page, falling back to folder');
                       setSelectedItemId(duplicatedFolder.id);
                     }
                   } else if (selectedItemSnapshot.type === 'folder') {
@@ -368,18 +364,15 @@ export default function LeftSidebarPages({
                              !f.id.startsWith('temp-')
                       );
                       if (realFolder) {
-                        console.log('[LeftSidebarPages] Found real duplicated nested folder, selecting:', realFolder.id);
                         setSelectedItemId(realFolder.id);
                       } else {
                         // Fall back to selecting the root duplicated folder
-                        console.log('[LeftSidebarPages] Could not find real nested folder, falling back to root folder');
                         setSelectedItemId(duplicatedFolder.id);
                       }
                     }
                   }
                 } else {
                   // No snapshot found, select root folder
-                  console.log('[LeftSidebarPages] No snapshot found for selection, selecting root folder');
                   setSelectedItemId(duplicatedFolder.id);
                 }
               } else {
@@ -403,7 +396,6 @@ export default function LeftSidebarPages({
           );
 
           if (duplicatedPage) {
-            console.log('[LeftSidebarPages] Found real duplicated page, selecting:', duplicatedPage.id);
             // Only update selection if it's still the temp ID (user hasn't changed selection during operation)
             if (isSelectingTempFromDuplication) {
               setSelectedItemId(duplicatedPage.id);

@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import Icon from '@/components/ui/icon';
+import { buildFolderPath, isDescendantFolder } from '@/lib/page-utils';
 
 interface FolderSettingsPanelProps {
   isOpen: boolean;
@@ -62,7 +63,6 @@ export default function FolderSettingsPanel({
   const [pageFolderId, setPageFolderId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const folders = usePagesStore((state) => state.folders);
 
   // Initialize form when folder changes
@@ -92,29 +92,10 @@ export default function FolderSettingsPanel({
 
   // Build hierarchical folder list for select dropdown (exclude current folder and its descendants)
   const folderOptions = useMemo(() => {
-    const buildFolderPath = (targetFolder: PageFolder, allFolders: PageFolder[]): string => {
-      if (!targetFolder.page_folder_id) {
-        return targetFolder.name;
-      }
-      const parent = allFolders.find(f => f.id === targetFolder.page_folder_id);
-      if (!parent) {
-        return targetFolder.name;
-      }
-      return `${buildFolderPath(parent, allFolders)} / ${targetFolder.name}`;
-    };
-
-    // Helper to check if a folder is a descendant of the current folder
-    const isDescendant = (folderId: string, currentFolderId: string): boolean => {
-      const targetFolder = folders.find(f => f.id === folderId);
-      if (!targetFolder || !targetFolder.page_folder_id) return false;
-      if (targetFolder.page_folder_id === currentFolderId) return true;
-      return isDescendant(targetFolder.page_folder_id, currentFolderId);
-    };
-
     return folders
       .filter(f => {
         // Exclude current folder and its descendants (can't move a folder into itself or its children)
-        if (folder && (f.id === folder.id || isDescendant(f.id, folder.id))) {
+        if (folder && (f.id === folder.id || isDescendantFolder(f.id, folder.id, folders))) {
           return false;
         }
         return true;
