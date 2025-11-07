@@ -27,6 +27,7 @@ interface PagesTreeProps {
 interface PageRowProps {
   node: FlattenedPageNode;
   isSelected: boolean;
+  isChildOfSelected: boolean;
   isOver: boolean;
   isDragging: boolean;
   isDragActive: boolean;
@@ -70,6 +71,7 @@ function checkIsDescendant(
 function PageRow({
   node,
   isSelected,
+  isChildOfSelected,
   isOver,
   isDragging,
   isDragActive,
@@ -119,7 +121,8 @@ function PageRow({
               key={i}
               className={cn(
                 'absolute z-10 top-0 bottom-0 w-px',
-                highlightedDepths.has(i) ? 'bg-white/30' : 'bg-white/10'
+                // Highlight depth guides if this node is selected OR is a child of the selected folder
+                (isSelected || isChildOfSelected) && highlightedDepths.has(i) ? 'bg-white/30' : 'bg-white/10'
               )}
               style={{
                 left: `${i * 14 + 16}px`,
@@ -225,6 +228,34 @@ function PageRow({
   );
 }
 
+// EndDropZone Component - Drop target for adding items at the end of the list
+function EndDropZone({
+  isDragActive,
+  isOver,
+}: {
+  isDragActive: boolean;
+  isOver: boolean;
+}) {
+  const { setNodeRef } = useDroppable({
+    id: 'end-drop-zone',
+  });
+
+  if (!isDragActive) return null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="relative h-8 flex items-center"
+    >
+      {isOver && (
+        <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-primary z-50 ml-2">
+          <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Main PagesTree Component
 export default function PagesTree({
   pages,
@@ -271,6 +302,25 @@ export default function PagesTree({
     }
 
     return depths;
+  }, [flattenedNodes, selectedItemId]);
+
+  // Helper to check if a node is a child/descendant of the selected folder
+  const isChildOfSelected = useCallback((node: FlattenedPageNode): boolean => {
+    if (!selectedItemId) return false;
+
+    const selectedNode = flattenedNodes.find(n => n.id === selectedItemId);
+    if (!selectedNode || selectedNode.type !== 'folder') return false;
+
+    // Check if this node's parentId chain leads to the selected folder
+    let currentParentId = node.parentId;
+    while (currentParentId) {
+      if (currentParentId === selectedItemId) return true;
+      const parentNode = flattenedNodes.find(n => n.id === currentParentId);
+      if (!parentNode) break;
+      currentParentId = parentNode.parentId;
+    }
+
+    return false;
   }, [flattenedNodes, selectedItemId]);
 
   // Get the currently active node being dragged
@@ -329,6 +379,13 @@ export default function PagesTree({
       if (!overId || !event.over?.rect) {
         setOverId(null);
         setDropPosition(null);
+        return;
+      }
+
+      // Handle drop at the end of the list
+      if (overId === 'end-drop-zone') {
+        setOverId(overId);
+        setDropPosition('below'); // Will be treated as "after last item"
         return;
       }
 
@@ -463,6 +520,103 @@ export default function PagesTree({
       setIsProcessing(true);
 
       const activeNode = flattenedNodes.find((n) => n.id === active.id);
+
+      // Handle drop at the end of the list
+      if (over.id === 'end-drop-zone') {
+        if (!activeNode) {
+          setActiveId(null);
+          setOverId(null);
+          setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
+          return;
+        }
+
+        // Find the last root-level item and place the dragged item after it
+        const rootItems = flattenedNodes.filter(n => n.depth === 0);
+        const lastRootItem = rootItems[rootItems.length - 1];
+
+        if (!lastRootItem) {
+          setActiveId(null);
+          setOverId(null);
+          setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
+          return;
+        }
+
+        // Place at root level (parentId = null), after the last root item
+        const newParentId = null;
+        const newOrder = lastRootItem.index + 1;
+
+        // Rebuild tree with the item moved to the end
+        const newTree = rebuildPageTree(
+          flattenedNodes,
+          activeNode.id,
+          newParentId,
+          newOrder
+        );
+
+        // Extract updated pages and folders from the new tree
+        const extractPagesAndFolders = (
+          nodes: PageTreeNode[],
+          parentId: string | null = null,
+          currentOrder: number = 0,
+          currentDepth: number = 0
+        ): { pages: Page[]; folders: PageFolder[] } => {
+          const updatedPages: Page[] = [];
+          const updatedFolders: PageFolder[] = [];
+
+          nodes.forEach((node, index) => {
+            const orderValue = currentOrder + index;
+
+            if (node.type === 'folder') {
+              const folder = node.data as PageFolder;
+              updatedFolders.push({
+                ...folder,
+                page_folder_id: parentId,
+                order: orderValue,
+                depth: currentDepth,
+              });
+
+              if (node.children) {
+                const childResult = extractPagesAndFolders(
+                  node.children,
+                  folder.id,
+                  0,
+                  currentDepth + 1
+                );
+                updatedPages.push(...childResult.pages);
+                updatedFolders.push(...childResult.folders);
+              }
+            } else {
+              const page = node.data as Page;
+              updatedPages.push({
+                ...page,
+                page_folder_id: parentId,
+                order: orderValue,
+                depth: currentDepth,
+              });
+            }
+          });
+
+          return { pages: updatedPages, folders: updatedFolders };
+        };
+
+        const { pages: updatedPages, folders: updatedFolders } = extractPagesAndFolders(newTree);
+
+        if (onReorder) {
+          onReorder(updatedPages, updatedFolders);
+        }
+
+        setActiveId(null);
+        setOverId(null);
+        setDropPosition(null);
+        setCursorOffsetY(0);
+        setIsProcessing(false);
+        return;
+      }
+
       const overNode = flattenedNodes.find((n) => n.id === over.id);
 
       if (!activeNode || !overNode) {
@@ -695,6 +849,7 @@ export default function PagesTree({
             key={node.id}
             node={node}
             isSelected={node.id === selectedItemId}
+            isChildOfSelected={isChildOfSelected(node)}
             isOver={overId === node.id}
             isDragging={activeId === node.id}
             isDragActive={!!activeId}
@@ -713,6 +868,12 @@ export default function PagesTree({
             onRename={onRename}
           />
         ))}
+
+        {/* Drop zone at the end of the list for dropping items after the last item */}
+        <EndDropZone
+          isDragActive={!!activeId}
+          isOver={overId === 'end-drop-zone'}
+        />
       </div>
 
       {/* Drag Overlay */}

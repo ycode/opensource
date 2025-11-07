@@ -10,6 +10,22 @@
 import { getKnexClient } from '../knex-client';
 
 /**
+ * Helper: Generate a unique slug from a page name
+ */
+function generateSlugFromName(name: string, timestamp?: number): string {
+  const baseSlug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  if (timestamp) {
+    return `${baseSlug}-${timestamp}`;
+  }
+
+  return baseSlug || `page-${Date.now()}`;
+}
+
+/**
  * Increment order for all sibling items (pages and folders) at a given position
  *
  * This is used during duplication operations to make space for the new item.
@@ -83,6 +99,73 @@ export async function incrementSiblingOrders(
     }
   } catch (error) {
     throw new Error(`Failed to increment sibling orders: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Fix orphaned pages by assigning them unique slugs
+ *
+ * Orphaned pages have empty slugs and are not index pages. This can happen
+ * when operations fail mid-way. This function efficiently fixes all orphaned
+ * pages by:
+ * 1. Fetching all existing slugs once for duplicate checking
+ * 2. Generating unique slugs for all orphaned pages
+ * 3. Batch updating all pages at once
+ *
+ * @param orphanedPages - Array of orphaned page records to fix
+ * @throws Error if the database update fails
+ */
+export async function fixOrphanedPageSlugs(
+  orphanedPages: Array<{ id: string; name: string; slug: string; is_index: boolean; page_folder_id: string | null }>
+): Promise<void> {
+  if (orphanedPages.length === 0) return;
+
+  const knex = await getKnexClient();
+
+  try {
+    // Fetch all existing slugs once for duplicate checking
+    const existingSlugs = await knex('pages')
+      .select('slug')
+      .whereNotNull('slug')
+      .whereNot('slug', '')
+      .whereNull('deleted_at')
+      .then(rows => new Set(rows.map(r => r.slug)));
+
+    // Generate unique slugs for all orphaned pages
+    const updates: Array<{ id: string; slug: string }> = [];
+    const timestamp = Date.now();
+
+    for (const orphan of orphanedPages) {
+      let newSlug = generateSlugFromName(orphan.name, timestamp + updates.length);
+
+      // Ensure uniqueness
+      let counter = 0;
+      while (existingSlugs.has(newSlug) || updates.some(u => u.slug === newSlug)) {
+        newSlug = `${generateSlugFromName(orphan.name, timestamp + updates.length)}-${counter}`;
+        counter++;
+      }
+
+      updates.push({ id: orphan.id, slug: newSlug });
+      existingSlugs.add(newSlug); // Mark as used
+    }
+
+    // Batch update all orphaned pages using CASE statement for efficiency
+    if (updates.length > 0) {
+      const caseStatements = updates.map((u, idx) =>
+        `WHEN id = $${idx * 2 + 1} THEN $${idx * 2 + 2}`
+      ).join(' ');
+
+      const values = updates.flatMap(u => [u.id, u.slug]);
+
+      await knex.raw(`
+        UPDATE pages
+        SET slug = CASE ${caseStatements} END,
+            updated_at = NOW()
+        WHERE id IN (${updates.map((_, idx) => `$${idx * 2 + 1}`).join(', ')})
+      `, values);
+    }
+  } catch (error) {
+    throw new Error(`Failed to fix orphaned page slugs: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 

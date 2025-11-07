@@ -238,20 +238,23 @@ function LayerRow({
         {/* Vertical connector lines - one for each depth level */}
         {node.depth > 0 && (
           <>
-            {Array.from({ length: node.depth }).map((_, i) => (
-              <div
-                key={i}
-                className={cn(
-                  'absolute z-10 top-0 bottom-0 w-px ',
-                  highlightedDepths.has(i) && 'bg-white/30',
-                  !highlightedDepths.has(i) && 'bg-secondary',
-                  !highlightedDepths.has(i) && isChildOfSelected && 'bg-white/10',
-                )}
-                style={{
-                  left: `${i * 14 + 16}px`,
-                }}
-              />
-            ))}
+            {Array.from({ length: node.depth }).map((_, i) => {
+              const shouldHighlight = (isSelected || isChildOfSelected) && highlightedDepths.has(i);
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    'absolute z-10 top-0 bottom-0 w-px ',
+                    shouldHighlight && 'bg-white/30',
+                    !shouldHighlight && isChildOfSelected && 'bg-white/10',
+                    !shouldHighlight && !isChildOfSelected && 'bg-secondary',
+                  )}
+                  style={{
+                    left: `${i * 14 + 16}px`,
+                  }}
+                />
+              );
+            })}
           </>
         )}
 

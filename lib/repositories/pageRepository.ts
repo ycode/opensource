@@ -8,7 +8,7 @@ import { getSupabaseAdmin } from '../supabase-server';
 import { reorderSiblings } from './pageFolderRepository';
 import type { Page } from '../../types';
 import { isHomepage } from '../page-utils';
-import { incrementSiblingOrders } from '../services/pageService';
+import { incrementSiblingOrders, fixOrphanedPageSlugs } from '../services/pageService';
 
 /**
  * Query filters for page lookups
@@ -436,30 +436,8 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
       .is('deleted_at', null);
 
     if (orphanedPages && orphanedPages.length > 0) {
-      // Fix each orphaned page by giving it a slug
-      for (const orphan of orphanedPages) {
-        const timestamp = Date.now();
-        let newSlug = generateSlugFromName(orphan.name, timestamp);
-
-        // Ensure uniqueness
-        const { data: duplicateCheck } = await client
-          .from('pages')
-          .select('id')
-          .eq('slug', newSlug)
-          .is('deleted_at', null)
-          .neq('id', orphan.id)
-          .limit(1)
-          .single();
-
-        if (duplicateCheck) {
-          newSlug = `${newSlug}-${Math.random().toString(36).substr(2, 5)}`;
-        }
-
-        await client
-          .from('pages')
-          .update({ slug: newSlug, updated_at: new Date().toISOString() })
-          .eq('id', orphan.id);
-      }
+      // Fix all orphaned pages in a single batch operation
+      await fixOrphanedPageSlugs(orphanedPages);
     }
 
     await transferIndexPage(client, id, folderIdForTransfer);
