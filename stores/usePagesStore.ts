@@ -27,11 +27,33 @@ interface PagesActions {
   loadDraft: (pageId: string) => Promise<void>;
   createPage: (pageData: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>) => Promise<{ success: boolean; data?: Page; error?: string; tempId?: string }>;
   updatePage: (pageId: string, updates: Partial<Page>) => Promise<{ success: boolean; error?: string }>;
-  duplicatePage: (pageId: string) => Promise<{ success: boolean; data?: Page; error?: string }>;
+  duplicatePage: (pageId: string) => Promise<{
+    success: boolean;
+    data?: Page;
+    error?: string;
+    metadata?: {
+      tempId: string;
+      originalName: string;
+      parentFolderId: string | null;
+      expectedName: string;
+    };
+  }>;
   deletePage: (pageId: string, currentPageId?: string | null) => Promise<{ success: boolean; error?: string; currentPageDeleted?: boolean; nextPageId?: string | null }>;
   createFolder: (folderData: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>) => Promise<{ success: boolean; data?: PageFolder; error?: string; tempId?: string }>;
   updateFolder: (folderId: string, updates: Partial<PageFolder>) => Promise<{ success: boolean; error?: string }>;
+  duplicateFolder: (folderId: string) => Promise<{
+    success: boolean;
+    data?: PageFolder;
+    error?: string;
+    metadata?: {
+      tempId: string;
+      originalName: string;
+      parentFolderId: string | null;
+      expectedName: string;
+    };
+  }>;
   deleteFolder: (folderId: string, currentPageId?: string | null) => Promise<{ success: boolean; error?: string; currentPageAffected?: boolean; nextPageId?: string | null; deletedPageIds?: string[] }>;
+  batchReorderPagesAndFolders: (pages: Page[], folders: PageFolder[]) => Promise<{ success: boolean; error?: string }>;
   initDraft: (page: Page, initialLayers?: Layer[]) => void;
   updateLayerClasses: (pageId: string, layerId: string, classes: string) => void;
   saveDraft: (pageId: string) => Promise<void>;
@@ -1362,61 +1384,83 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     console.log('[usePagesStore.duplicatePage] Optimistic UI update complete, calling API...');
 
-    try {
-      const response = await fetch(`/api/pages/${pageId}/duplicate`, {
-        method: 'POST',
-      });
+    // Store original state for rollback
+    const originalPages = pages;
+    const originalDrafts = draftsByPageId;
 
-      const result = await response.json();
+    // Return temp page immediately so it can be selected
+    // Also return metadata to find the real page after reload
+    const duplicateMetadata = {
+      tempId: tempId,
+      originalName: originalPage.name,
+      parentFolderId: originalPage.page_folder_id,
+      expectedName: `${originalPage.name} (Copy)`,
+    };
 
-      if (result.error || !result.data) {
-        console.error('[usePagesStore.duplicatePage] Error:', result.error);
-        // Rollback: Remove temp page
+    // Start API call in background (don't await immediately)
+    (async () => {
+      try {
+        const response = await fetch(`/api/pages/${pageId}/duplicate`, {
+          method: 'POST',
+        });
+
+        const result = await response.json();
+
+        if (result.error || !result.data) {
+          console.error('[usePagesStore.duplicatePage] Error:', result.error);
+          // Rollback: Remove temp page
+          set({
+            pages: originalPages,
+            draftsByPageId: originalDrafts,
+            error: result.error,
+            isLoading: false
+          });
+          return;
+        }
+
+        // Replace temp page with real one from database
+        const { pages: currentPages, draftsByPageId: currentDrafts } = get();
+        const finalPages = currentPages.map(p => p.id === tempId ? result.data : p);
+
+        // Replace temp draft with real one
+        const finalDrafts = { ...currentDrafts };
+        if (finalDrafts[tempId]) {
+          const tempDraftData = finalDrafts[tempId];
+          delete finalDrafts[tempId];
+          finalDrafts[result.data.id] = {
+            ...tempDraftData,
+            id: `draft-${result.data.id}`,
+            page_id: result.data.id,
+            publish_key: result.data.publish_key,
+          };
+        }
+
         set({
-          pages: pages,
-          draftsByPageId: draftsByPageId,
-          error: result.error,
+          pages: finalPages,
+          draftsByPageId: finalDrafts,
           isLoading: false
         });
-        return { success: false, error: result.error };
+
+        console.log('[usePagesStore.duplicatePage] Success - replaced temp ID with real ID');
+      } catch (error) {
+        console.error('[usePagesStore.duplicatePage] Exception:', error);
+        const errorMsg = error instanceof Error ? error.message : 'Failed to duplicate page';
+        // Rollback: Remove temp page
+        set({
+          pages: originalPages,
+          draftsByPageId: originalDrafts,
+          error: errorMsg,
+          isLoading: false
+        });
       }
+    })();
 
-      // Replace temp page with real one from database
-      const { pages: currentPages, draftsByPageId: currentDrafts } = get();
-      const finalPages = currentPages.map(p => p.id === tempId ? result.data : p);
-
-      // Replace temp draft with real one
-      const finalDrafts = { ...currentDrafts };
-      if (finalDrafts[tempId]) {
-        delete finalDrafts[tempId];
-        finalDrafts[result.data.id] = {
-          ...finalDrafts[tempId],
-          id: `draft-${result.data.id}`,
-          page_id: result.data.id,
-          publish_key: result.data.publish_key,
-        };
-      }
-
-      set({
-        pages: finalPages,
-        draftsByPageId: finalDrafts,
-        isLoading: false
-      });
-
-      console.log('[usePagesStore.duplicatePage] Success - replaced temp ID with real ID');
-      return { success: true, data: result.data };
-    } catch (error) {
-      console.error('[usePagesStore.duplicatePage] Exception:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to duplicate page';
-      // Rollback: Remove temp page
-      set({
-        pages: pages,
-        draftsByPageId: draftsByPageId,
-        error: errorMsg,
-        isLoading: false
-      });
-      return { success: false, error: errorMsg };
-    }
+    // Return immediately with temp page so UI can select it
+    return {
+      success: true,
+      data: tempPage,
+      metadata: duplicateMetadata
+    };
   },
 
   deletePage: async (pageId, currentPageId?: string | null) => {
@@ -1654,6 +1698,245 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     }
   },
 
+  duplicateFolder: async (folderId) => {
+    console.log('[usePagesStore.duplicateFolder] Starting...', folderId);
+
+    const { folders, pages, draftsByPageId } = get();
+
+    // Find the original folder
+    const originalFolder = folders.find(f => f.id === folderId);
+    if (!originalFolder) {
+      return { success: false, error: 'Folder not found' };
+    }
+
+    // Store original state for rollback
+    const originalFolders = folders;
+    const originalPages = pages;
+    const originalDrafts = draftsByPageId;
+
+    // Build optimistic duplicates for the entire hierarchy
+    const timestamp = Date.now();
+    const tempIdMap = new Map<string, string>(); // Map original ID to temp ID
+    const tempFolders: PageFolder[] = [];
+    const tempPages: Page[] = [];
+    const tempDrafts: Record<string, PageLayers> = {};
+
+    // Helper to generate temp IDs
+    const generateTempId = (type: 'folder' | 'page', index: number) => {
+      return `temp-${type}-${timestamp}-${index}-${Math.random().toString(36).substr(2, 9)}`;
+    };
+
+    // Recursive function to duplicate folder hierarchy optimistically
+    const duplicateFolderHierarchy = (
+      currentFolderId: string,
+      newParentId: string | null,
+      folderCounter: { count: number },
+      pageCounter: { count: number }
+    ) => {
+      // Get all child folders
+      const childFolders = folders.filter(f => f.page_folder_id === currentFolderId);
+
+      // Get all child pages
+      const childPages = pages.filter(p => p.page_folder_id === currentFolderId);
+
+      // Duplicate child folders
+      childFolders.forEach(folder => {
+        const tempFolderId = generateTempId('folder', folderCounter.count++);
+        tempIdMap.set(folder.id, tempFolderId);
+
+        // Generate unique timestamp for each folder (matching backend pattern)
+        const folderTimestamp = Date.now() + Math.random();
+        const folderSlug = `folder-${Math.floor(folderTimestamp)}`;
+
+        const tempFolder: PageFolder = {
+          ...folder,
+          id: tempFolderId,
+          page_folder_id: newParentId,
+          slug: folderSlug,
+          is_published: false,
+          publish_key: `temp-${timestamp}-${folderCounter.count}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        tempFolders.push(tempFolder);
+
+        // Recursively duplicate this folder's contents
+        duplicateFolderHierarchy(folder.id, tempFolderId, folderCounter, pageCounter);
+      });
+
+      // Duplicate child pages
+      childPages.forEach(page => {
+        const tempPageId = generateTempId('page', pageCounter.count++);
+        tempIdMap.set(page.id, tempPageId);
+
+        // Generate unique timestamp for each page (matching backend pattern)
+        const pageTimestamp = Date.now() + Math.random();
+        const pageSlug = page.is_index ? '' : `page-${Math.floor(pageTimestamp)}`;
+
+        const tempPage: Page = {
+          ...page,
+          id: tempPageId,
+          page_folder_id: newParentId,
+          slug: pageSlug,
+          is_published: false,
+          publish_key: `temp-${timestamp}-${pageCounter.count}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        tempPages.push(tempPage);
+
+        // Duplicate draft if exists
+        const originalDraft = draftsByPageId[page.id];
+        if (originalDraft) {
+          tempDrafts[tempPageId] = {
+            ...originalDraft,
+            id: `draft-${tempPageId}`,
+            page_id: tempPageId,
+            publish_key: tempPage.publish_key,
+            is_published: false,
+            created_at: new Date().toISOString(),
+          };
+        }
+      });
+    };
+
+    // Create the root duplicate folder
+    const rootTempId = generateTempId('folder', 0);
+    const rootTempFolder: PageFolder = {
+      ...originalFolder,
+      id: rootTempId,
+      name: `${originalFolder.name} (Copy)`,
+      slug: `folder-${timestamp}`, // Match backend pattern
+      is_published: false,
+      order: originalFolder.order + 1,
+      publish_key: `temp-${timestamp}`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    tempIdMap.set(folderId, rootTempId);
+    tempFolders.push(rootTempFolder);
+
+    // Recursively build all child duplicates
+    duplicateFolderHierarchy(folderId, rootTempId, { count: 1 }, { count: 0 });
+
+    // Insert root folder right after the original
+    const folderIndex = folders.findIndex(f => f.id === folderId);
+    const updatedFolders = [...folders];
+    updatedFolders.splice(folderIndex + 1, 0, ...tempFolders);
+
+    // Add all temp pages
+    const updatedPages = [...pages, ...tempPages];
+
+    // Merge drafts
+    const updatedDrafts = { ...draftsByPageId, ...tempDrafts };
+
+    // Optimistic update: Show all duplicates immediately
+    set({
+      folders: updatedFolders,
+      pages: updatedPages,
+      draftsByPageId: updatedDrafts,
+      isLoading: true,
+      error: null
+    });
+
+    console.log('[usePagesStore.duplicateFolder] Optimistic UI update complete:', {
+      folders: tempFolders.length,
+      pages: tempPages.length,
+      drafts: Object.keys(tempDrafts).length
+    });
+
+    // Return temp folder immediately so it can be selected
+    // Also return metadata to find the real folder after reload
+    const duplicateMetadata = {
+      tempId: rootTempId,
+      originalName: originalFolder.name,
+      parentFolderId: originalFolder.page_folder_id,
+      expectedName: `${originalFolder.name} (Copy)`,
+    };
+
+    // Start API call in background (don't await immediately)
+    (async () => {
+      try {
+        const response = await fetch(`/api/folders/${folderId}/duplicate`, {
+          method: 'POST',
+        });
+
+        const result = await response.json();
+
+        if (result.error || !result.data) {
+          console.error('[usePagesStore.duplicateFolder] Error:', result.error);
+          // Rollback: Restore original state
+          set({
+            folders: originalFolders,
+            pages: originalPages,
+            draftsByPageId: originalDrafts,
+            error: result.error,
+            isLoading: false
+          });
+          return;
+        }
+
+        // Success! Now fetch fresh data and replace ALL temp items with real ones
+        // Since we can't reliably match by slug (backend generates different timestamps),
+        // we'll just replace all temp items with all new real items
+        console.log('[usePagesStore.duplicateFolder] Success - fetching real data...');
+
+        try {
+          // Fetch fresh data from database
+          const [pagesResponse, foldersResponse] = await Promise.all([
+            fetch('/api/pages'),
+            fetch('/api/folders')
+          ]);
+
+          const pagesData = await pagesResponse.json();
+          const foldersData = await foldersResponse.json();
+
+          if (pagesData.data && foldersData.data) {
+            const realPages = pagesData.data as Page[];
+            const realFolders = foldersData.data as PageFolder[];
+
+            // Update state with real data from database
+            set({
+              pages: realPages,
+              folders: realFolders,
+              isLoading: false
+            });
+
+            console.log('[usePagesStore.duplicateFolder] Replaced temp items with real data');
+          } else {
+            // If fetch failed, just turn off loading
+            set({ isLoading: false });
+          }
+        } catch (error) {
+          console.error('[usePagesStore.duplicateFolder] Failed to fetch real data:', error);
+          // Keep temp items if fetch fails
+          set({ isLoading: false });
+        }
+      } catch (error) {
+        console.error('[usePagesStore.duplicateFolder] Exception:', error);
+        const errorMsg = error instanceof Error ? error.message : 'Failed to duplicate folder';
+        // Rollback: Restore original state
+        set({
+          folders: originalFolders,
+          pages: originalPages,
+          draftsByPageId: originalDrafts,
+          error: errorMsg,
+          isLoading: false
+        });
+      }
+    })();
+
+    // Return immediately with temp folder so UI can select it
+    return {
+      success: true,
+      data: rootTempFolder,
+      metadata: duplicateMetadata
+    };
+  },
+
   deleteFolder: async (folderId, currentPageId?: string | null) => {
     console.log('[usePagesStore.deleteFolder] Starting...', folderId);
 
@@ -1743,6 +2026,87 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         error: errorMsg,
         isLoading: false
       });
+      return { success: false, error: errorMsg };
+    }
+  },
+
+  batchReorderPagesAndFolders: async (updatedPages, updatedFolders) => {
+    console.log('[usePagesStore.batchReorderPagesAndFolders] Starting...', {
+      pagesCount: updatedPages.length,
+      foldersCount: updatedFolders.length,
+    });
+
+    const { pages, folders } = get();
+
+    // Store original state for rollback
+    const originalPages = pages;
+    const originalFolders = folders;
+
+    try {
+      // Optimistically update the UI
+      set({
+        pages: updatedPages,
+        folders: updatedFolders,
+        isLoading: true,
+      });
+
+      // Batch update pages
+      const pageUpdatePromises = updatedPages.map(async (page) => {
+        const originalPage = originalPages.find(p => p.id === page.id);
+        if (!originalPage) return;
+
+        // Only update if something changed
+        if (
+          originalPage.page_folder_id !== page.page_folder_id ||
+          originalPage.order !== page.order ||
+          originalPage.depth !== page.depth
+        ) {
+          await pagesApi.update(page.id, {
+            page_folder_id: page.page_folder_id,
+            order: page.order,
+            depth: page.depth,
+          });
+        }
+      });
+
+      // Batch update folders
+      const folderUpdatePromises = updatedFolders.map(async (folder) => {
+        const originalFolder = originalFolders.find(f => f.id === folder.id);
+        if (!originalFolder) return;
+
+        // Only update if something changed
+        if (
+          originalFolder.page_folder_id !== folder.page_folder_id ||
+          originalFolder.order !== folder.order ||
+          originalFolder.depth !== folder.depth
+        ) {
+          await foldersApi.update(folder.id, {
+            page_folder_id: folder.page_folder_id,
+            order: folder.order,
+            depth: folder.depth,
+          });
+        }
+      });
+
+      // Wait for all updates to complete
+      await Promise.all([...pageUpdatePromises, ...folderUpdatePromises]);
+
+      set({ isLoading: false });
+
+      console.log('[usePagesStore.batchReorderPagesAndFolders] Success');
+      return { success: true };
+    } catch (error) {
+      console.error('[usePagesStore.batchReorderPagesAndFolders] Exception:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to reorder items';
+
+      // Rollback optimistic update
+      set({
+        pages: originalPages,
+        folders: originalFolders,
+        error: errorMsg,
+        isLoading: false,
+      });
+
       return { success: false, error: errorMsg };
     }
   },

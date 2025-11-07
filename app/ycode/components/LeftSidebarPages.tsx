@@ -67,7 +67,7 @@ export default function LeftSidebarPages({
   }, [selectedPage, selectedFolder, showPageSettings, showFolderSettings]);
 
   // Get store actions
-  const { createPage, updatePage, duplicatePage, deletePage, createFolder, updateFolder, deleteFolder } = usePagesStore();
+  const { createPage, updatePage, duplicatePage, deletePage, createFolder, updateFolder, duplicateFolder, deleteFolder, batchReorderPagesAndFolders } = usePagesStore();
 
   // Sync selection with current page when it changes externally
   useEffect(() => {
@@ -259,23 +259,234 @@ export default function LeftSidebarPages({
     }
   };
 
+  const handleReorder = async (updatedPages: Page[], updatedFolders: PageFolder[]) => {
+    const result = await batchReorderPagesAndFolders(updatedPages, updatedFolders);
+
+    if (result.error) {
+      console.error('Failed to reorder items:', result.error);
+      // Could show a toast notification here
+    }
+  };
+
   // Handle duplicate page/folder
+  // Track pending duplication for selection after reload (works for both pages and folders)
+  const [pendingDuplicateSelection, setPendingDuplicateSelection] = React.useState<{
+    tempId: string;
+    expectedName: string;
+    parentFolderId: string | null;
+    type: 'page' | 'folder';
+    allTempIds?: Set<string>; // All temp IDs created during duplication (for folders with contents)
+    tempItemsSnapshot?: Map<string, { name: string; type: 'page' | 'folder' }>; // Snapshot of temp items
+  } | null>(null);
+
+  // Watch for changes and update selection if we're waiting for a duplicate
+  useEffect(() => {
+    if (pendingDuplicateSelection) {
+      const { tempId, expectedName, parentFolderId, type, allTempIds } = pendingDuplicateSelection;
+
+      // Check if current selection is any of the temp IDs from this duplication
+      const isSelectingTempFromDuplication = allTempIds
+        ? allTempIds.has(selectedItemIdRef.current || '')
+        : selectedItemIdRef.current === tempId;
+
+      if (type === 'folder') {
+        // Check if temp folder ID no longer exists (data has been reloaded)
+        const tempExists = folders.some(f => f.id === tempId);
+
+        if (!tempExists) {
+          // Find the real duplicated folder
+          const duplicatedFolder = folders.find(
+            f => f.name === expectedName &&
+                 f.page_folder_id === parentFolderId &&
+                 !f.id.startsWith('temp-')
+          );
+
+          if (duplicatedFolder) {
+            console.log('[LeftSidebarPages] Found real duplicated folder, selecting:', duplicatedFolder.id);
+
+            // Update selection if user is selecting any temp item from this duplication
+            if (isSelectingTempFromDuplication) {
+              // Try to find the corresponding real item based on what was selected
+              const currentSelectionId = selectedItemIdRef.current;
+
+              if (currentSelectionId && allTempIds && pendingDuplicateSelection.tempItemsSnapshot) {
+                const selectedItemSnapshot = pendingDuplicateSelection.tempItemsSnapshot.get(currentSelectionId);
+
+                if (selectedItemSnapshot) {
+                  if (selectedItemSnapshot.type === 'page') {
+                    // User selected a page inside the duplicated folder
+                    // Get all descendant folder IDs of the duplicated folder
+                    const getDescendantFolderIds = (folderId: string): string[] => {
+                      const childFolders = folders.filter(f => f.page_folder_id === folderId && !f.id.startsWith('temp-'));
+                      const ids = childFolders.map(f => f.id);
+                      childFolders.forEach(f => {
+                        ids.push(...getDescendantFolderIds(f.id));
+                      });
+                      return ids;
+                    };
+
+                    const validFolderIds = [duplicatedFolder.id, ...getDescendantFolderIds(duplicatedFolder.id)];
+
+                    // Find real page by name in the duplicated folder hierarchy
+                    const realPage = pages.find(
+                      p => p.name === selectedItemSnapshot.name &&
+                           p.page_folder_id &&
+                           validFolderIds.includes(p.page_folder_id) &&
+                           !p.id.startsWith('temp-')
+                    );
+                    if (realPage) {
+                      console.log('[LeftSidebarPages] Found real duplicated page inside folder, selecting:', realPage.id);
+                      setSelectedItemId(realPage.id);
+                    } else {
+                      // Fall back to selecting the folder
+                      console.log('[LeftSidebarPages] Could not find real page, falling back to folder');
+                      setSelectedItemId(duplicatedFolder.id);
+                    }
+                  } else if (selectedItemSnapshot.type === 'folder') {
+                    // User selected a nested folder inside the duplicated folder
+                    if (currentSelectionId === tempId) {
+                      // Selecting the root folder itself
+                      setSelectedItemId(duplicatedFolder.id);
+                    } else {
+                      // Selecting a nested folder
+                      const getDescendantFolderIds = (folderId: string): string[] => {
+                        const childFolders = folders.filter(f => f.page_folder_id === folderId && !f.id.startsWith('temp-'));
+                        const ids = childFolders.map(f => f.id);
+                        childFolders.forEach(f => {
+                          ids.push(...getDescendantFolderIds(f.id));
+                        });
+                        return ids;
+                      };
+
+                      const descendantFolderIds = getDescendantFolderIds(duplicatedFolder.id);
+
+                      // Find real folder by name in the duplicated folder hierarchy
+                      const realFolder = folders.find(
+                        f => f.name === selectedItemSnapshot.name &&
+                             f.id !== duplicatedFolder.id &&
+                             descendantFolderIds.includes(f.id) &&
+                             !f.id.startsWith('temp-')
+                      );
+                      if (realFolder) {
+                        console.log('[LeftSidebarPages] Found real duplicated nested folder, selecting:', realFolder.id);
+                        setSelectedItemId(realFolder.id);
+                      } else {
+                        // Fall back to selecting the root duplicated folder
+                        console.log('[LeftSidebarPages] Could not find real nested folder, falling back to root folder');
+                        setSelectedItemId(duplicatedFolder.id);
+                      }
+                    }
+                  }
+                } else {
+                  // No snapshot found, select root folder
+                  console.log('[LeftSidebarPages] No snapshot found for selection, selecting root folder');
+                  setSelectedItemId(duplicatedFolder.id);
+                }
+              } else {
+                // Selecting the root folder itself (no snapshot needed)
+                setSelectedItemId(duplicatedFolder.id);
+              }
+            }
+            setPendingDuplicateSelection(null);
+          }
+        }
+      } else {
+        // Check if temp page ID no longer exists (data has been reloaded)
+        const tempExists = pages.some(p => p.id === tempId);
+
+        if (!tempExists) {
+          // Find the real duplicated page
+          const duplicatedPage = pages.find(
+            p => p.name === expectedName &&
+                 p.page_folder_id === parentFolderId &&
+                 !p.id.startsWith('temp-')
+          );
+
+          if (duplicatedPage) {
+            console.log('[LeftSidebarPages] Found real duplicated page, selecting:', duplicatedPage.id);
+            // Only update selection if it's still the temp ID (user hasn't changed selection during operation)
+            if (isSelectingTempFromDuplication) {
+              setSelectedItemId(duplicatedPage.id);
+            }
+            setPendingDuplicateSelection(null);
+          }
+        }
+      }
+    }
+  }, [pages, folders, pendingDuplicateSelection]);
+
   const handleDuplicate = async (id: string, type: 'folder' | 'page') => {
     if (type === 'folder') {
-      // Folders cannot be duplicated
-      console.warn('Folder duplication is not supported');
-      return;
-    }
+      // Duplicate the folder
+      const result = await duplicateFolder(id);
 
-    // Duplicate the page
-    const result = await duplicatePage(id);
+      if (result.success && result.data) {
+        // Select the newly duplicated folder (temp ID initially)
+        setSelectedItemId(result.data.id);
 
-    if (result.success && result.data) {
-      // Select the newly duplicated page
-      setSelectedItemId(result.data.id);
-    } else if (result.error) {
-      console.error('Failed to duplicate page:', result.error);
-      // Could show a toast notification here
+        // Track this duplication so we can update selection after reload
+        if (result.metadata) {
+          // Collect all temp IDs created during this duplication (folder + all pages inside)
+          // All items from a single duplication share the same timestamp in their temp IDs
+          const allTempIds = new Set<string>();
+          const tempItemsSnapshot = new Map<string, { name: string; type: 'page' | 'folder' }>();
+
+          allTempIds.add(result.metadata.tempId);
+
+          // Extract timestamp from temp ID (format: temp-folder-{timestamp}-...)
+          const timestampMatch = result.metadata.tempId.match(/temp-\w+-(\d+)-/);
+          if (timestampMatch) {
+            const timestamp = timestampMatch[1];
+
+            // Find all temp pages and folders created in this operation by matching timestamp
+            const tempFolders = folders.filter(f => f.id.includes(`-${timestamp}-`));
+            const tempPages = pages.filter(p => p.id.includes(`-${timestamp}-`));
+
+            // Store snapshot of all temp items (name + type) before they get replaced
+            tempFolders.forEach(f => {
+              allTempIds.add(f.id);
+              tempItemsSnapshot.set(f.id, { name: f.name, type: 'folder' });
+            });
+            tempPages.forEach(p => {
+              allTempIds.add(p.id);
+              tempItemsSnapshot.set(p.id, { name: p.name, type: 'page' });
+            });
+          }
+
+          setPendingDuplicateSelection({
+            tempId: result.metadata.tempId,
+            expectedName: result.metadata.expectedName,
+            parentFolderId: result.metadata.parentFolderId,
+            type: 'folder',
+            allTempIds,
+            tempItemsSnapshot,
+          });
+        }
+      } else if (result.error) {
+        console.error('Failed to duplicate folder:', result.error);
+        // Could show a toast notification here
+      }
+    } else {
+      // Duplicate the page
+      const result = await duplicatePage(id);
+
+      if (result.success && result.data) {
+        // Select the newly duplicated page (temp ID initially)
+        setSelectedItemId(result.data.id);
+
+        // Track this duplication so we can update selection after reload
+        if (result.metadata) {
+          setPendingDuplicateSelection({
+            tempId: result.metadata.tempId,
+            expectedName: result.metadata.expectedName,
+            parentFolderId: result.metadata.parentFolderId,
+            type: 'page',
+          });
+        }
+      } else if (result.error) {
+        console.error('Failed to duplicate page:', result.error);
+        // Could show a toast notification here
+      }
     }
   };
 
@@ -451,6 +662,7 @@ export default function LeftSidebarPages({
             setCurrentPageId(pageId);
             setSelectedItemId(pageId);
           }}
+          onReorder={handleReorder}
           onPageSettings={handleEditPage}
           onFolderSettings={handleEditFolder}
           onDuplicate={handleDuplicate}

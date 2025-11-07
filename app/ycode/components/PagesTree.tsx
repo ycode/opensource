@@ -306,9 +306,19 @@ export default function PagesTree({
         setCursorOffsetY(activeRect.height / 2);
       }
 
+      // Automatically select the dragged item
+      const draggedNode = flattenedNodes.find((n) => n.id === draggedId);
+      if (draggedNode) {
+        if (draggedNode.type === 'page') {
+          onPageSelect(draggedId);
+        } else if (onFolderSelect) {
+          onFolderSelect(draggedId);
+        }
+      }
+
       setActiveId(draggedId);
     },
-    [isProcessing]
+    [isProcessing, flattenedNodes, onPageSelect, onFolderSelect]
   );
 
   // Handle drag over
@@ -362,10 +372,79 @@ export default function PagesTree({
         position = relativeY < 0.5 ? 'above' : 'below';
       }
 
+      // Prevent showing drop indicator if moving into self or descendant
+      if (activeNode && checkIsDescendant(activeNode, overNode, flattenedNodes)) {
+        setOverId(null);
+        setDropPosition(null);
+        return;
+      }
+
+      // Determine the target parent folder for this drop position
+      let targetParentId: string | null;
+      if (position === 'inside' && overNode.type === 'folder') {
+        targetParentId = overNode.id;
+      } else {
+        targetParentId = overNode.parentId;
+      }
+
+      // Prevent showing drop indicator if moving an index page to a folder that already has one
+      if (activeNode && activeNode.type === 'page') {
+        const activePage = activeNode.data as Page;
+        if (activePage.is_index) {
+          const targetFolderHasIndex = pages.some(
+            (p) =>
+              p.id !== activePage.id &&
+              p.is_index &&
+              p.page_folder_id === targetParentId
+          );
+
+          if (targetFolderHasIndex) {
+            // Don't show drop indicator for invalid drop
+            setOverId(null);
+            setDropPosition(null);
+            return;
+          }
+        }
+
+        // Prevent showing drop indicator if moving a page would create a slug conflict
+        // Pages must have unique (slug, is_published, page_folder_id)
+        const slugConflict = pages.some(
+          (p) =>
+            p.id !== activePage.id &&
+            p.slug === activePage.slug &&
+            p.is_published === activePage.is_published &&
+            p.page_folder_id === targetParentId
+        );
+
+        if (slugConflict) {
+          setOverId(null);
+          setDropPosition(null);
+          return;
+        }
+      }
+
+      // Prevent showing drop indicator if moving a folder would create a slug conflict
+      // Folders must have unique (slug, page_folder_id)
+      if (activeNode && activeNode.type === 'folder') {
+        const activeFolder = activeNode.data as PageFolder;
+        const slugConflict = folders.some(
+          (f) =>
+            f.id !== activeFolder.id &&
+            f.slug === activeFolder.slug &&
+            f.page_folder_id === targetParentId
+        );
+
+        if (slugConflict) {
+          setOverId(null);
+          setDropPosition(null);
+          return;
+        }
+      }
+
       setOverId(overId);
       setDropPosition(position);
     },
-    [flattenedNodes, activeId, cursorOffsetY]
+    [flattenedNodes, activeId, cursorOffsetY, pages, folders]
   );
 
   // Handle drag end
@@ -405,6 +484,80 @@ export default function PagesTree({
         return;
       }
 
+      // Determine the target parent folder
+      let targetParentId: string | null;
+      if (dropPosition === 'inside' && overNode.type === 'folder') {
+        targetParentId = overNode.id;
+      } else {
+        targetParentId = overNode.parentId;
+      }
+
+      // Prevent moving an index page to a folder that already has an index page
+      if (activeNode.type === 'page') {
+        const activePage = activeNode.data as Page;
+        if (activePage.is_index) {
+          // Check if target folder already has an index page (excluding the one being moved)
+          const targetFolderHasIndex = pages.some(
+            (p) =>
+              p.id !== activePage.id &&
+              p.is_index &&
+              p.page_folder_id === targetParentId
+          );
+
+          if (targetFolderHasIndex) {
+            console.warn('Cannot move index page: target folder already has an index page');
+            setActiveId(null);
+            setOverId(null);
+            setDropPosition(null);
+            setCursorOffsetY(0);
+            setIsProcessing(false);
+            return;
+          }
+        }
+
+        // Prevent moving a page if it would create a slug conflict
+        // Pages must have unique (slug, is_published, page_folder_id)
+        const slugConflict = pages.some(
+          (p) =>
+            p.id !== activePage.id &&
+            p.slug === activePage.slug &&
+            p.is_published === activePage.is_published &&
+            p.page_folder_id === targetParentId
+        );
+
+        if (slugConflict) {
+          console.warn('Cannot move page: slug conflict in target folder');
+          setActiveId(null);
+          setOverId(null);
+          setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // Prevent moving a folder if it would create a slug conflict
+      // Folders must have unique (slug, page_folder_id)
+      if (activeNode.type === 'folder') {
+        const activeFolder = activeNode.data as PageFolder;
+        const slugConflict = folders.some(
+          (f) =>
+            f.id !== activeFolder.id &&
+            f.slug === activeFolder.slug &&
+            f.page_folder_id === targetParentId
+        );
+
+        if (slugConflict) {
+          console.warn('Cannot move folder: slug conflict in target folder');
+          setActiveId(null);
+          setOverId(null);
+          setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
+          return;
+        }
+      }
+
       // Handle drop based on dropPosition
       let newParentId: string | null;
       let newOrder: number;
@@ -439,7 +592,8 @@ export default function PagesTree({
       const extractPagesAndFolders = (
         nodes: PageTreeNode[],
         parentId: string | null = null,
-        currentOrder: number = 0
+        currentOrder: number = 0,
+        currentDepth: number = 0
       ): { pages: Page[]; folders: PageFolder[] } => {
         const updatedPages: Page[] = [];
         const updatedFolders: PageFolder[] = [];
@@ -454,11 +608,12 @@ export default function PagesTree({
               ...folder,
               page_folder_id: parentId,
               order: orderValue,
+              depth: currentDepth,
             });
 
             if (node.children) {
-              // Children start with order 0 within their parent
-              const childResults = extractPagesAndFolders(node.children, node.id, 0);
+              // Children start with order 0 within their parent and depth increases by 1
+              const childResults = extractPagesAndFolders(node.children, node.id, 0, currentDepth + 1);
               updatedPages.push(...childResults.pages);
               updatedFolders.push(...childResults.folders);
             }
@@ -468,6 +623,7 @@ export default function PagesTree({
               ...page,
               page_folder_id: parentId,
               order: orderValue,
+              depth: currentDepth,
             });
           }
         });
@@ -488,7 +644,7 @@ export default function PagesTree({
 
       setTimeout(() => setIsProcessing(false), 0);
     },
-    [flattenedNodes, dropPosition, onReorder]
+    [flattenedNodes, dropPosition, onReorder, pages, folders]
   );
 
   // Handle drag cancel

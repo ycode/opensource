@@ -77,9 +77,9 @@ export default function PageContextMenu({
           </ContextMenuItem>
         )}
 
-        {((nodeType === 'page' && onDuplicate) || onDelete) && <ContextMenuSeparator />}
+        {(onDuplicate || onDelete) && <ContextMenuSeparator />}
 
-        {nodeType === 'page' && onDuplicate && (
+        {onDuplicate && (
           <ContextMenuItem onClick={onDuplicate}>
             <span>Duplicate</span>
           </ContextMenuItem>

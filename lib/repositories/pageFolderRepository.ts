@@ -596,3 +596,194 @@ export async function reorderFolders(updates: Array<{ id: string; order: number 
   }
 }
 
+/**
+ * Duplicate a page folder recursively
+ * Creates a copy of the folder with all its child pages and folders
+ * @param folderId - ID of the folder to duplicate
+ * @returns The newly created folder
+ */
+export async function duplicatePageFolder(folderId: string): Promise<PageFolder> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // Get the original folder
+  const originalFolder = await getPageFolderById(folderId);
+  if (!originalFolder) {
+    throw new Error('Folder not found');
+  }
+
+  // Generate new slug with timestamp to ensure uniqueness
+  const timestamp = Date.now();
+  const newSlug = `folder-${timestamp}`;
+  const newName = `${originalFolder.name} (Copy)`;
+
+  // Get the max order for siblings
+  const query = client
+    .from('page_folders')
+    .select('order')
+    .eq('depth', originalFolder.depth)
+    .is('deleted_at', null);
+
+  // Handle null vs non-null folder_id
+  const orderQuery = originalFolder.page_folder_id === null
+    ? query.is('page_folder_id', null)
+    : query.eq('page_folder_id', originalFolder.page_folder_id);
+
+  const { data: siblings, error: orderError } = await orderQuery.order('order', { ascending: false }).limit(1);
+
+  if (orderError) {
+    throw new Error(`Failed to get sibling order: ${orderError.message}`);
+  }
+
+  const maxOrder = siblings && siblings.length > 0 ? siblings[0].order : -1;
+  const newOrder = maxOrder + 1;
+
+  // Create the new folder
+  const { data: newFolder, error: folderError } = await client
+    .from('page_folders')
+    .insert({
+      name: newName,
+      slug: newSlug,
+      is_published: false, // Always create as unpublished
+      page_folder_id: originalFolder.page_folder_id,
+      order: newOrder,
+      depth: originalFolder.depth,
+      settings: originalFolder.settings || {},
+    })
+    .select()
+    .single();
+
+  if (folderError) {
+    throw new Error(`Failed to create duplicate folder: ${folderError.message}`);
+  }
+
+  // Now recursively duplicate all child folders and pages
+  await duplicateFolderContents(client, folderId, newFolder.id);
+
+  return newFolder;
+}
+
+/**
+ * Helper function to recursively duplicate all contents of a folder
+ * @param client - Supabase client
+ * @param originalFolderId - Original folder ID
+ * @param newFolderId - New folder ID
+ */
+async function duplicateFolderContents(
+  client: any,
+  originalFolderId: string,
+  newFolderId: string
+): Promise<void> {
+  // Get all child folders
+  const { data: childFolders, error: foldersError } = await client
+    .from('page_folders')
+    .select('*')
+    .eq('page_folder_id', originalFolderId)
+    .is('deleted_at', null)
+    .order('order', { ascending: true });
+
+  if (foldersError) {
+    throw new Error(`Failed to fetch child folders: ${foldersError.message}`);
+  }
+
+  // Get all child pages
+  const { data: childPages, error: pagesError } = await client
+    .from('pages')
+    .select('*')
+    .eq('page_folder_id', originalFolderId)
+    .is('deleted_at', null)
+    .order('order', { ascending: true });
+
+  if (pagesError) {
+    throw new Error(`Failed to fetch child pages: ${pagesError.message}`);
+  }
+
+  // Duplicate child folders first (to maintain order)
+  const folderIdMap = new Map<string, string>(); // Map old folder ID to new folder ID
+
+  if (childFolders && childFolders.length > 0) {
+    for (const folder of childFolders) {
+      const timestamp = Date.now() + Math.random(); // Add randomness for uniqueness
+      const newFolderSlug = `folder-${Math.floor(timestamp)}`;
+
+      const { data: duplicatedFolder, error: dupError } = await client
+        .from('page_folders')
+        .insert({
+          name: folder.name,
+          slug: newFolderSlug,
+          is_published: false,
+          page_folder_id: newFolderId, // Point to new parent
+          order: folder.order,
+          depth: folder.depth,
+          settings: folder.settings || {},
+        })
+        .select()
+        .single();
+
+      if (dupError) {
+        throw new Error(`Failed to duplicate child folder: ${dupError.message}`);
+      }
+
+      folderIdMap.set(folder.id, duplicatedFolder.id);
+
+      // Recursively duplicate this folder's contents
+      await duplicateFolderContents(client, folder.id, duplicatedFolder.id);
+    }
+  }
+
+  // Duplicate child pages
+  if (childPages && childPages.length > 0) {
+    for (const page of childPages) {
+      const timestamp = Date.now() + Math.random();
+      const newPageSlug = page.is_index ? '' : `page-${Math.floor(timestamp)}`;
+
+      const { data: duplicatedPage, error: dupError } = await client
+        .from('pages')
+        .insert({
+          name: page.name,
+          slug: newPageSlug,
+          is_published: false,
+          page_folder_id: newFolderId, // Point to new parent
+          order: page.order,
+          depth: page.depth,
+          is_index: page.is_index,
+          is_dynamic: page.is_dynamic,
+          error_page: page.error_page,
+          settings: page.settings || {},
+        })
+        .select()
+        .single();
+
+      if (dupError) {
+        throw new Error(`Failed to duplicate child page: ${dupError.message}`);
+      }
+
+      // Duplicate the page's draft layers if they exist
+      const { data: originalLayers, error: layersError } = await client
+        .from('page_layers')
+        .select('*')
+        .eq('page_id', page.id)
+        .eq('is_published', false)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      // If there are draft layers, duplicate them for the new page
+      if (!layersError && originalLayers) {
+        await client
+          .from('page_layers')
+          .insert({
+            page_id: duplicatedPage.id,
+            layers: originalLayers.layers,
+            is_published: false,
+            publish_key: duplicatedPage.publish_key,
+          });
+      }
+    }
+  }
+}
+
