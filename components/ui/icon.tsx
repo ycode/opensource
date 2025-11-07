@@ -9,7 +9,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     'x' | 'layers' | 'database' | 'plus' | 'chevronCombo' | 'check' | 'textAlignLeft' | 'textAlignRight' | 'textAlignCenter' | 'textAlignJustify' | 'individualBorders'
     | 'borders' | 'borderTopLeft' | 'letterSpacing' | 'lineHeight' | 'columns' | 'rows' | 'grid' | 'alignStart' | 'alignCenter' | 'alignEnd' | 'alignStretch' | 'verticalGap'
     | 'horizontalGap' | 'link' | 'paddingSide' | 'block' | 'section' | 'container' | 'separator' | 'image' | 'icon' | 'video' | 'text' | 'layout' | 'heading' | 'type'
-    | 'file-text' | 'edit' | 'box' | 'chevronRight' | 'minSize' | 'maxSize' | 'undo' | 'redo' | 'page' | 'homepage' | 'folder' | 'dotsHorizontal' | 'refresh' | 'more'
+    | 'file-text' | 'edit' | 'box' | 'chevronRight' | 'minSize' | 'maxSize' | 'undo' | 'redo' | 'page' | 'homepage' | 'folder' | 'dotsHorizontal' | 'refresh' | 'more' | 'copy'
   );
 }
 
@@ -35,6 +35,11 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   plus: (
     <>
       <path d="M6.5,1 L6.5,5.5 L11,5.5 L11,6.5 L6.5,6.5 L6.5,11 L5.5,11 L5.5,6.5 L1,6.5 L1,5.5 L5.5,5.5 L5.5,1 L6.5,1 Z" />
+    </>
+  ),
+  copy: (
+    <>
+      <path d="M10.5,4 C11.3284271,4 12,4.67157288 12,5.5 L12,10.5 C12,11.3284271 11.3284271,12 10.5,12 L5.5,12 C4.67157288,12 4,11.3284271 4,10.5 L4,5.5 C4,4.67157288 4.67157288,4 5.5,4 L10.5,4 Z M10.5,5 L5.5,5 C5.25454011,5 5.05039163,5.17687516 5.00805567,5.41012437 L5,5.5 L5,10.5 C5,10.7454599 5.17687516,10.9496084 5.41012437,10.9919443 L5.5,11 L10.5,11 C10.7454599,11 10.9496084,10.8231248 10.9919443,10.5898756 L11,10.5 L11,5.5 C11,5.25454011 10.8231248,5.05039163 10.5898756,5.00805567 L10.5,5 Z M6.5,0 C7.32842712,0 8,0.671572875 8,1.5 L8,2 L7,2 L7,1.5 C7,1.25454011 6.82312484,1.05039163 6.58987563,1.00805567 L6.5,1 L1.5,1 C1.25454011,1 1.05039163,1.17687516 1.00805567,1.41012437 L1,1.5 L1,6.5 C1,6.74545989 1.17687516,6.94960837 1.41012437,6.99194433 L1.5,7 L2,7 L2,8 L1.5,8 C0.671572875,8 0,7.32842712 0,6.5 L0,1.5 C0,0.671572875 0.671572875,0 1.5,0 L6.5,0 Z" />
     </>
   ),
   refresh: (

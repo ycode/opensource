@@ -17,11 +17,19 @@ import {
 } from '@/lib/api/setup';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSet } from '@/components/ui/field';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend, FieldSeparator,
+  FieldSet
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 
 export default function WelcomePage() {
   const router = useRouter();
@@ -36,6 +44,18 @@ export default function WelcomePage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Copy to clipboard handler
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const handleCopy = async (text: string, fieldName: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldName);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   // Check if running on Vercel and if env vars are configured
   useEffect(() => {
@@ -174,141 +194,175 @@ export default function WelcomePage() {
       };
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-black p-4 overflow-y-auto py-8">
-          <div className="bg-zinc-900 p-8 rounded-2xl shadow-2xl max-w-3xl w-full border border-zinc-800">
-            <div className="flex items-center gap-3 mb-4">
-              <svg
-                className="w-8 h-8 text-purple-400" fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <h2 className="text-3xl font-bold text-white">
-                Configure Environment Variables
-              </h2>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 py-10">
+
+          <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
+
+            <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
+              <Label variant="muted">Step 1</Label>
+              <Label size="sm">Vercel + Supabase</Label>
             </div>
 
-            <div className="bg-blue-950 border border-blue-800 text-blue-300 px-4 py-3 rounded-lg mb-6">
-              <p className="font-semibold mb-1">⚡ Running on Vercel</p>
-              <p className="text-sm">
-                Vercel has a read-only filesystem, so credentials must be set as environment variables.
-              </p>
+            <div className="border-t-2 border-white/50 py-4 flex flex-col gap-0.5 opacity-50">
+              <Label variant="muted">Step 2</Label>
+              <Label size="sm">Run migrations</Label>
             </div>
 
-            {error && (
-              <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-6">
-                {error}
-              </div>
-            )}
-
-            <div className="space-y-6 mb-8">
-              <div>
-                <h3 className="text-xl font-semibold text-white mb-3">
-                  📝 Step 1: Add Environment Variables in Vercel
-                </h3>
-                <ol className="space-y-3 text-zinc-300">
-                  <li className="flex gap-3">
-                    <span className="text-white font-semibold">1.</span>
-                    <span>Go to <strong className="text-white">Vercel Dashboard</strong> → Your Project → <strong className="text-white">Settings</strong> → <strong className="text-white">Environment Variables</strong></span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="text-white font-semibold">2.</span>
-                    <span>Add these 4 variables (get values from <strong className="text-white">Supabase Dashboard → Settings</strong>):</span>
-                  </li>
-                </ol>
-              </div>
-
-              <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4 space-y-3">
-                <div>
-                  <code className="text-green-400 font-mono text-sm">SUPABASE_ANON_KEY</code>
-                  <p className="text-xs text-zinc-400 mt-1">Your anon/public key (starts with eyJ...)</p>
-                </div>
-                <div>
-                  <code className="text-green-400 font-mono text-sm">SUPABASE_SERVICE_ROLE_KEY</code>
-                  <p className="text-xs text-zinc-400 mt-1">Your service role key (starts with eyJ...)</p>
-                </div>
-                <div>
-                  <code className="text-green-400 font-mono text-sm">SUPABASE_CONNECTION_URL</code>
-                  <p className="text-xs text-zinc-400 mt-1">PostgreSQL connection string with [YOUR-PASSWORD] placeholder (e.g., postgresql://postgres.xxx:[YOUR-PASSWORD]@aws-x-xx-xxxx-x.pooler.supabase.com:6543/postgres)</p>
-                </div>
-                <div>
-                  <code className="text-green-400 font-mono text-sm">SUPABASE_DB_PASSWORD</code>
-                  <p className="text-xs text-zinc-400 mt-1">Your actual database password</p>
-                </div>
-              </div>
-
-              <div className="bg-yellow-950 border border-yellow-800 text-yellow-300 px-4 py-3 rounded-lg">
-                <p className="font-semibold mb-1">⚠️ Important</p>
-                <ul className="text-sm space-y-1 ml-4 list-disc">
-                  <li>Add to <strong>all environments</strong> (Production, Preview, Development)</li>
-                  <li>Click <strong>Save</strong> after each variable</li>
-                </ul>
-              </div>
-
-              <div>
-                <h3 className="text-xl font-semibold text-white mb-3">
-                  🔄 Step 2: Redeploy Your Application
-                </h3>
-                <ol className="space-y-2 text-zinc-300">
-                  <li className="flex gap-3">
-                    <span className="text-white font-semibold">1.</span>
-                    <span>Go to <strong className="text-white">Deployments</strong> tab</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="text-white font-semibold">2.</span>
-                    <span>Click <strong className="text-white">...</strong> on latest deployment</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="text-white font-semibold">3.</span>
-                    <span>Click <strong className="text-white">Redeploy</strong></span>
-                  </li>
-                </ol>
-              </div>
-
-              <div>
-                <h3 className="text-xl font-semibold text-white mb-3">
-                  ✅ Step 3: Verify Configuration
-                </h3>
-                <p className="text-zinc-300">
-                  After redeploying, click the button below to check if environment variables are detected:
-                </p>
-              </div>
+            <div className="border-t-2 border-white/50 py-4 flex flex-col gap-0.5 opacity-50">
+              <Label variant="muted">Step 3</Label>
+              <Label size="sm">Create account</Label>
             </div>
 
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => setStep('welcome')}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors border border-zinc-700"
-                disabled={loading}
-              >
-                ← Back
-              </button>
-              <button
-                type="button"
-                onClick={handleCheckConfig}
-                disabled={loading}
-                className="flex-1 bg-white hover:bg-zinc-200 text-black font-semibold py-3 px-6 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {loading ? 'Checking...' : 'Verify Configuration →'}
-              </button>
-            </div>
-
-            <p className="text-xs text-zinc-500 text-center mt-4">
-              Need help? Check the{' '}
-              <a
-                href="https://github.com/liamwalder/test/blob/main/VERCEL_DEPLOYMENT.md"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300"
-              >
-                deployment guide
-              </a>
-            </p>
           </div>
+
+          <div className="w-full max-w-xl py-10">
+
+            <FieldGroup className="animate-in fade-in slide-in-from-bottom-1 duration-700" style={{ animationFillMode: 'both' }}>
+
+              {error && (
+                <Alert>
+                  <AlertDescription>
+                    {error}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <FieldSet>
+
+                <FieldLegend>Add 4 environment variables in Vercel</FieldLegend>
+                <FieldDescription>Go to <span className="text-white/85">Vercel Dashboard</span> → <span className="text-white/85">Your Project</span> → <span className="text-white/85">Settings</span> → <span className="text-white/85">Environment Variables</span>. Add to all environments (Production, Preview, Development).</FieldDescription>
+
+                <FieldGroup className="mt-2">
+
+                  <Field>
+                    <InputGroup size="sm">
+                      <InputGroupInput
+                        value="SUPABASE_ANON_KEY" size="sm"
+                        readOnly
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          className="mr-1"
+                          onClick={() => handleCopy('SUPABASE_ANON_KEY', 'anon')}
+                        >
+                          <Icon name={copiedField === 'anon' ? 'check' : 'copy'} />
+                          {copiedField === 'anon' ? 'Copied' : 'Copy'}
+                        </Button>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    <FieldDescription>
+                      Find it in <span className="text-white/85">Supabase → Project settings → API keys</span>.
+                    </FieldDescription>
+                  </Field>
+
+                  <Field>
+                    <InputGroup size="sm">
+                      <InputGroupInput
+                        value="SUPABASE_SERVICE_ROLE_KEY" size="sm"
+                        readOnly
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          className="mr-1"
+                          onClick={() => handleCopy('SUPABASE_SERVICE_ROLE_KEY', 'service')}
+                        >
+                          <Icon name={copiedField === 'service' ? 'check' : 'copy'} />
+                          {copiedField === 'service' ? 'Copied' : 'Copy'}
+                        </Button>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    <FieldDescription>
+                      Find it in <span className="text-white/85">Supabase → Project settings → API keys</span>.
+                    </FieldDescription>
+                  </Field>
+
+                  <Field>
+                    <InputGroup size="sm">
+                      <InputGroupInput
+                        value="SUPABASE_CONNECTION_URL" size="sm"
+                        readOnly
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          className="mr-1"
+                          onClick={() => handleCopy('SUPABASE_CONNECTION_URL', 'connection')}
+                        >
+                          <Icon name={copiedField === 'connection' ? 'check' : 'copy'} />
+                          {copiedField === 'connection' ? 'Copied' : 'Copy'}
+                        </Button>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    <FieldDescription>
+                      Find it in <span className="text-white/85">Supabase → Connect → Connection String → Method: Transaction pooler</span>.
+                    </FieldDescription>
+                  </Field>
+
+                  <Field>
+                    <InputGroup size="sm">
+                      <InputGroupInput
+                        value="SUPABASE_DB_PASSWORD" size="sm"
+                        readOnly
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          className="mr-1"
+                          onClick={() => handleCopy('SUPABASE_DB_PASSWORD', 'password')}
+                        >
+                          <Icon name={copiedField === 'password' ? 'check' : 'copy'} />
+                          {copiedField === 'password' ? 'Copied' : 'Copy'}
+                        </Button>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    <FieldDescription>
+                      The database password was created with the project. It can be reset in <span className="text-white/85">Database → Settings</span>.
+                    </FieldDescription>
+                  </Field>
+
+                </FieldGroup>
+
+              </FieldSet>
+
+              <FieldSeparator />
+
+              <FieldSet>
+
+                <FieldLegend>Redeploy your application</FieldLegend>
+                <FieldDescription>Go to <span className="text-white/85">Deployment</span> click on <span className="text-white/85">...</span> and click <span className="text-white/85">Create Deployment</span>. After redeploying, click the button below to check if environment variables are detected.</FieldDescription>
+
+              </FieldSet>
+
+              <FieldSeparator />
+
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  onClick={handleCheckConfig}
+                  disabled={loading}
+                >
+                  {loading ? <Spinner /> : 'Verify configuration'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setStep('welcome')}
+                  disabled={loading}
+                >
+                  Return back
+                </Button>
+              </div>
+
+            </FieldGroup>
+
+          </div>
+
         </div>
       );
     }
@@ -440,7 +494,6 @@ export default function WelcomePage() {
                       The database password was created with the project. It can be reset in <span className="text-white/85">Database → Settings</span>.
                     </FieldDescription>
                   </Field>
-
 
                   <div className="flex flex-col gap-2 mt-4">
                     <Button
