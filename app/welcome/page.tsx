@@ -238,7 +238,7 @@ export default function WelcomePage() {
 
           <LogoBottomRight />
 
-          <div className="flex-1 items-center justify-center py-10">
+          <div className="flex-1 flex flex-col items-center justify-center py-10">
 
             <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
 
