@@ -7,6 +7,7 @@
 import { getSupabaseAdmin } from '../supabase-server';
 import { reorderSiblings } from './pageFolderRepository';
 import type { Page } from '../../types';
+import { isHomepage } from '../page-utils';
 
 /**
  * Query filters for page lookups
@@ -27,7 +28,6 @@ export interface CreatePageData {
   depth?: number;
   is_index?: boolean;
   is_dynamic?: boolean;
-  is_locked?: boolean;
   error_page?: number | null;
   settings?: Record<string, any>;
 }
@@ -44,7 +44,6 @@ export interface UpdatePageData {
   depth?: number;
   is_index?: boolean;
   is_dynamic?: boolean;
-  is_locked?: boolean;
   error_page?: number | null;
   settings?: Record<string, any>;
 }
@@ -302,7 +301,7 @@ async function validateIndexPageConstraints(
   }
 
   // Rule 3: Homepage (root index page) cannot be moved to another folder
-  if (currentPageData && currentPageData.is_index && currentPageData.page_folder_id === null) {
+  if (currentPageData && isHomepage(currentPageData as Page)) {
     // If trying to move the homepage to a different folder
     if (pageData.page_folder_id !== null && pageData.page_folder_id !== undefined) {
       throw new Error('The Homepage cannot be moved to another folder. It must remain in the root folder.');
@@ -528,8 +527,8 @@ export async function deletePage(id: string): Promise<void> {
     throw new Error('Page not found');
   }
 
-  // Prevent deleting the last index page in root folder
-  if (pageToDelete.is_index && pageToDelete.page_folder_id === null) {
+  // Prevent deleting the homepage
+  if (isHomepage(pageToDelete)) {
     // Check if there are other index pages in root folder
     const { data: otherRootIndexPages, error: checkError } = await client
       .from('pages')
@@ -800,7 +799,6 @@ export async function duplicatePage(pageId: string): Promise<Page> {
       depth: originalPage.depth,
       is_index: false, // Don't duplicate index status
       is_dynamic: originalPage.is_dynamic,
-      is_locked: false, // Don't duplicate locked status
       error_page: originalPage.error_page,
       settings: originalPage.settings || {},
     })

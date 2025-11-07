@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import Icon from '@/components/ui/icon';
-import { getPageIcon } from '@/lib/page-utils';
+import { getPageIcon, isHomepage } from '@/lib/page-utils';
 
 interface PageSettingsPanelProps {
   isOpen: boolean;
@@ -50,7 +50,6 @@ export interface PageFormData {
   depth?: number;
   is_index?: boolean;
   is_dynamic?: boolean;
-  is_locked?: boolean;
   error_page?: number | null;
   settings?: Record<string, any>;
 }
@@ -309,7 +308,7 @@ export default function PageSettingsPanel({
                     <Field>
                       <div className="flex items-center gap-2">
                         <FieldLabel>Parent folder</FieldLabel>
-                        {page?.is_index && page?.page_folder_id === null && (
+                        {page && isHomepage(page) && (
                           <FieldDescription className="text-xs text-muted-foreground">
                             (Homepage must remain in the root folder)
                           </FieldDescription>
@@ -319,7 +318,7 @@ export default function PageSettingsPanel({
                       <Select
                         value={pageFolderId || 'root'}
                         onValueChange={(value) => setPageFolderId(value === 'root' ? null : value)}
-                        disabled={page?.is_index && page?.page_folder_id === null}
+                        disabled={page ? isHomepage(page) : false}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="None" />

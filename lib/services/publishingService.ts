@@ -149,7 +149,6 @@ export async function publishAllPages(): Promise<PublishAllResult> {
       depth: draftPage.depth,
       is_index: draftPage.is_index,
       is_dynamic: draftPage.is_dynamic,
-      is_locked: draftPage.is_locked,
       error_page: draftPage.error_page,
       settings: draftPage.settings,
       is_published: true,
@@ -166,7 +165,6 @@ export async function publishAllPages(): Promise<PublishAllResult> {
         existingPublished.depth !== draftPage.depth ||
         existingPublished.is_index !== draftPage.is_index ||
         existingPublished.is_dynamic !== draftPage.is_dynamic ||
-        existingPublished.is_locked !== draftPage.is_locked ||
         existingPublished.error_page !== draftPage.error_page ||
         JSON.stringify(existingPublished.settings) !== JSON.stringify(draftPage.settings);
 

@@ -26,7 +26,14 @@ export interface FlattenedPageNode {
  * Find the homepage from a list of pages
  */
 export function findHomepage(pages: Page[]): Page | null {
-  return pages.find(p => p.is_locked && p.is_index && p.depth === 0) || null;
+  return pages.find(isHomepage) || null;
+}
+
+/**
+ * Check if a page is the homepage
+ */
+export function isHomepage(page: Page): boolean {
+  return page.is_index && page.page_folder_id === null;
 }
 
 /**

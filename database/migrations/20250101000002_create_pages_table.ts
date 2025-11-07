@@ -17,7 +17,6 @@ export async function up(knex: Knex): Promise<void> {
     table.integer('depth').defaultTo(0);
     table.boolean('is_index').defaultTo(false); // Index of the root or parent folder
     table.boolean('is_dynamic').defaultTo(false); // Dynamic page (CMS-driven)
-    table.boolean('is_locked').defaultTo(false); // Locked pages cannot be deleted
     table.integer('error_page').nullable(); // If an error page, error page type: 401, 404, 500
     table.jsonb('settings').defaultTo('{}'); // Settings for `cms` (source + key), `auth` (enabled + password), `seo`, `social`, `code`
     table.boolean('is_published').defaultTo(false);

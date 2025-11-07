@@ -3,6 +3,7 @@
 import React from 'react';
 import { ContextMenu,ContextMenuContent,ContextMenuItem,ContextMenuSeparator,ContextMenuTrigger } from '@/components/ui/context-menu';
 import type { Page, PageFolder } from '@/types';
+import { isHomepage } from '@/lib/page-utils';
 
 interface PageContextMenuProps {
   item: Page | PageFolder;
@@ -29,8 +30,8 @@ export default function PageContextMenu({
   onAddPage,
   onAddFolder,
 }: PageContextMenuProps) {
-  // Check if page is locked (locked pages cannot be deleted)
-  const isLocked = nodeType === 'page' ? (item as Page).is_locked : false;
+  // Check if page is the homepage (homepage cannot be deleted)
+  const isItemHomepage = nodeType === 'page' && isHomepage(item as Page);
 
   return (
     <ContextMenu>
@@ -85,7 +86,7 @@ export default function PageContextMenu({
         )}
 
         {onDelete && (
-          <ContextMenuItem onClick={onDelete} disabled={isLocked}>
+          <ContextMenuItem onClick={onDelete} disabled={isItemHomepage}>
             <span>Delete</span>
           </ContextMenuItem>
         )}

@@ -121,7 +121,6 @@ export default function LeftSidebarPages({
       depth: newDepth,
       is_index: false,
       is_dynamic: false,
-      is_locked: false,
       error_page: null,
       settings: {},
     });

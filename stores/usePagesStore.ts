@@ -6,7 +6,7 @@ import { pagesApi, pageLayersApi, foldersApi } from '../lib/api';
 import { getTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
 import { canHaveChildren } from '../lib/layer-utils';
-import { getDescendantFolderIds } from '../lib/page-utils';
+import { getDescendantFolderIds, isHomepage, findHomepage } from '../lib/page-utils';
 import { extractPublishedCSS } from '../lib/extract-published-css';
 import { updateLayersWithStyle, detachStyleFromLayers } from '../lib/layer-style-utils';
 import { updateLayersWithComponent, detachComponentFromLayers } from '../lib/component-utils';
@@ -1324,7 +1324,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       depth: originalPage.depth,
       is_index: false,
       is_dynamic: originalPage.is_dynamic,
-      is_locked: false,
       error_page: originalPage.error_page,
       settings: originalPage.settings || {},
       publish_key: tempPublishKey,
@@ -1431,10 +1430,10 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       return { success: false, error: 'Page not found' };
     }
 
-    // Check if page is locked
-    if (pageToDelete.is_locked) {
-      console.warn('Cannot delete this page: page is locked');
-      return { success: false, error: 'This page is locked and cannot be deleted' };
+    // Check if page is the homepage (root index page)
+    if (isHomepage(pageToDelete)) {
+      console.warn('Cannot delete homepage: root folder must have an index page');
+      return { success: false, error: 'The homepage cannot be deleted' };
     }
 
     const isCurrentPage = currentPageId === pageId;
@@ -1485,7 +1484,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Determine next page to select if current was deleted
       let nextPageId: string | null = null;
       if (isCurrentPage && updatedPages.length > 0) {
-        const homePage = updatedPages.find(p => p.is_locked && p.is_index && p.depth === 0);
+        const homePage = findHomepage(updatedPages);
         nextPageId = (homePage || updatedPages[0]).id;
       }
 
@@ -1723,7 +1722,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Determine next page to select if current was affected
       let nextPageId: string | null = null;
       if (isCurrentPageAffected && updatedPages.length > 0) {
-        const homePage = updatedPages.find(p => p.is_locked && p.is_index && p.depth === 0);
+        const homePage = findHomepage(updatedPages);
         nextPageId = (homePage || updatedPages[0]).id;
       }
 

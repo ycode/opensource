@@ -28,9 +28,8 @@ async function fetchHomepage() {
         const { data: homepage } = await supabase
           .from('pages')
           .select('*')
-          .eq('depth', 0)
           .eq('is_index', true)
-          .eq('is_locked', true)
+          .is('page_folder_id', null)
           .eq('is_published', true)
           .is('deleted_at', null)
           .limit(1)

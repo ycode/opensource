@@ -11,13 +11,13 @@ export const revalidate = 0;
  * GET /api/pages
  *
  * Get all pages with optional filters
- * Query params: is_published, is_locked, is_index, depth
+ * Query params: is_published, is_index, depth
  *
  * Examples:
  * - /api/pages - Get all draft pages (default)
  * - /api/pages?is_published=true - Get all published pages
- * - /api/pages?is_locked=true&is_index=true&depth=0 - Get homepage (draft)
- * - /api/pages?is_locked=true&is_index=true&depth=0&is_published=true - Get homepage (published)
+ * - /api/pages?is_index=true&page_folder_id=null - Get homepage (draft)
+ * - /api/pages?is_index=true&page_folder_id=null&is_published=true - Get homepage (published)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -41,11 +41,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Optional filters
-    const isLocked = searchParams.get('is_locked');
-    if (isLocked !== null) {
-      filters.is_locked = isLocked === 'true';
-    }
-
     const isIndex = searchParams.get('is_index');
     if (isIndex !== null) {
       filters.is_index = isIndex === 'true';
@@ -97,7 +92,6 @@ export async function POST(request: NextRequest) {
       depth = 0,
       is_index = false,
       is_dynamic = false,
-      is_locked = false,
       error_page = null,
       settings = {},
     } = body;
@@ -147,7 +141,6 @@ export async function POST(request: NextRequest) {
       depth,
       is_index,
       is_dynamic,
-      is_locked,
       error_page,
       settings,
     });

@@ -47,7 +47,6 @@ export interface FolderFormData {
   depth?: number;
   is_index?: boolean;
   is_dynamic?: boolean;
-  is_locked?: boolean;
   error_page?: number | null;
   settings?: Record<string, any>;
 }

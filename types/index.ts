@@ -138,10 +138,10 @@ export interface LayerStyle {
 export interface Component {
   id: string;
   name: string;
-  
+
   // Component data - complete layer tree
   layers: Layer[];
-  
+
   created_at: string;
   updated_at: string;
 }
@@ -224,7 +224,6 @@ export interface Page {
   depth: number; // Depth in hierarchy
   is_index: boolean; // Index of the root or parent folder
   is_dynamic: boolean; // Dynamic page (CMS-driven)
-  is_locked: boolean; // Whether the page is locked (cannot be deleted)
   error_page: number | null; // Error page type: 401, 404, 500
   settings: Record<string, any>; // Page-specific settings
   is_published: boolean;

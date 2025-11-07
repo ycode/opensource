@@ -141,7 +141,7 @@ export default function YCodeBuilder() {
   // Set current page to homepage by default, or first page if homepage doesn't exist
   useEffect(() => {
     if (!currentPageId && pages.length > 0) {
-      // Find homepage (is_locked=true, is_index=true, depth=0)
+      // Find homepage (is_index=true, page_folder_id=null)
       const homePage = findHomepage(pages);
       const defaultPage = homePage || pages[0];
 
