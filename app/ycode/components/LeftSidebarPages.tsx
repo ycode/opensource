@@ -235,6 +235,7 @@ export default function LeftSidebarPages({
       name: data.name,
       slug: data.slug,
       page_folder_id: data.page_folder_id,
+      is_index: data.is_index,
     });
 
     if (result.error) {

@@ -64,6 +64,7 @@ export default function PageSettingsPanel({
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [pageFolderId, setPageFolderId] = useState<string | null>(null);
+  const [isIndex, setIsIndex] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,24 +77,40 @@ export default function PageSettingsPanel({
       setName(page.name);
       setSlug(page.slug);
       setPageFolderId(page.page_folder_id);
+      setIsIndex(page.is_index);
     } else {
       setName('');
       setSlug('');
       setPageFolderId(null);
+      setIsIndex(false);
     }
     setError(null);
   }, [page]);
 
-  // Auto-generate slug from name for new pages
+  // Auto-generate slug from name for new pages (only if not index)
   useEffect(() => {
-    if (!page && name) {
+    if (!page && name && !isIndex) {
       const autoSlug = name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
       setSlug(autoSlug);
     }
-  }, [name, page]);
+  }, [name, page, isIndex]);
+
+  // When isIndex changes, update slug accordingly
+  useEffect(() => {
+    if (isIndex) {
+      setSlug(''); // Index pages must have empty slug
+    } else if (page && !isIndex && !slug) {
+      // If switching from index to non-index and slug is empty, generate one
+      const autoSlug = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      setSlug(autoSlug);
+    }
+  }, [isIndex, page, name, slug]);
 
   // Build hierarchical folder list for select dropdown
   const folderOptions = useMemo(() => {
@@ -118,6 +135,26 @@ export default function PageSettingsPanel({
       .sort((a, b) => a.path.localeCompare(b.path));
   }, [folders]);
 
+  // Check if this is the last index page in root folder
+  // If so, disable the switch to prevent removing it
+  const isLastRootIndexPage = useMemo(() => {
+    if (!page?.is_index || pageFolderId !== null) {
+      return false;
+    }
+
+    // Count other index pages in root folder
+    const otherRootIndexPages = pages.filter(
+      (p) =>
+        p.id !== page?.id &&
+        p.is_index &&
+        p.page_folder_id === null
+    );
+
+    return otherRootIndexPages.length === 0;
+  }, [page, pageFolderId, pages]);
+
+  const isOnRootFolder = useMemo(() => page?.page_folder_id === null, [page]);
+
   const handleSave = async () => {
     // Validation
     if (!name.trim()) {
@@ -125,24 +162,54 @@ export default function PageSettingsPanel({
       return;
     }
 
-    if (!page?.is_locked && !slug.trim()) {
-      setError('Slug is required');
-      return;
-    }
+    // Index page rules
+    if (isIndex) {
+      // Index pages must have empty slug
+      if (slug.trim()) {
+        setError('Index pages must have an empty slug');
+        return;
+      }
 
-    // Check for duplicate slug (globally unique per published state)
-    // The database has a unique constraint on (slug, is_published)
-    const trimmedSlug = slug.trim();
-    const duplicateSlug = pages.find(
-      (p) =>
-        p.id !== page?.id && // Exclude current page
-        p.slug === trimmedSlug &&
-        p.is_published === (page?.is_published || false) // Same published state
-    );
+      // Note: We don't check for existing index pages anymore
+      // The backend will automatically transfer the index status
+    } else {
+      // Non-index pages must have a non-empty slug
+      if (!slug.trim()) {
+        setError('Slug is required for non-index pages');
+        return;
+      }
 
-    if (duplicateSlug) {
-      setError('This slug is already used by another page');
-      return;
+      // Check if this is the only index page in root folder (pageFolderId === null)
+      // Root folder must always have an index page
+      if (page?.is_index && pageFolderId === null) {
+        const otherRootIndexPages = pages.filter(
+          (p) =>
+            p.id !== page?.id &&
+            p.is_index &&
+            p.page_folder_id === null
+        );
+
+        if (otherRootIndexPages.length === 0) {
+          setError('The root folder must have an index page. Please set another page as index first.');
+          return;
+        }
+      }
+
+      // Check for duplicate slug within the same folder and published state
+      // The database has a unique constraint on (slug, is_published, page_folder_id)
+      const trimmedSlug = slug.trim();
+      const duplicateSlug = pages.find(
+        (p) =>
+          p.id !== page?.id && // Exclude current page
+          p.slug === trimmedSlug &&
+          p.is_published === (page?.is_published || false) && // Same published state
+          p.page_folder_id === pageFolderId // Same folder (including null for root)
+      );
+
+      if (duplicateSlug) {
+        setError('This slug is already used by another page in this folder');
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -151,8 +218,9 @@ export default function PageSettingsPanel({
     try {
       await onSave({
         name: name.trim(),
-        slug: trimmedSlug,
+        slug: slug.trim(),
         page_folder_id: pageFolderId,
+        is_index: isIndex,
         is_published: false,
       });
     } catch (err) {
@@ -232,17 +300,26 @@ export default function PageSettingsPanel({
                       <Input
                         type="text"
                         value={slug}
-                        disabled={page?.is_index}
+                        disabled={isIndex}
                         onChange={(e) => setSlug(e.target.value)}
-                        placeholder={page?.is_index ? 'Index pages do not have a slug.' : undefined}
+                        placeholder={isIndex ? 'Index pages do not have any slug' : 'Add a slug (you will see it in the URL)'}
                       />
                     </Field>
 
                     <Field>
-                      <FieldLabel>Parent folder</FieldLabel>
+                      <div className="flex items-center gap-2">
+                        <FieldLabel>Parent folder</FieldLabel>
+                        {page?.is_index && page?.page_folder_id === null && (
+                          <FieldDescription className="text-xs text-muted-foreground">
+                            (Homepage must remain in the root folder)
+                          </FieldDescription>
+                        )}
+                      </div>
+
                       <Select
                         value={pageFolderId || 'root'}
                         onValueChange={(value) => setPageFolderId(value === 'root' ? null : value)}
+                        disabled={page?.is_index && page?.page_folder_id === null}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="None" />
@@ -284,16 +361,23 @@ export default function PageSettingsPanel({
 
                     <Field orientation="horizontal" className="flex !flex-row-reverse">
                       <FieldContent>
-                        <FieldLabel htmlFor="homepage">Homepage</FieldLabel>
+                        <FieldLabel htmlFor="homepage">
+                          {isOnRootFolder ? 'Homepage' : 'Index page'}
+                        </FieldLabel>
                         <FieldDescription>
-                          Set this page to a homepage.
+                          {
+                            isLastRootIndexPage
+                              ? 'The root folder must have an homepage. Please open the settings of another page at this level and set it as homepage to change this.'
+                              : `Set this page as the ${isOnRootFolder ? 'homepage of the website' : 'index (default) page for its parent folder'}. If another ${isOnRootFolder ? 'homepage' : 'index page'} exists, it will automatically be converted to a regular page with a slug.`
+                          }
                         </FieldDescription>
                       </FieldContent>
 
                       <Switch
                         id="homepage"
-                        checked={page?.is_index}
-                        disabled={page?.is_index}
+                        checked={isIndex}
+                        disabled={isLastRootIndexPage}
+                        onCheckedChange={setIsIndex}
                       />
                     </Field>
                   </FieldGroup>

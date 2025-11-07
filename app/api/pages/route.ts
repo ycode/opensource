@@ -103,10 +103,27 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!name || !slug) {
-      console.error('[POST /api/pages] Validation failed: missing name or slug');
+    if (!name) {
+      console.error('[POST /api/pages] Validation failed: missing name');
       return noCache(
-        { error: 'Name and slug are required' },
+        { error: 'Name is required' },
+        400
+      );
+    }
+
+    // Validate slug requirements based on is_index
+    if (is_index && slug && slug.trim() !== '') {
+      console.error('[POST /api/pages] Validation failed: index page has non-empty slug');
+      return noCache(
+        { error: 'Index pages must have an empty slug' },
+        400
+      );
+    }
+
+    if (!is_index && (!slug || slug.trim() === '')) {
+      console.error('[POST /api/pages] Validation failed: non-index page missing slug');
+      return noCache(
+        { error: 'Non-index pages must have a slug' },
         400
       );
     }

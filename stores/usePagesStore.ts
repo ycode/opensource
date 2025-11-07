@@ -1186,9 +1186,53 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     }
 
     // Optimistic update: Update UI immediately
-    const updatedPages = pages.map(p =>
+    let updatedPages = pages.map(p =>
       p.id === pageId ? { ...p, ...updates, updated_at: new Date().toISOString() } : p
     );
+
+    // If setting as index page, optimistically transfer from existing index page
+    if (updates.is_index === true && !pageToUpdate.is_index) {
+      const targetFolderId = updates.page_folder_id !== undefined ? updates.page_folder_id : pageToUpdate.page_folder_id;
+
+      // Find existing index page in the same folder
+      const existingIndexPage = pages.find(p =>
+        p.id !== pageId &&
+        p.is_index &&
+        p.page_folder_id === targetFolderId
+      );
+
+      if (existingIndexPage) {
+        // Generate slug for the old index page (same logic as backend)
+        const generateSlug = (name: string) => {
+          const baseSlug = name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+          return baseSlug || `page-${Date.now()}`;
+        };
+
+        let newSlug = generateSlug(existingIndexPage.name);
+
+        // Check if slug exists, add timestamp if needed
+        const slugExists = pages.some(p =>
+          p.id !== existingIndexPage.id &&
+          p.slug === newSlug &&
+          p.is_published === existingIndexPage.is_published
+        );
+
+        if (slugExists) {
+          newSlug = `${newSlug}-${Date.now()}`;
+        }
+
+        // Update both pages optimistically
+        updatedPages = updatedPages.map(p => {
+          if (p.id === existingIndexPage.id) {
+            return { ...p, is_index: false, slug: newSlug, updated_at: new Date().toISOString() };
+          }
+          return p;
+        });
+      }
+    }
 
     set({
       pages: updatedPages,
@@ -1213,16 +1257,23 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       }
 
       if (response.data) {
-        // Replace optimistic update with server data
-        const { pages: currentPages } = get();
-        const finalPages = currentPages.map(p =>
-          p.id === pageId ? response.data! : p
-        );
+        // If is_index was updated, reload all pages to sync with server
+        // (in case slug generation differs from our optimistic version)
+        if (updates.is_index !== undefined) {
+          console.log('[usePagesStore.updatePage] Index status changed, reloading all pages...');
+          await get().loadPages();
+        } else {
+          // Replace optimistic update with server data
+          const { pages: currentPages } = get();
+          const finalPages = currentPages.map(p =>
+            p.id === pageId ? response.data! : p
+          );
 
-        set({
-          pages: finalPages,
-          isLoading: false
-        });
+          set({
+            pages: finalPages,
+            isLoading: false
+          });
+        }
 
         console.log('[usePagesStore.updatePage] Success');
         return { success: true };

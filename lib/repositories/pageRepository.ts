@@ -157,6 +157,188 @@ export async function getPageBySlug(slug: string, filters?: QueryFilters): Promi
 }
 
 /**
+ * Generate a unique slug from a page name
+ */
+function generateSlugFromName(name: string, timestamp?: number): string {
+  const baseSlug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  if (timestamp) {
+    return `${baseSlug}-${timestamp}`;
+  }
+
+  return baseSlug || `page-${Date.now()}`;
+}
+
+/**
+ * Automatically transfer index status from existing index page to new one
+ * - Finds existing index page in the same folder
+ * - Unsets its is_index flag
+ * - Generates and sets a slug for it
+ */
+async function transferIndexPage(
+  client: any,
+  newIndexPageId: string,
+  pageFolderId: string | null
+): Promise<void> {
+  // Find existing index page in the same folder
+  let query = client
+    .from('pages')
+    .select('id, name, slug')
+    .eq('is_index', true)
+    .is('deleted_at', null)
+    .neq('id', newIndexPageId);
+
+  // Filter by parent folder
+  if (pageFolderId === null || pageFolderId === undefined) {
+    query = query.is('page_folder_id', null);
+  } else {
+    query = query.eq('page_folder_id', pageFolderId);
+  }
+
+  const { data: existingIndex, error } = await query.limit(1).single();
+
+  // If no existing index found (PGRST116 = no rows), nothing to transfer
+  if (error && error.code === 'PGRST116') {
+    return;
+  }
+
+  if (error) {
+    throw new Error(`Failed to check for existing index page: ${error.message}`);
+  }
+
+  if (existingIndex) {
+    // If the existing index page already has a slug (shouldn't happen but might in edge cases),
+    // we don't need to generate a new one - just unset is_index
+    if (existingIndex.slug && existingIndex.slug.trim() !== '') {
+      const { error: updateError } = await client
+        .from('pages')
+        .update({
+          is_index: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingIndex.id);
+
+      if (updateError) {
+        throw new Error(`Failed to transfer index from existing page: ${updateError.message}`);
+      }
+
+      return;
+    }
+
+    // Generate a slug for the old index page
+    const timestamp = Date.now();
+    let newSlug = generateSlugFromName(existingIndex.name);
+
+    // Check if slug already exists (regardless of published state)
+    const { data: duplicateCheck } = await client
+      .from('pages')
+      .select('id')
+      .eq('slug', newSlug)
+      .is('deleted_at', null)
+      .neq('id', existingIndex.id)
+      .limit(1)
+      .single();
+
+    // If slug exists, add timestamp
+    if (duplicateCheck) {
+      newSlug = generateSlugFromName(existingIndex.name, timestamp);
+
+      // Double-check the timestamped slug doesn't exist either
+      const { data: timestampedDuplicateCheck } = await client
+        .from('pages')
+        .select('id')
+        .eq('slug', newSlug)
+        .is('deleted_at', null)
+        .neq('id', existingIndex.id)
+        .limit(1)
+        .single();
+
+      // If still duplicate, add random suffix
+      if (timestampedDuplicateCheck) {
+        newSlug = `${newSlug}-${Math.random().toString(36).substr(2, 5)}`;
+      }
+    }
+
+    // Update the old index page: unset is_index and set slug
+    const { error: updateError } = await client
+      .from('pages')
+      .update({
+        is_index: false,
+        slug: newSlug,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', existingIndex.id);
+
+    if (updateError) {
+      throw new Error(`Failed to transfer index from existing page: ${updateError.message}`);
+    }
+  }
+}
+
+/**
+ * Validate index page constraints
+ * - Index pages must have empty slug
+ * - Non-index pages must have non-empty slug
+ * - Root folder (page_folder_id = null) must always have an index page
+ * - Homepage (root index page) cannot be moved to another folder
+ */
+async function validateIndexPageConstraints(
+  client: any,
+  pageData: { is_index?: boolean; slug: string; page_folder_id?: string | null },
+  excludePageId?: string,
+  currentPageData?: { is_index: boolean; page_folder_id: string | null }
+): Promise<void> {
+  // Rule 1: Index pages must have empty slug
+  if (pageData.is_index && pageData.slug.trim() !== '') {
+    throw new Error('Index pages must have an empty slug');
+  }
+
+  // Rule 2: Non-index pages must have non-empty slug
+  if (!pageData.is_index && pageData.slug.trim() === '') {
+    throw new Error('Non-index pages must have a non-empty slug');
+  }
+
+  // Rule 3: Homepage (root index page) cannot be moved to another folder
+  if (currentPageData && currentPageData.is_index && currentPageData.page_folder_id === null) {
+    // If trying to move the homepage to a different folder
+    if (pageData.page_folder_id !== null && pageData.page_folder_id !== undefined) {
+      throw new Error('The Homepage cannot be moved to another folder. It must remain in the root folder.');
+    }
+  }
+
+  // Rule 4: Root folder must always have an index page
+  // When unsetting is_index (changing from true to false) for a root page
+  if (!pageData.is_index && (pageData.page_folder_id === null || pageData.page_folder_id === undefined)) {
+    // Check if there are other index pages in root folder
+    let query = client
+      .from('pages')
+      .select('id')
+      .eq('is_index', true)
+      .is('page_folder_id', null)
+      .is('deleted_at', null);
+
+    // Exclude current page if updating
+    if (excludePageId) {
+      query = query.neq('id', excludePageId);
+    }
+
+    const { data: otherRootIndexPages, error } = await query;
+
+    if (error) {
+      throw new Error(`Failed to check for other root index pages: ${error.message}`);
+    }
+
+    // If no other index pages exist in root, prevent unsetting
+    if (!otherRootIndexPages || otherRootIndexPages.length === 0) {
+      throw new Error('The root folder must have an index page. Please set another page as index first.');
+    }
+  }
+}
+
+/**
  * Create new page
  * @param pageData - Page data to create
  * @param additionalData - Optional additional fields (e.g., metadata, tags)
@@ -167,6 +349,18 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
   if (!client) {
     throw new Error('Supabase not configured');
   }
+
+  // Validate index page constraints (no current page data for new pages)
+  await validateIndexPageConstraints(
+    client,
+    {
+      is_index: pageData.is_index || false,
+      slug: pageData.slug,
+      page_folder_id: pageData.page_folder_id,
+    },
+    undefined,
+    undefined
+  );
 
   // Merge page data with any additional fields
   const insertData = additionalData
@@ -184,6 +378,11 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
     throw new Error(`Failed to create page: ${error.message}`);
   }
 
+  // If setting as index page, transfer from existing index page
+  if (pageData.is_index) {
+    await transferIndexPage(client, data.id, pageData.page_folder_id || null);
+  }
+
   return data;
 }
 
@@ -195,6 +394,75 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
 
   if (!client) {
     throw new Error('Supabase not configured');
+  }
+
+  // Get current page data to merge with updates for validation
+  const currentPage = await getPageById(id);
+  if (!currentPage) {
+    throw new Error('Page not found');
+  }
+
+  // Merge current data with updates for validation
+  const mergedData = {
+    is_index: updates.is_index !== undefined ? updates.is_index : currentPage.is_index,
+    slug: updates.slug !== undefined ? updates.slug : currentPage.slug,
+    page_folder_id: updates.page_folder_id !== undefined ? updates.page_folder_id : currentPage.page_folder_id,
+  };
+
+  // Validate index page constraints if is_index or slug is being updated
+  if (updates.is_index !== undefined || updates.slug !== undefined || updates.page_folder_id !== undefined) {
+    await validateIndexPageConstraints(
+      client,
+      mergedData,
+      id,
+      { is_index: currentPage.is_index, page_folder_id: currentPage.page_folder_id }
+    );
+  }
+
+  // If setting as index page (and wasn't before), transfer from existing index page
+  // Use the TARGET page_folder_id (where the page will be) to find the existing index
+  const isBecomingIndex = updates.is_index === true && !currentPage.is_index;
+
+  if (isBecomingIndex) {
+    const folderIdForTransfer = updates.page_folder_id !== undefined ? updates.page_folder_id : currentPage.page_folder_id;
+
+    // FIRST: Clean up any orphaned pages with empty slugs that are NOT index pages
+    // This can happen if a previous operation failed mid-way
+    const { data: orphanedPages } = await client
+      .from('pages')
+      .select('id, name, slug, is_index, page_folder_id')
+      .eq('slug', '')
+      .eq('is_index', false)
+      .is('deleted_at', null);
+
+    if (orphanedPages && orphanedPages.length > 0) {
+      // Fix each orphaned page by giving it a slug
+      for (const orphan of orphanedPages) {
+        const timestamp = Date.now();
+        let newSlug = generateSlugFromName(orphan.name, timestamp);
+
+        // Ensure uniqueness
+        const { data: duplicateCheck } = await client
+          .from('pages')
+          .select('id')
+          .eq('slug', newSlug)
+          .is('deleted_at', null)
+          .neq('id', orphan.id)
+          .limit(1)
+          .single();
+
+        if (duplicateCheck) {
+          newSlug = `${newSlug}-${Math.random().toString(36).substr(2, 5)}`;
+        }
+
+        await client
+          .from('pages')
+          .update({ slug: newSlug, updated_at: new Date().toISOString() })
+          .eq('id', orphan.id);
+      }
+    }
+
+    await transferIndexPage(client, id, folderIdForTransfer);
   }
 
   const { data, error } = await client
@@ -258,6 +526,26 @@ export async function deletePage(id: string): Promise<void> {
   const pageToDelete = await getPageById(id);
   if (!pageToDelete) {
     throw new Error('Page not found');
+  }
+
+  // Prevent deleting the last index page in root folder
+  if (pageToDelete.is_index && pageToDelete.page_folder_id === null) {
+    // Check if there are other index pages in root folder
+    const { data: otherRootIndexPages, error: checkError } = await client
+      .from('pages')
+      .select('id')
+      .eq('is_index', true)
+      .is('page_folder_id', null)
+      .is('deleted_at', null)
+      .neq('id', id);
+
+    if (checkError) {
+      throw new Error(`Failed to check for other root index pages: ${checkError.message}`);
+    }
+
+    if (!otherRootIndexPages || otherRootIndexPages.length === 0) {
+      throw new Error('Cannot delete the last index page in the root folder. Please set another page as index first.');
+    }
   }
 
   // Delete all page_layers (draft and published) for this page
