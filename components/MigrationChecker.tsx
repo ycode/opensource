@@ -85,19 +85,19 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
         {error ? (
         // Error state - BLOCKING
 
-            <div className="flex-1 flex items-center text-center flex-col gap-2">
-              <Label>
+            <div className="flex-1 flex items-center text-center flex-col gap-1">
+              <Label size="sm">
                 Migration failed
               </Label>
-              <Label variant="muted">
+              <Label variant="muted" size="sm">
                 {error}
               </Label>
               <div className="w-full max-w-xs grid grid-cols-2 gap-3 mt-2">
-                <Button onClick={handleRetry} size="sm">
+                <Button onClick={handleRetry}>
                   Retry migration
                 </Button>
                 <Button
-                  size="sm" variant="secondary"
+                  variant="secondary"
                   onClick={handleSkip}
                 >
                   <span>Skip</span>
@@ -108,10 +108,13 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
         ) : (
             // Running/Checking state - BLOCKING
             <div className="flex-1 flex items-center text-center flex-col gap-2">
-              <Label>
+              <Label size="sm">
                 Please wait
               </Label>
-              <Label variant="muted" className="bg-gradient-to-r from-muted-foreground via-muted-foreground/40 to-muted-foreground bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent !font-normal">
+              <Label
+                variant="muted" size="sm"
+                className="bg-gradient-to-r from-muted-foreground via-muted-foreground/40 to-muted-foreground bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent !font-normal"
+              >
                 {progress}
               </Label>
             </div>

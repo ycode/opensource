@@ -59,10 +59,10 @@ export default function WelcomePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-950 overflow-y-auto py-8">
 
-          <div className="flex-1 flex items-center text-center flex-col gap-2 text-balance">
+          <div className="flex-1 flex items-center text-center flex-col gap-1 text-balance">
 
             <svg
-              className="size-8 fill-current absolute animate-out fade-out slide-in-from-bottom-1 duration-700"
+              className="size-10 fill-current absolute animate-out fade-out slide-in-from-bottom-1 duration-700"
               style={{ animationDelay: '2000ms', animationFillMode: 'both' }}
               viewBox="0 0 24 24"
               version="1.1" xmlns="http://www.w3.org/2000/svg"
@@ -92,12 +92,14 @@ export default function WelcomePage() {
 
             <Label
               className="animate-in fade-in slide-in-from-bottom-1 duration-700"
+              size="sm"
               style={{ animationDelay: '2500ms', animationFillMode: 'both' }}
             >
               Welcome to Ycode
             </Label>
             <Label
               variant="muted"
+              size="sm"
               className="animate-in fade-in slide-in-from-bottom-1 duration-700"
               style={{ animationDelay: '2700ms', animationFillMode: 'both' }}
             >
@@ -105,10 +107,10 @@ export default function WelcomePage() {
             </Label>
 
             <div
-              className="mt-2 animate-in fade-in slide-in-from-bottom-1 duration-700"
+              className="mt-4 animate-in fade-in slide-in-from-bottom-1 duration-700"
               style={{ animationDelay: '3700ms', animationFillMode: 'both' }}
             >
-              <Button onClick={() => setStep('supabase')} size="sm">
+              <Button onClick={() => setStep('supabase')}>
                 Get started
               </Button>
             </div>
@@ -124,16 +126,17 @@ export default function WelcomePage() {
     // Show loading while checking environment
     if (isVercel === null) {
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 py-10">
+        <div className="min-h-screen flex flex-col gap-2 text-center items-center justify-center bg-neutral-950 py-10">
 
-          <div className="flex-1 flex items-center text-center flex-col gap-2">
-            <Label>
+            <Label size="sm">
               Please wait
             </Label>
-            <Label variant="muted" className="bg-gradient-to-r from-muted-foreground via-muted-foreground/40 to-muted-foreground bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent !font-normal">
+            <Label
+              variant="muted" size="sm"
+              className="bg-gradient-to-r from-muted-foreground via-muted-foreground/40 to-muted-foreground bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent !font-normal"
+            >
               Detecting environment...
             </Label>
-          </div>
 
         </div>
       );
@@ -349,19 +352,19 @@ export default function WelcomePage() {
 
         <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
 
-          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
             <Label variant="muted">Step 1</Label>
-            <Label>Connect Supabase</Label>
+            <Label size="sm">Connect Supabase</Label>
           </div>
 
-          <div className="border-t-2 border-white/50 py-4 flex flex-col gap-1.5 opacity-50">
+          <div className="border-t-2 border-white/50 py-4 flex flex-col gap-0.5 opacity-50">
             <Label variant="muted">Step 2</Label>
-            <Label>Run migrations</Label>
+            <Label size="sm">Run migrations</Label>
           </div>
 
-          <div className="border-t-2 border-white/50 py-4 flex flex-col gap-1.5 opacity-50">
+          <div className="border-t-2 border-white/50 py-4 flex flex-col gap-0.5 opacity-50">
             <Label variant="muted">Step 3</Label>
-            <Label>Create account</Label>
+            <Label size="sm">Create account</Label>
           </div>
 
         </div>
@@ -372,7 +375,7 @@ export default function WelcomePage() {
 
             <FieldGroup className="animate-in fade-in slide-in-from-bottom-1 duration-700" style={{ animationFillMode: 'both' }}>
               <FieldSet>
-                <FieldGroup>
+                <FieldGroup className="gap-8">
 
                   {error && (
                     <Alert variant="destructive">
@@ -381,12 +384,13 @@ export default function WelcomePage() {
                   )}
 
                   <Field>
-                    <FieldLabel htmlFor="anon_key">Publishable key</FieldLabel>
+                    <FieldLabel htmlFor="anon_key" size="sm">Publishable key</FieldLabel>
                     <Input
                       id="anon_key"
                       name="anon_key"
                       required
                       placeholder="sb_publishable_ABCABCABCABCABC"
+                      size="sm"
                     />
                     <FieldDescription>
                       Find it in <span className="text-white/85">Supabase → Project settings → API keys</span>.
@@ -394,12 +398,13 @@ export default function WelcomePage() {
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="service_role_key">Secret key</FieldLabel>
+                    <FieldLabel htmlFor="service_role_key" size="sm">Secret key</FieldLabel>
                     <Input
                       id="service_role_key"
                       name="service_role_key"
                       required
                       placeholder="sb_secret_ABCABCABCABCABC"
+                      size="sm"
                     />
                     <FieldDescription>
                       Find it in <span className="text-white/85">Supabase → Project settings → API keys</span>.
@@ -407,13 +412,14 @@ export default function WelcomePage() {
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="connection_url">Pooler connection URL</FieldLabel>
+                    <FieldLabel htmlFor="connection_url" size="sm">Pooler connection URL</FieldLabel>
                     <Input
                       type="text"
                       id="connection_url"
                       name="connection_url"
                       required
                       placeholder="postgresql://postgres.zxzgetrkwbpvakuzpytt:[YOUR-PASSWORD]@aws-1-eu-west-3.pooler.supabase.com:6543/postgres"
+                      size="sm"
                     />
                     <FieldDescription>
                       Find it in <span className="text-white/85">Supabase → Connect → Connection String → Method: Transaction pooler</span>.
@@ -421,13 +427,14 @@ export default function WelcomePage() {
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="connection_url">Database Password</FieldLabel>
+                    <FieldLabel htmlFor="connection_url" size="sm">Database Password</FieldLabel>
                     <Input
                       type="password"
                       id="db_password"
                       name="db_password"
                       required
                       placeholder="••••••••••••••••"
+                      size="sm"
                     />
                     <FieldDescription>
                       The database password was created with the project. It can be reset in <span className="text-white/85">Database → Settings</span>.
@@ -438,14 +445,12 @@ export default function WelcomePage() {
                   <div className="flex flex-col gap-2 mt-4">
                     <Button
                       type="submit"
-                      size="sm"
                       disabled={loading}
                     >
                       {loading ? <Spinner /> : 'Continue'}
                     </Button>
                     <Button
                       type="button"
-                      size="sm"
                       variant="ghost"
                       onClick={() => setStep('welcome')}
                       disabled={loading}
@@ -496,19 +501,19 @@ export default function WelcomePage() {
 
         <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
 
-          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
             <Label variant="muted">Step 1</Label>
-            <Label>Connect Supabase</Label>
+            <Label size="sm">Connect Supabase</Label>
           </div>
 
-          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
             <Label variant="muted">Step 2</Label>
-            <Label>Run migrations</Label>
+            <Label size="sm">Run migrations</Label>
           </div>
 
-          <div className="border-t-2 border-white/50 py-4 flex flex-col gap-1.5 opacity-50">
+          <div className="border-t-2 border-white/50 py-4 flex flex-col gap-0.5 opacity-50">
             <Label variant="muted">Step 3</Label>
-            <Label>Create account</Label>
+            <Label size="sm">Create account</Label>
           </div>
 
         </div>
@@ -524,14 +529,16 @@ export default function WelcomePage() {
           <div className="flex flex-col gap-10 animate-in fade-in slide-in-from-bottom-1 duration-700" style={{ animationFillMode: 'both' }}>
 
             <div className="flex-1 flex items-center text-center flex-col gap-2 bg-white/5 py-10 rounded-2xl">
-              <Icon name="database" className="size-3 mb-2" />
-              <Label>Setup database</Label>
-              <Label variant="muted" className="leading-relaxed max-w-96">We&apos;ll automatically create the necessary database tables and storage buckets in your Supabase project.</Label>
+              <Icon name="database" className="size-4 mb-2" />
+              <Label size="sm">Setup database</Label>
+              <Label
+                variant="muted" size="sm"
+                className="leading-relaxed max-w-96"
+              >We&apos;ll automatically create the necessary database tables and storage buckets in your Supabase project.</Label>
             </div>
 
             <div className="flex flex-col gap-2">
               <Button
-                size="sm"
                 onClick={handleMigrate}
                 disabled={loading}
               >
@@ -539,7 +546,6 @@ export default function WelcomePage() {
               </Button>
               <Button
                 type="button"
-                size="sm"
                 variant="ghost"
                 onClick={() => setStep('supabase')}
                 disabled={loading}
@@ -615,19 +621,19 @@ export default function WelcomePage() {
 
         <div className="grid grid-cols-3 gap-4 w-full max-w-xl">
 
-          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
             <Label variant="muted">Step 1</Label>
-            <Label>Connect Supabase</Label>
+            <Label size="sm">Connect Supabase</Label>
           </div>
 
-          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
             <Label variant="muted">Step 2</Label>
-            <Label>Run migrations</Label>
+            <Label size="sm">Run migrations</Label>
           </div>
 
-          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-1.5">
+          <div className="border-t-2 border-white/100 py-4 flex flex-col gap-0.5">
             <Label variant="muted">Step 3</Label>
-            <Label>Create account</Label>
+            <Label size="sm">Create account</Label>
           </div>
 
         </div>
@@ -636,7 +642,7 @@ export default function WelcomePage() {
 
           <FieldGroup>
             <FieldSet>
-              <FieldGroup>
+              <FieldGroup className="gap-8">
 
 
                 {error && (
@@ -646,7 +652,7 @@ export default function WelcomePage() {
                 )}
 
                 <Field>
-                  <FieldLabel htmlFor="email">Email</FieldLabel>
+                  <FieldLabel htmlFor="email" size="sm">Email</FieldLabel>
                   <Input
                     type="email"
                     id="email"
@@ -654,11 +660,12 @@ export default function WelcomePage() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="admin@yourdomain.com"
                     disabled={loading}
+                    size="sm"
                   />
                 </Field>
 
                 <Field>
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <FieldLabel htmlFor="password" size="sm">Password</FieldLabel>
                   <Input
                     type="password"
                     id="password"
@@ -666,12 +673,13 @@ export default function WelcomePage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     disabled={loading}
+                    size="sm"
                   />
                   <FieldDescription>At least 6 characters</FieldDescription>
                 </Field>
 
                 <Field>
-                  <FieldLabel htmlFor="confirmPassword">Confirm password</FieldLabel>
+                  <FieldLabel htmlFor="confirmPassword" size="sm">Confirm password</FieldLabel>
                   <Input
                     type="password"
                     id="confirmPassword"
@@ -679,19 +687,19 @@ export default function WelcomePage() {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
                     disabled={loading}
+                    size="sm"
                   />
                 </Field>
 
-                <div className="flex flex-col gap-4 mt-4">
+                <div className="flex flex-col gap-4 mt-2">
                   <Button
                     type="submit"
-                    size="sm"
                     onClick={handleComplete}
                     disabled={loading}
                   >
                     {loading ? <Spinner /> : 'Create account'}
                   </Button>
-                  <FieldDescription className="text-center text-[10px] opacity-60">This will be stored securely in Supabase Auth.</FieldDescription>
+                  <FieldDescription className="text-center text-[10px] opacity-60">Your user will be stored securely in Supabase Auth.</FieldDescription>
                 </div>
 
               </FieldGroup>
