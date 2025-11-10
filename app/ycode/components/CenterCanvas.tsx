@@ -366,7 +366,7 @@ export default function CenterCanvas({
           </Tabs>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="sm">
+              <Button variant="input" size="sm">
                 80%
                 <div>
                   <Icon name="chevronCombo" className="!size-2.5 opacity-50" />
