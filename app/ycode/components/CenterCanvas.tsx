@@ -301,7 +301,7 @@ export default function CenterCanvas({
           <Popover open={pagePopoverOpen} onOpenChange={setPagePopoverOpen}>
             <PopoverTrigger asChild>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 role="combobox"
                 aria-expanded={pagePopoverOpen}
@@ -310,7 +310,9 @@ export default function CenterCanvas({
                 <span className="truncate">
                   {currentPageName}
                 </span>
-                <Icon name="chevronCombo" className="size-3 shrink-0 opacity-50" />
+                <div>
+                  <Icon name="chevronCombo" className="!size-2.5 shrink-0 opacity-50" />
+                </div>
               </Button>
             </PopoverTrigger>
 
