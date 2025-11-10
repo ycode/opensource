@@ -200,19 +200,6 @@ export default function HeaderBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Component Edit Mode: Back to Page Button */}
-        {editingComponentId && returnToPage ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onExitComponentEditMode}
-            className="gap-1"
-          >
-            <ArrowLeft className="size-4" />
-            Back to {returnToPage.name}
-          </Button>
-        ) : null}
-
       </div>
 
       {/* Right: User & Actions */}
@@ -241,10 +228,7 @@ export default function HeaderBar({
         {/* Publish button - purple in component edit mode */}
         <Popover>
           <PopoverTrigger asChild>
-            <Button
-              size="sm"
-              className={editingComponentId ? 'bg-purple-500 hover:bg-purple-600' : ''}
-            >
+            <Button size="sm">
               Publish
             </Button>
           </PopoverTrigger>

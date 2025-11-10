@@ -80,7 +80,7 @@ export default function RightSidebar({
 
   const selectedLayer: Layer | null = useMemo(() => {
     if (!selectedLayerId) return null;
-    
+
     // Get layers from either component draft or page draft
     let layers: Layer[] = [];
     if (editingComponentId) {
@@ -89,9 +89,9 @@ export default function RightSidebar({
       const draft = draftsByPageId[currentPageId];
       layers = draft ? draft.layers : [];
     }
-    
+
     if (!layers.length) return null;
-    
+
     // Find the selected layer in the tree
     const stack: Layer[] = [...layers];
     while (stack.length) {
@@ -346,13 +346,13 @@ export default function RightSidebar({
       const { setEditingComponentId } = useEditorStore.getState();
       const { loadComponentDraft } = useComponentsStore.getState();
       const { setSelectedLayerId } = useEditorStore.getState();
-      
+
       // Enter edit mode with the current page as return destination
       setEditingComponentId(component.id, currentPageId);
-      
+
       // Load the component's layers into draft
       loadComponentDraft(component.id);
-      
+
       // Select the first layer of the component
       if (component.layers && component.layers.length > 0) {
         setSelectedLayerId(component.layers[0].id);
@@ -360,7 +360,7 @@ export default function RightSidebar({
         setSelectedLayerId(null);
       }
     };
-    
+
     return (
       <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
@@ -369,15 +369,13 @@ export default function RightSidebar({
             <EmptyDescription>
               This is an instance of &quot;{component.name}&quot;. To edit this component, click the button below or right-click and select &quot;Edit master component&quot;.
             </EmptyDescription>
-            <div className="mt-4">
-              <Button 
+            <div>
+              <Button
                 onClick={handleEditMasterComponent}
-                variant="default"
+                variant="secondary"
                 size="sm"
-                className="bg-purple-500 hover:bg-purple-600"
               >
-                <Icon name="edit" className="mr-2" />
-                Edit Master Component
+                Edit component
               </Button>
             </div>
           </Empty>

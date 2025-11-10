@@ -208,26 +208,19 @@ export default function LeftSidebar({
           }}
           className="flex-1 gap-0"
         >
-          {/* Hide tabs when editing component - only show layers */}
-          {!editingComponentId && (
-            <TabsList className="w-full">
-              <TabsTrigger value="layers">Layers</TabsTrigger>
-              <TabsTrigger value="pages">Pages</TabsTrigger>
-              <TabsTrigger value="cms">CMS</TabsTrigger>
-            </TabsList>
-          )}
+
+          <TabsList className="w-full">
+            <TabsTrigger value="layers">Layers</TabsTrigger>
+            <TabsTrigger value="pages">Pages</TabsTrigger>
+            <TabsTrigger value="cms">CMS</TabsTrigger>
+          </TabsList>
 
           <hr className="mt-4" />
 
           {/* Content */}
           <TabsContent value="layers">
             <header className="py-5 flex justify-between">
-              <span className="font-medium">
-                {editingComponentId && editingComponent
-                  ? `Editing: ${editingComponent.name}`
-                  : 'Layers'
-                }
-              </span>
+              <span className="font-medium">Layers</span>
               <div className="-my-1">
                 <Button
                   size="xs" variant="secondary"

@@ -9,6 +9,9 @@
 // 1. React/Next.js
 import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 
+// 2. External libraries
+import { ArrowLeft } from 'lucide-react';
+
 // 3. ShadCN UI
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
@@ -68,7 +71,7 @@ export default function CenterCanvas({
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(new Set());
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { draftsByPageId, addLayer, updateLayer, pages, folders } = usePagesStore();
-  const { setSelectedLayerId, activeUIState, editingComponentId, setCurrentPageId } = useEditorStore();
+  const { setSelectedLayerId, activeUIState, editingComponentId, setCurrentPageId, returnToPageId } = useEditorStore();
   const components = useComponentsStore((state) => state.components);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
 
@@ -103,6 +106,44 @@ export default function CenterCanvas({
     };
     return getNodeIcon(node);
   }, [currentPage]);
+
+  // Get return page for component edit mode
+  const returnToPage = useMemo(() => {
+    return returnToPageId ? pages.find(p => p.id === returnToPageId) : null;
+  }, [returnToPageId, pages]);
+
+  // Exit component edit mode handler
+  const handleExitComponentEditMode = useCallback(async () => {
+    const { setEditingComponentId } = useEditorStore.getState();
+    const { saveComponentDraft, clearComponentDraft } = useComponentsStore.getState();
+    const { updateComponentOnLayers } = usePagesStore.getState();
+
+    if (!editingComponentId) return;
+
+    // Save component draft
+    await saveComponentDraft(editingComponentId);
+
+    // Get the updated component
+    const updatedComponent = useComponentsStore.getState().getComponentById(editingComponentId);
+    if (updatedComponent) {
+      // Update all instances across pages
+      await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
+    }
+
+    // Clear component draft
+    clearComponentDraft(editingComponentId);
+
+    // Return to previous page
+    if (returnToPageId) {
+      setCurrentPageId(returnToPageId);
+    }
+
+    // Exit edit mode
+    setEditingComponentId(null, null);
+
+    // Clear selection
+    setSelectedLayerId(null);
+  }, [editingComponentId, returnToPageId, setCurrentPageId, setSelectedLayerId]);
 
   // Initialize all folders as collapsed on mount
   useEffect(() => {
@@ -312,8 +353,19 @@ export default function CenterCanvas({
     <div className="flex-1 min-w-0 flex flex-col">
       {/* Top Bar */}
       <div className="grid grid-cols-3 items-center p-4 border-b bg-background">
-        {/* Page Selector */}
-        <div className="w-40 *:w-full">
+        {/* Page Selector or Back to Page Button */}
+        {editingComponentId && returnToPage ? (
+          <Button
+            variant="purple"
+            size="sm"
+            onClick={handleExitComponentEditMode}
+            className="gap-1 w-fit"
+          >
+            <Icon name="arrowLeft" />
+            Back to {returnToPage.name}
+          </Button>
+        ) : (
+          <div className="w-40 *:w-full">
           <Popover open={pagePopoverOpen} onOpenChange={setPagePopoverOpen}>
             <PopoverTrigger asChild>
               <Button
@@ -348,6 +400,7 @@ export default function CenterCanvas({
             </PopoverContent>
           </Popover>
         </div>
+        )}
 
         {/* Viewport Controls */}
         <div className="flex justify-center gap-2">
