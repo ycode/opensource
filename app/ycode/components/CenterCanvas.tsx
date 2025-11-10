@@ -90,9 +90,19 @@ export default function CenterCanvas({
   // Build page tree for navigation
   const pageTree = useMemo(() => buildPageTree(pages, folders), [pages, folders]);
 
-  // Get current page name
+  // Get current page name and icon
   const currentPage = useMemo(() => pages.find(p => p.id === currentPageId), [pages, currentPageId]);
   const currentPageName = currentPage?.name || 'Select Page';
+  const currentPageIcon = useMemo(() => {
+    if (!currentPage) return 'homepage';
+    const node: PageTreeNode = {
+      id: currentPage.id,
+      type: 'page',
+      data: currentPage,
+      children: []
+    };
+    return getNodeIcon(node);
+  }, [currentPage]);
 
   // Initialize all folders as collapsed on mount
   useEffect(() => {
@@ -137,10 +147,8 @@ export default function CenterCanvas({
             }
           }}
           className={cn(
-            'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg cursor-pointer select-none',
-            'hover:bg-secondary/50',
-            isCurrentPage && 'bg-primary text-primary-foreground hover:bg-primary',
-            !isCurrentPage && 'text-secondary-foreground/80 dark:text-primary-foreground/80'
+            "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-xs outline-hidden select-none data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+            isCurrentPage && 'bg-secondary/50'
           )}
           style={{ paddingLeft: `${depth * 14 + 8}px` }}
         >
@@ -166,16 +174,24 @@ export default function CenterCanvas({
             </div>
           )}
 
-          {/* Icon */}
-          <Icon
-            name={getNodeIcon(node)}
-            className={cn('size-3 ml-1 mr-2', isCurrentPage ? 'opacity-90' : 'opacity-50')}
-          />
+          {/*/!* Icon *!/*/}
+          {/*<Icon*/}
+          {/*  name={getNodeIcon(node)}*/}
+          {/*  className={cn('size-3 ml-1 mr-2', isCurrentPage ? 'opacity-90' : 'opacity-50')}*/}
+          {/*/>*/}
 
           {/* Label */}
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
             {isFolder ? (node.data as PageFolder).name : (node.data as Page).name}
           </span>
+
+          {/* Check indicator */}
+          {isCurrentPage && (
+            <span className="absolute right-2 flex size-3.5 items-center justify-center">
+              <Icon name="check" className="size-3 opacity-50" />
+            </span>
+          )}
+
         </div>
         {isFolder && !isCollapsed && node.children && (
           <div>
@@ -301,22 +317,25 @@ export default function CenterCanvas({
           <Popover open={pagePopoverOpen} onOpenChange={setPagePopoverOpen}>
             <PopoverTrigger asChild>
               <Button
-                variant="secondary"
+                variant="input"
                 size="sm"
                 role="combobox"
                 aria-expanded={pagePopoverOpen}
                 className="w-full justify-between"
               >
-                <span className="truncate">
-                  {currentPageName}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <Icon name={currentPageIcon} className="size-3 opacity-50" />
+                  <span className="truncate">
+                    {currentPageName}
+                  </span>
+                </div>
                 <div>
                   <Icon name="chevronCombo" className="!size-2.5 shrink-0 opacity-50" />
                 </div>
               </Button>
             </PopoverTrigger>
 
-            <PopoverContent className="w-[240px] p-1" align="start">
+            <PopoverContent className="w-56 p-1" align="start">
               <div className="max-h-[400px] overflow-y-auto">
                 {pageTree.length > 0 ? (
                   pageTree.map(node => renderPageTreeNode(node, 0))
