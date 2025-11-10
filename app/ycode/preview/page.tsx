@@ -1,31 +1,15 @@
-import { unstable_cache } from 'next/cache';
 import Link from 'next/link';
 import { fetchHomepage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import type { Metadata } from 'next';
 
-// Force dynamic rendering with on-demand revalidation
-export const dynamic = 'force-static';
-export const revalidate = 3600;
-export const dynamicParams = true;
-
-/**
- * Fetch homepage data from database with caching
- */
-async function fetchPublishedHomepage() {
-  return unstable_cache(
-    async () => fetchHomepage(true),
-    ['data-for-route-/'], // Cache key
-    {
-      tags: ['route-/'], // Tags for revalidation (empty slug = homepage)
-      revalidate: 3600, // Cache for 1 hour
-    }
-  )();
-}
+// Force dynamic rendering - no caching for preview
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function Home() {
-  // Fetch homepage data
-  const data = await fetchPublishedHomepage();
+  // Fetch draft homepage data (no caching)
+  const data = await fetchHomepage(false);
 
   // If no homepage, show default landing page
   if (!data || !data.pageLayers.layers || data.pageLayers.layers.length === 0) {
@@ -33,10 +17,10 @@ export default async function Home() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center p-8">
           <h1 className="text-6xl font-bold text-gray-900 mb-4">
-            YCode
+            YCode Preview
           </h1>
           <p className="text-xl text-gray-600 mb-8">
-            Your website is ready! Create pages in the builder.
+            No homepage found. Create an index page in the builder.
           </p>
           <Link
             href="/ycode"
@@ -49,7 +33,7 @@ export default async function Home() {
     );
   }
 
-  // Render homepage
+  // Render homepage preview
   return (
     <PageRenderer
       page={data.page}
@@ -62,17 +46,17 @@ export default async function Home() {
 
 // Generate metadata
 export async function generateMetadata(): Promise<Metadata> {
-  const data = await fetchPublishedHomepage();
+  const data = await fetchHomepage(false);
 
   if (!data) {
     return {
-      title: 'YCode',
-      description: 'Built with YCode',
+      title: 'Preview - YCode',
+      description: 'Preview - Built with YCode',
     };
   }
 
   return {
-    title: data.page.name || 'Home',
-    description: `${data.page.name} - Built with YCode`,
+    title: `Preview: ${data.page.name || 'Home'}`,
+    description: `Preview of ${data.page.name} - YCode`,
   };
 }
