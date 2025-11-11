@@ -7,7 +7,6 @@ import { getTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
 import { canHaveChildren } from '../lib/layer-utils';
 import { getDescendantFolderIds, isHomepage, findHomepage } from '../lib/page-utils';
-import { extractPublishedCSS } from '../lib/extract-published-css';
 import { updateLayersWithStyle, detachStyleFromLayers } from '../lib/layer-style-utils';
 import { updateLayersWithComponent, detachComponentFromLayers } from '../lib/component-utils';
 
@@ -22,9 +21,11 @@ interface PagesState {
 interface PagesActions {
   setPages: (pages: Page[]) => void;
   setFolders: (folders: PageFolder[]) => void;
+  setPagesAndDrafts: (pages: Page[], drafts: PageLayers[]) => void;
   loadPages: () => Promise<void>;
   loadFolders: () => Promise<void>;
   loadDraft: (pageId: string) => Promise<void>;
+  loadAllDrafts: () => Promise<void>;
   createPage: (pageData: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>) => Promise<{ success: boolean; data?: Page; error?: string; tempId?: string }>;
   updatePage: (pageId: string, updates: Partial<Page>) => Promise<{ success: boolean; error?: string }>;
   duplicatePage: (pageId: string) => Promise<{
@@ -179,6 +180,32 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   setPages: (pages) => set({ pages }),
   setFolders: (folders) => set({ folders }),
 
+  setPagesAndDrafts: (pages, drafts) => {
+    // Build a map of pageId -> PageLayers
+    const draftsMap: Record<string, PageLayers> = {};
+
+    drafts.forEach((draft) => {
+      draftsMap[draft.page_id] = draft;
+    });
+
+    // For pages that don't have drafts in the database, initialize empty drafts
+    pages.forEach((page) => {
+      if (!draftsMap[page.id]) {
+        draftsMap[page.id] = {
+          id: `draft-${page.id}`,
+          page_id: page.id,
+          layers: [],
+          is_published: false,
+          publish_key: page.publish_key,
+          created_at: new Date().toISOString(),
+          deleted_at: null,
+        };
+      }
+    });
+
+    set({ pages, draftsByPageId: draftsMap });
+  },
+
   loadPages: async () => {
     set({ isLoading: true, error: null });
     try {
@@ -246,6 +273,49 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     }
   },
 
+  loadAllDrafts: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await pageLayersApi.getAllDrafts();
+      if (response.error) {
+        set({ error: response.error, isLoading: false });
+        return;
+      }
+
+      // Build a map of pageId -> PageLayers
+      const draftsMap: Record<string, PageLayers> = {};
+
+      if (response.data) {
+        response.data.forEach((draft) => {
+          draftsMap[draft.page_id] = draft;
+        });
+      }
+
+      // For pages that don't have drafts in the database, initialize empty drafts
+      const pages = get().pages;
+      pages.forEach((page) => {
+        if (!draftsMap[page.id]) {
+          draftsMap[page.id] = {
+            id: `draft-${page.id}`,
+            page_id: page.id,
+            layers: [],
+            is_published: false,
+            publish_key: page.publish_key,
+            created_at: new Date().toISOString(),
+            deleted_at: null,
+          };
+        }
+      });
+
+      set((state) => ({
+        draftsByPageId: { ...state.draftsByPageId, ...draftsMap },
+        isLoading: false,
+      }));
+    } catch (error) {
+      set({ error: 'Failed to load drafts', isLoading: false });
+    }
+  },
+
   initDraft: (page, initialLayers = []) => {
     const draft: PageLayers = {
       id: `draft-${page.id}`,
@@ -277,13 +347,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      // Extract CSS from Tailwind JIT for published pages
-      const generatedCSS = await extractPublishedCSS(draft.layers);
-
       const response = await pageLayersApi.updateDraft(
         pageId,
-        draft.layers,
-        generatedCSS
+        draft.layers
       );
 
       if (response.error) {
@@ -316,6 +382,25 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
             },
             isLoading: false,
           }));
+        }
+
+        // After successfully saving the draft, generate and save CSS from ALL pages
+        try {
+          const { generateAndSaveCSS } = await import('@/lib/client/cssGenerator');
+
+          // Collect layers from ALL pages for comprehensive CSS generation
+          const allLayers: Layer[] = [];
+          const allDrafts = get().draftsByPageId;
+          Object.values(allDrafts).forEach((pageDraft) => {
+            if (pageDraft.layers) {
+              allLayers.push(...pageDraft.layers);
+            }
+          });
+
+          await generateAndSaveCSS(allLayers);
+        } catch (cssError) {
+          console.error('Failed to generate CSS after save:', cssError);
+          // Don't fail the save operation if CSS generation fails
         }
       }
     } catch (error) {

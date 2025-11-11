@@ -19,6 +19,7 @@ interface ComponentsState {
 
 interface ComponentsActions {
   // Data loading
+  setComponents: (components: Component[]) => void;
   loadComponents: () => Promise<void>;
   
   // CRUD operations
@@ -52,6 +53,9 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
   componentDrafts: {},
   isSaving: false,
   saveTimeouts: {},
+  
+  // Set components (used by unified init)
+  setComponents: (components) => set({ components }),
   
   // Load all components
   loadComponents: async () => {

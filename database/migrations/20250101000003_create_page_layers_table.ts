@@ -12,7 +12,6 @@ export async function up(knex: Knex): Promise<void> {
     table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
     table.uuid('page_id').notNullable().references('id').inTable('pages').onDelete('CASCADE');
     table.jsonb('layers').notNullable().defaultTo('[]');
-    table.text('generated_css').nullable();
     table.boolean('is_published').defaultTo(false);
     table.string('publish_key', 255).defaultTo(knex.raw('gen_random_uuid()'));
     table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
@@ -48,7 +47,7 @@ export async function up(knex: Knex): Promise<void> {
   await knex.schema.raw(`
     CREATE POLICY "Authenticated users can manage layers"
       ON page_layers FOR ALL
-      USING (auth.role() = 'authenticated')
+      USING (auth.uid() IS NOT NULL)
   `);
 
   // Create default homepage with initial draft layers

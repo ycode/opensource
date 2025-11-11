@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { fetchPageByPath } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
+import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 
 // Force dynamic rendering - no caching for preview
 export const dynamic = 'force-dynamic';
@@ -23,13 +24,16 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
   const { page, pageLayers, components } = data;
 
+  // Load draft CSS from settings
+  const draftCSS = await getSettingByKey('draft_css');
+
   // Render the preview page (draft version)
   return (
     <PageRenderer
       page={page}
       layers={pageLayers.layers || []}
       components={components}
-      generatedCss={pageLayers.generated_css}
+      generatedCss={draftCSS}
     />
   );
 }

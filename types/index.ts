@@ -242,7 +242,6 @@ export interface PageLayers {
   created_at: string;
   updated_at?: string;
   deleted_at: string | null; // Soft delete timestamp
-  generated_css?: string; // Extracted CSS from Play CDN for published pages
 }
 
 export interface PageFolder {
@@ -369,4 +368,13 @@ export interface AuthState {
   loading: boolean;
   initialized: boolean;
   error: string | null;
+}
+
+// Settings Types
+export interface Setting {
+  id: string;
+  key: string;
+  value: any;
+  created_at: string;
+  updated_at: string;
 }

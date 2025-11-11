@@ -47,7 +47,7 @@ export default function LeftSidebar({
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
-  const { draftsByPageId, loadPages, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
+  const { draftsByPageId, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
   const { setSelectedLayerId, setCurrentPageId, editingComponentId } = useEditorStore();
@@ -112,12 +112,6 @@ export default function LeftSidebar({
     }
     return null;
   }, []);
-
-  // Load pages and folders on mount
-  useEffect(() => {
-    loadPages();
-    loadFolders();
-  }, [loadPages, loadFolders]);
 
   // Load draft when page changes (only if not already in store)
   useEffect(() => {

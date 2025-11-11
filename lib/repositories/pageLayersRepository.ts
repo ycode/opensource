@@ -65,13 +65,11 @@ export async function getPublishedLayers(pageId: string): Promise<PageLayers | n
  * Create or update draft layers
  * @param pageId - Page ID
  * @param layers - Page layers
- * @param generatedCSS - Optional CSS generated from Tailwind JIT for published pages
  * @param additionalData - Optional additional fields (e.g., metadata)
  */
 export async function upsertDraftLayers(
   pageId: string,
   layers: Layer[],
-  generatedCSS?: string | null,
   additionalData?: Record<string, any>
 ): Promise<PageLayers> {
   const client = await getSupabaseAdmin();
@@ -88,10 +86,6 @@ export async function upsertDraftLayers(
     layers,
     updated_at: new Date().toISOString()
   };
-
-  if (generatedCSS !== undefined) {
-    updateData.generated_css = generatedCSS;
-  }
 
   if (additionalData) {
     Object.assign(updateData, additionalData);
@@ -120,10 +114,6 @@ export async function upsertDraftLayers(
       ...additionalData
     };
 
-    if (generatedCSS !== undefined) {
-      insertData.generated_css = generatedCSS;
-    }
-
     const { data, error } = await client
       .from('page_layers')
       .insert(insertData)
@@ -136,6 +126,31 @@ export async function upsertDraftLayers(
 
     return data;
   }
+}
+
+/**
+ * Get all draft layers (non-published)
+ * Used for loading all drafts at once in the editor
+ */
+export async function getAllDraftLayers(): Promise<PageLayers[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  const { data, error } = await client
+    .from('page_layers')
+    .select('*')
+    .eq('is_published', false)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch draft layers: ${error.message}`);
+  }
+
+  return data || [];
 }
 
 /**
@@ -256,16 +271,10 @@ export async function publishPageLayers(draftPageId: string, publishedPageId: st
     publish_key: draftLayers.publish_key,
   };
 
-  // Copy generated_css if it exists
-  if (draftLayers.generated_css) {
-    publishedData.generated_css = draftLayers.generated_css;
-  }
-
   if (existingPublished) {
-    // Update existing published version only if layers or CSS changed
+    // Update existing published version only if layers changed
     const layersChanged = JSON.stringify(existingPublished.layers) !== JSON.stringify(draftLayers.layers);
-    const cssChanged = existingPublished.generated_css !== draftLayers.generated_css;
-    const hasChanges = layersChanged || cssChanged;
+    const hasChanges = layersChanged;
 
     if (hasChanges) {
       const { data, error } = await client

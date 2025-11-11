@@ -2,7 +2,7 @@ import type { Knex } from 'knex';
 
 /**
  * Migration: Create Settings Table
- * 
+ *
  * Creates the settings table with default values
  */
 
@@ -23,18 +23,18 @@ export async function up(knex: Knex): Promise<void> {
   await knex.schema.raw('ALTER TABLE settings ENABLE ROW LEVEL SECURITY');
 
   // Create RLS policies
+  // Public can read all settings (including published_css for public pages)
   await knex.schema.raw(`
-    CREATE POLICY "Public settings are viewable by everyone" 
-      ON settings FOR SELECT 
-      USING (
-        key IN ('site_name', 'site_description', 'theme', 'logo_url')
-      )
+    CREATE POLICY "Public settings are viewable by everyone"
+      ON settings FOR SELECT
+      USING (true)
   `);
 
+  // Only authenticated users can create/update/delete settings
   await knex.schema.raw(`
-    CREATE POLICY "Authenticated users can manage settings" 
-      ON settings FOR ALL 
-      USING (auth.role() = 'authenticated')
+    CREATE POLICY "Authenticated users can manage settings"
+      ON settings FOR ALL
+      USING (auth.uid() IS NOT NULL)
   `);
 
   // Insert default settings

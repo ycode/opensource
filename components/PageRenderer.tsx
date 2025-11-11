@@ -29,6 +29,22 @@ export default function PageRenderer({
       {generatedCss && <PageHead css={generatedCss} />}
 
       <div className="min-h-screen bg-white">
+        {/* Debug: Show if no layers */}
+        {resolvedLayers.length === 0 && (
+          <div className="p-8 text-center">
+            <p className="text-red-500">No layers to render</p>
+          </div>
+        )}
+
+        {/* Debug: Show if body is empty */}
+        {resolvedLayers.length > 0 && resolvedLayers[0].id === 'body' && (!resolvedLayers[0].children || resolvedLayers[0].children.length === 0) && (
+          <div className="p-8 text-center border-4 border-blue-500">
+            <p className="text-blue-500 font-bold">PageRenderer is working!</p>
+            <p className="text-gray-600">Body layer exists but has no children</p>
+            <p className="text-sm text-gray-500 mt-2">Add content in the editor to see it here</p>
+          </div>
+        )}
+
         <LayerRenderer
           layers={resolvedLayers}
           isEditMode={false}

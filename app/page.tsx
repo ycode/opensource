@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache';
 import Link from 'next/link';
 import { fetchHomepage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
+import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import type { Metadata } from 'next';
 
 // Force dynamic rendering with on-demand revalidation
@@ -49,13 +50,16 @@ export default async function Home() {
     );
   }
 
+  // Load published CSS from settings
+  const publishedCSS = await getSettingByKey('published_css');
+
   // Render homepage
   return (
     <PageRenderer
       page={data.page}
       layers={data.pageLayers.layers || []}
       components={[]}
-      generatedCss={data.pageLayers.generated_css}
+      generatedCss={publishedCSS}
     />
   );
 }

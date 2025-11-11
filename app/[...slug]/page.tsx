@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
 import { fetchPageByPath } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
+import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import type { Page, PageFolder } from '@/types';
 
 // Force static generation with ISR
@@ -88,12 +89,15 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
   const { page, pageLayers, components } = data;
 
+  // Load published CSS from settings
+  const publishedCSS = await getSettingByKey('published_css');
+
   return (
     <PageRenderer
       page={page}
       layers={pageLayers.layers || []}
       components={components}
-      generatedCss={pageLayers.generated_css}
+      generatedCss={publishedCSS}
     />
   );
 }

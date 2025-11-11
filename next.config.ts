@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  
+
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Ignore optional dependencies that Knex tries to load
@@ -34,6 +34,7 @@ const nextConfig: NextConfig = {
         'pg-query-stream': 'commonjs pg-query-stream',
       });
     }
+
     return config;
   },
 };

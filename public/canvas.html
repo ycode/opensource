@@ -5,39 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>YCode Canvas</title>
 
-  <!-- Tailwind CSS Play CDN (JIT) -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tailwind CSS Browser CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 
-  <!-- Tailwind Configuration -->
-  <script>
-    tailwind.config = {
-      theme: {
-        screens: {
-          // Desktop-first breakpoints (max-width)
-          'max-lg': {'max': '1023px'},
-          'max-md': {'max': '767px'},
-        },
-        extend: {
-          // YCode custom theme extensions can be added here
-          colors: {
-            // Add custom colors if needed
-          },
-          spacing: {
-            // Add custom spacing if needed
-          },
-        }
-      },
-      // Enable all variants
-      variants: {
-        extend: {
-          backgroundColor: ['active', 'disabled'],
-          textColor: ['active', 'disabled'],
-          borderColor: ['active', 'disabled'],
-          opacity: ['disabled'],
-        }
-      }
+  <!-- Tailwind v4 Configuration (CSS-based) -->
+  <style type="text/tailwindcss">
+    @theme {
+      /* Custom max-width breakpoints */
+      --breakpoint-max-lg: 1023px;
+      --breakpoint-max-md: 767px;
     }
-  </script>
+  </style>
 
   <style>
     * {

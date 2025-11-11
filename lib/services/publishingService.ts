@@ -14,6 +14,7 @@ import {
   getPublishedLayersByPublishKeys
 } from '../repositories/pageLayersRepository';
 import { getSupabaseAdmin } from '../supabase-server';
+import { getSettingByKey, setSetting } from '../repositories/settingsRepository';
 import type { Page, PageLayers } from '../../types';
 
 /**
@@ -236,16 +237,10 @@ export async function publishAllPages(): Promise<PublishAllResult> {
       publish_key: draftLayers.publish_key,
     };
 
-    // Copy generated_css if it exists
-    if (draftLayers.generated_css) {
-      publishedData.generated_css = draftLayers.generated_css;
-    }
-
     if (existingPublishedLayers) {
-      // Check if update is needed (layers or CSS changed)
+      // Check if update is needed (layers changed)
       const layersChanged = JSON.stringify(existingPublishedLayers.layers) !== JSON.stringify(draftLayers.layers);
-      const cssChanged = existingPublishedLayers.generated_css !== draftLayers.generated_css;
-      const hasChanges = layersChanged || cssChanged;
+      const hasChanges = layersChanged;
 
       if (hasChanges) {
         layersToUpdate.push({
@@ -308,6 +303,21 @@ export async function publishAllPages(): Promise<PublishAllResult> {
   const totalCreated = createdPages.length + createdLayersCount;
   const totalUpdated = updatedPagesCount + updatedLayersCount;
   const totalUnchanged = (activeDraftPages.length * 2) - totalCreated - totalUpdated;
+
+  // Step 11: Copy draft CSS to published CSS
+  console.log('[publishingService] Copying draft CSS to published CSS...');
+  try {
+    const draftCSS = await getSettingByKey('draft_css');
+    if (draftCSS) {
+      await setSetting('published_css', draftCSS);
+      console.log('[publishingService] CSS published successfully');
+    } else {
+      console.warn('[publishingService] No draft CSS found to publish');
+    }
+  } catch (cssError) {
+    console.error('[publishingService] Failed to copy CSS to published:', cssError);
+    // Don't fail the entire publish operation if CSS copy fails
+  }
 
   return {
     published: results,

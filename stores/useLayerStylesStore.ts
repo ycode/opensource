@@ -16,6 +16,7 @@ interface LayerStylesState {
 
 interface LayerStylesActions {
   // Data loading
+  setStyles: (styles: LayerStyle[]) => void;
   loadStyles: () => Promise<void>;
   
   // CRUD operations
@@ -39,6 +40,9 @@ export const useLayerStylesStore = create<LayerStylesStore>((set, get) => ({
   styles: [],
   isLoading: false,
   error: null,
+  
+  // Set styles (used by unified init)
+  setStyles: (styles) => set({ styles }),
   
   // Load all styles
   loadStyles: async () => {

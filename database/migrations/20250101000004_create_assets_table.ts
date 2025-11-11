@@ -37,7 +37,7 @@ export async function up(knex: Knex): Promise<void> {
   await knex.schema.raw(`
     CREATE POLICY "Authenticated users can manage assets" 
       ON assets FOR ALL 
-      USING (auth.role() = 'authenticated')
+      USING (auth.uid() IS NOT NULL)
   `);
 }
 

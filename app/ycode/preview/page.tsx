@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { fetchHomepage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
+import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import type { Metadata } from 'next';
 
 // Force dynamic rendering - no caching for preview
@@ -12,7 +13,7 @@ export default async function Home() {
   const data = await fetchHomepage(false);
 
   // If no homepage, show default landing page
-  if (!data || !data.pageLayers.layers || data.pageLayers.layers.length === 0) {
+  if (!data || !data.pageLayers) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center p-8">
@@ -33,13 +34,16 @@ export default async function Home() {
     );
   }
 
+  // Load draft CSS from settings
+  const draftCSS = await getSettingByKey('draft_css');
+
   // Render homepage preview
   return (
     <PageRenderer
       page={data.page}
       layers={data.pageLayers.layers || []}
       components={[]}
-      generatedCss={data.pageLayers.generated_css}
+      generatedCss={draftCSS}
     />
   );
 }
