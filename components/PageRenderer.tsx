@@ -1,5 +1,4 @@
 import LayerRenderer from '@/components/layers/LayerRenderer';
-import PageHead from '@/components/PageHead';
 import { resolveComponents } from '@/lib/resolve-components';
 import type { Layer, Component, Page } from '@/types';
 
@@ -13,6 +12,9 @@ interface PageRendererProps {
 /**
  * Shared component for rendering published/preview pages
  * Handles layer resolution and CSS injection
+ *
+ * Note: This is a Server Component. The <style> tag is automatically
+ * hoisted to <head> by Next.js during SSR, eliminating FOUC.
  */
 export default function PageRenderer({
   page,
@@ -25,8 +27,13 @@ export default function PageRenderer({
 
   return (
     <>
-      {/* Inject minified CSS into <head> if available */}
-      {generatedCss && <PageHead css={generatedCss} />}
+      {/* Inject CSS directly - Next.js hoists this to <head> during SSR */}
+      {generatedCss && (
+        <style
+          id="ycode-styles"
+          dangerouslySetInnerHTML={{ __html: generatedCss }}
+        />
+      )}
 
       <div className="min-h-screen bg-white">
         {/* Debug: Show if no layers */}
