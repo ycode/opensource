@@ -43,15 +43,22 @@ export async function generateStaticParams() {
     }
 
     // Build full paths for all pages
-    return pages.map((page: Page) => {
-      const fullPath = buildSlugPath(page, folders as PageFolder[], 'page');
-      // Remove leading slash and split into segments
-      const pathSegments = fullPath.slice(1).split('/').filter(Boolean);
+    return pages
+      .map((page: Page) => {
+        const fullPath = buildSlugPath(page, folders as PageFolder[], 'page');
+        // Remove leading slash and split into segments
+        const pathSegments = fullPath.slice(1).split('/').filter(Boolean);
 
-      return {
-        slug: pathSegments.length > 0 ? pathSegments : [''],
-      };
-    });
+        // Skip empty paths (homepage is handled by app/page.tsx)
+        if (pathSegments.length === 0) {
+          return null;
+        }
+
+        return {
+          slug: pathSegments,
+        };
+      })
+      .filter((param): param is { slug: string[] } => param !== null);
   } catch (error) {
     console.error('Failed to generate static params:', error);
     return [];
