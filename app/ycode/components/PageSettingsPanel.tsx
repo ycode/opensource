@@ -299,14 +299,6 @@ export default function PageSettingsPanel({
                     <Field>
                       <div className="flex items-center gap-3">
                         <FieldLabel>Slug</FieldLabel>
-
-                        <a
-                          href={slugPathPreview}
-                          target="_blank"
-                          className="text-muted-foreground hover:underline"
-                        >
-                          {slugPathPreview}
-                        </a>
                       </div>
                       <Input
                         type="text"
@@ -315,6 +307,9 @@ export default function PageSettingsPanel({
                         onChange={(e) => setSlug(e.target.value)}
                         placeholder={isIndex ? 'Index pages do not have any slug' : 'Add a slug (you will see it in the URL)'}
                       />
+                      <FieldDescription>
+                          {slugPathPreview}
+                      </FieldDescription>
                     </Field>
 
                     <Field>
