@@ -35,6 +35,15 @@ const nextConfig: NextConfig = {
       });
     }
 
+    // Suppress Knex migration warnings (we don't use migrations in Next.js runtime)
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      {
+        module: /node_modules\/knex\/lib\/migrations\/util\/import-file\.js/,
+        message: /Critical dependency: the request of a dependency is an expression/,
+      },
+    ];
+
     return config;
   },
 };
