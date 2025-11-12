@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '../supabase-server';
 import type { PageLayers, Layer } from '../../types';
+import { generatePageLayersHash } from '../hash-utils';
 
 /**
  * Get draft layers for a page
@@ -83,9 +84,16 @@ export async function upsertDraftLayers(
   // Check if draft exists
   const existingDraft = await getDraftLayers(pageId);
 
+  // Calculate content hash for layers
+  const contentHash = generatePageLayersHash({
+    layers,
+    generated_css: generatedCSS !== undefined ? generatedCSS : null,
+  });
+
   // Prepare update data
   const updateData: any = {
     layers,
+    content_hash: contentHash,
     updated_at: new Date().toISOString()
   };
 
@@ -116,6 +124,7 @@ export async function upsertDraftLayers(
     const insertData: any = {
       page_id: pageId,
       layers,
+      content_hash: contentHash,
       is_published: false,
       ...additionalData
     };
@@ -249,9 +258,16 @@ export async function publishPageLayers(draftPageId: string, publishedPageId: st
   // Check if published version exists
   const existingPublished = await getPublishedLayersByPublishKey(draftLayers.publish_key);
 
+  // Calculate content hash for published layers
+  const contentHash = generatePageLayersHash({
+    layers: draftLayers.layers,
+    generated_css: draftLayers.generated_css || null,
+  });
+
   const publishedData: any = {
     page_id: publishedPageId, // Reference the published page, not the draft
     layers: draftLayers.layers,
+    content_hash: contentHash,
     is_published: true,
     publish_key: draftLayers.publish_key,
   };
@@ -262,10 +278,8 @@ export async function publishPageLayers(draftPageId: string, publishedPageId: st
   }
 
   if (existingPublished) {
-    // Update existing published version only if layers or CSS changed
-    const layersChanged = JSON.stringify(existingPublished.layers) !== JSON.stringify(draftLayers.layers);
-    const cssChanged = existingPublished.generated_css !== draftLayers.generated_css;
-    const hasChanges = layersChanged || cssChanged;
+    // Update existing published version only if content_hash changed
+    const hasChanges = existingPublished.content_hash !== contentHash;
 
     if (hasChanges) {
       const { data, error } = await client

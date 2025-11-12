@@ -80,6 +80,9 @@ interface PagesActions {
   createComponentFromLayer: (pageId: string, layerId: string, componentName: string) => Promise<string | null>;
   updateComponentOnLayers: (componentId: string, newLayers: Layer[]) => void;
   detachComponentFromAllLayers: (componentId: string) => void;
+
+  // Publish actions
+  publishPages: (pageIds: string[]) => Promise<{ success: boolean; count?: number; error?: string }>;
 }
 
 type PagesStore = PagesState & PagesActions;
@@ -2308,6 +2311,30 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     });
 
     set({ draftsByPageId: updatedDrafts });
+  },
+
+  publishPages: async (pageIds: string[]) => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      const response = await pagesApi.publishPages(pageIds);
+      
+      if (response.error) {
+        set({ error: response.error, isLoading: false });
+        return { success: false, error: response.error };
+      }
+      
+      // Reload pages to reflect published status
+      await get().loadPages();
+      
+      set({ isLoading: false });
+      return { success: true, count: response.data?.count || 0 };
+    } catch (error) {
+      console.error('[usePagesStore.publishPages] Exception:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to publish pages';
+      set({ error: errorMsg, isLoading: false });
+      return { success: false, error: errorMsg };
+    }
   },
 }));
 

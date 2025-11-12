@@ -1,0 +1,125 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getItemWithValues, updateItem, deleteItem } from '@/lib/repositories/collectionItemRepository';
+import { setValuesByFieldName } from '@/lib/repositories/collectionItemValueRepository';
+import { noCache } from '@/lib/api-response';
+
+// Disable caching for this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+/**
+ * GET /api/collections/[id]/items/[item_id]
+ * Get item with values by ID
+ * Query params:
+ * - published=true: Get published values (default: false, returns draft values)
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; item_id: string }> }
+) {
+  try {
+    const { item_id } = await params;
+    const itemId = parseInt(item_id, 10);
+    
+    if (isNaN(itemId)) {
+      return noCache({ error: 'Invalid item ID' }, 400);
+    }
+    
+    // Check for published query param
+    const { searchParams } = new URL(request.url);
+    const isPublished = searchParams.get('published') === 'true';
+    
+    const item = await getItemWithValues(itemId, isPublished);
+    
+    if (!item) {
+      return noCache({ error: 'Item not found' }, 404);
+    }
+    
+    return noCache({ data: item });
+  } catch (error) {
+    console.error('Error fetching item:', error);
+    return noCache(
+      { error: error instanceof Error ? error.message : 'Failed to fetch item' },
+      500
+    );
+  }
+}
+
+/**
+ * PUT /api/collections/[id]/items/[item_id]
+ * Update item and its field values
+ */
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; item_id: string }> }
+) {
+  try {
+    const { id, item_id } = await params;
+    const collectionId = parseInt(id, 10);
+    const itemId = parseInt(item_id, 10);
+    
+    if (isNaN(collectionId) || isNaN(itemId)) {
+      return noCache({ error: 'Invalid collection or item ID' }, 400);
+    }
+    
+    const body = await request.json();
+    
+    // Extract values from body
+    const { values, ...itemData } = body;
+    
+    // Update item if item data provided
+    if (Object.keys(itemData).length > 0) {
+      await updateItem(itemId, itemData);
+    }
+    
+    // Update field values if provided, and automatically update updated_at
+    if (values && typeof values === 'object') {
+      const now = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const valuesWithUpdatedDate = {
+        ...values,
+        updated_at: now, // Auto-update the updated_at field
+      };
+      await setValuesByFieldName(itemId, collectionId, valuesWithUpdatedDate, {});
+    }
+    
+    // Get updated item with values
+    const updatedItem = await getItemWithValues(itemId);
+    
+    return noCache({ data: updatedItem });
+  } catch (error) {
+    console.error('Error updating item:', error);
+    return noCache(
+      { error: error instanceof Error ? error.message : 'Failed to update item' },
+      500
+    );
+  }
+}
+
+/**
+ * DELETE /api/collections/[id]/items/[item_id]
+ * Delete item (soft delete)
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; item_id: string }> }
+) {
+  try {
+    const { item_id } = await params;
+    const itemId = parseInt(item_id, 10);
+    
+    if (isNaN(itemId)) {
+      return noCache({ error: 'Invalid item ID' }, 400);
+    }
+    
+    await deleteItem(itemId);
+    
+    return noCache({ data: null }, 204);
+  } catch (error) {
+    console.error('Error deleting item:', error);
+    return noCache(
+      { error: error instanceof Error ? error.message : 'Failed to delete item' },
+      500
+    );
+  }
+}
+

@@ -8,6 +8,9 @@
  */
 
 import { getKnexClient } from '../knex-client';
+import { getPageById, getPublishedPageByPublishKey, createPage, updatePage } from '../repositories/pageRepository';
+import { publishPageLayers, getDraftLayers } from '../repositories/pageLayersRepository';
+import type { Page } from '@/types';
 
 /**
  * Helper: Generate a unique slug from a page name
@@ -167,5 +170,78 @@ export async function fixOrphanedPageSlugs(
   } catch (error) {
     throw new Error(`Failed to fix orphaned page slugs: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+/**
+ * Publish specified pages
+ * Creates/updates separate published versions while keeping drafts unchanged
+ *
+ * @param pageIds - Array of draft page IDs to publish
+ * @returns Object with count of published pages
+ */
+export async function publishPages(pageIds: string[]): Promise<{ count: number }> {
+  if (pageIds.length === 0) {
+    return { count: 0 };
+  }
+
+  let publishedCount = 0;
+
+  for (const draftPageId of pageIds) {
+    try {
+      // Get the draft page
+      const draftPage = await getPageById(draftPageId);
+      if (!draftPage || draftPage.deleted_at) {
+        console.warn(`Draft page ${draftPageId} not found or deleted, skipping`);
+        continue;
+      }
+
+      // Check if published version already exists
+      const existingPublishedPage = await getPublishedPageByPublishKey(draftPage.publish_key);
+
+      let publishedPageId: string;
+
+      if (existingPublishedPage) {
+        // Update existing published page
+        await updatePage(existingPublishedPage.id, {
+          name: draftPage.name,
+          slug: draftPage.slug,
+          page_folder_id: draftPage.page_folder_id,
+          order: draftPage.order,
+          depth: draftPage.depth,
+          is_index: draftPage.is_index,
+          is_dynamic: draftPage.is_dynamic,
+          error_page: draftPage.error_page,
+          settings: draftPage.settings,
+        });
+        publishedPageId = existingPublishedPage.id;
+      } else {
+        // Create new published page with same publish_key
+        const publishedPage = await createPage({
+          name: draftPage.name,
+          slug: draftPage.slug,
+          is_published: true,
+          publish_key: draftPage.publish_key,
+          page_folder_id: draftPage.page_folder_id,
+          order: draftPage.order,
+          depth: draftPage.depth,
+          is_index: draftPage.is_index,
+          is_dynamic: draftPage.is_dynamic,
+          error_page: draftPage.error_page,
+          settings: draftPage.settings,
+        });
+        publishedPageId = publishedPage.id;
+      }
+
+      // Publish the layers (copy draft → published)
+      await publishPageLayers(draftPageId, publishedPageId);
+
+      publishedCount++;
+    } catch (error) {
+      console.error(`Error publishing page ${draftPageId}:`, error);
+      // Continue with other pages
+    }
+  }
+
+  return { count: publishedCount };
 }
 

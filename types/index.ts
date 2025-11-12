@@ -117,7 +117,7 @@ export interface LayerStyle {
   id: string;
   name: string;
 
-  // Style data (single version - published with page)
+  // Style data
   classes: string;
   design?: {
     layout?: LayoutDesign;
@@ -130,6 +130,11 @@ export interface LayerStyle {
     positioning?: PositioningDesign;
   };
 
+  // Versioning fields
+  content_hash?: string; // SHA-256 hash for change detection
+  is_published: boolean;
+  publish_key: string; // Stable key linking draft and published versions
+
   created_at: string;
   updated_at: string;
 }
@@ -141,6 +146,11 @@ export interface Component {
 
   // Component data - complete layer tree
   layers: Layer[];
+
+  // Versioning fields
+  content_hash?: string; // SHA-256 hash for change detection
+  is_published: boolean;
+  publish_key: string; // Stable key linking draft and published versions
 
   created_at: string;
   updated_at: string;
@@ -226,6 +236,7 @@ export interface Page {
   is_dynamic: boolean; // Dynamic page (CMS-driven)
   error_page: number | null; // Error page type: 401, 404, 500
   settings: Record<string, any>; // Page-specific settings
+  content_hash?: string; // SHA-256 hash of page metadata for change detection
   is_published: boolean;
   publish_key: string; // Stable key linking draft and published versions
   created_at: string;
@@ -237,6 +248,7 @@ export interface PageLayers {
   id: string;
   page_id: string;
   layers: Layer[];
+  content_hash?: string; // SHA-256 hash of layers and CSS for change detection
   is_published: boolean;
   publish_key: string; // Stable key linking draft and published versions
   created_at: string;
@@ -369,4 +381,65 @@ export interface AuthState {
   loading: boolean;
   initialized: boolean;
   error: string | null;
+}
+
+// Collection Types (EAV Architecture)
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference';
+export type CollectionStatus = 'draft' | 'published';
+
+export interface Collection {
+  id: number;
+  name: string;
+  collection_name: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  sorting: Record<string, any> | null;
+  order: number | null;
+  status: CollectionStatus;
+}
+
+export interface CollectionField {
+  id: number;
+  name: string;
+  field_name: string;
+  type: CollectionFieldType;
+  default: string | null;
+  fillable: boolean;
+  built_in: boolean;
+  order: number;
+  collection_id: number;
+  reference_collection_id: number | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  hidden: boolean;
+  data: Record<string, any>;
+  status: CollectionStatus;
+}
+
+export interface CollectionItem {
+  id: number;
+  r_id: string;
+  collection_id: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  manual_order: number;
+}
+
+export interface CollectionItemValue {
+  id: number;
+  value: string | null;
+  item_id: number;
+  field_id: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  is_published: boolean;
+}
+
+// Helper type for working with items + values
+export interface CollectionItemWithValues extends CollectionItem {
+  values: Record<string, string>; // field_name -> value
 }

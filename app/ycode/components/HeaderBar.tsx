@@ -1,8 +1,9 @@
 'use client';
 
 import { useRef, useEffect, useState } from 'react';
-import { ArrowLeft, LogOut, Monitor, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, LogOut, Monitor, Moon, Sun, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PublishDialog from './PublishDialog';
 
 // 4. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -49,6 +51,8 @@ interface HeaderBarProps {
   saveImmediately: (pageId: string) => Promise<void>;
   activeTab: 'pages' | 'layers' | 'cms';
   onExitComponentEditMode?: () => void;
+  publishCount: number;
+  onPublishSuccess: () => void;
 }
 
 export default function HeaderBar({
@@ -70,10 +74,13 @@ export default function HeaderBar({
   saveImmediately,
   activeTab,
   onExitComponentEditMode,
+  publishCount,
+  onPublishSuccess,
 }: HeaderBarProps) {
   const pageDropdownRef = useRef<HTMLDivElement>(null);
   const { editingComponentId, returnToPageId } = useEditorStore();
   const { getComponentById } = useComponentsStore();
+  const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme') as 'system' | 'light' | 'dark' | null;
@@ -239,60 +246,29 @@ export default function HeaderBar({
         </div>
 
         {/* Publish button - purple in component edit mode */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              size="sm"
-              className={editingComponentId ? 'bg-purple-500 hover:bg-purple-600' : ''}
-            >
-              Publish
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent>
-            <div className="flex flex-col gap-3">
-              <div>
-                <a
-                  href={currentPage ? `/${currentPage.slug}` : '/'} target="_blank"
-                  className="text-xs text-white/90 hover:underline decoration-white/50"
-                >example.com</a>
-              </div>
-              <Button
-                onClick={async () => {
-                  if (!currentPageId) return;
-
-                  setIsPublishing(true);
-
-                  try {
-                    // Save first if there are unsaved changes
-                    if (hasUnsavedChanges) {
-                      await saveImmediately(currentPageId);
-                    }
-
-                    // Publish all draft records
-                    const response = await publishApi.publishAll();
-
-                    if (response.error) {
-                      console.error('Publish failed:', response.error);
-                    } else {
-                      // Reload pages to update published status
-                      const { loadPages } = usePagesStore.getState();
-                      await loadPages();
-                    }
-                  } catch (error) {
-                    console.error('Publish failed:', error);
-                  } finally {
-                    setIsPublishing(false);
-                  }
-                }}
-                disabled={isPublishing || isSaving}
-                size="sm"
-                className="w-full"
-              >
-                {isPublishing ? <Spinner className="size-3" /> : 'Publish'}
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+        <Button
+          size="sm"
+          className={editingComponentId ? 'bg-purple-500 hover:bg-purple-600' : ''}
+          onClick={() => setShowPublishDialog(true)}
+        >
+          <Upload className="size-4 mr-1.5" />
+          Publish
+          {publishCount > 0 && (
+            <Badge variant="destructive" className="ml-2">
+              {publishCount}
+            </Badge>
+          )}
+        </Button>
+        
+        {/* Publish Dialog */}
+        <PublishDialog
+          isOpen={showPublishDialog}
+          onClose={() => setShowPublishDialog(false)}
+          onSuccess={() => {
+            setShowPublishDialog(false);
+            onPublishSuccess();
+          }}
+        />
 
       </div>
     </header>

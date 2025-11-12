@@ -9,6 +9,7 @@ import { reorderSiblings } from './pageFolderRepository';
 import type { Page } from '../../types';
 import { isHomepage } from '../page-utils';
 import { incrementSiblingOrders, fixOrphanedPageSlugs } from '../services/pageService';
+import { generatePageMetadataHash } from '../hash-utils';
 
 /**
  * Query filters for page lookups
@@ -24,6 +25,7 @@ export interface CreatePageData {
   name: string;
   slug: string;
   is_published?: boolean;
+  publish_key?: string;
   page_folder_id?: string | null;
   order?: number;
   depth?: number;
@@ -47,6 +49,7 @@ export interface UpdatePageData {
   is_dynamic?: boolean;
   error_page?: number | null;
   settings?: Record<string, any>;
+  content_hash?: string; // Auto-calculated, should not be set manually
 }
 
 /**
@@ -181,13 +184,16 @@ function generateSlugFromName(name: string, timestamp?: number): string {
 async function transferIndexPage(
   client: any,
   newIndexPageId: string,
-  pageFolderId: string | null
+  pageFolderId: string | null,
+  isPublished: boolean = false
 ): Promise<void> {
-  // Find existing index page in the same folder
+  // Find existing index page in the same folder WITH THE SAME is_published status
+  // This prevents draft pages from being modified when creating published index pages
   let query = client
     .from('pages')
     .select('id, name, slug')
     .eq('is_index', true)
+    .eq('is_published', isPublished)
     .is('deleted_at', null)
     .neq('id', newIndexPageId);
 
@@ -362,11 +368,25 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
     undefined
   );
 
-  // Merge page data with any additional fields
-  const insertData = additionalData
-    ? { ...pageData, ...additionalData }
-    : pageData;
+  // Calculate content hash for page metadata
+  const contentHash = generatePageMetadataHash({
+    name: pageData.name,
+    slug: pageData.slug,
+    settings: pageData.settings || {},
+    is_index: pageData.is_index || false,
+    is_dynamic: pageData.is_dynamic || false,
+    error_page: pageData.error_page || null,
+  });
 
+  // Remove any content_hash from pageData to prevent override
+  const { content_hash: _, ...pageDataWithoutHash } = pageData as any;
+  
+  // Merge page data with any additional fields and our calculated content hash
+  const insertData = {
+    ...(additionalData || {}),
+    ...pageDataWithoutHash,
+    content_hash: contentHash,
+  };
 
   const { data, error } = await client
     .from('pages')
@@ -380,7 +400,7 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
 
   // If setting as index page, transfer from existing index page
   if (pageData.is_index) {
-    await transferIndexPage(client, data.id, pageData.page_folder_id || null);
+    await transferIndexPage(client, data.id, pageData.page_folder_id || null, pageData.is_published || false);
   }
 
   return data;
@@ -440,12 +460,32 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
       await fixOrphanedPageSlugs(orphanedPages);
     }
 
-    await transferIndexPage(client, id, folderIdForTransfer);
+    await transferIndexPage(client, id, folderIdForTransfer, currentPage.is_published);
   }
+
+  // Calculate new content hash based on merged data
+  const finalData = {
+    name: updates.name !== undefined ? updates.name : currentPage.name,
+    slug: updates.slug !== undefined ? updates.slug : currentPage.slug,
+    settings: updates.settings !== undefined ? updates.settings : currentPage.settings,
+    is_index: updates.is_index !== undefined ? updates.is_index : currentPage.is_index,
+    is_dynamic: updates.is_dynamic !== undefined ? updates.is_dynamic : currentPage.is_dynamic,
+    error_page: updates.error_page !== undefined ? updates.error_page : currentPage.error_page,
+  };
+
+  const contentHash = generatePageMetadataHash(finalData);
+
+  // Remove any content_hash from updates to prevent override, then add our calculated one
+  const { content_hash: _, ...updatesWithoutHash } = updates;
+  
+  const updatesWithHash = {
+    ...updatesWithoutHash,
+    content_hash: contentHash,
+  };
 
   const { data, error } = await client
     .from('pages')
-    .update(updates)
+    .update(updatesWithHash)
     .eq('id', id)
     .select()
     .single();
@@ -804,4 +844,89 @@ export async function duplicatePage(pageId: string): Promise<Page> {
   }
 
   return newPage;
+}
+
+/**
+ * Get count of unpublished pages
+ * A page needs publishing if:
+ * - It has is_published: false (never published), OR
+ * - Its draft layers differ from published layers (needs republishing)
+ */
+export async function getUnpublishedPagesCount(): Promise<number> {
+  const pages = await getUnpublishedPages();
+  return pages.length;
+}
+
+/**
+ * Get all unpublished pages
+ * A page needs publishing if:
+ * - It has is_published: false (never published), OR
+ * - Its draft content differs from published content (needs republishing)
+ * 
+ * Uses content_hash for efficient change detection
+ */
+export async function getUnpublishedPages(): Promise<Page[]> {
+  const client = await getSupabaseAdmin();
+  
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+  
+  // Get all draft pages with their layers' content_hash in a single efficient query
+  const { data: draftPagesWithLayers, error } = await client
+    .from('pages')
+    .select(`
+      *,
+      page_layers!inner(content_hash)
+    `)
+    .eq('is_published', false)
+    .eq('page_layers.is_published', false)
+    .is('deleted_at', null)
+    .is('page_layers.deleted_at', null)
+    .order('created_at', { ascending: false });
+  
+  if (error) {
+    throw new Error(`Failed to fetch draft pages: ${error.message}`);
+  }
+  
+  if (!draftPagesWithLayers || draftPagesWithLayers.length === 0) {
+    return [];
+  }
+  
+  const unpublishedPages: Page[] = [];
+  
+  // Check each draft page
+  for (const draftPage of draftPagesWithLayers) {
+    // Check if a published version exists
+    const { data: publishedPageWithLayers } = await client
+      .from('pages')
+      .select(`
+        id,
+        content_hash,
+        page_layers!inner(content_hash)
+      `)
+      .eq('publish_key', draftPage.publish_key)
+      .eq('is_published', true)
+      .eq('page_layers.is_published', true)
+      .is('deleted_at', null)
+      .is('page_layers.deleted_at', null)
+      .single();
+    
+    // If no published version exists, needs first-time publishing
+    if (!publishedPageWithLayers) {
+      unpublishedPages.push(draftPage);
+      continue;
+    }
+    
+    // Compare content hashes - check both page metadata and layers
+    const pageMetadataChanged = draftPage.content_hash !== publishedPageWithLayers.content_hash;
+    const layersChanged = draftPage.page_layers[0]?.content_hash !== publishedPageWithLayers.page_layers[0]?.content_hash;
+    
+    // If either changed, needs republishing
+    if (pageMetadataChanged || layersChanged) {
+      unpublishedPages.push(draftPage);
+    }
+  }
+  
+  return unpublishedPages;
 }

@@ -1210,9 +1210,276 @@ const debouncedValue = useDebounce(value, 500);
 - [ ] Consistent API response format?
 - [ ] Event handlers named `handleX`?
 - [ ] Boolean props named `isX`, `hasX`, `shouldX`?
+- [ ] **Null check after `getSupabaseAdmin()` in ALL cases?**
+- [ ] **New icons added to BOTH type definition AND ICONS object?**
+- [ ] **Repository functions use dedicated `CreateXData` / `UpdateXData` interfaces?**
+- [ ] **Zod schemas use `message` parameter (not `required_error`)?**
 - [ ] Run `npm run lint:fix` and `npm run type-check`?
 - [ ] Sanitize design property inputs with `removeSpaces`?
 - [ ] Use `useControlledInput` for input state management?
+
+---
+
+## 🔧 20. Supabase Client Null Checking (CRITICAL)
+
+### ALWAYS Check for Null After getSupabaseAdmin()
+
+The `getSupabaseAdmin()` function can return `null` if Supabase is not configured. **ALWAYS** add a null check immediately after calling it.
+
+```typescript
+// ✅ CORRECT: Always check for null
+export async function getPageById(id: string): Promise<Page | null> {
+  const client = await getSupabaseAdmin();
+  
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+  
+  const { data, error } = await client
+    .from('pages')
+    .select('*')
+    .eq('id', id)
+    .single();
+    
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Failed to fetch page: ${error.message}`);
+  }
+  
+  return data;
+}
+
+// ❌ WRONG: No null check - TypeScript error
+export async function getPageById(id: string): Promise<Page | null> {
+  const client = await getSupabaseAdmin();
+  
+  // TypeScript error: 'client' is possibly 'null'
+  const { data, error } = await client
+    .from('pages')
+    .select('*')
+    .eq('id', id)
+    .single();
+    
+  return data;
+}
+```
+
+### In API Routes
+
+```typescript
+// ✅ CORRECT: Return error response if client is null
+export async function GET(request: NextRequest) {
+  try {
+    const client = await getSupabaseAdmin();
+    
+    if (!client) {
+      return NextResponse.json(
+        { error: 'Supabase not configured' },
+        { status: 500 }
+      );
+    }
+    
+    // Use client safely
+    const { data } = await client.from('pages').select('*');
+    return NextResponse.json({ data });
+  } catch (error) {
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+```
+
+### Rules
+1. **ALWAYS** check `if (!client)` after `await getSupabaseAdmin()`
+2. In repository functions: **throw an error** with descriptive message
+3. In API routes: **return error response** with status 500
+4. **NEVER** use the client without checking for null first
+
+---
+
+## 🎨 21. Icon Component Extension
+
+### Adding New Icons
+
+When you need to add a new icon to the `Icon` component, follow these steps:
+
+**Step 1: Update the TypeScript Union Type**
+
+```typescript
+// components/ui/icon.tsx
+export interface IconProps extends React.SVGProps<SVGSVGElement> {
+  name: (
+    'x' | 'layers' | 'database' | 'plus' | /* ...existing icons... */
+    | 'pencil' | 'eye' | 'eye-off' | 'trash' | 'upload' // Add your new icons here
+  );
+}
+```
+
+**Step 2: Add SVG Definition to ICONS Object**
+
+```typescript
+// components/ui/icon.tsx
+const ICONS: Record<IconProps['name'], React.ReactNode> = {
+  // ...existing icons...
+  
+  pencil: (
+    <>
+      <path d="M8.85355339,0.146446609 C9.04881554..." />
+    </>
+  ),
+  
+  trash: (
+    <>
+      <path d="M4.5,1 L7.5,1 L7.5,2..." />
+    </>
+  ),
+  
+  // Add more icons here
+};
+```
+
+### Rules
+1. **ALWAYS** update both the type definition AND the ICONS object
+2. Use **kebab-case** for icon names (e.g., `eye-off`, not `eyeOff`)
+3. Get SVG paths from **Lucide icons** or **Heroicons** for consistency
+4. Set `viewBox="0 0 12 12"` for all icons (they're scaled to 12x12)
+5. Test the icon renders correctly before committing
+
+### ❌ Common Mistake
+
+```typescript
+// ❌ WRONG: Added icon to ICONS but forgot to update type
+<Icon name="new-icon" /> // TypeScript error: Type '"new-icon"' is not assignable
+```
+
+---
+
+## 🗄️ 22. Repository Input Type Patterns
+
+### Create Dedicated Input Interfaces for Repository Functions
+
+Instead of using complex `Omit<>` types, create clear input interfaces for create/update operations.
+
+```typescript
+// ✅ CORRECT: Dedicated input interface
+import type { Component, Layer } from '@/types';
+
+export interface CreateComponentData {
+  name: string;
+  layers: Layer[];
+}
+
+export async function createComponent(
+  componentData: CreateComponentData
+): Promise<Component> {
+  const client = await getSupabaseAdmin();
+  
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+  
+  // The repository sets is_published, publish_key, etc.
+  const { data, error } = await client
+    .from('components')
+    .insert({
+      name: componentData.name,
+      layers: componentData.layers,
+      is_published: false,
+      publish_key: generateKey(),
+      // ...other auto-generated fields
+    })
+    .select()
+    .single();
+    
+  if (error) throw new Error(`Failed to create: ${error.message}`);
+  return data;
+}
+
+// ❌ WRONG: Using Omit includes fields that should be auto-set
+export async function createComponent(
+  componentData: Omit<Component, 'id' | 'created_at' | 'updated_at'>
+): Promise<Component> {
+  // This requires is_published and publish_key to be passed in,
+  // but they should be set automatically!
+}
+```
+
+### Pattern for Update Functions
+
+```typescript
+// ✅ CORRECT: Update interface with all optional fields
+export interface UpdateComponentData {
+  name?: string;
+  layers?: Layer[];
+  // Only fields that can actually be updated
+}
+
+export async function updateComponent(
+  id: string,
+  componentData: UpdateComponentData
+): Promise<Component> {
+  // Implementation
+}
+```
+
+### Rules
+1. **CREATE**: Define `CreateXData` interface with only required input fields
+2. **UPDATE**: Define `UpdateXData` interface with all optional fields
+3. **NEVER** use `Omit<FullType, ...>` for input types
+4. Auto-generated fields (`id`, `created_at`, `is_published`, `publish_key`) should NOT be in input interfaces
+5. The repository layer is responsible for setting auto-generated fields
+
+---
+
+## 🔍 23. Zod Validation Best Practices
+
+### Use Correct Parameter Names
+
+When defining Zod schemas, use the correct parameter names for your validation library version.
+
+```typescript
+// ✅ CORRECT: Use 'message' for error messages
+const formSchema = z.object({
+  name: z.string().min(2, {
+    message: 'Name must be at least 2 characters.',
+  }),
+  type: z.enum(['text', 'number', 'boolean', 'date', 'reference'], {
+    message: 'Please select a field type.',
+  }),
+});
+
+// ❌ WRONG: Using 'required_error' (deprecated/invalid parameter)
+const formSchema = z.object({
+  type: z.enum(['text', 'number'], {
+    required_error: 'Please select a type.', // TypeScript error
+  }),
+});
+```
+
+### Common Zod Patterns
+
+```typescript
+// String with constraints
+z.string().min(1, { message: 'Required' }).max(100)
+
+// Optional field
+z.string().optional()
+
+// Nullable field
+z.string().nullable()
+
+// Enum with message
+z.enum(['draft', 'published'], { message: 'Invalid status' })
+
+// Number with range
+z.number().min(0).max(100)
+
+// Email validation
+z.string().email({ message: 'Invalid email' })
+
+// Custom validation
+z.string().refine((val) => val.startsWith('test'), {
+  message: 'Must start with "test"',
+})
+```
 
 ---
 

@@ -1,227 +1,414 @@
 /**
  * CMS Component
  *
- * Content Management System interface for managing site content
+ * Content Management System interface for managing collection items with EAV architecture.
  */
 'use client';
 
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage
-} from '@/components/ui/form';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { usePagesStore } from '@/stores/usePagesStore';
 import { Spinner } from '@/components/ui/spinner';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger
-} from '@/components/ui/select';
-
-const formSchema = z.object({
-  name: z.string().min(2, {
-    message: 'Name must be at least 2 characters.',
-  }),
-  slug: z.string().min(2, {
-    message: 'Slug must be at least 2 characters.',
-  }).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
-    message: 'Slug must be lowercase letters, numbers, and hyphens only.',
-  }),
-});
+import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { collectionsApi } from '@/lib/api';
+import CollectionItemDialog from './CollectionItemDialog';
+import AddFieldDialog from './AddFieldDialog';
+import FieldsDropdown from './FieldsDropdown';
+import type { CollectionItemWithValues, CollectionField } from '@/types';
 
 export default function CMS() {
-  const [activeSection, setActiveSection] = useState<'content' | 'media' | 'settings'>('content');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: '',
-      slug: '',
-    },
+  const { 
+    selectedCollectionId, 
+    collections, 
+    fields, 
+    items, 
+    isLoading,
+    loadFields,
+    loadItems,
+    deleteItem,
+    deleteField,
+    updateField,
+    createField,
+  } = useCollectionsStore();
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showItemDialog, setShowItemDialog] = useState(false);
+  const [showAddFieldDialog, setShowAddFieldDialog] = useState(false);
+  const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
+  
+  const selectedCollection = collections.find(c => c.id === selectedCollectionId);
+  const collectionFields = selectedCollectionId ? (fields[selectedCollectionId] || []) : [];
+  const collectionItems = selectedCollectionId ? (items[selectedCollectionId] || []) : [];
+  
+  // Load fields and items when collection changes
+  useEffect(() => {
+    if (selectedCollectionId) {
+      loadFields(selectedCollectionId);
+      loadItems(selectedCollectionId);
+    }
+  }, [selectedCollectionId, loadFields, loadItems]);
+  
+  // Filter items based on search
+  const filteredItems = collectionItems.filter(item => {
+    if (!searchQuery) return true;
+    
+    const searchLower = searchQuery.toLowerCase();
+    return Object.values(item.values).some(value => 
+      String(value).toLowerCase().includes(searchLower)
+    );
   });
-
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values);
-    setIsDialogOpen(false);
-    form.reset();
+  
+  const handleCreateItem = () => {
+    setEditingItem(null);
+    setShowItemDialog(true);
+  };
+  
+  const handleEditItem = (item: CollectionItemWithValues) => {
+    setEditingItem(item);
+    setShowItemDialog(true);
+  };
+  
+  const handleDeleteItem = async (itemId: number) => {
+    if (!selectedCollectionId) return;
+    
+    if (confirm('Are you sure you want to delete this item?')) {
+      try {
+        await deleteItem(selectedCollectionId, itemId);
+      } catch (error) {
+        console.error('Failed to delete item:', error);
+      }
+    }
+  };
+  
+  const handleDeleteField = async (fieldId: number) => {
+    if (!selectedCollectionId) return;
+    
+    const field = collectionFields.find(f => f.id === fieldId);
+    if (field?.built_in) {
+      alert('Cannot delete built-in fields');
+      return;
+    }
+    
+    if (confirm('Are you sure you want to delete this field? This will remove it from all items.')) {
+      try {
+        await deleteField(selectedCollectionId, fieldId);
+      } catch (error) {
+        console.error('Failed to delete field:', error);
+      }
+    }
+  };
+  
+  const handleHideField = async (fieldId: number) => {
+    if (!selectedCollectionId) return;
+    
+    const field = collectionFields.find(f => f.id === fieldId);
+    if (!field) return;
+    
+    try {
+      await updateField(selectedCollectionId, fieldId, {
+        hidden: !field.hidden,
+      });
+      // Reload fields to show updated state
+      await loadFields(selectedCollectionId);
+    } catch (error) {
+      console.error('Failed to toggle field visibility:', error);
+    }
+  };
+  
+  const handleDuplicateField = async (fieldId: number) => {
+    if (!selectedCollectionId) return;
+    
+    const field = collectionFields.find(f => f.id === fieldId);
+    if (!field) return;
+    
+    try {
+      const newOrder = collectionFields.length;
+      await createField(selectedCollectionId, {
+        name: `${field.name} (Copy)`,
+        field_name: `${field.field_name}_copy`,
+        type: field.type,
+        default: field.default,
+        fillable: field.fillable,
+        order: newOrder,
+        reference_collection_id: field.reference_collection_id,
+        hidden: field.hidden,
+        data: field.data,
+      });
+      // Reload fields to show new field
+      await loadFields(selectedCollectionId);
+    } catch (error) {
+      console.error('Failed to duplicate field:', error);
+    }
+  };
+  
+  const handleToggleFieldVisibility = async (fieldId: number) => {
+    if (!selectedCollectionId) return;
+    
+    const field = collectionFields.find(f => f.id === fieldId);
+    if (!field) return;
+    
+    try {
+      await updateField(selectedCollectionId, fieldId, {
+        hidden: !field.hidden,
+      });
+      // Reload fields to show updated state
+      await loadFields(selectedCollectionId);
+    } catch (error) {
+      console.error('Failed to toggle field visibility:', error);
+    }
+  };
+  
+  const handleReorderFields = async (reorderedFields: CollectionField[]) => {
+    if (!selectedCollectionId) return;
+    
+    try {
+      const fieldIds = reorderedFields.map(f => f.id);
+      await collectionsApi.reorderFields(selectedCollectionId, fieldIds);
+      // Reload fields to show new order
+      await loadFields(selectedCollectionId);
+    } catch (error) {
+      console.error('Failed to reorder fields:', error);
+    }
+  };
+  
+  
+  const handleDialogSuccess = () => {
+    if (selectedCollectionId) {
+      loadItems(selectedCollectionId);
+    }
+  };
+  
+  // No collection selected
+  if (!selectedCollectionId) {
+    return (
+      <div className="flex-1 bg-background flex items-center justify-center">
+        <Empty>
+          <EmptyTitle>No Collection Selected</EmptyTitle>
+          <EmptyDescription>
+            Select a collection from the sidebar to manage its items
+          </EmptyDescription>
+        </Empty>
+      </div>
+    );
   }
-
+  
+  // Loading
+  if (isLoading) {
+    return (
+      <div className="flex-1 bg-background flex items-center justify-center">
+        <Spinner />
+      </div>
+    );
+  }
+  
   return (
     <div className="flex-1 bg-background flex flex-col">
-
-        <div className="p-4 flex">
-
-            <div className="w-full max-w-72">
-                <Input placeholder="Search..." />
-            </div>
-
+      {/* Header */}
+      <div className="p-4 flex items-center justify-between border-b">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold">
+            {selectedCollection?.name}
+          </h2>
+          <div className="max-w-xs flex-1">
+            <Input 
+              placeholder="Search items..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              size="sm"
+            />
+          </div>
         </div>
+        
+        <div className="flex gap-2">
+          <Button 
+            size="sm"
+            variant="secondary"
+            onClick={() => setShowAddFieldDialog(true)}
+          >
+            <Icon name="plus" />
+            Add Field
+          </Button>
+          <FieldsDropdown
+            fields={collectionFields}
+            onToggleVisibility={handleToggleFieldVisibility}
+            onReorder={handleReorderFields}
+          />
+          <Button 
+            size="sm" 
+            onClick={handleCreateItem}
+            disabled={collectionFields.length === 0}
+          >
+            <Icon name="plus" />
+            Add Item
+          </Button>
+        </div>
+      </div>
 
-        <hr />
-
-        <div className="overflow-x-auto">
-
+      {/* Items Content */}
+      <div className="flex-1 overflow-auto">
+        {collectionFields.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-4 p-8">
+            <Empty>
+              <EmptyTitle>No Fields Defined</EmptyTitle>
+              <EmptyDescription>
+                This collection has no fields. Add fields to start managing items.
+              </EmptyDescription>
+            </Empty>
+            <Button onClick={() => setShowAddFieldDialog(true)}>
+              <Icon name="plus" />
+              Add Field
+            </Button>
+          </div>
+        ) : (
+          <>
             <table className="w-full">
-              <thead className="border-b">
+              <thead className="border-b sticky top-0 bg-background">
                 <tr>
-                  <th className="px-4 py-5 text-left font-normal">
-                    <span>Name</span>
-                  </th>
-                  <th className="px-4 py-5 text-left font-normal">
-                    <span>Slug</span>
-                  </th>
-                  <th className="px-4 py-5 text-left font-normal w-24">
-                    <div className="-my-2">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button size="sm" variant="ghost">
-                            <Icon name="plus" />
-                            Add field
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="mr-4">
-                          <div className="flex flex-col gap-3">
-                            <div className="grid grid-cols-3">
-                              <Label variant="muted">Name</Label>
-                              <div className="col-span-2 *:w-full">
-                                <Input />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-3">
-                              <Label variant="muted">Type</Label>
-                              <div className="col-span-2 *:w-full">
-                                <Select>
-                                  <SelectTrigger>
-                                    Text
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectGroup>
-                                      <SelectItem value="1">Text</SelectItem>
-                                      <SelectItem value="2">Link</SelectItem>
-                                    </SelectGroup>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
+                  {collectionFields.filter(f => !f.hidden).map((field) => (
+                    <th key={field.id} className="px-4 py-3 text-left font-medium text-sm">
+                      <div className="flex items-center gap-2">
+                        {field.name}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
                             <Button
-                              size="sm"
-                              variant="secondary"
+                              size="xs" variant="ghost"
+                              className="h-auto p-0 hover:bg-transparent"
                             >
-                              Create field
+                              <span className="text-muted-foreground">...</span>
                             </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem disabled={field.built_in}>
+                              <Icon name="pencil" className="mr-2 h-3 w-3" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDuplicateField(field.id)}
+                              disabled={field.built_in}
+                            >
+                              <Icon name="copy" className="mr-2 h-3 w-3" />
+                              Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleHideField(field.id)}
+                              disabled={field.field_name === 'name'}
+                            >
+                              <Icon name={field.hidden ? 'eye' : 'eye-off'} className="mr-2 h-3 w-3" />
+                              {field.hidden ? 'Show' : 'Hide'}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteField(field.id)}
+                              disabled={field.built_in}
+                              className="text-destructive"
+                            >
+                              <Icon name="trash" className="mr-2 h-3 w-3" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </th>
+                  ))}
+                  <th className="px-4 py-3 text-left font-medium text-sm w-24">
+                    Actions
                   </th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="group border-b hover:bg-secondary">
-                  <td className="px-4 py-5 text-muted-foreground">
-                    <span>My first blog post</span>
-                  </td>
-                  <td className="px-4 py-5 text-muted-foreground">
-                    <span>my-first-blog-post</span>
-                  </td>
-                  <td className="px-4 py-5"></td>
-                </tr>
+                {filteredItems.length > 0 ? (
+                  filteredItems.map((item) => (
+                    <tr 
+                      key={item.id} 
+                      className="group border-b hover:bg-secondary/50 transition-colors cursor-pointer"
+                      onClick={() => handleEditItem(item)}
+                    >
+                      {collectionFields.filter(f => !f.hidden).map((field) => (
+                        <td key={field.id} className="px-4 py-3">
+                          {item.values[field.field_name] || '-'}
+                        </td>
+                      ))}
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditItem(item);
+                            }}
+                          >
+                            <Icon name="pencil" />
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteItem(item.id);
+                            }}
+                          >
+                            <Icon name="trash" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={collectionFields.filter(f => !f.hidden).length + 1} className="px-4 py-8 text-center">
+                      {searchQuery && collectionItems.length > 0 ? (
+                        <div className="text-muted-foreground">
+                          No items found matching &quot;{searchQuery}&quot;
+                        </div>
+                      ) : (
+                        <Empty>
+                          <EmptyTitle>No Items Yet</EmptyTitle>
+                          <EmptyDescription>
+                            Click &quot;Add Item&quot; to create your first {selectedCollection?.name.toLowerCase()} item
+                          </EmptyDescription>
+                        </Empty>
+                      )}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
-
-        </div>
-
-        <div>
-
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <div className="group">
-                <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary">
-                  <div className="px-4 py-5">
-                    <Button size="xs" variant="ghost">
-                      <Icon name="plus" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </DialogTrigger>
-            <DialogContent variant="side">
-              <DialogHeader>
-                <DialogTitle>Collection item</DialogTitle>
-              </DialogHeader>
-
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4 flex-1">
-                  <div className="flex-1 flex flex-col gap-6">
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="My first blog post" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="slug"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Slug</FormLabel>
-                          <FormControl>
-                            <Input placeholder="my-first-blog-post" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/*<DialogFooter>*/}
-                  {/*  <Button type="button" variant="secondary" onClick={() => setIsDialogOpen(false)}>*/}
-                  {/*    Cancel*/}
-                  {/*  </Button>*/}
-                  {/*  <Button type="submit">*/}
-                  {/*    Create*/}
-                  {/*  </Button>*/}
-                  {/*</DialogFooter>*/}
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-
-        </div>
-
+          </>
+        )}
+      </div>
+      
+      {/* Add Field Dialog */}
+      {selectedCollectionId && (
+        <AddFieldDialog
+          isOpen={showAddFieldDialog}
+          onClose={() => setShowAddFieldDialog(false)}
+          collectionId={selectedCollectionId}
+          onSuccess={() => {
+            if (selectedCollectionId) {
+              loadFields(selectedCollectionId);
+            }
+          }}
+        />
+      )}
+      
+      {/* Item Dialog */}
+      {selectedCollectionId && (
+        <CollectionItemDialog
+          isOpen={showItemDialog}
+          onClose={() => {
+            setShowItemDialog(false);
+            setEditingItem(null);
+          }}
+          collectionId={selectedCollectionId}
+          item={editingItem}
+          onSuccess={handleDialogSuccess}
+        />
+      )}
     </div>
   );
 }

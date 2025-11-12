@@ -29,10 +29,12 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 
 // 6. Utils/lib
 import { findHomepage } from '@/lib/page-utils';
 import { findLayerById, getClassesString, removeLayerById } from '@/lib/layer-utils';
+import { pagesApi, collectionsApi } from '@/lib/api';
 
 // 5. Types
 import type { Layer } from '@/types';
@@ -58,6 +60,7 @@ export default function YCodeBuilder() {
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [zoom, setZoom] = useState(100);
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
+  const [publishCount, setPublishCount] = useState(0);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersByPageRef = useRef<Map<string, string>>(new Map());
   const previousPageIdRef = useRef<string | null>(null);
@@ -135,8 +138,29 @@ export default function YCodeBuilder() {
       // Also load components and layer styles
       useComponentsStore.getState().loadComponents();
       useLayerStylesStore.getState().loadStyles();
+      
+      // Load publish counts
+      loadPublishCounts();
     }
   }, [loadPages, migrationsComplete]);
+  
+  // Load publish counts
+  const loadPublishCounts = async () => {
+    try {
+      const [pagesResponse, collectionsResponse] = await Promise.all([
+        pagesApi.getUnpublished(),
+        collectionsApi.getPublishableCounts(),
+      ]);
+      
+      const unpublishedPagesCount = pagesResponse.data?.length || 0;
+      const collectionCounts = collectionsResponse.data || {};
+      const collectionItemsCount = Object.values(collectionCounts).reduce((sum, count) => sum + count, 0);
+      
+      setPublishCount(unpublishedPagesCount + collectionItemsCount);
+    } catch (error) {
+      console.error('Failed to load publish counts:', error);
+    }
+  };
 
   // Set current page to homepage by default, or first page if homepage doesn't exist
   useEffect(() => {
@@ -931,6 +955,11 @@ export default function YCodeBuilder() {
         saveImmediately={saveImmediately}
         activeTab={activeTab}
         onExitComponentEditMode={handleExitComponentEditMode}
+        publishCount={publishCount}
+        onPublishSuccess={() => {
+          loadPublishCounts();
+          loadPages();
+        }}
       />
 
       {/* Main Content Area */}
