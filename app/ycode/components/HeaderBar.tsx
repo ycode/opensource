@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { ArrowLeft, LogOut, Monitor, Moon, Sun, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +27,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { publishApi } from '@/lib/api';
+import { buildSlugPath } from '@/lib/page-utils';
 
 // 5. Types
 import type { Page } from '@/types';
@@ -80,6 +81,7 @@ export default function HeaderBar({
   const pageDropdownRef = useRef<HTMLDivElement>(null);
   const { editingComponentId, returnToPageId } = useEditorStore();
   const { getComponentById } = useComponentsStore();
+  const { folders } = usePagesStore();
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
@@ -88,10 +90,22 @@ export default function HeaderBar({
     }
     return 'dark';
   });
+  const [baseUrl, setBaseUrl] = useState<string>('');
+
+  // Get current host after mount
+  useEffect(() => {
+    setBaseUrl(window.location.protocol + '//' + window.location.host);
+  }, []);
 
   // Get component and return page info for edit mode
   const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
   const returnToPage = returnToPageId ? pages.find(p => p.id === returnToPageId) : null;
+
+  // Build full page path including folders (memoized for performance)
+  const fullPagePath = useMemo(() => {
+    if (!currentPage) return '/';
+    return buildSlugPath(currentPage, folders, 'page');
+  }, [currentPage, folders]);
 
   // Apply theme to HTML element
   useEffect(() => {
@@ -207,23 +221,10 @@ export default function HeaderBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Component Edit Mode: Back to Page Button */}
-        {editingComponentId && returnToPage ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onExitComponentEditMode}
-            className="gap-1"
-          >
-            <ArrowLeft className="size-4" />
-            Back to {returnToPage.name}
-          </Button>
-        ) : null}
-
       </div>
 
       {/* Right: User & Actions */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
         {/* Save Status Indicator */}
         <div className="flex items-center justify-end w-[64px] text-xs text-white/50">
           {isSaving ? (
@@ -245,6 +246,20 @@ export default function HeaderBar({
           )}
         </div>
 
+        {/* Preview button */}
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            if (currentPage) {
+              window.open(`/ycode/preview${fullPagePath === '/' ? '' : fullPagePath}`, '_blank');
+            }
+          }}
+          disabled={!currentPage || isSaving}
+        >
+          Preview
+        </Button>
+
         {/* Publish button - purple in component edit mode */}
         <Button
           size="sm"
@@ -259,7 +274,7 @@ export default function HeaderBar({
             </Badge>
           )}
         </Button>
-        
+
         {/* Publish Dialog */}
         <PublishDialog
           isOpen={showPublishDialog}

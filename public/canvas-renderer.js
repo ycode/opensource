@@ -447,7 +447,7 @@
     if (selectedLayerId === layer.id) {
       const selectionClass = editingComponentId ? 'ycode-selected-purple' : 'ycode-selected';
       element.classList.add(selectionClass);
-      addSelectionBadge(element, tag, !!editingComponentId);
+      // addSelectionBadge(element, tag, !!editingComponentId);
     }
     
     return element;
@@ -617,7 +617,7 @@
         const selectionClass = editingComponentId ? 'ycode-selected-purple' : 'ycode-selected';
         element.classList.add(selectionClass);
         const tag = element.getAttribute('data-layer-type');
-        addSelectionBadge(element, tag, !!editingComponentId);
+        // addSelectionBadge(element, tag, !!editingComponentId);
       }
     }
   }

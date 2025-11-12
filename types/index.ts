@@ -443,3 +443,12 @@ export interface CollectionItemValue {
 export interface CollectionItemWithValues extends CollectionItem {
   values: Record<string, string>; // field_name -> value
 }
+
+// Settings Types
+export interface Setting {
+  id: string;
+  key: string;
+  value: any;
+  created_at: string;
+  updated_at: string;
+}

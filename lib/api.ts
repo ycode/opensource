@@ -4,7 +4,7 @@
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageLayers, Layer, Asset, PageFolder, ApiResponse, Collection, CollectionField, CollectionItem, CollectionItemWithValues, Component, LayerStyle } from '../types';
+import type { Page, PageLayers, Layer, Asset, PageFolder, ApiResponse, Collection, CollectionField, CollectionItem, CollectionItemWithValues, Component, LayerStyle, Setting } from '../types';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -150,11 +150,16 @@ export const pageLayersApi = {
     return apiRequest<PageLayers>(`/api/pages/${pageId}/draft`);
   },
 
+  // Get all draft (non-published) page layers in one query
+  async getAllDrafts(): Promise<ApiResponse<PageLayers[]>> {
+    return apiRequest<PageLayers[]>('/api/pages/drafts');
+  },
+
   // Update draft layers
-  async updateDraft(pageId: string, layers: Layer[], generatedCSS?: string | null): Promise<ApiResponse<PageLayers>> {
+  async updateDraft(pageId: string, layers: Layer[]): Promise<ApiResponse<PageLayers>> {
     return apiRequest<PageLayers>(`/api/pages/${pageId}/draft`, {
       method: 'PUT',
-      body: JSON.stringify({ layers, generated_css: generatedCSS }),
+      body: JSON.stringify({ layers }),
     });
   },
 
@@ -445,5 +450,19 @@ export const layerStylesApi = {
       method: 'POST',
       body: JSON.stringify({ style_ids: styleIds }),
     });
+  },
+};
+
+// Editor API - Load all initial data at once
+export const editorApi = {
+  // Get all initial editor data in one request
+  async init(): Promise<ApiResponse<{
+    pages: Page[];
+    drafts: PageLayers[];
+    components: Component[];
+    styles: LayerStyle[];
+    settings: Setting[];
+  }>> {
+    return apiRequest('/api/editor/init');
   },
 };

@@ -2,11 +2,11 @@
 
 /**
  * Element Library Slide-Out Panel
- * 
+ *
  * Displays categorized list of available elements that can be added to the page
  */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -36,21 +36,14 @@ const formElements = ['form', 'input', 'textarea', 'select', 'checkbox', 'radio'
 export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps) {
   const { addLayerFromTemplate, updateLayer, setDraftLayers, draftsByPageId } = usePagesStore();
   const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId } = useEditorStore();
-  const { components, loadComponents, componentDrafts, updateComponentDraft } = useComponentsStore();
-
-  // Load components on mount
-  useEffect(() => {
-    if (isOpen) {
-      loadComponents();
-    }
-  }, [isOpen, loadComponents]);
+  const { components, componentDrafts, updateComponentDraft } = useComponentsStore();
 
   const handleAddElement = (elementType: string) => {
     // If editing component, use component draft instead
     if (editingComponentId) {
       const layers = componentDrafts[editingComponentId] || [];
       const parentId = selectedLayerId || layers[0]?.id || 'body';
-      
+
       // Create new layer from template
       const template = getTemplate(elementType);
       const displayName = getBlockName(elementType);
@@ -59,7 +52,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
         id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         customName: displayName || undefined, // Set display name
       };
-      
+
       // Find parent layer and check if it can have children
       const findLayerInTree = (tree: any[], targetId: string): any | null => {
         for (const node of tree) {
@@ -71,9 +64,9 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
         }
         return null;
       };
-      
+
       const parentLayer = findLayerInTree(layers, parentId);
-      
+
       // Find parent and add layer
       const addLayerToTree = (tree: any[], targetId: string, parentNode: any = null): { success: boolean; newLayers: any[]; newLayerId: string; parentToExpand: string | null } => {
         for (let i = 0; i < tree.length; i++) {
@@ -120,22 +113,22 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
         }
         return { success: false, newLayers: tree, newLayerId: '', parentToExpand: null };
       };
-      
+
       const result = addLayerToTree(layers, parentId);
       if (result.success) {
         updateComponentDraft(editingComponentId, result.newLayers);
         setSelectedLayerId(result.newLayerId);
         if (result.parentToExpand) {
-          window.dispatchEvent(new CustomEvent('expandLayer', { 
-            detail: { layerId: result.parentToExpand } 
+          window.dispatchEvent(new CustomEvent('expandLayer', {
+            detail: { layerId: result.parentToExpand }
           }));
         }
       }
-      
+
       onClose();
       return;
     }
-    
+
     // Regular page mode
     if (!currentPageId) return;
 
@@ -144,16 +137,16 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
 
     // Add the layer using the template
     const result = addLayerFromTemplate(currentPageId, parentId, elementType);
-    
+
     // Select the newly added layer
     if (result) {
       setSelectedLayerId(result.newLayerId);
-      
+
       // Note: parentToExpand is handled by LayersTree component
       // We dispatch a custom event for LayersTree to listen to
       if (result.parentToExpand) {
-        window.dispatchEvent(new CustomEvent('expandLayer', { 
-          detail: { layerId: result.parentToExpand } 
+        window.dispatchEvent(new CustomEvent('expandLayer', {
+          detail: { layerId: result.parentToExpand }
         }));
       }
     }
@@ -267,14 +260,14 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
 
     // Update the draft with the new layers (this should trigger autosave)
     usePagesStore.getState().setDraftLayers(currentPageId, newLayers);
-    
+
     // Select the new layer
     setSelectedLayerId(componentInstanceLayer.id);
-    
+
     // Expand parent if needed
     if (parentToExpand) {
-      window.dispatchEvent(new CustomEvent('expandLayer', { 
-        detail: { layerId: parentToExpand } 
+      window.dispatchEvent(new CustomEvent('expandLayer', {
+        detail: { layerId: parentToExpand }
       }));
     }
 

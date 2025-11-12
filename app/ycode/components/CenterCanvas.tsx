@@ -9,6 +9,9 @@
 // 1. React/Next.js
 import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 
+// 2. External libraries
+import { ArrowLeft } from 'lucide-react';
+
 // 3. ShadCN UI
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
@@ -22,21 +25,22 @@ import { useComponentsStore } from '@/stores/useComponentsStore';
 // 6. Utils
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
 import type { IframeToParentMessage } from '@/lib/iframe-bridge';
+import { buildPageTree, getNodeIcon } from '@/lib/page-utils';
+import type { PageTreeNode } from '@/lib/page-utils';
+import { cn } from '@/lib/utils';
 
 // 7. Types
-import type { Layer } from '@/types';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger
-} from '@/components/ui/select';
+import type { Layer, Page, PageFolder } from '@/types';
 import {
   DropdownMenu,
   DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 type ViewportMode = 'desktop' | 'tablet' | 'mobile';
 
@@ -63,9 +67,11 @@ export default function CenterCanvas({
 }: CenterCanvasProps) {
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
   const [iframeReady, setIframeReady] = useState(false);
+  const [pagePopoverOpen, setPagePopoverOpen] = useState(false);
+  const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(new Set());
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { draftsByPageId, addLayer, updateLayer } = usePagesStore();
-  const { setSelectedLayerId, activeUIState, editingComponentId } = useEditorStore();
+  const { draftsByPageId, addLayer, updateLayer, pages, folders } = usePagesStore();
+  const { setSelectedLayerId, activeUIState, editingComponentId, setCurrentPageId, returnToPageId } = useEditorStore();
   const components = useComponentsStore((state) => state.components);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
 
@@ -74,7 +80,7 @@ export default function CenterCanvas({
     if (editingComponentId) {
       return componentDrafts[editingComponentId] || [];
     }
-    
+
     // Otherwise show page layers
     if (!currentPageId) {
       return [];
@@ -83,6 +89,159 @@ export default function CenterCanvas({
     const draft = draftsByPageId[currentPageId];
     return draft ? draft.layers : [];
   }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
+
+  // Build page tree for navigation
+  const pageTree = useMemo(() => buildPageTree(pages, folders), [pages, folders]);
+
+  // Get current page name and icon
+  const currentPage = useMemo(() => pages.find(p => p.id === currentPageId), [pages, currentPageId]);
+  const currentPageName = currentPage?.name || 'Select Page';
+  const currentPageIcon = useMemo(() => {
+    if (!currentPage) return 'homepage';
+    const node: PageTreeNode = {
+      id: currentPage.id,
+      type: 'page',
+      data: currentPage,
+      children: []
+    };
+    return getNodeIcon(node);
+  }, [currentPage]);
+
+  // Get return page for component edit mode
+  const returnToPage = useMemo(() => {
+    return returnToPageId ? pages.find(p => p.id === returnToPageId) : null;
+  }, [returnToPageId, pages]);
+
+  // Exit component edit mode handler
+  const handleExitComponentEditMode = useCallback(async () => {
+    const { setEditingComponentId } = useEditorStore.getState();
+    const { saveComponentDraft, clearComponentDraft } = useComponentsStore.getState();
+    const { updateComponentOnLayers } = usePagesStore.getState();
+
+    if (!editingComponentId) return;
+
+    // Save component draft
+    await saveComponentDraft(editingComponentId);
+
+    // Get the updated component
+    const updatedComponent = useComponentsStore.getState().getComponentById(editingComponentId);
+    if (updatedComponent) {
+      // Update all instances across pages
+      await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
+    }
+
+    // Clear component draft
+    clearComponentDraft(editingComponentId);
+
+    // Return to previous page
+    if (returnToPageId) {
+      setCurrentPageId(returnToPageId);
+    }
+
+    // Exit edit mode
+    setEditingComponentId(null, null);
+
+    // Clear selection
+    setSelectedLayerId(null);
+  }, [editingComponentId, returnToPageId, setCurrentPageId, setSelectedLayerId]);
+
+  // Initialize all folders as collapsed on mount
+  useEffect(() => {
+    const allFolderIds = new Set(folders.map(f => f.id));
+    setCollapsedFolderIds(allFolderIds);
+  }, [folders]);
+
+  // Toggle folder collapse state
+  const toggleFolder = useCallback((folderId: string) => {
+    setCollapsedFolderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Handle page selection
+  const handlePageSelect = useCallback((pageId: string) => {
+    setCurrentPageId(pageId);
+    setPagePopoverOpen(false);
+  }, [setCurrentPageId]);
+
+  // Render page tree recursively
+  const renderPageTreeNode = useCallback((node: PageTreeNode, depth: number = 0) => {
+    const isFolder = node.type === 'folder';
+    const isCollapsed = isFolder && collapsedFolderIds.has(node.id);
+    const isCurrentPage = !isFolder && node.id === currentPageId;
+    const hasChildren = node.children && node.children.length > 0;
+
+    return (
+      <div key={node.id}>
+        <div
+          onClick={() => {
+            if (isFolder) {
+              toggleFolder(node.id);
+            } else {
+              handlePageSelect(node.id);
+            }
+          }}
+          className={cn(
+            "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-xs outline-hidden select-none data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+            isCurrentPage && 'bg-secondary/50'
+          )}
+          style={{ paddingLeft: `${depth * 14 + 8}px` }}
+        >
+          {/* Expand/Collapse Button */}
+          {hasChildren ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isFolder) {
+                  toggleFolder(node.id);
+                }
+              }}
+              className={cn(
+                'w-4 h-4 flex items-center justify-center flex-shrink-0',
+                isCollapsed ? '' : 'rotate-90'
+              )}
+            >
+              <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isCurrentPage && 'opacity-80')} />
+            </button>
+          ) : (
+            <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+              <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-0', isCurrentPage && 'opacity-0')} />
+            </div>
+          )}
+
+          {/*/!* Icon *!/*/}
+          {/*<Icon*/}
+          {/*  name={getNodeIcon(node)}*/}
+          {/*  className={cn('size-3 ml-1 mr-2', isCurrentPage ? 'opacity-90' : 'opacity-50')}*/}
+          {/*/>*/}
+
+          {/* Label */}
+          <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
+            {isFolder ? (node.data as PageFolder).name : (node.data as Page).name}
+          </span>
+
+          {/* Check indicator */}
+          {isCurrentPage && (
+            <span className="absolute right-2 flex size-3.5 items-center justify-center">
+              <Icon name="check" className="size-3 opacity-50" />
+            </span>
+          )}
+
+        </div>
+        {isFolder && !isCollapsed && node.children && (
+          <div>
+            {node.children.map(child => renderPageTreeNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  }, [collapsedFolderIds, currentPageId, toggleFolder, handlePageSelect]);
 
   // Send layers to iframe whenever they change
   useEffect(() => {
@@ -145,7 +304,7 @@ export default function CenterCanvas({
             // Update layer in component draft
             const { updateComponentDraft } = useComponentsStore.getState();
             const currentDraft = componentDrafts[editingComponentId] || [];
-            
+
             // Helper to update a layer in the tree
             const updateLayerInTree = (layers: Layer[], layerId: string, updates: Partial<Layer>): Layer[] => {
               return layers.map(layer => {
@@ -158,12 +317,12 @@ export default function CenterCanvas({
                 return layer;
               });
             };
-            
+
             const updatedLayers = updateLayerInTree(currentDraft, message.payload.layerId, {
               text: message.payload.text,
               content: message.payload.text,
             });
-            
+
             updateComponentDraft(editingComponentId, updatedLayers);
           } else if (currentPageId) {
             // Update layer in page draft
@@ -192,21 +351,58 @@ export default function CenterCanvas({
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">
-      {/* Breakpoint Controls */}
+      {/* Top Bar */}
       <div className="grid grid-cols-3 items-center p-4 border-b bg-background">
-        <div className="w-40 *:w-full">
-          <Select>
-            <SelectTrigger>
-              Homepage
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="1">Homepage</SelectItem>
-                <SelectItem value="2">About</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+        {/* Page Selector or Back to Page Button */}
+        {editingComponentId && returnToPage ? (
+          <Button
+            variant="purple"
+            size="sm"
+            onClick={handleExitComponentEditMode}
+            className="gap-1 w-fit"
+          >
+            <Icon name="arrowLeft" />
+            Back to {returnToPage.name}
+          </Button>
+        ) : (
+          <div className="w-40 *:w-full">
+          <Popover open={pagePopoverOpen} onOpenChange={setPagePopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="input"
+                size="sm"
+                role="combobox"
+                aria-expanded={pagePopoverOpen}
+                className="w-full justify-between"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Icon name={currentPageIcon} className="size-3 opacity-50" />
+                  <span className="truncate">
+                    {currentPageName}
+                  </span>
+                </div>
+                <div>
+                  <Icon name="chevronCombo" className="!size-2.5 shrink-0 opacity-50" />
+                </div>
+              </Button>
+            </PopoverTrigger>
+
+            <PopoverContent className="w-56 p-1" align="start">
+              <div className="max-h-[400px] overflow-y-auto">
+                {pageTree.length > 0 ? (
+                  pageTree.map(node => renderPageTreeNode(node, 0))
+                ) : (
+                  <div className="text-sm text-muted-foreground text-center py-4">
+                    No pages found
+                  </div>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
+        )}
+
+        {/* Viewport Controls */}
         <div className="flex justify-center gap-2">
           <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
             <TabsList className="w-[240px]">
@@ -223,7 +419,7 @@ export default function CenterCanvas({
           </Tabs>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="sm">
+              <Button variant="input" size="sm">
                 80%
                 <div>
                   <Icon name="chevronCombo" className="!size-2.5 opacity-50" />
@@ -255,6 +451,8 @@ export default function CenterCanvas({
             </DropdownMenuContent>
         </DropdownMenu>
         </div>
+
+        {/* Undo/Redo Buttons */}
         <div className="flex justify-end gap-0">
           <Button size="sm" variant="ghost">
             <Icon name="undo" />

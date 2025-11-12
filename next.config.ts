@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  
+
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Ignore optional dependencies that Knex tries to load
@@ -34,6 +34,16 @@ const nextConfig: NextConfig = {
         'pg-query-stream': 'commonjs pg-query-stream',
       });
     }
+
+    // Suppress Knex migration warnings (we don't use migrations in Next.js runtime)
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      {
+        module: /node_modules\/knex\/lib\/migrations\/util\/import-file\.js/,
+        message: /Critical dependency: the request of a dependency is an expression/,
+      },
+    ];
+
     return config;
   },
 };

@@ -29,6 +29,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 
 // 6. Utils/lib
@@ -47,8 +48,8 @@ import { Alert, AlertTitle } from '@/components/ui/alert';
 
 export default function YCodeBuilder() {
   const { signOut, user } = useAuthStore();
-  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, setSelectedLayerIds, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, pushHistory, editingComponentId } = useEditorStore();
-  const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, loadPages, loadDraft, initDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter, setDraftLayers } = usePagesStore();
+  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, editingComponentId } = useEditorStore();
+  const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter, setDraftLayers, loadPages } = usePagesStore();
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard, copyStyle: copyStyleToClipboard, pasteStyle: pasteStyleFromClipboard } = useClipboardStore();
   const componentIsSaving = useComponentsStore((state) => state.isSaving);
   const pages = usePagesStore((state) => state.pages);
@@ -96,10 +97,54 @@ export default function YCodeBuilder() {
     setActiveBreakpoint(viewportMode);
   }, [viewportMode, setActiveBreakpoint]);
 
-  // CSS generation now handled by Tailwind JIT CDN in iframe - no need for custom CSS generation
-
   // Migration state - BLOCKS builder until migrations complete
   const [migrationsComplete, setMigrationsComplete] = useState(false);
+
+  // Generate initial CSS if draft_css is empty (one-time check after data loads)
+  const initialCssCheckRef = useRef(false);
+  const settingsLoaded = useSettingsStore((state) => state.settings.length > 0);
+
+  useEffect(() => {
+    // Wait for all initial data to be loaded
+    if (!migrationsComplete || Object.keys(draftsByPageId).length === 0 || !settingsLoaded) {
+      return;
+    }
+
+    // On initial load, check if draft_css exists in settings
+    if (!initialCssCheckRef.current) {
+      initialCssCheckRef.current = true;
+      const { getSettingByKey } = useSettingsStore.getState();
+      const existingDraftCSS = getSettingByKey('draft_css');
+
+      // If draft_css exists and is not empty, skip initial generation
+      if (existingDraftCSS && existingDraftCSS.trim().length > 0) {
+        console.log('[Editor] draft_css already exists, skipping initial generation');
+        return;
+      }
+
+      // Generate initial CSS if it doesn't exist
+      console.log('[Editor] draft_css is empty, generating initial CSS');
+      const generateInitialCSS = async () => {
+        try {
+          const { generateAndSaveCSS } = await import('@/lib/client/cssGenerator');
+
+          // Collect layers from ALL pages for comprehensive CSS generation
+          const allLayers: Layer[] = [];
+          Object.values(draftsByPageId).forEach(draft => {
+            if (draft.layers) {
+              allLayers.push(...draft.layers);
+            }
+          });
+
+          await generateAndSaveCSS(allLayers);
+        } catch (error) {
+          console.error('[Editor] Failed to generate initial CSS:', error);
+        }
+      };
+
+      generateInitialCSS();
+    }
+  }, [draftsByPageId, migrationsComplete, settingsLoaded]);
 
   // Add overflow-hidden to body when builder is mounted
   useEffect(() => {
@@ -108,6 +153,13 @@ export default function YCodeBuilder() {
       document.body.classList.remove('overflow-hidden');
     };
   }, []);
+
+  // Force dark theme for login screen
+  useEffect(() => {
+    if (!user) {
+      document.documentElement.classList.add('dark');
+    }
+  }, [user]);
 
   // Login state (when not authenticated)
   const [loginEmail, setLoginEmail] = useState('');
@@ -130,20 +182,48 @@ export default function YCodeBuilder() {
     // If successful, user state will update and component will re-render with builder
   };
 
-  // Load pages only after migrations complete
-  useEffect(() => {
-    if (migrationsComplete) {
-      loadPages();
+  // Load all data in one request after migrations complete
+  const initialLoadRef = useRef(false);
 
-      // Also load components and layer styles
-      useComponentsStore.getState().loadComponents();
-      useLayerStylesStore.getState().loadStyles();
-      
+  useEffect(() => {
+    if (migrationsComplete && pages.length === 0 && !initialLoadRef.current) {
+      initialLoadRef.current = true;
+
+      // Load everything in one unified request
+      const loadInitialData = async () => {
+        try {
+          const { editorApi } = await import('@/lib/api');
+          const response = await editorApi.init();
+
+          if (response.error) {
+            console.error('[Editor] Error loading initial data:', response.error);
+            return;
+          }
+
+          if (response.data) {
+            // Set all data in stores
+            const { setPagesAndDrafts } = usePagesStore.getState();
+            const { setComponents } = useComponentsStore.getState();
+            const { setStyles } = useLayerStylesStore.getState();
+            const { setSettings } = useSettingsStore.getState();
+
+            setPagesAndDrafts(response.data.pages, response.data.drafts);
+            setComponents(response.data.components);
+            setStyles(response.data.styles);
+            setSettings(response.data.settings);
+          }
+        } catch (error) {
+          console.error('[Editor] Error loading initial data:', error);
+        }
+      };
+
+      loadInitialData();
+
       // Load publish counts
       loadPublishCounts();
     }
-  }, [loadPages, migrationsComplete]);
-  
+  }, [migrationsComplete, pages.length]);
+
   // Load publish counts
   const loadPublishCounts = async () => {
     try {
@@ -151,11 +231,11 @@ export default function YCodeBuilder() {
         pagesApi.getUnpublished(),
         collectionsApi.getPublishableCounts(),
       ]);
-      
+
       const unpublishedPagesCount = pagesResponse.data?.length || 0;
       const collectionCounts = collectionsResponse.data || {};
       const collectionItemsCount = Object.values(collectionCounts).reduce((sum, count) => sum + count, 0);
-      
+
       setPublishCount(unpublishedPagesCount + collectionItemsCount);
     } catch (error) {
       console.error('Failed to load publish counts:', error);
@@ -170,16 +250,9 @@ export default function YCodeBuilder() {
       const defaultPage = homePage || pages[0];
 
       setCurrentPageId(defaultPage.id);
-
-      // Load or initialize draft for this page
-      if (!draftsByPageId[defaultPage.id]) {
-        loadDraft(defaultPage.id).catch(() => {
-          // If no draft exists, initialize with empty layers
-          initDraft(defaultPage, []);
-        });
-      }
+      setSelectedLayerId('body');
     }
-  }, [currentPageId, pages, setCurrentPageId, draftsByPageId, loadDraft, initDraft]);
+  }, [currentPageId, pages, setCurrentPageId, setSelectedLayerId]);
 
   // Auto-select Body layer when switching pages (not when draft updates)
   useEffect(() => {
@@ -364,7 +437,7 @@ export default function YCodeBuilder() {
   }, [selectedLayerId, currentPageId, editingComponentId, draftsByPageId, setSelectedLayerId, activeTab, getCurrentLayers, updateCurrentLayers]);
 
   // Handle undo
-  const handleUndo = () => {
+  const handleUndo = useCallback(() => {
     if (!canUndo()) return;
 
     const historyEntry = undo();
@@ -378,10 +451,10 @@ export default function YCodeBuilder() {
         draft.layers = historyEntry.layers;
       }
     }
-  };
+  }, [canUndo, undo, currentPageId, updateLayer]);
 
   // Handle redo
-  const handleRedo = () => {
+  const handleRedo = useCallback(() => {
     if (!canRedo()) return;
 
     const historyEntry = redo();
@@ -393,7 +466,7 @@ export default function YCodeBuilder() {
         draft.layers = historyEntry.layers;
       }
     }
-  };
+  }, [canRedo, redo, currentPageId]);
 
   // Get selected layer
   const selectedLayer = useMemo(() => {
@@ -824,7 +897,7 @@ export default function YCodeBuilder() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, selectedLayerIds, currentPageId, editingComponentId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately, draftsByPageId, updateLayer, copyStyleToClipboard, pasteStyleFromClipboard, deleteSelectedLayer, handleUndo, handleRedo, getCurrentLayers, updateCurrentLayers, removeLayerById]);
+  }, [selectedLayerId, selectedLayerIds, currentPageId, editingComponentId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately, draftsByPageId, updateLayer, copyStyleToClipboard, pasteStyleFromClipboard, deleteSelectedLayer, handleUndo, handleRedo, getCurrentLayers, updateCurrentLayers]);
 
   // Show login form if not authenticated
   if (!user) {

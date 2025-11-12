@@ -246,8 +246,9 @@ function LayerRow({
                   className={cn(
                     'absolute z-10 top-0 bottom-0 w-px ',
                     shouldHighlight && 'bg-white/30',
-                    !shouldHighlight && isChildOfSelected && 'bg-white/10',
-                    !shouldHighlight && !isChildOfSelected && 'bg-secondary',
+                    isSelected && '!bg-white/10',
+                    isChildOfSelected && 'dark:bg-white/10 bg-neutral-900/10',
+                    !shouldHighlight && !isChildOfSelected && 'dark:bg-secondary bg-neutral-900/10',
                   )}
                   style={{
                     left: `${i * 14 + 16}px`,
@@ -330,7 +331,7 @@ function LayerRow({
             isSelected && !usePurpleStyle && 'bg-primary text-primary-foreground hover:bg-primary',
             isSelected && usePurpleStyle && 'bg-purple-500 text-white hover:bg-purple-500',
             !isSelected && isChildOfSelected && !usePurpleStyle && 'dark:bg-primary/15 bg-primary/10 text-current/70 hover:bg-primary/15 dark:hover:bg-primary/20',
-            !isSelected && isChildOfSelected && usePurpleStyle && 'dark:bg-purple-500/15 bg-purple-500/10 text-current/70 hover:bg-purple-500/15 dark:hover:bg-purple-500/20',
+            !isSelected && isChildOfSelected && usePurpleStyle && 'dark:bg-purple-500/10 bg-purple-500/10 text-current/70 hover:bg-purple-500/15 dark:hover:bg-purple-500/20',
             isSelected && !isDragActive && !isDragging && '',
             isDragging && '',
             !isDragActive && ''
@@ -371,7 +372,7 @@ function LayerRow({
 
           {/* Layer Icon */}
           {isComponentInstance ? (
-            <ComponentIcon className="w-3 h-3 flex-shrink-0 mx-1.5 opacity-75" />
+            <Icon name="component" className="size-3 mx-1.5" />
           ) : (
             <div
               className={cn(

@@ -51,7 +51,7 @@ export default function LeftSidebar({
   const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
   const [showCreateCollectionDialog, setShowCreateCollectionDialog] = useState(false);
-  const { draftsByPageId, loadPages, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
+  const { draftsByPageId, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
   const { setSelectedLayerId, setCurrentPageId, editingComponentId } = useEditorStore();
@@ -60,7 +60,7 @@ export default function LeftSidebar({
 
   // Get component layers if in edit mode
   const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
-  
+
   // Load collections on mount
   useEffect(() => {
     loadCollections().catch(error => {
@@ -124,12 +124,6 @@ export default function LeftSidebar({
     }
     return null;
   }, []);
-
-  // Load pages and folders on mount
-  useEffect(() => {
-    loadPages();
-    loadFolders();
-  }, [loadPages, loadFolders]);
 
   // Load draft when page changes (only if not already in store)
   useEffect(() => {
@@ -217,7 +211,7 @@ export default function LeftSidebar({
             setActiveTab(newTab);
             onActiveTabChange(newTab);
             setShowElementLibrary(false);
-            
+
             // Auto-select first collection when switching to CMS tab
             if (newTab === 'cms' && collections.length > 0 && !selectedCollectionId) {
               setSelectedCollectionId(collections[0].id);
@@ -225,26 +219,19 @@ export default function LeftSidebar({
           }}
           className="flex-1 gap-0"
         >
-          {/* Hide tabs when editing component - only show layers */}
-          {!editingComponentId && (
-            <TabsList className="w-full">
-              <TabsTrigger value="layers">Layers</TabsTrigger>
-              <TabsTrigger value="pages">Pages</TabsTrigger>
-              <TabsTrigger value="cms">CMS</TabsTrigger>
-            </TabsList>
-          )}
+
+          <TabsList className="w-full">
+            <TabsTrigger value="layers">Layers</TabsTrigger>
+            <TabsTrigger value="pages">Pages</TabsTrigger>
+            <TabsTrigger value="cms">CMS</TabsTrigger>
+          </TabsList>
 
           <hr className="mt-4" />
 
           {/* Content */}
           <TabsContent value="layers">
             <header className="py-5 flex justify-between">
-              <span className="font-medium">
-                {editingComponentId && editingComponent
-                  ? `Editing: ${editingComponent.name}`
-                  : 'Layers'
-                }
-              </span>
+              <span className="font-medium">Layers</span>
               <div className="-my-1">
                 <Button
                   size="xs" variant="secondary"
@@ -295,7 +282,7 @@ export default function LeftSidebar({
               <span className="font-medium">Collections</span>
               <div className="-my-1">
                 <Button
-                  size="xs" 
+                  size="xs"
                   variant="secondary"
                   onClick={() => setShowCreateCollectionDialog(true)}
                 >
@@ -312,7 +299,7 @@ export default function LeftSidebar({
                     key={collection.id}
                     className={cn(
                       'px-4 h-8 rounded-lg flex gap-2 items-center text-left transition-colors',
-                      isSelected 
+                      isSelected
                         ? 'bg-primary text-primary-foreground hover:bg-primary'
                         : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-primary-foreground/80'
                     )}
@@ -326,7 +313,7 @@ export default function LeftSidebar({
                   </button>
                 );
               })}
-              
+
               {collections.length === 0 && (
                 <div className="px-4 py-8 text-center text-muted-foreground text-sm">
                   No collections yet. Click + to create one.
@@ -344,7 +331,7 @@ export default function LeftSidebar({
           onClose={() => setShowElementLibrary(false)}
         />
       )}
-      
+
       {/* Create Collection Dialog */}
       <CreateCollectionDialog
         isOpen={showCreateCollectionDialog}

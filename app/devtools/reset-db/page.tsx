@@ -66,9 +66,8 @@ export default function ResetDatabasePage() {
           <Button
             onClick={handleInitialClick}
             disabled={loading}
-            variant="destructive"
             size="lg"
-            className="cursor-pointer"
+            className="cursor-pointer bg-red-500/40 text-white hover:bg-red-500/50"
           >
             Reset database
           </Button>
@@ -87,18 +86,16 @@ export default function ResetDatabasePage() {
               <Button
                 onClick={handleCancel}
                 disabled={loading}
-                variant="secondary"
                 size="lg"
-                className="cursor-pointer"
+                className="cursor-pointer bg-white/10 hover:bg-white/15"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleConfirmReset}
                 disabled={loading}
-                variant="destructive"
                 size="lg"
-                className="cursor-pointer"
+                className="cursor-pointer bg-red-500/40 text-white hover:bg-red-500/50"
               >
                 {loading ? (
                   <>

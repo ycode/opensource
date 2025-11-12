@@ -15,6 +15,7 @@ interface LayerRendererProps {
   onLayerUpdate?: (layerId: string, updates: Partial<Layer>) => void;
   selectedLayerId?: string | null;
   isEditMode?: boolean;
+  isPublished?: boolean;
   enableDragDrop?: boolean;
   activeLayerId?: string | null;
   projected?: { depth: number; parentId: string | null } | null;
@@ -27,6 +28,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   onLayerUpdate,
   selectedLayerId,
   isEditMode = true,
+  isPublished = false,
   enableDragDrop = false,
   activeLayerId = null,
   projected = null,
@@ -342,6 +344,7 @@ const LayerItem: React.FC<{
 
   if (isEditMode && pageId && !isEditing) {
     const isLocked = layer.id === 'body' || layer.locked === true;
+
     return (
       <LayerContextMenu
         layerId={layer.id}

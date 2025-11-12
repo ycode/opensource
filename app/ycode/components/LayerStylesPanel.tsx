@@ -7,10 +7,9 @@
  * Allows creating, applying, editing, detaching, and deleting styles
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -53,7 +52,6 @@ export default function LayerStylesPanel({
   const {
     styles,
     isLoading,
-    loadStyles,
     createStyle,
     updateStyle,
     deleteStyle,
@@ -67,10 +65,7 @@ export default function LayerStylesPanel({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
 
-  // Load styles on mount
-  useEffect(() => {
-    loadStyles();
-  }, [loadStyles]);
+  // Styles are loaded during app initialization (no need to load here)
 
   // Get the applied style if any
   const appliedStyle = layer?.styleId ? getStyleById(layer.styleId) : undefined;

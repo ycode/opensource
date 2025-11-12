@@ -833,7 +833,6 @@ export async function duplicatePage(pageId: string): Promise<Page> {
         layers: originalLayers.layers,
         is_published: false,
         publish_key: newPage.publish_key,
-        generated_css: null, // Don't copy generated CSS
       });
 
     if (newLayersError) {
