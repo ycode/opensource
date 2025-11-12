@@ -13,14 +13,13 @@ import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+  Sheet, SheetActions,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import {
   Form,
   FormControl,
@@ -59,7 +58,7 @@ const formSchema = z.object({
 
 export default function CMS() {
   const [activeSection, setActiveSection] = useState<'content' | 'media' | 'settings'>('content');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -72,7 +71,7 @@ export default function CMS() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log(values);
-    setIsDialogOpen(false);
+    setIsSheetOpen(false);
     form.reset();
   }
 
@@ -163,8 +162,8 @@ export default function CMS() {
 
         <div>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
+            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+            <SheetTrigger asChild>
               <div className="group">
                 <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary">
                   <div className="px-4 py-5">
@@ -174,11 +173,19 @@ export default function CMS() {
                   </div>
                 </div>
               </div>
-            </DialogTrigger>
-            <DialogContent variant="side">
-              <DialogHeader>
-                <DialogTitle>Collection item</DialogTitle>
-              </DialogHeader>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Collection item</SheetTitle>
+                <SheetActions>
+                    <Button
+                      size="sm"
+                      type="submit"
+                    >
+                      Create
+                    </Button>
+                  </SheetActions>
+              </SheetHeader>
 
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4 flex-1">
@@ -230,21 +237,11 @@ export default function CMS() {
                     />
                   </div>
 
-                  <DialogFooter>
-                    <Button
-                      type="button" variant="secondary"
-                      onClick={() => setIsDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit">
-                      Create
-                    </Button>
-                  </DialogFooter>
+
                 </form>
               </Form>
-            </DialogContent>
-          </Dialog>
+            </SheetContent>
+          </Sheet>
 
         </div>
 
