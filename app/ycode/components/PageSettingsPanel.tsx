@@ -33,6 +33,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import Icon from '@/components/ui/icon';
 import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug } from '@/lib/page-utils';
+import { Textarea } from '@/components/ui/textarea';
 
 interface PageSettingsPanelProps {
   isOpen: boolean;
@@ -445,10 +446,50 @@ export default function PageSettingsPanel({
             </TabsContent>
 
             <TabsContent value="seo">
-              <Empty>
-                <EmptyTitle>Coming soon</EmptyTitle>
-                <EmptyDescription>Configure meta tags, descriptions, and more</EmptyDescription>
-              </Empty>
+              <FieldGroup>
+                <FieldSet>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel>Page title</FieldLabel>
+                      <Input
+                        type="text"
+                        placeholder="Homepage"
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel>Meta description</FieldLabel>
+                      <Textarea
+                        placeholder="What makes this page unique? Describe your business and the content of this page"
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel>Social Preview</FieldLabel>
+                      <FieldDescription>Recommended image size is at least 1,200 x 630 pixels.</FieldDescription>
+                      <div>
+                        <div className="bg-input rounded-lg w-full aspect-[1.91/1] flex items-center justify-center overflow-hidden relative group">
+
+                          {/*<img*/}
+                          {/*  className="absolute w-full h-full object-cover"*/}
+                          {/*  src="https://images.unsplash.com/photo-1760346738721-bc8e0678623f?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHx0b3BpYy1mZWVkfDIwfENEd3V3WEpBYkV3fHxlbnwwfHx8fHw%3D&auto=format&fit=crop&q=60&w=900"*/}
+                          {/*/>*/}
+
+                          <Button variant="secondary" size="sm">Upload</Button>
+
+                          {/*<div className="absolute top-2 right-2 z-10 group-hover:opacity-100 opacity-0 transition ease-in-out duration-100">*/}
+                          {/*  <Button variant="white" size="xs" className="!rounded-full shadow-md">*/}
+                          {/*    <Icon name="x"/>*/}
+                          {/*  </Button>*/}
+                          {/*</div>*/}
+
+                        </div>
+                      </div>
+                    </Field>
+
+                  </FieldGroup>
+                </FieldSet>
+              </FieldGroup>
             </TabsContent>
 
             <TabsContent value="code">
