@@ -29,6 +29,7 @@ import { buildSlugPath } from '@/lib/page-utils';
 // 5. Types
 import type { Page } from '@/types';
 import type { User } from '@supabase/supabase-js';
+import { Badge } from '@/components/ui/badge';
 
 interface HeaderBarProps {
   user: User | null;
@@ -147,7 +148,7 @@ export default function HeaderBar({
   }, [showPageDropdown, setShowPageDropdown]);
 
   return (
-    <header className="h-14 bg-background border-b flex items-center justify-between px-4">
+    <header className="h-14 bg-background border-b grid grid-cols-3 items-center px-4">
       {/* Left: Logo & Navigation */}
       <div className="flex items-center gap-2">
         {/* User Menu */}
@@ -228,8 +229,19 @@ export default function HeaderBar({
 
       </div>
 
+      <div className="flex gap-2.5 items-center justify-center">
+        <a
+          href={baseUrl + (fullPagePath === '/' ? '' : fullPagePath)}
+          target="_blank"
+          className="text-xs text-current/50 hover:text-current transition ease-in-out duration-100"
+        >
+          {baseUrl}
+        </a>
+        <Badge variant="secondary">Free</Badge>
+      </div>
+
       {/* Right: User & Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-end gap-2">
         {/* Save Status Indicator */}
         <div className="flex items-center justify-end w-[64px] text-xs text-white/50">
           {isSaving ? (
