@@ -68,7 +68,7 @@ export async function POST(
     const autoIncrementId = allItems.length;
     
     // Get current timestamp for created_at and updated_at
-    const now = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const now = new Date().toISOString(); // Full timestamp format
     
     // Set field values if provided, and add auto-generated fields
     const valuesWithAutoFields = {

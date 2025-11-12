@@ -37,6 +37,11 @@ async function apiRequest<T>(
     };
   }
 
+  // Handle 204 No Content responses (no body to parse)
+  if (response.status === 204) {
+    return { data: null as T };
+  }
+
   try {
     const json = await response.json();
     // API responses are already wrapped in { data: ... }
@@ -417,6 +422,29 @@ export const collectionsApi = {
     return apiRequest<{ count: number }>('/api/collections/items/publish', {
       method: 'POST',
       body: JSON.stringify({ item_ids: itemIds }),
+    });
+  },
+
+  // Bulk delete items
+  async bulkDeleteItems(itemIds: number[]): Promise<ApiResponse<{ deleted: number; errors?: string[] }>> {
+    return apiRequest<{ deleted: number; errors?: string[] }>('/api/collections/items/delete', {
+      method: 'POST',
+      body: JSON.stringify({ item_ids: itemIds }),
+    });
+  },
+
+  // Duplicate item
+  async duplicateItem(collectionId: number, itemId: number): Promise<ApiResponse<CollectionItemWithValues>> {
+    return apiRequest<CollectionItemWithValues>(`/api/collections/${collectionId}/items/${itemId}/duplicate`, {
+      method: 'POST',
+    });
+  },
+
+  // Reorder items (bulk update manual_order)
+  async reorderItems(collectionId: number, updates: Array<{ id: number; manual_order: number }>): Promise<ApiResponse<{ updated: number }>> {
+    return apiRequest<{ updated: number }>(`/api/collections/${collectionId}/items/reorder`, {
+      method: 'POST',
+      body: JSON.stringify({ updates }),
     });
   },
 };

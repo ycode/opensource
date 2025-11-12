@@ -108,7 +108,7 @@ export async function DELETE(
     
     await deleteField(fieldId);
     
-    return noCache({ data: null }, 204);
+    return noCache({ data: { success: true } }, 200);
   } catch (error) {
     console.error('Error deleting field:', error);
     return noCache(

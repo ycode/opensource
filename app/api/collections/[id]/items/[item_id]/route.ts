@@ -74,7 +74,7 @@ export async function PUT(
     
     // Update field values if provided, and automatically update updated_at
     if (values && typeof values === 'object') {
-      const now = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const now = new Date().toISOString(); // Full timestamp format
       const valuesWithUpdatedDate = {
         ...values,
         updated_at: now, // Auto-update the updated_at field
@@ -98,6 +98,7 @@ export async function PUT(
 /**
  * DELETE /api/collections/[id]/items/[item_id]
  * Delete item (soft delete)
+ * Sets deleted_at timestamp to mark item as deleted in draft
  */
 export async function DELETE(
   request: NextRequest,
@@ -113,7 +114,7 @@ export async function DELETE(
     
     await deleteItem(itemId);
     
-    return noCache({ data: null }, 204);
+    return noCache({ data: { success: true } }, 200);
   } catch (error) {
     console.error('Error deleting item:', error);
     return noCache(

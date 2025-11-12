@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publishValues } from '@/lib/repositories/collectionItemValueRepository';
+import { hardDeleteItem, getItemById } from '@/lib/repositories/collectionItemRepository';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -9,7 +10,8 @@ export const revalidate = 0;
 /**
  * POST /api/collections/items/publish
  * Publish individual collection items by their IDs
- * Copies draft values to published values for each specified item
+ * - For normal items: Copies draft values to published values
+ * - For deleted items (deleted_at set): Hard deletes the item and all values
  */
 export async function POST(request: NextRequest) {
   try {
@@ -25,9 +27,22 @@ export async function POST(request: NextRequest) {
     // Publish each item
     for (const itemId of item_ids) {
       try {
-        // Copy draft values to published values
-        await publishValues(itemId);
-        publishedCount++;
+        // Check if item is marked as deleted
+        const item = await getItemById(itemId);
+        
+        if (!item) {
+          continue; // Item doesn't exist
+        }
+        
+        if (item.deleted_at) {
+          // Hard delete the item and all its values (CASCADE)
+          await hardDeleteItem(itemId);
+          publishedCount++;
+        } else {
+          // Normal publish: copy draft values to published
+          await publishValues(itemId);
+          publishedCount++;
+        }
       } catch (error) {
         console.error(`Error publishing item ${itemId}:`, error);
         // Continue with other items

@@ -54,7 +54,12 @@ interface CollectionsActions {
   createItem: (collectionId: number, values: Record<string, any>) => Promise<CollectionItemWithValues>;
   updateItem: (collectionId: number, itemId: number, values: Record<string, any>) => Promise<void>;
   deleteItem: (collectionId: number, itemId: number) => Promise<void>;
+  duplicateItem: (collectionId: number, itemId: number) => Promise<CollectionItemWithValues | undefined>;
   searchItems: (collectionId: number, query: string) => Promise<void>;
+  
+  // Sorting
+  updateCollectionSorting: (collectionId: number, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => Promise<void>;
+  reorderItems: (collectionId: number, updates: Array<{ id: number; manual_order: number }>) => Promise<void>;
   
   // Utility
   clearError: () => void;
@@ -455,6 +460,35 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
+
+  duplicateItem: async (collectionId: number, itemId: number) => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      const response = await collectionsApi.duplicateItem(collectionId, itemId);
+      
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      
+      // Optimistically add the new item to the store
+      if (response.data) {
+        set(state => ({
+          items: {
+            ...state.items,
+            [collectionId]: [...(state.items[collectionId] || []), response.data!],
+          },
+          isLoading: false,
+        }));
+      }
+      
+      return response.data;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to duplicate item';
+      set({ error: errorMessage, isLoading: false });
+      throw error;
+    }
+  },
   
   searchItems: async (collectionId, query) => {
     set({ isLoading: true, error: null });
@@ -476,6 +510,72 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to search items';
       set({ error: errorMessage, isLoading: false });
+      throw error;
+    }
+  },
+
+  // Sorting
+  updateCollectionSorting: async (collectionId: number, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      // Optimistically update the collection sorting
+      set(state => ({
+        collections: state.collections.map(c =>
+          c.id === collectionId ? { ...c, sorting } : c
+        ),
+      }));
+      
+      const response = await collectionsApi.update(collectionId, { sorting });
+      
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      
+      set({ isLoading: false });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update sorting';
+      set({ error: errorMessage, isLoading: false });
+      // Reload to revert optimistic update
+      await get().loadCollections();
+      throw error;
+    }
+  },
+
+  reorderItems: async (collectionId: number, updates: Array<{ id: number; manual_order: number }>) => {
+    set({ isLoading: true, error: null });
+    
+    try {
+      // Optimistically update items order
+      set(state => {
+        const items = state.items[collectionId] || [];
+        const updateMap = new Map(updates.map(u => [u.id, u.manual_order]));
+        
+        const updatedItems = items.map(item => {
+          const newOrder = updateMap.get(item.id);
+          return newOrder !== undefined ? { ...item, manual_order: newOrder } : item;
+        });
+        
+        return {
+          items: {
+            ...state.items,
+            [collectionId]: updatedItems,
+          },
+        };
+      });
+      
+      const response = await collectionsApi.reorderItems(collectionId, updates);
+      
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      
+      set({ isLoading: false });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reorder items';
+      set({ error: errorMessage, isLoading: false });
+      // Reload to revert optimistic update
+      await get().loadItems(collectionId);
       throw error;
     }
   },

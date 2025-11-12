@@ -10,7 +10,10 @@ export const revalidate = 0;
 /**
  * GET /api/collections/[id]/items/unpublished
  * Get all unpublished (changed) items for a collection
- * An item is unpublished if its draft values differ from published values
+ * An item is unpublished if:
+ * - It has draft values but no published values (new)
+ * - Its draft values differ from published values (updated)
+ * - It is soft-deleted AND has published values (deleted - needs removal from published)
  */
 export async function GET(
   request: NextRequest,
@@ -30,13 +33,37 @@ export async function GET(
       return noCache({ error: 'Supabase not configured' }, 500);
     }
     
-    // Get all items with their draft values
-    const items = await getItemsWithValues(collectionId, undefined, false);
+    // Get all items including deleted ones
+    const items = await getItemsWithValues(collectionId, { deleted: undefined }, false);
     
     const unpublishedItems = [];
     
     // Check each item to see if it needs publishing
     for (const item of items) {
+      // If item is deleted, check if it has published values
+      if (item.deleted_at) {
+        // Get published values to check if item was ever published
+        const { data: publishedValues, error: publishedCheckError } = await client
+          .from('collection_item_values')
+          .select('field_id')
+          .eq('item_id', item.id)
+          .eq('is_published', true)
+          .is('deleted_at', null)
+          .limit(1);
+        
+        if (publishedCheckError) {
+          console.error(`Error checking published values for item ${item.id}:`, publishedCheckError);
+          continue;
+        }
+        
+        // Only show as "deleted" if there are published values to remove
+        if (publishedValues && publishedValues.length > 0) {
+          unpublishedItems.push({ ...item, publish_status: 'deleted' });
+        }
+        // If no published values, skip this item (never published, so nothing to delete)
+        continue;
+      }
+      
       // Get draft values
       const { data: draftValues, error: draftError } = await client
         .from('collection_item_values')
@@ -63,9 +90,9 @@ export async function GET(
         continue;
       }
       
-      // If no published values, item is unpublished
+      // If no published values, item is new
       if (!publishedValues || publishedValues.length === 0) {
-        unpublishedItems.push(item);
+        unpublishedItems.push({ ...item, publish_status: 'new' });
         continue;
       }
       
@@ -73,7 +100,7 @@ export async function GET(
       const isDifferent = hasChanges(draftValues || [], publishedValues);
       
       if (isDifferent) {
-        unpublishedItems.push(item);
+        unpublishedItems.push({ ...item, publish_status: 'updated' });
       }
     }
     

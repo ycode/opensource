@@ -386,6 +386,12 @@ export interface AuthState {
 // Collection Types (EAV Architecture)
 export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference';
 export type CollectionStatus = 'draft' | 'published';
+export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
+
+export interface CollectionSorting {
+  field: string; // field_name or 'manual_order'
+  direction: CollectionSortDirection;
+}
 
 export interface Collection {
   id: number;
@@ -394,7 +400,7 @@ export interface Collection {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
-  sorting: Record<string, any> | null;
+  sorting: CollectionSorting | null;
   order: number | null;
   status: CollectionStatus;
 }
@@ -442,6 +448,7 @@ export interface CollectionItemValue {
 // Helper type for working with items + values
 export interface CollectionItemWithValues extends CollectionItem {
   values: Record<string, string>; // field_name -> value
+  publish_status?: 'new' | 'updated' | 'deleted'; // Status badge for publish modal
 }
 
 // Settings Types

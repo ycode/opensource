@@ -1,11 +1,11 @@
 /**
  * Add Field Dialog
  * 
- * Dialog for adding a new field to a collection.
+ * Dialog for adding or editing a field in a collection.
  */
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { slugify } from '@/lib/collection-utils';
-import type { CollectionFieldType } from '@/types';
+import type { CollectionFieldType, CollectionField } from '@/types';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -26,12 +26,14 @@ const formSchema = z.object({
   type: z.enum(['text', 'number', 'boolean', 'date', 'reference'], {
     message: 'Please select a field type.',
   }),
+  default: z.string().optional(),
 });
 
 interface AddFieldDialogProps {
   isOpen: boolean;
   onClose: () => void;
   collectionId: number;
+  field?: CollectionField | null; // Optional field for editing
   onSuccess?: () => void;
 }
 
@@ -39,33 +41,62 @@ export default function AddFieldDialog({
   isOpen,
   onClose,
   collectionId,
+  field,
   onSuccess,
 }: AddFieldDialogProps) {
-  const { createField, isLoading, fields } = useCollectionsStore();
+  const { createField, updateField, isLoading, fields } = useCollectionsStore();
+  const isEditMode = !!field;
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: '',
-      type: 'text',
+      name: field?.name || '',
+      type: field?.type || 'text',
+      default: field?.default || '',
     },
   });
   
+  // Update form when field changes
+  useEffect(() => {
+    if (field) {
+      form.reset({
+        name: field.name,
+        type: field.type,
+        default: field.default || '',
+      });
+    } else {
+      form.reset({
+        name: '',
+        type: 'text',
+        default: '',
+      });
+    }
+  }, [field, form]);
+  
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      // Auto-generate field_name from name
-      const collectionFields = fields[collectionId] || [];
-      const order = collectionFields.length; // Place new field at the end
-      
-      await createField(collectionId, {
-        name: values.name,
-        field_name: slugify(values.name).replace(/-/g, '_'), // Use underscores for field names
-        type: values.type as CollectionFieldType,
-        order,
-        built_in: false, // User-created fields are not built-in
-        fillable: true,
-        hidden: false,
-      });
+      if (isEditMode && field) {
+        // Edit existing field - update name and default value
+        await updateField(collectionId, field.id, {
+          name: values.name,
+          default: values.default || null,
+        });
+      } else {
+        // Create new field
+        const collectionFields = fields[collectionId] || [];
+        const order = collectionFields.length; // Place new field at the end
+        
+        await createField(collectionId, {
+          name: values.name,
+          field_name: slugify(values.name).replace(/-/g, '_'), // Use underscores for field names
+          type: values.type as CollectionFieldType,
+          default: values.default || null,
+          order,
+          built_in: false, // User-created fields are not built-in
+          fillable: true,
+          hidden: false,
+        });
+      }
       
       // Reset form
       form.reset();
@@ -78,7 +109,7 @@ export default function AddFieldDialog({
         onSuccess();
       }
     } catch (error) {
-      console.error('Failed to create field:', error);
+      console.error(`Failed to ${isEditMode ? 'update' : 'create'} field:`, error);
     }
   };
   
@@ -91,7 +122,7 @@ export default function AddFieldDialog({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Field</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit Field' : 'Add Field'}</DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
@@ -116,7 +147,11 @@ export default function AddFieldDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Field Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    defaultValue={field.value}
+                    disabled={isEditMode}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a type" />
@@ -137,6 +172,23 @@ export default function AddFieldDialog({
               )}
             />
             
+            <FormField
+              control={form.control}
+              name="default"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Default Value (Optional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="Enter default value..." 
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
             <DialogFooter>
               <Button
                 type="button" variant="secondary"
@@ -145,7 +197,7 @@ export default function AddFieldDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Adding...' : 'Add Field'}
+                {isLoading ? (isEditMode ? 'Updating...' : 'Adding...') : (isEditMode ? 'Update Field' : 'Add Field')}
               </Button>
             </DialogFooter>
           </form>

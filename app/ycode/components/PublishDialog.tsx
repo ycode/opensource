@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import Icon from '@/components/ui/icon';
@@ -100,6 +101,22 @@ export default function PublishDialog({
         throw new Error(stylesResponse.error);
       }
       setUnpublishedLayerStyles(stylesResponse.data || []);
+      
+      // Select all items by default
+      const allPageIds = new Set((pagesResponse.data || []).map(p => p.id));
+      setSelectedPageIds(allPageIds);
+      
+      const allItemIds = new Set<number>();
+      collectionsWithItemsData.forEach(({ items }) => {
+        items.forEach(item => allItemIds.add(item.id));
+      });
+      setSelectedItemIds(allItemIds);
+      
+      const allComponentIds = new Set((componentsResponse.data || []).map(c => c.id));
+      setSelectedComponentIds(allComponentIds);
+      
+      const allStyleIds = new Set((stylesResponse.data || []).map(s => s.id));
+      setSelectedLayerStyleIds(allStyleIds);
     } catch (err) {
       console.error('Failed to load publish data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -366,6 +383,17 @@ export default function PublishDialog({
                                     <div className="text-xs text-muted-foreground">/{item.values.slug}</div>
                                   )}
                                 </div>
+                                {item.publish_status && (
+                                  <Badge 
+                                    variant={
+                                      item.publish_status === 'deleted' ? 'destructive' : 
+                                        item.publish_status === 'new' ? 'default' : 
+                                          'secondary'
+                                    }
+                                  >
+                                    {item.publish_status.charAt(0).toUpperCase() + item.publish_status.slice(1)}
+                                  </Badge>
+                                )}
                               </label>
                             ))}
                           </div>

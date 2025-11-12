@@ -36,14 +36,21 @@ export default function CollectionItemDialog({
   
   const collectionFields = fields[collectionId] || [];
   
-  // Initialize values from item if editing
+  // Initialize values from item if editing, or with default values if creating
   useEffect(() => {
     if (item) {
       setValues(item.values || {});
     } else {
-      setValues({});
+      // Pre-populate with default values for new items
+      const defaultValues: Record<string, any> = {};
+      collectionFields.forEach(field => {
+        if (field.default) {
+          defaultValues[field.field_name] = field.default;
+        }
+      });
+      setValues(defaultValues);
     }
-  }, [item]);
+  }, [item, collectionFields]);
   
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
