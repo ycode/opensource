@@ -34,6 +34,7 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
 
       if (!response.ok) {
         console.error('Migration request failed');
+        console.error(await response.json());
         onComplete(); // Allow builder to load anyway
         return;
       }

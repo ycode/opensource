@@ -199,12 +199,13 @@ export default function YCodeBuilder() {
 
           if (response.data) {
             // Set all data in stores
-            const { setPagesAndDrafts } = usePagesStore.getState();
+            const { setPagesAndDrafts, setFolders } = usePagesStore.getState();
             const { setComponents } = useComponentsStore.getState();
             const { setStyles } = useLayerStylesStore.getState();
             const { setSettings } = useSettingsStore.getState();
 
             setPagesAndDrafts(response.data.pages, response.data.drafts);
+            setFolders(response.data.folders || []);
             setComponents(response.data.components);
             setStyles(response.data.styles);
             setSettings(response.data.settings);

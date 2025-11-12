@@ -44,6 +44,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
           key={layer.id}
           layer={layer}
           isEditMode={isEditMode}
+          isPublished={isPublished}
           enableDragDrop={enableDragDrop}
           selectedLayerId={selectedLayerId}
           activeLayerId={activeLayerId}
@@ -65,6 +66,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
 const LayerItem: React.FC<{
   layer: Layer;
   isEditMode: boolean;
+  isPublished: boolean;
   enableDragDrop: boolean;
   selectedLayerId?: string | null;
   activeLayerId?: string | null;
@@ -79,6 +81,7 @@ const LayerItem: React.FC<{
 }> = ({
   layer,
   isEditMode,
+  isPublished,
   enableDragDrop,
   selectedLayerId,
   activeLayerId,
@@ -268,6 +271,7 @@ const LayerItem: React.FC<{
               onLayerUpdate={onLayerUpdate}
               selectedLayerId={selectedLayerId}
               isEditMode={isEditMode}
+              isPublished={isPublished}
               enableDragDrop={enableDragDrop}
               activeLayerId={activeLayerId}
               projected={projected}
@@ -329,6 +333,7 @@ const LayerItem: React.FC<{
             onLayerUpdate={onLayerUpdate}
             selectedLayerId={selectedLayerId}
             isEditMode={isEditMode}
+            isPublished={isPublished}
             enableDragDrop={enableDragDrop}
             activeLayerId={activeLayerId}
             projected={projected}

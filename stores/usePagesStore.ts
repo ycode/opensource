@@ -2122,16 +2122,22 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const originalPages = pages;
     const originalFolders = folders;
 
+    // Filter out error pages from reordering operations
+    const regularPagesOnly = updatedPages.filter(page => page.error_page === null);
+
     try {
-      // Optimistically update the UI
+      // Optimistically update the UI (only update regular pages, keep error pages as-is)
+      const errorPages = pages.filter(p => p.error_page !== null);
+      const mergedPages = [...regularPagesOnly, ...errorPages];
+
       set({
-        pages: updatedPages,
+        pages: mergedPages,
         folders: updatedFolders,
         isLoading: true,
       });
 
-      // Batch update pages
-      const pageUpdatePromises = updatedPages.map(async (page) => {
+      // Batch update pages (only regular pages)
+      const pageUpdatePromises = regularPagesOnly.map(async (page) => {
         const originalPage = originalPages.find(p => p.id === page.id);
         if (!originalPage) return;
 

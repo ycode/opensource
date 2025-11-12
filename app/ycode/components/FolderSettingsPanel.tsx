@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import Icon from '@/components/ui/icon';
-import { buildFolderPath, isDescendantFolder } from '@/lib/page-utils';
+import { buildFolderPath, isDescendantFolder, generateUniqueFolderSlug } from '@/lib/page-utils';
 
 interface FolderSettingsPanelProps {
   isOpen: boolean;
@@ -82,13 +82,21 @@ export default function FolderSettingsPanel({
   // Auto-generate slug from name for new folders
   useEffect(() => {
     if (!folder && name) {
-      const autoSlug = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
-      setSlug(autoSlug);
+      const uniqueSlug = generateUniqueFolderSlug(name, folders, pageFolderId);
+      setSlug(uniqueSlug);
     }
-  }, [name, folder]);
+  }, [name, folder, folders, pageFolderId]);
+
+  // When parent folder changes for new folders, regenerate slug to avoid duplicates in new location
+  useEffect(() => {
+    if (!folder && name && slug) {
+      const uniqueSlug = generateUniqueFolderSlug(name, folders, pageFolderId);
+      // Only update if it would be different (to avoid unnecessary re-renders)
+      if (uniqueSlug !== slug) {
+        setSlug(uniqueSlug);
+      }
+    }
+  }, [pageFolderId, folders, name, slug, folder]);
 
   // Build hierarchical folder list for select dropdown (exclude current folder and its descendants)
   const folderOptions = useMemo(() => {

@@ -281,13 +281,14 @@ async function transferIndexPage(
 /**
  * Validate index page constraints
  * - Index pages must have empty slug
- * - Non-index pages must have non-empty slug
+ * - Non-index pages must have non-empty slug (unless they're error pages)
+ * - Error pages can have empty slugs regardless of is_index status
  * - Root folder (page_folder_id = null) must always have an index page
  * - Homepage (root index page) cannot be moved to another folder
  */
 async function validateIndexPageConstraints(
   client: any,
-  pageData: { is_index?: boolean; slug: string; page_folder_id?: string | null },
+  pageData: { is_index?: boolean; slug: string; page_folder_id?: string | null; error_page?: number | null },
   excludePageId?: string,
   currentPageData?: { is_index: boolean; page_folder_id: string | null }
 ): Promise<void> {
@@ -296,8 +297,9 @@ async function validateIndexPageConstraints(
     throw new Error('Index pages must have an empty slug');
   }
 
-  // Rule 2: Non-index pages must have non-empty slug
-  if (!pageData.is_index && pageData.slug.trim() === '') {
+  // Rule 2: Non-index, non-error pages must have non-empty slug
+  const isErrorPage = pageData.error_page !== null && pageData.error_page !== undefined;
+  if (!pageData.is_index && !isErrorPage && pageData.slug.trim() === '') {
     throw new Error('Non-index pages must have a non-empty slug');
   }
 
@@ -357,6 +359,7 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
       is_index: pageData.is_index || false,
       slug: pageData.slug,
       page_folder_id: pageData.page_folder_id,
+      error_page: pageData.error_page,
     },
     undefined,
     undefined
@@ -407,6 +410,7 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
     is_index: updates.is_index !== undefined ? updates.is_index : currentPage.is_index,
     slug: updates.slug !== undefined ? updates.slug : currentPage.slug,
     page_folder_id: updates.page_folder_id !== undefined ? updates.page_folder_id : currentPage.page_folder_id,
+    error_page: updates.error_page !== undefined ? updates.error_page : currentPage.error_page,
   };
 
   // Validate index page constraints if is_index or slug is being updated
@@ -740,10 +744,43 @@ export async function duplicatePage(pageId: string): Promise<Page> {
     throw new Error('Page not found');
   }
 
-  // Generate new slug with timestamp to ensure uniqueness
-  const timestamp = Date.now();
-  const newSlug = `page-${timestamp}`;
   const newName = `${originalPage.name} (Copy)`;
+
+  // Generate base slug from the new name
+  const baseSlug = newName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  // Get all existing slugs in the same folder to find a unique one
+  let query = client
+    .from('pages')
+    .select('slug')
+    .eq('is_published', false)
+    .is('error_page', null)
+    .is('deleted_at', null);
+
+  // Handle null parent folder properly
+  if (originalPage.page_folder_id === null) {
+    query = query.is('page_folder_id', null);
+  } else {
+    query = query.eq('page_folder_id', originalPage.page_folder_id);
+  }
+
+  const { data: existingPages } = await query;
+
+  const existingSlugs = (existingPages || []).map(p => p.slug.toLowerCase());
+
+  // Find unique slug
+  let newSlug = baseSlug;
+  if (existingSlugs.includes(baseSlug)) {
+    let counter = 2;
+    newSlug = `${baseSlug}-${counter}`;
+    while (existingSlugs.includes(newSlug)) {
+      counter++;
+      newSlug = `${baseSlug}-${counter}`;
+    }
+  }
 
   // Place the duplicate right after the original page
   const newOrder = originalPage.order + 1;

@@ -12,8 +12,6 @@ import type { Layer, Component } from '@/types';
  * @returns Layer tree with components resolved
  */
 export function resolveComponents(layers: Layer[], components: Component[]): Layer[] {
-  console.log('[resolveComponents] Processing', layers.length, 'layers with', components.length, 'components');
-
   return layers.map(layer => {
     // If this layer is a component instance, populate its children from the component
     if (layer.componentId) {

@@ -85,6 +85,67 @@ export async function fetchPageByPath(
 }
 
 /**
+ * Fetch error page by error code (404, 401, 500)
+ * Works for both draft and published pages
+ */
+export async function fetchErrorPage(
+  errorCode: number,
+  isPublished: boolean
+): Promise<PageData | null> {
+  try {
+    const supabase = await getSupabaseAdmin();
+
+    if (!supabase) {
+      console.error('Supabase not configured');
+      return null;
+    }
+
+    // Get the error page
+    const { data: errorPage } = await supabase
+      .from('pages')
+      .select('*')
+      .eq('error_page', errorCode)
+      .eq('is_published', isPublished)
+      .is('deleted_at', null)
+      .single();
+
+    if (!errorPage) {
+      return null;
+    }
+
+    // Get layers for the error page
+    const { data: pageLayers, error: layersError } = await supabase
+      .from('page_layers')
+      .select('*')
+      .eq('page_id', errorPage.id)
+      .eq('is_published', isPublished)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (layersError) {
+      console.error(`Failed to fetch ${isPublished ? 'published' : 'draft'} error page layers:`, layersError);
+      return null;
+    }
+
+    // Fetch all components to resolve component instances
+    const { data: components } = await supabase
+      .from('components')
+      .select('*');
+
+    return {
+      page: errorPage,
+      pageLayers,
+      components: components || [],
+    };
+  } catch (error) {
+    console.error('Failed to fetch error page:', error);
+    return null;
+  }
+}
+
+/**
  * Fetch homepage (index page at root level)
  * Works for both draft and published pages
  */

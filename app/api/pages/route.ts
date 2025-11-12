@@ -105,16 +105,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate slug requirements based on is_index
-    if (is_index && slug && slug.trim() !== '') {
-      console.error('[POST /api/pages] Validation failed: index page has non-empty slug');
+    // Determine final slug: error pages and index pages must have empty slugs
+    const finalSlug = (error_page !== null || is_index) ? '' : slug;
+
+    // Validate slug requirements
+    if ((error_page !== null || is_index) && slug && slug.trim() !== '') {
+      const pageType = error_page !== null ? 'Error' : 'Index';
+      console.error(`[POST /api/pages] Validation failed: ${pageType.toLowerCase()} page has non-empty slug`);
       return noCache(
-        { error: 'Index pages must have an empty slug' },
+        { error: `${pageType} pages must have an empty slug` },
         400
       );
     }
 
-    if (!is_index && (!slug || slug.trim() === '')) {
+    if (!is_index && error_page === null && (!finalSlug || finalSlug.trim() === '')) {
       console.error('[POST /api/pages] Validation failed: non-index page missing slug');
       return noCache(
         { error: 'Non-index pages must have a slug' },
@@ -124,7 +128,7 @@ export async function POST(request: NextRequest) {
 
     console.log('[POST /api/pages] Creating page:', {
       name,
-      slug,
+      slug: finalSlug,
       is_published,
       page_folder_id,
       order,
@@ -134,7 +138,7 @@ export async function POST(request: NextRequest) {
     // Create page
     const page = await createPage({
       name,
-      slug,
+      slug: finalSlug,
       is_published,
       page_folder_id,
       order,

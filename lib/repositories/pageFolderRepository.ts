@@ -616,10 +616,41 @@ export async function duplicatePageFolder(folderId: string): Promise<PageFolder>
     throw new Error('Folder not found');
   }
 
-  // Generate new slug with timestamp to ensure uniqueness
-  const timestamp = Date.now();
-  const newSlug = `folder-${timestamp}`;
   const newName = `${originalFolder.name} (Copy)`;
+
+  // Generate base slug from the new name
+  const baseSlug = newName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  // Get all existing slugs in the same parent folder to find a unique one
+  let query = client
+    .from('page_folders')
+    .select('slug')
+    .is('deleted_at', null);
+
+  // Handle null parent folder properly
+  if (originalFolder.page_folder_id === null) {
+    query = query.is('page_folder_id', null);
+  } else {
+    query = query.eq('page_folder_id', originalFolder.page_folder_id);
+  }
+
+  const { data: existingFolders } = await query;
+
+  const existingSlugs = (existingFolders || []).map(f => f.slug.toLowerCase());
+
+  // Find unique slug
+  let newSlug = baseSlug;
+  if (existingSlugs.includes(baseSlug)) {
+    let counter = 2;
+    newSlug = `${baseSlug}-${counter}`;
+    while (existingSlugs.includes(newSlug)) {
+      counter++;
+      newSlug = `${baseSlug}-${counter}`;
+    }
+  }
 
   // Place the duplicate right after the original folder
   const newOrder = originalFolder.order + 1;

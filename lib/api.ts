@@ -269,6 +269,7 @@ export const editorApi = {
   async init(): Promise<ApiResponse<{
     pages: Page[];
     drafts: PageLayers[];
+    folders: PageFolder[];
     components: Component[];
     styles: LayerStyle[];
     settings: Setting[];

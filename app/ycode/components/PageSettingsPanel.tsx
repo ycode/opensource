@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import Icon from '@/components/ui/icon';
-import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage } from '@/lib/page-utils';
+import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug } from '@/lib/page-utils';
 
 interface PageSettingsPanelProps {
   isOpen: boolean;
@@ -70,11 +70,14 @@ export default function PageSettingsPanel({
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
 
+  // Check if current page is an error page
+  const isErrorPage = useMemo(() => page?.error_page !== null, [page]);
+
   // Initialize form when page changes
   useEffect(() => {
     if (page) {
       setName(page.name);
-      setSlug(page.slug);
+      setSlug(isErrorPage ? '' : page.slug);
       setPageFolderId(page.page_folder_id);
       setIsIndex(page.is_index);
     } else {
@@ -84,32 +87,37 @@ export default function PageSettingsPanel({
       setIsIndex(false);
     }
     setError(null);
-  }, [page]);
+  }, [page, isErrorPage]);
 
-  // Auto-generate slug from name for new pages (only if not index)
+  // Auto-generate slug from name for new pages (only if not index or error page)
   useEffect(() => {
-    if (!page && name && !isIndex) {
-      const autoSlug = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
-      setSlug(autoSlug);
+    if (!page && name && !isIndex && !isErrorPage) {
+      const uniqueSlug = generateUniqueSlug(name, pages, pageFolderId, false);
+      setSlug(uniqueSlug);
     }
-  }, [name, page, isIndex]);
+  }, [name, page, isIndex, isErrorPage, pageFolderId, pages]);
 
-  // When isIndex changes, update slug accordingly
+  // When isIndex or isErrorPage changes, update slug accordingly
   useEffect(() => {
-    if (isIndex) {
-      setSlug(''); // Index pages must have empty slug
-    } else if (page && !isIndex && !slug) {
-      // If switching from index to non-index and slug is empty, generate one
-      const autoSlug = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
-      setSlug(autoSlug);
+    if (isIndex || isErrorPage) {
+      setSlug(''); // Index pages and error pages must have empty slug
+    } else if (page && !slug && name) {
+      // If switching to non-index/non-error and slug is empty, generate one
+      const uniqueSlug = generateUniqueSlug(name, pages, pageFolderId, page.is_published, page.id);
+      setSlug(uniqueSlug);
     }
-  }, [isIndex, page, name, slug]);
+  }, [isIndex, isErrorPage, page, name, slug, pageFolderId, pages]);
+
+  // When folder changes for new pages, regenerate slug to avoid duplicates in new folder
+  useEffect(() => {
+    if (!page && name && slug && !isIndex && !isErrorPage) {
+      const uniqueSlug = generateUniqueSlug(name, pages, pageFolderId, false);
+      // Only update if it would be different (to avoid unnecessary re-renders)
+      if (uniqueSlug !== slug) {
+        setSlug(uniqueSlug);
+      }
+    }
+  }, [pageFolderId, pages, name, slug, isIndex, isErrorPage, page]);
 
   // Build hierarchical folder list for select dropdown
   const folderOptions = useMemo(() => {
@@ -146,6 +154,11 @@ export default function PageSettingsPanel({
 
   // Build the slug path preview based on current form values
   const slugPathPreview = useMemo(() => {
+    // Error pages don't have a path
+    if (isErrorPage) {
+      return '';
+    }
+
     // Create a temporary page object with current form values
     const tempPage: Partial<Page> = {
       slug: slug,
@@ -154,7 +167,7 @@ export default function PageSettingsPanel({
     };
 
     return buildSlugPath(tempPage as Page, folders, 'page');
-  }, [pageFolderId, slug, isIndex, folders]);
+  }, [pageFolderId, slug, isIndex, folders, isErrorPage]);
 
   const handleSave = async () => {
     // Validation
@@ -163,8 +176,17 @@ export default function PageSettingsPanel({
       return;
     }
 
-    // Index page rules
-    if (isIndex) {
+    // Error pages have different rules
+    if (isErrorPage) {
+      // Error pages must have empty slug and no parent folder
+      // These are enforced by the UI, but we validate here too
+      if (slug.trim()) {
+        setError('Error pages must have an empty slug');
+        return;
+      }
+      // Note: We allow saving even if parent folder is set, backend should handle this
+    } else if (isIndex) {
+      // Index page rules
       // Index pages must have empty slug
       if (slug.trim()) {
         setError('Index pages must have an empty slug');
@@ -219,7 +241,7 @@ export default function PageSettingsPanel({
     try {
       await onSave({
         name: name.trim(),
-        slug: slug.trim(),
+        slug: isErrorPage || isIndex ? '' : slug.trim(),
         page_folder_id: pageFolderId,
         is_index: isIndex,
         is_published: false,
@@ -303,9 +325,20 @@ export default function PageSettingsPanel({
                       <Input
                         type="text"
                         value={slug}
-                        disabled={isIndex}
-                        onChange={(e) => setSlug(e.target.value)}
-                        placeholder={isIndex ? 'Index pages do not have any slug' : 'Add a slug (you will see it in the URL)'}
+                        disabled={isIndex || isErrorPage}
+                        onChange={(e) => {
+                          // Prevent slug changes for error pages and index pages
+                          if (!isErrorPage && !isIndex) {
+                            setSlug(e.target.value);
+                          }
+                        }}
+                        placeholder={
+                          isErrorPage
+                            ? 'Error pages do not have a slug'
+                            : isIndex
+                              ? 'Index pages do not have a slug'
+                              : 'Add a slug (displayed in the URL)'
+                        }
                       />
                       <FieldDescription>
                           {slugPathPreview}
@@ -315,9 +348,14 @@ export default function PageSettingsPanel({
                     <Field>
                       <div className="flex items-center gap-3">
                         <FieldLabel>Parent folder</FieldLabel>
-                        {page && isHomepage(page) && (
+                        {page && isHomepage(page) && !isErrorPage && (
                           <FieldDescription className="text-xs text-muted-foreground">
                             Homepage cannot be moved
+                          </FieldDescription>
+                        )}
+                        {isErrorPage && (
+                          <FieldDescription className="text-xs text-muted-foreground">
+                            Error pages cannot be moved
                           </FieldDescription>
                         )}
                       </div>
@@ -325,7 +363,7 @@ export default function PageSettingsPanel({
                       <Select
                         value={pageFolderId || 'root'}
                         onValueChange={(value) => setPageFolderId(value === 'root' ? null : value)}
-                        disabled={page ? isHomepage(page) : false}
+                        disabled={page ? (isHomepage(page) || isErrorPage) : false}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="None" />
@@ -375,7 +413,7 @@ export default function PageSettingsPanel({
                           Restrict access to this page. Setting a password will override any password set on a parent folder. Passwords are case-sensitive.
                         </FieldDescription>
                       </FieldContent>
-                      <Switch id="passwordProtected" disabled />
+                      <Switch id="passwordProtected" disabled={isErrorPage || true} />
                     </Field>
 
                     <Field orientation="horizontal" className="flex !flex-row-reverse">
@@ -385,9 +423,11 @@ export default function PageSettingsPanel({
                         </FieldLabel>
                         <FieldDescription>
                           {
-                            isLastRootIndexPage
-                              ? 'The root folder must have an homepage. Please open the settings of another page at this level and set it as homepage to change this.'
-                              : `Set this page as the ${isOnRootFolder ? 'homepage of the website' : 'index (default) page for its parent folder'}. If another ${isOnRootFolder ? 'homepage' : 'index page'} exists, it will converted to a regular page with a slug.`
+                            isErrorPage
+                              ? 'Error pages cannot be set as index page.'
+                              : isLastRootIndexPage
+                                ? 'The root folder must have an homepage. Please open the settings of another page at this level and set it as homepage to change this.'
+                                : `Set this page as the ${isOnRootFolder ? 'homepage of the website' : 'index (default) page for its parent folder'}. If another ${isOnRootFolder ? 'homepage' : 'index page'} exists, it will converted to a regular page with a slug.`
                           }
                         </FieldDescription>
                       </FieldContent>
@@ -395,7 +435,7 @@ export default function PageSettingsPanel({
                       <Switch
                         id="homepage"
                         checked={isIndex}
-                        disabled={isLastRootIndexPage}
+                        disabled={isLastRootIndexPage || isErrorPage}
                         onCheckedChange={setIsIndex}
                       />
                     </Field>

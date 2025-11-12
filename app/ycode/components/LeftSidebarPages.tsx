@@ -9,6 +9,8 @@ import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
 import FolderSettingsPanel, { FolderFormData } from './FolderSettingsPanel';
 import { usePagesStore } from '@/stores/usePagesStore';
 import type { Page, PageFolder } from '@/types';
+import { Separator } from '@/components/ui/separator';
+import { generateUniqueSlug, generateUniqueFolderSlug, getNextNumberFromNames, getParentContextFromSelection, calculateNextOrder } from '@/lib/page-utils';
 
 interface LeftSidebarPagesProps {
   pages: Page[];
@@ -42,6 +44,15 @@ export default function LeftSidebarPages({
     if (!selectedItemId) return null;
     return folders.find((folder) => folder.id === selectedItemId) || null;
   }, [folders, selectedItemId]);
+
+  // Separate regular pages from error pages
+  const { regularPages, errorPages } = React.useMemo(() => {
+    const regular = pages.filter(page => page.error_page === null);
+    const errors = pages
+      .filter(page => page.error_page !== null)
+      .sort((a, b) => (a.error_page || 0) - (b.error_page || 0));
+    return { regularPages: regular, errorPages: errors };
+  }, [pages]);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -78,38 +89,18 @@ export default function LeftSidebarPages({
 
   // Handler to create a new page
   const handleAddPage = async () => {
-    // Generate a unique slug based on current timestamp
-    const timestamp = Date.now();
-    const newPageName = `Page ${pages.length + 1}`;
-    const newPageSlug = `page-${timestamp}`;
+    const { parentFolderId, newDepth } = getParentContextFromSelection(selectedItemId, pages, folders);
 
-    // Determine parent and depth based on selected item
-    let parentFolderId: string | null = null;
-    let newDepth = 0;
-
-    if (selectedItemId) {
-      // Check if selected item is a folder
-      const selectedFolder = folders.find(f => f.id === selectedItemId);
-      if (selectedFolder) {
-        // Add inside the folder
-        parentFolderId = selectedFolder.id;
-        newDepth = selectedFolder.depth + 1;
-      } else {
-        // Selected item is a page - add at the same level
-        const selectedPage = pages.find(p => p.id === selectedItemId);
-        if (selectedPage) {
-          parentFolderId = selectedPage.page_folder_id;
-          newDepth = selectedPage.depth;
-        }
-      }
-    }
+    // Get the next available page number in this folder context
+    const pagesInFolder = pages.filter(p => p.page_folder_id === parentFolderId);
+    const pageNumber = getNextNumberFromNames(pagesInFolder, 'Page');
+    const newPageName = `Page ${pageNumber}`;
 
     // Calculate order: find max order at the target level
-    const siblingPages = pages.filter(p => p.page_folder_id === parentFolderId && p.depth === newDepth);
-    const siblingFolders = folders.filter(f => f.page_folder_id === parentFolderId && f.depth === newDepth);
-    const maxPageOrder = siblingPages.length > 0 ? Math.max(...siblingPages.map(p => p.order || 0)) : -1;
-    const maxFolderOrder = siblingFolders.length > 0 ? Math.max(...siblingFolders.map(f => f.order || 0)) : -1;
-    const newOrder = Math.max(maxPageOrder, maxFolderOrder) + 1;
+    const newOrder = calculateNextOrder(parentFolderId, newDepth, pages, folders);
+
+    // Generate unique slug for the new page
+    const newPageSlug = generateUniqueSlug(newPageName, pages, parentFolderId, false);
 
     // Create page with optimistic update
     const createPromise = createPage({
@@ -146,38 +137,18 @@ export default function LeftSidebarPages({
 
   // Handler to create a new folder
   const handleAddFolder = async () => {
-    // Generate a unique slug based on current timestamp
-    const timestamp = Date.now();
-    const newFolderName = `Folder ${folders.length + 1}`;
-    const newFolderSlug = `folder-${timestamp}`;
+    const { parentFolderId, newDepth } = getParentContextFromSelection(selectedItemId, pages, folders);
 
-    // Determine parent and depth based on selected item
-    let parentFolderId: string | null = null;
-    let newDepth = 0;
-
-    if (selectedItemId) {
-      // Check if selected item is a folder
-      const selectedFolder = folders.find(f => f.id === selectedItemId);
-      if (selectedFolder) {
-        // Add inside the folder
-        parentFolderId = selectedFolder.id;
-        newDepth = selectedFolder.depth + 1;
-      } else {
-        // Selected item is a page - add at the same level
-        const selectedPage = pages.find(p => p.id === selectedItemId);
-        if (selectedPage) {
-          parentFolderId = selectedPage.page_folder_id;
-          newDepth = selectedPage.depth;
-        }
-      }
-    }
+    // Get the next available folder number in this parent folder context
+    const foldersInParent = folders.filter(f => f.page_folder_id === parentFolderId);
+    const folderNumber = getNextNumberFromNames(foldersInParent, 'Folder');
+    const newFolderName = `Folder ${folderNumber}`;
 
     // Calculate order: find max order at the target level
-    const siblingPages = pages.filter(p => p.page_folder_id === parentFolderId && p.depth === newDepth);
-    const siblingFolders = folders.filter(f => f.page_folder_id === parentFolderId && f.depth === newDepth);
-    const maxPageOrder = siblingPages.length > 0 ? Math.max(...siblingPages.map(p => p.order || 0)) : -1;
-    const maxFolderOrder = siblingFolders.length > 0 ? Math.max(...siblingFolders.map(f => f.order || 0)) : -1;
-    const newOrder = Math.max(maxPageOrder, maxFolderOrder) + 1;
+    const newOrder = calculateNextOrder(parentFolderId, newDepth, pages, folders);
+
+    // Generate unique slug for the new folder
+    const newFolderSlug = generateUniqueFolderSlug(newFolderName, folders, parentFolderId);
 
     // Create folder with optimistic update
     const createPromise = createFolder({
@@ -635,21 +606,19 @@ export default function LeftSidebarPages({
         </div>
       </header>
 
-      <div className="flex flex-col">
+      <div className="flex flex-col gap-3">
         <PagesTree
-          pages={pages}
+          pages={regularPages}
           folders={folders}
           selectedItemId={selectedItemId}
           currentPageId={currentPageId}
           onPageSelect={(pageId) => {
-            // Just select the page, don't navigate to it
             setSelectedItemId(pageId);
           }}
           onFolderSelect={(folderId) => {
             setSelectedItemId(folderId);
           }}
           onPageOpen={(pageId) => {
-            // Open/navigate to the page for editing
             onPageSelect(pageId);
             setCurrentPageId(pageId);
             setSelectedItemId(pageId);
@@ -660,6 +629,31 @@ export default function LeftSidebarPages({
           onDuplicate={handleDuplicate}
           onDelete={deletePageOrFolderItem}
         />
+
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-xs text-muted-foreground font-medium">Error pages</span>
+          <Separator className="flex-1" />
+        </div>
+
+        {/* Error pages tree */}
+        {errorPages.length > 0 && (
+          <PagesTree
+            pages={errorPages}
+            folders={[]}
+            selectedItemId={selectedItemId}
+            currentPageId={currentPageId}
+            onPageSelect={(pageId) => {
+              setSelectedItemId(pageId);
+            }}
+            onPageOpen={(pageId) => {
+              onPageSelect(pageId);
+              setCurrentPageId(pageId);
+              setSelectedItemId(pageId);
+            }}
+            onPageSettings={handleEditPage}
+            onFolderSettings={handleEditFolder}
+          />
+        )}
       </div>
 
       {/* Page settings panel */}

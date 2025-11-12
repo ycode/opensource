@@ -99,6 +99,19 @@ export default function HeaderBar({
     return buildSlugPath(currentPage, folders, 'page');
   }, [currentPage, folders]);
 
+  // Build preview URL (special handling for error pages)
+  const previewUrl = useMemo(() => {
+    if (!currentPage) return '';
+
+    // Error pages use special preview route
+    if (currentPage.error_page !== null) {
+      return `/ycode/preview/error-pages/${currentPage.error_page}`;
+    }
+
+    // Regular pages use their slug path
+    return `/ycode/preview${fullPagePath === '/' ? '' : fullPagePath}`;
+  }, [currentPage, fullPagePath]);
+
   // Apply theme to HTML element
   useEffect(() => {
     const root = document.documentElement;
@@ -243,8 +256,8 @@ export default function HeaderBar({
           size="sm"
           variant="secondary"
           onClick={() => {
-            if (currentPage) {
-              window.open(`/ycode/preview${fullPagePath === '/' ? '' : fullPagePath}`, '_blank');
+            if (currentPage && previewUrl) {
+              window.open(previewUrl, '_blank');
             }
           }}
           disabled={!currentPage || isSaving}
@@ -307,7 +320,6 @@ export default function HeaderBar({
             </div>
           </PopoverContent>
         </Popover>
-
       </div>
     </header>
   );

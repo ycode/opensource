@@ -52,7 +52,38 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    // Pass all updates directly to the repository
+    // Get current page to check its state
+    const currentPage = await getPageById(id);
+    if (!currentPage) {
+      return noCache(
+        { error: 'Page not found' },
+        404
+      );
+    }
+
+    // Determine if the page is/will be an error page or index page
+    const isErrorPage = body.error_page !== undefined
+      ? (body.error_page !== null)
+      : (currentPage.error_page !== null);
+
+    const isIndexPage = body.is_index !== undefined
+      ? body.is_index
+      : currentPage.is_index;
+
+    // Error pages and index pages must have empty slugs
+    if (isErrorPage || isIndexPage) {
+      if (body.slug !== undefined && body.slug.trim() !== '') {
+        const pageType = isErrorPage ? 'Error' : 'Index';
+        return noCache(
+          { error: `${pageType} pages must have an empty slug` },
+          400
+        );
+      }
+      // Force slug to empty
+      body.slug = '';
+    }
+
+    // Pass all updates to the repository (it will handle further validation)
     const page = await updatePage(id, body);
 
     return noCache({
