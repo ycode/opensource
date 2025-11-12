@@ -151,13 +151,6 @@ export default function YCodeBuilder() {
     };
   }, []);
 
-  // Force dark theme for login screen
-  useEffect(() => {
-    if (!user) {
-      document.documentElement.classList.add('dark');
-    }
-  }, [user]);
-
   // Login state (when not authenticated)
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');

@@ -56,11 +56,6 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
     }
   }, [onComplete]);
 
-  // Force dark theme for migration checker
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-  }, []);
-
   useEffect(() => {
     // Skip if already run (React Strict Mode protection)
     if (hasRunRef.current) {
