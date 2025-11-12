@@ -487,6 +487,18 @@ export default function PageSettingsPanel({
                       </div>
                     </Field>
 
+                    <Field orientation="horizontal" className="flex !flex-row-reverse">
+                      <FieldContent>
+                        <FieldLabel htmlFor="search">
+                          Exclude this page from site search results
+                        </FieldLabel>
+                      </FieldContent>
+
+                      <Switch
+                        id="search"
+                      />
+                    </Field>
+
                   </FieldGroup>
                 </FieldSet>
               </FieldGroup>
