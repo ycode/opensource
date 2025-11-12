@@ -41,6 +41,7 @@ import {
   SelectItem,
   SelectTrigger
 } from '@/components/ui/select';
+import { TiptapEditor } from '@/components/ui/tiptap-editor';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -50,6 +51,9 @@ const formSchema = z.object({
     message: 'Slug must be at least 2 characters.',
   }).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
     message: 'Slug must be lowercase letters, numbers, and hyphens only.',
+  }),
+  content: z.string().min(1, {
+    message: 'Content is required.',
   }),
 });
 
@@ -62,6 +66,7 @@ export default function CMS() {
     defaultValues: {
       name: '',
       slug: '',
+      content: '',
     },
   });
 
@@ -205,16 +210,37 @@ export default function CMS() {
                         </FormItem>
                       )}
                     />
+
+                    <FormField
+                      control={form.control}
+                      name="content"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Content</FormLabel>
+                          <FormControl>
+                            <TiptapEditor
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Write your content here..."
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
 
-                  {/*<DialogFooter>*/}
-                  {/*  <Button type="button" variant="secondary" onClick={() => setIsDialogOpen(false)}>*/}
-                  {/*    Cancel*/}
-                  {/*  </Button>*/}
-                  {/*  <Button type="submit">*/}
-                  {/*    Create*/}
-                  {/*  </Button>*/}
-                  {/*</DialogFooter>*/}
+                  <DialogFooter>
+                    <Button
+                      type="button" variant="secondary"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      Create
+                    </Button>
+                  </DialogFooter>
                 </form>
               </Form>
             </DialogContent>
