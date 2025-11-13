@@ -431,6 +431,26 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     setShowUnsavedDialog(false);
 
     if (pendingAction === 'close') {
+      // Reset to initial values before closing to ensure clean state on reopen
+      if (initialValuesRef.current) {
+        setName(initialValuesRef.current.name);
+        setSlug(initialValuesRef.current.slug);
+        setPageFolderId(initialValuesRef.current.pageFolderId);
+        setIsIndex(initialValuesRef.current.isIndex);
+        setSeoTitle(initialValuesRef.current.seoTitle);
+        setSeoDescription(initialValuesRef.current.seoDescription);
+        setSeoImageId(initialValuesRef.current.seoImageId);
+        setSeoNoindex(initialValuesRef.current.seoNoindex);
+        setPendingImageFile(null);
+
+        // Clean up preview URL
+        if (imagePreviewUrl) {
+          URL.revokeObjectURL(imagePreviewUrl);
+          setImagePreviewUrl(null);
+        }
+      }
+
+      rejectedPageRef.current = null;
       onClose();
     } else if (pendingAction === 'navigate' && pendingPageChange !== undefined) {
       // Discard changes and proceed to load the new page

@@ -261,6 +261,14 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
     setShowUnsavedDialog(false);
 
     if (pendingAction === 'close') {
+      // Reset to initial values before closing to ensure clean state on reopen
+      if (initialValuesRef.current) {
+        setName(initialValuesRef.current.name);
+        setSlug(initialValuesRef.current.slug);
+        setPageFolderId(initialValuesRef.current.pageFolderId);
+      }
+
+      rejectedFolderRef.current = null;
       onClose();
     } else if (pendingAction === 'navigate' && pendingFolderChange !== undefined) {
       // Discard changes and proceed to load the new folder
