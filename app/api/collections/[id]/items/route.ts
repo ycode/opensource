@@ -10,6 +10,8 @@ export const revalidate = 0;
 /**
  * GET /api/collections/[id]/items
  * Get all items with values for a collection
+ * Query params:
+ *  - search: string (optional) - Filter items by searching across all field values
  */
 export async function GET(
   request: NextRequest,
@@ -23,7 +25,13 @@ export async function GET(
       return noCache({ error: 'Invalid collection ID' }, 400);
     }
     
-    const items = await getItemsWithValues(collectionId);
+    // Extract search query parameter
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search') || undefined;
+    
+    // Pass search filter to repository
+    const filters = search ? { search } : undefined;
+    const items = await getItemsWithValues(collectionId, filters);
     
     return noCache({ data: items });
   } catch (error) {

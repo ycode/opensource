@@ -85,6 +85,7 @@ export default function CMS() {
     createField,
     updateCollectionSorting,
     reorderItems,
+    searchItems,
   } = useCollectionsStore();
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,27 +116,36 @@ export default function CMS() {
     if (selectedCollectionId) {
       loadFields(selectedCollectionId);
       loadItems(selectedCollectionId);
-      // Clear selections when switching collections
+      // Clear selections and search when switching collections
       setSelectedItemIds(new Set());
+      setSearchQuery('');
     }
   }, [selectedCollectionId, loadFields, loadItems]);
   
-  // Filter and sort items
-  const filteredItems = React.useMemo(() => {
-    // First, filter items based on search
-    let items = collectionItems.filter(item => {
-      if (!searchQuery) return true;
-      
-      const searchLower = searchQuery.toLowerCase();
-      return Object.values(item.values).some(value => 
-        String(value).toLowerCase().includes(searchLower)
-      );
-    });
+  // Debounced search - queries backend
+  useEffect(() => {
+    if (!selectedCollectionId) return;
     
-    // Then, apply sorting
+    const debounceTimer = setTimeout(() => {
+      if (searchQuery.trim()) {
+        searchItems(selectedCollectionId, searchQuery);
+      } else {
+        // If search is empty, reload all items
+        loadItems(selectedCollectionId);
+      }
+    }, 300); // 300ms debounce
+    
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery, selectedCollectionId, searchItems, loadItems]);
+  
+  // Sort items (search filtering now happens on backend)
+  const sortedItems = React.useMemo(() => {
+    const items = [...collectionItems];
+    
+    // Apply sorting
     const sorting = selectedCollection?.sorting;
     if (sorting) {
-      items = [...items].sort((a, b) => {
+      items.sort((a, b) => {
         if (sorting.direction === 'manual') {
           // Sort by manual_order
           return a.manual_order - b.manual_order;
@@ -160,11 +170,11 @@ export default function CMS() {
       });
     } else {
       // Default: sort by manual_order
-      items = [...items].sort((a, b) => a.manual_order - b.manual_order);
+      items.sort((a, b) => a.manual_order - b.manual_order);
     }
     
     return items;
-  }, [collectionItems, searchQuery, selectedCollection?.sorting]);
+  }, [collectionItems, selectedCollection?.sorting]);
   
   const handleCreateItem = () => {
     setEditingItem(null);
@@ -234,13 +244,13 @@ export default function CMS() {
     }
     
     // Find the indices of the dragged and target items
-    const oldIndex = filteredItems.findIndex(item => item.id === active.id);
-    const newIndex = filteredItems.findIndex(item => item.id === over.id);
+    const oldIndex = sortedItems.findIndex(item => item.id === active.id);
+    const newIndex = sortedItems.findIndex(item => item.id === over.id);
     
     if (oldIndex === -1 || newIndex === -1) return;
     
     // Reorder the items array
-    const reorderedItems = [...filteredItems];
+    const reorderedItems = [...sortedItems];
     const [movedItem] = reorderedItems.splice(oldIndex, 1);
     reorderedItems.splice(newIndex, 0, movedItem);
     
@@ -268,12 +278,12 @@ export default function CMS() {
   };
   
   const handleSelectAll = () => {
-    if (selectedItemIds.size === filteredItems.length) {
+    if (selectedItemIds.size === sortedItems.length) {
       // Deselect all
       setSelectedItemIds(new Set());
     } else {
       // Select all
-      setSelectedItemIds(new Set(filteredItems.map(item => item.id)));
+      setSelectedItemIds(new Set(sortedItems.map(item => item.id)));
     }
   };
   
@@ -517,7 +527,7 @@ export default function CMS() {
               onDragEnd={handleDragEnd}
             >
               <SortableContext
-                items={filteredItems.map(item => item.id)}
+                items={sortedItems.map(item => item.id)}
                 strategy={verticalListSortingStrategy}
               >
                 <table className="w-full">
@@ -526,7 +536,7 @@ export default function CMS() {
                       <th className="px-4 py-3 w-12">
                         <input
                           type="checkbox"
-                          checked={filteredItems.length > 0 && selectedItemIds.size === filteredItems.length}
+                          checked={sortedItems.length > 0 && selectedItemIds.size === sortedItems.length}
                           onChange={handleSelectAll}
                           className="w-4 h-4 cursor-pointer"
                         />
@@ -603,8 +613,8 @@ export default function CMS() {
                 </tr>
               </thead>
               <tbody>
-                    {filteredItems.length > 0 ? (
-                      filteredItems.map((item) => (
+                    {sortedItems.length > 0 ? (
+                      sortedItems.map((item) => (
                         <SortableRow
                           key={item.id}
                           item={item}

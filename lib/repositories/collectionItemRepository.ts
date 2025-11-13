@@ -12,6 +12,7 @@ import { generateRId } from '../collection-utils';
 
 export interface QueryFilters {
   deleted?: boolean;
+  search?: string;
 }
 
 export interface CreateCollectionItemData {
@@ -38,12 +39,45 @@ export async function getItemsByCollectionId(
     throw new Error('Supabase client not configured');
   }
   
+  // If search is provided, find matching item IDs from values table
+  let matchingItemIds: number[] | null = null;
+  if (filters?.search && filters.search.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    
+    // Query collection_item_values for matching values (draft only)
+    const { data: matchingValues, error: searchError } = await client
+      .from('collection_item_values')
+      .select('item_id')
+      .ilike('value', searchTerm)
+      .eq('is_published', false)
+      .is('deleted_at', null);
+    
+    if (searchError) {
+      throw new Error(`Failed to search items: ${searchError.message}`);
+    }
+    
+    if (matchingValues) {
+      // Get unique item IDs
+      matchingItemIds = [...new Set(matchingValues.map(v => v.item_id))];
+      
+      // If no matches found, return empty array early
+      if (matchingItemIds.length === 0) {
+        return [];
+      }
+    }
+  }
+  
   let query = client
     .from('collection_items')
     .select('*')
     .eq('collection_id', collection_id)
     .order('manual_order', { ascending: true })
     .order('created_at', { ascending: false });
+  
+  // Apply search filter if we found matching items
+  if (matchingItemIds !== null) {
+    query = query.in('id', matchingItemIds);
+  }
   
   // Apply filters - only filter deleted_at when explicitly specified
   if (filters && 'deleted' in filters) {
