@@ -6,21 +6,35 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
+import { TiptapEditor } from '@/components/ui/tiptap-editor';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { collectionsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
-import CollectionItemDialog from './CollectionItemDialog';
 import AddFieldDialog from './AddFieldDialog';
 import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
@@ -44,14 +58,14 @@ function SortableRow({ item, isManualMode, children, onDuplicate, onDelete }: So
     transition,
     isDragging,
   } = useSortable({ id: item.id, disabled: !isManualMode });
-  
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
     cursor: isManualMode ? 'grab' : 'pointer',
   };
-  
+
   return (
     <CollectionItemContextMenu
       onDuplicate={onDuplicate}
@@ -71,11 +85,11 @@ function SortableRow({ item, isManualMode, children, onDuplicate, onDelete }: So
 }
 
 export default function CMS() {
-  const { 
-    selectedCollectionId, 
-    collections, 
-    fields, 
-    items, 
+  const {
+    selectedCollectionId,
+    collections,
+    fields,
+    items,
     itemsTotalCount,
     isLoading,
     loadFields,
@@ -89,22 +103,27 @@ export default function CMS() {
     reorderItems,
     searchItems,
   } = useCollectionsStore();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [fieldSearchQuery, setFieldSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [showItemDialog, setShowItemDialog] = useState(false);
+  const [showItemSheet, setShowItemSheet] = useState(false);
   const [showAddFieldDialog, setShowAddFieldDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
   const [editingField, setEditingField] = useState<CollectionField | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
-  
+
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = selectedCollectionId ? (fields[selectedCollectionId] || []) : [];
   const collectionItems = selectedCollectionId ? (items[selectedCollectionId] || []) : [];
   const totalItems = selectedCollectionId ? (itemsTotalCount[selectedCollectionId] || 0) : 0;
-  
+
+  // Form for Sheet
+  const form = useForm({
+    defaultValues: {} as Record<string, any>,
+  });
+
   // Drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -113,10 +132,10 @@ export default function CMS() {
       },
     })
   );
-  
+
   // Check if we're in manual sort mode
   const isManualMode = selectedCollection?.sorting?.direction === 'manual';
-  
+
   // Load fields and items when collection changes
   useEffect(() => {
     if (selectedCollectionId) {
@@ -129,22 +148,22 @@ export default function CMS() {
       setCurrentPage(1); // Reset to page 1
     }
   }, [selectedCollectionId, loadFields, loadItems, pageSize]);
-  
+
   // Debounced field search - queries backend
   useEffect(() => {
     if (!selectedCollectionId) return;
-    
+
     const debounceTimer = setTimeout(() => {
       loadFields(selectedCollectionId, fieldSearchQuery || undefined);
     }, 300); // 300ms debounce
-    
+
     return () => clearTimeout(debounceTimer);
   }, [fieldSearchQuery, selectedCollectionId, loadFields]);
-  
+
   // Debounced search - queries backend with pagination
   useEffect(() => {
     if (!selectedCollectionId) return;
-    
+
     const debounceTimer = setTimeout(() => {
       if (searchQuery.trim()) {
         searchItems(selectedCollectionId, searchQuery, currentPage, pageSize);
@@ -153,29 +172,45 @@ export default function CMS() {
         loadItems(selectedCollectionId, currentPage, pageSize);
       }
     }, 300); // 300ms debounce
-    
+
     return () => clearTimeout(debounceTimer);
   }, [searchQuery, selectedCollectionId, currentPage, pageSize, searchItems, loadItems]);
-  
+
   // Reset to page 1 when search query changes
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
-  
+
   // Reset to page 1 when sorting changes
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedCollection?.sorting]);
-  
+
   // Reset to page 1 when page size changes
   useEffect(() => {
     setCurrentPage(1);
   }, [pageSize]);
-  
+
+  // Update form when editing item or collection fields change
+  useEffect(() => {
+    if (editingItem) {
+      form.reset(editingItem.values);
+    } else {
+      // Reset with default values from fields
+      const defaults: Record<string, any> = {};
+      collectionFields.forEach(field => {
+        if (field.default) {
+          defaults[field.field_name] = field.default;
+        }
+      });
+      form.reset(defaults);
+    }
+  }, [editingItem, collectionFields, form]);
+
   // Sort items (search filtering now happens on backend)
   const sortedItems = React.useMemo(() => {
     const items = [...collectionItems];
-    
+
     // Apply sorting
     const sorting = selectedCollection?.sorting;
     if (sorting) {
@@ -184,20 +219,20 @@ export default function CMS() {
           // Sort by manual_order
           return a.manual_order - b.manual_order;
         }
-        
+
         // Sort by field value
         const aValue = a.values[sorting.field] || '';
         const bValue = b.values[sorting.field] || '';
-        
+
         // Try to parse as numbers if possible
         const aNum = parseFloat(String(aValue));
         const bNum = parseFloat(String(bValue));
-        
+
         if (!isNaN(aNum) && !isNaN(bNum)) {
           // Numeric comparison
           return sorting.direction === 'asc' ? aNum - bNum : bNum - aNum;
         }
-        
+
         // String comparison
         const comparison = String(aValue).localeCompare(String(bValue));
         return sorting.direction === 'asc' ? comparison : -comparison;
@@ -206,23 +241,23 @@ export default function CMS() {
       // Default: sort by manual_order
       items.sort((a, b) => a.manual_order - b.manual_order);
     }
-    
+
     return items;
   }, [collectionItems, selectedCollection?.sorting]);
-  
+
   const handleCreateItem = () => {
     setEditingItem(null);
-    setShowItemDialog(true);
+    setShowItemSheet(true);
   };
-  
+
   const handleEditItem = (item: CollectionItemWithValues) => {
     setEditingItem(item);
-    setShowItemDialog(true);
+    setShowItemSheet(true);
   };
-  
+
   const handleDeleteItem = async (itemId: number) => {
     if (!selectedCollectionId) return;
-    
+
     if (confirm('Are you sure you want to delete this item?')) {
       try {
         await deleteItem(selectedCollectionId, itemId);
@@ -234,7 +269,7 @@ export default function CMS() {
 
   const handleDuplicateItem = async (itemId: number) => {
     if (!selectedCollectionId) return;
-    
+
     try {
       await duplicateItem(selectedCollectionId, itemId);
     } catch (error) {
@@ -244,10 +279,10 @@ export default function CMS() {
 
   const handleColumnClick = async (fieldName: string) => {
     if (!selectedCollectionId || !selectedCollection) return;
-    
+
     const currentSorting = selectedCollection.sorting;
     let newSorting;
-    
+
     // Cycle through: manual → asc → desc → manual
     if (!currentSorting || currentSorting.field !== fieldName) {
       // First click on this field - set to manual mode
@@ -262,7 +297,7 @@ export default function CMS() {
       // Fourth click - back to manual mode
       newSorting = { field: fieldName, direction: 'manual' as const };
     }
-    
+
     try {
       await updateCollectionSorting(selectedCollectionId, newSorting);
     } catch (error) {
@@ -272,28 +307,28 @@ export default function CMS() {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    
+
     if (!over || active.id === over.id || !selectedCollectionId) {
       return;
     }
-    
+
     // Find the indices of the dragged and target items
     const oldIndex = sortedItems.findIndex(item => item.id === active.id);
     const newIndex = sortedItems.findIndex(item => item.id === over.id);
-    
+
     if (oldIndex === -1 || newIndex === -1) return;
-    
+
     // Reorder the items array
     const reorderedItems = [...sortedItems];
     const [movedItem] = reorderedItems.splice(oldIndex, 1);
     reorderedItems.splice(newIndex, 0, movedItem);
-    
+
     // Calculate new manual_order values for all affected items
     const updates = reorderedItems.map((item, index) => ({
       id: item.id,
       manual_order: index,
     }));
-    
+
     try {
       await reorderItems(selectedCollectionId, updates);
       // Reset to page 1 after reordering to show the new order
@@ -302,7 +337,7 @@ export default function CMS() {
       console.error('Failed to reorder items:', error);
     }
   };
-  
+
   const handleToggleItemSelection = (itemId: number) => {
     const newSelected = new Set(selectedItemIds);
     if (newSelected.has(itemId)) {
@@ -312,7 +347,7 @@ export default function CMS() {
     }
     setSelectedItemIds(newSelected);
   };
-  
+
   const handleSelectAll = () => {
     if (selectedItemIds.size === sortedItems.length) {
       // Deselect all
@@ -322,28 +357,28 @@ export default function CMS() {
       setSelectedItemIds(new Set(sortedItems.map(item => item.id)));
     }
   };
-  
+
   const handleDeleteSelected = async () => {
     if (!selectedCollectionId || selectedItemIds.size === 0) return;
-    
+
     const count = selectedItemIds.size;
     const itemText = count === 1 ? 'item' : 'items';
-    
+
     if (confirm(`Are you sure you want to delete ${count} ${itemText}?`)) {
       try {
         // Use bulk delete API
         const response = await collectionsApi.bulkDeleteItems(Array.from(selectedItemIds));
-        
+
         if (response.error) {
           throw new Error(response.error);
         }
-        
+
         // Reload items to reflect deletion
         await loadItems(selectedCollectionId);
-        
+
         // Clear selections after successful delete
         setSelectedItemIds(new Set());
-        
+
         // Show success message if there were any errors
         if (response.data?.errors && response.data.errors.length > 0) {
           console.warn('Some items failed to delete:', response.data.errors);
@@ -355,21 +390,21 @@ export default function CMS() {
       }
     }
   };
-  
+
   const handleEditField = (field: CollectionField) => {
     setEditingField(field);
     setShowAddFieldDialog(true);
   };
-  
+
   const handleDeleteField = async (fieldId: number) => {
     if (!selectedCollectionId) return;
-    
+
     const field = collectionFields.find(f => f.id === fieldId);
     if (field?.built_in) {
       alert('Cannot delete built-in fields');
       return;
     }
-    
+
     if (confirm('Are you sure you want to delete this field? This will remove it from all items.')) {
       try {
         await deleteField(selectedCollectionId, fieldId);
@@ -378,13 +413,13 @@ export default function CMS() {
       }
     }
   };
-  
+
   const handleHideField = async (fieldId: number) => {
     if (!selectedCollectionId) return;
-    
+
     const field = collectionFields.find(f => f.id === fieldId);
     if (!field) return;
-    
+
     try {
       await updateField(selectedCollectionId, fieldId, {
         hidden: !field.hidden,
@@ -395,13 +430,13 @@ export default function CMS() {
       console.error('Failed to toggle field visibility:', error);
     }
   };
-  
+
   const handleDuplicateField = async (fieldId: number) => {
     if (!selectedCollectionId) return;
-    
+
     const field = collectionFields.find(f => f.id === fieldId);
     if (!field) return;
-    
+
     try {
       const newOrder = collectionFields.length;
       await createField(selectedCollectionId, {
@@ -421,13 +456,13 @@ export default function CMS() {
       console.error('Failed to duplicate field:', error);
     }
   };
-  
+
   const handleToggleFieldVisibility = async (fieldId: number) => {
     if (!selectedCollectionId) return;
-    
+
     const field = collectionFields.find(f => f.id === fieldId);
     if (!field) return;
-    
+
     try {
       await updateField(selectedCollectionId, fieldId, {
         hidden: !field.hidden,
@@ -438,10 +473,10 @@ export default function CMS() {
       console.error('Failed to toggle field visibility:', error);
     }
   };
-  
+
   const handleReorderFields = async (reorderedFields: CollectionField[]) => {
     if (!selectedCollectionId) return;
-    
+
     try {
       const fieldIds = reorderedFields.map(f => f.id);
       await collectionsApi.reorderFields(selectedCollectionId, fieldIds);
@@ -451,14 +486,32 @@ export default function CMS() {
       console.error('Failed to reorder fields:', error);
     }
   };
-  
-  
-  const handleDialogSuccess = () => {
-    if (selectedCollectionId) {
-      loadItems(selectedCollectionId);
+
+  const handleSheetSubmit = async (values: Record<string, any>) => {
+    if (!selectedCollectionId) return;
+
+    try {
+      if (editingItem) {
+        // Update existing item
+        await collectionsApi.updateItem(selectedCollectionId, editingItem.id, values);
+      } else {
+        // Create new item
+        await collectionsApi.createItem(selectedCollectionId, values);
+      }
+
+      // Reload items
+      await loadItems(selectedCollectionId, currentPage, pageSize);
+
+      // Close sheet and reset
+      setShowItemSheet(false);
+      setEditingItem(null);
+      form.reset();
+    } catch (error) {
+      console.error('Failed to save item:', error);
+      alert('Failed to save item. Please try again.');
     }
   };
-  
+
   // No collection selected
   if (!selectedCollectionId) {
     return (
@@ -472,7 +525,7 @@ export default function CMS() {
       </div>
     );
   }
-  
+
   // Loading
   if (isLoading) {
     return (
@@ -481,25 +534,25 @@ export default function CMS() {
       </div>
     );
   }
-  
+
   return (
     <div className="flex-1 bg-background flex flex-col">
       {/* Header */}
       <div className="p-4 flex items-center justify-between border-b">
         <div className="flex items-center gap-4 flex-1">
           <div className="max-w-md flex-1">
-            <Input 
-              placeholder="Search items..." 
+            <Input
+              placeholder="Search items..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               size="sm"
             />
           </div>
         </div>
-        
+
         <div className="flex gap-2">
           {selectedItemIds.size > 0 && (
-            <Button 
+            <Button
               size="sm"
               variant="destructive"
               onClick={handleDeleteSelected}
@@ -508,7 +561,7 @@ export default function CMS() {
               Delete ({selectedItemIds.size})
             </Button>
           )}
-          <Button 
+          <Button
             size="sm"
             variant="secondary"
             onClick={() => {
@@ -526,8 +579,8 @@ export default function CMS() {
             onToggleVisibility={handleToggleFieldVisibility}
             onReorder={handleReorderFields}
           />
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             onClick={handleCreateItem}
             disabled={collectionFields.length === 0}
           >
@@ -587,7 +640,7 @@ export default function CMS() {
                             sorting.direction === 'asc' ? '↑' :
                               '↓'
                         ) : null;
-                        
+
                         return (
                           <th key={field.id} className="px-4 py-3 text-left font-medium text-sm">
                             <div className="flex items-center gap-2">
@@ -603,54 +656,55 @@ export default function CMS() {
                                 )}
                               </button>
                               <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              size="xs" variant="ghost"
-                              className="h-auto p-0 hover:bg-transparent"
-                            >
-                              <span className="text-muted-foreground">...</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start">
-                            <DropdownMenuItem 
-                              onClick={() => handleEditField(field)}
-                              disabled={field.built_in}
-                            >
-                              <Icon name="pencil" className="mr-2 h-3 w-3" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleDuplicateField(field.id)}
-                              disabled={field.built_in}
-                            >
-                              <Icon name="copy" className="mr-2 h-3 w-3" />
-                              Duplicate
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleHideField(field.id)}
-                              disabled={field.field_name === 'name'}
-                            >
-                              <Icon name={field.hidden ? 'eye' : 'eye-off'} className="mr-2 h-3 w-3" />
-                              {field.hidden ? 'Show' : 'Hide'}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              onClick={() => handleDeleteField(field.id)}
-                              disabled={field.built_in}
-                              className="text-destructive"
-                            >
-                              <Icon name="trash" className="mr-2 h-3 w-3" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </th>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    size="xs"
+                                    variant="ghost"
+                                    className="h-auto p-0 hover:bg-transparent"
+                                  >
+                                    <span className="text-muted-foreground">...</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start">
+                                  <DropdownMenuItem
+                                    onClick={() => handleEditField(field)}
+                                    disabled={field.built_in}
+                                  >
+                                    <Icon name="pencil" className="mr-2 h-3 w-3" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleDuplicateField(field.id)}
+                                    disabled={field.built_in}
+                                  >
+                                    <Icon name="copy" className="mr-2 h-3 w-3" />
+                                    Duplicate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleHideField(field.id)}
+                                    disabled={field.field_name === 'name'}
+                                  >
+                                    <Icon name={field.hidden ? 'eye' : 'eye-off'} className="mr-2 h-3 w-3" />
+                                    {field.hidden ? 'Show' : 'Hide'}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => handleDeleteField(field.id)}
+                                    disabled={field.built_in}
+                                    className="text-destructive"
+                                  >
+                                    <Icon name="trash" className="mr-2 h-3 w-3" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </th>
                         );
                       })}
-                </tr>
-              </thead>
-              <tbody>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {sortedItems.length > 0 ? (
                       sortedItems.map((item) => (
                         <SortableRow
@@ -661,7 +715,8 @@ export default function CMS() {
                           onDelete={() => handleDeleteItem(item.id)}
                         >
                           <td
-                            className="px-4 py-3 w-12" onClick={(e) => {
+                            className="px-4 py-3 w-12"
+                            onClick={(e) => {
                               e.stopPropagation();
                               if (!isManualMode) {
                                 handleEditItem(item);
@@ -678,22 +733,24 @@ export default function CMS() {
                           </td>
                           {collectionFields.filter(f => !f.hidden).map((field) => {
                             const value = item.values[field.field_name];
-                            
+
                             // Format date fields
                             if (field.type === 'date' && value) {
                               return (
                                 <td
-                                  key={field.id} className="px-4 py-3"
+                                  key={field.id}
+                                  className="px-4 py-3"
                                   onClick={() => !isManualMode && handleEditItem(item)}
                                 >
                                   {formatDate(value, 'MMM D YYYY, HH:mm')}
                                 </td>
                               );
                             }
-                            
+
                             return (
                               <td
-                                key={field.id} className="px-4 py-3"
+                                key={field.id}
+                                className="px-4 py-3"
                                 onClick={() => !isManualMode && handleEditItem(item)}
                               >
                                 {value || '-'}
@@ -703,28 +760,28 @@ export default function CMS() {
                         </SortableRow>
                       ))
                     ) : (
-                  <tr>
-                    <td colSpan={collectionFields.filter(f => !f.hidden).length + 1} className="px-4 py-8 text-center">
-                      {searchQuery && collectionItems.length > 0 ? (
-                        <div className="text-muted-foreground">
-                          No items found matching &quot;{searchQuery}&quot;
-                        </div>
-                      ) : (
-                        <Empty>
-                          <EmptyTitle>No Items Yet</EmptyTitle>
-                          <EmptyDescription>
-                            Click &quot;Add Item&quot; to create your first {selectedCollection?.name.toLowerCase()} item
-                          </EmptyDescription>
-                        </Empty>
-                      )}
-                    </td>
-                  </tr>
+                      <tr>
+                        <td colSpan={collectionFields.filter(f => !f.hidden).length + 1} className="px-4 py-8 text-center">
+                          {searchQuery && collectionItems.length > 0 ? (
+                            <div className="text-muted-foreground">
+                              No items found matching &quot;{searchQuery}&quot;
+                            </div>
+                          ) : (
+                            <Empty>
+                              <EmptyTitle>No Items Yet</EmptyTitle>
+                              <EmptyDescription>
+                                Click &quot;Add Item&quot; to create your first {selectedCollection?.name.toLowerCase()} item
+                              </EmptyDescription>
+                            </Empty>
+                          )}
+                        </td>
+                      </tr>
                     )}
-              </tbody>
-            </table>
+                  </tbody>
+                </table>
               </SortableContext>
             </DndContext>
-            
+
             {/* Pagination Controls */}
             {selectedCollectionId && sortedItems.length > 0 && (
               <div className="flex items-center justify-between px-4 py-4 border-t">
@@ -732,7 +789,7 @@ export default function CMS() {
                   <p className="text-sm text-muted-foreground">
                     Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
                   </p>
-                  
+
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Show:</span>
                     <Select
@@ -751,7 +808,7 @@ export default function CMS() {
                     </Select>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
@@ -775,7 +832,7 @@ export default function CMS() {
           </>
         )}
       </div>
-      
+
       {/* Add Field Dialog */}
       {selectedCollectionId && (
         <AddFieldDialog
@@ -793,20 +850,70 @@ export default function CMS() {
           }}
         />
       )}
-      
-      {/* Item Dialog */}
-      {selectedCollectionId && (
-        <CollectionItemDialog
-          isOpen={showItemDialog}
-          onClose={() => {
-            setShowItemDialog(false);
-            setEditingItem(null);
-          }}
-          collectionId={selectedCollectionId}
-          item={editingItem}
-          onSuccess={handleDialogSuccess}
-        />
-      )}
+
+      {/* Item Sheet */}
+      <Sheet open={showItemSheet} onOpenChange={setShowItemSheet}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>
+              {editingItem ? 'Edit' : 'Create'} {selectedCollection?.name} Item
+            </SheetTitle>
+          </SheetHeader>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSheetSubmit)} className="flex flex-col gap-4 flex-1 mt-6">
+              <div className="flex-1 flex flex-col gap-6">
+                {collectionFields
+                  .filter(f => f.fillable && !f.hidden)
+                  .map((field) => (
+                    <FormField
+                      key={field.id}
+                      control={form.control}
+                      name={field.field_name}
+                      render={({ field: formField }) => (
+                        <FormItem>
+                          <FormLabel>{field.name}</FormLabel>
+                          <FormControl>
+                            {field.type === 'rich_text' ? (
+                              <TiptapEditor
+                                value={formField.value || ''}
+                                onChange={formField.onChange}
+                                placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
+                              />
+                            ) : (
+                              <Input
+                                placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
+                                {...formField}
+                              />
+                            )}
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+              </div>
+
+              <div className="flex gap-2 justify-end pt-4 border-t">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setShowItemSheet(false);
+                    setEditingItem(null);
+                    form.reset();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {editingItem ? 'Update' : 'Create'}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

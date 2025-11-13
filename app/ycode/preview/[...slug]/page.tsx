@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { fetchPageByPath } from '@/lib/page-fetcher';
+import { fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 
@@ -18,7 +18,25 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   // Fetch draft page and layers data (no caching)
   const data = await fetchPageByPath(slugPath, false);
 
+  // If page not found, try to show custom 404 error page
   if (!data) {
+    const errorPageData = await fetchErrorPage(404, false);
+
+    if (errorPageData) {
+      const { page, pageLayers, components } = errorPageData;
+      const draftCSS = await getSettingByKey('draft_css');
+
+      return (
+        <PageRenderer
+          page={page}
+          layers={pageLayers.layers || []}
+          components={components}
+          generatedCss={draftCSS}
+        />
+      );
+    }
+
+    // No custom 404 page, use default Next.js 404
     notFound();
   }
 

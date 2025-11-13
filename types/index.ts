@@ -384,7 +384,7 @@ export interface AuthState {
 }
 
 // Collection Types (EAV Architecture)
-export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference';
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
 export type CollectionStatus = 'draft' | 'published';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 

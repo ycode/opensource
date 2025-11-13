@@ -3,7 +3,7 @@ import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
-import { fetchPageByPath } from '@/lib/page-fetcher';
+import { fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import type { Page, PageFolder } from '@/types';
@@ -90,7 +90,25 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   // Fetch page and layers data
   const data = await fetchPublishedPageWithLayers(slugPath);
 
+  // If page not found, try to show custom 404 error page
   if (!data) {
+    const errorPageData = await fetchErrorPage(404, true);
+
+    if (errorPageData) {
+      const { page, pageLayers, components } = errorPageData;
+      const publishedCSS = await getSettingByKey('published_css');
+
+      return (
+        <PageRenderer
+          page={page}
+          layers={pageLayers.layers || []}
+          components={components}
+          generatedCss={publishedCSS}
+        />
+      );
+    }
+
+    // No custom 404 page, use default Next.js 404
     notFound();
   }
 

@@ -34,6 +34,7 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
 
       if (!response.ok) {
         console.error('Migration request failed');
+        console.error(await response.json());
         onComplete(); // Allow builder to load anyway
         return;
       }
@@ -54,11 +55,6 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
       setIsChecking(false);
     }
   }, [onComplete]);
-
-  // Force dark theme for migration checker
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-  }, []);
 
   useEffect(() => {
     // Skip if already run (React Strict Mode protection)

@@ -85,12 +85,21 @@ function PageRow({
   onDuplicate,
   onRename,
 }: PageRowProps) {
+  // Check if this is an error page or the virtual error pages folder
+  const isErrorPage = node.type === 'page' && (node.data as Page).error_page !== null;
+  const isVirtualErrorFolder = node.id === 'virtual-error-pages-folder';
+  const isDragDropDisabled = isErrorPage || isVirtualErrorFolder;
+
+  // Error pages and virtual error folder cannot be dropped on
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
+    disabled: isDragDropDisabled,
   });
 
+  // Error pages and virtual error folder cannot be dragged
   const { attributes, listeners, setNodeRef: setDragRef } = useDraggable({
     id: node.id,
+    disabled: isDragDropDisabled,
   });
 
   // Combine refs for drag and drop
@@ -161,7 +170,7 @@ function PageRow({
       <div
         ref={setRefs}
         {...attributes}
-        {...listeners}
+        {...(!isDragDropDisabled && listeners)}
         data-drag-active={isDragActive}
         data-node-id={node.id}
         className={cn(

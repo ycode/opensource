@@ -32,12 +32,15 @@ export async function up(knex: Knex): Promise<void> {
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_is_published ON pages(is_published) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_publish_key ON pages(publish_key) WHERE deleted_at IS NULL');
 
-  // Partial unique constraint: only apply to non-deleted records (soft delete compatibility)
-  // Includes page_folder_id to allow multiple folders to have their own index pages with empty slugs
-  // Uses COALESCE to handle NULL page_folder_id (root folder) because NULL != NULL in SQL
+  // Uses COALESCE to handle NULL values because NULL != NULL in SQL
   await knex.schema.raw(`
     CREATE UNIQUE INDEX pages_slug_is_published_folder_unique
-    ON pages(slug, is_published, COALESCE(page_folder_id, '00000000-0000-0000-0000-000000000000'::uuid))
+    ON pages(
+      slug,
+      is_published,
+      COALESCE(page_folder_id, '00000000-0000-0000-0000-000000000000'::uuid),
+      COALESCE(error_page, 0)
+    )
     WHERE deleted_at IS NULL
   `);
 

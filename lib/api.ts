@@ -330,7 +330,7 @@ export const collectionsApi = {
   async createField(collectionId: number, data: {
     name: string;
     field_name: string;
-    type: 'text' | 'number' | 'boolean' | 'date' | 'reference';
+    type: 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
     default?: string | null;
     fillable?: boolean;
     built_in?: boolean;
@@ -508,6 +508,7 @@ export const editorApi = {
   async init(): Promise<ApiResponse<{
     pages: Page[];
     drafts: PageLayers[];
+    folders: PageFolder[];
     components: Component[];
     styles: LayerStyle[];
     settings: Setting[];

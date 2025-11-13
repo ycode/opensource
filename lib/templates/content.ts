@@ -29,13 +29,13 @@ export const contentTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   p: {
     icon: 'text',
     name: 'Paragraph',
     template: {
       name: 'p',
-      classes: ['text-[1rem]', 'text-[#374151]'],
+      classes: ['text-[1rem]', 'text-[#111827]'],
       text: 'This is a paragraph. Edit this text to customize it.',
       children: [], // Can contain inline elements
       formattable: true,
@@ -43,30 +43,51 @@ export const contentTemplates: Record<string, BlockTemplate> = {
         typography: {
           isActive: true,
           fontSize: '1rem',
-          color: '#374151'
+          color: '#111827'
         }
       }
     }
   },
-  
+
   span: {
     icon: 'text',
     name: 'Text',
     template: {
       name: 'span',
-      classes: ['text-[1rem]'],
+      classes: ['text-[1rem]', 'text-[#111827]'],
       text: 'Text',
       children: [], // Can contain inline elements
       formattable: true,
       design: {
         typography: {
           isActive: true,
-          fontSize: '1rem'
+          fontSize: '1rem',
+          color: '#111827'
         }
       }
     }
   },
-  
+
+  // Legacy 'text' type (maps to span)
+  text: {
+    icon: 'text',
+    name: 'Text',
+    template: {
+      name: 'span',
+      classes: ['text-[1rem]', 'text-[#111827]'],
+      text: 'Text',
+      children: [], // Can contain inline elements
+      formattable: true,
+      design: {
+        typography: {
+          isActive: true,
+          fontSize: '1rem',
+          color: '#111827'
+        }
+      }
+    }
+  },
+
   richtext: {
     icon: 'text',
     name: 'Rich Text',

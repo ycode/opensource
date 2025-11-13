@@ -37,7 +37,7 @@ interface CollectionsActions {
   createField: (collectionId: number, data: {
     name: string;
     field_name: string;
-    type: 'text' | 'number' | 'boolean' | 'date' | 'reference';
+    type: 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
     default?: string | null;
     order?: number;
     reference_collection_id?: number | null;

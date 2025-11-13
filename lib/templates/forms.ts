@@ -29,7 +29,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   input: {
     icon: 'block',
     name: 'Input',
@@ -61,7 +61,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   textarea: {
     icon: 'block',
     name: 'Textarea',
@@ -93,7 +93,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   select: {
     icon: 'block',
     name: 'Select',
@@ -133,7 +133,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   checkbox: {
     icon: 'block',
     name: 'Checkbox',
@@ -156,7 +156,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
           attributes: {
             for: 'checkbox'
           },
-          classes: ['text-[0.875rem]', 'text-[#374151]']
+          classes: ['text-[0.875rem]', 'text-[#111827]']
         }
       ] as any[],
       design: {
@@ -169,7 +169,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   radio: {
     icon: 'block',
     name: 'Radio',
@@ -193,7 +193,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
           attributes: {
             for: 'radio'
           },
-          classes: ['text-[0.875rem]', 'text-[#374151]']
+          classes: ['text-[0.875rem]', 'text-[#111827]']
         }
       ] as any[],
       design: {
@@ -206,13 +206,13 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   label: {
     icon: 'block',
     name: 'Label',
     template: {
       name: 'label',
-      classes: ['block', 'text-[0.875rem]', 'font-[500]', 'text-[#374151]', 'mb-[0.25rem]'],
+      classes: ['block', 'text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'mb-[0.25rem]'],
       text: 'Label',
       children: [], // Labels can wrap inputs
       design: {
@@ -220,12 +220,12 @@ export const formTemplates: Record<string, BlockTemplate> = {
           isActive: true,
           fontSize: '0.875rem',
           fontWeight: '500',
-          color: '#374151'
+          color: '#111827'
         }
       }
     }
   },
-  
+
   submit: {
     icon: 'block',
     name: 'Submit',

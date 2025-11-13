@@ -107,6 +107,19 @@ export default function HeaderBar({
     return buildSlugPath(currentPage, folders, 'page');
   }, [currentPage, folders]);
 
+  // Build preview URL (special handling for error pages)
+  const previewUrl = useMemo(() => {
+    if (!currentPage) return '';
+
+    // Error pages use special preview route
+    if (currentPage.error_page !== null) {
+      return `/ycode/preview/error-pages/${currentPage.error_page}`;
+    }
+
+    // Regular pages use their slug path
+    return `/ycode/preview${fullPagePath === '/' ? '' : fullPagePath}`;
+  }, [currentPage, fullPagePath]);
+
   // Apply theme to HTML element
   useEffect(() => {
     const root = document.documentElement;
@@ -142,7 +155,7 @@ export default function HeaderBar({
   }, [showPageDropdown, setShowPageDropdown]);
 
   return (
-    <header className="h-14 bg-background border-b flex items-center justify-between px-4">
+    <header className="h-14 bg-background border-b grid grid-cols-3 items-center px-4">
       {/* Left: Logo & Navigation */}
       <div className="flex items-center gap-2">
         {/* User Menu */}
@@ -223,8 +236,19 @@ export default function HeaderBar({
 
       </div>
 
+      <div className="flex gap-2.5 items-center justify-center">
+        <a
+          href={baseUrl + (fullPagePath === '/' ? '' : fullPagePath)}
+          target="_blank"
+          className="text-xs text-current/50 hover:text-current transition ease-in-out duration-100"
+        >
+          {baseUrl}
+        </a>
+        <Badge variant="secondary">Free</Badge>
+      </div>
+
       {/* Right: User & Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-end gap-2">
         {/* Save Status Indicator */}
         <div className="flex items-center justify-end w-[64px] text-xs text-white/50">
           {isSaving ? (
@@ -251,8 +275,8 @@ export default function HeaderBar({
           size="sm"
           variant="secondary"
           onClick={() => {
-            if (currentPage) {
-              window.open(`/ycode/preview${fullPagePath === '/' ? '' : fullPagePath}`, '_blank');
+            if (currentPage && previewUrl) {
+              window.open(previewUrl, '_blank');
             }
           }}
           disabled={!currentPage || isSaving}
@@ -284,7 +308,6 @@ export default function HeaderBar({
             onPublishSuccess();
           }}
         />
-
       </div>
     </header>
   );

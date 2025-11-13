@@ -435,3 +435,167 @@ export function isDescendant(
   return isDescendant(node, parent, allNodes);
 }
 
+/**
+ * Generate a URL-safe slug from a name
+ * @example generateSlug('About Us') // 'about-us'
+ */
+export function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+/**
+ * Generate a unique page slug, appending -2, -3, etc. if duplicates exist in the same folder
+ * @param excludePageId - Optional page ID to exclude when checking duplicates (for editing)
+ */
+export function generateUniqueSlug(
+  baseName: string,
+  pages: Page[],
+  folderId: string | null = null,
+  isPublished: boolean = false,
+  excludePageId?: string
+): string {
+  const baseSlug = generateSlug(baseName);
+
+  if (!baseSlug) return '';
+
+  // Check if base slug exists in the same folder and published state
+  const existingSlugs = pages
+    .filter(p =>
+      p.id !== excludePageId && // Exclude current page if editing
+      p.page_folder_id === folderId && // Same folder
+      p.is_published === isPublished && // Same published state
+      p.error_page === null // Exclude error pages
+    )
+    .map(p => p.slug.toLowerCase());
+
+  // If base slug is unique, use it
+  if (!existingSlugs.includes(baseSlug)) {
+    return baseSlug;
+  }
+
+  // Otherwise, find the next available number
+  let counter = 2;
+  let uniqueSlug = `${baseSlug}-${counter}`;
+
+  while (existingSlugs.includes(uniqueSlug)) {
+    counter++;
+    uniqueSlug = `${baseSlug}-${counter}`;
+  }
+
+  return uniqueSlug;
+}
+
+/**
+ * Generate a unique folder slug, appending -2, -3, etc. if duplicates exist in the same parent
+ * @param excludeFolderId - Optional folder ID to exclude when checking duplicates (for editing)
+ */
+export function generateUniqueFolderSlug(
+  baseName: string,
+  folders: PageFolder[],
+  parentFolderId: string | null = null,
+  excludeFolderId?: string
+): string {
+  const baseSlug = generateSlug(baseName);
+
+  if (!baseSlug) return '';
+
+  // Check if base slug exists in the same parent folder
+  const existingSlugs = folders
+    .filter(f =>
+      f.id !== excludeFolderId && // Exclude current folder if editing
+      f.page_folder_id === parentFolderId // Same parent folder
+    )
+    .map(f => f.slug.toLowerCase());
+
+  // If base slug is unique, use it
+  if (!existingSlugs.includes(baseSlug)) {
+    return baseSlug;
+  }
+
+  // Otherwise, find the next available number
+  let counter = 2;
+  let uniqueSlug = `${baseSlug}-${counter}`;
+
+  while (existingSlugs.includes(uniqueSlug)) {
+    counter++;
+    uniqueSlug = `${baseSlug}-${counter}`;
+  }
+
+  return uniqueSlug;
+}
+
+/**
+ * Find the highest number in names matching "Prefix N" pattern and return next number
+ * @example getNextNumberFromNames([{ name: 'Page 5' }], 'Page') // 6
+ */
+export function getNextNumberFromNames(
+  items: Array<{ name: string }>,
+  prefix: string
+): number {
+  // Extract numbers from names that match the pattern "Prefix N"
+  const numbers = items
+    .map(item => {
+      const match = item.name.match(new RegExp(`^${prefix}\\s+(\\d+)$`, 'i'));
+      return match ? parseInt(match[1], 10) : 0;
+    })
+    .filter(num => num > 0);
+
+  // If no numbered items exist, start at 1
+  if (numbers.length === 0) {
+    return 1;
+  }
+
+  // Return the highest number + 1
+  return Math.max(...numbers) + 1;
+}
+
+/**
+ * Determine where to place a new item based on current selection
+ * Folder selected: place inside. Page selected: place at same level. Nothing: place at root.
+ */
+export function getParentContextFromSelection(
+  selectedItemId: string | null,
+  pages: Page[],
+  folders: PageFolder[]
+): { parentFolderId: string | null; newDepth: number } {
+  let parentFolderId: string | null = null;
+  let newDepth = 0;
+
+  if (selectedItemId) {
+    // Check if selected item is a folder
+    const selectedFolder = folders.find(f => f.id === selectedItemId);
+    if (selectedFolder) {
+      // Add inside the folder
+      parentFolderId = selectedFolder.id;
+      newDepth = selectedFolder.depth + 1;
+    } else {
+      // Selected item is a page - add at the same level
+      const selectedPage = pages.find(p => p.id === selectedItemId);
+      if (selectedPage) {
+        parentFolderId = selectedPage.page_folder_id;
+        newDepth = selectedPage.depth;
+      }
+    }
+  }
+
+  return { parentFolderId, newDepth };
+}
+
+/**
+ * Calculate the next order value for a new item (max order of siblings + 1)
+ */
+export function calculateNextOrder(
+  parentFolderId: string | null,
+  depth: number,
+  pages: Page[],
+  folders: PageFolder[]
+): number {
+  const siblingPages = pages.filter(p => p.page_folder_id === parentFolderId && p.depth === depth);
+  const siblingFolders = folders.filter(f => f.page_folder_id === parentFolderId && f.depth === depth);
+  const maxPageOrder = siblingPages.length > 0 ? Math.max(...siblingPages.map(p => p.order || 0)) : -1;
+  const maxFolderOrder = siblingFolders.length > 0 ? Math.max(...siblingFolders.map(f => f.order || 0)) : -1;
+  return Math.max(maxPageOrder, maxFolderOrder) + 1;
+}

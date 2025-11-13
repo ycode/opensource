@@ -15,6 +15,7 @@ import { ArrowLeft } from 'lucide-react';
 // 3. ShadCN UI
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
+import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // 5. Stores
@@ -90,12 +91,55 @@ export default function CenterCanvas({
     return draft ? draft.layers : [];
   }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
-  // Build page tree for navigation
-  const pageTree = useMemo(() => buildPageTree(pages, folders), [pages, folders]);
+  // Separate regular pages from error pages
+  const { regularPages, errorPages } = useMemo(() => {
+    const regular = pages.filter(page => page.error_page === null);
+    const errors = pages
+      .filter(page => page.error_page !== null)
+      .sort((a, b) => (a.error_page || 0) - (b.error_page || 0));
+    return { regularPages: regular, errorPages: errors };
+  }, [pages]);
+
+  // Build page tree for navigation (only with regular pages)
+  const pageTree = useMemo(() => buildPageTree(regularPages, folders), [regularPages, folders]);
+
+  // Create virtual "Error pages" folder node
+  const errorPagesNode: PageTreeNode | null = useMemo(() => {
+    if (errorPages.length === 0) return null;
+
+    const virtualFolder: PageFolder = {
+      id: 'virtual-error-pages-folder',
+      name: 'Error pages',
+      slug: 'error-pages',
+      page_folder_id: null,
+      depth: 0,
+      order: 999999,
+      settings: {},
+      is_published: false,
+      publish_key: '',
+      deleted_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const errorPageNodes: PageTreeNode[] = errorPages.map(page => ({
+      id: page.id,
+      type: 'page',
+      data: page,
+      children: [],
+    }));
+
+    return {
+      id: virtualFolder.id,
+      type: 'folder',
+      data: virtualFolder,
+      children: errorPageNodes,
+    };
+  }, [errorPages]);
 
   // Get current page name and icon
   const currentPage = useMemo(() => pages.find(p => p.id === currentPageId), [pages, currentPageId]);
-  const currentPageName = currentPage?.name || 'Select Page';
+  const currentPageName = currentPage?.name || 'Loading...';
   const currentPageIcon = useMemo(() => {
     if (!currentPage) return 'homepage';
     const node: PageTreeNode = {
@@ -145,9 +189,11 @@ export default function CenterCanvas({
     setSelectedLayerId(null);
   }, [editingComponentId, returnToPageId, setCurrentPageId, setSelectedLayerId]);
 
-  // Initialize all folders as collapsed on mount
+  // Initialize all folders as collapsed on mount (including virtual error pages folder)
   useEffect(() => {
     const allFolderIds = new Set(folders.map(f => f.id));
+    // Also collapse the virtual error pages folder by default
+    allFolderIds.add('virtual-error-pages-folder');
     setCollapsedFolderIds(allFolderIds);
   }, [folders]);
 
@@ -375,23 +421,31 @@ export default function CenterCanvas({
                 aria-expanded={pagePopoverOpen}
                 className="w-full justify-between"
               >
-                <div className="flex items-center gap-1.5">
-                  <Icon name={currentPageIcon} className="size-3 opacity-50" />
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <Icon name={currentPageIcon} className="size-3 opacity-50 shrink-0" />
                   <span className="truncate">
                     {currentPageName}
                   </span>
                 </div>
-                <div>
+                <div className="shrink-0">
                   <Icon name="chevronCombo" className="!size-2.5 shrink-0 opacity-50" />
                 </div>
               </Button>
             </PopoverTrigger>
 
-            <PopoverContent className="w-56 p-1" align="start">
+            <PopoverContent className="w-auto min-w-58 max-w-96 p-1" align="start">
               <div className="max-h-[400px] overflow-y-auto">
-                {pageTree.length > 0 ? (
-                  pageTree.map(node => renderPageTreeNode(node, 0))
-                ) : (
+                {/* Regular pages tree */}
+                {pageTree.length > 0 && pageTree.map(node => renderPageTreeNode(node, 0))}
+
+                {/* Separator before error pages */}
+                <Separator className="my-1" />
+
+                {/* Virtual "Error pages" folder */}
+                {errorPagesNode && renderPageTreeNode(errorPagesNode, 0)}
+
+                {/* Empty state - only show if no pages at all */}
+                {pageTree.length === 0 && !errorPagesNode && (
                   <div className="text-sm text-muted-foreground text-center py-4">
                     No pages found
                   </div>

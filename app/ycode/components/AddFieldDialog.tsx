@@ -23,7 +23,7 @@ const formSchema = z.object({
   name: z.string().min(2, {
     message: 'Name must be at least 2 characters.',
   }),
-  type: z.enum(['text', 'number', 'boolean', 'date', 'reference'], {
+  type: z.enum(['text', 'number', 'boolean', 'date', 'reference', 'rich_text'], {
     message: 'Please select a field type.',
   }),
   default: z.string().optional(),
@@ -160,6 +160,7 @@ export default function AddFieldDialog({
                     <SelectContent>
                       <SelectGroup>
                         <SelectItem value="text">Text</SelectItem>
+                        <SelectItem value="rich_text">Rich Text</SelectItem>
                         <SelectItem value="number">Number</SelectItem>
                         <SelectItem value="boolean">Boolean (Yes/No)</SelectItem>
                         <SelectItem value="date">Date</SelectItem>
