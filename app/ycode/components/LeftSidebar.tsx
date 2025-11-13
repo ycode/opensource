@@ -11,8 +11,6 @@ import AssetLibrary from '@/components/AssetLibrary';
 import ElementLibrary from './ElementLibrary';
 import LayersTree from './LayersTree';
 import LeftSidebarPages from './LeftSidebarPages';
-import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
-import CreateCollectionDialog from './CreateCollectionDialog';
 
 // 5. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -50,13 +48,12 @@ export default function LeftSidebar({
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
-  const [showCreateCollectionDialog, setShowCreateCollectionDialog] = useState(false);
   const { draftsByPageId, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
   const { setSelectedLayerId, setCurrentPageId, editingComponentId } = useEditorStore();
   const { componentDrafts, getComponentById, updateComponentDraft } = useComponentsStore();
-  const { collections, loadCollections, selectedCollectionId, setSelectedCollectionId } = useCollectionsStore();
+  const { collections, loadCollections, selectedCollectionId, setSelectedCollectionId, createCollection } = useCollectionsStore();
 
   // Get component layers if in edit mode
   const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
@@ -161,6 +158,40 @@ export default function LeftSidebar({
     return selectedItem.parentId;
   }, [selectedLayerId, layersForCurrentPage, findLayer]);
 
+
+  // Handle creating a new collection
+  const handleCreateCollection = async () => {
+    try {
+      // Generate unique collection name
+      const baseName = 'Collection';
+      let collectionName = baseName;
+      let counter = 1;
+      
+      // Check if name already exists
+      while (collections.some(c => c.name === collectionName)) {
+        collectionName = `${baseName} ${counter}`;
+        counter++;
+      }
+      
+      // Generate slug from name
+      const collectionSlug = collectionName.toLowerCase().replace(/\s+/g, '_');
+      
+      // Create the collection
+      const newCollection = await createCollection({
+        name: collectionName,
+        collection_name: collectionSlug,
+        sorting: null,
+        order: collections.length,
+      });
+      
+      // Set as active collection and switch to CMS tab
+      setSelectedCollectionId(newCollection.id);
+      setActiveTab('cms');
+      onActiveTabChange('cms');
+    } catch (error) {
+      console.error('Failed to create collection:', error);
+    }
+  };
 
   // Handle asset selection
   const handleAssetSelect = (asset: { id: string; public_url: string; filename: string }) => {
@@ -284,7 +315,7 @@ export default function LeftSidebar({
                 <Button
                   size="xs"
                   variant="secondary"
-                  onClick={() => setShowCreateCollectionDialog(true)}
+                  onClick={handleCreateCollection}
                 >
                   <Icon name="plus" />
                 </Button>
@@ -331,18 +362,6 @@ export default function LeftSidebar({
           onClose={() => setShowElementLibrary(false)}
         />
       )}
-
-      {/* Create Collection Dialog */}
-      <CreateCollectionDialog
-        isOpen={showCreateCollectionDialog}
-        onClose={() => setShowCreateCollectionDialog(false)}
-        onSuccess={(collectionId) => {
-          // Set newly created collection as active
-          setSelectedCollectionId(collectionId);
-          // Switch to CMS tab
-          onActiveTabChange('cms');
-        }}
-      />
     </>
   );
 }
