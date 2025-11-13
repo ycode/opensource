@@ -5,7 +5,7 @@
  */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
@@ -122,8 +122,14 @@ export default function CMS() {
   const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
 
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
-  const collectionFields = selectedCollectionId ? (fields[selectedCollectionId] || []) : [];
-  const collectionItems = selectedCollectionId ? (items[selectedCollectionId] || []) : [];
+  const collectionFields = useMemo(
+    () => (selectedCollectionId ? (fields[selectedCollectionId] || []) : []),
+    [selectedCollectionId, fields]
+  );
+  const collectionItems = useMemo(
+    () => (selectedCollectionId ? (items[selectedCollectionId] || []) : []),
+    [selectedCollectionId, items]
+  );
   const totalItems = selectedCollectionId ? (itemsTotalCount[selectedCollectionId] || 0) : 0;
 
   // Form for Sheet
@@ -147,7 +153,7 @@ export default function CMS() {
   useEffect(() => {
     if (selectedCollectionId) {
       loadFields(selectedCollectionId);
-      loadItems(selectedCollectionId, currentPage, pageSize);
+      loadItems(selectedCollectionId, 1, pageSize); // Always load page 1 when collection changes
       // Clear selections and search when switching collections
       setSelectedItemIds(new Set());
       setSearchQuery('');
@@ -212,7 +218,7 @@ export default function CMS() {
       });
       form.reset(defaults);
     }
-  }, [editingItem, collectionFields]);
+  }, [editingItem, collectionFields, form]);
 
   // Sort items (search filtering now happens on backend)
   const sortedItems = React.useMemo(() => {

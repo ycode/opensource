@@ -225,7 +225,7 @@ export default function RightSidebar({
     });
 
     setCurrentClassInput('');
-  }, [classesArray, handleClassesChange]);
+  }, [classesArray, onLayerUpdate, selectedLayer]);
 
   // Remove a class
   const removeClass = useCallback((classToRemove: string) => {
@@ -233,7 +233,7 @@ export default function RightSidebar({
     const newClasses = classesArray.filter(cls => cls !== classToRemove).join(' ');
     setClassesInput(newClasses);
     handleClassesChange(newClasses);
-  }, [classesArray, handleClassesChange]);
+  }, [classesArray, handleClassesChange, selectedLayer]);
 
   // Handle Enter key press
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {

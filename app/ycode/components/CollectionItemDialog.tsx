@@ -5,7 +5,7 @@
  */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,7 +34,10 @@ export default function CollectionItemDialog({
   const { fields, createItem, updateItem, isLoading } = useCollectionsStore();
   const [values, setValues] = useState<Record<string, any>>({});
   
-  const collectionFields = fields[collectionId] || [];
+  const collectionFields = useMemo(
+    () => fields[collectionId] || [],
+    [fields, collectionId]
+  );
   
   // Initialize values from item if editing, or with default values if creating
   useEffect(() => {
