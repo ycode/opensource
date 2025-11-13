@@ -15,6 +15,8 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetTrigger,
+  SheetActions,
 } from '@/components/ui/sheet';
 import {
   Form,
@@ -26,8 +28,10 @@ import {
 } from '@/components/ui/form';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue, SelectGroup } from '@/components/ui/select';
 import { TiptapEditor } from '@/components/ui/tiptap-editor';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -35,7 +39,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { collectionsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
-import AddFieldDialog from './AddFieldDialog';
 import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
 import type { CollectionItemWithValues, CollectionField } from '@/types';
@@ -109,10 +112,14 @@ export default function CMS() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [showItemSheet, setShowItemSheet] = useState(false);
-  const [showAddFieldDialog, setShowAddFieldDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
-  const [editingField, setEditingField] = useState<CollectionField | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [newFieldName, setNewFieldName] = useState('');
+  const [newFieldType, setNewFieldType] = useState<'text' | 'rich_text' | 'number' | 'boolean' | 'date' | 'reference'>('text');
+  const [newFieldDefault, setNewFieldDefault] = useState('');
+  const [editPopoverOpen, setEditPopoverOpen] = useState(false);
+  const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
 
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = selectedCollectionId ? (fields[selectedCollectionId] || []) : [];
@@ -205,7 +212,7 @@ export default function CMS() {
       });
       form.reset(defaults);
     }
-  }, [editingItem, collectionFields, form]);
+  }, [editingItem, collectionFields]);
 
   // Sort items (search filtering now happens on backend)
   const sortedItems = React.useMemo(() => {
@@ -391,10 +398,6 @@ export default function CMS() {
     }
   };
 
-  const handleEditField = (field: CollectionField) => {
-    setEditingField(field);
-    setShowAddFieldDialog(true);
-  };
 
   const handleDeleteField = async (fieldId: number) => {
     if (!selectedCollectionId) return;
@@ -487,6 +490,68 @@ export default function CMS() {
     }
   };
 
+  const handleCreateFieldFromPopover = async () => {
+    if (!selectedCollectionId || !newFieldName.trim()) return;
+
+    try {
+      const newOrder = collectionFields.length;
+      const fieldName = newFieldName.trim().toLowerCase().replace(/\s+/g, '_');
+
+      await createField(selectedCollectionId, {
+        name: newFieldName.trim(),
+        field_name: fieldName,
+        type: newFieldType,
+        default: newFieldDefault || null,
+        order: newOrder,
+        fillable: true,
+        built_in: false,
+        hidden: false,
+      });
+
+      // Reload fields to show new field
+      await loadFields(selectedCollectionId);
+
+      // Reset form and close popover
+      setNewFieldName('');
+      setNewFieldType('text');
+      setNewFieldDefault('');
+      setPopoverOpen(false);
+    } catch (error) {
+      console.error('Failed to create field:', error);
+    }
+  };
+
+  const handleEditFieldClick = (field: CollectionField) => {
+    setEditingFieldId(field.id);
+    setNewFieldName(field.name);
+    setNewFieldType(field.type);
+    setNewFieldDefault(field.default || '');
+    setEditPopoverOpen(true);
+  };
+
+  const handleUpdateFieldFromPopover = async () => {
+    if (!selectedCollectionId || !editingFieldId || !newFieldName.trim()) return;
+
+    try {
+      await updateField(selectedCollectionId, editingFieldId, {
+        name: newFieldName.trim(),
+        default: newFieldDefault || null,
+      });
+
+      // Reload fields to show updated field
+      await loadFields(selectedCollectionId);
+
+      // Reset form and close popover
+      setNewFieldName('');
+      setNewFieldType('text');
+      setNewFieldDefault('');
+      setEditingFieldId(null);
+      setEditPopoverOpen(false);
+    } catch (error) {
+      console.error('Failed to update field:', error);
+    }
+  };
+
   const handleSheetSubmit = async (values: Record<string, any>) => {
     if (!selectedCollectionId) return;
 
@@ -537,18 +602,13 @@ export default function CMS() {
 
   return (
     <div className="flex-1 bg-background flex flex-col">
-      {/* Header */}
+
       <div className="p-4 flex items-center justify-between border-b">
-        <div className="flex items-center gap-4 flex-1">
-          <div className="max-w-md flex-1">
-            <Input
-              placeholder="Search items..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              size="sm"
-            />
-          </div>
+
+        <div className="w-full max-w-72">
+          <Input placeholder="Search..." />
         </div>
+
 
         <div className="flex gap-2">
           {selectedItemIds.size > 0 && (
@@ -561,17 +621,7 @@ export default function CMS() {
               Delete ({selectedItemIds.size})
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              setEditingField(null);
-              setShowAddFieldDialog(true);
-            }}
-          >
-            <Icon name="plus" />
-            Add Field
-          </Button>
+
           <FieldsDropdown
             fields={collectionFields}
             searchQuery={fieldSearchQuery}
@@ -579,13 +629,15 @@ export default function CMS() {
             onToggleVisibility={handleToggleFieldVisibility}
             onReorder={handleReorderFields}
           />
+
           <Button
             size="sm"
+            variant="secondary"
             onClick={handleCreateItem}
             disabled={collectionFields.length === 0}
           >
             <Icon name="plus" />
-            Add Item
+            New Item
           </Button>
         </div>
       </div>
@@ -600,15 +652,65 @@ export default function CMS() {
                 This collection has no fields. Add fields to start managing items.
               </EmptyDescription>
             </Empty>
-            <Button
-              onClick={() => {
-                setEditingField(null);
-                setShowAddFieldDialog(true);
-              }}
-            >
-              <Icon name="plus" />
-              Add Field
-            </Button>
+            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button>
+                  <Icon name="plus" />
+                  Add Field
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-3 items-center gap-4">
+                    <Label className="text-muted-foreground">Name</Label>
+                    <div className="col-span-2">
+                      <Input
+                        value={newFieldName}
+                        onChange={(e) => setNewFieldName(e.target.value)}
+                        placeholder="Field name"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 items-center gap-4">
+                    <Label className="text-muted-foreground">Type</Label>
+                    <div className="col-span-2">
+                      <Select value={newFieldType} onValueChange={(value: any) => setNewFieldType(value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="text">Text</SelectItem>
+                            <SelectItem value="rich_text">Rich Text</SelectItem>
+                            <SelectItem value="number">Number</SelectItem>
+                            <SelectItem value="boolean">Boolean</SelectItem>
+                            <SelectItem value="date">Date</SelectItem>
+                            <SelectItem value="reference">Reference</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 items-center gap-4">
+                    <Label className="text-muted-foreground">Default</Label>
+                    <div className="col-span-2">
+                      <Input
+                        value={newFieldDefault}
+                        onChange={(e) => setNewFieldDefault(e.target.value)}
+                        placeholder="Default value"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleCreateFieldFromPopover}
+                    disabled={!newFieldName.trim()}
+                  >
+                    Create field
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         ) : (
           <>
@@ -622,9 +724,9 @@ export default function CMS() {
                 strategy={verticalListSortingStrategy}
               >
                 <table className="w-full">
-                  <thead className="border-b sticky top-0 bg-background">
+                  <thead className="border-b">
                     <tr>
-                      <th className="px-4 py-3 w-12">
+                      <th className="px-4 py-5 text-left font-normal w-12">
                         <input
                           type="checkbox"
                           checked={sortedItems.length > 0 && selectedItemIds.size === sortedItems.length}
@@ -632,6 +734,7 @@ export default function CMS() {
                           className="w-4 h-4 cursor-pointer"
                         />
                       </th>
+
                       {collectionFields.filter(f => !f.hidden).map((field) => {
                         const sorting = selectedCollection?.sorting;
                         const isActiveSort = sorting?.field === field.field_name;
@@ -642,7 +745,7 @@ export default function CMS() {
                         ) : null;
 
                         return (
-                          <th key={field.id} className="px-4 py-3 text-left font-medium text-sm">
+                          <th key={field.id} className="px-4 py-5 text-left font-normal">
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => handleColumnClick(field.field_name)}
@@ -666,13 +769,86 @@ export default function CMS() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start">
-                                  <DropdownMenuItem
-                                    onClick={() => handleEditField(field)}
-                                    disabled={field.built_in}
+                                  <Popover
+                                    open={editPopoverOpen && editingFieldId === field.id}
+                                    onOpenChange={(open) => {
+                                      if (!open) {
+                                        setEditPopoverOpen(false);
+                                        setEditingFieldId(null);
+                                        setNewFieldName('');
+                                        setNewFieldType('text');
+                                        setNewFieldDefault('');
+                                      }
+                                    }}
                                   >
-                                    <Icon name="pencil" className="mr-2 h-3 w-3" />
-                                    Edit
-                                  </DropdownMenuItem>
+                                    <PopoverTrigger asChild>
+                                      <DropdownMenuItem
+                                        onSelect={(e) => {
+                                          e.preventDefault();
+                                          handleEditFieldClick(field);
+                                        }}
+                                        disabled={field.built_in}
+                                      >
+                                        <Icon name="pencil" className="mr-2 h-3 w-3" />
+                                        Edit
+                                      </DropdownMenuItem>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80">
+                                      <div className="flex flex-col gap-3">
+                                        <div className="grid grid-cols-3 items-center gap-4">
+                                          <Label className="text-muted-foreground">Name</Label>
+                                          <div className="col-span-2">
+                                            <Input
+                                              value={newFieldName}
+                                              onChange={(e) => setNewFieldName(e.target.value)}
+                                              placeholder="Field name"
+                                            />
+                                          </div>
+                                        </div>
+                                        <div className="grid grid-cols-3 items-center gap-4">
+                                          <Label className="text-muted-foreground">Type</Label>
+                                          <div className="col-span-2">
+                                            <Select
+                                              value={newFieldType}
+                                              onValueChange={(value: any) => setNewFieldType(value)}
+                                              disabled
+                                            >
+                                              <SelectTrigger>
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectGroup>
+                                                  <SelectItem value="text">Text</SelectItem>
+                                                  <SelectItem value="rich_text">Rich Text</SelectItem>
+                                                  <SelectItem value="number">Number</SelectItem>
+                                                  <SelectItem value="boolean">Boolean</SelectItem>
+                                                  <SelectItem value="date">Date</SelectItem>
+                                                  <SelectItem value="reference">Reference</SelectItem>
+                                                </SelectGroup>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
+                                        <div className="grid grid-cols-3 items-center gap-4">
+                                          <Label className="text-muted-foreground">Default</Label>
+                                          <div className="col-span-2">
+                                            <Input
+                                              value={newFieldDefault}
+                                              onChange={(e) => setNewFieldDefault(e.target.value)}
+                                              placeholder="Default value"
+                                            />
+                                          </div>
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          onClick={handleUpdateFieldFromPopover}
+                                          disabled={!newFieldName.trim()}
+                                        >
+                                          Update field
+                                        </Button>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
                                   <DropdownMenuItem
                                     onClick={() => handleDuplicateField(field.id)}
                                     disabled={field.built_in}
@@ -702,6 +878,67 @@ export default function CMS() {
                           </th>
                         );
                       })}
+                      <th className="px-4 py-3 text-left font-medium text-sm w-24">
+                        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button size="xs" variant="ghost">
+                              <Icon name="plus" />
+                              Add field
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="mr-4 w-80">
+                            <div className="flex flex-col gap-3">
+                              <div className="grid grid-cols-3 items-center gap-4">
+                                <Label className="text-muted-foreground">Name</Label>
+                                <div className="col-span-2">
+                                  <Input
+                                    value={newFieldName}
+                                    onChange={(e) => setNewFieldName(e.target.value)}
+                                    placeholder="Field name"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 items-center gap-4">
+                                <Label className="text-muted-foreground">Type</Label>
+                                <div className="col-span-2">
+                                  <Select value={newFieldType} onValueChange={(value: any) => setNewFieldType(value)}>
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectGroup>
+                                        <SelectItem value="text">Text</SelectItem>
+                                        <SelectItem value="rich_text">Rich Text</SelectItem>
+                                        <SelectItem value="number">Number</SelectItem>
+                                        <SelectItem value="boolean">Boolean</SelectItem>
+                                        <SelectItem value="date">Date</SelectItem>
+                                        <SelectItem value="reference">Reference</SelectItem>
+                                      </SelectGroup>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 items-center gap-4">
+                                <Label className="text-muted-foreground">Default</Label>
+                                <div className="col-span-2">
+                                  <Input
+                                    value={newFieldDefault}
+                                    onChange={(e) => setNewFieldDefault(e.target.value)}
+                                    placeholder="Default value"
+                                  />
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={handleCreateFieldFromPopover}
+                                disabled={!newFieldName.trim()}
+                              >
+                                Create field
+                              </Button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -739,7 +976,7 @@ export default function CMS() {
                               return (
                                 <td
                                   key={field.id}
-                                  className="px-4 py-3"
+                                  className="px-4 py-5 text-muted-foreground"
                                   onClick={() => !isManualMode && handleEditItem(item)}
                                 >
                                   {formatDate(value, 'MMM D YYYY, HH:mm')}
@@ -750,18 +987,19 @@ export default function CMS() {
                             return (
                               <td
                                 key={field.id}
-                                className="px-4 py-3"
+                                className="px-4 py-5 text-muted-foreground"
                                 onClick={() => !isManualMode && handleEditItem(item)}
                               >
                                 {value || '-'}
                               </td>
                             );
                           })}
+                          <td className="px-4 py-3"></td>
                         </SortableRow>
                       ))
                     ) : (
-                      <tr>
-                        <td colSpan={collectionFields.filter(f => !f.hidden).length + 1} className="px-4 py-8 text-center">
+                      <tr className="group border-b hover:bg-secondary">
+                        <td colSpan={collectionFields.filter(f => !f.hidden).length + 2} className="px-4 py-5 text-muted-foreground">
                           {searchQuery && collectionItems.length > 0 ? (
                             <div className="text-muted-foreground">
                               No items found matching &quot;{searchQuery}&quot;
@@ -781,6 +1019,81 @@ export default function CMS() {
                 </table>
               </SortableContext>
             </DndContext>
+
+            <div>
+              <div>
+                <Sheet open={showItemSheet} onOpenChange={setShowItemSheet}>
+                  <SheetTrigger asChild>
+                    <div className="group">
+                      <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary">
+                        <div className="px-4 py-5">
+                          <Button size="xs" variant="ghost">
+                            <Icon name="plus" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </SheetTrigger>
+                  <SheetContent>
+                    <SheetHeader>
+                      <SheetTitle>
+                        {editingItem ? 'Edit' : 'Create'} {selectedCollection?.name} Item
+                      </SheetTitle>
+                      <SheetActions>
+                        <Button
+                          size="sm"
+                          type="submit"
+                          form="collection-item-form"
+                        >
+                          {editingItem ? 'Save' : 'Create'}
+                        </Button>
+                      </SheetActions>
+                    </SheetHeader>
+
+                    <Form {...form}>
+                      <form
+                        id="collection-item-form"
+                        onSubmit={form.handleSubmit(handleSheetSubmit)}
+                        className="flex flex-col gap-4 flex-1 mt-6"
+                      >
+                        <div className="flex-1 flex flex-col gap-6">
+                          {collectionFields
+                            .filter(f => f.fillable && !f.hidden)
+                            .map((field) => (
+                              <FormField
+                                key={field.id}
+                                control={form.control}
+                                name={field.field_name}
+                                render={({ field: formField }) => (
+                                  <FormItem>
+                                    <FormLabel>{field.name}</FormLabel>
+                                    <FormControl>
+                                      {field.type === 'rich_text' ? (
+                                        <TiptapEditor
+                                          value={formField.value || ''}
+                                          onChange={formField.onChange}
+                                          placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
+                                        />
+                                      ) : (
+                                        <Input
+                                          placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
+                                          {...formField}
+                                        />
+                                      )}
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            ))}
+                        </div>
+                      </form>
+                    </Form>
+                  </SheetContent>
+                </Sheet>
+
+              </div>
+            </div>
 
             {/* Pagination Controls */}
             {selectedCollectionId && sortedItems.length > 0 && (
@@ -832,88 +1145,6 @@ export default function CMS() {
           </>
         )}
       </div>
-
-      {/* Add Field Dialog */}
-      {selectedCollectionId && (
-        <AddFieldDialog
-          isOpen={showAddFieldDialog}
-          onClose={() => {
-            setShowAddFieldDialog(false);
-            setEditingField(null);
-          }}
-          collectionId={selectedCollectionId}
-          field={editingField}
-          onSuccess={() => {
-            if (selectedCollectionId) {
-              loadFields(selectedCollectionId);
-            }
-          }}
-        />
-      )}
-
-      {/* Item Sheet */}
-      <Sheet open={showItemSheet} onOpenChange={setShowItemSheet}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>
-              {editingItem ? 'Edit' : 'Create'} {selectedCollection?.name} Item
-            </SheetTitle>
-          </SheetHeader>
-
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSheetSubmit)} className="flex flex-col gap-4 flex-1 mt-6">
-              <div className="flex-1 flex flex-col gap-6">
-                {collectionFields
-                  .filter(f => f.fillable && !f.hidden)
-                  .map((field) => (
-                    <FormField
-                      key={field.id}
-                      control={form.control}
-                      name={field.field_name}
-                      render={({ field: formField }) => (
-                        <FormItem>
-                          <FormLabel>{field.name}</FormLabel>
-                          <FormControl>
-                            {field.type === 'rich_text' ? (
-                              <TiptapEditor
-                                value={formField.value || ''}
-                                onChange={formField.onChange}
-                                placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
-                              />
-                            ) : (
-                              <Input
-                                placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
-                                {...formField}
-                              />
-                            )}
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ))}
-              </div>
-
-              <div className="flex gap-2 justify-end pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    setShowItemSheet(false);
-                    setEditingItem(null);
-                    form.reset();
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  {editingItem ? 'Update' : 'Create'}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

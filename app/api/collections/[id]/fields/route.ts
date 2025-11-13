@@ -68,7 +68,7 @@ export async function POST(
     }
     
     // Validate field type
-    const validTypes = ['text', 'number', 'boolean', 'date', 'reference'];
+    const validTypes = ['text', 'rich_text', 'number', 'boolean', 'date', 'reference'];
     if (!validTypes.includes(body.type)) {
       return noCache(
         { error: `Invalid field type. Must be one of: ${validTypes.join(', ')}` },

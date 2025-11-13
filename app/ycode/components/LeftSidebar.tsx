@@ -300,8 +300,8 @@ export default function LeftSidebar({
                     className={cn(
                       'px-4 h-8 rounded-lg flex gap-2 items-center text-left transition-colors',
                       isSelected
-                        ? 'bg-primary text-primary-foreground hover:bg-primary'
-                        : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-primary-foreground/80'
+                        ? 'bg-secondary'
+                        : 'text-muted-foreground'
                     )}
                     onClick={() => {
                       setSelectedCollectionId(collection.id);

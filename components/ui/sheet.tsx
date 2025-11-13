@@ -73,7 +73,7 @@ function SheetContent({
         {...props}
       >
         {children}
-        <SheetPrimitive.Close className="absolute top-4 left-6 rounded-xs disabled:pointer-events-none">
+        <SheetPrimitive.Close asChild className="absolute top-4 left-6 rounded-xs disabled:pointer-events-none">
           <Button size="xs" variant="secondary">
             <Icon name="x" />
           </Button>
