@@ -12,7 +12,8 @@ import type { Collection, CollectionField, CollectionItemWithValues } from '@/ty
 interface CollectionsState {
   collections: Collection[];
   fields: Record<number, CollectionField[]>; // keyed by collection_id
-  items: Record<number, CollectionItemWithValues[]>; // keyed by collection_id
+  items: Record<number, CollectionItemWithValues[]>; // keyed by collection_id (current page only)
+  itemsTotalCount: Record<number, number>; // keyed by collection_id - total count for pagination
   selectedCollectionId: number | null;
   isLoading: boolean;
   error: string | null;
@@ -49,13 +50,13 @@ interface CollectionsActions {
   deleteField: (collectionId: number, fieldId: number) => Promise<void>;
   
   // Items
-  loadItems: (collectionId: number) => Promise<void>;
+  loadItems: (collectionId: number, page?: number, limit?: number) => Promise<void>;
   loadPublishedItems: (collectionId: number) => Promise<void>;
   createItem: (collectionId: number, values: Record<string, any>) => Promise<CollectionItemWithValues>;
   updateItem: (collectionId: number, itemId: number, values: Record<string, any>) => Promise<void>;
   deleteItem: (collectionId: number, itemId: number) => Promise<void>;
   duplicateItem: (collectionId: number, itemId: number) => Promise<CollectionItemWithValues | undefined>;
-  searchItems: (collectionId: number, query: string) => Promise<void>;
+  searchItems: (collectionId: number, query: string, page?: number, limit?: number) => Promise<void>;
   
   // Sorting
   updateCollectionSorting: (collectionId: number, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => Promise<void>;
@@ -75,6 +76,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   collections: [],
   fields: {},
   items: {},
+  itemsTotalCount: {},
   selectedCollectionId: null,
   isLoading: false,
   error: null,
@@ -335,11 +337,11 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   },
   
   // Items
-  loadItems: async (collectionId) => {
+  loadItems: async (collectionId: number, page?: number, limit?: number) => {
     set({ isLoading: true, error: null });
     
     try {
-      const response = await collectionsApi.getItems(collectionId);
+      const response = await collectionsApi.getItems(collectionId, { page, limit });
       
       if (response.error) {
         throw new Error(response.error);
@@ -348,7 +350,11 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       set(state => ({
         items: {
           ...state.items,
-          [collectionId]: response.data || [],
+          [collectionId]: response.data?.items || [],
+        },
+        itemsTotalCount: {
+          ...state.itemsTotalCount,
+          [collectionId]: response.data?.total || 0,
         },
         isLoading: false,
       }));
@@ -490,11 +496,11 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     }
   },
   
-  searchItems: async (collectionId, query) => {
+  searchItems: async (collectionId: number, query: string, page?: number, limit?: number) => {
     set({ isLoading: true, error: null });
     
     try {
-      const response = await collectionsApi.searchItems(collectionId, query);
+      const response = await collectionsApi.searchItems(collectionId, query, { page, limit });
       
       if (response.error) {
         throw new Error(response.error);
@@ -503,7 +509,11 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       set(state => ({
         items: {
           ...state.items,
-          [collectionId]: response.data || [],
+          [collectionId]: response.data?.items || [],
+        },
+        itemsTotalCount: {
+          ...state.itemsTotalCount,
+          [collectionId]: response.data?.total || 0,
         },
         isLoading: false,
       }));

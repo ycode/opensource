@@ -13,6 +13,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -75,6 +76,7 @@ export default function CMS() {
     collections, 
     fields, 
     items, 
+    itemsTotalCount,
     isLoading,
     loadFields,
     loadItems,
@@ -89,6 +91,8 @@ export default function CMS() {
   } = useCollectionsStore();
   
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [showItemDialog, setShowItemDialog] = useState(false);
   const [showAddFieldDialog, setShowAddFieldDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
@@ -98,6 +102,7 @@ export default function CMS() {
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = selectedCollectionId ? (fields[selectedCollectionId] || []) : [];
   const collectionItems = selectedCollectionId ? (items[selectedCollectionId] || []) : [];
+  const totalItems = selectedCollectionId ? (itemsTotalCount[selectedCollectionId] || 0) : 0;
   
   // Drag and drop sensors
   const sensors = useSensors(
@@ -115,28 +120,44 @@ export default function CMS() {
   useEffect(() => {
     if (selectedCollectionId) {
       loadFields(selectedCollectionId);
-      loadItems(selectedCollectionId);
+      loadItems(selectedCollectionId, currentPage, pageSize);
       // Clear selections and search when switching collections
       setSelectedItemIds(new Set());
       setSearchQuery('');
+      setCurrentPage(1); // Reset to page 1
     }
-  }, [selectedCollectionId, loadFields, loadItems]);
+  }, [selectedCollectionId, loadFields, loadItems, pageSize]);
   
-  // Debounced search - queries backend
+  // Debounced search - queries backend with pagination
   useEffect(() => {
     if (!selectedCollectionId) return;
     
     const debounceTimer = setTimeout(() => {
       if (searchQuery.trim()) {
-        searchItems(selectedCollectionId, searchQuery);
+        searchItems(selectedCollectionId, searchQuery, currentPage, pageSize);
       } else {
         // If search is empty, reload all items
-        loadItems(selectedCollectionId);
+        loadItems(selectedCollectionId, currentPage, pageSize);
       }
     }, 300); // 300ms debounce
     
     return () => clearTimeout(debounceTimer);
-  }, [searchQuery, selectedCollectionId, searchItems, loadItems]);
+  }, [searchQuery, selectedCollectionId, currentPage, pageSize, searchItems, loadItems]);
+  
+  // Reset to page 1 when search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+  
+  // Reset to page 1 when sorting changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCollection?.sorting]);
+  
+  // Reset to page 1 when page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
   
   // Sort items (search filtering now happens on backend)
   const sortedItems = React.useMemo(() => {
@@ -262,6 +283,8 @@ export default function CMS() {
     
     try {
       await reorderItems(selectedCollectionId, updates);
+      // Reset to page 1 after reordering to show the new order
+      setCurrentPage(1);
     } catch (error) {
       console.error('Failed to reorder items:', error);
     }
@@ -686,6 +709,54 @@ export default function CMS() {
             </table>
               </SortableContext>
             </DndContext>
+            
+            {/* Pagination Controls */}
+            {selectedCollectionId && sortedItems.length > 0 && (
+              <div className="flex items-center justify-between px-4 py-4 border-t">
+                <div className="flex items-center gap-4">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
+                  </p>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Show:</span>
+                    <Select
+                      value={pageSize.toString()}
+                      onValueChange={(value) => setPageSize(Number(value))}
+                    >
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="2">2</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setCurrentPage(p => p + 1)}
+                    disabled={currentPage * pageSize >= totalItems}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

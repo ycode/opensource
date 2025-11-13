@@ -33,8 +33,8 @@ export async function GET(
       return noCache({ error: 'Supabase not configured' }, 500);
     }
     
-    // Get all items including deleted ones
-    const items = await getItemsWithValues(collectionId, { deleted: undefined }, false);
+    // Get all items including deleted ones (no pagination for unpublished check)
+    const { items } = await getItemsWithValues(collectionId, { deleted: undefined }, false);
     
     const unpublishedItems = [];
     

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     for (const collectionId of collection_ids) {
       try {
         // Get all items for this collection
-        const items = await getItemsByCollectionId(collectionId);
+        const { items } = await getItemsByCollectionId(collectionId);
         
         let publishedCount = 0;
         

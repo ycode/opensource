@@ -13,6 +13,8 @@ import { generateRId } from '../collection-utils';
 export interface QueryFilters {
   deleted?: boolean;
   search?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface CreateCollectionItemData {
@@ -27,12 +29,12 @@ export interface UpdateCollectionItemData {
 }
 
 /**
- * Get all items for a collection
+ * Get all items for a collection with pagination support
  */
 export async function getItemsByCollectionId(
   collection_id: number,
   filters?: QueryFilters
-): Promise<CollectionItem[]> {
+): Promise<{ items: CollectionItem[], total: number }> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
@@ -60,13 +62,43 @@ export async function getItemsByCollectionId(
       // Get unique item IDs
       matchingItemIds = [...new Set(matchingValues.map(v => v.item_id))];
       
-      // If no matches found, return empty array early
+      // If no matches found, return early
       if (matchingItemIds.length === 0) {
-        return [];
+        return { items: [], total: 0 };
       }
     }
   }
   
+  // Build base query for counting
+  let countQuery = client
+    .from('collection_items')
+    .select('*', { count: 'exact', head: true })
+    .eq('collection_id', collection_id);
+  
+  // Apply search filter to count query
+  if (matchingItemIds !== null) {
+    countQuery = countQuery.in('id', matchingItemIds);
+  }
+  
+  // Apply deleted filter to count query
+  if (filters && 'deleted' in filters) {
+    if (filters.deleted === false) {
+      countQuery = countQuery.is('deleted_at', null);
+    } else if (filters.deleted === true) {
+      countQuery = countQuery.not('deleted_at', 'is', null);
+    }
+  } else {
+    countQuery = countQuery.is('deleted_at', null);
+  }
+  
+  // Execute count query
+  const { count, error: countError } = await countQuery;
+  
+  if (countError) {
+    throw new Error(`Failed to count collection items: ${countError.message}`);
+  }
+  
+  // Build query for fetching items
   let query = client
     .from('collection_items')
     .select('*')
@@ -92,13 +124,21 @@ export async function getItemsByCollectionId(
     query = query.is('deleted_at', null);
   }
   
+  // Apply pagination
+  if (filters?.limit !== undefined) {
+    query = query.limit(filters.limit);
+  }
+  if (filters?.offset !== undefined) {
+    query = query.range(filters.offset, filters.offset + (filters.limit || 25) - 1);
+  }
+  
   const { data, error } = await query;
   
   if (error) {
     throw new Error(`Failed to fetch collection items: ${error.message}`);
   }
   
-  return data || [];
+  return { items: data || [], total: count || 0 };
 }
 
 /**
@@ -192,15 +232,17 @@ export async function getItemsWithValues(
   collection_id: number,
   filters?: QueryFilters,
   is_published: boolean = false
-): Promise<CollectionItemWithValues[]> {
-  const items = await getItemsByCollectionId(collection_id, filters);
+): Promise<{ items: CollectionItemWithValues[], total: number }> {
+  const { items, total } = await getItemsByCollectionId(collection_id, filters);
   
   // Get all items with values in parallel
   const itemsWithValues = await Promise.all(
     items.map(item => getItemWithValues(item.id, is_published))
   );
   
-  return itemsWithValues.filter((item): item is CollectionItemWithValues => item !== null);
+  const filteredItems = itemsWithValues.filter((item): item is CollectionItemWithValues => item !== null);
+  
+  return { items: filteredItems, total };
 }
 
 /**
@@ -346,7 +388,7 @@ export async function duplicateItem(itemId: number): Promise<CollectionItemWithV
   }
   
   // Get all items in the collection to find highest ID and existing slugs
-  const allItems = await getItemsWithValues(originalItem.collection_id, undefined, false);
+  const { items: allItems } = await getItemsWithValues(originalItem.collection_id, undefined, false);
   
   // Prepare the new values
   const newValues = { ...originalItem.values };
@@ -482,7 +524,7 @@ export async function duplicateItem(itemId: number): Promise<CollectionItemWithV
 export async function searchItems(
   collection_id: number,
   query: string
-): Promise<CollectionItemWithValues[]> {
+): Promise<{ items: CollectionItemWithValues[], total: number }> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
@@ -490,7 +532,7 @@ export async function searchItems(
   }
   
   // Get all items for this collection
-  const items = await getItemsByCollectionId(collection_id);
+  const { items, total } = await getItemsByCollectionId(collection_id);
   
   if (!query || query.trim() === '') {
     // Return all items with values if no query
@@ -516,9 +558,11 @@ export async function searchItems(
   // Filter items and get with values
   const filteredItems = items.filter(item => itemIds.includes(item.id));
   
-  return Promise.all(
+  const itemsWithValues = await Promise.all(
     filteredItems.map(item => getItemWithValues(item.id))
   ).then(results => results.filter((item): item is CollectionItemWithValues => item !== null));
+  
+  return { items: itemsWithValues, total: itemsWithValues.length };
 }
 
 /**

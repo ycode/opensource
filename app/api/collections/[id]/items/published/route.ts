@@ -26,7 +26,7 @@ export async function GET(
     
     // Get items with published values
     // This automatically filters to only items that have published values
-    const publishedItems = await getItemsWithValues(collectionId, undefined, true);
+    const { items: publishedItems } = await getItemsWithValues(collectionId, undefined, true);
     
     // Filter out items with no values (edge case)
     const itemsWithValues = publishedItems.filter(item => 

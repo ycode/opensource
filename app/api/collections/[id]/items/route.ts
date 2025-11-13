@@ -12,6 +12,8 @@ export const revalidate = 0;
  * Get all items with values for a collection
  * Query params:
  *  - search: string (optional) - Filter items by searching across all field values
+ *  - page: number (optional, default: 1) - Page number
+ *  - limit: number (optional, default: 25) - Items per page
  */
 export async function GET(
   request: NextRequest,
@@ -25,15 +27,32 @@ export async function GET(
       return noCache({ error: 'Invalid collection ID' }, 400);
     }
     
-    // Extract search query parameter
+    // Extract query parameters
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || undefined;
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '25', 10);
     
-    // Pass search filter to repository
-    const filters = search ? { search } : undefined;
-    const items = await getItemsWithValues(collectionId, filters);
+    // Calculate offset
+    const offset = (page - 1) * limit;
     
-    return noCache({ data: items });
+    // Build filters object
+    const filters = {
+      ...(search ? { search } : {}),
+      limit,
+      offset,
+    };
+    
+    const { items, total } = await getItemsWithValues(collectionId, filters);
+    
+    return noCache({ 
+      data: {
+        items,
+        total,
+        page,
+        limit,
+      }
+    });
   } catch (error) {
     console.error('Error fetching collection items:', error);
     return noCache(
@@ -72,8 +91,8 @@ export async function POST(
     });
     
     // Calculate auto-incrementing ID based on item count
-    const allItems = await getItemsWithValues(collectionId);
-    const autoIncrementId = allItems.length;
+    const { total } = await getItemsWithValues(collectionId);
+    const autoIncrementId = total;
     
     // Get current timestamp for created_at and updated_at
     const now = new Date().toISOString(); // Full timestamp format

@@ -374,8 +374,16 @@ export const collectionsApi = {
   },
 
   // Items (with values)
-  async getItems(collectionId: number): Promise<ApiResponse<CollectionItemWithValues[]>> {
-    return apiRequest<CollectionItemWithValues[]>(`/api/collections/${collectionId}/items`);
+  async getItems(
+    collectionId: number, 
+    options?: { page?: number; limit?: number }
+  ): Promise<ApiResponse<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>> {
+    const params = new URLSearchParams();
+    if (options?.page) params.append('page', options.page.toString());
+    if (options?.limit) params.append('limit', options.limit.toString());
+    const queryString = params.toString();
+    const url = `/api/collections/${collectionId}/items${queryString ? `?${queryString}` : ''}`;
+    return apiRequest<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>(url);
   },
 
   async getItemById(collectionId: number, itemId: number): Promise<ApiResponse<CollectionItemWithValues>> {
@@ -403,8 +411,17 @@ export const collectionsApi = {
   },
 
   // Search
-  async searchItems(collectionId: number, query: string): Promise<ApiResponse<CollectionItemWithValues[]>> {
-    return apiRequest<CollectionItemWithValues[]>(`/api/collections/${collectionId}/items?search=${encodeURIComponent(query)}`);
+  async searchItems(
+    collectionId: number, 
+    query: string,
+    options?: { page?: number; limit?: number }
+  ): Promise<ApiResponse<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>> {
+    const params = new URLSearchParams();
+    params.append('search', query);
+    if (options?.page) params.append('page', options.page.toString());
+    if (options?.limit) params.append('limit', options.limit.toString());
+    const url = `/api/collections/${collectionId}/items?${params.toString()}`;
+    return apiRequest<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>(url);
   },
 
   // Published items
