@@ -9,6 +9,8 @@ export const revalidate = 0;
 /**
  * GET /api/collections/[id]/fields
  * Get all fields for a collection
+ * Query params:
+ *  - search: string (optional) - Filter fields by name or field_name
  */
 export async function GET(
   request: NextRequest,
@@ -22,7 +24,12 @@ export async function GET(
       return noCache({ error: 'Invalid collection ID' }, 400);
     }
     
-    const fields = await getFieldsByCollectionId(collectionId);
+    // Extract search query parameter
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search') || undefined;
+    
+    const filters = search ? { search } : undefined;
+    const fields = await getFieldsByCollectionId(collectionId, filters);
     
     return noCache({ data: fields });
   } catch (error) {

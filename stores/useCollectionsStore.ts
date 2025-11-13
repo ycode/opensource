@@ -33,7 +33,7 @@ interface CollectionsActions {
   setSelectedCollectionId: (id: number | null) => void;
   
   // Fields
-  loadFields: (collectionId: number) => Promise<void>;
+  loadFields: (collectionId: number, search?: string) => Promise<void>;
   createField: (collectionId: number, data: {
     name: string;
     field_name: string;
@@ -234,11 +234,11 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   },
   
   // Fields
-  loadFields: async (collectionId) => {
+  loadFields: async (collectionId: number, search?: string) => {
     set({ isLoading: true, error: null });
     
     try {
-      const response = await collectionsApi.getFields(collectionId);
+      const response = await collectionsApi.getFields(collectionId, search);
       
       if (response.error) {
         throw new Error(response.error);

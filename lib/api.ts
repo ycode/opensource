@@ -319,8 +319,12 @@ export const collectionsApi = {
   },
 
   // Fields
-  async getFields(collectionId: number): Promise<ApiResponse<CollectionField[]>> {
-    return apiRequest<CollectionField[]>(`/api/collections/${collectionId}/fields`);
+  async getFields(collectionId: number, search?: string): Promise<ApiResponse<CollectionField[]>> {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    const queryString = params.toString();
+    const url = `/api/collections/${collectionId}/fields${queryString ? `?${queryString}` : ''}`;
+    return apiRequest<CollectionField[]>(url);
   },
 
   async createField(collectionId: number, data: {

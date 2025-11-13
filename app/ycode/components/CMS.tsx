@@ -91,6 +91,7 @@ export default function CMS() {
   } = useCollectionsStore();
   
   const [searchQuery, setSearchQuery] = useState('');
+  const [fieldSearchQuery, setFieldSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [showItemDialog, setShowItemDialog] = useState(false);
@@ -124,9 +125,21 @@ export default function CMS() {
       // Clear selections and search when switching collections
       setSelectedItemIds(new Set());
       setSearchQuery('');
+      setFieldSearchQuery('');
       setCurrentPage(1); // Reset to page 1
     }
   }, [selectedCollectionId, loadFields, loadItems, pageSize]);
+  
+  // Debounced field search - queries backend
+  useEffect(() => {
+    if (!selectedCollectionId) return;
+    
+    const debounceTimer = setTimeout(() => {
+      loadFields(selectedCollectionId, fieldSearchQuery || undefined);
+    }, 300); // 300ms debounce
+    
+    return () => clearTimeout(debounceTimer);
+  }, [fieldSearchQuery, selectedCollectionId, loadFields]);
   
   // Debounced search - queries backend with pagination
   useEffect(() => {
@@ -508,6 +521,8 @@ export default function CMS() {
           </Button>
           <FieldsDropdown
             fields={collectionFields}
+            searchQuery={fieldSearchQuery}
+            onSearchChange={setFieldSearchQuery}
             onToggleVisibility={handleToggleFieldVisibility}
             onReorder={handleReorderFields}
           />

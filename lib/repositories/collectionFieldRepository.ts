@@ -37,22 +37,37 @@ export interface UpdateCollectionFieldData {
   status?: 'draft' | 'published';
 }
 
+export interface FieldFilters {
+  search?: string;
+}
+
 /**
- * Get all fields for a collection
+ * Get all fields for a collection with optional search filtering
  */
-export async function getFieldsByCollectionId(collection_id: number): Promise<CollectionField[]> {
+export async function getFieldsByCollectionId(
+  collection_id: number,
+  filters?: FieldFilters
+): Promise<CollectionField[]> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
     throw new Error('Supabase client not configured');
   }
   
-  const { data, error } = await client
+  let query = client
     .from('collection_fields')
     .select('*')
     .eq('collection_id', collection_id)
     .is('deleted_at', null)
     .order('order', { ascending: true });
+  
+  // Apply search filter
+  if (filters?.search && filters.search.trim()) {
+    const searchTerm = `%${filters.search.trim()}%`;
+    query = query.or(`name.ilike.${searchTerm},field_name.ilike.${searchTerm}`);
+  }
+  
+  const { data, error } = await query;
   
   if (error) {
     throw new Error(`Failed to fetch collection fields: ${error.message}`);
