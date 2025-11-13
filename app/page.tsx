@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { fetchHomepage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { generatePageMetadata } from '@/lib/page-utils';
 import type { Metadata } from 'next';
 
 // Force dynamic rendering with on-demand revalidation
@@ -75,8 +76,7 @@ export async function generateMetadata(): Promise<Metadata> {
     };
   }
 
-  return {
-    title: data.page.name || 'Home',
-    description: `${data.page.name} - Built with YCode`,
-  };
+  return generatePageMetadata(data.page, {
+    fallbackTitle: 'Home',
+  });
 }

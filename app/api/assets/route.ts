@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllAssets, createAsset, uploadFile } from '@/lib/repositories/assetRepository';
+import { getAllAssets } from '@/lib/repositories/assetRepository';
+import { uploadFile } from '@/lib/file-upload';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -8,7 +9,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/assets
- * 
+ *
  * Get all assets
  */
 export async function GET() {
@@ -20,7 +21,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Failed to fetch assets:', error);
-    
+
     return noCache(
       { error: error instanceof Error ? error.message : 'Failed to fetch assets' },
       500
@@ -30,13 +31,14 @@ export async function GET() {
 
 /**
  * POST /api/assets
- * 
+ *
  * Upload a new asset
  */
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
+    const source = formData.get('source') as string | null;
 
     if (!file) {
       return noCache(
@@ -45,25 +47,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upload file to Supabase Storage
-    const { path, url } = await uploadFile(file);
+    if (!source) {
+      return noCache(
+        { error: 'Source is required' },
+        400
+      );
+    }
 
-    // Create asset record in database
-    const asset = await createAsset({
-      filename: file.name,
-      storage_path: path,
-      public_url: url,
-      file_size: file.size,
-      mime_type: file.type,
-      // TODO: Extract width/height for images
-    });
+    // Upload file to Supabase Storage and create asset record
+    // This automatically extracts dimensions for images
+    const asset = await uploadFile(file, source);
+
+    if (!asset) {
+      return noCache(
+        { error: 'Failed to upload asset' },
+        500
+      );
+    }
 
     return noCache({
       data: asset,
     });
   } catch (error) {
     console.error('Failed to upload asset:', error);
-    
+
     return noCache(
       { error: error instanceof Error ? error.message : 'Failed to upload asset' },
       500

@@ -18,7 +18,7 @@ export async function up(knex: Knex): Promise<void> {
     table.boolean('is_index').defaultTo(false); // Index of the root or parent folder
     table.boolean('is_dynamic').defaultTo(false); // Dynamic page (CMS-driven)
     table.integer('error_page').nullable(); // If an error page, error page type: 401, 404, 500
-    table.jsonb('settings').defaultTo('{}'); // Settings for `cms` (source + key), `auth` (enabled + password), `seo`, `social`, `code`
+    table.jsonb('settings').defaultTo('{}'); // Settings for `cms` (source + key), `auth` (enabled + password), `seo`, `code`
     table.boolean('is_published').defaultTo(false);
     table.string('publish_key', 255).defaultTo(knex.raw('gen_random_uuid()'));
     table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());

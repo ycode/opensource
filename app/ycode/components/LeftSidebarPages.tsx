@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Icon from '@/components/ui/icon';
 import PagesTree from './PagesTree';
-import PageSettingsPanel, { type PageFormData } from './PageSettingsPanel';
-import FolderSettingsPanel, { FolderFormData } from './FolderSettingsPanel';
+import PageSettingsPanel, { type PageFormData, type PageSettingsPanelHandle } from './PageSettingsPanel';
+import FolderSettingsPanel, { type FolderFormData, type FolderSettingsPanelHandle } from './FolderSettingsPanel';
 import { usePagesStore } from '@/stores/usePagesStore';
 import type { Page, PageFolder } from '@/types';
 import { Separator } from '@/components/ui/separator';
@@ -34,6 +34,8 @@ export default function LeftSidebarPages({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(currentPageId);
   const selectedItemIdRef = React.useRef<string | null>(currentPageId);
+  const pageSettingsPanelRef = useRef<PageSettingsPanelHandle>(null);
+  const folderSettingsPanelRef = useRef<FolderSettingsPanelHandle>(null);
 
   const selectedPage = React.useMemo(() => {
     if (!selectedItemId) return null;
@@ -180,8 +182,53 @@ export default function LeftSidebarPages({
     }
   };
 
+  // Helper to check for unsaved changes before any selection change
+  const checkBeforeSelectionChange = async (): Promise<boolean> => {
+    // Check page settings panel if open
+    if (showPageSettings && pageSettingsPanelRef.current) {
+      const canProceed = await pageSettingsPanelRef.current.checkUnsavedChanges();
+      if (!canProceed) {
+        return false;
+      }
+    }
+
+    // Check folder settings panel if open
+    if (showFolderSettings && folderSettingsPanelRef.current) {
+      const canProceed = await folderSettingsPanelRef.current.checkUnsavedChanges();
+      if (!canProceed) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  // Handle page selection with unsaved changes check
+  const handlePageSelect = async (pageId: string) => {
+    const canProceed = await checkBeforeSelectionChange();
+    if (!canProceed) {
+      return;
+    }
+    setSelectedItemId(pageId);
+  };
+
+  // Handle folder selection with unsaved changes check
+  const handleFolderSelect = async (folderId: string) => {
+    const canProceed = await checkBeforeSelectionChange();
+    if (!canProceed) {
+      return;
+    }
+    setSelectedItemId(folderId);
+  };
+
   // Handle page editing
-  const handleEditPage = (page: Page) => {
+  const handleEditPage = async (page: Page) => {
+    // Check for unsaved changes before switching
+    const canProceed = await checkBeforeSelectionChange();
+    if (!canProceed) {
+      return;
+    }
+
     setSelectedItemId(page.id);
     setEditingPage(page);
     setShowPageSettings(true);
@@ -189,7 +236,13 @@ export default function LeftSidebarPages({
     setShowFolderSettings(false);
   };
 
-  const handleEditFolder = (folder: PageFolder) => {
+  const handleEditFolder = async (folder: PageFolder) => {
+    // Check for unsaved changes before switching
+    const canProceed = await checkBeforeSelectionChange();
+    if (!canProceed) {
+      return;
+    }
+
     setSelectedItemId(folder.id);
     setEditingFolder(folder);
     setShowFolderSettings(true);
@@ -206,6 +259,7 @@ export default function LeftSidebarPages({
       slug: data.slug,
       page_folder_id: data.page_folder_id,
       is_index: data.is_index,
+      settings: data.settings,
     });
 
     if (result.error) {
@@ -612,16 +666,12 @@ export default function LeftSidebarPages({
           folders={folders}
           selectedItemId={selectedItemId}
           currentPageId={currentPageId}
-          onPageSelect={(pageId) => {
-            setSelectedItemId(pageId);
-          }}
-          onFolderSelect={(folderId) => {
-            setSelectedItemId(folderId);
-          }}
+          onPageSelect={handlePageSelect}
+          onFolderSelect={handleFolderSelect}
           onPageOpen={(pageId) => {
             onPageSelect(pageId);
             setCurrentPageId(pageId);
-            setSelectedItemId(pageId);
+            handlePageSelect(pageId);
           }}
           onReorder={handleReorder}
           onPageSettings={handleEditPage}
@@ -642,13 +692,11 @@ export default function LeftSidebarPages({
             folders={[]}
             selectedItemId={selectedItemId}
             currentPageId={currentPageId}
-            onPageSelect={(pageId) => {
-              setSelectedItemId(pageId);
-            }}
+            onPageSelect={handlePageSelect}
             onPageOpen={(pageId) => {
               onPageSelect(pageId);
               setCurrentPageId(pageId);
-              setSelectedItemId(pageId);
+              handlePageSelect(pageId);
             }}
             onPageSettings={handleEditPage}
             onFolderSettings={handleEditFolder}
@@ -658,6 +706,7 @@ export default function LeftSidebarPages({
 
       {/* Page settings panel */}
       <PageSettingsPanel
+        ref={pageSettingsPanelRef}
         isOpen={showPageSettings}
         onClose={() => {
           setShowPageSettings(false);
@@ -669,6 +718,7 @@ export default function LeftSidebarPages({
 
       {/* Folder settings panel */}
       <FolderSettingsPanel
+        ref={folderSettingsPanelRef}
         isOpen={showFolderSettings}
         onClose={() => {
           setShowFolderSettings(false);

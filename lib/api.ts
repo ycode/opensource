@@ -4,7 +4,7 @@
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageLayers, Layer, Asset, PageFolder, ApiResponse, Collection, CollectionField, CollectionItem, CollectionItemWithValues, Component, LayerStyle, Setting } from '../types';
+import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItem, CollectionItemWithValues, Component, LayerStyle, Setting } from '../types';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -192,9 +192,10 @@ export const publishApi = {
 // Assets API
 export const assetsApi = {
   // Upload asset
-  async upload(file: File): Promise<ApiResponse<Asset>> {
+  async upload(file: File, source: string = 'library'): Promise<ApiResponse<Asset>> {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('source', source);
 
     const token = await getAuthToken();
 
@@ -379,7 +380,7 @@ export const collectionsApi = {
 
   // Items (with values)
   async getItems(
-    collectionId: number, 
+    collectionId: number,
     options?: { page?: number; limit?: number }
   ): Promise<ApiResponse<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>> {
     const params = new URLSearchParams();
@@ -416,7 +417,7 @@ export const collectionsApi = {
 
   // Search
   async searchItems(
-    collectionId: number, 
+    collectionId: number,
     query: string,
     options?: { page?: number; limit?: number }
   ): Promise<ApiResponse<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>> {
@@ -516,3 +517,73 @@ export const editorApi = {
     return apiRequest('/api/editor/init');
   },
 };
+
+// File Upload API
+
+/**
+ * Upload a file and create Asset record
+ *
+ * @param file - File to upload
+ * @param source - Source identifier (e.g., 'page-settings', 'components', 'library')
+ * @param category - Optional file category for validation ('images', 'videos', 'audio', 'documents', or null for any)
+ * @param customName - Optional custom name for the file
+ */
+export async function uploadFileApi(
+  file: File,
+  source: string,
+  category?: AssetCategory | null,
+  customName?: string
+): Promise<Asset | null> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('source', source);
+    if (category) {
+      formData.append('category', category);
+    }
+    if (customName) {
+      formData.append('name', customName);
+    }
+
+    const response = await fetch('/api/files/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to upload file');
+    }
+
+    const { data } = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error uploading file:', error);
+    return null;
+  }
+}
+
+/**
+ * Delete an asset (from both storage and database)
+ *
+ * @param assetId - Asset ID to delete
+ * @returns True if successful, false otherwise
+ */
+export async function deleteAssetApi(assetId: string): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `/api/files/delete?assetId=${encodeURIComponent(assetId)}`,
+      { method: 'DELETE' }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to delete asset');
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting asset:', error);
+    return false;
+  }
+}

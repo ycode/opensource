@@ -2,8 +2,9 @@
  * Utilities for pages and folders
  */
 
+import type { Metadata } from 'next';
 import { IconProps } from '@/components/ui/icon';
-import type { Page, PageFolder } from '../types';
+import type { Page, PageFolder, PageSettings } from '../types';
 
 export interface PageTreeNode {
   id: string;
@@ -599,3 +600,577 @@ export function calculateNextOrder(
   const maxFolderOrder = siblingFolders.length > 0 ? Math.max(...siblingFolders.map(f => f.order || 0)) : -1;
   return Math.max(maxPageOrder, maxFolderOrder) + 1;
 }
+
+/**
+ * Validation result type
+ */
+export interface ValidationResult {
+  isValid: boolean;
+  error?: string;
+}
+
+/**
+ * Validate page name
+ * @returns Validation result with error message if invalid
+ */
+export function validatePageName(name: string): ValidationResult {
+  if (!name.trim()) {
+    return { isValid: false, error: 'Page name is required' };
+  }
+  return { isValid: true };
+}
+
+/**
+ * Validate folder name
+ * @returns Validation result with error message if invalid
+ */
+export function validateFolderName(name: string): ValidationResult {
+  if (!name.trim()) {
+    return { isValid: false, error: 'Folder name is required' };
+  }
+  return { isValid: true };
+}
+
+/**
+ * Validate page slug based on page type
+ * @param slug - The slug to validate
+ * @param isIndex - Whether the page is an index page
+ * @param isErrorPage - Whether the page is an error page
+ * @returns Validation result with error message if invalid
+ */
+export function validatePageSlug(
+  slug: string,
+  isIndex: boolean,
+  isErrorPage: boolean
+): ValidationResult {
+  // Error pages must have empty slug
+  if (isErrorPage && slug.trim()) {
+    return { isValid: false, error: 'Error pages must have an empty slug' };
+  }
+
+  // Index pages must have empty slug
+  if (isIndex && slug.trim()) {
+    return { isValid: false, error: 'Index pages must have an empty slug' };
+  }
+
+  // Non-index, non-error pages must have non-empty slug
+  if (!isIndex && !isErrorPage && !slug.trim()) {
+    return { isValid: false, error: 'Slug is required for non-index pages' };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Validate folder slug
+ * @returns Validation result with error message if invalid
+ */
+export function validateFolderSlug(slug: string): ValidationResult {
+  if (!slug.trim()) {
+    return { isValid: false, error: 'Slug is required' };
+  }
+  return { isValid: true };
+}
+
+/**
+ * Check for duplicate page slug in the same folder and published state
+ * @param slug - The slug to check
+ * @param pages - Array of all pages
+ * @param folderId - The folder ID to check within
+ * @param isPublished - The published state to check
+ * @param excludePageId - Optional page ID to exclude from check (for editing)
+ * @returns Validation result with error message if duplicate found
+ */
+export function checkDuplicatePageSlug(
+  slug: string,
+  pages: Page[],
+  folderId: string | null,
+  isPublished: boolean,
+  excludePageId?: string
+): ValidationResult {
+  const trimmedSlug = slug.trim();
+
+  const duplicateSlug = pages.find(
+    (p) =>
+      p.id !== excludePageId &&
+      p.slug === trimmedSlug &&
+      p.is_published === isPublished &&
+      p.page_folder_id === folderId
+  );
+
+  if (duplicateSlug) {
+    return {
+      isValid: false,
+      error: 'This slug is already used by another page in this folder',
+    };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Check for duplicate folder slug in the same parent folder
+ * @param slug - The slug to check
+ * @param folders - Array of all folders
+ * @param parentFolderId - The parent folder ID to check within
+ * @param excludeFolderId - Optional folder ID to exclude from check (for editing)
+ * @returns Validation result with error message if duplicate found
+ */
+export function checkDuplicateFolderSlug(
+  slug: string,
+  folders: PageFolder[],
+  parentFolderId: string | null,
+  excludeFolderId?: string
+): ValidationResult {
+  const trimmedSlug = slug.trim();
+
+  const duplicateSlug = folders.find(
+    (f) =>
+      f.id !== excludeFolderId &&
+      f.slug === trimmedSlug &&
+      f.page_folder_id === parentFolderId
+  );
+
+  if (duplicateSlug) {
+    return {
+      isValid: false,
+      error: 'This slug is already used by another folder in the same location',
+    };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Validate that root folder always has an index page
+ * Checks if removing index status would leave root folder without an index page
+ * @param currentPage - The current page being edited
+ * @param newIsIndex - The new index status
+ * @param pages - Array of all pages
+ * @param newFolderId - The new folder ID the page will be in
+ * @returns Validation result with error message if validation fails
+ */
+export function validateRootIndexPageRequirement(
+  currentPage: Page | null,
+  newIsIndex: boolean,
+  pages: Page[],
+  newFolderId: string | null
+): ValidationResult {
+  // Only validate if we're removing index status from a root page
+  if (!currentPage?.is_index || newIsIndex) {
+    return { isValid: true };
+  }
+
+  // If the page is moving to a different folder, root folder check still applies
+  if (currentPage.page_folder_id === null || newFolderId === null) {
+    // Check if there are other index pages in root folder
+    const otherRootIndexPages = pages.filter(
+      (p) =>
+        p.id !== currentPage.id &&
+        p.is_index &&
+        p.page_folder_id === null
+    );
+
+    if (otherRootIndexPages.length === 0) {
+      return {
+        isValid: false,
+        error: 'The root folder must have an index page. Please set another page as index first.',
+      };
+    }
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Generate metadata options
+ */
+export interface GenerateMetadataOptions {
+  /** Include [Preview] prefix in title */
+  isPreview?: boolean;
+  /** Fallback title if page has no name */
+  fallbackTitle?: string;
+  /** Fallback description if page has no SEO description */
+  fallbackDescription?: string;
+}
+
+/**
+ * Generate Next.js metadata from a page object
+ * Handles SEO settings, Open Graph, Twitter Card, and noindex rules
+ *
+ * @param page - The page object containing settings and metadata
+ * @param options - Optional configuration for metadata generation
+ * @returns Next.js Metadata object
+ */
+export function generatePageMetadata(
+  page: Page,
+  options: GenerateMetadataOptions = {}
+): Metadata {
+  const { isPreview = false, fallbackTitle, fallbackDescription } = options;
+
+  const seo = page.settings?.seo;
+  const isErrorPage = page.error_page !== null;
+
+  // Build title
+  let title = seo?.title || page.name || fallbackTitle || 'Page';
+  if (isPreview) {
+    title = `[Preview] ${title}`;
+  }
+
+  // Build description
+  const description =
+    seo?.description ||
+    fallbackDescription ||
+    `${page.name} - Built with YCode`;
+
+  // Base metadata
+  const metadata: Metadata = {
+    title,
+    description,
+  };
+
+  // Add Open Graph and Twitter Card metadata (not for error pages)
+  if (seo?.image && !isErrorPage) {
+    // seo.image is the Asset ID or URL
+    const imageUrl = seo.image;
+
+    metadata.openGraph = {
+      title,
+      description,
+      images: [
+        {
+          url: imageUrl,
+          width: 1200,
+          height: 630,
+        },
+      ],
+    };
+    metadata.twitter = {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [imageUrl],
+    };
+  }
+
+  // Add noindex if enabled, if error page, or if preview
+  if (seo?.noindex || isErrorPage || isPreview) {
+    metadata.robots = {
+      index: false,
+      follow: false,
+    };
+  }
+
+  return metadata;
+}
+
+/**
+ * Error page configuration
+ */
+export interface ErrorPageConfig {
+  code: number;
+  name: string;
+  settings: PageSettings;
+  layers: string;
+}
+
+/**
+ * Default error pages configuration
+ * Used for seeding database and creating new error pages
+ */
+export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
+  {
+    code: 401,
+    name: '401 - Password required',
+    settings: {
+      seo: {
+        title: 'Error 401 - Password required',
+        description: 'This page is password protected. Please enter the password to continue.',
+        image: null,
+        noindex: true,
+      },
+    },
+    layers: JSON.stringify([
+      {
+        id: 'body',
+        type: 'container',
+        locked: true,
+        classes: '',
+        children: [
+          {
+            id: 'layer-1762789137823-g2cdo46ld',
+            name: 'section',
+            design: {
+              layout: { display: 'Flex', isActive: true, flexDirection: 'column' },
+              sizing: { height: '100vh', isActive: true },
+              spacing: { isActive: true, paddingTop: '3rem', paddingBottom: '3rem' },
+            },
+            classes: 'flex flex-col gap-[1rem] py-[3rem] h-[100vh]',
+            children: [
+              {
+                id: 'layer-1762789141753-zpz5jyobc',
+                name: 'div',
+                design: {
+                  sizing: { height: '100vh', isActive: true, maxWidth: '80rem' },
+                  spacing: { isActive: true, marginLeft: 'auto', marginRight: 'auto', paddingLeft: '1rem', paddingRight: '1rem' },
+                },
+                classes: 'max-w-[80rem] mx-auto px-[1rem] h-[100vh]',
+                children: [
+                  {
+                    id: 'layer-1762789168560-icft8ynp5',
+                    name: 'div',
+                    design: {
+                      layout: { gap: '6', display: 'flex', isActive: true, alignItems: 'center', flexDirection: 'column', justifyContent: 'center' },
+                      sizing: { height: '100%', isActive: true },
+                      typography: { isActive: true, textAlign: 'center' },
+                    },
+                    classes: 'items-center text-center h-full flex flex-col justify-center gap-[6px]',
+                    children: [
+                      {
+                        id: 'layer-1762789150944-5qezgblbe',
+                        name: 'h2',
+                        text: '401',
+                        design: {
+                          typography: { color: '#111827', fontSize: '30', isActive: true, fontWeight: '700' },
+                        },
+                        classes: 'font-[700] text-[#111827] text-[30px]',
+                        content: '401',
+                        children: [],
+                        customName: 'Heading',
+                      },
+                      {
+                        id: 'layer-1762789197005-7z2wy597y',
+                        name: 'span',
+                        text: 'Password protected',
+                        design: {
+                          typography: { fontSize: '12', color: '#111827', isActive: true },
+                        },
+                        classes: 'text-[12px] text-[#111827]',
+                        content: 'Password protected',
+                        children: [],
+                        customName: 'Text',
+                        formattable: true,
+                      },
+                      {
+                        id: 'layer-1762789197006-7z2wy597z',
+                        name: 'span',
+                        text: 'To access this page, please enter the required password below.',
+                        design: {
+                          typography: { fontSize: '12', color: '#111827', isActive: true },
+                        },
+                        classes: 'text-[12px] text-[#111827]',
+                        content: 'To access this page, please enter the required password below.',
+                        children: [],
+                        customName: 'Text',
+                        formattable: true,
+                      },
+                    ],
+                    customName: 'Container',
+                  },
+                ],
+                customName: 'Container',
+              },
+            ],
+            customName: 'Section',
+          },
+        ],
+      },
+    ]),
+  },
+  {
+    code: 404,
+    name: '404 - Page not found',
+    settings: {
+      seo: {
+        title: 'Error 404 - Page not found',
+        description: 'The page you are looking for could not be found.',
+        image: null,
+        noindex: true,
+      },
+    },
+    layers: JSON.stringify([
+      {
+        id: 'body',
+        type: 'container',
+        locked: true,
+        classes: '',
+        children: [
+          {
+            id: 'layer-1762789137823-g2cdo46ld',
+            name: 'section',
+            design: {
+              layout: { display: 'Flex', isActive: true, flexDirection: 'column' },
+              sizing: { height: '100vh', isActive: true },
+              spacing: { isActive: true, paddingTop: '3rem', paddingBottom: '3rem' },
+            },
+            classes: 'flex flex-col gap-[1rem] py-[3rem] h-[100vh]',
+            children: [
+              {
+                id: 'layer-1762789141753-zpz5jyobc',
+                name: 'div',
+                design: {
+                  sizing: { height: '100vh', isActive: true, maxWidth: '80rem' },
+                  spacing: { isActive: true, marginLeft: 'auto', marginRight: 'auto', paddingLeft: '1rem', paddingRight: '1rem' },
+                },
+                classes: 'max-w-[80rem] mx-auto px-[1rem] h-[100vh]',
+                children: [
+                  {
+                    id: 'layer-1762789168560-icft8ynp5',
+                    name: 'div',
+                    design: {
+                      layout: { gap: '6', display: 'flex', isActive: true, alignItems: 'center', flexDirection: 'column', justifyContent: 'center' },
+                      sizing: { height: '100%', isActive: true },
+                      typography: { isActive: true, textAlign: 'center' },
+                    },
+                    classes: 'items-center text-center h-full flex flex-col justify-center gap-[6px]',
+                    children: [
+                      {
+                        id: 'layer-1762789150944-5qezgblbe',
+                        name: 'h2',
+                        text: '404',
+                        design: {
+                          typography: { color: '#111827', fontSize: '30', isActive: true, fontWeight: '700' },
+                        },
+                        classes: 'font-[700] text-[#111827] text-[30px]',
+                        content: '404',
+                        children: [],
+                        customName: 'Heading',
+                      },
+                      {
+                        id: 'layer-1762789197005-7z2wy597y',
+                        name: 'span',
+                        text: 'Page not found',
+                        design: {
+                          typography: { fontSize: '12', color: '#111827', isActive: true },
+                        },
+                        classes: 'text-[12px] text-[#111827]',
+                        content: 'Page not found',
+                        children: [],
+                        customName: 'Text',
+                        formattable: true,
+                      },
+                      {
+                        id: 'layer-1762789197006-7z2wy597z',
+                        name: 'span',
+                        text: 'The page you are looking for does not exist.',
+                        design: {
+                          typography: { fontSize: '12', color: '#111827', isActive: true },
+                        },
+                        classes: 'text-[12px] text-[#111827]',
+                        content: 'The page you are looking for does not exist.',
+                        children: [],
+                        customName: 'Text',
+                        formattable: true,
+                      },
+                    ],
+                    customName: 'Container',
+                  },
+                ],
+                customName: 'Container',
+              },
+            ],
+            customName: 'Section',
+          },
+        ],
+      },
+    ]),
+  },
+  {
+    code: 500,
+    name: '500 - Server error',
+    settings: {
+      seo: {
+        title: 'Error 500 - Server error',
+        description: 'An unexpected error occurred. Please try again later.',
+        image: null,
+        noindex: true,
+      },
+    },
+    layers: JSON.stringify([
+      {
+        id: 'body',
+        type: 'container',
+        locked: true,
+        classes: '',
+        children: [
+          {
+            id: 'layer-1762789137823-g2cdo46ld',
+            name: 'section',
+            design: {
+              layout: { display: 'Flex', isActive: true, flexDirection: 'column' },
+              sizing: { height: '100vh', isActive: true },
+              spacing: { isActive: true, paddingTop: '3rem', paddingBottom: '3rem' },
+            },
+            classes: 'flex flex-col gap-[1rem] py-[3rem] h-[100vh]',
+            children: [
+              {
+                id: 'layer-1762789141753-zpz5jyobc',
+                name: 'div',
+                design: {
+                  sizing: { height: '100vh', isActive: true, maxWidth: '80rem' },
+                  spacing: { isActive: true, marginLeft: 'auto', marginRight: 'auto', paddingLeft: '1rem', paddingRight: '1rem' },
+                },
+                classes: 'max-w-[80rem] mx-auto px-[1rem] h-[100vh]',
+                children: [
+                  {
+                    id: 'layer-1762789168560-icft8ynp5',
+                    name: 'div',
+                    design: {
+                      layout: { gap: '6', display: 'flex', isActive: true, alignItems: 'center', flexDirection: 'column', justifyContent: 'center' },
+                      sizing: { height: '100%', isActive: true },
+                      typography: { isActive: true, textAlign: 'center' },
+                    },
+                    classes: 'items-center text-center h-full flex flex-col justify-center gap-[6px]',
+                    children: [
+                      {
+                        id: 'layer-1762789150944-5qezgblbe',
+                        name: 'h2',
+                        text: '500',
+                        design: {
+                          typography: { color: '#111827', fontSize: '30', isActive: true, fontWeight: '700' },
+                        },
+                        classes: 'font-[700] text-[#111827] text-[30px]',
+                        content: '500',
+                        children: [],
+                        customName: 'Heading',
+                      },
+                      {
+                        id: 'layer-1762789197005-7z2wy597y',
+                        name: 'span',
+                        text: 'Server error',
+                        design: {
+                          typography: { fontSize: '12', color: '#111827', isActive: true },
+                        },
+                        classes: 'text-[12px] text-[#111827]',
+                        content: 'Server error',
+                        children: [],
+                        customName: 'Text',
+                        formattable: true,
+                      },
+                      {
+                        id: 'layer-1762789197006-7z2wy597z',
+                        name: 'span',
+                        text: 'An unexpected error occurred. Please try again later.',
+                        design: {
+                          typography: { fontSize: '12', color: '#111827', isActive: true },
+                        },
+                        classes: 'text-[12px] text-[#111827]',
+                        content: 'An unexpected error occurred. Please try again later.',
+                        children: [],
+                        customName: 'Text',
+                        formattable: true,
+                      },
+                    ],
+                    customName: 'Container',
+                  },
+                ],
+                customName: 'Container',
+              },
+            ],
+            customName: 'Section',
+          },
+        ],
+      },
+    ]),
+  },
+];

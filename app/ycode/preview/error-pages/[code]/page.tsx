@@ -1,6 +1,8 @@
 import LayerRenderer from '@/components/layers/LayerRenderer';
 import { fetchErrorPage } from '@/lib/page-fetcher';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { generatePageMetadata } from '@/lib/page-utils';
+import type { Metadata } from 'next';
 
 interface ErrorPagePreviewProps {
   params: Promise<{ code: string }>;
@@ -53,5 +55,25 @@ export default async function ErrorPagePreview({ params }: ErrorPagePreviewProps
       </div>
     </>
   );
+}
+
+// Generate metadata
+export async function generateMetadata({ params }: ErrorPagePreviewProps): Promise<Metadata> {
+  const { code } = await params;
+  const errorCode = parseInt(code, 10);
+
+  // Fetch error page to get SEO settings
+  const pageData = await fetchErrorPage(errorCode, false);
+
+  if (!pageData) {
+    return {
+      title: `[Preview] ${errorCode} error page`,
+      description: `Preview of ${errorCode} error page`,
+    };
+  }
+
+  return generatePageMetadata(pageData.page, {
+    isPreview: true,
+  });
 }
 

@@ -3,6 +3,7 @@ import type { Asset } from '../../types';
 
 export interface CreateAssetData {
   filename: string;
+  source: string; // Required: identifies where the asset was uploaded from (e.g., 'library', 'page-settings', 'components')
   storage_path: string;
   public_url: string;
   file_size: number;
@@ -16,7 +17,7 @@ export interface CreateAssetData {
  */
 export async function getAllAssets(): Promise<Asset[]> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase not configured');
   }
@@ -38,7 +39,7 @@ export async function getAllAssets(): Promise<Asset[]> {
  */
 export async function getAssetById(id: string): Promise<Asset | null> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase not configured');
   }
@@ -64,7 +65,7 @@ export async function getAssetById(id: string): Promise<Asset | null> {
  */
 export async function createAsset(assetData: CreateAssetData): Promise<Asset> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase not configured');
   }
@@ -87,14 +88,14 @@ export async function createAsset(assetData: CreateAssetData): Promise<Asset> {
  */
 export async function deleteAsset(id: string): Promise<void> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase not configured');
   }
 
   // Get asset to find storage path
   const asset = await getAssetById(id);
-  
+
   if (!asset) {
     throw new Error('Asset not found');
   }
@@ -128,13 +129,13 @@ function sanitizeFilename(filename: string): string {
   const lastDot = filename.lastIndexOf('.');
   const name = lastDot > 0 ? filename.substring(0, lastDot) : filename;
   const ext = lastDot > 0 ? filename.substring(lastDot) : '';
-  
+
   // Replace spaces with hyphens and remove special characters
   const sanitized = name
     .replace(/\s+/g, '-') // Replace spaces with hyphens
     .replace(/[^a-zA-Z0-9-_]/g, '') // Remove special characters
     .toLowerCase(); // Convert to lowercase
-  
+
   return sanitized + ext.toLowerCase();
 }
 
@@ -143,7 +144,7 @@ function sanitizeFilename(filename: string): string {
  */
 export async function uploadFile(file: File): Promise<{ path: string; url: string }> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase not configured');
   }
@@ -151,7 +152,7 @@ export async function uploadFile(file: File): Promise<{ path: string; url: strin
   // Sanitize filename to remove spaces and special characters
   const sanitizedName = sanitizeFilename(file.name);
   const filename = `${Date.now()}-${sanitizedName}`;
-  
+
   const { data, error } = await client.storage
     .from('assets')
     .upload(filename, file, {

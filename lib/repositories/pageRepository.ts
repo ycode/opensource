@@ -6,7 +6,7 @@
 
 import { getSupabaseAdmin } from '../supabase-server';
 import { reorderSiblings } from './pageFolderRepository';
-import type { Page } from '../../types';
+import type { Page, PageSettings } from '../../types';
 import { isHomepage } from '../page-utils';
 import { incrementSiblingOrders, fixOrphanedPageSlugs } from '../services/pageService';
 import { generatePageMetadataHash } from '../hash-utils';
@@ -32,7 +32,7 @@ export interface CreatePageData {
   is_index?: boolean;
   is_dynamic?: boolean;
   error_page?: number | null;
-  settings?: Record<string, any>;
+  settings?: PageSettings;
 }
 
 /**
@@ -48,7 +48,7 @@ export interface UpdatePageData {
   is_index?: boolean;
   is_dynamic?: boolean;
   error_page?: number | null;
-  settings?: Record<string, any>;
+  settings?: PageSettings;
   content_hash?: string; // Auto-calculated, should not be set manually
 }
 

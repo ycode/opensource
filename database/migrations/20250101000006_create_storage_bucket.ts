@@ -2,20 +2,19 @@ import type { Knex } from 'knex';
 
 /**
  * Migration: Create Storage Bucket
- * 
+ *
  * Creates Supabase storage bucket for assets with policies
  */
 
 export async function up(knex: Knex): Promise<void> {
-  // Create storage bucket for assets
   await knex.schema.raw(`
     INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
     VALUES (
       'assets',
       'assets',
       true,
-      10485760,
-      ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
+      52428800,
+      NULL
     )
     ON CONFLICT (id) DO NOTHING
   `);

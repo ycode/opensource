@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAsset, uploadFile } from '@/lib/repositories/assetRepository';
+import { uploadFile as uploadFileToStorage } from '@/lib/file-upload';
+import { isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 import { noCache } from '@/lib/api-response';
 
 /**
@@ -11,6 +12,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
+    const source = formData.get('source') as string | null;
 
     if (!file) {
       return noCache(
@@ -19,8 +21,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!source) {
+      return noCache(
+        { error: 'Source is required' },
+        400
+      );
+    }
+
     // Validate file type
-    if (!file.type.startsWith('image/')) {
+    if (!isAssetOfType(file.type, ASSET_CATEGORIES.IMAGES)) {
       return noCache(
         { error: 'Only image files are allowed' },
         400
@@ -36,20 +45,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upload file to Supabase Storage
-    const { path, url } = await uploadFile(file);
+    // Upload file to Supabase Storage and create asset record
+    // This automatically extracts dimensions for images using sharp
+    const asset = await uploadFileToStorage(file, source);
 
-    // TODO: Extract image dimensions for images
-    // This would require a library like 'sharp' or browser-based extraction
-
-    // Create asset record in database
-    const asset = await createAsset({
-      filename: file.name,
-      storage_path: path,
-      public_url: url,
-      file_size: file.size,
-      mime_type: file.type,
-    });
+    if (!asset) {
+      return noCache(
+        { error: 'Failed to upload asset' },
+        500
+      );
+    }
 
     return noCache({
       data: asset,

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { fetchHomepage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { generatePageMetadata } from '@/lib/page-utils';
 import type { Metadata } from 'next';
 
 // Force dynamic rendering - no caching for preview
@@ -59,8 +60,8 @@ export async function generateMetadata(): Promise<Metadata> {
     };
   }
 
-  return {
-    title: `Preview: ${data.page.name || 'Home'}`,
-    description: `Preview of ${data.page.name} - YCode`,
-  };
+  return generatePageMetadata(data.page, {
+    isPreview: true,
+    fallbackTitle: 'Homepage',
+  });
 }

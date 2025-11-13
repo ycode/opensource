@@ -154,18 +154,19 @@ export async function fixOrphanedPageSlugs(
 
     // Batch update all orphaned pages using CASE statement for efficiency
     if (updates.length > 0) {
-      const caseStatements = updates.map((u, idx) =>
-        `WHEN id = $${idx * 2 + 1} THEN $${idx * 2 + 2}`
+      const caseStatements = updates.map(() =>
+        `WHEN id = ? THEN ?`
       ).join(' ');
 
       const values = updates.flatMap(u => [u.id, u.slug]);
+      const idPlaceholders = updates.map(() => '?').join(', ');
 
       await knex.raw(`
         UPDATE pages
         SET slug = CASE ${caseStatements} END,
             updated_at = NOW()
-        WHERE id IN (${updates.map((_, idx) => `$${idx * 2 + 1}`).join(', ')})
-      `, values);
+        WHERE id IN (${idPlaceholders})
+      `, [...values, ...updates.map(u => u.id)]);
     }
   } catch (error) {
     throw new Error(`Failed to fix orphaned page slugs: ${error instanceof Error ? error.message : 'Unknown error'}`);

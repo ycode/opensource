@@ -224,7 +224,6 @@ export interface Layer {
   src?: string;     // For image layers (use url instead)
 }
 
-// Page Types
 export interface Page {
   id: string;
   slug: string;
@@ -235,13 +234,44 @@ export interface Page {
   is_index: boolean; // Index of the root or parent folder
   is_dynamic: boolean; // Dynamic page (CMS-driven)
   error_page: number | null; // Error page type: 401, 404, 500
-  settings: Record<string, any>; // Page-specific settings
+  settings: PageSettings; // Page settings (CMS, auth, seo, custom code)
   content_hash?: string; // SHA-256 hash of page metadata for change detection
   is_published: boolean;
   publish_key: string; // Stable key linking draft and published versions
   created_at: string;
   updated_at: string;
   deleted_at: string | null; // Soft delete timestamp
+}
+
+/**
+ * File object for storing file metadata
+ */
+export interface FileObject {
+  name: string; // Custom name or file basename
+  mime_type: string; // MIME type (e.g., 'image/png')
+  path: string; // Storage path
+  url: string; // Public URL
+}
+
+export interface PageSettings {
+  cms?: {
+    key: string;
+    source: string;
+  };
+  auth?: {
+    enabled: boolean;
+    password: string;
+  };
+  seo?: {
+    image: string | null; // Asset ID
+    title: string;
+    description: string;
+    noindex: boolean; // Prevent search engines from indexing the page
+  };
+  custom_code?: {
+    head: string;
+    body: string;
+  };
 }
 
 export interface PageLayers {
@@ -273,6 +303,19 @@ export interface PageFolder {
 }
 
 // Asset Types
+/**
+ * Asset categories for validation
+ */
+export type AssetCategory = 'images' | 'videos' | 'audio' | 'documents';
+
+/**
+ * Asset - Represents any uploaded file (images, videos, documents, etc.)
+ *
+ * The asset system is designed to handle any file type, not just images.
+ * - Images will have width/height dimensions
+ * - Non-images will have null width/height
+ * - Use mime_type to determine asset type (e.g., image/, video/, application/pdf)
+ */
 export interface Asset {
   id: string;
   filename: string;
@@ -280,8 +323,9 @@ export interface Asset {
   public_url: string;
   file_size: number;
   mime_type: string;
-  width?: number;
-  height?: number;
+  width?: number | null;
+  height?: number | null;
+  source: string; // Required: identifies where the asset was uploaded from
   created_at: string;
 }
 

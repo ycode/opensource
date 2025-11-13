@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { generatePageMetadata } from '@/lib/page-utils';
 
 // Force dynamic rendering - no caching for preview
 export const dynamic = 'force-dynamic';
@@ -63,7 +64,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
 
-  // Fetch draft page to get name
+  // Fetch draft page to get name and SEO settings
   const data = await fetchPageByPath(slugPath, false);
 
   if (!data) {
@@ -72,8 +73,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     };
   }
 
-  return {
-    title: `Preview: ${data.page.name}`,
-    description: `Preview of ${data.page.name} - YCode`,
-  };
+  return generatePageMetadata(data.page, {
+    isPreview: true,
+  });
 }

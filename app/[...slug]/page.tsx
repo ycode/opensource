@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { buildSlugPath } from '@/lib/page-utils';
+import { buildSlugPath, generatePageMetadata } from '@/lib/page-utils';
 import { fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
@@ -134,7 +134,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
 
-  // Fetch page to get name
+  // Fetch page to get name and SEO settings
   const data = await fetchPublishedPageWithLayers(slugPath);
 
   if (!data) {
@@ -143,8 +143,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     };
   }
 
-  return {
-    title: data.page.name || slugPath.charAt(0).toUpperCase() + slugPath.slice(1),
-    description: `${data.page.name} - Built with YCode`,
-  };
+  return generatePageMetadata(data.page, {
+    fallbackTitle: slugPath.charAt(0).toUpperCase() + slugPath.slice(1),
+  });
 }

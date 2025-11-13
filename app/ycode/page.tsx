@@ -31,6 +31,7 @@ import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { useAssetsStore } from '@/stores/useAssetsStore';
 
 // 6. Utils/lib
 import { findHomepage } from '@/lib/page-utils';
@@ -199,12 +200,14 @@ export default function YCodeBuilder() {
             const { setComponents } = useComponentsStore.getState();
             const { setStyles } = useLayerStylesStore.getState();
             const { setSettings } = useSettingsStore.getState();
+            const { loadAssets } = useAssetsStore.getState();
 
             setPagesAndDrafts(response.data.pages, response.data.drafts);
             setFolders(response.data.folders || []);
             setComponents(response.data.components);
             setStyles(response.data.styles);
             setSettings(response.data.settings);
+            loadAssets();
           }
         } catch (error) {
           console.error('[Editor] Error loading initial data:', error);

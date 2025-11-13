@@ -2,17 +2,22 @@
 
 import React, { useEffect, useState } from 'react';
 import { assetsApi } from '../lib/api';
+import { formatFileSize, isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 import type { Asset } from '../types';
 import AssetUpload from './AssetUpload';
 
 interface AssetLibraryProps {
   onAssetSelect?: (asset: Asset) => void;
   className?: string;
+  accept?: string;
+  maxSize?: number;
 }
 
 export default function AssetLibrary({
   onAssetSelect,
   className = '',
+  accept = '*/*',
+  maxSize = 50,
 }: AssetLibraryProps) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,8 +89,8 @@ export default function AssetLibrary({
         <AssetUpload
           onUploadSuccess={handleUploadSuccess}
           onUploadError={handleUploadError}
-          accept="image/*"
-          maxSize={10}
+          accept={accept}
+          maxSize={maxSize}
         />
       </div>
 
@@ -102,7 +107,7 @@ export default function AssetLibrary({
             className="group relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
           >
             <div className="aspect-square bg-gray-100 flex items-center justify-center">
-              {asset.mime_type?.startsWith('image/') ? (
+              {isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES) ? (
                 <img
                   src={asset.public_url}
                   alt={asset.filename}
@@ -132,7 +137,7 @@ export default function AssetLibrary({
                 {asset.width && asset.height ? `${asset.width}×${asset.height}` : ''}
                 {asset.file_size && (
                   <span className="ml-1">
-                    ({Math.round(asset.file_size / 1024)}KB)
+                    ({formatFileSize(asset.file_size)})
                   </span>
                 )}
               </p>
