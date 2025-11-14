@@ -680,10 +680,10 @@ export default function CMS() {
                   </div>
                   <div className="grid grid-cols-3 items-center gap-4">
                     <Label className="text-muted-foreground">Type</Label>
-                    <div className="col-span-2">
+                    <div className="col-span-2 ">
                       <Select value={newFieldType} onValueChange={(value: any) => setNewFieldType(value)}>
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue className="w-full" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
@@ -813,7 +813,7 @@ export default function CMS() {
                                         </div>
                                         <div className="grid grid-cols-3 items-center gap-4">
                                           <Label className="text-muted-foreground">Type</Label>
-                                          <div className="col-span-2">
+                                          <div className="col-span-2 *:w-full">
                                             <Select
                                               value={newFieldType}
                                               onValueChange={(value: any) => setNewFieldType(value)}
@@ -902,7 +902,7 @@ export default function CMS() {
                               </div>
                               <div className="grid grid-cols-3 items-center gap-4">
                                 <Label className="text-muted-foreground">Type</Label>
-                                <div className="col-span-2">
+                                <div className="col-span-2 *:w-full">
                                   <Select value={newFieldType} onValueChange={(value: any) => setNewFieldType(value)}>
                                     <SelectTrigger>
                                       <SelectValue />
