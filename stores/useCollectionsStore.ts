@@ -217,11 +217,21 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         throw new Error(response.error);
       }
       
-      set(state => ({
-        collections: state.collections.filter(c => c.id !== id),
-        selectedCollectionId: state.selectedCollectionId === id ? null : state.selectedCollectionId,
-        isLoading: false,
-      }));
+      set(state => {
+        const remainingCollections = state.collections.filter(c => c.id !== id);
+        const wasSelected = state.selectedCollectionId === id;
+        
+        // If the deleted collection was selected, select the first remaining collection
+        const newSelectedId = wasSelected && remainingCollections.length > 0
+          ? remainingCollections[0].id
+          : (state.selectedCollectionId === id ? null : state.selectedCollectionId);
+        
+        return {
+          collections: remainingCollections,
+          selectedCollectionId: newSelectedId,
+          isLoading: false,
+        };
+      });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete collection';
       set({ error: errorMessage, isLoading: false });

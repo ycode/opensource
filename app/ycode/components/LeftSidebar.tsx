@@ -2,8 +2,12 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 // 4. Internal components
@@ -48,12 +52,16 @@ export default function LeftSidebar({
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
+  const [renamingCollectionId, setRenamingCollectionId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [hoveredCollectionId, setHoveredCollectionId] = useState<number | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   const { draftsByPageId, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
   const { setSelectedLayerId, setCurrentPageId, editingComponentId } = useEditorStore();
   const { componentDrafts, getComponentById, updateComponentDraft } = useComponentsStore();
-  const { collections, loadCollections, selectedCollectionId, setSelectedCollectionId, createCollection } = useCollectionsStore();
+  const { collections, loadCollections, selectedCollectionId, setSelectedCollectionId, createCollection, updateCollection, deleteCollection } = useCollectionsStore();
 
   // Get component layers if in edit mode
   const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
@@ -162,19 +170,18 @@ export default function LeftSidebar({
   // Handle creating a new collection
   const handleCreateCollection = async () => {
     try {
-      // Generate unique collection name
+      // Generate unique collection name and slug
       const baseName = 'Collection';
       let collectionName = baseName;
+      let collectionSlug = baseName.toLowerCase();
       let counter = 1;
 
-      // Check if name already exists
-      while (collections.some(c => c.name === collectionName)) {
+      // Check if slug already exists (slug must be unique, not name)
+      while (collections.some(c => c.collection_name === collectionSlug)) {
         collectionName = `${baseName} ${counter}`;
+        collectionSlug = collectionName.toLowerCase().replace(/\s+/g, '_');
         counter++;
       }
-
-      // Generate slug from name
-      const collectionSlug = collectionName.toLowerCase().replace(/\s+/g, '_');
 
       // Create the collection
       const newCollection = await createCollection({
@@ -188,8 +195,56 @@ export default function LeftSidebar({
       setSelectedCollectionId(newCollection.id);
       setActiveTab('cms');
       onActiveTabChange('cms');
+
+      // Enter rename mode for the new collection
+      setRenamingCollectionId(newCollection.id);
+      setRenameValue(newCollection.name);
     } catch (error) {
       console.error('Failed to create collection:', error);
+    }
+  };
+
+  // Handle double-click to rename collection
+  const handleCollectionDoubleClick = (collection: { id: number; name: string }) => {
+    setRenamingCollectionId(collection.id);
+    setRenameValue(collection.name);
+  };
+
+  // Handle rename submit
+  const handleRenameSubmit = async () => {
+    if (!renamingCollectionId || !renameValue.trim()) {
+      setRenamingCollectionId(null);
+      setRenameValue('');
+      return;
+    }
+
+    try {
+      await updateCollection(renamingCollectionId, { name: renameValue.trim() });
+      setRenamingCollectionId(null);
+      setRenameValue('');
+    } catch (error) {
+      console.error('Failed to rename collection:', error);
+    }
+  };
+
+  // Handle rename cancel
+  const handleRenameCancel = () => {
+    setRenamingCollectionId(null);
+    setRenameValue('');
+  };
+
+  // Handle collection delete
+  const handleCollectionDelete = async (collectionId: number) => {
+    // Confirm before deleting
+    if (!confirm('Are you sure you want to delete this collection? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await deleteCollection(collectionId);
+    } catch (error) {
+      console.error('Failed to delete collection:', error);
+      alert('Failed to delete collection. Please try again.');
     }
   };
 
@@ -325,23 +380,109 @@ export default function LeftSidebar({
             <div className="flex flex-col">
               {collections.map((collection) => {
                 const isSelected = selectedCollectionId === collection.id;
+                const isRenaming = renamingCollectionId === collection.id;
+                const isHovered = hoveredCollectionId === collection.id;
+
                 return (
-                  <button
-                    key={collection.id}
-                    className={cn(
-                      'px-4 h-8 rounded-lg flex gap-2 items-center text-left',
-                      isSelected
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
+                  <div key={collection.id}>
+                    {isRenaming ? (
+                      <div className="px-4 h-8 rounded-lg flex gap-2 items-center bg-secondary/50">
+                        <Icon name="database" className="size-3" />
+                        <Input
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleRenameSubmit();
+                            } else if (e.key === 'Escape') {
+                              handleRenameCancel();
+                            }
+                          }}
+                          onBlur={handleRenameCancel}
+                          autoFocus
+                          className="h-6 px-2 py-0 text-sm"
+                        />
+                      </div>
+                    ) : (
+                      <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                          <button
+                            className={cn(
+                              'px-4 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full',
+                              isSelected
+                                ? 'bg-primary text-primary-foreground'
+                                : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
+                            )}
+                            onClick={() => {
+                              setSelectedCollectionId(collection.id);
+                              onActiveTabChange('cms');
+                            }}
+                            onContextMenu={() => {
+                              setSelectedCollectionId(collection.id);
+                              onActiveTabChange('cms');
+                            }}
+                            onDoubleClick={() => handleCollectionDoubleClick(collection)}
+                            onMouseEnter={() => setHoveredCollectionId(collection.id)}
+                            onMouseLeave={() => setHoveredCollectionId(null)}
+                          >
+                            <div className="flex gap-2 items-center">
+                              <Icon name="database" className="size-3" />
+                              <span>{collection.name}</span>
+                            </div>
+                            {isHovered ? (
+                              <DropdownMenu
+                                open={openDropdownId === collection.id}
+                                onOpenChange={(open) => setOpenDropdownId(open ? collection.id : null)}
+                              >
+                                <DropdownMenuTrigger asChild>
+                                  <span
+                                    className="inline-flex items-center justify-center p-1 rounded hover:bg-secondary/80 cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    <Icon name="more" className="size-3" />
+                                  </span>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
+                                    <Icon name="edit" className="size-3" />
+                                    Rename
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    variant="destructive"
+                                    onClick={() => handleCollectionDelete(collection.id)}
+                                  >
+                                    <Icon name="x" className="size-3" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            ) : (
+                              collection.draft_items_count !== undefined && (
+                                <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                                  {collection.draft_items_count}
+                                </Badge>
+                              )
+                            )}
+                          </button>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
+                            <Icon name="edit" className="size-3" />
+                            Rename
+                          </ContextMenuItem>
+                          <ContextMenuItem 
+                            variant="destructive"
+                            onClick={() => handleCollectionDelete(collection.id)}
+                          >
+                            <Icon name="x" className="size-3" />
+                            Delete
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
                     )}
-                    onClick={() => {
-                      setSelectedCollectionId(collection.id);
-                      onActiveTabChange('cms');
-                    }}
-                  >
-                    <Icon name="database" className="size-3" />
-                    <span>{collection.name}</span>
-                  </button>
+                  </div>
                 );
               })}
 

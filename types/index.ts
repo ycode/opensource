@@ -447,6 +447,7 @@ export interface Collection {
   sorting: CollectionSorting | null;
   order: number | null;
   status: CollectionStatus;
+  draft_items_count?: number;
 }
 
 export interface CollectionField {

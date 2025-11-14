@@ -86,7 +86,7 @@ export async function DELETE(
     
     await deleteCollection(collectionId);
     
-    return noCache({ data: null }, 204);
+    return noCache({ data: { success: true } });
   } catch (error) {
     console.error('Error deleting collection:', error);
     return noCache(

@@ -41,7 +41,10 @@ export async function getAllCollections(filters?: QueryFilters): Promise<Collect
   
   let query = client
     .from('collections')
-    .select('*')
+    .select(`
+      *,
+      collection_items!left(id, deleted_at)
+    `)
     .order('order', { ascending: true })
     .order('created_at', { ascending: false });
   
@@ -65,7 +68,21 @@ export async function getAllCollections(filters?: QueryFilters): Promise<Collect
     throw new Error(`Failed to fetch collections: ${error.message}`);
   }
   
-  return data || [];
+  // Process the data to add draft_items_count
+  const collections = (data || []).map((collection: any) => {
+    const items = collection.collection_items || [];
+    // Count only non-deleted items
+    const draft_items_count = items.filter((item: any) => item.deleted_at === null).length;
+    
+    // Remove the joined data and add the count
+    const { collection_items, ...collectionData } = collection;
+    return {
+      ...collectionData,
+      draft_items_count,
+    };
+  });
+  
+  return collections;
 }
 
 /**
