@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef, useImperativeHandle } from 'react';
-import type { PageFolder } from '@/types';
+import type { PageFolder, PageFolderSettings } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +70,10 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [authEnabled, setAuthEnabled] = useState(false);
+  const [authPassword, setAuthPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
   // Force recalculation of hasUnsavedChanges after save
   const [saveCounter, setSaveCounter] = useState(0);
 
@@ -85,6 +89,8 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
     name: string;
     slug: string;
     pageFolderId: string | null;
+    authEnabled: boolean;
+    authPassword: string;
   } | null>(null);
 
   const folders = usePagesStore((state) => state.folders);
@@ -98,7 +104,9 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
     const hasChanges = (
       name !== initial.name ||
       slug !== initial.slug ||
-      pageFolderId !== initial.pageFolderId
+      pageFolderId !== initial.pageFolderId ||
+      authEnabled !== initial.authEnabled ||
+      authPassword !== initial.authPassword
     );
 
     // Clear rejected folder when user makes changes (allows them to try navigating again)
@@ -108,7 +116,7 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
 
     return hasChanges;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, slug, pageFolderId, saveCounter]);
+  }, [name, slug, pageFolderId, authEnabled, authPassword, saveCounter]);
 
   // Expose method to check for unsaved changes externally
   useImperativeHandle(ref, () => ({
@@ -182,27 +190,37 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
       const initialName = currentFolder.name;
       const initialSlug = currentFolder.slug;
       const initialFolderId = currentFolder.page_folder_id;
+      const initialAuthEnabled = currentFolder.settings?.auth?.enabled || false;
+      const initialAuthPassword = currentFolder.settings?.auth?.password || '';
 
       setName(initialName);
       setSlug(initialSlug);
       setPageFolderId(initialFolderId);
+      setAuthEnabled(initialAuthEnabled);
+      setAuthPassword(initialAuthPassword);
 
       // Save initial values for comparison
       initialValuesRef.current = {
         name: initialName,
         slug: initialSlug,
         pageFolderId: initialFolderId,
+        authEnabled: initialAuthEnabled,
+        authPassword: initialAuthPassword,
       };
     } else {
       setName('');
       setSlug('');
       setPageFolderId(null);
+      setAuthEnabled(false);
+      setAuthPassword('');
 
       // Reset initial values for new folder
       initialValuesRef.current = {
         name: '',
         slug: '',
         pageFolderId: null,
+        authEnabled: false,
+        authPassword: '',
       };
     }
     setError(null);
@@ -266,6 +284,8 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
         setName(initialValuesRef.current.name);
         setSlug(initialValuesRef.current.slug);
         setPageFolderId(initialValuesRef.current.pageFolderId);
+        setAuthEnabled(initialValuesRef.current.authEnabled);
+        setAuthPassword(initialValuesRef.current.authPassword);
       }
 
       rejectedFolderRef.current = null;
@@ -282,6 +302,8 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
         setName(initialValuesRef.current.name);
         setSlug(initialValuesRef.current.slug);
         setPageFolderId(initialValuesRef.current.pageFolderId);
+        setAuthEnabled(initialValuesRef.current.authEnabled);
+        setAuthPassword(initialValuesRef.current.authPassword);
       }
 
       rejectedFolderRef.current = null;
@@ -340,11 +362,19 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
     setError(null);
 
     try {
+      const trimmedAuthPassword = authPassword.trim();
+
       await onSave({
         name: name.trim(),
         slug: trimmedSlug,
         page_folder_id: pageFolderId,
         is_published: false,
+        settings: {
+          auth: {
+            enabled: authEnabled,
+            password: trimmedAuthPassword,
+          },
+        },
       });
 
       // Trim form state to match what was saved
@@ -352,12 +382,15 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
 
       setName(trimmedName);
       setSlug(trimmedSlug);
+      setAuthPassword(trimmedAuthPassword);
 
       // Update initial values to reflect saved state
       initialValuesRef.current = {
         name: trimmedName,
         slug: trimmedSlug,
         pageFolderId,
+        authEnabled,
+        authPassword: trimmedAuthPassword,
       };
 
       // Clear rejected folder after successful save (allows navigation)
@@ -477,14 +510,40 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
                     <FieldContent>
                       <FieldLabel htmlFor="passwordProtected">
                         Password protected
-                        <span className="ml-2 text-xs text-muted-foreground font-normal">(Coming soon)</span>
                       </FieldLabel>
                       <FieldDescription>
-                        Restrict access to this folder. Setting a password will override any password set on a parent folder. Passwords are case-sensitive.
+                      Restrict access to all pages in this folder and its sub-folders. Setting a password will override any password set on a parent folder.
                       </FieldDescription>
                     </FieldContent>
-                    <Switch id="passwordProtected" disabled />
+                    <Switch
+                      id="passwordProtected"
+                      checked={authEnabled}
+                      onCheckedChange={setAuthEnabled}
+                    />
                   </Field>
+
+                  {authEnabled && (
+                    <Field>
+                      <FieldLabel>Password</FieldLabel>
+                      <div className="flex gap-2">
+                        <Input
+                          type={showPassword ? 'text' : 'password'}
+                          value={authPassword}
+                          onChange={(e) => setAuthPassword(e.target.value)}
+                          placeholder="Enter password"
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="w-18"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? 'Hide' : 'Show'}
+                        </Button>
+                      </div>
+                    </Field>
+                  )}
                 </FieldGroup>
               </FieldSet>
             </FieldGroup>

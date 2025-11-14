@@ -89,6 +89,10 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const [customCodeHead, setCustomCodeHead] = useState('');
   const [customCodeBody, setCustomCodeBody] = useState('');
 
+  const [authEnabled, setAuthEnabled] = useState(false);
+  const [authPassword, setAuthPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
   const [uploadedAssetCache, setUploadedAssetCache] = useState<Asset | null>(null);
   const seoImageAsset = useAsset(seoImageId);
   const { addAsset, removeAsset } = useAssetsStore();
@@ -119,6 +123,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     seoNoindex: boolean;
     customCodeHead: string;
     customCodeBody: string;
+    authEnabled: boolean;
+    authPassword: string;
   } | null>(null);
 
   const pages = usePagesStore((state) => state.pages);
@@ -142,6 +148,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       seoNoindex !== initial.seoNoindex ||
       customCodeHead !== initial.customCodeHead ||
       customCodeBody !== initial.customCodeBody ||
+      authEnabled !== initial.authEnabled ||
+      authPassword !== initial.authPassword ||
       pendingImageFile !== null
     );
 
@@ -152,7 +160,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
     return hasChanges;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImageId, seoNoindex, customCodeHead, customCodeBody, pendingImageFile, saveCounter]);
+  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImageId, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, pendingImageFile, saveCounter]);
 
   // Expose method to check for unsaved changes externally
   useImperativeHandle(ref, () => ({
@@ -235,6 +243,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       const initialSeoNoindex = isErrorPage ? true : (settings?.seo?.noindex || false);
       const initialCustomCodeHead = settings?.custom_code?.head || '';
       const initialCustomCodeBody = settings?.custom_code?.body || '';
+      const initialAuthEnabled = settings?.auth?.enabled || false;
+      const initialAuthPassword = settings?.auth?.password || '';
 
       setName(initialName);
       setSlug(initialSlug);
@@ -246,6 +256,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setSeoNoindex(initialSeoNoindex);
       setCustomCodeHead(initialCustomCodeHead);
       setCustomCodeBody(initialCustomCodeBody);
+      setAuthEnabled(initialAuthEnabled);
+      setAuthPassword(initialAuthPassword);
       setPendingImageFile(null);
       setUploadedAssetCache(null); // Clear cache when switching pages
 
@@ -267,6 +279,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         seoNoindex: initialSeoNoindex,
         customCodeHead: initialCustomCodeHead,
         customCodeBody: initialCustomCodeBody,
+        authEnabled: initialAuthEnabled,
+        authPassword: initialAuthPassword,
       };
     } else {
       setName('');
@@ -279,6 +293,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setSeoNoindex(false);
       setCustomCodeHead('');
       setCustomCodeBody('');
+      setAuthEnabled(false);
+      setAuthPassword('');
       setPendingImageFile(null);
       setUploadedAssetCache(null); // Clear cache for new page
 
@@ -299,6 +315,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         seoNoindex: false,
         customCodeHead: '',
         customCodeBody: '',
+        authEnabled: false,
+        authPassword: '',
       };
     }
     setError(null);
@@ -459,6 +477,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         setSeoNoindex(initialValuesRef.current.seoNoindex);
         setCustomCodeHead(initialValuesRef.current.customCodeHead);
         setCustomCodeBody(initialValuesRef.current.customCodeBody);
+        setAuthEnabled(initialValuesRef.current.authEnabled);
+        setAuthPassword(initialValuesRef.current.authPassword);
         setPendingImageFile(null);
 
         // Clean up preview URL
@@ -489,6 +509,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         setSeoNoindex(initialValuesRef.current.seoNoindex);
         setCustomCodeHead(initialValuesRef.current.customCodeHead);
         setCustomCodeBody(initialValuesRef.current.customCodeBody);
+        setAuthEnabled(initialValuesRef.current.authEnabled);
+        setAuthPassword(initialValuesRef.current.authPassword);
         setPendingImageFile(null);
 
         // Clean up preview URL
@@ -623,6 +645,10 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
       const settings: PageSettings = {
         ...existingSettings,
+        auth: {
+          enabled: authEnabled,
+          password: authPassword.trim(),
+        },
         seo: {
           title: seoTitle.trim(),
           description: seoDescription.trim(),
@@ -657,6 +683,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       const normalizedSeoNoindex = isErrorPage ? true : seoNoindex;
       const trimmedCustomCodeHead = customCodeHead.trim();
       const trimmedCustomCodeBody = customCodeBody.trim();
+      const trimmedAuthPassword = authPassword.trim();
 
       setName(trimmedName);
       setSlug(trimmedSlug);
@@ -666,6 +693,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setSeoImageId(finalSeoImageId);
       setCustomCodeHead(trimmedCustomCodeHead);
       setCustomCodeBody(trimmedCustomCodeBody);
+      setAuthPassword(trimmedAuthPassword);
 
       initialValuesRef.current = {
         name: trimmedName,
@@ -678,6 +706,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         seoNoindex: normalizedSeoNoindex,
         customCodeHead: trimmedCustomCodeHead,
         customCodeBody: trimmedCustomCodeBody,
+        authEnabled,
+        authPassword: trimmedAuthPassword,
       };
 
       rejectedPageRef.current = null;
@@ -848,14 +878,41 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       <FieldContent>
                         <FieldLabel htmlFor="passwordProtected">
                           Password protected
-                          <span className="ml-2 text-xs text-muted-foreground font-normal">(Coming soon)</span>
                         </FieldLabel>
                         <FieldDescription>
                           Restrict access to this page. Setting a password will override any password set on a parent folder. Passwords are case-sensitive.
                         </FieldDescription>
                       </FieldContent>
-                      <Switch id="passwordProtected" disabled={isErrorPage || true} />
+                      <Switch
+                        id="passwordProtected"
+                        checked={authEnabled}
+                        onCheckedChange={setAuthEnabled}
+                        disabled={isErrorPage}
+                      />
                     </Field>
+
+                    {authEnabled && (
+                      <Field>
+                        <FieldLabel>Password</FieldLabel>
+                        <div className="flex gap-1.5">
+                          <Input
+                            type={showPassword ? 'text' : 'password'}
+                            value={authPassword}
+                            onChange={(e) => setAuthPassword(e.target.value)}
+                            placeholder="Enter password"
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="w-18"
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? 'Hide' : 'Show'}
+                          </Button>
+                        </div>
+                      </Field>
+                    )}
 
                     <Field orientation="horizontal" className="flex !flex-row-reverse">
                       <FieldContent>

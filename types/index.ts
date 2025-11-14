@@ -287,6 +287,13 @@ export interface PageLayers {
   generated_css?: string; // Extracted CSS from Play CDN for published pages
 }
 
+export interface PageFolderSettings {
+  auth?: {
+    enabled: boolean;
+    password: string;
+  };
+}
+
 export interface PageFolder {
   id: string;
   page_folder_id: string | null; // Self-referential: parent folder ID
@@ -294,7 +301,7 @@ export interface PageFolder {
   slug: string;
   depth: number; // Folder depth in hierarchy (0 for root)
   order: number; // Sort order within parent folder
-  settings: Record<string, any>; // Settings for auth (enabled + password), etc.
+  settings: PageFolderSettings; // Settings for auth (enabled + password), etc.
   is_published: boolean;
   publish_key: string; // Stable key linking draft and published versions
   created_at: string;
