@@ -43,6 +43,7 @@ import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
 import type { CollectionItemWithValues, CollectionField } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 
 // Sortable row component for drag and drop
 interface SortableRowProps {
@@ -613,7 +614,12 @@ export default function CMS() {
       <div className="p-4 flex items-center justify-between border-b">
 
         <div className="w-full max-w-72">
-          <Input placeholder="Search..." />
+          <InputGroup>
+            <InputGroupInput placeholder="Search..."></InputGroupInput>
+            <InputGroupAddon>
+              <Icon name="search" className="size-3" />
+            </InputGroupAddon>
+          </InputGroup>
         </div>
 
 
