@@ -99,7 +99,7 @@ export async function up(knex: Knex): Promise<void> {
     content_hash: homepageLayersHash,
   });
 
-  // Insert error page records in database
+  // Insert error page records in database (both draft and published versions)
   for (const errorPage of DEFAULT_ERROR_PAGES) {
     // Calculate content_hash for error page
     const errorPageHash = generatePageMetadataHash({
@@ -111,7 +111,17 @@ export async function up(knex: Knex): Promise<void> {
       error_page: errorPage.code,
     });
 
-    const [createdPage] = await knex('pages')
+    // Calculate content_hash for error page layers
+    const errorPageLayersHash = generatePageLayersHash({
+      layers: errorPage.layers,
+      generated_css: null,
+    });
+
+    // Generate a shared publish_key for draft and published versions
+    const sharedPublishKey = knex.raw('gen_random_uuid()');
+
+    // Create draft version
+    const [draftPage] = await knex('pages')
       .insert({
         name: errorPage.name,
         error_page: errorPage.code,
@@ -121,20 +131,47 @@ export async function up(knex: Knex): Promise<void> {
         is_published: false,
         settings: JSON.stringify(errorPage.settings),
         content_hash: errorPageHash,
+        publish_key: sharedPublishKey,
       })
       .returning('*');
 
-    // Calculate content_hash for error page layers
-    const errorPageLayersHash = generatePageLayersHash({
-      layers: errorPage.layers,
-      generated_css: null,
-    });
+    // Create published version with same content_hash
+    const [publishedPage] = await knex('pages')
+      .insert({
+        name: errorPage.name,
+        error_page: errorPage.code,
+        slug: '',
+        depth: 0,
+        order: 0,
+        is_published: true,
+        settings: JSON.stringify(errorPage.settings),
+        content_hash: errorPageHash,
+        publish_key: draftPage.publish_key, // Use same publish_key as draft
+      })
+      .returning('*');
 
+    // Create draft layers with shared publish_key
+    const layersPublishKey = knex.raw('gen_random_uuid()');
     await knex('page_layers').insert({
-      page_id: createdPage.id,
+      page_id: draftPage.id,
       layers: errorPage.layers,
       is_published: false,
       content_hash: errorPageLayersHash,
+      publish_key: layersPublishKey,
+    });
+
+    // Create published layers with same content_hash and publish_key
+    const [draftLayers] = await knex('page_layers')
+      .select('publish_key')
+      .where('page_id', draftPage.id)
+      .limit(1);
+
+    await knex('page_layers').insert({
+      page_id: publishedPage.id,
+      layers: errorPage.layers,
+      is_published: true,
+      content_hash: errorPageLayersHash,
+      publish_key: draftLayers.publish_key, // Use same publish_key as draft
     });
   }
 }
