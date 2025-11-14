@@ -177,7 +177,7 @@ function PageRow({
           'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg cursor-pointer select-none',
           !isDragActive && !isDragging && 'hover:bg-secondary/50',
           isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
-          !isSelected && 'text-secondary-foreground/80 dark:text-primary-foreground/80'
+          !isSelected && 'text-secondary-foreground/80 dark:text-muted-foreground'
         )}
         style={{ paddingLeft: `${node.depth * 14 + 8}px` }}
         onClick={() => onSelect(node.id, node.type)}

@@ -322,7 +322,7 @@ function LayerRow({
             !isSelected && isChildOfSelected && !isLastVisibleDescendant && 'rounded-none',
             !isSelected && isChildOfSelected && isLastVisibleDescendant && 'rounded-b-lg',
             // Not in group: fully rounded
-            !isSelected && !isChildOfSelected && 'rounded-lg text-secondary-foreground/80 dark:text-primary-foreground/80',
+            !isSelected && !isChildOfSelected && 'rounded-lg text-secondary-foreground/80 dark:text-muted-foreground',
             // Background colors
             !isDragActive && !isDragging && 'hover:bg-secondary/50',
             // Component instances get cursor-default when not expandable

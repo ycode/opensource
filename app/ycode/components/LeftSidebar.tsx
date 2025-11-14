@@ -166,16 +166,16 @@ export default function LeftSidebar({
       const baseName = 'Collection';
       let collectionName = baseName;
       let counter = 1;
-      
+
       // Check if name already exists
       while (collections.some(c => c.name === collectionName)) {
         collectionName = `${baseName} ${counter}`;
         counter++;
       }
-      
+
       // Generate slug from name
       const collectionSlug = collectionName.toLowerCase().replace(/\s+/g, '_');
-      
+
       // Create the collection
       const newCollection = await createCollection({
         name: collectionName,
@@ -183,7 +183,7 @@ export default function LeftSidebar({
         sorting: null,
         order: collections.length,
       });
-      
+
       // Set as active collection and switch to CMS tab
       setSelectedCollectionId(newCollection.id);
       setActiveTab('cms');
@@ -322,17 +322,17 @@ export default function LeftSidebar({
               </div>
             </header>
 
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col">
               {collections.map((collection) => {
                 const isSelected = selectedCollectionId === collection.id;
                 return (
                   <button
                     key={collection.id}
                     className={cn(
-                      'px-4 h-8 rounded-lg flex gap-2 items-center text-left transition-colors',
+                      'px-4 h-8 rounded-lg flex gap-2 items-center text-left',
                       isSelected
-                        ? 'bg-secondary'
-                        : 'text-muted-foreground'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
                     )}
                     onClick={() => {
                       setSelectedCollectionId(collection.id);
