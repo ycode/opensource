@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "NEXT_DISABLE_TURBOPACK=1 next dev",
+    "prod": "next build && next start",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

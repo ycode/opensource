@@ -17,9 +17,8 @@ export async function invalidatePage(routePath: string): Promise<boolean> {
     // Revalidate using the cache tag (matches unstable_cache tags)
     revalidateTag(`route-/${routePath}`);
 
-    // Determine the path to revalidate
-    revalidatePath(`/${routePath}`);
-
+    // Revalidate the specific page path (clears full route cache including static generation)
+    revalidatePath(`/${routePath}`, 'page');
     return true;
   } catch (error) {
     console.error('❌ [Cache] Invalidation error:', error);

@@ -51,9 +51,8 @@ export async function POST() {
       }
 
       const fullPath = buildSlugPath(page, result.publishedFolders, 'page');
-      // Remove leading slash for cache invalidation
       const routePath = fullPath.slice(1) || '';
-      console.log(`[Publish] Invalidating cache for: /${routePath}`);
+
       return invalidatePage(routePath);
     });
 

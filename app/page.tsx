@@ -29,8 +29,8 @@ export default async function Home() {
   // Fetch homepage data
   const data = await fetchPublishedHomepage();
 
-  // If no homepage, show default landing page
-  if (!data || !data.pageLayers.layers || data.pageLayers.layers.length === 0) {
+  // If no published homepage exists, show default landing page
+  if (!data || !data.pageLayers) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center p-8">

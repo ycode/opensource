@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { getKnexClient } from '@/lib/knex-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 
@@ -83,6 +84,9 @@ export async function POST() {
     `);
 
     console.log('[POST /api/devtools/reset-db] All tables dropped successfully');
+
+    revalidatePath('/', 'layout');
+    console.log('[POST /api/devtools/reset-db] Cache invalidated');
 
     return NextResponse.json({
       data: { message: 'All public tables and storage buckets have been deleted' }
