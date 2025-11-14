@@ -21,6 +21,7 @@ export async function up(knex: Knex): Promise<void> {
     table.jsonb('settings').defaultTo('{}'); // Settings for `cms` (source + key), `auth` (enabled + password), `seo`, `code`
     table.boolean('is_published').defaultTo(false);
     table.string('publish_key', 255).defaultTo(knex.raw('gen_random_uuid()'));
+    table.string('content_hash', 64).nullable(); // SHA-256 hash for change detection
     table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('updated_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('deleted_at', { useTz: true }).nullable();
@@ -31,6 +32,7 @@ export async function up(knex: Knex): Promise<void> {
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_slug ON pages(slug) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_is_published ON pages(is_published) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_publish_key ON pages(publish_key) WHERE deleted_at IS NULL');
+  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_content_hash ON pages(content_hash)');
 
   // Uses COALESCE to handle NULL values because NULL != NULL in SQL
   await knex.schema.raw(`

@@ -13,9 +13,13 @@ import {
   getDraftLayersForPages,
   getPublishedLayersByPublishKeys
 } from '../repositories/pageLayersRepository';
+import {
+  getAllDraftPageFolders,
+  getPublishedPageFoldersByPublishKeys
+} from '../repositories/pageFolderRepository';
 import { getSupabaseAdmin } from '../supabase-server';
 import { getSettingByKey, setSetting } from '../repositories/settingsRepository';
-import type { Page, PageLayers } from '../../types';
+import type { Page, PageLayers, PageFolder } from '../../types';
 
 /**
  * Result of publishing operation
@@ -30,20 +34,22 @@ export interface PublishResult {
  */
 export interface PublishAllResult {
   published: PublishResult[];
+  publishedFolders: PageFolder[];
   created: number;
   updated: number;
   unchanged: number;
 }
 
 /**
- * Publish all draft pages and their layers
+ * Publish all draft pages, folders, and layers
  * Optimized with batch queries to minimize database roundtrips
  *
  * Publishing order:
- * 1. Fetch all drafts (pages + layers) in batch
+ * 1. Fetch all drafts (folders + pages + layers) in batch
  * 2. Fetch existing published versions in batch
- * 3. Publish pages (no dependencies)
- * 4. Publish page layers (depends on pages via page_id)
+ * 3. Publish folders (no dependencies, but pages depend on them)
+ * 4. Publish pages (depends on folders via page_folder_id)
+ * 5. Publish page layers (depends on pages via page_id)
  *
  * @returns Publishing results with statistics
  */
@@ -54,15 +60,159 @@ export async function publishAllPages(): Promise<PublishAllResult> {
     throw new Error('Supabase not configured');
   }
 
-  // Step 1: Fetch all draft pages (including soft-deleted to handle deletions)
+  // Step 1: Fetch all draft folders (including soft-deleted to handle deletions)
+  const allDraftFolders = await getAllDraftPageFolders(true);
+
+  // Separate active and soft-deleted draft folders
+  const activeDraftFolders = allDraftFolders.filter(f => f.deleted_at === null);
+  const softDeletedDraftFolders = allDraftFolders.filter(f => f.deleted_at !== null);
+
+  const allFolderPublishKeys = allDraftFolders.map(f => f.publish_key);
+
+  // Step 2: Fetch existing published folders in batch
+  const existingPublishedFolders = await getPublishedPageFoldersByPublishKeys(allFolderPublishKeys);
+
+  const publishedFoldersByKey = new Map<string, PageFolder>();
+  existingPublishedFolders.forEach(folder => {
+    publishedFoldersByKey.set(folder.publish_key, folder);
+  });
+
+  // Step 3: Soft-delete published versions of soft-deleted draft folders
+  const deletedAt = new Date().toISOString();
+  const foldersToSoftDelete: string[] = [];
+
+  for (const softDeletedDraft of softDeletedDraftFolders) {
+    const publishedFolder = publishedFoldersByKey.get(softDeletedDraft.publish_key);
+    if (publishedFolder) {
+      foldersToSoftDelete.push(publishedFolder.id);
+    }
+  }
+
+  if (foldersToSoftDelete.length > 0) {
+    await client
+      .from('page_folders')
+      .update({ deleted_at: deletedAt })
+      .in('id', foldersToSoftDelete)
+      .is('deleted_at', null);
+  }
+
+  // Step 4: Prepare folders to create/update (only for active drafts)
+  // Sort by depth to process parent folders before children
+  const sortedActiveDraftFolders = [...activeDraftFolders].sort((a, b) => (a.depth || 0) - (b.depth || 0));
+
+  // Map to track draft folder ID → published folder ID
+  const draftToPublishedFolderIds = new Map<string, string>();
+
+  // First, populate map with existing published folders
+  activeDraftFolders.forEach(draft => {
+    const existing = publishedFoldersByKey.get(draft.publish_key);
+    if (existing) {
+      draftToPublishedFolderIds.set(draft.id, existing.id);
+    }
+  });
+
+  const foldersToCreate: any[] = [];
+  const foldersToUpdate: Array<{ id: string; updates: any }> = [];
+
+  for (const draftFolder of sortedActiveDraftFolders) {
+    const existingPublished = publishedFoldersByKey.get(draftFolder.publish_key);
+
+    // Resolve parent folder reference to published ID
+    const publishedParentFolderId = draftFolder.page_folder_id
+      ? draftToPublishedFolderIds.get(draftFolder.page_folder_id) || draftFolder.page_folder_id
+      : null;
+
+    const publishedData = {
+      name: draftFolder.name,
+      slug: draftFolder.slug,
+      page_folder_id: publishedParentFolderId,
+      order: draftFolder.order,
+      depth: draftFolder.depth,
+      settings: draftFolder.settings,
+      is_published: true,
+      publish_key: draftFolder.publish_key,
+    };
+
+    if (existingPublished) {
+      // Check if update is needed
+      const hasChanges =
+        existingPublished.name !== draftFolder.name ||
+        existingPublished.slug !== draftFolder.slug ||
+        existingPublished.page_folder_id !== publishedParentFolderId ||
+        existingPublished.order !== draftFolder.order ||
+        existingPublished.depth !== draftFolder.depth ||
+        JSON.stringify(existingPublished.settings) !== JSON.stringify(draftFolder.settings);
+
+      if (hasChanges) {
+        foldersToUpdate.push({
+          id: existingPublished.id,
+          updates: publishedData,
+        });
+      }
+    } else {
+      foldersToCreate.push(publishedData);
+    }
+  }
+
+  // Step 5: Batch create/update folders
+  let createdFoldersCount = 0;
+  let updatedFoldersCount = 0;
+
+  if (foldersToCreate.length > 0) {
+    const { data, error } = await client
+      .from('page_folders')
+      .insert(foldersToCreate)
+      .select();
+
+    if (error) {
+      throw new Error(`Failed to create published folders: ${error.message}`);
+    }
+
+    createdFoldersCount = data?.length || 0;
+
+    // Update map with newly created folders (match by publish_key)
+    if (data) {
+      data.forEach((publishedFolder: PageFolder) => {
+        const draftFolder = sortedActiveDraftFolders.find(df => df.publish_key === publishedFolder.publish_key);
+        if (draftFolder) {
+          draftToPublishedFolderIds.set(draftFolder.id, publishedFolder.id);
+        }
+      });
+    }
+  }
+
+  for (const { id, updates } of foldersToUpdate) {
+    const { error } = await client
+      .from('page_folders')
+      .update(updates)
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(`Failed to update published folder: ${error.message}`);
+    }
+
+    updatedFoldersCount++;
+  }
+
+  // Step 6: Fetch all draft pages (including soft-deleted to handle deletions)
   const allDraftPages = await getAllDraftPages(true);
 
+  // Get ALL published folders for building complete paths during cache invalidation
+  // We need all folders, not just those with draft versions, to correctly build nested paths
+  const { getAllPublishedPageFolders } = await import('../repositories/pageFolderRepository');
+  const finalPublishedFolders = await getAllPublishedPageFolders();
+
   if (allDraftPages.length === 0) {
+    const totalFoldersCreated = createdFoldersCount;
+    const totalFoldersUpdated = updatedFoldersCount;
+    const totalFoldersUnchanged = activeDraftFolders.length - totalFoldersCreated - totalFoldersUpdated;
+
     return {
       published: [],
-      created: 0,
-      updated: 0,
-      unchanged: 0,
+      publishedFolders: finalPublishedFolders,
+      created: totalFoldersCreated,
+      updated: totalFoldersUpdated,
+      unchanged: totalFoldersUnchanged,
     };
   }
 
@@ -74,14 +224,14 @@ export async function publishAllPages(): Promise<PublishAllResult> {
   const draftPagePublishKeys = activeDraftPages.map(p => p.publish_key);
   const allPublishKeys = allDraftPages.map(p => p.publish_key);
 
-  // Step 2: Fetch all draft layers for these pages in one query
+  // Step 7: Fetch all draft layers for these pages in one query
   const draftLayersArray = await getDraftLayersForPages(draftPageIds);
   const draftLayersByPageId = new Map<string, PageLayers>();
   draftLayersArray.forEach(layers => {
     draftLayersByPageId.set(layers.page_id, layers);
   });
 
-  // Step 3: Fetch existing published pages and layers in batch (for all drafts including deleted)
+  // Step 8: Fetch existing published pages and layers in batch (for all drafts including deleted)
   const [existingPublishedPages, existingPublishedLayers] = await Promise.all([
     getPublishedPagesByPublishKeys(allPublishKeys),
     getPublishedLayersByPublishKeys(draftLayersArray.map(l => l.publish_key)),
@@ -97,8 +247,7 @@ export async function publishAllPages(): Promise<PublishAllResult> {
     publishedLayersByKey.set(layers.publish_key, layers);
   });
 
-  // Step 3.5: Soft-delete published versions of soft-deleted drafts
-  const deletedAt = new Date().toISOString();
+  // Step 9: Soft-delete published versions of soft-deleted drafts
   const pagesToSoftDelete: string[] = [];
   const layersToSoftDelete: string[] = [];
 
@@ -135,17 +284,22 @@ export async function publishAllPages(): Promise<PublishAllResult> {
       .is('deleted_at', null);
   }
 
-  // Step 4: Prepare pages to create/update (only for active drafts)
+  // Step 10: Prepare pages to create/update (only for active drafts)
   const pagesToCreate: any[] = [];
   const pagesToUpdate: Array<{ id: string; updates: any }> = [];
 
   for (const draftPage of activeDraftPages) {
     const existingPublished = publishedPagesByKey.get(draftPage.publish_key);
 
+    // Resolve folder reference to published ID
+    const publishedFolderId = draftPage.page_folder_id
+      ? draftToPublishedFolderIds.get(draftPage.page_folder_id) || draftPage.page_folder_id
+      : null;
+
     const publishedData = {
       name: draftPage.name,
       slug: draftPage.slug,
-      page_folder_id: draftPage.page_folder_id,
+      page_folder_id: publishedFolderId,
       order: draftPage.order,
       depth: draftPage.depth,
       is_index: draftPage.is_index,
@@ -154,20 +308,12 @@ export async function publishAllPages(): Promise<PublishAllResult> {
       settings: draftPage.settings,
       is_published: true,
       publish_key: draftPage.publish_key,
+      content_hash: draftPage.content_hash, // Copy hash for change detection
     };
 
     if (existingPublished) {
-      // Check if update is needed
-      const hasChanges =
-        existingPublished.name !== draftPage.name ||
-        existingPublished.slug !== draftPage.slug ||
-        existingPublished.page_folder_id !== draftPage.page_folder_id ||
-        existingPublished.order !== draftPage.order ||
-        existingPublished.depth !== draftPage.depth ||
-        existingPublished.is_index !== draftPage.is_index ||
-        existingPublished.is_dynamic !== draftPage.is_dynamic ||
-        existingPublished.error_page !== draftPage.error_page ||
-        JSON.stringify(existingPublished.settings) !== JSON.stringify(draftPage.settings);
+      // Check if update is needed using content_hash for efficient comparison
+      const hasChanges = existingPublished.content_hash !== draftPage.content_hash;
 
       if (hasChanges) {
         pagesToUpdate.push({
@@ -180,7 +326,7 @@ export async function publishAllPages(): Promise<PublishAllResult> {
     }
   }
 
-  // Step 5: Batch create/update pages
+  // Step 11: Batch create/update pages
   let createdPages: Page[] = [];
   let updatedPagesCount = 0;
 
@@ -210,14 +356,14 @@ export async function publishAllPages(): Promise<PublishAllResult> {
     updatedPagesCount++;
   }
 
-  // Step 6: Fetch all published pages again to get current state
+  // Step 12: Fetch all published pages again to get current state
   const allPublishedPages = await getPublishedPagesByPublishKeys(draftPagePublishKeys);
   const publishedPagesMapByKey = new Map<string, Page>();
   allPublishedPages.forEach(page => {
     publishedPagesMapByKey.set(page.publish_key, page);
   });
 
-  // Step 7: Prepare layers to create/update (only for active drafts)
+  // Step 13: Prepare layers to create/update (only for active drafts)
   const layersToCreate: any[] = [];
   const layersToUpdate: Array<{ id: string; updates: any }> = [];
 
@@ -235,12 +381,12 @@ export async function publishAllPages(): Promise<PublishAllResult> {
       layers: draftLayers.layers,
       is_published: true,
       publish_key: draftLayers.publish_key,
+      content_hash: draftLayers.content_hash, // Copy hash for change detection
     };
 
     if (existingPublishedLayers) {
-      // Check if update is needed (layers changed)
-      const layersChanged = JSON.stringify(existingPublishedLayers.layers) !== JSON.stringify(draftLayers.layers);
-      const hasChanges = layersChanged;
+      // Check if update is needed using content_hash for efficient comparison
+      const hasChanges = existingPublishedLayers.content_hash !== draftLayers.content_hash;
 
       if (hasChanges) {
         layersToUpdate.push({
@@ -253,7 +399,7 @@ export async function publishAllPages(): Promise<PublishAllResult> {
     }
   }
 
-  // Step 8: Batch create/update layers
+  // Step 14: Batch create/update layers
   let createdLayersCount = 0;
   let updatedLayersCount = 0;
 
@@ -282,7 +428,7 @@ export async function publishAllPages(): Promise<PublishAllResult> {
     updatedLayersCount++;
   }
 
-  // Step 9: Fetch final published state
+  // Step 15: Fetch final published state
   const finalPublishedPages = await getPublishedPagesByPublishKeys(draftPagePublishKeys);
   const finalPublishedLayers = await getPublishedLayersByPublishKeys(draftLayersArray.map(l => l.publish_key));
 
@@ -291,7 +437,7 @@ export async function publishAllPages(): Promise<PublishAllResult> {
     finalLayersByPageId.set(layers.page_id, layers);
   });
 
-  // Step 10: Build results
+  // Step 16: Build results
   const results: PublishResult[] = [];
   for (const page of finalPublishedPages) {
     const layers = finalLayersByPageId.get(page.id);
@@ -300,11 +446,11 @@ export async function publishAllPages(): Promise<PublishAllResult> {
     }
   }
 
-  const totalCreated = createdPages.length + createdLayersCount;
-  const totalUpdated = updatedPagesCount + updatedLayersCount;
-  const totalUnchanged = (activeDraftPages.length * 2) - totalCreated - totalUpdated;
+  const totalCreated = createdFoldersCount + createdPages.length + createdLayersCount;
+  const totalUpdated = updatedFoldersCount + updatedPagesCount + updatedLayersCount;
+  const totalUnchanged = (activeDraftFolders.length + activeDraftPages.length * 2) - totalCreated - totalUpdated;
 
-  // Step 11: Copy draft CSS to published CSS
+  // Step 17: Copy draft CSS to published CSS
   console.log('[publishingService] Copying draft CSS to published CSS...');
   try {
     const draftCSS = await getSettingByKey('draft_css');
@@ -321,6 +467,7 @@ export async function publishAllPages(): Promise<PublishAllResult> {
 
   return {
     published: results,
+    publishedFolders: finalPublishedFolders,
     created: totalCreated,
     updated: totalUpdated,
     unchanged: totalUnchanged,

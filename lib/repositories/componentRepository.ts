@@ -185,23 +185,18 @@ export async function publishComponent(draftComponentId: string): Promise<Compon
   // Check if published version already exists
   const existingPublished = await getPublishedComponentByPublishKey(draftComponent.publish_key);
   
-  // Calculate content hash for published version
-  const contentHash = generateComponentContentHash({
-    name: draftComponent.name,
-    layers: draftComponent.layers,
-  });
-  
+  // Copy the draft's content_hash directly (don't recalculate to avoid mismatches)
   const publishedData = {
     name: draftComponent.name,
     layers: draftComponent.layers,
-    content_hash: contentHash,
+    content_hash: draftComponent.content_hash, // Copy hash from draft
     is_published: true,
     publish_key: draftComponent.publish_key,
   };
   
   if (existingPublished) {
     // Update existing published version only if content_hash changed
-    if (existingPublished.content_hash !== contentHash) {
+    if (existingPublished.content_hash !== draftComponent.content_hash) {
       const { data, error } = await client
         .from('components')
         .update(publishedData)

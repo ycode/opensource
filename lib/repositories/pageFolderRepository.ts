@@ -25,6 +25,7 @@ export interface CreatePageFolderData {
   order?: number;
   settings?: Record<string, any>;
   is_published?: boolean;
+  publish_key?: string;
   page_folder_id?: string | null;
 }
 
@@ -505,6 +506,34 @@ export async function forceDeletePageFolder(id: string): Promise<void> {
 }
 
 /**
+ * Get draft page folder by publish_key
+ */
+export async function getPageFolderByPublishKey(publishKey: string): Promise<PageFolder | null> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  const { data, error } = await client
+    .from('page_folders')
+    .select('*')
+    .eq('publish_key', publishKey)
+    .eq('is_published', false)
+    .is('deleted_at', null)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return null; // Not found
+    }
+    throw new Error(`Failed to fetch page folder: ${error.message}`);
+  }
+
+  return data;
+}
+
+/**
  * Get published page folder by publish_key
  */
 export async function getPublishedPageFolderByPublishKey(publishKey: string): Promise<PageFolder | null> {
@@ -530,6 +559,94 @@ export async function getPublishedPageFolderByPublishKey(publishKey: string): Pr
   }
 
   return data;
+}
+
+/**
+ * Get all draft page folders (is_published = false)
+ * @param includeSoftDeleted - Include soft-deleted folders
+ */
+export async function getAllDraftPageFolders(includeSoftDeleted = false): Promise<PageFolder[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  let query = client
+    .from('page_folders')
+    .select('*')
+    .eq('is_published', false);
+
+  if (!includeSoftDeleted) {
+    query = query.is('deleted_at', null);
+  }
+
+  const { data, error } = await query.order('order', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to fetch draft folders: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Get all published page folders
+ *
+ * @param includeSoftDeleted - Whether to include soft-deleted folders (default: false)
+ * @returns Array of published page folders
+ */
+export async function getAllPublishedPageFolders(includeSoftDeleted = false): Promise<PageFolder[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  let query = client
+    .from('page_folders')
+    .select('*')
+    .eq('is_published', true);
+
+  if (!includeSoftDeleted) {
+    query = query.is('deleted_at', null);
+  }
+
+  const { data, error } = await query.order('order', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to fetch published folders: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Get published page folders by publish keys
+ * Fetches multiple published folders in a single query
+ */
+export async function getPublishedPageFoldersByPublishKeys(publishKeys: string[]): Promise<PageFolder[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  if (publishKeys.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await client
+    .from('page_folders')
+    .select('*')
+    .in('publish_key', publishKeys)
+    .eq('is_published', true);
+
+  if (error) {
+    throw new Error(`Failed to fetch published folders: ${error.message}`);
+  }
+
+  return data || [];
 }
 
 /**

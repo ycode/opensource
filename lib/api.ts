@@ -148,37 +148,50 @@ export const foldersApi = {
   },
 };
 
-// Page Layers API
+// Layers API
+export const layersApi = {
+  // Get layers for a page (with optional is_published filter)
+  async getByPageId(pageId: string, isPublished?: boolean): Promise<ApiResponse<PageLayers>> {
+    const params = new URLSearchParams({ page_id: pageId });
+    if (isPublished !== undefined) {
+      params.append('is_published', String(isPublished));
+    }
+    return apiRequest<PageLayers>(`/api/layers?${params.toString()}`);
+  },
+
+  // Update layers for a page
+  async update(pageId: string, layers: Layer[]): Promise<ApiResponse<PageLayers>> {
+    return apiRequest<PageLayers>(`/api/layers?page_id=${pageId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ layers }),
+    });
+  },
+};
+
+// Page Layers API (legacy - keeping for backwards compatibility)
 export const pageLayersApi = {
   // Get draft layers for page
   async getDraft(pageId: string): Promise<ApiResponse<PageLayers>> {
-    return apiRequest<PageLayers>(`/api/pages/${pageId}/draft`);
+    return layersApi.getByPageId(pageId, false);
+  },
+
+  // Update draft layers
+  async updateDraft(pageId: string, layers: Layer[]): Promise<ApiResponse<PageLayers>> {
+    return layersApi.update(pageId, layers);
   },
 
   // Get all draft (non-published) page layers in one query
   async getAllDrafts(): Promise<ApiResponse<PageLayers[]>> {
     return apiRequest<PageLayers[]>('/api/pages/drafts');
   },
-
-  // Update draft layers
-  async updateDraft(pageId: string, layers: Layer[]): Promise<ApiResponse<PageLayers>> {
-    return apiRequest<PageLayers>(`/api/pages/${pageId}/draft`, {
-      method: 'PUT',
-      body: JSON.stringify({ layers }),
-    });
-  },
-
-  // Get published layers
-  async getPublished(pageId: string): Promise<ApiResponse<PageLayers>> {
-    return apiRequest<PageLayers>(`/api/pages/${pageId}/published`);
-  },
 };
 
 // Publish API
 export const publishApi = {
-  // Publish all draft records (pages, layers, etc.)
+  // Publish all draft records (pages, folders, layers, etc.)
   async publishAll(): Promise<ApiResponse<{
     published: Array<{ page: Page; layers: PageLayers }>;
+    publishedFolders: PageFolder[];
     created: number;
     updated: number;
     unchanged: number;

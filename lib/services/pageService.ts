@@ -185,6 +185,91 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
     return { count: 0 };
   }
 
+  // Import folder functions
+  const { getPageFolderById, createPageFolder, updatePageFolder, getPublishedPageFolderByPublishKey } = await import('../repositories/pageFolderRepository');
+
+  // Collect all unique folders that need to be published
+  const folderPublishKeysToPublish = new Set<string>();
+  const draftFolderIdToPublishKey = new Map<string, string>();
+
+  // First pass: identify all folders that need publishing
+  for (const draftPageId of pageIds) {
+    try {
+      const draftPage = await getPageById(draftPageId);
+      if (!draftPage || draftPage.deleted_at) {
+        continue;
+      }
+
+      // Collect all ancestor folders
+      let currentFolderId = draftPage.page_folder_id;
+      while (currentFolderId) {
+        const folder = await getPageFolderById(currentFolderId);
+        if (folder && !folder.deleted_at) {
+          folderPublishKeysToPublish.add(folder.publish_key);
+          draftFolderIdToPublishKey.set(folder.id, folder.publish_key);
+          currentFolderId = folder.page_folder_id;
+        } else {
+          break;
+        }
+      }
+    } catch (error) {
+      console.error(`Error collecting folders for page ${draftPageId}:`, error);
+    }
+  }
+
+  // Map to store draft folder ID → published folder ID
+  const draftToPublishedFolderIds = new Map<string, string>();
+
+  // Publish all required folders
+  for (const publishKey of folderPublishKeysToPublish) {
+    try {
+      // Get draft folder by publish_key
+      const { getPageFolderByPublishKey } = await import('../repositories/pageFolderRepository');
+      const draftFolder = await getPageFolderByPublishKey(publishKey);
+
+      if (!draftFolder || draftFolder.deleted_at) {
+        continue;
+      }
+
+      // Check if published version exists
+      const existingPublishedFolder = await getPublishedPageFolderByPublishKey(publishKey);
+
+      // Resolve parent folder reference - use published folder ID if parent is being published
+      const publishedParentFolderId = draftFolder.page_folder_id
+        ? draftToPublishedFolderIds.get(draftFolder.page_folder_id) || draftFolder.page_folder_id
+        : null;
+
+      if (existingPublishedFolder) {
+        // Update existing published folder
+        await updatePageFolder(existingPublishedFolder.id, {
+          name: draftFolder.name,
+          slug: draftFolder.slug,
+          page_folder_id: publishedParentFolderId,
+          order: draftFolder.order,
+          depth: draftFolder.depth,
+          settings: draftFolder.settings,
+        });
+        draftToPublishedFolderIds.set(draftFolder.id, existingPublishedFolder.id);
+      } else {
+        // Create new published folder
+        const publishedFolder = await createPageFolder({
+          name: draftFolder.name,
+          slug: draftFolder.slug,
+          is_published: true,
+          publish_key: draftFolder.publish_key,
+          page_folder_id: publishedParentFolderId,
+          order: draftFolder.order,
+          depth: draftFolder.depth,
+          settings: draftFolder.settings,
+        });
+        draftToPublishedFolderIds.set(draftFolder.id, publishedFolder.id);
+      }
+    } catch (error) {
+      console.error(`Error publishing folder with publish_key ${publishKey}:`, error);
+    }
+  }
+
+  // Now publish the pages
   let publishedCount = 0;
 
   for (const draftPageId of pageIds) {
@@ -199,6 +284,11 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
       // Check if published version already exists
       const existingPublishedPage = await getPublishedPageByPublishKey(draftPage.publish_key);
 
+      // Resolve folder reference - use published folder ID if folder was published
+      const publishedFolderId = draftPage.page_folder_id
+        ? draftToPublishedFolderIds.get(draftPage.page_folder_id) || draftPage.page_folder_id
+        : null;
+
       let publishedPageId: string;
 
       if (existingPublishedPage) {
@@ -206,13 +296,14 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
         await updatePage(existingPublishedPage.id, {
           name: draftPage.name,
           slug: draftPage.slug,
-          page_folder_id: draftPage.page_folder_id,
+          page_folder_id: publishedFolderId,
           order: draftPage.order,
           depth: draftPage.depth,
           is_index: draftPage.is_index,
           is_dynamic: draftPage.is_dynamic,
           error_page: draftPage.error_page,
           settings: draftPage.settings,
+          content_hash: draftPage.content_hash, // Copy hash for change detection
         });
         publishedPageId = existingPublishedPage.id;
       } else {
@@ -222,13 +313,14 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
           slug: draftPage.slug,
           is_published: true,
           publish_key: draftPage.publish_key,
-          page_folder_id: draftPage.page_folder_id,
+          page_folder_id: publishedFolderId,
           order: draftPage.order,
           depth: draftPage.depth,
           is_index: draftPage.is_index,
           is_dynamic: draftPage.is_dynamic,
           error_page: draftPage.error_page,
           settings: draftPage.settings,
+          content_hash: draftPage.content_hash, // Copy hash for change detection
         });
         publishedPageId = publishedPage.id;
       }

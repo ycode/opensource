@@ -33,6 +33,7 @@ export interface CreatePageData {
   is_dynamic?: boolean;
   error_page?: number | null;
   settings?: PageSettings;
+  content_hash?: string;
 }
 
 /**

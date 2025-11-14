@@ -3,6 +3,45 @@ import type { PageLayers, Layer } from '../../types';
 import { generatePageLayersHash } from '../hash-utils';
 
 /**
+ * Get layers by page_id with optional is_published filter
+ */
+export async function getLayersByPageId(
+  pageId: string,
+  isPublished?: boolean
+): Promise<PageLayers | null> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  let query = client
+    .from('page_layers')
+    .select('*')
+    .eq('page_id', pageId)
+    .is('deleted_at', null);
+
+  // Apply is_published filter if provided
+  if (isPublished !== undefined) {
+    query = query.eq('is_published', isPublished);
+  }
+
+  const { data, error } = await query
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return null; // Not found
+    }
+    throw new Error(`Failed to fetch layers: ${error.message}`);
+  }
+
+  return data;
+}
+
+/**
  * Get draft layers for a page
  */
 export async function getDraftLayers(pageId: string): Promise<PageLayers | null> {
@@ -273,23 +312,19 @@ export async function publishPageLayers(draftPageId: string, publishedPageId: st
   // Check if published version exists
   const existingPublished = await getPublishedLayersByPublishKey(draftLayers.publish_key);
 
-  // Calculate content hash for published layers
-  const contentHash = generatePageLayersHash({
-    layers: draftLayers.layers,
-    generated_css: draftLayers.generated_css || null,
-  });
-
+  // Copy the draft's content_hash directly (don't recalculate to avoid mismatches)
   const publishedData: any = {
     page_id: publishedPageId, // Reference the published page, not the draft
     layers: draftLayers.layers,
-    content_hash: contentHash,
+    generated_css: draftLayers.generated_css, // Copy generated CSS
+    content_hash: draftLayers.content_hash, // Copy hash from draft
     is_published: true,
     publish_key: draftLayers.publish_key,
   };
 
   if (existingPublished) {
     // Update existing published version only if content_hash changed
-    const hasChanges = existingPublished.content_hash !== contentHash;
+    const hasChanges = existingPublished.content_hash !== draftLayers.content_hash;
 
     if (hasChanges) {
       const { data, error } = await client

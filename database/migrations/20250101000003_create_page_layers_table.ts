@@ -1,10 +1,12 @@
 import type { Knex } from 'knex';
 import { DEFAULT_ERROR_PAGES } from '@/lib/page-utils';
+import { generatePageMetadataHash, generatePageLayersHash } from '@/lib/hash-utils';
 
 /**
  * Migration: Create page layers table
  *
  * Creates the page_layers table with foreign keys and RLS
+ * Also creates default homepage and error pages with content_hash set
  */
 
 export async function up(knex: Knex): Promise<void> {
@@ -15,6 +17,7 @@ export async function up(knex: Knex): Promise<void> {
     table.jsonb('layers').notNullable().defaultTo('[]');
     table.boolean('is_published').defaultTo(false);
     table.string('publish_key', 255).defaultTo(knex.raw('gen_random_uuid()'));
+    table.string('content_hash', 64).nullable(); // SHA-256 hash for change detection
     table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('updated_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('deleted_at', { useTz: true }).nullable();
@@ -24,6 +27,7 @@ export async function up(knex: Knex): Promise<void> {
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_page_id ON page_layers(page_id) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_published ON page_layers(page_id, is_published) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_publish_key ON page_layers(publish_key) WHERE deleted_at IS NULL');
+  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_content_hash ON page_layers(content_hash)');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_layers ON page_layers USING GIN (layers) WHERE deleted_at IS NULL');
 
   // Enable Row Level Security
@@ -52,6 +56,24 @@ export async function up(knex: Knex): Promise<void> {
   `);
 
   // Create default homepage with initial draft layers
+  const homepageLayers = [{
+    id: 'body',
+    type: 'container',
+    classes: '',
+    children: [],
+    locked: true,
+  }];
+
+  // Calculate content_hash for homepage
+  const homepageHash = generatePageMetadataHash({
+    name: 'Homepage',
+    slug: '',
+    settings: {},
+    is_index: true,
+    is_dynamic: false,
+    error_page: null,
+  });
+
   const [homepage] = await knex('pages')
     .insert({
       name: 'Homepage',
@@ -59,24 +81,36 @@ export async function up(knex: Knex): Promise<void> {
       depth: 0,
       is_index: true,
       is_published: false,
+      content_hash: homepageHash,
     })
     .returning('*');
+
+  // Calculate content_hash for homepage layers
+  const homepageLayersHash = generatePageLayersHash({
+    layers: homepageLayers,
+    generated_css: null,
+  });
 
   // Create initial draft with Body container
   await knex('page_layers').insert({
     page_id: homepage.id,
-    layers: JSON.stringify([{
-      id: 'body',
-      type: 'container',
-      classes: '',
-      children: [],
-      locked: true,
-    }]),
+    layers: JSON.stringify(homepageLayers),
     is_published: false,
+    content_hash: homepageLayersHash,
   });
 
   // Insert error page records in database
   for (const errorPage of DEFAULT_ERROR_PAGES) {
+    // Calculate content_hash for error page
+    const errorPageHash = generatePageMetadataHash({
+      name: errorPage.name,
+      slug: '',
+      settings: errorPage.settings,
+      is_index: false,
+      is_dynamic: false,
+      error_page: errorPage.code,
+    });
+
     const [createdPage] = await knex('pages')
       .insert({
         name: errorPage.name,
@@ -86,13 +120,21 @@ export async function up(knex: Knex): Promise<void> {
         order: 0,
         is_published: false,
         settings: JSON.stringify(errorPage.settings),
+        content_hash: errorPageHash,
       })
       .returning('*');
+
+    // Calculate content_hash for error page layers
+    const errorPageLayersHash = generatePageLayersHash({
+      layers: errorPage.layers,
+      generated_css: null,
+    });
 
     await knex('page_layers').insert({
       page_id: createdPage.id,
       layers: errorPage.layers,
       is_published: false,
+      content_hash: errorPageLayersHash,
     });
   }
 }

@@ -188,25 +188,19 @@ export async function publishLayerStyle(draftStyleId: string): Promise<LayerStyl
   // Check if published version already exists
   const existingPublished = await getPublishedStyleByPublishKey(draftStyle.publish_key);
   
-  // Calculate content hash for published version
-  const contentHash = generateLayerStyleContentHash({
-    name: draftStyle.name,
-    classes: draftStyle.classes,
-    design: draftStyle.design,
-  });
-  
+  // Copy the draft's content_hash directly (don't recalculate to avoid mismatches)
   const publishedData = {
     name: draftStyle.name,
     classes: draftStyle.classes,
     design: draftStyle.design,
-    content_hash: contentHash,
+    content_hash: draftStyle.content_hash, // Copy hash from draft
     is_published: true,
     publish_key: draftStyle.publish_key,
   };
   
   if (existingPublished) {
     // Update existing published version only if content_hash changed
-    if (existingPublished.content_hash !== contentHash) {
+    if (existingPublished.content_hash !== draftStyle.content_hash) {
       const { data, error } = await client
         .from('layer_styles')
         .update(publishedData)
