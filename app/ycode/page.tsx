@@ -439,7 +439,6 @@ export default function YCodeBuilder() {
 
     const historyEntry = undo();
     if (historyEntry && historyEntry.pageId === currentPageId) {
-      const { draftsByPageId } = usePagesStore.getState();
       const draft = draftsByPageId[currentPageId];
       if (draft) {
         // Restore layers from history
@@ -448,7 +447,7 @@ export default function YCodeBuilder() {
         draft.layers = historyEntry.layers;
       }
     }
-  }, [canUndo, undo, currentPageId, updateLayer]);
+  }, [canUndo, undo, currentPageId, draftsByPageId, updateLayer]);
 
   // Handle redo
   const handleRedo = useCallback(() => {
@@ -456,14 +455,13 @@ export default function YCodeBuilder() {
 
     const historyEntry = redo();
     if (historyEntry && historyEntry.pageId === currentPageId) {
-      const { draftsByPageId } = usePagesStore.getState();
       const draft = draftsByPageId[currentPageId];
       if (draft) {
         // Restore layers from history
         draft.layers = historyEntry.layers;
       }
     }
-  }, [canRedo, redo, currentPageId]);
+  }, [canRedo, redo, currentPageId, draftsByPageId]);
 
   // Get selected layer
   const selectedLayer = useMemo(() => {

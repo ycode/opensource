@@ -368,13 +368,19 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
         if (currentLayersJSON === savedLayersJSON) {
           // Safe to update - no changes made during save
+          // IMPORTANT: Only update metadata, keep existing layers to avoid triggering re-renders
           set((state) => ({
-            draftsByPageId: { ...state.draftsByPageId, [pageId]: response.data! },
+            draftsByPageId: {
+              ...state.draftsByPageId,
+              [pageId]: {
+                ...response.data!,
+                layers: currentDraft!.layers, // Keep existing layers reference
+              }
+            },
             isLoading: false,
           }));
         } else {
           // Layers changed during save - keep local changes, but update metadata
-          console.warn('⚠️ Layers changed during save - keeping local changes');
           set((state) => ({
             draftsByPageId: {
               ...state.draftsByPageId,
