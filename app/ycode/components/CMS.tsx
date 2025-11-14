@@ -753,10 +753,10 @@ export default function CMS() {
 
                         return (
                           <th key={field.id} className="px-4 py-5 text-left font-normal">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
                               <button
                                 onClick={() => handleColumnClick(field.field_name)}
-                                className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                                className="flex items-center gap-1 hover:opacity-50 cursor-pointer"
                               >
                                 {field.name}
                                 {sortIcon && (
@@ -770,9 +770,9 @@ export default function CMS() {
                                   <Button
                                     size="xs"
                                     variant="ghost"
-                                    className="h-auto p-0 hover:bg-transparent"
+                                    className="-my-2"
                                   >
-                                    <span className="text-muted-foreground">...</span>
+                                    <Icon name="more" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start">
@@ -796,7 +796,6 @@ export default function CMS() {
                                         }}
                                         disabled={field.built_in}
                                       >
-                                        <Icon name="pencil" className="mr-2 h-3 w-3" />
                                         Edit
                                       </DropdownMenuItem>
                                     </PopoverTrigger>
@@ -860,23 +859,19 @@ export default function CMS() {
                                     onClick={() => handleDuplicateField(field.id)}
                                     disabled={field.built_in}
                                   >
-                                    <Icon name="copy" className="mr-2 h-3 w-3" />
                                     Duplicate
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => handleHideField(field.id)}
                                     disabled={field.field_name === 'name'}
                                   >
-                                    <Icon name={field.hidden ? 'eye' : 'eye-off'} className="mr-2 h-3 w-3" />
                                     {field.hidden ? 'Show' : 'Hide'}
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     onClick={() => handleDeleteField(field.id)}
                                     disabled={field.built_in}
-                                    className="text-destructive"
                                   >
-                                    <Icon name="trash" className="mr-2 h-3 w-3" />
                                     Delete
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
