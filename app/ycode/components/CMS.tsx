@@ -1000,19 +1000,14 @@ export default function CMS() {
                         </SortableRow>
                       ))
                     ) : (
-                      <tr className="group border-b hover:bg-secondary">
-                        <td colSpan={collectionFields.filter(f => !f.hidden).length + 2} className="px-4 py-5 text-muted-foreground">
+                      <tr className="group">
+                        <td colSpan={collectionFields.filter(f => !f.hidden).length + 2} className="px-4 ">
                           {searchQuery && collectionItems.length > 0 ? (
-                            <div className="text-muted-foreground">
+                            <div className="text-muted-foreground py-32">
                               No items found matching &quot;{searchQuery}&quot;
                             </div>
                           ) : (
-                            <Empty>
-                              <EmptyTitle>No Items Yet</EmptyTitle>
-                              <EmptyDescription>
-                                Click &quot;Add Item&quot; to create your first {selectedCollection?.name.toLowerCase()} item
-                              </EmptyDescription>
-                            </Empty>
+                            <div></div>
                           )}
                         </td>
                       </tr>
@@ -1028,7 +1023,7 @@ export default function CMS() {
                   <SheetTrigger asChild>
                     <div className="group">
                       <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary/50">
-                        <div className="px-4 py-5">
+                        <div className="px-4 py-4">
                           <Button size="xs" variant="ghost">
                             <Icon name="plus" />
                           </Button>
@@ -1093,7 +1088,6 @@ export default function CMS() {
                     </Form>
                   </SheetContent>
                 </Sheet>
-
               </div>
             </div>
 
