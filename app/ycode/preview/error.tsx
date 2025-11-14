@@ -45,6 +45,9 @@ export default function Error({ error, reset }: ErrorProps) {
 
   // If custom error page exists, render it
   if (errorPageData) {
+    const customCodeHead = errorPageData.page.settings?.custom_code?.head || '';
+    const customCodeBody = errorPageData.page.settings?.custom_code?.body || '';
+
     return (
       <>
         {generatedCss && (
@@ -53,6 +56,9 @@ export default function Error({ error, reset }: ErrorProps) {
             dangerouslySetInnerHTML={{ __html: generatedCss }}
           />
         )}
+        {customCodeHead && (
+          <div dangerouslySetInnerHTML={{ __html: customCodeHead }} />
+        )}
         <div className="min-h-screen bg-white">
           <LayerRenderer
             layers={errorPageData.pageLayers.layers || []}
@@ -60,6 +66,9 @@ export default function Error({ error, reset }: ErrorProps) {
             isPublished={false}
           />
         </div>
+        {customCodeBody && (
+          <div dangerouslySetInnerHTML={{ __html: customCodeBody }} />
+        )}
       </>
     );
   }

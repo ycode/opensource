@@ -1,4 +1,4 @@
-import LayerRenderer from '@/components/layers/LayerRenderer';
+import PageRenderer from '@/components/PageRenderer';
 import { fetchErrorPage } from '@/lib/page-fetcher';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { generatePageMetadata } from '@/lib/page-utils';
@@ -34,26 +34,18 @@ export default async function ErrorPagePreview({ params }: ErrorPagePreviewProps
     );
   }
 
+  const { page, pageLayers, components } = pageData;
+
   // Get the draft CSS
   const generatedCss = await getSettingByKey('draft_css');
 
   return (
-    <>
-      {generatedCss && (
-        <style
-          id="ycode-styles"
-          dangerouslySetInnerHTML={{ __html: generatedCss }}
-        />
-      )}
-
-      <div className="min-h-screen bg-white">
-        <LayerRenderer
-          layers={pageData.pageLayers.layers || []}
-          isEditMode={false}
-          isPublished={false}
-        />
-      </div>
-    </>
+    <PageRenderer
+      page={page}
+      layers={pageLayers.layers || []}
+      components={components}
+      generatedCss={generatedCss}
+    />
   );
 }
 

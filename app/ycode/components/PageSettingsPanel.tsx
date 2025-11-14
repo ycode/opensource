@@ -12,7 +12,6 @@ import type { Page, PageSettings, Asset } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { usePagesStore } from '@/stores/usePagesStore';
 import {
@@ -87,6 +86,9 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [customCodeHead, setCustomCodeHead] = useState('');
+  const [customCodeBody, setCustomCodeBody] = useState('');
+
   const [uploadedAssetCache, setUploadedAssetCache] = useState<Asset | null>(null);
   const seoImageAsset = useAsset(seoImageId);
   const { addAsset, removeAsset } = useAssetsStore();
@@ -115,6 +117,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     seoDescription: string;
     seoImageId: string | null;
     seoNoindex: boolean;
+    customCodeHead: string;
+    customCodeBody: string;
   } | null>(null);
 
   const pages = usePagesStore((state) => state.pages);
@@ -136,6 +140,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       seoDescription !== initial.seoDescription ||
       seoImageId !== initial.seoImageId ||
       seoNoindex !== initial.seoNoindex ||
+      customCodeHead !== initial.customCodeHead ||
+      customCodeBody !== initial.customCodeBody ||
       pendingImageFile !== null
     );
 
@@ -146,7 +152,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
     return hasChanges;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImageId, seoNoindex, pendingImageFile, saveCounter]);
+  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImageId, seoNoindex, customCodeHead, customCodeBody, pendingImageFile, saveCounter]);
 
   // Expose method to check for unsaved changes externally
   useImperativeHandle(ref, () => ({
@@ -227,6 +233,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       const initialSeoImageId = settings?.seo?.image || null; // Asset ID
       // Normalize seoNoindex: always true for error pages (consistent with save logic)
       const initialSeoNoindex = isErrorPage ? true : (settings?.seo?.noindex || false);
+      const initialCustomCodeHead = settings?.custom_code?.head || '';
+      const initialCustomCodeBody = settings?.custom_code?.body || '';
 
       setName(initialName);
       setSlug(initialSlug);
@@ -236,6 +244,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setSeoDescription(initialSeoDescription);
       setSeoImageId(initialSeoImageId);
       setSeoNoindex(initialSeoNoindex);
+      setCustomCodeHead(initialCustomCodeHead);
+      setCustomCodeBody(initialCustomCodeBody);
       setPendingImageFile(null);
       setUploadedAssetCache(null); // Clear cache when switching pages
 
@@ -255,6 +265,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         seoDescription: initialSeoDescription,
         seoImageId: initialSeoImageId,
         seoNoindex: initialSeoNoindex,
+        customCodeHead: initialCustomCodeHead,
+        customCodeBody: initialCustomCodeBody,
       };
     } else {
       setName('');
@@ -265,6 +277,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setSeoDescription('');
       setSeoImageId(null);
       setSeoNoindex(false);
+      setCustomCodeHead('');
+      setCustomCodeBody('');
       setPendingImageFile(null);
       setUploadedAssetCache(null); // Clear cache for new page
 
@@ -283,6 +297,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         seoDescription: '',
         seoImageId: null,
         seoNoindex: false,
+        customCodeHead: '',
+        customCodeBody: '',
       };
     }
     setError(null);
@@ -441,6 +457,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         setSeoDescription(initialValuesRef.current.seoDescription);
         setSeoImageId(initialValuesRef.current.seoImageId);
         setSeoNoindex(initialValuesRef.current.seoNoindex);
+        setCustomCodeHead(initialValuesRef.current.customCodeHead);
+        setCustomCodeBody(initialValuesRef.current.customCodeBody);
         setPendingImageFile(null);
 
         // Clean up preview URL
@@ -469,6 +487,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         setSeoDescription(initialValuesRef.current.seoDescription);
         setSeoImageId(initialValuesRef.current.seoImageId);
         setSeoNoindex(initialValuesRef.current.seoNoindex);
+        setCustomCodeHead(initialValuesRef.current.customCodeHead);
+        setCustomCodeBody(initialValuesRef.current.customCodeBody);
         setPendingImageFile(null);
 
         // Clean up preview URL
@@ -609,6 +629,10 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
           image: isErrorPage ? null : finalSeoImageId,
           noindex: isErrorPage ? true : seoNoindex,
         },
+        custom_code: {
+          head: customCodeHead.trim(),
+          body: customCodeBody.trim(),
+        },
       };
 
       await onSave({
@@ -631,6 +655,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       const trimmedSeoTitle = seoTitle.trim();
       const trimmedSeoDescription = seoDescription.trim();
       const normalizedSeoNoindex = isErrorPage ? true : seoNoindex;
+      const trimmedCustomCodeHead = customCodeHead.trim();
+      const trimmedCustomCodeBody = customCodeBody.trim();
 
       setName(trimmedName);
       setSlug(trimmedSlug);
@@ -638,6 +664,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setSeoDescription(trimmedSeoDescription);
       setSeoNoindex(normalizedSeoNoindex);
       setSeoImageId(finalSeoImageId);
+      setCustomCodeHead(trimmedCustomCodeHead);
+      setCustomCodeBody(trimmedCustomCodeBody);
 
       initialValuesRef.current = {
         name: trimmedName,
@@ -648,6 +676,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         seoDescription: trimmedSeoDescription,
         seoImageId: finalSeoImageId,
         seoNoindex: normalizedSeoNoindex,
+        customCodeHead: trimmedCustomCodeHead,
+        customCodeBody: trimmedCustomCodeBody,
       };
 
       rejectedPageRef.current = null;
@@ -968,10 +998,37 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
             </TabsContent>
 
             <TabsContent value="code">
-              <Empty>
-                <EmptyTitle>Coming soon</EmptyTitle>
-                <EmptyDescription>Add custom HTML, CSS, and JavaScript</EmptyDescription>
-              </Empty>
+              <FieldGroup>
+                <FieldSet>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel>Header</FieldLabel>
+                      <FieldDescription>
+                        Add custom code to the &lt;head&gt; section of the page. It can be useful when you want to add custom meta tags, analytics, or custom CSS.
+                      </FieldDescription>
+                      <Textarea
+                        value={customCodeHead}
+                        onChange={(e) => setCustomCodeHead(e.target.value)}
+                        placeholder="<script>...</script>"
+                        className="font-mono text-sm min-h-48"
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel>Body</FieldLabel>
+                      <FieldDescription>
+                        Add custom code before the closing &lt;/body&gt; tag. It can be useful when you want to add custom scripts that need to run after the page loads.
+                      </FieldDescription>
+                      <Textarea
+                        value={customCodeBody}
+                        onChange={(e) => setCustomCodeBody(e.target.value)}
+                        placeholder="<script>...</script>"
+                        className="font-mono text-sm min-h-48"
+                      />
+                    </Field>
+                  </FieldGroup>
+                </FieldSet>
+              </FieldGroup>
             </TabsContent>
           </div>
         </Tabs>
