@@ -67,17 +67,18 @@ export async function PUT(
     // Extract values from body
     const { values, ...itemData } = body;
     
-    // Update item if item data provided
-    if (Object.keys(itemData).length > 0) {
-      await updateItem(itemId, itemData);
-    }
+    // Always update the item's updated_at timestamp in collection_items table
+    await updateItem(itemId, {
+      ...itemData,
+      // updated_at is automatically set in updateItem repository function
+    });
     
-    // Update field values if provided, and automatically update updated_at
+    // Update field values if provided, and automatically update "Updated Date" field
     if (values && typeof values === 'object') {
-      const now = new Date().toISOString(); // Full timestamp format
+      const now = new Date().toISOString();
       const valuesWithUpdatedDate = {
         ...values,
-        updated_at: now, // Auto-update the updated_at field
+        updated_at: now, // Auto-update the "Updated Date" collection field
       };
       await setValuesByFieldName(itemId, collectionId, valuesWithUpdatedDate, {});
     }

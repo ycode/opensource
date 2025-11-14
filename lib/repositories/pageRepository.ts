@@ -955,8 +955,16 @@ export async function getUnpublishedPages(): Promise<Page[]> {
     }
     
     // Compare content hashes - check both page metadata and layers
-    const pageMetadataChanged = draftPage.content_hash !== publishedPageWithLayers.content_hash;
-    const layersChanged = draftPage.page_layers[0]?.content_hash !== publishedPageWithLayers.page_layers[0]?.content_hash;
+    // Only compare if both hashes exist (not null)
+    const pageMetadataChanged = 
+      draftPage.content_hash && publishedPageWithLayers.content_hash
+        ? draftPage.content_hash !== publishedPageWithLayers.content_hash
+        : false; // If either is null, consider them the same (no change)
+    
+    const layersChanged = 
+      draftPage.page_layers[0]?.content_hash && publishedPageWithLayers.page_layers[0]?.content_hash
+        ? draftPage.page_layers[0].content_hash !== publishedPageWithLayers.page_layers[0].content_hash
+        : false; // If either is null, consider them the same (no change)
     
     // If either changed, needs republishing
     if (pageMetadataChanged || layersChanged) {

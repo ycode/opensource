@@ -28,8 +28,6 @@ import {
 } from '@/components/ui/form';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-import { Label } from '@/components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue, SelectGroup } from '@/components/ui/select';
 import { TiptapEditor } from '@/components/ui/tiptap-editor';
@@ -39,8 +37,10 @@ import { CSS } from '@dnd-kit/utilities';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { collectionsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { FIELD_TYPES, type FieldType } from '@/lib/field-types-config';
 import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
+import FieldFormPopover from './FieldFormPopover';
 import type { CollectionItemWithValues, CollectionField } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -116,12 +116,10 @@ export default function CMS() {
   const [showItemSheet, setShowItemSheet] = useState(false);
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
-  const [popoverOpen, setPopoverOpen] = useState(false);
-  const [newFieldName, setNewFieldName] = useState('');
-  const [newFieldType, setNewFieldType] = useState<'text' | 'rich_text' | 'number' | 'boolean' | 'date' | 'reference'>('text');
-  const [newFieldDefault, setNewFieldDefault] = useState('');
-  const [editPopoverOpen, setEditPopoverOpen] = useState(false);
-  const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
+  const [createFieldPopoverOpen, setCreateFieldPopoverOpen] = useState(false);
+  const [editFieldDialogOpen, setEditFieldDialogOpen] = useState(false);
+  const [editingField, setEditingField] = useState<CollectionField | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
 
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = useMemo(
@@ -214,9 +212,8 @@ export default function CMS() {
       // Reset with default values from fields
       const defaults: Record<string, any> = {};
       collectionFields.forEach(field => {
-        if (field.default) {
-          defaults[field.field_name] = field.default;
-        }
+        // Always set a value (use default or empty string) to avoid undefined
+        defaults[field.field_name] = field.default || '';
       });
       form.reset(defaults);
     }
@@ -498,18 +495,22 @@ export default function CMS() {
     }
   };
 
-  const handleCreateFieldFromPopover = async () => {
-    if (!selectedCollectionId || !newFieldName.trim()) return;
+  const handleCreateFieldFromPopover = async (data: {
+    name: string;
+    type: FieldType;
+    default: string;
+  }) => {
+    if (!selectedCollectionId) return;
 
     try {
       const newOrder = collectionFields.length;
-      const fieldName = newFieldName.trim().toLowerCase().replace(/\s+/g, '_');
+      const fieldName = data.name.toLowerCase().replace(/\s+/g, '_');
 
       await createField(selectedCollectionId, {
-        name: newFieldName.trim(),
+        name: data.name,
         field_name: fieldName,
-        type: newFieldType,
-        default: newFieldDefault || null,
+        type: data.type,
+        default: data.default || null,
         order: newOrder,
         fillable: true,
         built_in: false,
@@ -519,42 +520,41 @@ export default function CMS() {
       // Reload fields to show new field
       await loadFields(selectedCollectionId);
 
-      // Reset form and close popover
-      setNewFieldName('');
-      setNewFieldType('text');
-      setNewFieldDefault('');
-      setPopoverOpen(false);
+      // Close popover
+      setCreateFieldPopoverOpen(false);
     } catch (error) {
       console.error('Failed to create field:', error);
     }
   };
 
   const handleEditFieldClick = (field: CollectionField) => {
-    setEditingFieldId(field.id);
-    setNewFieldName(field.name);
-    setNewFieldType(field.type);
-    setNewFieldDefault(field.default || '');
-    setEditPopoverOpen(true);
+    // Close the dropdown
+    setOpenDropdownId(null);
+    
+    // Set the editing field and open dialog
+    setEditingField(field);
+    setEditFieldDialogOpen(true);
   };
 
-  const handleUpdateFieldFromPopover = async () => {
-    if (!selectedCollectionId || !editingFieldId || !newFieldName.trim()) return;
+  const handleUpdateFieldFromDialog = async (data: {
+    name: string;
+    type: FieldType;
+    default: string;
+  }) => {
+    if (!selectedCollectionId || !editingField) return;
 
     try {
-      await updateField(selectedCollectionId, editingFieldId, {
-        name: newFieldName.trim(),
-        default: newFieldDefault || null,
+      await updateField(selectedCollectionId, editingField.id, {
+        name: data.name,
+        default: data.default || null,
       });
 
       // Reload fields to show updated field
       await loadFields(selectedCollectionId);
 
-      // Reset form and close popover
-      setNewFieldName('');
-      setNewFieldType('text');
-      setNewFieldDefault('');
-      setEditingFieldId(null);
-      setEditPopoverOpen(false);
+      // Close dialog and reset
+      setEditFieldDialogOpen(false);
+      setEditingField(null);
     } catch (error) {
       console.error('Failed to update field:', error);
     }
@@ -615,7 +615,11 @@ export default function CMS() {
 
         <div className="w-full max-w-72">
           <InputGroup>
-            <InputGroupInput placeholder="Search..."></InputGroupInput>
+            <InputGroupInput 
+              placeholder="Search..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
             <InputGroupAddon>
               <Icon name="search" className="size-3" />
             </InputGroupAddon>
@@ -665,65 +669,18 @@ export default function CMS() {
                 This collection has no fields. Add fields to start managing items.
               </EmptyDescription>
             </Empty>
-            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-              <PopoverTrigger asChild>
+            <FieldFormPopover
+              trigger={
                 <Button>
                   <Icon name="plus" />
                   Add Field
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80">
-                <div className="flex flex-col gap-3">
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label className="text-muted-foreground">Name</Label>
-                    <div className="col-span-2">
-                      <Input
-                        value={newFieldName}
-                        onChange={(e) => setNewFieldName(e.target.value)}
-                        placeholder="Field name"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label className="text-muted-foreground">Type</Label>
-                    <div className="col-span-2 ">
-                      <Select value={newFieldType} onValueChange={(value: any) => setNewFieldType(value)}>
-                        <SelectTrigger>
-                          <SelectValue className="w-full" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectItem value="text">Text</SelectItem>
-                            <SelectItem value="rich_text">Rich Text</SelectItem>
-                            <SelectItem value="number">Number</SelectItem>
-                            <SelectItem value="boolean">Boolean</SelectItem>
-                            <SelectItem value="date">Date</SelectItem>
-                            <SelectItem value="reference">Reference</SelectItem>
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 items-center gap-4">
-                    <Label className="text-muted-foreground">Default</Label>
-                    <div className="col-span-2">
-                      <Input
-                        value={newFieldDefault}
-                        onChange={(e) => setNewFieldDefault(e.target.value)}
-                        placeholder="Default value"
-                      />
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={handleCreateFieldFromPopover}
-                    disabled={!newFieldName.trim()}
-                  >
-                    Create field
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
+              }
+              mode="create"
+              onSubmit={handleCreateFieldFromPopover}
+              open={createFieldPopoverOpen}
+              onOpenChange={setCreateFieldPopoverOpen}
+            />
           </div>
         ) : (
           <>
@@ -771,7 +728,10 @@ export default function CMS() {
                                   </span>
                                 )}
                               </button>
-                              <DropdownMenu>
+                              <DropdownMenu
+                                open={openDropdownId === field.id}
+                                onOpenChange={(open) => setOpenDropdownId(open ? field.id : null)}
+                              >
                                 <DropdownMenuTrigger asChild>
                                   <Button
                                     size="xs"
@@ -782,85 +742,12 @@ export default function CMS() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start">
-                                  <Popover
-                                    open={editPopoverOpen && editingFieldId === field.id}
-                                    onOpenChange={(open) => {
-                                      if (!open) {
-                                        setEditPopoverOpen(false);
-                                        setEditingFieldId(null);
-                                        setNewFieldName('');
-                                        setNewFieldType('text');
-                                        setNewFieldDefault('');
-                                      }
-                                    }}
+                                  <DropdownMenuItem
+                                    onSelect={() => handleEditFieldClick(field)}
+                                    disabled={field.built_in}
                                   >
-                                    <PopoverTrigger asChild>
-                                      <DropdownMenuItem
-                                        onSelect={(e) => {
-                                          e.preventDefault();
-                                          handleEditFieldClick(field);
-                                        }}
-                                        disabled={field.built_in}
-                                      >
-                                        Edit
-                                      </DropdownMenuItem>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-80">
-                                      <div className="flex flex-col gap-3">
-                                        <div className="grid grid-cols-3 items-center gap-4">
-                                          <Label className="text-muted-foreground">Name</Label>
-                                          <div className="col-span-2">
-                                            <Input
-                                              value={newFieldName}
-                                              onChange={(e) => setNewFieldName(e.target.value)}
-                                              placeholder="Field name"
-                                            />
-                                          </div>
-                                        </div>
-                                        <div className="grid grid-cols-3 items-center gap-4">
-                                          <Label className="text-muted-foreground">Type</Label>
-                                          <div className="col-span-2 *:w-full">
-                                            <Select
-                                              value={newFieldType}
-                                              onValueChange={(value: any) => setNewFieldType(value)}
-                                              disabled
-                                            >
-                                              <SelectTrigger>
-                                                <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                <SelectGroup>
-                                                  <SelectItem value="text">Text</SelectItem>
-                                                  <SelectItem value="rich_text">Rich Text</SelectItem>
-                                                  <SelectItem value="number">Number</SelectItem>
-                                                  <SelectItem value="boolean">Boolean</SelectItem>
-                                                  <SelectItem value="date">Date</SelectItem>
-                                                  <SelectItem value="reference">Reference</SelectItem>
-                                                </SelectGroup>
-                                              </SelectContent>
-                                            </Select>
-                                          </div>
-                                        </div>
-                                        <div className="grid grid-cols-3 items-center gap-4">
-                                          <Label className="text-muted-foreground">Default</Label>
-                                          <div className="col-span-2">
-                                            <Input
-                                              value={newFieldDefault}
-                                              onChange={(e) => setNewFieldDefault(e.target.value)}
-                                              placeholder="Default value"
-                                            />
-                                          </div>
-                                        </div>
-                                        <Button
-                                          size="sm"
-                                          onClick={handleUpdateFieldFromPopover}
-                                          disabled={!newFieldName.trim()}
-                                        >
-                                          Update field
-                                        </Button>
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
+                                    Edit
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => handleDuplicateField(field.id)}
                                     disabled={field.built_in}
@@ -887,65 +774,18 @@ export default function CMS() {
                         );
                       })}
                       <th className="px-4 py-3 text-left font-medium text-sm w-24">
-                        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                          <PopoverTrigger asChild>
+                        <FieldFormPopover
+                          trigger={
                             <Button size="xs" variant="ghost">
                               <Icon name="plus" />
                               Add field
                             </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="mr-4 w-80">
-                            <div className="flex flex-col gap-3">
-                              <div className="grid grid-cols-3 items-center gap-4">
-                                <Label className="text-muted-foreground">Name</Label>
-                                <div className="col-span-2">
-                                  <Input
-                                    value={newFieldName}
-                                    onChange={(e) => setNewFieldName(e.target.value)}
-                                    placeholder="Field name"
-                                  />
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-3 items-center gap-4">
-                                <Label className="text-muted-foreground">Type</Label>
-                                <div className="col-span-2 *:w-full">
-                                  <Select value={newFieldType} onValueChange={(value: any) => setNewFieldType(value)}>
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectGroup>
-                                        <SelectItem value="text">Text</SelectItem>
-                                        <SelectItem value="rich_text">Rich Text</SelectItem>
-                                        <SelectItem value="number">Number</SelectItem>
-                                        <SelectItem value="boolean">Boolean</SelectItem>
-                                        <SelectItem value="date">Date</SelectItem>
-                                        <SelectItem value="reference">Reference</SelectItem>
-                                      </SelectGroup>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-3 items-center gap-4">
-                                <Label className="text-muted-foreground">Default</Label>
-                                <div className="col-span-2">
-                                  <Input
-                                    value={newFieldDefault}
-                                    onChange={(e) => setNewFieldDefault(e.target.value)}
-                                    placeholder="Default value"
-                                  />
-                                </div>
-                              </div>
-                              <Button
-                                size="sm"
-                                onClick={handleCreateFieldFromPopover}
-                                disabled={!newFieldName.trim()}
-                              >
-                                Create field
-                              </Button>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
+                          }
+                          mode="create"
+                          onSubmit={handleCreateFieldFromPopover}
+                          open={createFieldPopoverOpen}
+                          onOpenChange={setCreateFieldPopoverOpen}
+                        />
                       </th>
                     </tr>
                   </thead>
@@ -1148,6 +988,23 @@ export default function CMS() {
           </>
         )}
       </div>
+
+      {/* Edit Field Dialog using FieldFormPopover */}
+      {editingField && (
+        <FieldFormPopover
+          mode="edit"
+          field={editingField}
+          onSubmit={handleUpdateFieldFromDialog}
+          open={editFieldDialogOpen}
+          onOpenChange={(open) => {
+            setEditFieldDialogOpen(open);
+            if (!open) {
+              setEditingField(null);
+            }
+          }}
+          useDialog={true}
+        />
+      )}
     </div>
   );
 }
