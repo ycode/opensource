@@ -42,6 +42,7 @@ import { formatDate } from '@/lib/utils';
 import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
 import type { CollectionItemWithValues, CollectionField } from '@/types';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // Sortable row component for drag and drop
 interface SortableRowProps {
@@ -649,7 +650,7 @@ export default function CMS() {
       </div>
 
       {/* Items Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto flex flex-col">
         {collectionFields.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 p-8">
             <Empty>
@@ -732,13 +733,13 @@ export default function CMS() {
                 <table className="w-full">
                   <thead className="border-b">
                     <tr>
-                      <th className="px-4 py-5 text-left font-normal w-12">
-                        <input
-                          type="checkbox"
+                      <th className="pl-5 pr-3 py-5 text-left font-normal w-12">
+                        <div className="flex">
+                        <Checkbox
                           checked={sortedItems.length > 0 && selectedItemIds.size === sortedItems.length}
-                          onChange={handleSelectAll}
-                          className="w-4 h-4 cursor-pointer"
+                          onCheckedChange={handleSelectAll}
                         />
+                        </div>
                       </th>
 
                       {collectionFields.filter(f => !f.hidden).map((field) => {
@@ -958,7 +959,7 @@ export default function CMS() {
                           onDelete={() => handleDeleteItem(item.id)}
                         >
                           <td
-                            className="px-4 py-3 w-12"
+                            className="pl-5 pr-3 py-3 w-12"
                             onClick={(e) => {
                               e.stopPropagation();
                               if (!isManualMode) {
@@ -966,13 +967,13 @@ export default function CMS() {
                               }
                             }}
                           >
-                            <input
-                              type="checkbox"
+                            <div className="flex">
+                            <Checkbox
                               checked={selectedItemIds.has(item.id)}
-                              onChange={() => handleToggleItemSelection(item.id)}
-                              className="w-4 h-4 cursor-pointer"
+                              onCheckedChange={() => handleToggleItemSelection(item.id)}
                               onClick={(e) => e.stopPropagation()}
                             />
+                            </div>
                           </td>
                           {collectionFields.filter(f => !f.hidden).map((field) => {
                             const value = item.values[field.field_name];
@@ -1031,7 +1032,7 @@ export default function CMS() {
                 <Sheet open={showItemSheet} onOpenChange={setShowItemSheet}>
                   <SheetTrigger asChild>
                     <div className="group">
-                      <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary">
+                      <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary/50">
                         <div className="px-4 py-5">
                           <Button size="xs" variant="ghost">
                             <Icon name="plus" />
@@ -1103,29 +1104,30 @@ export default function CMS() {
 
             {/* Pagination Controls */}
             {selectedCollectionId && sortedItems.length > 0 && (
-              <div className="flex items-center justify-between px-4 py-4 border-t">
+              <div className="flex items-center justify-between px-4 py-4 border-t mt-auto">
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Show:</span>
+                  <Select
+                    value={pageSize.toString()}
+                    onValueChange={(value) => setPageSize(Number(value))}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">2</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="flex items-center gap-4">
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
                   </p>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Show:</span>
-                    <Select
-                      value={pageSize.toString()}
-                      onValueChange={(value) => setPageSize(Number(value))}
-                    >
-                      <SelectTrigger className="w-20">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="2">2</SelectItem>
-                        <SelectItem value="25">25</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="100">100</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">
