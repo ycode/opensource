@@ -386,8 +386,8 @@ export default function LeftSidebar({
                 return (
                   <div key={collection.id}>
                     {isRenaming ? (
-                      <div className="px-4 h-8 rounded-lg flex gap-2 items-center bg-secondary/50">
-                        <Icon name="database" className="size-3" />
+                      <div className="pl-3 pr-1.5 h-8 rounded-lg flex gap-2 items-center bg-secondary/50">
+                        <Icon name="database" className="size-3 shrink-0" />
                         <Input
                           value={renameValue}
                           onChange={(e) => setRenameValue(e.target.value)}
@@ -400,7 +400,7 @@ export default function LeftSidebar({
                           }}
                           onBlur={handleRenameCancel}
                           autoFocus
-                          className="h-6 px-2 py-0 text-sm"
+                          className="h-6 px-1 py-0 text-xs rounded-md -ml-1"
                         />
                       </div>
                     ) : (
@@ -408,7 +408,7 @@ export default function LeftSidebar({
                         <ContextMenuTrigger asChild>
                           <button
                             className={cn(
-                              'px-4 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full',
+                              'px-3 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full group',
                               isSelected
                                 ? 'bg-primary text-primary-foreground'
                                 : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
@@ -429,54 +429,50 @@ export default function LeftSidebar({
                               <Icon name="database" className="size-3" />
                               <span>{collection.name}</span>
                             </div>
-                            {isHovered ? (
+
+                            <div className="group-hover:opacity-100 opacity-0">
+
                               <DropdownMenu
                                 open={openDropdownId === collection.id}
                                 onOpenChange={(open) => setOpenDropdownId(open ? collection.id : null)}
                               >
                                 <DropdownMenuTrigger asChild>
-                                  <span
-                                    className="inline-flex items-center justify-center p-1 rounded hover:bg-secondary/80 cursor-pointer"
+                                  <Button
+                                    size="xs"
+                                    variant={isSelected ? 'default' : 'ghost'}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                     }}
+                                    className="-mr-2"
                                   >
                                     <Icon name="more" className="size-3" />
-                                  </span>
+                                  </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+
+                                <DropdownMenuContent>
                                   <DropdownMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
-                                    <Icon name="edit" className="size-3" />
                                     Rename
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    variant="destructive"
-                                    onClick={() => handleCollectionDelete(collection.id)}
-                                  >
-                                    <Icon name="x" className="size-3" />
+                                  <DropdownMenuItem onClick={() => handleCollectionDelete(collection.id)}>
                                     Delete
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
+
                               </DropdownMenu>
-                            ) : (
-                              collection.draft_items_count !== undefined && (
-                                <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-                                  {collection.draft_items_count}
-                                </Badge>
-                              )
-                            )}
+
+                            </div>
+
+                              <span className="group-hover:hidden block text-xs opacity-50">
+                                {collection.draft_items_count}
+                              </span>
+
                           </button>
                         </ContextMenuTrigger>
                         <ContextMenuContent>
                           <ContextMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
-                            <Icon name="edit" className="size-3" />
                             Rename
                           </ContextMenuItem>
-                          <ContextMenuItem 
-                            variant="destructive"
-                            onClick={() => handleCollectionDelete(collection.id)}
-                          >
-                            <Icon name="x" className="size-3" />
+                          <ContextMenuItem onClick={() => handleCollectionDelete(collection.id)}>
                             Delete
                           </ContextMenuItem>
                         </ContextMenuContent>
