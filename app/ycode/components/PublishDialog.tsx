@@ -1,6 +1,6 @@
 /**
  * Publish Dialog
- * 
+ *
  * Dialog for publishing pages and collection items
  */
 'use client';
@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import Icon from '@/components/ui/icon';
-import { pagesApi, collectionsApi, componentsApi, layerStylesApi } from '@/lib/api';
+import { pagesApi, collectionsApi, componentsApi, layerStylesApi, cacheApi } from '@/lib/api';
 import type { Page, Collection, Component, LayerStyle, CollectionItemWithValues } from '@/types';
 
 interface PublishDialogProps {
@@ -48,7 +48,7 @@ export default function PublishDialog({
   const loadData = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       // Load unpublished pages
       const pagesResponse = await pagesApi.getUnpublished();
@@ -56,27 +56,27 @@ export default function PublishDialog({
         throw new Error(pagesResponse.error);
       }
       setUnpublishedPages(pagesResponse.data || []);
-      
+
       // Load all collections
       const collectionsResponse = await collectionsApi.getAll();
       if (collectionsResponse.error) {
         throw new Error(collectionsResponse.error);
       }
-      
+
       const collections = collectionsResponse.data || [];
-      
+
       // Load unpublished items for each collection
       const collectionsWithItemsData: Array<{ collection: Collection; items: CollectionItemWithValues[] }> = [];
-      
+
       for (const collection of collections) {
         const itemsResponse = await collectionsApi.getUnpublishedItems(collection.id);
         if (itemsResponse.error) {
           console.error(`Failed to load unpublished items for collection ${collection.id}:`, itemsResponse.error);
           continue;
         }
-        
+
         const items = itemsResponse.data || [];
-        
+
         // Only include collections that have unpublished items
         if (items.length > 0) {
           collectionsWithItemsData.push({
@@ -85,36 +85,36 @@ export default function PublishDialog({
           });
         }
       }
-      
+
       setCollectionsWithItems(collectionsWithItemsData);
-      
+
       // Load unpublished components
       const componentsResponse = await componentsApi.getUnpublished();
       if (componentsResponse.error) {
         throw new Error(componentsResponse.error);
       }
       setUnpublishedComponents(componentsResponse.data || []);
-      
+
       // Load unpublished layer styles
       const stylesResponse = await layerStylesApi.getUnpublished();
       if (stylesResponse.error) {
         throw new Error(stylesResponse.error);
       }
       setUnpublishedLayerStyles(stylesResponse.data || []);
-      
+
       // Select all items by default
       const allPageIds = new Set((pagesResponse.data || []).map(p => p.id));
       setSelectedPageIds(allPageIds);
-      
+
       const allItemIds = new Set<number>();
       collectionsWithItemsData.forEach(({ items }) => {
         items.forEach(item => allItemIds.add(item.id));
       });
       setSelectedItemIds(allItemIds);
-      
+
       const allComponentIds = new Set((componentsResponse.data || []).map(c => c.id));
       setSelectedComponentIds(allComponentIds);
-      
+
       const allStyleIds = new Set((stylesResponse.data || []).map(s => s.id));
       setSelectedLayerStyleIds(allStyleIds);
     } catch (err) {
@@ -128,10 +128,10 @@ export default function PublishDialog({
   const handlePublish = async () => {
     setIsPublishing(true);
     setError(null);
-    
+
     try {
       let totalPublished = 0;
-      
+
       // Publish selected pages
       if (selectedPageIds.size > 0) {
         const pagesResponse = await pagesApi.publishPages(Array.from(selectedPageIds));
@@ -140,7 +140,7 @@ export default function PublishDialog({
         }
         totalPublished += pagesResponse.data?.count || 0;
       }
-      
+
       // Publish selected collection items
       if (selectedItemIds.size > 0) {
         const itemsResponse = await collectionsApi.publishItems(Array.from(selectedItemIds));
@@ -149,7 +149,7 @@ export default function PublishDialog({
         }
         totalPublished += itemsResponse.data?.count || 0;
       }
-      
+
       // Publish selected components
       if (selectedComponentIds.size > 0) {
         const componentsResponse = await componentsApi.publishComponents(Array.from(selectedComponentIds));
@@ -158,7 +158,7 @@ export default function PublishDialog({
         }
         totalPublished += componentsResponse.data?.count || 0;
       }
-      
+
       // Publish selected layer styles
       if (selectedLayerStyleIds.size > 0) {
         const stylesResponse = await layerStylesApi.publishLayerStyles(Array.from(selectedLayerStyleIds));
@@ -167,18 +167,21 @@ export default function PublishDialog({
         }
         totalPublished += stylesResponse.data?.count || 0;
       }
-      
+
+      // Invalidate all cache via API
+      await cacheApi.clearAll();
+
       // Show success and close
       if (onSuccess) {
         onSuccess();
       }
-      
+
       // Reset selections
       setSelectedPageIds(new Set());
       setSelectedItemIds(new Set());
       setSelectedComponentIds(new Set());
       setSelectedLayerStyleIds(new Set());
-      
+
       onClose();
     } catch (err) {
       console.error('Failed to publish:', err);
@@ -219,13 +222,13 @@ export default function PublishDialog({
   const toggleAllItemsInCollection = (collectionId: number) => {
     const collectionData = collectionsWithItems.find(c => c.collection.id === collectionId);
     if (!collectionData) return;
-    
+
     const itemIds = collectionData.items.map(item => item.id);
     const newSet = new Set(selectedItemIds);
-    
+
     // Check if all items in this collection are selected
     const allSelected = itemIds.every(id => newSet.has(id));
-    
+
     if (allSelected) {
       // Deselect all items in this collection
       itemIds.forEach(id => newSet.delete(id));
@@ -233,7 +236,7 @@ export default function PublishDialog({
       // Select all items in this collection
       itemIds.forEach(id => newSet.add(id));
     }
-    
+
     setSelectedItemIds(newSet);
   };
 
@@ -283,7 +286,7 @@ export default function PublishDialog({
         <DialogHeader>
           <DialogTitle>Publish Content</DialogTitle>
         </DialogHeader>
-        
+
         {isLoading ? (
           <div className="flex items-center justify-center p-8">
             <Spinner />
@@ -340,7 +343,7 @@ export default function PublishDialog({
                   </div>
                 </div>
               )}
-              
+
               {/* Collections Section */}
               {collectionsWithItems.length > 0 && (
                 <div>
@@ -352,7 +355,7 @@ export default function PublishDialog({
                       const itemIds = items.map(item => item.id);
                       const selectedCount = itemIds.filter(id => selectedItemIds.has(id)).length;
                       const allSelected = selectedCount === items.length;
-                      
+
                       return (
                         <div key={collection.id} className="border rounded-lg p-3">
                           <div className="flex items-center justify-between mb-2">
@@ -384,10 +387,10 @@ export default function PublishDialog({
                                   )}
                                 </div>
                                 {item.publish_status && (
-                                  <Badge 
+                                  <Badge
                                     variant={
-                                      item.publish_status === 'deleted' ? 'destructive' : 
-                                        item.publish_status === 'new' ? 'default' : 
+                                      item.publish_status === 'deleted' ? 'destructive' :
+                                        item.publish_status === 'new' ? 'default' :
                                           'secondary'
                                     }
                                   >
@@ -403,7 +406,7 @@ export default function PublishDialog({
                   </div>
                 </div>
               )}
-              
+
               {/* Components Section */}
               {unpublishedComponents.length > 0 && (
                 <div>
@@ -439,7 +442,7 @@ export default function PublishDialog({
                   </div>
                 </div>
               )}
-              
+
               {/* Layer Styles Section */}
               {unpublishedLayerStyles.length > 0 && (
                 <div>
@@ -476,7 +479,7 @@ export default function PublishDialog({
                 </div>
               )}
             </div>
-            
+
             <div className="flex items-center justify-between pt-4 border-t">
               <Button
                 variant="secondary" onClick={onClose}
@@ -484,8 +487,8 @@ export default function PublishDialog({
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handlePublish} 
+              <Button
+                onClick={handlePublish}
                 disabled={!hasSelections || isPublishing}
               >
                 {isPublishing ? (

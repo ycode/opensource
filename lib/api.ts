@@ -4,7 +4,7 @@
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItem, CollectionItemWithValues, Component, LayerStyle, Setting } from '../types';
+import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting } from '../types';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -528,6 +528,19 @@ export const editorApi = {
     settings: Setting[];
   }>> {
     return apiRequest('/api/editor/init');
+  },
+};
+
+// Cache API - Manage Next.js cache
+export const cacheApi = {
+  /**
+   * Invalidate all Next.js cache
+   * Should be called after publishing content
+   */
+  async clearAll(): Promise<ApiResponse<{ success: boolean }>> {
+    return apiRequest<{ success: boolean }>('/api/cache/clear-all', {
+      method: 'POST',
+    });
   },
 };
 

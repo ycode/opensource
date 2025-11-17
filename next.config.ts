@@ -22,10 +22,9 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            // s-maxage=3600: CDN can cache for 1 hour
             // stale-while-revalidate=86400: Serve stale while updating in background
             // must-revalidate: Browser must check with CDN before using cache
-            value: 's-maxage=3600, stale-while-revalidate=86400, must-revalidate',
+            value: 's-maxage=0, stale-while-revalidate=0, max-age=0, must-revalidate',
           },
         ],
       },
