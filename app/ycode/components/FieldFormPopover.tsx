@@ -191,7 +191,7 @@ export default function FieldFormPopover({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent className="w-80">{formContent}</PopoverContent>
+      <PopoverContent className="w-80 mr-4">{formContent}</PopoverContent>
     </Popover>
   );
 }

@@ -530,7 +530,7 @@ export default function CMS() {
   const handleEditFieldClick = (field: CollectionField) => {
     // Close the dropdown
     setOpenDropdownId(null);
-    
+
     // Set the editing field and open dialog
     setEditingField(field);
     setEditFieldDialogOpen(true);
@@ -615,8 +615,8 @@ export default function CMS() {
 
         <div className="w-full max-w-72">
           <InputGroup>
-            <InputGroupInput 
-              placeholder="Search..." 
+            <InputGroupInput
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -776,7 +776,7 @@ export default function CMS() {
                       <th className="px-4 py-3 text-left font-medium text-sm w-24">
                         <FieldFormPopover
                           trigger={
-                            <Button size="xs" variant="ghost">
+                            <Button size="sm" variant="ghost">
                               <Icon name="plus" />
                               Add field
                             </Button>
