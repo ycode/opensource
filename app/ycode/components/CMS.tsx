@@ -37,7 +37,9 @@ import { CSS } from '@dnd-kit/utilities';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { collectionsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { slugify } from '@/lib/collection-utils';
 import { FIELD_TYPES, type FieldType } from '@/lib/field-types-config';
+import { useEditorUrl } from '@/hooks/use-editor-url';
 import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
 import FieldFormPopover from './FieldFormPopover';
@@ -108,6 +110,8 @@ export default function CMS() {
     reorderItems,
     searchItems,
   } = useCollectionsStore();
+
+  const { urlState, navigateToCollection, navigateToCollectionItem, navigateToNewCollectionItem } = useEditorUrl();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [fieldSearchQuery, setFieldSearchQuery] = useState('');
@@ -219,6 +223,44 @@ export default function CMS() {
     }
   }, [editingItem, collectionFields, form]);
 
+  // Auto-populate slug from name only when creating new items
+  useEffect(() => {
+    if (!editingItem) {
+      const subscription = form.watch((value, { name: fieldName }) => {
+        if (fieldName === 'name' && value.name && typeof value.name === 'string') {
+          form.setValue('slug', slugify(value.name), { shouldValidate: false });
+        }
+      });
+      return () => subscription.unsubscribe();
+    }
+  }, [form, editingItem]);
+
+  // Sync URL with item editing state
+  useEffect(() => {
+    if (!selectedCollectionId) return;
+
+    if (urlState.type === 'collection-item' && urlState.itemId) {
+      if (urlState.itemId === 'new') {
+        // Creating new item
+        if (!showItemSheet) {
+          setEditingItem(null);
+          setShowItemSheet(true);
+        }
+      } else {
+        // Editing existing item by r_id
+        const item = collectionItems.find(i => i.r_id === urlState.itemId);
+        if (item && (!editingItem || editingItem.r_id !== urlState.itemId)) {
+          setEditingItem(item);
+          setShowItemSheet(true);
+        }
+      }
+    } else if (urlState.type === 'collection' && showItemSheet) {
+      // URL changed to collection list - close sheet
+      setShowItemSheet(false);
+      setEditingItem(null);
+    }
+  }, [urlState, selectedCollectionId, collectionItems, showItemSheet, editingItem]);
+
   // Sort items (search filtering now happens on backend)
   const sortedItems = React.useMemo(() => {
     const items = [...collectionItems];
@@ -258,13 +300,15 @@ export default function CMS() {
   }, [collectionItems, selectedCollection?.sorting]);
 
   const handleCreateItem = () => {
-    setEditingItem(null);
-    setShowItemSheet(true);
+    if (selectedCollectionId) {
+      navigateToNewCollectionItem(selectedCollectionId);
+    }
   };
 
   const handleEditItem = (item: CollectionItemWithValues) => {
-    setEditingItem(item);
-    setShowItemSheet(true);
+    if (selectedCollectionId) {
+      navigateToCollectionItem(selectedCollectionId, item.r_id);
+    }
   };
 
   const handleDeleteItem = async (itemId: number) => {
@@ -579,6 +623,9 @@ export default function CMS() {
       setShowItemSheet(false);
       setEditingItem(null);
       form.reset();
+
+      // Navigate back to collection list
+      navigateToCollection(selectedCollectionId);
     } catch (error) {
       console.error('Failed to save item:', error);
       alert('Failed to save item. Please try again.');
@@ -865,7 +912,15 @@ export default function CMS() {
 
             <div>
               <div>
-                <Sheet open={showItemSheet} onOpenChange={setShowItemSheet}>
+                <Sheet 
+                  open={showItemSheet} 
+                  onOpenChange={(open) => {
+                    if (!open && selectedCollectionId) {
+                      // Navigate back to collection list when closing
+                      navigateToCollection(selectedCollectionId);
+                    }
+                  }}
+                >
                   <SheetTrigger asChild>
                     <div className="group">
                       <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary/50">

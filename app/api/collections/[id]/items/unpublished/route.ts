@@ -21,11 +21,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
+    const collectionId = id; // UUID string
     
     const client = await getSupabaseAdmin();
     

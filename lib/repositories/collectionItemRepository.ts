@@ -19,7 +19,7 @@ export interface QueryFilters {
 
 export interface CreateCollectionItemData {
   r_id?: string;
-  collection_id: number;
+  collection_id: string; // UUID
   manual_order?: number;
 }
 
@@ -32,7 +32,7 @@ export interface UpdateCollectionItemData {
  * Get all items for a collection with pagination support
  */
 export async function getItemsByCollectionId(
-  collection_id: number,
+  collection_id: string, // UUID
   filters?: QueryFilters
 ): Promise<{ items: CollectionItem[], total: number }> {
   const client = await getSupabaseAdmin();
@@ -224,12 +224,12 @@ export async function getItemWithValues(id: number, is_published: boolean = fals
 
 /**
  * Get multiple items with their values
- * @param collection_id - Collection ID
+ * @param collection_id - Collection ID (UUID)
  * @param filters - Optional query filters
  * @param is_published - Get draft (false) or published (true) values. Defaults to false (draft).
  */
 export async function getItemsWithValues(
-  collection_id: number,
+  collection_id: string, // UUID
   filters?: QueryFilters,
   is_published: boolean = false
 ): Promise<{ items: CollectionItemWithValues[], total: number }> {
@@ -522,7 +522,7 @@ export async function duplicateItem(itemId: number): Promise<CollectionItemWithV
  * Search items by field values
  */
 export async function searchItems(
-  collection_id: number,
+  collection_id: string, // UUID
   query: string
 ): Promise<{ items: CollectionItemWithValues[], total: number }> {
   const client = await getSupabaseAdmin();

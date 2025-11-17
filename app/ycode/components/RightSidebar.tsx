@@ -43,6 +43,7 @@ import UIStateSelector from './UIStateSelector';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useEditorActions } from '@/hooks/use-editor-url';
 
 // 6. Utils, APIs, lib
 import { classesToDesign, mergeDesign, removeConflictsForClass } from '@/lib/tailwind-class-mapper';
@@ -61,6 +62,7 @@ export default function RightSidebar({
   selectedLayerId,
   onLayerUpdate,
 }: RightSidebarProps) {
+  const { openComponent } = useEditorActions();
   const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'content'>('design');
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
   const [attributesOpen, setAttributesOpen] = useState(true);
@@ -343,12 +345,8 @@ export default function RightSidebar({
   // If it's a component instance, show a message with edit button instead of design properties
   if (isComponentInstance && component && !editingComponentId) {
     const handleEditMasterComponent = () => {
-      const { setEditingComponentId } = useEditorStore.getState();
       const { loadComponentDraft } = useComponentsStore.getState();
       const { setSelectedLayerId } = useEditorStore.getState();
-
-      // Enter edit mode with the current page as return destination
-      setEditingComponentId(component.id, currentPageId);
 
       // Load the component's layers into draft
       loadComponentDraft(component.id);
@@ -359,6 +357,9 @@ export default function RightSidebar({
       } else {
         setSelectedLayerId(null);
       }
+      
+      // Open component (updates state + URL)
+      openComponent(component.id, currentPageId);
     };
 
     return (

@@ -16,8 +16,8 @@ export interface CreateCollectionFieldData {
   fillable?: boolean;
   built_in?: boolean;
   order: number;
-  collection_id: number;
-  reference_collection_id?: number | null;
+  collection_id: string; // UUID
+  reference_collection_id?: string | null; // UUID
   hidden?: boolean;
   data?: Record<string, any>;
   status?: 'draft' | 'published';
@@ -31,7 +31,7 @@ export interface UpdateCollectionFieldData {
   fillable?: boolean;
   built_in?: boolean;
   order?: number;
-  reference_collection_id?: number | null;
+  reference_collection_id?: string | null; // UUID
   hidden?: boolean;
   data?: Record<string, any>;
   status?: 'draft' | 'published';
@@ -45,7 +45,7 @@ export interface FieldFilters {
  * Get all fields for a collection with optional search filtering
  */
 export async function getFieldsByCollectionId(
-  collection_id: number,
+  collection_id: string, // UUID
   filters?: FieldFilters
 ): Promise<CollectionField[]> {
   const client = await getSupabaseAdmin();
@@ -187,7 +187,7 @@ export async function deleteField(id: number): Promise<void> {
 /**
  * Reorder fields
  */
-export async function reorderFields(collection_id: number, field_ids: number[]): Promise<void> {
+export async function reorderFields(collection_id: string, field_ids: number[]): Promise<void> {
   const client = await getSupabaseAdmin();
   
   if (!client) {

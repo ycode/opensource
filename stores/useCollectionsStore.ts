@@ -11,10 +11,10 @@ import type { Collection, CollectionField, CollectionItemWithValues } from '@/ty
 
 interface CollectionsState {
   collections: Collection[];
-  fields: Record<number, CollectionField[]>; // keyed by collection_id
-  items: Record<number, CollectionItemWithValues[]>; // keyed by collection_id (current page only)
-  itemsTotalCount: Record<number, number>; // keyed by collection_id - total count for pagination
-  selectedCollectionId: number | null;
+  fields: Record<string, CollectionField[]>; // keyed by collection_id (UUID)
+  items: Record<string, CollectionItemWithValues[]>; // keyed by collection_id (UUID, current page only)
+  itemsTotalCount: Record<string, number>; // keyed by collection_id (UUID) - total count for pagination
+  selectedCollectionId: string | null; // UUID
   isLoading: boolean;
   error: string | null;
 }
@@ -24,49 +24,48 @@ interface CollectionsActions {
   loadCollections: () => Promise<void>;
   createCollection: (data: {
     name: string;
-    collection_name: string;
     sorting?: Record<string, any> | null;
     order?: number | null;
   }) => Promise<Collection>;
-  updateCollection: (id: number, data: Partial<Collection>) => Promise<void>;
-  deleteCollection: (id: number) => Promise<void>;
-  setSelectedCollectionId: (id: number | null) => void;
+  updateCollection: (id: string, data: Partial<Collection>) => Promise<void>;
+  deleteCollection: (id: string) => Promise<void>;
+  setSelectedCollectionId: (id: string | null) => void;
   
   // Fields
-  loadFields: (collectionId: number, search?: string) => Promise<void>;
-  createField: (collectionId: number, data: {
+  loadFields: (collectionId: string, search?: string) => Promise<void>;
+  createField: (collectionId: string, data: {
     name: string;
     field_name: string;
     type: 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
     default?: string | null;
     order?: number;
-    reference_collection_id?: number | null;
+    reference_collection_id?: string | null; // UUID
     fillable?: boolean;
     built_in?: boolean;
     hidden?: boolean;
     data?: Record<string, any>;
   }) => Promise<CollectionField>;
-  updateField: (collectionId: number, fieldId: number, data: Partial<CollectionField>) => Promise<void>;
-  deleteField: (collectionId: number, fieldId: number) => Promise<void>;
+  updateField: (collectionId: string, fieldId: number, data: Partial<CollectionField>) => Promise<void>;
+  deleteField: (collectionId: string, fieldId: number) => Promise<void>;
   
   // Items
-  loadItems: (collectionId: number, page?: number, limit?: number) => Promise<void>;
-  loadPublishedItems: (collectionId: number) => Promise<void>;
-  createItem: (collectionId: number, values: Record<string, any>) => Promise<CollectionItemWithValues>;
-  updateItem: (collectionId: number, itemId: number, values: Record<string, any>) => Promise<void>;
-  deleteItem: (collectionId: number, itemId: number) => Promise<void>;
-  duplicateItem: (collectionId: number, itemId: number) => Promise<CollectionItemWithValues | undefined>;
-  searchItems: (collectionId: number, query: string, page?: number, limit?: number) => Promise<void>;
+  loadItems: (collectionId: string, page?: number, limit?: number) => Promise<void>;
+  loadPublishedItems: (collectionId: string) => Promise<void>;
+  createItem: (collectionId: string, values: Record<string, any>) => Promise<CollectionItemWithValues>;
+  updateItem: (collectionId: string, itemId: number, values: Record<string, any>) => Promise<void>;
+  deleteItem: (collectionId: string, itemId: number) => Promise<void>;
+  duplicateItem: (collectionId: string, itemId: number) => Promise<CollectionItemWithValues | undefined>;
+  searchItems: (collectionId: string, query: string, page?: number, limit?: number) => Promise<void>;
   
   // Sorting
-  updateCollectionSorting: (collectionId: number, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => Promise<void>;
-  reorderItems: (collectionId: number, updates: Array<{ id: number; manual_order: number }>) => Promise<void>;
+  updateCollectionSorting: (collectionId: string, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => Promise<void>;
+  reorderItems: (collectionId: string, updates: Array<{ id: number; manual_order: number }>) => Promise<void>;
   
   // Utility
   clearError: () => void;
 
   // Publish
-  publishCollections: (collectionIds: number[]) => Promise<{ success: boolean; published?: Record<number, number>; error?: string }>;
+  publishCollections: (collectionIds: string[]) => Promise<{ success: boolean; published?: Record<string, number>; error?: string }>;
 }
 
 type CollectionsStore = CollectionsState & CollectionsActions;
@@ -244,7 +243,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   },
   
   // Fields
-  loadFields: async (collectionId: number, search?: string) => {
+  loadFields: async (collectionId: string, search?: string) => {
     set({ isLoading: true, error: null });
     
     try {
@@ -347,7 +346,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   },
   
   // Items
-  loadItems: async (collectionId: number, page?: number, limit?: number) => {
+  loadItems: async (collectionId: string, page?: number, limit?: number) => {
     set({ isLoading: true, error: null });
     
     try {
@@ -477,7 +476,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     }
   },
 
-  duplicateItem: async (collectionId: number, itemId: number) => {
+  duplicateItem: async (collectionId: string, itemId: number) => {
     set({ isLoading: true, error: null });
     
     try {
@@ -506,7 +505,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     }
   },
   
-  searchItems: async (collectionId: number, query: string, page?: number, limit?: number) => {
+  searchItems: async (collectionId: string, query: string, page?: number, limit?: number) => {
     set({ isLoading: true, error: null });
     
     try {
@@ -535,7 +534,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   },
 
   // Sorting
-  updateCollectionSorting: async (collectionId: number, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => {
+  updateCollectionSorting: async (collectionId: string, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => {
     set({ isLoading: true, error: null });
     
     try {
@@ -562,7 +561,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     }
   },
 
-  reorderItems: async (collectionId: number, updates: Array<{ id: number; manual_order: number }>) => {
+  reorderItems: async (collectionId: string, updates: Array<{ id: number; manual_order: number }>) => {
     set({ isLoading: true, error: null });
     
     try {
@@ -606,7 +605,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   },
 
   // Publish
-  publishCollections: async (collectionIds: number[]) => {
+  publishCollections: async (collectionIds: string[]) => {
     set({ isLoading: true, error: null });
     
     try {

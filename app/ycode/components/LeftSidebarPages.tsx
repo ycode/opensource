@@ -8,6 +8,7 @@ import PagesTree from './PagesTree';
 import PageSettingsPanel, { type PageFormData, type PageSettingsPanelHandle } from './PageSettingsPanel';
 import FolderSettingsPanel, { type FolderFormData, type FolderSettingsPanelHandle } from './FolderSettingsPanel';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
 import type { Page, PageFolder } from '@/types';
 import { Separator } from '@/components/ui/separator';
 import { generateUniqueSlug, generateUniqueFolderSlug, getNextNumberFromNames, getParentContextFromSelection, calculateNextOrder } from '@/lib/page-utils';
@@ -27,6 +28,8 @@ export default function LeftSidebarPages({
   onPageSelect,
   setCurrentPageId,
 }: LeftSidebarPagesProps) {
+  const { routeType } = useEditorUrl();
+  const { openPage, openPageEdit, openPageLayers, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorActions();
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [showFolderSettings, setShowFolderSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
@@ -79,6 +82,18 @@ export default function LeftSidebarPages({
     }
   }, [selectedPage, selectedFolder, showPageSettings, showFolderSettings]);
 
+  // Open page settings panel when on the edit route
+  useEffect(() => {
+    if (routeType === 'page-edit' && selectedPage) {
+      setEditingPage(selectedPage);
+      setShowPageSettings(true);
+    } else if (routeType !== 'page-edit' && showPageSettings) {
+      // Close settings panel when navigating away from edit route
+      setShowPageSettings(false);
+      setEditingPage(null);
+    }
+  }, [routeType, selectedPage]);
+
   // Get store actions
   const { createPage, updatePage, duplicatePage, deletePage, createFolder, updateFolder, duplicateFolder, deleteFolder, batchReorderPagesAndFolders } = usePagesStore();
 
@@ -124,6 +139,18 @@ export default function LeftSidebarPages({
         // Update selection to use real ID if temp was selected
         if (selectedItemIdRef.current === result.tempId) {
           setSelectedItemId(result.data.id);
+        }
+        
+        // Navigate to the new page based on current route type
+        if (routeType === 'layers') {
+          navigateToLayers(result.data.id);
+        } else if (routeType === 'page') {
+          navigateToPage(result.data.id);
+        } else if (routeType === 'page-edit') {
+          navigateToPageEdit(result.data.id);
+        } else {
+          // Default to layers if no route type
+          navigateToLayers(result.data.id);
         }
       } else if (result.error) {
         console.error('Error creating page:', result.error);
@@ -210,6 +237,18 @@ export default function LeftSidebarPages({
       return;
     }
     setSelectedItemId(pageId);
+    
+    // Navigate to the same route type but with the new page ID
+    if (routeType === 'layers') {
+      navigateToLayers(pageId);
+    } else if (routeType === 'page') {
+      navigateToPage(pageId);
+    } else if (routeType === 'page-edit') {
+      navigateToPageEdit(pageId);
+    } else {
+      // Default to layers if no route type (shouldn't happen, but safe fallback)
+      navigateToLayers(pageId);
+    }
   };
 
   // Handle folder selection with unsaved changes check
@@ -234,6 +273,9 @@ export default function LeftSidebarPages({
     setShowPageSettings(true);
     setEditingFolder(null);
     setShowFolderSettings(false);
+    
+    // Navigate to the edit route
+    navigateToPageEdit(page.id);
   };
 
   const handleEditFolder = async (folder: PageFolder) => {
@@ -586,8 +628,8 @@ export default function LeftSidebarPages({
         if (result.nextPageId) {
           // Current page was deleted, switch to the suggested next page
           onPageSelect(result.nextPageId);
-          setCurrentPageId(result.nextPageId);
           setSelectedItemId(result.nextPageId);
+          openPage(result.nextPageId);
         } else {
           // No pages left
           onPageSelect('');
@@ -617,8 +659,19 @@ export default function LeftSidebarPages({
         if (result.nextPageId) {
           // Current page was deleted, switch to the suggested next page
           onPageSelect(result.nextPageId);
-          setCurrentPageId(result.nextPageId);
           setSelectedItemId(result.nextPageId);
+          
+          // Navigate to the same route type but with the new page ID
+          if (routeType === 'layers') {
+            navigateToLayers(result.nextPageId);
+          } else if (routeType === 'page') {
+            navigateToPage(result.nextPageId);
+          } else if (routeType === 'page-edit') {
+            navigateToPageEdit(result.nextPageId);
+          } else {
+            // Default to layers if no route type
+            navigateToLayers(result.nextPageId);
+          }
         } else {
           // No pages left
           onPageSelect('');
@@ -671,7 +724,7 @@ export default function LeftSidebarPages({
           onPageOpen={(pageId) => {
             onPageSelect(pageId);
             setCurrentPageId(pageId);
-            handlePageSelect(pageId);
+            handlePageSelect(pageId); // This will also navigate
           }}
           onReorder={handleReorder}
           onPageSettings={handleEditPage}
@@ -696,7 +749,7 @@ export default function LeftSidebarPages({
             onPageOpen={(pageId) => {
               onPageSelect(pageId);
               setCurrentPageId(pageId);
-              handlePageSelect(pageId);
+              handlePageSelect(pageId); // This will also navigate
             }}
             onPageSettings={handleEditPage}
             onFolderSettings={handleEditFolder}
@@ -711,6 +764,11 @@ export default function LeftSidebarPages({
         onClose={() => {
           setShowPageSettings(false);
           setEditingPage(null);
+          
+          // Navigate back to pages view if we're on the edit route
+          if (routeType === 'page-edit' && currentPageId) {
+            navigateToPage(currentPageId);
+          }
         }}
         page={editingPage}
         onSave={handleSavePage}

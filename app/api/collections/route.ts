@@ -35,16 +35,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Validate required fields
-    if (!body.name || !body.collection_name) {
+    if (!body.name) {
       return noCache(
-        { error: 'Missing required fields: name, collection_name' },
+        { error: 'Missing required field: name' },
         400
       );
     }
     
     const collection = await createCollection({
       name: body.name,
-      collection_name: body.collection_name,
       sorting: body.sorting || null,
       order: body.order || null,
       status: body.status || 'draft',

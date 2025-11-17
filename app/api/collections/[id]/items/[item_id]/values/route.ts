@@ -45,11 +45,11 @@ export async function PUT(
 ) {
   try {
     const { id, item_id } = await params;
-    const collectionId = parseInt(id, 10);
+    const collectionId = id; // UUID string
     const itemId = parseInt(item_id, 10);
     
-    if (isNaN(collectionId) || isNaN(itemId)) {
-      return noCache({ error: 'Invalid collection or item ID' }, 400);
+    if (isNaN(itemId)) {
+      return noCache({ error: 'Invalid item ID' }, 400);
     }
     
     const body = await request.json();

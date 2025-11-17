@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/collections/[id]
- * Get collection by ID
+ * Get collection by ID (UUID)
  */
 export async function GET(
   request: NextRequest,
@@ -16,13 +16,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
     
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
-    
-    const collection = await getCollectionById(collectionId);
+    // No validation needed - UUID format will be validated by database
+    const collection = await getCollectionById(id);
     
     if (!collection) {
       return noCache({ error: 'Collection not found' }, 404);
@@ -48,15 +44,10 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
     
     const body = await request.json();
     
-    const collection = await updateCollection(collectionId, body);
+    const collection = await updateCollection(id, body);
     
     return noCache({ data: collection });
   } catch (error) {
@@ -78,13 +69,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
     
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
-    
-    await deleteCollection(collectionId);
+    await deleteCollection(id);
     
     return noCache({ data: { success: true } });
   } catch (error) {

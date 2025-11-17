@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useEditorUrl } from '@/hooks/use-editor-url';
 import {
   Field,
   FieldContent,
@@ -71,6 +72,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   page,
   onSave,
 }, ref) => {
+  const [activeTab, setActiveTab] = useState<'general' | 'seo' | 'custom-code'>('general');
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [pageFolderId, setPageFolderId] = useState<string | null>(null);
@@ -758,11 +760,15 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         <hr className="mx-5" />
 
         {/* Tabs */}
-        <Tabs defaultValue="general" className="flex-1 flex flex-col px-5 py-3.5">
+        <Tabs 
+          value={activeTab} 
+          onValueChange={(value) => setActiveTab(value as 'general' | 'seo' | 'custom-code')}
+          className="flex-1 flex flex-col px-5 py-3.5"
+        >
           <TabsList className="w-full">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="seo">SEO</TabsTrigger>
-            <TabsTrigger value="code">Custom code</TabsTrigger>
+            <TabsTrigger value="custom-code">Custom code</TabsTrigger>
           </TabsList>
 
           <hr className="my-2" />
@@ -1054,7 +1060,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
               </FieldGroup>
             </TabsContent>
 
-            <TabsContent value="code">
+            <TabsContent value="custom-code">
               <FieldGroup>
                 <FieldSet>
                   <FieldGroup>

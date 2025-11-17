@@ -21,11 +21,6 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
     
     // Extract query parameters
     const { searchParams } = new URL(request.url);
@@ -43,7 +38,7 @@ export async function GET(
       offset,
     };
     
-    const { items, total } = await getItemsWithValues(collectionId, filters);
+    const { items, total } = await getItemsWithValues(id, filters);
     
     return noCache({ 
       data: {
@@ -72,11 +67,6 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
     
     const body = await request.json();
     
@@ -85,13 +75,13 @@ export async function POST(
     
     // Create the item
     const item = await createItem({
-      collection_id: collectionId,
+      collection_id: id,
       r_id: itemData.r_id,
       manual_order: itemData.manual_order ?? 0,
     });
     
     // Calculate auto-incrementing ID based on item count
-    const { total } = await getItemsWithValues(collectionId);
+    const { total } = await getItemsWithValues(id);
     const autoIncrementId = total;
     
     // Get current timestamp for created_at and updated_at
@@ -106,7 +96,7 @@ export async function POST(
     };
     
     if (valuesWithAutoFields && typeof valuesWithAutoFields === 'object') {
-      await setValuesByFieldName(item.id, collectionId, valuesWithAutoFields, {});
+      await setValuesByFieldName(item.id, id, valuesWithAutoFields, {});
     }
     
     // Get item with values

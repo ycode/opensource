@@ -216,7 +216,7 @@ export default function PublishDialog({
     }
   };
 
-  const toggleAllItemsInCollection = (collectionId: number) => {
+  const toggleAllItemsInCollection = (collectionId: string) => {
     const collectionData = collectionsWithItems.find(c => c.collection.id === collectionId);
     if (!collectionData) return;
     

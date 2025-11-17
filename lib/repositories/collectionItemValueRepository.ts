@@ -201,7 +201,7 @@ export async function setValues(
  */
 export async function setValuesByFieldName(
   item_id: number,
-  collection_id: number,
+  collection_id: string, // UUID
   values: Record<string, any>,
   fieldType: Record<string, CollectionFieldType>,
   is_published: boolean = false

@@ -15,7 +15,6 @@ export interface QueryFilters {
 
 export interface CreateCollectionData {
   name: string;
-  collection_name: string;
   sorting?: Record<string, any> | null;
   order?: number | null;
   status?: 'draft' | 'published';
@@ -23,7 +22,6 @@ export interface CreateCollectionData {
 
 export interface UpdateCollectionData {
   name?: string;
-  collection_name?: string;
   sorting?: Record<string, any> | null;
   order?: number | null;
   status?: 'draft' | 'published';
@@ -86,9 +84,9 @@ export async function getAllCollections(filters?: QueryFilters): Promise<Collect
 }
 
 /**
- * Get collection by ID
+ * Get collection by ID (UUID)
  */
-export async function getCollectionById(id: number): Promise<Collection | null> {
+export async function getCollectionById(id: string): Promise<Collection | null> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
@@ -110,9 +108,9 @@ export async function getCollectionById(id: number): Promise<Collection | null> 
 }
 
 /**
- * Get collection by collection_name (slug)
+ * Get collection by UUID
  */
-export async function getCollectionByName(collection_name: string): Promise<Collection | null> {
+export async function getCollectionByUuid(uuid: string): Promise<Collection | null> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
@@ -122,7 +120,7 @@ export async function getCollectionByName(collection_name: string): Promise<Coll
   const { data, error } = await client
     .from('collections')
     .select('*')
-    .eq('collection_name', collection_name)
+    .eq('uuid', uuid)
     .is('deleted_at', null)
     .single();
   
@@ -164,7 +162,7 @@ export async function createCollection(collectionData: CreateCollectionData): Pr
 /**
  * Update a collection
  */
-export async function updateCollection(id: number, collectionData: UpdateCollectionData): Promise<Collection> {
+export async function updateCollection(id: string, collectionData: UpdateCollectionData): Promise<Collection> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
@@ -192,7 +190,7 @@ export async function updateCollection(id: number, collectionData: UpdateCollect
 /**
  * Delete a collection (soft delete)
  */
-export async function deleteCollection(id: number): Promise<void> {
+export async function deleteCollection(id: string): Promise<void> {
   const client = await getSupabaseAdmin();
   
   if (!client) {

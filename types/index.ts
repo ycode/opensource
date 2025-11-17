@@ -445,9 +445,9 @@ export interface CollectionSorting {
 }
 
 export interface Collection {
-  id: number;
+  id: string; // UUID
   name: string;
-  collection_name: string;
+  uuid: string;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -466,8 +466,8 @@ export interface CollectionField {
   fillable: boolean;
   built_in: boolean;
   order: number;
-  collection_id: number;
-  reference_collection_id: number | null;
+  collection_id: string; // UUID reference
+  reference_collection_id: string | null; // UUID reference
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -479,7 +479,7 @@ export interface CollectionField {
 export interface CollectionItem {
   id: number;
   r_id: string;
-  collection_id: number;
+  collection_id: string; // UUID reference
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

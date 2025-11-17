@@ -22,6 +22,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
+import { useEditorUrl } from '@/hooks/use-editor-url';
 
 // 6. Utils
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
@@ -73,6 +74,7 @@ export default function CenterCanvas({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { draftsByPageId, addLayer, updateLayer, pages, folders } = usePagesStore();
   const { setSelectedLayerId, activeUIState, editingComponentId, setCurrentPageId, returnToPageId } = useEditorStore();
+  const { routeType, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorUrl();
   const components = useComponentsStore((state) => state.components);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
 
@@ -214,7 +216,19 @@ export default function CenterCanvas({
   const handlePageSelect = useCallback((pageId: string) => {
     setCurrentPageId(pageId);
     setPagePopoverOpen(false);
-  }, [setCurrentPageId]);
+    
+    // Navigate to the same route type but with the new page ID
+    if (routeType === 'layers') {
+      navigateToLayers(pageId);
+    } else if (routeType === 'page') {
+      navigateToPage(pageId);
+    } else if (routeType === 'page-edit') {
+      navigateToPageEdit(pageId);
+    } else {
+      // Default to layers if no route type
+      navigateToLayers(pageId);
+    }
+  }, [setCurrentPageId, routeType, navigateToLayers, navigateToPage, navigateToPageEdit]);
 
   // Render page tree recursively
   const renderPageTreeNode = useCallback((node: PageTreeNode, depth: number = 0) => {

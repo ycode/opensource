@@ -18,18 +18,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
     
     // Extract search query parameter
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || undefined;
     
     const filters = search ? { search } : undefined;
-    const fields = await getFieldsByCollectionId(collectionId, filters);
+    const fields = await getFieldsByCollectionId(id, filters);
     
     return noCache({ data: fields });
   } catch (error) {
@@ -51,11 +46,6 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
     
     const body = await request.json();
     
@@ -77,7 +67,7 @@ export async function POST(
     }
     
     const field = await createField({
-      collection_id: collectionId,
+      collection_id: id,
       name: body.name,
       field_name: body.field_name,
       type: body.type,
