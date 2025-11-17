@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -22,12 +21,8 @@ import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 
-// 6. Utils/lib
-import { pagesApi } from '@/lib/api';
-import { findLayerById } from '@/lib/layer-utils';
-
-// 7. Types
-import type { Layer, Page } from '@/types';
+// 6. Types
+import type { Layer } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
 // Helper function to find layer with parent context
@@ -59,19 +54,12 @@ export default function LeftSidebar({
   const { draftsByPageId, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
-  const { setSelectedLayerId, setCurrentPageId, editingComponentId } = useEditorStore();
+  const { setCurrentPageId, editingComponentId } = useEditorStore();
   const { componentDrafts, getComponentById, updateComponentDraft } = useComponentsStore();
-  const { collections, loadCollections, selectedCollectionId, setSelectedCollectionId, createCollection, updateCollection, deleteCollection } = useCollectionsStore();
+  const { collections, selectedCollectionId, setSelectedCollectionId, createCollection, updateCollection, deleteCollection } = useCollectionsStore();
 
   // Get component layers if in edit mode
   const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
-
-  // Load collections on mount
-  useEffect(() => {
-    loadCollections().catch(error => {
-      console.error('Failed to load collections:', error);
-    });
-  }, [loadCollections]);
 
   // Listen for keyboard shortcut to toggle ElementLibrary
   useEffect(() => {
@@ -82,12 +70,6 @@ export default function LeftSidebar({
     window.addEventListener('toggleElementLibrary', handleToggleElementLibrary);
     return () => window.removeEventListener('toggleElementLibrary', handleToggleElementLibrary);
   }, []);
-
-
-  const currentPage = useMemo(
-    () => pages.find(p => p.id === currentPageId) || null,
-    [pages, currentPageId]
-  );
 
   const layersForCurrentPage = useMemo(() => {
     // If editing a component, show component layers instead
@@ -137,35 +119,19 @@ export default function LeftSidebar({
     }
   }, [currentPageId, loadDraft, draftsByPageId]);
 
-  // Helper to get parent for new layers
-  const getParentForNewLayer = useCallback((): string | null => {
-    if (!selectedLayerId) {
-      // No layer selected - add inside Body by default
-      const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
-      return bodyLayer ? 'body' : null;
+  // Handle tab selection
+  const onSelectTab = (value: 'pages' | 'layers' | 'cms') => {
+    const newTab = value as 'pages' | 'layers' | 'cms';
+
+    setActiveTab(newTab);
+    onActiveTabChange(newTab);
+    setShowElementLibrary(false);
+
+    // Auto-select first collection when switching to CMS tab
+    if (newTab === 'cms' && collections.length > 0 && !selectedCollectionId) {
+      setSelectedCollectionId(collections[0].id);
     }
-
-    const selectedItem = findLayer(layersForCurrentPage, selectedLayerId);
-    if (!selectedItem) {
-      // Selected layer not found - add inside Body by default
-      const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
-      return bodyLayer ? 'body' : null;
-    }
-
-    // If selected is a container, add as child
-    if (selectedItem.layer.type === 'container') {
-      return selectedLayerId;
-    }
-
-    // Otherwise, add as sibling (same parent)
-    // But if parent is null (would be root level), use Body instead
-    if (selectedItem.parentId === null) {
-      return 'body';
-    }
-
-    return selectedItem.parentId;
-  }, [selectedLayerId, layersForCurrentPage, findLayer]);
-
+  };
 
   // Handle creating a new collection
   const handleCreateCollection = async () => {
@@ -292,20 +258,10 @@ export default function LeftSidebar({
       <div className="w-64 shrink-0 bg-background border-r flex overflow-hidden p-4">
         {/* Tabs */}
         <Tabs
-          value={activeTab} onValueChange={(value) => {
-            const newTab = value as 'pages' | 'layers' | 'cms';
-            setActiveTab(newTab);
-            onActiveTabChange(newTab);
-            setShowElementLibrary(false);
-
-            // Auto-select first collection when switching to CMS tab
-            if (newTab === 'cms' && collections.length > 0 && !selectedCollectionId) {
-              setSelectedCollectionId(collections[0].id);
-            }
-          }}
+          value={activeTab}
+          onValueChange={(value) => onSelectTab(value as 'pages' | 'layers' | 'cms')}
           className="flex-1 gap-0"
         >
-
           <TabsList className="w-full">
             <TabsTrigger value="layers">Layers</TabsTrigger>
             <TabsTrigger value="pages">Pages</TabsTrigger>
@@ -360,6 +316,7 @@ export default function LeftSidebar({
               currentPageId={currentPageId}
               onPageSelect={onPageSelect}
               setCurrentPageId={setCurrentPageId}
+              onSelectTab={onSelectTab}
             />
           </TabsContent>
 
@@ -406,9 +363,9 @@ export default function LeftSidebar({
                     ) : (
                       <ContextMenu>
                         <ContextMenuTrigger asChild>
-                          <button
+                          <div
                             className={cn(
-                              'px-3 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full group',
+                              'px-3 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full group cursor-pointer',
                               isSelected
                                 ? 'bg-primary text-primary-foreground'
                                 : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
@@ -466,7 +423,7 @@ export default function LeftSidebar({
                                 {collection.draft_items_count}
                               </span>
 
-                          </button>
+                          </div>
                         </ContextMenuTrigger>
                         <ContextMenuContent>
                           <ContextMenuItem onClick={() => handleCollectionDoubleClick(collection)}>

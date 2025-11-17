@@ -8,7 +8,8 @@ import PagesTree from './PagesTree';
 import PageSettingsPanel, { type PageFormData, type PageSettingsPanelHandle } from './PageSettingsPanel';
 import FolderSettingsPanel, { type FolderFormData, type FolderSettingsPanelHandle } from './FolderSettingsPanel';
 import { usePagesStore } from '@/stores/usePagesStore';
-import type { Page, PageFolder } from '@/types';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import type { Collection, Page, PageFolder } from '@/types';
 import { Separator } from '@/components/ui/separator';
 import { generateUniqueSlug, generateUniqueFolderSlug, getNextNumberFromNames, getParentContextFromSelection, calculateNextOrder } from '@/lib/page-utils';
 
@@ -18,6 +19,7 @@ interface LeftSidebarPagesProps {
   currentPageId: string | null;
   onPageSelect: (pageId: string) => void;
   setCurrentPageId: (pageId: string | null) => void;
+  onSelectTab: (tab: 'pages' | 'layers' | 'cms') => void;
 }
 
 export default function LeftSidebarPages({
@@ -26,6 +28,7 @@ export default function LeftSidebarPages({
   currentPageId,
   onPageSelect,
   setCurrentPageId,
+  onSelectTab,
 }: LeftSidebarPagesProps) {
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [showFolderSettings, setShowFolderSettings] = useState(false);
@@ -81,6 +84,7 @@ export default function LeftSidebarPages({
 
   // Get store actions
   const { createPage, updatePage, duplicatePage, deletePage, createFolder, updateFolder, duplicateFolder, deleteFolder, batchReorderPagesAndFolders } = usePagesStore();
+  const { collections } = useCollectionsStore();
 
   // Sync selection with current page when it changes externally
   useEffect(() => {
@@ -135,6 +139,16 @@ export default function LeftSidebarPages({
     if (tempPage) {
       setSelectedItemId(tempPage.id);
     }
+  };
+
+  const handleAddDynamicPage = async (collectionId: number | null) => {
+    if (!collectionId) {
+      // Go to CMS tab
+      onSelectTab('cms');
+      return;
+    }
+
+    // TODO: Create a new dynamic page
   };
 
   // Handler to create a new folder
@@ -647,8 +661,17 @@ export default function LeftSidebarPages({
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>CMS</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
-                  <DropdownMenuItem>Collection 1</DropdownMenuItem>
-                  <DropdownMenuItem>Collection 2</DropdownMenuItem>
+                  {collections.length > 0 ? (
+                    collections.map(collection => (
+                      <DropdownMenuItem key={collection.id} onClick={() => handleAddDynamicPage(collection.id)}>
+                        {collection.name}
+                      </DropdownMenuItem>
+                    ))
+                  ) : (
+                    <DropdownMenuItem key={null} onClick={() => handleAddDynamicPage(null)}>
+                      Add a collection
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSeparator />

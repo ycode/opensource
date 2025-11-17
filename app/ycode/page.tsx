@@ -201,6 +201,7 @@ export default function YCodeBuilder() {
             const { setStyles } = useLayerStylesStore.getState();
             const { setSettings } = useSettingsStore.getState();
             const { loadAssets } = useAssetsStore.getState();
+            const { loadCollections } = useCollectionsStore.getState();
 
             setPagesAndDrafts(response.data.pages, response.data.drafts);
             setFolders(response.data.folders || []);
@@ -208,6 +209,7 @@ export default function YCodeBuilder() {
             setStyles(response.data.styles);
             setSettings(response.data.settings);
             loadAssets();
+            loadCollections();
           }
         } catch (error) {
           console.error('[Editor] Error loading initial data:', error);

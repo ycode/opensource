@@ -190,7 +190,7 @@ function PageRow({
       >
         {/* Expand/Collapse Button */}
         {hasChildren ? (
-          <button
+          <div
             onClick={(e) => {
               e.stopPropagation();
               onToggle(node.id);
@@ -201,7 +201,7 @@ function PageRow({
             )}
           >
             <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isSelected && 'opacity-80')} />
-          </button>
+          </div>
         ) : (
           <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
             <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-0', isSelected && 'opacity-0')} />
@@ -221,7 +221,7 @@ function PageRow({
 
         {/* Settings button (for pages only) */}
         {onSettings && (
-          <button
+          <div
             onClick={(e) => {
               e.stopPropagation();
               onSettings(node.data as Page | PageFolder);
@@ -229,7 +229,7 @@ function PageRow({
             className="opacity-0 group-hover:opacity-80 hover:opacity-100 transition-opacity mr-2.5 cursor-pointer"
           >
             <Icon name="dotsHorizontal" className="size-3" />
-          </button>
+          </div>
         )}
       </div>
     </div>
