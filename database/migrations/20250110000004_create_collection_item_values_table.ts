@@ -55,21 +55,8 @@ export async function up(knex: Knex): Promise<void> {
     ON collection_item_values(item_id, field_id, is_published)
     WHERE deleted_at IS NULL
   `);
-
-  console.log('✅ Created collection_item_values table');
 }
 
 export async function down(knex: Knex): Promise<void> {
-  // Check if table exists
-  const tableExists = await knex.schema.hasTable('collection_item_values');
-
-  if (!tableExists) {
-    console.log('⚠️  collection_item_values table does not exist, skipping drop');
-    return;
-  }
-
-  // Drop collection_item_values table
-  await knex.schema.dropTable('collection_item_values');
-
-  console.log('✅ Dropped collection_item_values table');
+  await knex.schema.dropTableIfExists('collection_item_values');
 }

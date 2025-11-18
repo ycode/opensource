@@ -45,21 +45,8 @@ export async function up(knex: Knex): Promise<void> {
     REFERENCES collections(id, is_published)
     ON DELETE CASCADE
   `);
-
-  console.log('✅ Created collection_fields table');
 }
 
 export async function down(knex: Knex): Promise<void> {
-  // Check if table exists
-  const tableExists = await knex.schema.hasTable('collection_fields');
-
-  if (!tableExists) {
-    console.log('⚠️  collection_fields table does not exist, skipping drop');
-    return;
-  }
-
-  // Drop collection_fields table
-  await knex.schema.dropTable('collection_fields');
-
-  console.log('✅ Dropped collection_fields table');
+  await knex.schema.dropTableIfExists('collection_fields');
 }

@@ -27,21 +27,8 @@ export async function up(knex: Knex): Promise<void> {
     // Indexes
     table.index('is_published');
   });
-
-  console.log('✅ Created collections table');
 }
 
 export async function down(knex: Knex): Promise<void> {
-  // Check if table exists
-  const tableExists = await knex.schema.hasTable('collections');
-
-  if (!tableExists) {
-    console.log('⚠️  collections table does not exist, skipping drop');
-    return;
-  }
-
-  // Drop collections table
-  await knex.schema.dropTable('collections');
-
-  console.log('✅ Dropped collections table');
+  await knex.schema.dropTableIfExists('collections');
 }
