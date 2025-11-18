@@ -2,7 +2,7 @@ import type { CollectionFieldType } from '@/types';
 
 /**
  * Collection Utilities
- * 
+ *
  * Helper functions for working with EAV (Entity-Attribute-Value) collections.
  * Handles value type casting between text storage and typed values.
  */
@@ -15,24 +15,24 @@ import type { CollectionFieldType } from '@/types';
  */
 export function castValue(value: string | null, type: CollectionFieldType): any {
   if (value === null || value === undefined || value === '') return null;
-  
+
   switch (type) {
     case 'number':
       const num = parseFloat(value);
       return isNaN(num) ? null : num;
-      
+
     case 'boolean':
       return value === 'true' || value === '1' || value === 'yes';
-      
+
     case 'date':
       // Return as ISO string for consistency
       return value;
-      
+
     case 'reference':
       // Return as number (ID of referenced item)
       const refId = parseInt(value, 10);
       return isNaN(refId) ? null : refId;
-      
+
     case 'text':
     default:
       return value;
@@ -47,25 +47,25 @@ export function castValue(value: string | null, type: CollectionFieldType): any 
  */
 export function valueToString(value: any, type: CollectionFieldType): string | null {
   if (value === null || value === undefined) return null;
-  
+
   switch (type) {
     case 'boolean':
       return value ? 'true' : 'false';
-      
+
     case 'number':
       return String(value);
-      
+
     case 'date':
       // Expect ISO string or Date object
       if (value instanceof Date) {
         return value.toISOString();
       }
       return String(value);
-      
+
     case 'reference':
       // Store ID as string
       return String(value);
-      
+
     case 'text':
     default:
       return String(value);
@@ -84,18 +84,6 @@ export function slugify(name: string): string {
     .replace(/[^\w\s-]/g, '') // Remove special characters
     .replace(/[\s_-]+/g, '-')  // Replace spaces and underscores with single dash
     .replace(/^-+|-+$/g, '');  // Remove leading/trailing dashes
-}
-
-/**
- * Generate a unique r_id (UUID v4)
- * @returns UUID string
- */
-export function generateRId(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
 }
 
 /**

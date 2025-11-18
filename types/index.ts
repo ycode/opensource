@@ -434,7 +434,7 @@ export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'refe
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {
-  field: string; // field_name or 'manual_order'
+  field: string; // field ID or 'manual_order'
   direction: CollectionSortDirection;
 }
 
@@ -453,14 +453,12 @@ export interface Collection {
 export interface CollectionField {
   id: string; // UUID
   name: string;
-  field_name: string;
   type: CollectionFieldType;
   default: string | null;
   fillable: boolean;
   built_in: boolean;
   order: number;
   collection_id: string; // UUID
-  collection_is_published: boolean; // Composite FK part
   reference_collection_id: string | null; // UUID
   created_at: string;
   updated_at: string;
@@ -472,9 +470,7 @@ export interface CollectionField {
 
 export interface CollectionItem {
   id: string; // UUID
-  r_id: string;
   collection_id: string; // UUID
-  collection_is_published: boolean; // Composite FK part
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -486,9 +482,7 @@ export interface CollectionItemValue {
   id: string; // UUID
   value: string | null;
   item_id: string; // UUID
-  item_is_published: boolean; // Composite FK part
   field_id: string; // UUID
-  field_is_published: boolean; // Composite FK part
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -497,7 +491,7 @@ export interface CollectionItemValue {
 
 // Helper type for working with items + values
 export interface CollectionItemWithValues extends CollectionItem {
-  values: Record<string, string>; // field_name -> value
+  values: Record<string, string>; // field_id (UUID) -> value
   publish_status?: 'new' | 'updated' | 'deleted'; // Status badge for publish modal
 }
 

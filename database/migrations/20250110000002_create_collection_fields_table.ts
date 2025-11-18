@@ -2,68 +2,65 @@ import { Knex } from 'knex';
 
 /**
  * Migration: Create collection_fields table
- * 
+ *
  * Field definitions for each collection (e.g., "title", "slug", "content").
  * Defines the schema for collection items using EAV model.
+ *
+ * Uses composite primary key (id, is_published) for draft/published workflow,
+ * same pattern as pages, components, and layer_styles tables.
  */
 export async function up(knex: Knex): Promise<void> {
-  // Check if table exists
-  const tableExists = await knex.schema.hasTable('collection_fields');
-  
-  if (tableExists) {
-    console.log('⚠️  collection_fields table already exists, skipping creation');
-    return;
-  }
-  
   // Create collection_fields table
   await knex.schema.createTable('collection_fields', (table) => {
-    table.bigIncrements('id').primary();
+    table.uuid('id').defaultTo(knex.raw('gen_random_uuid()'));
+    table.uuid('collection_id').notNullable();
+    table.uuid('reference_collection_id').nullable();
     table.string('name', 255).notNullable();
-    table.string('field_name', 255).notNullable();
     table.string('type', 255).notNullable();
     table.string('default', 255).nullable();
-    table.boolean('fillable').notNullable().defaultTo(true);
     table.boolean('built_in').notNullable().defaultTo(false);
+    table.boolean('fillable').notNullable().defaultTo(true);
     table.integer('order').notNullable();
-    table.bigInteger('collection_id').notNullable()
-      .references('id').inTable('collections').onDelete('CASCADE');
-    table.bigInteger('reference_collection_id').nullable()
-      .references('id').inTable('collections');
-    table.timestamp('created_at', { precision: 0 }).defaultTo(knex.fn.now());
-    table.timestamp('updated_at', { precision: 0 }).defaultTo(knex.fn.now());
-    table.timestamp('deleted_at', { precision: 0 }).nullable();
     table.boolean('hidden').notNullable().defaultTo(false);
-    table.string('temp_id', 255).nullable();
     table.jsonb('data').notNullable().defaultTo('{}');
-    table.string('status', 255).notNullable().defaultTo('draft');
-    
+    table.boolean('is_published').notNullable().defaultTo(false);
+    table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
+    table.timestamp('updated_at', { useTz: true }).defaultTo(knex.fn.now());
+    table.timestamp('deleted_at', { useTz: true }).nullable();
+
+    // Composite primary key (id, is_published)
+    table.primary(['id', 'is_published']);
+
     // Indexes
-    table.index('collection_id', 'idx_collection_fields_collection_id');
-    table.index('type', 'idx_collection_fields_type');
+    table.index('collection_id');
+    table.index('is_published');
+    table.index('type');
   });
-  
-  // Add unique constraint on collection_id + field_name (excluding soft-deleted)
+
+  // Add composite foreign key to collections
   await knex.raw(`
-    CREATE UNIQUE INDEX idx_collection_fields_unique 
-    ON collection_fields(collection_id, field_name) 
-    WHERE deleted_at IS NULL
+    ALTER TABLE collection_fields
+    ADD CONSTRAINT collection_fields_collection_fkey
+    FOREIGN KEY (collection_id, is_published)
+    REFERENCES collections(id, is_published)
+    ON DELETE CASCADE
   `);
-  
+
   console.log('✅ Created collection_fields table');
 }
 
 export async function down(knex: Knex): Promise<void> {
   // Check if table exists
   const tableExists = await knex.schema.hasTable('collection_fields');
-  
+
   if (!tableExists) {
     console.log('⚠️  collection_fields table does not exist, skipping drop');
     return;
   }
-  
+
   // Drop collection_fields table
   await knex.schema.dropTable('collection_fields');
-  
+
   console.log('✅ Dropped collection_fields table');
 }
 

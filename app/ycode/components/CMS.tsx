@@ -213,7 +213,7 @@ export default function CMS() {
       const defaults: Record<string, any> = {};
       collectionFields.forEach(field => {
         // Always set a value (use default or empty string) to avoid undefined
-        defaults[field.field_name] = field.default || '';
+        defaults[field.id] = field.default || '';
       });
       form.reset(defaults);
     }
@@ -289,25 +289,25 @@ export default function CMS() {
     }
   };
 
-  const handleColumnClick = async (fieldName: string) => {
+  const handleColumnClick = async (fieldId: string) => {
     if (!selectedCollectionId || !selectedCollection) return;
 
     const currentSorting = selectedCollection.sorting;
     let newSorting;
 
     // Cycle through: manual → asc → desc → manual
-    if (!currentSorting || currentSorting.field !== fieldName) {
+    if (!currentSorting || currentSorting.field !== fieldId) {
       // First click on this field - set to manual mode
-      newSorting = { field: fieldName, direction: 'manual' as const };
+      newSorting = { field: fieldId, direction: 'manual' as const };
     } else if (currentSorting.direction === 'manual') {
       // Second click - set to ASC
-      newSorting = { field: fieldName, direction: 'asc' as const };
+      newSorting = { field: fieldId, direction: 'asc' as const };
     } else if (currentSorting.direction === 'asc') {
       // Third click - set to DESC
-      newSorting = { field: fieldName, direction: 'desc' as const };
+      newSorting = { field: fieldId, direction: 'desc' as const };
     } else {
       // Fourth click - back to manual mode
-      newSorting = { field: fieldName, direction: 'manual' as const };
+      newSorting = { field: fieldId, direction: 'manual' as const };
     }
 
     try {
@@ -449,7 +449,6 @@ export default function CMS() {
       const newOrder = collectionFields.length;
       await createField(selectedCollectionId, {
         name: `${field.name} (Copy)`,
-        field_name: `${field.field_name}_copy`,
         type: field.type,
         default: field.default,
         fillable: field.fillable,
@@ -504,11 +503,9 @@ export default function CMS() {
 
     try {
       const newOrder = collectionFields.length;
-      const fieldName = data.name.toLowerCase().replace(/\s+/g, '_');
 
       await createField(selectedCollectionId, {
         name: data.name,
-        field_name: fieldName,
         type: data.type,
         default: data.default || null,
         order: newOrder,
@@ -707,8 +704,8 @@ export default function CMS() {
 
                       {collectionFields.filter(f => !f.hidden).map((field) => {
                         const sorting = selectedCollection?.sorting;
-                        const isActiveSort = sorting?.field === field.field_name;
-                        const sortIcon = isActiveSort ? (
+                        const isActiveSort = sorting?.field === field.id;
+                        const sortIcon = isActiveSort && sorting ? (
                           sorting.direction === 'manual' ? 'M' :
                             sorting.direction === 'asc' ? '↑' :
                               '↓'
@@ -718,7 +715,7 @@ export default function CMS() {
                           <th key={field.id} className="px-4 py-5 text-left font-normal">
                             <div className="flex items-center gap-1">
                               <button
-                                onClick={() => handleColumnClick(field.field_name)}
+                                onClick={() => handleColumnClick(field.id)}
                                 className="flex items-center gap-1 hover:opacity-50 cursor-pointer"
                               >
                                 {field.name}
@@ -756,7 +753,7 @@ export default function CMS() {
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => handleHideField(field.id)}
-                                    disabled={field.field_name === 'name'}
+                                    disabled={field.name.toLowerCase() === 'name'}
                                   >
                                     {field.hidden ? 'Show' : 'Hide'}
                                   </DropdownMenuItem>
@@ -817,7 +814,7 @@ export default function CMS() {
                             </div>
                           </td>
                           {collectionFields.filter(f => !f.hidden).map((field) => {
-                            const value = item.values[field.field_name];
+                            const value = item.values[field.id];
 
                             // Format date fields
                             if (field.type === 'date' && value) {
@@ -906,7 +903,7 @@ export default function CMS() {
                               <FormField
                                 key={field.id}
                                 control={form.control}
-                                name={field.field_name}
+                                name={field.id}
                                 render={({ field: formField }) => (
                                   <FormItem>
                                     <FormLabel>{field.name}</FormLabel>

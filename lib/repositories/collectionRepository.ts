@@ -4,10 +4,10 @@ import { randomUUID } from 'crypto';
 
 /**
  * Collection Repository
- * 
+ *
  * Handles CRUD operations for collections (content types).
  * Uses Supabase/PostgreSQL via admin client.
- * 
+ *
  * NOTE: Uses composite primary key (id, is_published) architecture.
  * All queries must specify is_published filter.
  */
@@ -37,13 +37,13 @@ export interface UpdateCollectionData {
  */
 export async function getAllCollections(filters?: QueryFilters): Promise<Collection[]> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase client not configured');
   }
-  
+
   const isPublished = filters?.is_published ?? false;
-  
+
   let query = client
     .from('collections')
     .select(`
@@ -53,7 +53,7 @@ export async function getAllCollections(filters?: QueryFilters): Promise<Collect
     .eq('is_published', isPublished)
     .order('order', { ascending: true })
     .order('created_at', { ascending: false });
-  
+
   // Apply deleted filter
   if (filters?.deleted === false) {
     query = query.is('deleted_at', null);
@@ -63,21 +63,21 @@ export async function getAllCollections(filters?: QueryFilters): Promise<Collect
     // Default: exclude deleted
     query = query.is('deleted_at', null);
   }
-  
+
   const { data, error } = await query;
-  
+
   if (error) {
     throw new Error(`Failed to fetch collections: ${error.message}`);
   }
-  
+
   // Process the data to add draft_items_count
   const collections = (data || []).map((collection: any) => {
     const items = collection.collection_items || [];
     // Count only non-deleted items that match the same is_published state
-    const draft_items_count = items.filter((item: any) => 
+    const draft_items_count = items.filter((item: any) =>
       item.deleted_at === null && item.is_published === isPublished
     ).length;
-    
+
     // Remove the joined data and add the count
     const { collection_items, ...collectionData } = collection;
     return {
@@ -85,7 +85,7 @@ export async function getAllCollections(filters?: QueryFilters): Promise<Collect
       draft_items_count,
     };
   });
-  
+
   return collections;
 }
 
@@ -96,33 +96,33 @@ export async function getAllCollections(filters?: QueryFilters): Promise<Collect
  * @param includeDeleted - Whether to include soft-deleted collections. Defaults to false.
  */
 export async function getCollectionById(
-  id: string, 
+  id: string,
   isPublished: boolean = false,
   includeDeleted: boolean = false
 ): Promise<Collection | null> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase client not configured');
   }
-  
+
   let query = client
     .from('collections')
     .select('*')
     .eq('id', id)
     .eq('is_published', isPublished);
-  
+
   // Filter out deleted unless explicitly requested
   if (!includeDeleted) {
     query = query.is('deleted_at', null);
   }
-  
+
   const { data, error } = await query.single();
-  
+
   if (error && error.code !== 'PGRST116') {
     throw new Error(`Failed to fetch collection: ${error.message}`);
   }
-  
+
   return data;
 }
 
@@ -133,11 +133,11 @@ export async function getCollectionById(
  */
 export async function getCollectionByName(name: string, isPublished: boolean = false): Promise<Collection | null> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase client not configured');
   }
-  
+
   const { data, error } = await client
     .from('collections')
     .select('*')
@@ -145,11 +145,11 @@ export async function getCollectionByName(name: string, isPublished: boolean = f
     .eq('is_published', isPublished)
     .is('deleted_at', null)
     .single();
-  
+
   if (error && error.code !== 'PGRST116') {
     throw new Error(`Failed to fetch collection: ${error.message}`);
   }
-  
+
   return data;
 }
 
@@ -158,14 +158,14 @@ export async function getCollectionByName(name: string, isPublished: boolean = f
  */
 export async function createCollection(collectionData: CreateCollectionData): Promise<Collection> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase client not configured');
   }
-  
+
   const id = randomUUID();
   const isPublished = collectionData.is_published ?? false;
-  
+
   const { data, error } = await client
     .from('collections')
     .insert({
@@ -177,11 +177,11 @@ export async function createCollection(collectionData: CreateCollectionData): Pr
     })
     .select()
     .single();
-  
+
   if (error) {
     throw new Error(`Failed to create collection: ${error.message}`);
   }
-  
+
   return data;
 }
 
@@ -192,16 +192,16 @@ export async function createCollection(collectionData: CreateCollectionData): Pr
  * @param isPublished - Which version to update: draft (false) or published (true). Defaults to false (draft).
  */
 export async function updateCollection(
-  id: string, 
+  id: string,
   collectionData: UpdateCollectionData,
   isPublished: boolean = false
 ): Promise<Collection> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase client not configured');
   }
-  
+
   const { data, error } = await client
     .from('collections')
     .update({
@@ -213,11 +213,11 @@ export async function updateCollection(
     .is('deleted_at', null)
     .select()
     .single();
-  
+
   if (error) {
     throw new Error(`Failed to update collection: ${error.message}`);
   }
-  
+
   return data;
 }
 
@@ -229,13 +229,13 @@ export async function updateCollection(
  */
 export async function deleteCollection(id: string, isPublished: boolean = false): Promise<void> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase client not configured');
   }
-  
+
   const now = new Date().toISOString();
-  
+
   // Soft delete the collection
   const { error: collectionError } = await client
     .from('collections')
@@ -246,11 +246,11 @@ export async function deleteCollection(id: string, isPublished: boolean = false)
     .eq('id', id)
     .eq('is_published', isPublished)
     .is('deleted_at', null);
-  
+
   if (collectionError) {
     throw new Error(`Failed to delete collection: ${collectionError.message}`);
   }
-  
+
   // Soft delete all related fields
   const { error: fieldsError } = await client
     .from('collection_fields')
@@ -259,14 +259,13 @@ export async function deleteCollection(id: string, isPublished: boolean = false)
       updated_at: now,
     })
     .eq('collection_id', id)
-    .eq('collection_is_published', isPublished)
     .eq('is_published', isPublished)
     .is('deleted_at', null);
-  
+
   if (fieldsError) {
     console.error('Error soft-deleting collection fields:', fieldsError);
   }
-  
+
   // Soft delete all related items
   const { error: itemsError } = await client
     .from('collection_items')
@@ -275,26 +274,24 @@ export async function deleteCollection(id: string, isPublished: boolean = false)
       updated_at: now,
     })
     .eq('collection_id', id)
-    .eq('collection_is_published', isPublished)
     .eq('is_published', isPublished)
     .is('deleted_at', null);
-  
+
   if (itemsError) {
     console.error('Error soft-deleting collection items:', itemsError);
   }
-  
+
   // Soft delete all item values (these are linked to items via FK)
   // We need to get all items first to delete their values
   const { data: items } = await client
     .from('collection_items')
     .select('id')
     .eq('collection_id', id)
-    .eq('collection_is_published', isPublished)
     .eq('is_published', isPublished);
-  
+
   if (items && items.length > 0) {
     const itemIds = items.map(item => item.id);
-    
+
     const { error: valuesError } = await client
       .from('collection_item_values')
       .update({
@@ -302,10 +299,9 @@ export async function deleteCollection(id: string, isPublished: boolean = false)
         updated_at: now,
       })
       .in('item_id', itemIds)
-      .eq('item_is_published', isPublished)
       .eq('is_published', isPublished)
       .is('deleted_at', null);
-    
+
     if (valuesError) {
       console.error('Error soft-deleting collection item values:', valuesError);
     }
@@ -321,18 +317,18 @@ export async function deleteCollection(id: string, isPublished: boolean = false)
  */
 export async function hardDeleteCollection(id: string, isPublished: boolean = false): Promise<void> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase client not configured');
   }
-  
+
   // Hard delete the collection (CASCADE will delete all related data)
   const { error } = await client
     .from('collections')
     .delete()
     .eq('id', id)
     .eq('is_published', isPublished);
-  
+
   if (error) {
     throw new Error(`Failed to hard delete collection: ${error.message}`);
   }
@@ -341,66 +337,44 @@ export async function hardDeleteCollection(id: string, isPublished: boolean = fa
 /**
  * Publish a collection
  * Creates or updates the published version by copying the draft
+ * Uses upsert with composite primary key for simplicity
  * @param id - Collection UUID
  */
 export async function publishCollection(id: string): Promise<Collection> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase client not configured');
   }
-  
+
   // Get the draft version
   const draft = await getCollectionById(id, false);
   if (!draft) {
     throw new Error('Draft collection not found');
   }
-  
-  // Check if published version exists
-  const existingPublished = await getCollectionById(id, true);
-  
-  if (existingPublished) {
-    // Update existing published version
-    const { data, error } = await client
-      .from('collections')
-      .update({
-        name: draft.name,
-        sorting: draft.sorting,
-        order: draft.order,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .eq('is_published', true)
-      .select()
-      .single();
-    
-    if (error) {
-      throw new Error(`Failed to update published collection: ${error.message}`);
-    }
-    
-    return data;
-  } else {
-    // Create new published version with same ID
-    const { data, error } = await client
-      .from('collections')
-      .insert({
-        id: draft.id, // Same UUID
-        name: draft.name,
-        sorting: draft.sorting,
-        order: draft.order,
-        is_published: true,
-        created_at: draft.created_at,
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-    
-    if (error) {
-      throw new Error(`Failed to create published collection: ${error.message}`);
-    }
-    
-    return data;
+
+  // Upsert published version (composite key handles insert/update automatically)
+  const { data, error } = await client
+    .from('collections')
+    .upsert({
+      id: draft.id, // Same UUID
+      name: draft.name,
+      sorting: draft.sorting,
+      order: draft.order,
+      is_published: true,
+      created_at: draft.created_at,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'id,is_published', // Composite primary key
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to publish collection: ${error.message}`);
   }
+
+  return data;
 }
 
 /**
@@ -411,36 +385,36 @@ export async function publishCollection(id: string): Promise<Collection> {
  */
 export async function getUnpublishedCollections(): Promise<Collection[]> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase client not configured');
   }
-  
+
   // Get all draft collections
   const draftCollections = await getAllCollections({ is_published: false });
-  
+
   const unpublishedCollections: Collection[] = [];
-  
+
   for (const draft of draftCollections) {
     // Check if published version exists
     const published = await getCollectionById(draft.id, true);
-    
+
     if (!published) {
       // Never published
       unpublishedCollections.push(draft);
       continue;
     }
-    
+
     // Check if draft differs from published
-    const hasChanges = 
+    const hasChanges =
     draft.name !== published.name ||
     JSON.stringify(draft.sorting) !== JSON.stringify(published.sorting) ||
     draft.order !== published.order;
-    
+
     if (hasChanges) {
       unpublishedCollections.push(draft);
     }
   }
-  
+
   return unpublishedCollections;
 }

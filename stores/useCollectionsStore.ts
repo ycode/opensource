@@ -35,7 +35,6 @@ interface CollectionsActions {
   loadFields: (collectionId: string, search?: string) => Promise<void>;
   createField: (collectionId: string, data: {
     name: string;
-    field_name: string;
     type: 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
     default?: string | null;
     order?: number;
@@ -116,7 +115,6 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         const builtInFields = [
           {
             name: 'ID',
-            field_name: 'id',
             type: 'number' as const,
             order: 0,
             built_in: true,
@@ -125,7 +123,6 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
           },
           {
             name: 'Name',
-            field_name: 'name',
             type: 'text' as const,
             order: 1,
             built_in: true,
@@ -134,7 +131,6 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
           },
           {
             name: 'Slug',
-            field_name: 'slug',
             type: 'text' as const,
             order: 2,
             built_in: true,
@@ -143,7 +139,6 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
           },
           {
             name: 'Created Date',
-            field_name: 'created_at',
             type: 'date' as const,
             order: 3,
             built_in: true,
@@ -152,7 +147,6 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
           },
           {
             name: 'Updated Date',
-            field_name: 'updated_at',
             type: 'date' as const,
             order: 4,
             built_in: true,

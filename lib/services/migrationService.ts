@@ -23,7 +23,7 @@ async function ensureMigrationsTable(knex: any): Promise<void> {
 
   if (!hasTable) {
     await knex.schema.createTable('migrations', (table: any) => {
-      table.increments('id').primary();
+      table.uuid('id').defaultTo(knex.raw('gen_random_uuid()')).primary();
       table.string('name').notNullable();
       table.integer('batch').notNullable();
       table.timestamp('migration_time').defaultTo(knex.fn.now());
@@ -47,7 +47,7 @@ async function getCompletedMigrations(knex: any): Promise<Set<string>> {
 
   const completed = await knex('migrations')
     .select('name')
-    .orderBy('id', 'asc');
+    .orderBy('migration_time', 'asc');
 
   return new Set(completed.map((m: any) => m.name));
 }

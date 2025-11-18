@@ -10,7 +10,7 @@ export const revalidate = 0;
  * GET /api/collections/[id]/fields
  * Get all fields for a collection (draft version)
  * Query params:
- *  - search: string (optional) - Filter fields by name or field_name
+ *  - search: string (optional) - Filter fields by name
  */
 export async function GET(
   request: NextRequest,
@@ -52,9 +52,9 @@ export async function POST(
     const body = await request.json();
     
     // Validate required fields
-    if (!body.name || !body.field_name || !body.type) {
+    if (!body.name || !body.type) {
       return noCache(
-        { error: 'Missing required fields: name, field_name, type' },
+        { error: 'Missing required fields: name, type' },
         400
       );
     }
@@ -70,9 +70,7 @@ export async function POST(
     
     const field = await createField({
       collection_id: id,
-      collection_is_published: false, // Draft collection
       name: body.name,
-      field_name: body.field_name,
       type: body.type,
       default: body.default || null,
       fillable: body.fillable ?? true,

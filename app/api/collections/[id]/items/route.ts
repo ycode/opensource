@@ -39,7 +39,7 @@ export async function GET(
     };
     
     // Always get draft items in the builder
-    const { items, total } = await getItemsWithValues(id, false, filters, false);
+    const { items, total } = await getItemsWithValues(id, false, filters);
     
     return noCache({ 
       data: {
@@ -77,8 +77,6 @@ export async function POST(
     // Create the item (draft)
     const item = await createItem({
       collection_id: id,
-      collection_is_published: false, // Draft collection
-      r_id: itemData.r_id,
       manual_order: itemData.manual_order ?? 0,
       is_published: false, // Always create as draft
     });
@@ -101,9 +99,7 @@ export async function POST(
     if (valuesWithAutoFields && typeof valuesWithAutoFields === 'object') {
       await setValuesByFieldName(
         item.id,
-        false, // Item is draft
         id,
-        false, // Collection is draft
         valuesWithAutoFields,
         {},
         false // Create draft values

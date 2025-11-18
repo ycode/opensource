@@ -119,7 +119,7 @@ export default function FieldsDropdown({
                   <Switch
                     checked={!field.hidden}
                     onCheckedChange={() => onToggleVisibility(field.id)}
-                    disabled={field.field_name === 'name'}
+                    disabled={field.name.toLowerCase() === 'name'}
                     className="flex-shrink-0"
                   />
                 </div>

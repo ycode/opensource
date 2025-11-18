@@ -88,7 +88,6 @@ export default function AddFieldDialog({
 
         await createField(collectionId, {
           name: values.name,
-          field_name: slugify(values.name).replace(/-/g, '_'), // Use underscores for field names
           type: values.type as CollectionFieldType,
           default: values.default || null,
           order,

@@ -48,7 +48,7 @@ export default function CollectionItemDialog({
       const defaultValues: Record<string, any> = {};
       collectionFields.forEach(field => {
         if (field.default) {
-          defaultValues[field.field_name] = field.default;
+          defaultValues[field.id] = field.default;
         }
       });
       setValues(defaultValues);
@@ -84,26 +84,33 @@ export default function CollectionItemDialog({
     onClose();
   };
   
-  const handleFieldChange = (fieldName: string, value: any) => {
-    const newValues = { ...values, [fieldName]: value };
+  const handleFieldChange = (fieldId: string, value: any) => {
+    const newValues = { ...values, [fieldId]: value };
     
-    // Auto-populate slug from name only when creating (not editing)
-    if (!item && fieldName === 'name' && typeof value === 'string') {
-      newValues['slug'] = slugify(value);
+    // Auto-populate slug from name field only when creating (not editing)
+    // Find the name field by checking field name property
+    if (!item) {
+      const nameField = collectionFields.find(f => f.name.toLowerCase() === 'name');
+      if (nameField && fieldId === nameField.id && typeof value === 'string') {
+        const slugField = collectionFields.find(f => f.name.toLowerCase() === 'slug');
+        if (slugField) {
+          newValues[slugField.id] = slugify(value);
+        }
+      }
     }
     
     setValues(newValues);
   };
   
   const renderFieldInput = (field: CollectionField) => {
-    const value = values[field.field_name] || field.default || '';
+    const value = values[field.id] || field.default || '';
     
     switch (field.type) {
       case 'text':
         return (
           <Input
             value={value}
-            onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
             placeholder={field.default || ''}
           />
         );
@@ -113,7 +120,7 @@ export default function CollectionItemDialog({
           <Input
             type="number"
             value={value}
-            onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
             placeholder={field.default || '0'}
           />
         );
@@ -122,7 +129,7 @@ export default function CollectionItemDialog({
         return (
           <Switch
             checked={value === 'true' || value === true}
-            onCheckedChange={(checked) => handleFieldChange(field.field_name, checked)}
+            onCheckedChange={(checked) => handleFieldChange(field.id, checked)}
           />
         );
         
@@ -131,7 +138,7 @@ export default function CollectionItemDialog({
           <Input
             type="date"
             value={value}
-            onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
           />
         );
         
@@ -141,7 +148,7 @@ export default function CollectionItemDialog({
         return (
           <Input
             value={value}
-            onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
             placeholder="Reference ID"
           />
         );
@@ -150,7 +157,7 @@ export default function CollectionItemDialog({
         return (
           <Input
             value={value}
-            onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
           />
         );
     }
@@ -187,7 +194,7 @@ export default function CollectionItemDialog({
           <form onSubmit={handleSubmit} className="flex flex-col gap-6 flex-1">
             <div className="flex-1 flex flex-col gap-4">
               {collectionFields
-                .filter(f => !f.hidden && f.fillable && f.field_name !== 'status') // Exclude status field from modal
+                .filter(f => !f.hidden && f.fillable && f.name.toLowerCase() !== 'status') // Exclude status field from modal
                 .map((field) => (
                   <div key={field.id} className="flex flex-col gap-2">
                     <Label>{field.name}</Label>
@@ -195,7 +202,7 @@ export default function CollectionItemDialog({
                   </div>
                 ))}
               
-              {collectionFields.filter(f => !f.hidden && f.fillable && f.field_name !== 'status').length === 0 && (
+              {collectionFields.filter(f => !f.hidden && f.fillable && f.name.toLowerCase() !== 'status').length === 0 && (
                 <div className="text-muted-foreground text-sm">
                   No fields defined for this collection. Add fields first.
                 </div>

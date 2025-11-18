@@ -341,7 +341,6 @@ export const collectionsApi = {
 
   async createField(collectionId: string, data: {
     name: string;
-    field_name: string;
     type: 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
     default?: string | null;
     fillable?: boolean;

@@ -9,13 +9,7 @@ import type { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.raw(`
     INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-    VALUES (
-      'assets',
-      'assets',
-      true,
-      52428800,
-      NULL
-    )
+    VALUES ('assets', 'assets', true, 52428800, NULL)
     ON CONFLICT (id) DO NOTHING
   `);
 
