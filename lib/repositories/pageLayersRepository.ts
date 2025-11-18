@@ -144,6 +144,7 @@ export async function upsertDraftLayers(
       .from('page_layers')
       .update(updateData)
       .eq('id', existingDraft.id)
+      .eq('is_published', false)
       .select()
       .single();
 
@@ -232,24 +233,24 @@ export async function getDraftLayersForPages(pageIds: string[]): Promise<PageLay
 }
 
 /**
- * Get all published layers by publish_keys
+ * Get published layers by IDs
  * Used for batch publishing optimization
  */
-export async function getPublishedLayersByPublishKeys(publishKeys: string[]): Promise<PageLayers[]> {
+export async function getPublishedLayersByIds(ids: string[]): Promise<PageLayers[]> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
     throw new Error('Supabase not configured');
   }
 
-  if (publishKeys.length === 0) {
+  if (ids.length === 0) {
     return [];
   }
 
   const { data, error } = await client
     .from('page_layers')
     .select('*')
-    .in('publish_key', publishKeys)
+    .in('id', ids)
     .eq('is_published', true)
     .is('deleted_at', null);
 
@@ -261,10 +262,10 @@ export async function getPublishedLayersByPublishKeys(publishKeys: string[]): Pr
 }
 
 /**
- * Get published layers by publish_key
+ * Get published layers by ID
  * Used to find the published version of draft layers
  */
-export async function getPublishedLayersByPublishKey(publishKey: string): Promise<PageLayers | null> {
+export async function getPublishedLayersById(id: string): Promise<PageLayers | null> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
@@ -274,7 +275,7 @@ export async function getPublishedLayersByPublishKey(publishKey: string): Promis
   const { data, error } = await client
     .from('page_layers')
     .select('*')
-    .eq('publish_key', publishKey)
+    .eq('id', id)
     .eq('is_published', true)
     .is('deleted_at', null)
     .single();
@@ -291,8 +292,10 @@ export async function getPublishedLayersByPublishKey(publishKey: string): Promis
 
 /**
  * Publish page layers
- * Creates or updates a published version of the layers with the same publish_key
- * References the published page ID (not the draft page ID)
+ * Creates or updates a published version of the layers with the same ID
+ * With composite keys (id, is_published), both draft and published versions use the same page_id
+ * @param draftPageId - Page ID to get draft layers from (same as publishedPageId with composite keys)
+ * @param publishedPageId - Page ID to reference in published layers (same as draftPageId with composite keys)
  * Draft layers remain unchanged
  */
 export async function publishPageLayers(draftPageId: string, publishedPageId: string): Promise<PageLayers> {
@@ -309,28 +312,27 @@ export async function publishPageLayers(draftPageId: string, publishedPageId: st
     throw new Error('No draft layers found to publish');
   }
 
-  // Check if published version exists
-  const existingPublished = await getPublishedLayersByPublishKey(draftLayers.publish_key);
-
-  // Copy the draft's content_hash directly (don't recalculate to avoid mismatches)
-  const publishedData: any = {
-    page_id: publishedPageId, // Reference the published page, not the draft
-    layers: draftLayers.layers,
-    generated_css: draftLayers.generated_css, // Copy generated CSS
-    content_hash: draftLayers.content_hash, // Copy hash from draft
-    is_published: true,
-    publish_key: draftLayers.publish_key,
-  };
+  // Check if published version exists (same id, but is_published = true)
+  const existingPublished = await getPublishedLayersById(draftLayers.id);
 
   if (existingPublished) {
     // Update existing published version only if content_hash changed
     const hasChanges = existingPublished.content_hash !== draftLayers.content_hash;
 
     if (hasChanges) {
+      // Prepare update data WITHOUT primary key fields (id, is_published)
+      const updateData: any = {
+        page_id: publishedPageId, // Same page ID (draft and published pages share same id)
+        layers: draftLayers.layers,
+        content_hash: draftLayers.content_hash, // Copy hash from draft
+        updated_at: new Date().toISOString(),
+      };
+
       const { data, error } = await client
         .from('page_layers')
-        .update(publishedData)
+        .update(updateData)
         .eq('id', existingPublished.id)
+        .eq('is_published', true)
         .select()
         .single();
 
@@ -343,10 +345,18 @@ export async function publishPageLayers(draftPageId: string, publishedPageId: st
 
     return existingPublished;
   } else {
-    // Create new published version
+    // Create new published version - include ALL fields for insert
+    const insertData: any = {
+      id: draftLayers.id, // Use same ID (composite key with is_published)
+      page_id: publishedPageId,
+      layers: draftLayers.layers,
+      content_hash: draftLayers.content_hash,
+      is_published: true,
+    };
+
     const { data, error } = await client
       .from('page_layers')
-      .insert(publishedData)
+      .insert(insertData)
       .select()
       .single();
 

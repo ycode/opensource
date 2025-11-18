@@ -9,8 +9,8 @@ import type { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   // Create pages table
   await knex.schema.createTable('pages', (table) => {
-    table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
-    table.uuid('page_folder_id').nullable().references('id').inTable('page_folders').onDelete('SET NULL');
+    table.uuid('id').defaultTo(knex.raw('gen_random_uuid()'));
+    table.uuid('page_folder_id').nullable();
     table.string('name', 255).notNullable();
     table.string('slug', 255).notNullable();
     table.integer('order').defaultTo(0);
@@ -19,19 +19,29 @@ export async function up(knex: Knex): Promise<void> {
     table.boolean('is_dynamic').defaultTo(false); // Dynamic page (CMS-driven)
     table.integer('error_page').nullable(); // If an error page, error page type: 401, 404, 500
     table.jsonb('settings').defaultTo('{}'); // Settings for `cms` (source + key), `auth` (enabled + password), `seo`, `code`
-    table.boolean('is_published').defaultTo(false);
-    table.string('publish_key', 255).defaultTo(knex.raw('gen_random_uuid()'));
+    table.boolean('is_published').notNullable().defaultTo(false);
     table.string('content_hash', 64).nullable(); // SHA-256 hash for change detection
     table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('updated_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('deleted_at', { useTz: true }).nullable();
+
+    // Composite primary key
+    table.primary(['id', 'is_published']);
   });
 
+  // Add foreign key constraint separately (after table creation)
+  await knex.schema.raw(`
+    ALTER TABLE pages
+    ADD CONSTRAINT fk_pages_folder
+    FOREIGN KEY (page_folder_id, is_published)
+    REFERENCES page_folders(id, is_published)
+    ON DELETE SET NULL
+  `);
+
   // Create indexes
-  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_page_folder_id ON pages(page_folder_id) WHERE deleted_at IS NULL');
-  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_slug ON pages(slug) WHERE deleted_at IS NULL');
+  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_page_folder_id ON pages(page_folder_id, is_published) WHERE deleted_at IS NULL');
+  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_slug ON pages(slug, is_published) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_is_published ON pages(is_published) WHERE deleted_at IS NULL');
-  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_publish_key ON pages(publish_key) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_pages_content_hash ON pages(content_hash)');
 
   // Uses COALESCE to handle NULL values because NULL != NULL in SQL

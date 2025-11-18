@@ -133,7 +133,7 @@ export interface LayerStyle {
   // Versioning fields
   content_hash?: string; // SHA-256 hash for change detection
   is_published: boolean;
-  publish_key: string; // Stable key linking draft and published versions
+  publish_key: string;
 
   created_at: string;
   updated_at: string;
@@ -150,7 +150,6 @@ export interface Component {
   // Versioning fields
   content_hash?: string; // SHA-256 hash for change detection
   is_published: boolean;
-  publish_key: string; // Stable key linking draft and published versions
 
   created_at: string;
   updated_at: string;
@@ -237,7 +236,6 @@ export interface Page {
   settings: PageSettings; // Page settings (CMS, auth, seo, custom code)
   content_hash?: string; // SHA-256 hash of page metadata for change detection
   is_published: boolean;
-  publish_key: string; // Stable key linking draft and published versions
   created_at: string;
   updated_at: string;
   deleted_at: string | null; // Soft delete timestamp
@@ -280,7 +278,6 @@ export interface PageLayers {
   layers: Layer[];
   content_hash?: string; // SHA-256 hash of layers and CSS for change detection
   is_published: boolean;
-  publish_key: string; // Stable key linking draft and published versions
   created_at: string;
   updated_at?: string;
   deleted_at: string | null; // Soft delete timestamp
@@ -303,7 +300,6 @@ export interface PageFolder {
   order: number; // Sort order within parent folder
   settings: PageFolderSettings; // Settings for auth (enabled + password), etc.
   is_published: boolean;
-  publish_key: string; // Stable key linking draft and published versions
   created_at: string;
   updated_at: string;
   deleted_at: string | null; // Soft delete timestamp

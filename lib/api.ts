@@ -81,7 +81,7 @@ export const pagesApi = {
   },
 
   // Create new page
-  async create(page: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>): Promise<ApiResponse<Page>> {
+  async create(page: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>): Promise<ApiResponse<Page>> {
     return apiRequest<Page>('/api/pages', {
       method: 'POST',
       body: JSON.stringify(page),
@@ -125,7 +125,7 @@ export const foldersApi = {
   },
 
   // Create new folder
-  async create(folder: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>): Promise<ApiResponse<PageFolder>> {
+  async create(folder: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>): Promise<ApiResponse<PageFolder>> {
     return apiRequest<PageFolder>('/api/folders', {
       method: 'POST',
       body: JSON.stringify(folder),

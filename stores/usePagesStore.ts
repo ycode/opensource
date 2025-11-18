@@ -26,7 +26,7 @@ interface PagesActions {
   loadFolders: () => Promise<void>;
   loadDraft: (pageId: string) => Promise<void>;
   loadAllDrafts: () => Promise<void>;
-  createPage: (pageData: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>) => Promise<{ success: boolean; data?: Page; error?: string; tempId?: string }>;
+  createPage: (pageData: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>) => Promise<{ success: boolean; data?: Page; error?: string; tempId?: string }>;
   updatePage: (pageId: string, updates: Partial<Page>) => Promise<{ success: boolean; error?: string }>;
   duplicatePage: (pageId: string) => Promise<{
     success: boolean;
@@ -40,7 +40,7 @@ interface PagesActions {
     };
   }>;
   deletePage: (pageId: string, currentPageId?: string | null) => Promise<{ success: boolean; error?: string; currentPageDeleted?: boolean; nextPageId?: string | null }>;
-  createFolder: (folderData: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'publish_key'>) => Promise<{ success: boolean; data?: PageFolder; error?: string; tempId?: string }>;
+  createFolder: (folderData: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>) => Promise<{ success: boolean; data?: PageFolder; error?: string; tempId?: string }>;
   updateFolder: (folderId: string, updates: Partial<PageFolder>) => Promise<{ success: boolean; error?: string }>;
   duplicateFolder: (folderId: string) => Promise<{
     success: boolean;
@@ -199,7 +199,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           page_id: page.id,
           layers: [],
           is_published: false,
-          publish_key: page.publish_key,
           created_at: new Date().toISOString(),
           deleted_at: null,
         };
@@ -303,7 +302,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
             page_id: page.id,
             layers: [],
             is_published: false,
-            publish_key: page.publish_key,
             created_at: new Date().toISOString(),
             deleted_at: null,
           };
@@ -325,7 +323,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       page_id: page.id,
       layers: initialLayers,
       is_published: false,
-      publish_key: page.publish_key,
       created_at: new Date().toISOString(),
       deleted_at: null,
     };
@@ -434,7 +431,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         page_id: pageId,
         layers: [],
         is_published: false,
-        publish_key: page.publish_key,
         created_at: new Date().toISOString(),
         deleted_at: null,
       };
@@ -486,7 +482,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         page_id: pageId,
         layers: [],
         is_published: false,
-        publish_key: page.publish_key,
         created_at: new Date().toISOString(),
         deleted_at: null,
       };
@@ -1194,7 +1189,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const tempPage: Page = {
       id: tempId,
       ...pageData,
-      publish_key: tempPublishKey,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       deleted_at: null,
@@ -1212,7 +1206,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         locked: true,
       }],
       is_published: false,
-      publish_key: tempPublishKey,
       created_at: new Date().toISOString(),
       deleted_at: null,
     };
@@ -1252,7 +1245,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           ...tempDraft,
           id: `draft-${response.data.id}`,
           page_id: response.data.id,
-          publish_key: response.data.publish_key,
         };
 
         set({
@@ -1427,7 +1419,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       is_dynamic: originalPage.is_dynamic,
       error_page: originalPage.error_page,
       settings: originalPage.settings || {},
-      publish_key: tempPublishKey,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       deleted_at: null,
@@ -1470,7 +1461,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       ...originalDraft,
       id: `draft-${tempId}`,
       page_id: tempId,
-      publish_key: tempPublishKey,
       is_published: false,
       created_at: new Date().toISOString(),
     } : undefined;
@@ -1550,7 +1540,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
                 ...tempDraftData,
                 id: `draft-${result.data.id}`,
                 page_id: result.data.id,
-                publish_key: result.data.publish_key,
               };
             }
 
@@ -1686,7 +1675,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const tempFolder: PageFolder = {
       id: tempId,
       ...folderData,
-      publish_key: tempPublishKey,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       deleted_at: null,
@@ -1865,7 +1853,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           page_folder_id: newParentId,
           slug: folderSlug,
           is_published: false,
-          publish_key: `temp-${timestamp}-${folderCounter.count}`,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -1891,7 +1878,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           page_folder_id: newParentId,
           slug: pageSlug,
           is_published: false,
-          publish_key: `temp-${timestamp}-${pageCounter.count}`,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -1905,7 +1891,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
             ...originalDraft,
             id: `draft-${tempPageId}`,
             page_id: tempPageId,
-            publish_key: tempPage.publish_key,
             is_published: false,
             created_at: new Date().toISOString(),
           };
@@ -1922,7 +1907,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       slug: `folder-${timestamp}`, // Match backend pattern
       is_published: false,
       order: originalFolder.order + 1,
-      publish_key: `temp-${timestamp}`,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -2412,18 +2396,18 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
   publishPages: async (pageIds: string[]) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await pagesApi.publishPages(pageIds);
-      
+
       if (response.error) {
         set({ error: response.error, isLoading: false });
         return { success: false, error: response.error };
       }
-      
+
       // Reload pages to reflect published status
       await get().loadPages();
-      
+
       set({ isLoading: false });
       return { success: true, count: response.data?.count || 0 };
     } catch (error) {

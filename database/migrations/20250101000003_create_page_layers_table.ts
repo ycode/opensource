@@ -12,21 +12,31 @@ import { generatePageMetadataHash, generatePageLayersHash } from '@/lib/hash-uti
 export async function up(knex: Knex): Promise<void> {
   // Create page_layers table
   await knex.schema.createTable('page_layers', (table) => {
-    table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
-    table.uuid('page_id').notNullable().references('id').inTable('pages').onDelete('CASCADE');
+    table.uuid('id').defaultTo(knex.raw('gen_random_uuid()'));
+    table.uuid('page_id').notNullable();
     table.jsonb('layers').notNullable().defaultTo('[]');
-    table.boolean('is_published').defaultTo(false);
-    table.string('publish_key', 255).defaultTo(knex.raw('gen_random_uuid()'));
+    table.boolean('is_published').notNullable().defaultTo(false);
     table.string('content_hash', 64).nullable(); // SHA-256 hash for change detection
     table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('updated_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('deleted_at', { useTz: true }).nullable();
+
+    // Composite primary key
+    table.primary(['id', 'is_published']);
   });
 
+  // Add foreign key constraint separately (after table creation)
+  await knex.schema.raw(`
+    ALTER TABLE page_layers
+    ADD CONSTRAINT fk_page_layers_page
+    FOREIGN KEY (page_id, is_published)
+    REFERENCES pages(id, is_published)
+    ON DELETE CASCADE
+  `);
+
   // Create indexes (partial indexes for soft delete support)
-  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_page_id ON page_layers(page_id) WHERE deleted_at IS NULL');
+  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_page_id ON page_layers(page_id, is_published) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_published ON page_layers(page_id, is_published) WHERE deleted_at IS NULL');
-  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_publish_key ON page_layers(publish_key) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_content_hash ON page_layers(content_hash)');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_layers ON page_layers USING GIN (layers) WHERE deleted_at IS NULL');
 
@@ -117,10 +127,7 @@ export async function up(knex: Knex): Promise<void> {
       generated_css: null,
     });
 
-    // Generate a shared publish_key for draft and published versions
-    const sharedPublishKey = knex.raw('gen_random_uuid()');
-
-    // Create draft version
+    // Create draft version with gen_random_uuid() and capture the generated ID
     const [draftPage] = await knex('pages')
       .insert({
         name: errorPage.name,
@@ -131,47 +138,39 @@ export async function up(knex: Knex): Promise<void> {
         is_published: false,
         settings: JSON.stringify(errorPage.settings),
         content_hash: errorPageHash,
-        publish_key: sharedPublishKey,
       })
-      .returning('*');
+      .returning('id');
 
-    // Create published version with same content_hash
-    const [publishedPage] = await knex('pages')
-      .insert({
-        name: errorPage.name,
-        error_page: errorPage.code,
-        slug: '',
-        depth: 0,
-        order: 0,
-        is_published: true,
-        settings: JSON.stringify(errorPage.settings),
-        content_hash: errorPageHash,
-        publish_key: draftPage.publish_key, // Use same publish_key as draft
-      })
-      .returning('*');
-
-    // Create draft layers with shared publish_key
-    const layersPublishKey = knex.raw('gen_random_uuid()');
-    await knex('page_layers').insert({
-      page_id: draftPage.id,
-      layers: errorPage.layers,
-      is_published: false,
-      content_hash: errorPageLayersHash,
-      publish_key: layersPublishKey,
+    // Create published version with same ID as draft
+    await knex('pages').insert({
+      id: draftPage.id,
+      name: errorPage.name,
+      error_page: errorPage.code,
+      slug: '',
+      depth: 0,
+      order: 0,
+      is_published: true,
+      settings: JSON.stringify(errorPage.settings),
+      content_hash: errorPageHash,
     });
 
-    // Create published layers with same content_hash and publish_key
+    // Create draft layers with gen_random_uuid() and capture the generated ID
     const [draftLayers] = await knex('page_layers')
-      .select('publish_key')
-      .where('page_id', draftPage.id)
-      .limit(1);
+      .insert({
+        page_id: draftPage.id,
+        layers: errorPage.layers,
+        is_published: false,
+        content_hash: errorPageLayersHash,
+      })
+      .returning('id');
 
+    // Create published layers with same ID as draft
     await knex('page_layers').insert({
-      page_id: publishedPage.id,
+      id: draftLayers.id,
+      page_id: draftPage.id,
       layers: errorPage.layers,
       is_published: true,
       content_hash: errorPageLayersHash,
-      publish_key: draftLayers.publish_key, // Use same publish_key as draft
     });
   }
 }
