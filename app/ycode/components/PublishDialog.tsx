@@ -197,6 +197,23 @@ export default function PublishDialog({
         totalPublished += stylesResponse.data?.count || 0;
       }
 
+      // Copy draft CSS to published CSS
+      try {
+        const draftCssResponse = await fetch('/api/settings/draft_css');
+        if (draftCssResponse.ok) {
+          const draftCssResult = await draftCssResponse.json();
+          if (draftCssResult.data) {
+            await fetch('/api/settings/published_css', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ value: draftCssResult.data }),
+            });
+          }
+        }
+      } catch {
+        throw new Error('Failed to publish the CSS contents');
+      }
+
       // Invalidate all cache via API
       await cacheApi.clearAll();
 
