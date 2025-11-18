@@ -116,7 +116,6 @@ export default function CenterCanvas({
       order: 999999,
       settings: {},
       is_published: false,
-      publish_key: '',
       deleted_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
