@@ -142,5 +142,3 @@ function hasChanges(
 
   return false;
 }
-
-

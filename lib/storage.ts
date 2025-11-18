@@ -20,7 +20,6 @@ interface StorageData {
 function getSupabaseConfigFromEnv(): SupabaseConfig | null {
   const { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_CONNECTION_URL, SUPABASE_DB_PASSWORD } = process.env;
 
-
   if (SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY && SUPABASE_CONNECTION_URL && SUPABASE_DB_PASSWORD) {
     return {
       anonKey: SUPABASE_ANON_KEY,
@@ -126,4 +125,3 @@ export const storage = {
   del,
   exists,
 };
-

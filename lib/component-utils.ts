@@ -137,4 +137,3 @@ export function getLayerIdsUsingComponent(layers: Layer[], componentId: string):
   
   return ids;
 }
-

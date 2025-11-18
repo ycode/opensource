@@ -45,4 +45,3 @@ export async function down(knex: Knex): Promise<void> {
   // Drop table (indexes are dropped automatically)
   await knex.schema.dropTableIfExists('layer_styles');
 }
-

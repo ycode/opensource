@@ -344,4 +344,3 @@ function mapClassToDesignValue(className: string, property: string): string | un
   
   return value;
 }
-

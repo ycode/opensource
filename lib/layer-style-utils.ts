@@ -216,4 +216,3 @@ export function getLayerIdsUsingStyle(layers: Layer[], styleId: string): string[
   
   return ids;
 }
-

@@ -127,4 +127,3 @@ export function validateImageFile(
 
   return { isValid: true };
 }
-

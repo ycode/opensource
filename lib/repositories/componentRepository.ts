@@ -424,4 +424,3 @@ function detachComponentFromLayersRecursive(layers: Layer[], componentId: string
     return cleanLayer;
   });
 }
-

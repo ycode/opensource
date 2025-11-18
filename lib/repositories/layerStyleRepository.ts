@@ -429,4 +429,3 @@ function detachStyleFromLayersRecursive(layers: Layer[], styleId: string): Layer
     return cleanLayer;
   });
 }
-

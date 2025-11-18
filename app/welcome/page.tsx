@@ -113,7 +113,6 @@ export default function WelcomePage() {
     checkEnvironment();
   }, [currentStep]);
 
-
   // Step 1: Welcome
   if (currentStep === 'welcome') {
     return (
@@ -760,7 +759,6 @@ export default function WelcomePage() {
             <FieldSet>
               <FieldGroup className="gap-8">
 
-
                 {error && (
                   <Alert variant="destructive">
                     <AlertTitle>{error}</AlertTitle>
@@ -832,5 +830,3 @@ export default function WelcomePage() {
 
   return null;
 }
-
-

@@ -129,4 +129,3 @@ export async function ensureClient(): Promise<SupabaseClient> {
   
   return client;
 }
-

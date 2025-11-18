@@ -132,4 +132,3 @@ export function getBlocksByCategory(category: 'structure' | 'content' | 'actions
 export function getAllBlockTypes(): string[] {
   return Object.keys(blocks);
 }
-

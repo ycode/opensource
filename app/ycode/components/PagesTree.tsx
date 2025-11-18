@@ -903,4 +903,3 @@ export default function PagesTree({
     </DndContext>
   );
 }
-

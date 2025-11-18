@@ -1110,5 +1110,3 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 PageSettingsPanel.displayName = 'PageSettingsPanel';
 
 export default PageSettingsPanel;
-
-

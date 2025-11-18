@@ -623,4 +623,3 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     }
   },
 }));
-

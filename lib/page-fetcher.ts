@@ -195,4 +195,3 @@ export async function fetchHomepage(isPublished: boolean): Promise<Pick<PageData
     return null;
   }
 }
-

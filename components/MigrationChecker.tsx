@@ -124,4 +124,3 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
     </div>
   );
 }
-

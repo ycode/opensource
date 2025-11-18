@@ -174,4 +174,3 @@ export function TiptapEditor({ value, onChange, placeholder, className }: Tiptap
     </div>
   );
 }
-

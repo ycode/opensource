@@ -261,4 +261,3 @@ export const formTemplates: Record<string, BlockTemplate> = {
     }
   }
 };
-

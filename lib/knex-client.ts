@@ -22,7 +22,6 @@ export async function getKnexClient(): Promise<Knex> {
   const environment = process.env.NODE_ENV || 'development';
   const config = knexfileConfig[environment];
 
-
   if (!config) {
     throw new Error(`No knex configuration found for environment: ${environment}`);
   }
@@ -129,4 +128,3 @@ export async function testSupabaseDirectConnection(credentials: {
     }
   }
 }
-

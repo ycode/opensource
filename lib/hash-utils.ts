@@ -172,4 +172,3 @@ export function generateLayerStyleContentHash(styleData: {
     design: styleData.design,
   });
 }
-

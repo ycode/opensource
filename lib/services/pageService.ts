@@ -403,7 +403,3 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
 
   return { count: publishedCount };
 }
-
-
-
-

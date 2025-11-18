@@ -48,5 +48,3 @@ export const useSetupStore = create<SetupStore>((set) => ({
       isComplete: false,
     }),
 }));
-
-

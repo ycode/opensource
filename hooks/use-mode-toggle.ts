@@ -135,7 +135,6 @@ export function useModeToggle(config: ModeToggleConfig) {
     category,
     unifiedProperty,
     individualProperties,
-    updateDesignProperty,
     updateDesignProperties,
     getCurrentValue,
     findMostCommonValue,
@@ -147,4 +146,3 @@ export function useModeToggle(config: ModeToggleConfig) {
     handleToggle,
   };
 }
-

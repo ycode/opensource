@@ -56,4 +56,3 @@ export async function down(knex: Knex): Promise<void> {
   // Delete bucket (this will fail if there are files in it)
   await knex.schema.raw("DELETE FROM storage.buckets WHERE id = 'assets'");
 }
-

@@ -85,4 +85,3 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setError: (error) => set({ error }),
   clearError: () => set({ error: null }),
 }));
-

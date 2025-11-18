@@ -832,4 +832,3 @@ export async function needsPublishing(collectionId: string): Promise<boolean> {
 
   return false;
 }
-

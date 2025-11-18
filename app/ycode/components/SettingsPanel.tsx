@@ -43,5 +43,3 @@ export default function SettingsPanel({
     </div>
   );
 }
-
-

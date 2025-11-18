@@ -556,5 +556,3 @@ export default function PublishDialog({
     </Dialog>
   );
 }
-
-

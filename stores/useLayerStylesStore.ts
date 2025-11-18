@@ -169,4 +169,3 @@ export const useLayerStylesStore = create<LayerStylesStore>((set, get) => ({
   setError: (error) => set({ error }),
   clearError: () => set({ error: null }),
 }));
-

@@ -403,7 +403,6 @@ export default function CMS() {
     }
   };
 
-
   const handleDeleteField = async (fieldId: string) => {
     if (!selectedCollectionId) return;
 
@@ -622,7 +621,6 @@ export default function CMS() {
             </InputGroupAddon>
           </InputGroup>
         </div>
-
 
         <div className="flex gap-2">
           {selectedItemIds.size > 0 && (

@@ -54,10 +54,3 @@ export async function down(knex: Knex): Promise<void> {
 
   console.log('✅ Dropped collection_items table');
 }
-
-
-
-
-
-
-

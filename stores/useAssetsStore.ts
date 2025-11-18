@@ -149,4 +149,3 @@ export const useAssetsStore = create<AssetsStore>((set, get) => ({
     set(initialState);
   },
 }));
-

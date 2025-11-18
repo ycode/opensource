@@ -739,4 +739,3 @@ export function getColorPreview(className: string): string | null {
   
   return null;
 }
-

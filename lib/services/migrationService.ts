@@ -115,7 +115,6 @@ export async function runMigrations(): Promise<MigrationResult> {
       }
     }
 
-
     // Close connection
     await closeKnexClient();
 
@@ -140,4 +139,3 @@ export async function runMigrations(): Promise<MigrationResult> {
     };
   }
 }
-

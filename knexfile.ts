@@ -43,7 +43,6 @@ const createConfig = (): Knex.Config => {
     connection: async () => {
       const connectionParams = await getSupabaseConnectionParams();
 
-
       return connectionParams;
     },
     migrations: {
@@ -74,4 +73,3 @@ const config: { [key: string]: Knex.Config } = {
 };
 
 export default config;
-

@@ -103,10 +103,3 @@ export function isValidFieldName(fieldName: string): boolean {
 export function isValidCollectionName(collectionName: string): boolean {
   return /^[a-z][a-z0-9-]*$/.test(collectionName);
 }
-
-
-
-
-
-
-

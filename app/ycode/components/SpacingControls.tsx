@@ -233,5 +233,3 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     </div>
   );
 }
-
-

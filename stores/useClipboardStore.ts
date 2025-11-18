@@ -86,4 +86,3 @@ export const useClipboardStore = create<ClipboardStore>((set, get) => ({
     });
   },
 }));
-

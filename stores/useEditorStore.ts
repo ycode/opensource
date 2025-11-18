@@ -200,6 +200,3 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     return historyIndex < history.length - 1;
   },
 }));
-
-
-

@@ -932,4 +932,3 @@ async function duplicateFolderContents(
     }
   }
 }
-

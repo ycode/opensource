@@ -60,5 +60,3 @@ export default function ToggleGroup({
     </Tabs>
   );
 }
-
-

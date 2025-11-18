@@ -587,7 +587,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (! draft) return;
 
-
     // Find layer by ID
     const findLayer = (tree: Layer[]): Layer | null => {
       for (const node of tree) {
@@ -608,7 +607,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       console.warn('Cannot delete locked layer');
       return;
     }
-
 
     // Helper: Remove from tree (supports both children and items)
     const removeFromTree = (tree: Layer[]): Layer[] => {
@@ -638,7 +636,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const { draftsByPageId } = get();
     const draft = draftsByPageId[pageId];
     if (!draft || layerIds.length === 0) return;
-
 
     // Filter out body and locked layers
     const validIds = new Set<string>();
@@ -732,7 +729,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       ...layer,
       ...updates,
     }));
-
 
     set({
       draftsByPageId: {
@@ -981,7 +977,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (!draft || layerIds.length === 0) return;
 
-
     // Filter out body and locked layers
     const validIds: string[] = [];
     const findLayer = (tree: Layer[], id: string): Layer | null => {
@@ -1077,7 +1072,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
       newLayers = insertAfter(newLayers, result.parent, result.index);
     }
-
 
     // Use functional update to ensure latest state
     set((state) => ({
@@ -2194,7 +2188,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (!draft) return;
 
-
     // Regenerate IDs for the pasted layer
     const regenerateIds = (layer: Layer): Layer => {
       const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -2447,6 +2440,3 @@ function getDefaultContent(type: Layer['type']): string | undefined {
       return undefined;
   }
 }
-
-
-

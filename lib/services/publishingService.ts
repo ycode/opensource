@@ -457,4 +457,3 @@ export async function publishAllPages(): Promise<PublishAllResult> {
     unchanged: totalUnchanged,
   };
 }
-

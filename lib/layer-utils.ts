@@ -135,4 +135,3 @@ export function removeLayerById(layers: Layer[], id: string): Layer[] {
       return layer;
     });
 }
-

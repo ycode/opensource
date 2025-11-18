@@ -53,4 +53,3 @@ export const migrations: Migration[] = migrationFiles
       down: migration.down,
     };
   });
-
