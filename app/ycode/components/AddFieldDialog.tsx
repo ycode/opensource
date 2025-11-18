@@ -32,7 +32,7 @@ const formSchema = z.object({
 interface AddFieldDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  collectionId: number;
+  collectionId: string;
   field?: CollectionField | null; // Optional field for editing
   onSuccess?: () => void;
 }

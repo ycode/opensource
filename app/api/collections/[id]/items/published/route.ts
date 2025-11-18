@@ -18,15 +18,16 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
+    const collectionId = id;
     
     // Get items with published values
-    // This automatically filters to only items that have published values
-    const { items: publishedItems } = await getItemsWithValues(collectionId, undefined, true);
+    // Parameters: (collection_id, collectionIsPublished, filters?, is_published)
+    const { items: publishedItems } = await getItemsWithValues(
+      collectionId,
+      true,      // collectionIsPublished = true (query published collection)
+      undefined, // filters (optional)
+      true       // is_published = true (get published item values)
+    );
     
     // Filter out items with no values (edge case)
     const itemsWithValues = publishedItems.filter(item => 

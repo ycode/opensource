@@ -1,11 +1,15 @@
 import { getSupabaseAdmin } from '../supabase-server';
 import type { CollectionField, CollectionFieldType } from '@/types';
+import { randomUUID } from 'crypto';
 
 /**
  * Collection Field Repository
  * 
  * Handles CRUD operations for collection fields (schema definitions).
  * Uses Supabase/PostgreSQL via admin client.
+ * 
+ * NOTE: Uses composite primary key (id, is_published) architecture.
+ * References parent collections using composite FK (collection_id, collection_is_published).
  */
 
 export interface CreateCollectionFieldData {
@@ -16,11 +20,12 @@ export interface CreateCollectionFieldData {
   fillable?: boolean;
   built_in?: boolean;
   order: number;
-  collection_id: number;
-  reference_collection_id?: number | null;
+  collection_id: string; // UUID
+  collection_is_published?: boolean; // Defaults to false (draft)
+  reference_collection_id?: string | null; // UUID
   hidden?: boolean;
   data?: Record<string, any>;
-  status?: 'draft' | 'published';
+  is_published?: boolean;
 }
 
 export interface UpdateCollectionFieldData {
@@ -31,10 +36,9 @@ export interface UpdateCollectionFieldData {
   fillable?: boolean;
   built_in?: boolean;
   order?: number;
-  reference_collection_id?: number | null;
+  reference_collection_id?: string | null; // UUID
   hidden?: boolean;
   data?: Record<string, any>;
-  status?: 'draft' | 'published';
 }
 
 export interface FieldFilters {
@@ -43,9 +47,13 @@ export interface FieldFilters {
 
 /**
  * Get all fields for a collection with optional search filtering
+ * @param collection_id - Collection UUID
+ * @param collectionIsPublished - Whether to get fields for draft (false) or published (true) collection
+ * @param filters - Optional search filters
  */
 export async function getFieldsByCollectionId(
-  collection_id: number,
+  collection_id: string,
+  collectionIsPublished: boolean = false,
   filters?: FieldFilters
 ): Promise<CollectionField[]> {
   const client = await getSupabaseAdmin();
@@ -58,6 +66,8 @@ export async function getFieldsByCollectionId(
     .from('collection_fields')
     .select('*')
     .eq('collection_id', collection_id)
+    .eq('collection_is_published', collectionIsPublished)
+    .eq('is_published', collectionIsPublished)
     .is('deleted_at', null)
     .order('order', { ascending: true });
   
@@ -78,8 +88,10 @@ export async function getFieldsByCollectionId(
 
 /**
  * Get field by ID
+ * @param id - Field UUID
+ * @param isPublished - Get draft (false) or published (true) version. Defaults to false (draft).
  */
-export async function getFieldById(id: number): Promise<CollectionField | null> {
+export async function getFieldById(id: string, isPublished: boolean = false): Promise<CollectionField | null> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
@@ -90,6 +102,7 @@ export async function getFieldById(id: number): Promise<CollectionField | null> 
     .from('collection_fields')
     .select('*')
     .eq('id', id)
+    .eq('is_published', isPublished)
     .is('deleted_at', null)
     .single();
   
@@ -110,15 +123,21 @@ export async function createField(fieldData: CreateCollectionFieldData): Promise
     throw new Error('Supabase client not configured');
   }
   
+  const id = randomUUID();
+  const isPublished = fieldData.is_published ?? false;
+  const collectionIsPublished = fieldData.collection_is_published ?? false;
+  
   const { data, error } = await client
     .from('collection_fields')
     .insert({
+      id,
       ...fieldData,
+      collection_is_published: collectionIsPublished,
       fillable: fieldData.fillable ?? true,
       built_in: fieldData.built_in ?? false,
       hidden: fieldData.hidden ?? false,
       data: fieldData.data ?? {},
-      status: fieldData.status || 'draft',
+      is_published: isPublished,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -134,8 +153,15 @@ export async function createField(fieldData: CreateCollectionFieldData): Promise
 
 /**
  * Update a field
+ * @param id - Field UUID
+ * @param fieldData - Data to update
+ * @param isPublished - Which version to update: draft (false) or published (true). Defaults to false (draft).
  */
-export async function updateField(id: number, fieldData: UpdateCollectionFieldData): Promise<CollectionField> {
+export async function updateField(
+  id: string, 
+  fieldData: UpdateCollectionFieldData,
+  isPublished: boolean = false
+): Promise<CollectionField> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
@@ -149,6 +175,7 @@ export async function updateField(id: number, fieldData: UpdateCollectionFieldDa
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
+    .eq('is_published', isPublished)
     .is('deleted_at', null)
     .select()
     .single();
@@ -162,32 +189,63 @@ export async function updateField(id: number, fieldData: UpdateCollectionFieldDa
 
 /**
  * Delete a field (soft delete)
+ * Also soft-deletes all collection_item_values that reference this field
+ * Only deletes the draft version by default.
+ * @param id - Field UUID
+ * @param isPublished - Which version to delete: draft (false) or published (true). Defaults to false (draft).
  */
-export async function deleteField(id: number): Promise<void> {
+export async function deleteField(id: string, isPublished: boolean = false): Promise<void> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
     throw new Error('Supabase client not configured');
   }
   
-  const { error } = await client
+  const now = new Date().toISOString();
+  
+  // Soft delete the field
+  const { error: fieldError } = await client
     .from('collection_fields')
     .update({
-      deleted_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      deleted_at: now,
+      updated_at: now,
     })
     .eq('id', id)
+    .eq('is_published', isPublished)
     .is('deleted_at', null);
   
-  if (error) {
-    throw new Error(`Failed to delete collection field: ${error.message}`);
+  if (fieldError) {
+    throw new Error(`Failed to delete collection field: ${fieldError.message}`);
+  }
+  
+  // Soft delete all collection_item_values for this field (same published state)
+  const { error: valuesError } = await client
+    .from('collection_item_values')
+    .update({
+      deleted_at: now,
+      updated_at: now,
+    })
+    .eq('field_id', id)
+    .eq('field_is_published', isPublished)
+    .eq('is_published', isPublished)
+    .is('deleted_at', null);
+  
+  if (valuesError) {
+    throw new Error(`Failed to delete field values: ${valuesError.message}`);
   }
 }
 
 /**
  * Reorder fields
+ * @param collection_id - Collection UUID
+ * @param collectionIsPublished - Whether this is for draft (false) or published (true) collection
+ * @param field_ids - Array of field UUIDs in desired order
  */
-export async function reorderFields(collection_id: number, field_ids: number[]): Promise<void> {
+export async function reorderFields(
+  collection_id: string,
+  collectionIsPublished: boolean,
+  field_ids: string[]
+): Promise<void> {
   const client = await getSupabaseAdmin();
   
   if (!client) {
@@ -204,6 +262,8 @@ export async function reorderFields(collection_id: number, field_ids: number[]):
       })
       .eq('id', field_id)
       .eq('collection_id', collection_id)
+      .eq('collection_is_published', collectionIsPublished)
+      .eq('is_published', collectionIsPublished)
       .is('deleted_at', null)
   );
   
@@ -216,4 +276,110 @@ export async function reorderFields(collection_id: number, field_ids: number[]):
   }
 }
 
+/**
+ * Hard delete a field
+ * Permanently removes field and all associated collection_item_values via CASCADE
+ * Used during publish to permanently remove soft-deleted fields
+ * @param id - Field UUID
+ * @param isPublished - Which version to delete: draft (false) or published (true). Defaults to false (draft).
+ */
+export async function hardDeleteField(id: string, isPublished: boolean = false): Promise<void> {
+  const client = await getSupabaseAdmin();
+  
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+  
+  // Hard delete the field (CASCADE will delete values)
+  const { error } = await client
+    .from('collection_fields')
+    .delete()
+    .eq('id', id)
+    .eq('is_published', isPublished);
+  
+  if (error) {
+    throw new Error(`Failed to hard delete collection field: ${error.message}`);
+  }
+}
 
+/**
+ * Publish a field
+ * Creates or updates the published version by copying the draft
+ * @param id - Field UUID
+ */
+export async function publishField(id: string): Promise<CollectionField> {
+  const client = await getSupabaseAdmin();
+  
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+  
+  // Get the draft version
+  const draft = await getFieldById(id, false);
+  if (!draft) {
+    throw new Error('Draft field not found');
+  }
+  
+  // Check if published version exists
+  const existingPublished = await getFieldById(id, true);
+  
+  if (existingPublished) {
+    // Update existing published version
+    const { data, error } = await client
+      .from('collection_fields')
+      .update({
+        name: draft.name,
+        field_name: draft.field_name,
+        type: draft.type,
+        default: draft.default,
+        fillable: draft.fillable,
+        built_in: draft.built_in,
+        order: draft.order,
+        reference_collection_id: draft.reference_collection_id,
+        hidden: draft.hidden,
+        data: draft.data,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('is_published', true)
+      .select()
+      .single();
+    
+    if (error) {
+      throw new Error(`Failed to update published field: ${error.message}`);
+    }
+    
+    return data;
+  } else {
+    // Create new published version with same ID
+    // Note: collection_is_published should be true for published fields
+    const { data, error } = await client
+      .from('collection_fields')
+      .insert({
+        id: draft.id, // Same UUID
+        name: draft.name,
+        field_name: draft.field_name,
+        type: draft.type,
+        default: draft.default,
+        fillable: draft.fillable,
+        built_in: draft.built_in,
+        order: draft.order,
+        collection_id: draft.collection_id,
+        collection_is_published: true, // Reference published collection
+        reference_collection_id: draft.reference_collection_id,
+        hidden: draft.hidden,
+        data: draft.data,
+        is_published: true,
+        created_at: draft.created_at,
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      throw new Error(`Failed to create published field: ${error.message}`);
+    }
+    
+    return data;
+  }
+}

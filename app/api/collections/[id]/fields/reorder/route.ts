@@ -16,11 +16,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
+    const collectionId = id;
     
     const body = await request.json();
     const { field_ids } = body;
@@ -29,7 +25,8 @@ export async function PUT(
       return noCache({ error: 'field_ids must be an array' }, 400);
     }
     
-    await reorderFields(collectionId, field_ids);
+    // Reorder draft fields (is_published = false)
+    await reorderFields(collectionId, false, field_ids);
     
     return noCache({ data: { success: true } });
   } catch (error) {

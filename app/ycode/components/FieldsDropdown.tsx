@@ -17,7 +17,7 @@ interface FieldsDropdownProps {
   fields: CollectionField[];
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  onToggleVisibility: (fieldId: number) => void;
+  onToggleVisibility: (fieldId: string) => void;
   onReorder: (fields: CollectionField[]) => void;
 }
 

@@ -33,7 +33,7 @@ export default function PublishDialog({
   const [unpublishedComponents, setUnpublishedComponents] = useState<Component[]>([]);
   const [unpublishedLayerStyles, setUnpublishedLayerStyles] = useState<LayerStyle[]>([]);
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [selectedComponentIds, setSelectedComponentIds] = useState<Set<string>>(new Set());
   const [selectedLayerStyleIds, setSelectedLayerStyleIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +106,7 @@ export default function PublishDialog({
       const allPageIds = new Set((pagesResponse.data || []).map(p => p.id));
       setSelectedPageIds(allPageIds);
 
-      const allItemIds = new Set<number>();
+      const allItemIds = new Set<string>();
       collectionsWithItemsData.forEach(({ items }) => {
         items.forEach(item => allItemIds.add(item.id));
       });
@@ -142,12 +142,41 @@ export default function PublishDialog({
       }
 
       // Publish selected collection items
+      // Group items by collection and publish collections with their selected items
       if (selectedItemIds.size > 0) {
-        const itemsResponse = await collectionsApi.publishItems(Array.from(selectedItemIds));
-        if (itemsResponse.error) {
-          throw new Error(itemsResponse.error);
+        // Build a map of collection ID -> selected item IDs
+        const collectionItemsMap = new Map<string, string[]>();
+        
+        collectionsWithItems.forEach(({ collection, items }) => {
+          const selectedItemsInCollection = items
+            .filter(item => selectedItemIds.has(item.id))
+            .map(item => item.id);
+          
+          if (selectedItemsInCollection.length > 0) {
+            collectionItemsMap.set(collection.id, selectedItemsInCollection);
+          }
+        });
+
+        // Publish each collection with its selected items
+        const collectionPublishes = Array.from(collectionItemsMap.entries()).map(
+          ([collectionId, itemIds]) => ({
+            collectionId,
+            itemIds,
+          })
+        );
+
+        if (collectionPublishes.length > 0) {
+          const collectionsResponse = await collectionsApi.publishCollectionsWithItems(collectionPublishes);
+          if (collectionsResponse.error) {
+            throw new Error(collectionsResponse.error);
+          }
+          // Count items from results
+          if (collectionsResponse.data?.results) {
+            collectionsResponse.data.results.forEach(result => {
+              totalPublished += result.published?.itemsCount || 0;
+            });
+          }
         }
-        totalPublished += itemsResponse.data?.count || 0;
       }
 
       // Publish selected components
@@ -201,7 +230,7 @@ export default function PublishDialog({
     setSelectedPageIds(newSet);
   };
 
-  const toggleItem = (itemId: number) => {
+  const toggleItem = (itemId: string) => {
     const newSet = new Set(selectedItemIds);
     if (newSet.has(itemId)) {
       newSet.delete(itemId);
@@ -219,7 +248,7 @@ export default function PublishDialog({
     }
   };
 
-  const toggleAllItemsInCollection = (collectionId: number) => {
+  const toggleAllItemsInCollection = (collectionId: string) => {
     const collectionData = collectionsWithItems.find(c => c.collection.id === collectionId);
     if (!collectionData) return;
 

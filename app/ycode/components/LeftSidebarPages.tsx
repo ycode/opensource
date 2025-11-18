@@ -141,7 +141,7 @@ export default function LeftSidebarPages({
     }
   };
 
-  const handleAddDynamicPage = async (collectionId: number | null) => {
+  const handleAddDynamicPage = async (collectionId: string | null) => {
     if (!collectionId) {
       // Go to CMS tab
       onSelectTab('cms');

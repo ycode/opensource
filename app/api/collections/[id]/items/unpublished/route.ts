@@ -21,11 +21,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
+    const collectionId = id; // UUID string, no parsing needed
     
     const client = await getSupabaseAdmin();
     
@@ -34,7 +30,13 @@ export async function GET(
     }
     
     // Get all items including deleted ones (no pagination for unpublished check)
-    const { items } = await getItemsWithValues(collectionId, { deleted: undefined }, false);
+    // Parameters: collection_id, collectionIsPublished, filters, is_published
+    const { items } = await getItemsWithValues(
+      collectionId,
+      false, // collectionIsPublished (draft)
+      { deleted: undefined }, // filters (include all deleted states)
+      false // is_published (draft values)
+    );
     
     const unpublishedItems = [];
     
@@ -47,6 +49,7 @@ export async function GET(
           .from('collection_item_values')
           .select('field_id')
           .eq('item_id', item.id)
+          .eq('item_is_published', true)
           .eq('is_published', true)
           .is('deleted_at', null)
           .limit(1);
@@ -69,6 +72,7 @@ export async function GET(
         .from('collection_item_values')
         .select('field_id, value')
         .eq('item_id', item.id)
+        .eq('item_is_published', false)
         .eq('is_published', false)
         .is('deleted_at', null);
       
@@ -82,6 +86,7 @@ export async function GET(
         .from('collection_item_values')
         .select('field_id, value')
         .eq('item_id', item.id)
+        .eq('item_is_published', true)
         .eq('is_published', true)
         .is('deleted_at', null);
       
@@ -118,8 +123,8 @@ export async function GET(
  * Helper to check if draft values differ from published values
  */
 function hasChanges(
-  draftValues: Array<{ field_id: number; value: string | null }>,
-  publishedValues: Array<{ field_id: number; value: string | null }>
+  draftValues: Array<{ field_id: string; value: string | null }>,
+  publishedValues: Array<{ field_id: string; value: string | null }>
 ): boolean {
   // Create maps for easy comparison
   const draftMap = new Map(draftValues.map(v => [v.field_id, v.value]));

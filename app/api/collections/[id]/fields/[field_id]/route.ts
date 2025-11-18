@@ -16,11 +16,7 @@ export async function GET(
 ) {
   try {
     const { field_id } = await params;
-    const fieldId = parseInt(field_id, 10);
-    
-    if (isNaN(fieldId)) {
-      return noCache({ error: 'Invalid field ID' }, 400);
-    }
+    const fieldId = field_id; // UUID string, no parsing needed
     
     const field = await getFieldById(fieldId);
     
@@ -48,11 +44,7 @@ export async function PUT(
 ) {
   try {
     const { field_id } = await params;
-    const fieldId = parseInt(field_id, 10);
-    
-    if (isNaN(fieldId)) {
-      return noCache({ error: 'Invalid field ID' }, 400);
-    }
+    const fieldId = field_id; // UUID string, no parsing needed
     
     const body = await request.json();
     
@@ -89,11 +81,7 @@ export async function DELETE(
 ) {
   try {
     const { field_id } = await params;
-    const fieldId = parseInt(field_id, 10);
-    
-    if (isNaN(fieldId)) {
-      return noCache({ error: 'Invalid field ID' }, 400);
-    }
+    const fieldId = field_id; // UUID string, no parsing needed
     
     // Check if field is built-in before deleting
     const field = await getFieldById(fieldId);

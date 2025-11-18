@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getItemsWithValues, createItem } from '@/lib/repositories/collectionItemRepository';
+import { getItemsWithValues, createItem, getItemWithValues } from '@/lib/repositories/collectionItemRepository';
 import { setValuesByFieldName } from '@/lib/repositories/collectionItemValueRepository';
 import { noCache } from '@/lib/api-response';
 
@@ -9,7 +9,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/collections/[id]/items
- * Get all items with values for a collection
+ * Get all items with values for a collection (draft version)
  * Query params:
  *  - search: string (optional) - Filter items by searching across all field values
  *  - page: number (optional, default: 1) - Page number
@@ -21,11 +21,6 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
     
     // Extract query parameters
     const { searchParams } = new URL(request.url);
@@ -43,7 +38,8 @@ export async function GET(
       offset,
     };
     
-    const { items, total } = await getItemsWithValues(collectionId, filters);
+    // Always get draft items in the builder
+    const { items, total } = await getItemsWithValues(id, false, filters, false);
     
     return noCache({ 
       data: {
@@ -64,7 +60,7 @@ export async function GET(
 
 /**
  * POST /api/collections/[id]/items
- * Create a new item with field values
+ * Create a new item with field values (draft)
  */
 export async function POST(
   request: NextRequest,
@@ -72,46 +68,50 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
     
     const body = await request.json();
     
     // Extract item data and values
     const { values, ...itemData } = body;
     
-    // Create the item
+    // Create the item (draft)
     const item = await createItem({
-      collection_id: collectionId,
+      collection_id: id,
+      collection_is_published: false, // Draft collection
       r_id: itemData.r_id,
       manual_order: itemData.manual_order ?? 0,
+      is_published: false, // Always create as draft
     });
     
     // Calculate auto-incrementing ID based on item count
-    const { total } = await getItemsWithValues(collectionId);
+    const { total } = await getItemsWithValues(id, false);
     const autoIncrementId = total;
     
     // Get current timestamp for created_at and updated_at
-    const now = new Date().toISOString(); // Full timestamp format
+    const now = new Date().toISOString();
     
     // Set field values if provided, and add auto-generated fields
     const valuesWithAutoFields = {
       ...values,
       id: autoIncrementId.toString(), // Auto-incrementing ID
-      created_at: now, // Auto-generated created date
-      updated_at: now, // Auto-generated updated date
+      created_at: now,
+      updated_at: now,
     };
     
     if (valuesWithAutoFields && typeof valuesWithAutoFields === 'object') {
-      await setValuesByFieldName(item.id, collectionId, valuesWithAutoFields, {});
+      await setValuesByFieldName(
+        item.id,
+        false, // Item is draft
+        id,
+        false, // Collection is draft
+        valuesWithAutoFields,
+        {},
+        false // Create draft values
+      );
     }
     
     // Get item with values
-    const { getItemWithValues } = await import('@/lib/repositories/collectionItemRepository');
-    const itemWithValues = await getItemWithValues(item.id);
+    const itemWithValues = await getItemWithValues(item.id, false);
     
     return noCache(
       { data: itemWithValues },
@@ -125,4 +125,3 @@ export async function POST(
     );
   }
 }
-

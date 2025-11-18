@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getItemsByCollectionId } from '@/lib/repositories/collectionItemRepository';
-import { publishValues, getValuesByItemId } from '@/lib/repositories/collectionItemValueRepository';
+import { publishCollections } from '@/lib/services/collectionPublishingService';
 import { noCache } from '@/lib/api-response';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -10,80 +8,87 @@ export const revalidate = 0;
 
 /**
  * POST /api/collections/publish
- * Publish unpublished items in specified collections
- * Copies draft values to published values
- * An item needs publishing if:
- * - It has no published values (never published), OR
- * - Its draft values differ from published values (needs republishing)
+ * Batch publish multiple collections with optional item selection
+ * 
+ * Body: {
+ *   publishes: Array<{
+ *     collectionId: string;
+ *     itemIds?: string[]; // Optional per collection
+ *   }>;
+ * }
+ * 
+ * OR (legacy format for backward compatibility):
+ * Body: {
+ *   collection_ids: string[];
+ * }
+ * 
+ * Response: {
+ *   data: {
+ *     results: Array<{
+ *       success: boolean;
+ *       collectionId: string;
+ *       published: {
+ *         collection: boolean;
+ *         fieldsCount: number;
+ *         itemsCount: number;
+ *         valuesCount: number;
+ *       };
+ *       errors?: string[];
+ *     }>;
+ *     summary: {
+ *       total: number;
+ *       succeeded: number;
+ *       failed: number;
+ *     };
+ *   }
+ * }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { collection_ids } = body;
     
-    if (!Array.isArray(collection_ids)) {
-      return noCache({ error: 'collection_ids must be an array' }, 400);
-    }
+    // Support both new and legacy formats
+    let publishes;
     
-    const publishedCounts: Record<number, number> = {};
-    const client = await getSupabaseAdmin();
-    
-    if (!client) {
-      return noCache({ error: 'Supabase not configured' }, 500);
-    }
-    
-    // For each collection, find items that need publishing
-    for (const collectionId of collection_ids) {
-      try {
-        // Get all items for this collection
-        const { items } = await getItemsByCollectionId(collectionId);
-        
-        let publishedCount = 0;
-        
-        // Check each item to see if it needs publishing
-        for (const item of items) {
-          // Get draft values
-          const { data: draftValues } = await client
-            .from('collection_item_values')
-            .select('field_id, value')
-            .eq('item_id', item.id)
-            .eq('is_published', false)
-            .is('deleted_at', null);
-          
-          // Get published values
-          const { data: publishedValuesData } = await client
-            .from('collection_item_values')
-            .select('field_id, value')
-            .eq('item_id', item.id)
-            .eq('is_published', true)
-            .is('deleted_at', null);
-          
-          let needsPublishing = false;
-          
-          // If no published values, needs first-time publish
-          if (!publishedValuesData || publishedValuesData.length === 0) {
-            needsPublishing = true;
-          } else {
-            // Check if draft differs from published
-            needsPublishing = hasChanges(draftValues || [], publishedValuesData);
-          }
-          
-          if (needsPublishing) {
-            // Copy draft values to published values
-            await publishValues(item.id);
-            publishedCount++;
-          }
+    if (body.publishes && Array.isArray(body.publishes)) {
+      // New format: explicit publishes array
+      publishes = body.publishes;
+      
+      // Validate structure
+      for (const publish of publishes) {
+        if (!publish.collectionId || typeof publish.collectionId !== 'string') {
+          return noCache({ error: 'Each publish must have a collectionId' }, 400);
         }
-        
-        publishedCounts[collectionId] = publishedCount;
-      } catch (error) {
-        console.error(`Error publishing collection ${collectionId}:`, error);
-        publishedCounts[collectionId] = 0;
+        if (publish.itemIds !== undefined && !Array.isArray(publish.itemIds)) {
+          return noCache({ error: 'itemIds must be an array if provided' }, 400);
+        }
       }
+    } else if (body.collection_ids && Array.isArray(body.collection_ids)) {
+      // Legacy format: just collection IDs (publish all items)
+      publishes = body.collection_ids.map((id: string) => ({
+        collectionId: id,
+      }));
+    } else {
+      return noCache({ 
+        error: 'Request must include either "publishes" or "collection_ids" array' 
+      }, 400);
+    }
+    
+    // Execute batch publish
+    const result = await publishCollections({ publishes });
+    
+    // For legacy format, also include a "published" counts object
+    const publishedCounts: Record<string, number> = {};
+    for (const publishResult of result.results) {
+      publishedCounts[publishResult.collectionId] = publishResult.published.itemsCount;
     }
     
     return noCache({ 
-      data: { published: publishedCounts } 
+      data: {
+        ...result,
+        // Include legacy format for backward compatibility
+        published: publishedCounts,
+      }
     });
   } catch (error) {
     console.error('Error publishing collections:', error);
@@ -93,34 +98,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-/**
- * Helper to check if draft values differ from published values
- */
-function hasChanges(
-  draftValues: Array<{ field_id: number; value: string | null }>,
-  publishedValues: Array<{ field_id: number; value: string | null }>
-): boolean {
-  // Create maps for easy comparison
-  const draftMap = new Map(draftValues.map(v => [v.field_id, v.value]));
-  const publishedMap = new Map(publishedValues.map(v => [v.field_id, v.value]));
-  
-  // Check if number of fields differs
-  if (draftMap.size !== publishedMap.size) {
-    return true;
-  }
-  
-  // Check if any draft value differs from published
-  for (const [fieldId, draftValue] of draftMap) {
-    const publishedValue = publishedMap.get(fieldId);
-    
-    // Field doesn't exist in published or value differs
-    if (publishedValue === undefined || draftValue !== publishedValue) {
-      return true;
-    }
-  }
-  
-  return false;
-}
-
-

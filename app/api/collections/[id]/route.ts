@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/collections/[id]
- * Get collection by ID
+ * Get collection by ID (draft version)
  */
 export async function GET(
   request: NextRequest,
@@ -16,13 +16,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
     
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
-    
-    const collection = await getCollectionById(collectionId);
+    // Always get draft version in the builder
+    const collection = await getCollectionById(id, false);
     
     if (!collection) {
       return noCache({ error: 'Collection not found' }, 404);
@@ -40,7 +36,7 @@ export async function GET(
 
 /**
  * PUT /api/collections/[id]
- * Update collection
+ * Update collection (draft version)
  */
 export async function PUT(
   request: NextRequest,
@@ -48,15 +44,11 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
-    
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
     
     const body = await request.json();
     
-    const collection = await updateCollection(collectionId, body);
+    // Always update draft version in the builder
+    const collection = await updateCollection(id, body, false);
     
     return noCache({ data: collection });
   } catch (error) {
@@ -70,7 +62,7 @@ export async function PUT(
 
 /**
  * DELETE /api/collections/[id]
- * Delete collection (soft delete)
+ * Delete collection (soft delete draft version)
  */
 export async function DELETE(
   request: NextRequest,
@@ -78,13 +70,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const collectionId = parseInt(id, 10);
     
-    if (isNaN(collectionId)) {
-      return noCache({ error: 'Invalid collection ID' }, 400);
-    }
-    
-    await deleteCollection(collectionId);
+    // Always delete draft version in the builder
+    await deleteCollection(id, false);
     
     return noCache({ data: { success: true } });
   } catch (error) {
@@ -95,10 +83,3 @@ export async function DELETE(
     );
   }
 }
-
-
-
-
-
-
-

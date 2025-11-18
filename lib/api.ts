@@ -302,16 +302,14 @@ export const collectionsApi = {
     return apiRequest<Collection[]>('/api/collections');
   },
 
-  async getById(id: number): Promise<ApiResponse<Collection>> {
+  async getById(id: string): Promise<ApiResponse<Collection>> {
     return apiRequest<Collection>(`/api/collections/${id}`);
   },
 
   async create(data: {
     name: string;
-    collection_name: string;
     sorting?: Record<string, any> | null;
     order?: number | null;
-    status?: 'draft' | 'published';
   }): Promise<ApiResponse<Collection>> {
     return apiRequest<Collection>('/api/collections', {
       method: 'POST',
@@ -319,21 +317,21 @@ export const collectionsApi = {
     });
   },
 
-  async update(id: number, data: Partial<Collection>): Promise<ApiResponse<Collection>> {
+  async update(id: string, data: Partial<Collection>): Promise<ApiResponse<Collection>> {
     return apiRequest<Collection>(`/api/collections/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   },
 
-  async delete(id: number): Promise<ApiResponse<void>> {
+  async delete(id: string): Promise<ApiResponse<void>> {
     return apiRequest<void>(`/api/collections/${id}`, {
       method: 'DELETE',
     });
   },
 
   // Fields
-  async getFields(collectionId: number, search?: string): Promise<ApiResponse<CollectionField[]>> {
+  async getFields(collectionId: string, search?: string): Promise<ApiResponse<CollectionField[]>> {
     const params = new URLSearchParams();
     if (search) params.append('search', search);
     const queryString = params.toString();
@@ -341,7 +339,7 @@ export const collectionsApi = {
     return apiRequest<CollectionField[]>(url);
   },
 
-  async createField(collectionId: number, data: {
+  async createField(collectionId: string, data: {
     name: string;
     field_name: string;
     type: 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
@@ -349,10 +347,9 @@ export const collectionsApi = {
     fillable?: boolean;
     built_in?: boolean;
     order?: number;
-    reference_collection_id?: number | null;
+    reference_collection_id?: string | null;
     hidden?: boolean;
     data?: Record<string, any>;
-    status?: 'draft' | 'published';
   }): Promise<ApiResponse<CollectionField>> {
     return apiRequest<CollectionField>(`/api/collections/${collectionId}/fields`, {
       method: 'POST',
@@ -360,40 +357,67 @@ export const collectionsApi = {
     });
   },
 
-  async updateField(collectionId: number, fieldId: number, data: Partial<CollectionField>): Promise<ApiResponse<CollectionField>> {
+  async updateField(collectionId: string, fieldId: string, data: Partial<CollectionField>): Promise<ApiResponse<CollectionField>> {
     return apiRequest<CollectionField>(`/api/collections/${collectionId}/fields/${fieldId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   },
 
-  async deleteField(collectionId: number, fieldId: number): Promise<ApiResponse<void>> {
+  async deleteField(collectionId: string, fieldId: string): Promise<ApiResponse<void>> {
     return apiRequest<void>(`/api/collections/${collectionId}/fields/${fieldId}`, {
       method: 'DELETE',
     });
   },
 
-  async reorderFields(collectionId: number, fieldIds: number[]): Promise<ApiResponse<{ success: boolean }>> {
+  async reorderFields(collectionId: string, fieldIds: string[]): Promise<ApiResponse<{ success: boolean }>> {
     return apiRequest<{ success: boolean }>(`/api/collections/${collectionId}/fields/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ field_ids: fieldIds }),
     });
   },
 
-  async getPublishableCounts(): Promise<ApiResponse<Record<number, number>>> {
-    return apiRequest<Record<number, number>>('/api/collections/publishable-counts');
+  async getPublishableCounts(): Promise<ApiResponse<Record<string, number>>> {
+    return apiRequest<Record<string, number>>('/api/collections/publishable-counts');
   },
 
-  async publishCollections(collectionIds: number[]): Promise<ApiResponse<{ published: Record<number, number> }>> {
-    return apiRequest<{ published: Record<number, number> }>('/api/collections/publish', {
+  async publishCollections(collectionIds: string[]): Promise<ApiResponse<{ published: Record<string, number> }>> {
+    return apiRequest<{ published: Record<string, number> }>('/api/collections/publish', {
       method: 'POST',
       body: JSON.stringify({ collection_ids: collectionIds }),
     });
   },
 
+  // Publish collections with selective items (new composite key architecture)
+  async publishCollectionsWithItems(
+    publishes: Array<{ collectionId: string; itemIds?: string[] }>
+  ): Promise<ApiResponse<{
+    results: Array<{
+      success: boolean;
+      collectionId: string;
+      published: {
+        collection: boolean;
+        fieldsCount: number;
+        itemsCount: number;
+        valuesCount: number;
+      };
+      errors?: string[];
+    }>;
+    summary: {
+      total: number;
+      succeeded: number;
+      failed: number;
+    };
+  }>> {
+    return apiRequest('/api/collections/publish', {
+      method: 'POST',
+      body: JSON.stringify({ publishes }),
+    });
+  },
+
   // Items (with values)
   async getItems(
-    collectionId: number,
+    collectionId: string,
     options?: { page?: number; limit?: number }
   ): Promise<ApiResponse<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>> {
     const params = new URLSearchParams();
@@ -404,25 +428,25 @@ export const collectionsApi = {
     return apiRequest<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>(url);
   },
 
-  async getItemById(collectionId: number, itemId: number): Promise<ApiResponse<CollectionItemWithValues>> {
+  async getItemById(collectionId: string, itemId: string): Promise<ApiResponse<CollectionItemWithValues>> {
     return apiRequest<CollectionItemWithValues>(`/api/collections/${collectionId}/items/${itemId}`);
   },
 
-  async createItem(collectionId: number, values: Record<string, any>): Promise<ApiResponse<CollectionItemWithValues>> {
+  async createItem(collectionId: string, values: Record<string, any>): Promise<ApiResponse<CollectionItemWithValues>> {
     return apiRequest<CollectionItemWithValues>(`/api/collections/${collectionId}/items`, {
       method: 'POST',
       body: JSON.stringify({ values }),
     });
   },
 
-  async updateItem(collectionId: number, itemId: number, values: Record<string, any>): Promise<ApiResponse<CollectionItemWithValues>> {
+  async updateItem(collectionId: string, itemId: string, values: Record<string, any>): Promise<ApiResponse<CollectionItemWithValues>> {
     return apiRequest<CollectionItemWithValues>(`/api/collections/${collectionId}/items/${itemId}`, {
       method: 'PUT',
       body: JSON.stringify({ values }),
     });
   },
 
-  async deleteItem(collectionId: number, itemId: number): Promise<ApiResponse<void>> {
+  async deleteItem(collectionId: string, itemId: string): Promise<ApiResponse<void>> {
     return apiRequest<void>(`/api/collections/${collectionId}/items/${itemId}`, {
       method: 'DELETE',
     });
@@ -430,7 +454,7 @@ export const collectionsApi = {
 
   // Search
   async searchItems(
-    collectionId: number,
+    collectionId: string,
     query: string,
     options?: { page?: number; limit?: number }
   ): Promise<ApiResponse<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>> {
@@ -443,17 +467,17 @@ export const collectionsApi = {
   },
 
   // Published items
-  async getPublishedItems(collectionId: number): Promise<ApiResponse<CollectionItemWithValues[]>> {
+  async getPublishedItems(collectionId: string): Promise<ApiResponse<CollectionItemWithValues[]>> {
     return apiRequest<CollectionItemWithValues[]>(`/api/collections/${collectionId}/items/published`);
   },
 
   // Unpublished items for a collection
-  async getUnpublishedItems(collectionId: number): Promise<ApiResponse<CollectionItemWithValues[]>> {
+  async getUnpublishedItems(collectionId: string): Promise<ApiResponse<CollectionItemWithValues[]>> {
     return apiRequest<CollectionItemWithValues[]>(`/api/collections/${collectionId}/items/unpublished`);
   },
 
   // Publish individual items
-  async publishItems(itemIds: number[]): Promise<ApiResponse<{ count: number }>> {
+  async publishItems(itemIds: string[]): Promise<ApiResponse<{ count: number }>> {
     return apiRequest<{ count: number }>('/api/collections/items/publish', {
       method: 'POST',
       body: JSON.stringify({ item_ids: itemIds }),
@@ -461,7 +485,7 @@ export const collectionsApi = {
   },
 
   // Bulk delete items
-  async bulkDeleteItems(itemIds: number[]): Promise<ApiResponse<{ deleted: number; errors?: string[] }>> {
+  async bulkDeleteItems(itemIds: string[]): Promise<ApiResponse<{ deleted: number; errors?: string[] }>> {
     return apiRequest<{ deleted: number; errors?: string[] }>('/api/collections/items/delete', {
       method: 'POST',
       body: JSON.stringify({ item_ids: itemIds }),
@@ -469,14 +493,14 @@ export const collectionsApi = {
   },
 
   // Duplicate item
-  async duplicateItem(collectionId: number, itemId: number): Promise<ApiResponse<CollectionItemWithValues>> {
+  async duplicateItem(collectionId: string, itemId: string): Promise<ApiResponse<CollectionItemWithValues>> {
     return apiRequest<CollectionItemWithValues>(`/api/collections/${collectionId}/items/${itemId}/duplicate`, {
       method: 'POST',
     });
   },
 
   // Reorder items (bulk update manual_order)
-  async reorderItems(collectionId: number, updates: Array<{ id: number; manual_order: number }>): Promise<ApiResponse<{ updated: number }>> {
+  async reorderItems(collectionId: string, updates: Array<{ id: string; manual_order: number }>): Promise<ApiResponse<{ updated: number }>> {
     return apiRequest<{ updated: number }>(`/api/collections/${collectionId}/items/reorder`, {
       method: 'POST',
       body: JSON.stringify({ updates }),

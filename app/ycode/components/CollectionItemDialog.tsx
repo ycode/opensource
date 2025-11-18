@@ -19,7 +19,7 @@ import type { CollectionField, CollectionItemWithValues } from '@/types';
 interface CollectionItemDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  collectionId: number;
+  collectionId: string;
   item?: CollectionItemWithValues | null;
   onSuccess?: () => void;
 }

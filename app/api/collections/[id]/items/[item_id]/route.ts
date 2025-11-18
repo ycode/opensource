@@ -19,11 +19,7 @@ export async function GET(
 ) {
   try {
     const { item_id } = await params;
-    const itemId = parseInt(item_id, 10);
-    
-    if (isNaN(itemId)) {
-      return noCache({ error: 'Invalid item ID' }, 400);
-    }
+    const itemId = item_id; // UUID string, no parsing needed
     
     // Check for published query param
     const { searchParams } = new URL(request.url);
@@ -55,12 +51,8 @@ export async function PUT(
 ) {
   try {
     const { id, item_id } = await params;
-    const collectionId = parseInt(id, 10);
-    const itemId = parseInt(item_id, 10);
-    
-    if (isNaN(collectionId) || isNaN(itemId)) {
-      return noCache({ error: 'Invalid collection or item ID' }, 400);
-    }
+    const collectionId = id; // UUID string
+    const itemId = item_id; // UUID string
     
     const body = await request.json();
     
@@ -80,11 +72,19 @@ export async function PUT(
         ...values,
         updated_at: now, // Auto-update the "Updated Date" collection field
       };
-      await setValuesByFieldName(itemId, collectionId, valuesWithUpdatedDate, {});
+      await setValuesByFieldName(
+        itemId,
+        false, // itemIsPublished (draft)
+        collectionId,
+        false, // collectionIsPublished (draft)
+        valuesWithUpdatedDate,
+        {},
+        false // is_published (draft)
+      );
     }
     
     // Get updated item with values
-    const updatedItem = await getItemWithValues(itemId);
+    const updatedItem = await getItemWithValues(itemId, false);
     
     return noCache({ data: updatedItem });
   } catch (error) {
@@ -107,11 +107,7 @@ export async function DELETE(
 ) {
   try {
     const { item_id } = await params;
-    const itemId = parseInt(item_id, 10);
-    
-    if (isNaN(itemId)) {
-      return noCache({ error: 'Invalid item ID' }, 400);
-    }
+    const itemId = item_id; // UUID string, no parsing needed
     
     await deleteItem(itemId);
     

@@ -47,10 +47,10 @@ export default function LeftSidebar({
   const [activeTab, setActiveTab] = useState<'pages' | 'layers' | 'cms'>('layers');
   const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
-  const [renamingCollectionId, setRenamingCollectionId] = useState<number | null>(null);
+  const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [hoveredCollectionId, setHoveredCollectionId] = useState<number | null>(null);
-  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
+  const [hoveredCollectionId, setHoveredCollectionId] = useState<string | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const { draftsByPageId, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
@@ -136,23 +136,20 @@ export default function LeftSidebar({
   // Handle creating a new collection
   const handleCreateCollection = async () => {
     try {
-      // Generate unique collection name and slug
+      // Generate unique collection name
       const baseName = 'Collection';
       let collectionName = baseName;
-      let collectionSlug = baseName.toLowerCase();
       let counter = 1;
 
-      // Check if slug already exists (slug must be unique, not name)
-      while (collections.some(c => c.collection_name === collectionSlug)) {
+      // Check if name already exists
+      while (collections.some(c => c.name === collectionName)) {
         collectionName = `${baseName} ${counter}`;
-        collectionSlug = collectionName.toLowerCase().replace(/\s+/g, '_');
         counter++;
       }
 
       // Create the collection
       const newCollection = await createCollection({
         name: collectionName,
-        collection_name: collectionSlug,
         sorting: null,
         order: collections.length,
       });
@@ -171,7 +168,7 @@ export default function LeftSidebar({
   };
 
   // Handle double-click to rename collection
-  const handleCollectionDoubleClick = (collection: { id: number; name: string }) => {
+  const handleCollectionDoubleClick = (collection: { id: string; name: string }) => {
     setRenamingCollectionId(collection.id);
     setRenameValue(collection.name);
   };
@@ -200,7 +197,7 @@ export default function LeftSidebar({
   };
 
   // Handle collection delete
-  const handleCollectionDelete = async (collectionId: number) => {
+  const handleCollectionDelete = async (collectionId: string) => {
     // Confirm before deleting
     if (!confirm('Are you sure you want to delete this collection? This action cannot be undone.')) {
       return;
