@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { publishCollections } from '@/lib/services/collectionPublishingService';
+import { publishCollections, cleanupDeletedCollections } from '@/lib/services/collectionPublishingService';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -76,6 +76,9 @@ export async function POST(request: NextRequest) {
     
     // Execute batch publish
     const result = await publishCollections({ publishes });
+    
+    // Clean up any soft-deleted collections
+    await cleanupDeletedCollections();
     
     // For legacy format, also include a "published" counts object
     const publishedCounts: Record<string, number> = {};

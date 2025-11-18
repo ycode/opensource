@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { publishCollectionWithItems } from '@/lib/services/collectionPublishingService';
+import { publishCollectionWithItems, cleanupDeletedCollections } from '@/lib/services/collectionPublishingService';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -49,6 +49,9 @@ export async function POST(
       collectionId,
       itemIds,
     });
+    
+    // Clean up any soft-deleted collections
+    await cleanupDeletedCollections();
     
     // Return appropriate status based on result
     if (result.success) {

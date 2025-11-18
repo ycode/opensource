@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publishLayerStyle } from '@/lib/repositories/layerStyleRepository';
+import { cleanupDeletedCollections } from '@/lib/services/collectionPublishingService';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -31,6 +32,9 @@ export async function POST(request: NextRequest) {
         // Continue with other styles
       }
     }
+    
+    // Clean up any soft-deleted collections
+    await cleanupDeletedCollections();
     
     return noCache({ 
       data: { count: publishedCount } 

@@ -252,26 +252,65 @@ async function publishCollectionMetadata(collectionId: string): Promise<void> {
 /**
  * Publish all fields for a collection
  * Fields are always published completely (non-selective)
+ * Uses batch upsert for efficiency
  * 
  * @returns Number of fields published
  */
 async function publishAllFields(collectionId: string): Promise<number> {
+  const client = await getSupabaseAdmin();
+  
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+  
   // Get all draft fields
   const draftFields = await getFieldsByCollectionId(collectionId, false);
   console.log(`[publishAllFields] Found ${draftFields.length} draft fields`);
   
-  // Publish each field
-  for (const field of draftFields) {
-    console.log(`[publishAllFields] Publishing field ${field.id} (${field.field_name})...`);
-    const result = await publishField(field.id);
-    console.log(`[publishAllFields] Field published:`, result);
+  if (draftFields.length === 0) {
+    return 0;
   }
   
+  // Prepare fields for upsert (publish all at once)
+  const now = new Date().toISOString();
+  const fieldsToUpsert = draftFields.map(field => ({
+    id: field.id,
+    name: field.name,
+    field_name: field.field_name,
+    type: field.type,
+    default: field.default,
+    fillable: field.fillable,
+    built_in: field.built_in,
+    order: field.order,
+    collection_id: field.collection_id,
+    collection_is_published: true, // Reference published collection
+    reference_collection_id: field.reference_collection_id,
+    hidden: field.hidden,
+    data: field.data,
+    is_published: true,
+    created_at: field.created_at,
+    updated_at: now,
+  }));
+  
+  // Batch upsert all fields
+  console.log(`[publishAllFields] Upserting ${fieldsToUpsert.length} fields...`);
+  const { error } = await client
+    .from('collection_fields')
+    .upsert(fieldsToUpsert, {
+      onConflict: 'id,is_published', // Composite primary key
+    });
+  
+  if (error) {
+    throw new Error(`Failed to publish fields: ${error.message}`);
+  }
+  
+  console.log(`[publishAllFields] Successfully published ${draftFields.length} fields`);
   return draftFields.length;
 }
 
 /**
  * Publish selected items and their values
+ * Uses batch upsert for efficiency
  * 
  * @param collectionId - Collection UUID
  * @param itemIds - Optional array of item IDs to publish. If omitted, publishes all items that need publishing
@@ -281,6 +320,12 @@ async function publishSelectedItems(
   collectionId: string,
   itemIds?: string[]
 ): Promise<{ itemsCount: number; valuesCount: number }> {
+  const client = await getSupabaseAdmin();
+  
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+  
   let itemsToPublish: string[];
   
   if (itemIds && itemIds.length > 0) {
@@ -293,26 +338,117 @@ async function publishSelectedItems(
     console.log(`[publishSelectedItems] Found ${itemsToPublish.length} unpublished items`);
   }
   
-  let itemsCount = 0;
-  let valuesCount = 0;
-  
-  // Publish each item and its values
-  for (const itemId of itemsToPublish) {
-    console.log(`[publishSelectedItems] Publishing item ${itemId}...`);
-    
-    // Publish item metadata
-    const itemResult = await publishItem(itemId);
-    console.log(`[publishSelectedItems] Item published:`, itemResult);
-    itemsCount++;
-    
-    // Publish all values for this item
-    console.log(`[publishSelectedItems] Publishing values for item ${itemId}...`);
-    const publishedValuesCount = await publishItemValues(itemId);
-    console.log(`[publishSelectedItems] ${publishedValuesCount} values published`);
-    valuesCount += publishedValuesCount;
+  if (itemsToPublish.length === 0) {
+    return { itemsCount: 0, valuesCount: 0 };
   }
   
-  return { itemsCount, valuesCount };
+  // Fetch all draft items to publish
+  const draftItemsData = await Promise.all(
+    itemsToPublish.map(itemId => getItemById(itemId, false))
+  );
+  
+  const draftItems = draftItemsData.filter((item): item is NonNullable<typeof item> => item !== null);
+  
+  if (draftItems.length === 0) {
+    return { itemsCount: 0, valuesCount: 0 };
+  }
+  
+  // Prepare items for batch upsert
+  const now = new Date().toISOString();
+  const itemsToUpsert = draftItems.map(item => ({
+    id: item.id,
+    collection_id: item.collection_id,
+    collection_is_published: true, // Reference published collection
+    r_id: item.r_id,
+    manual_order: item.manual_order,
+    is_published: true,
+    created_at: item.created_at,
+    updated_at: now,
+  }));
+  
+  // Batch upsert all items
+  console.log(`[publishSelectedItems] Upserting ${itemsToUpsert.length} items...`);
+  const { error: itemsError } = await client
+    .from('collection_items')
+    .upsert(itemsToUpsert, {
+      onConflict: 'id,is_published', // Composite primary key
+    });
+  
+  if (itemsError) {
+    throw new Error(`Failed to publish items: ${itemsError.message}`);
+  }
+  
+  console.log(`[publishSelectedItems] Successfully published ${draftItems.length} items`);
+  
+  // Now publish all values for these items (batch)
+  console.log(`[publishSelectedItems] Publishing values for ${draftItems.length} items...`);
+  const valuesCount = await publishItemValuesBatch(itemsToPublish);
+  console.log(`[publishSelectedItems] Published ${valuesCount} values`);
+  
+  return { itemsCount: draftItems.length, valuesCount };
+}
+
+/**
+ * Publish values for multiple items in batch
+ * Uses batch upsert for efficiency
+ * 
+ * @param itemIds - Array of item UUIDs
+ * @returns Total number of values published
+ */
+async function publishItemValuesBatch(itemIds: string[]): Promise<number> {
+  const client = await getSupabaseAdmin();
+  
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+  
+  if (itemIds.length === 0) {
+    return 0;
+  }
+  
+  // Fetch all draft values for all items in parallel
+  const allDraftValues = await Promise.all(
+    itemIds.map(itemId => getValuesByItemId(itemId, false, false))
+  );
+  
+  // Flatten the array
+  const draftValues = allDraftValues.flat();
+  
+  if (draftValues.length === 0) {
+    console.log(`[publishItemValuesBatch] No values to publish`);
+    return 0;
+  }
+  
+  console.log(`[publishItemValuesBatch] Found ${draftValues.length} draft values across ${itemIds.length} items`);
+  
+  // Prepare values for batch upsert
+  const now = new Date().toISOString();
+  const valuesToUpsert = draftValues.map(value => ({
+    id: value.id,
+    item_id: value.item_id,
+    item_is_published: true, // Reference published item
+    field_id: value.field_id,
+    field_is_published: true, // Reference published field
+    value: value.value,
+    is_published: true,
+    created_at: value.created_at,
+    updated_at: now,
+  }));
+  
+  // Batch upsert all values
+  console.log(`[publishItemValuesBatch] Upserting ${valuesToUpsert.length} values...`);
+  const { error } = await client
+    .from('collection_item_values')
+    .upsert(valuesToUpsert, {
+      onConflict: 'id,is_published', // Composite primary key
+    });
+  
+  if (error) {
+    throw new Error(`Failed to publish item values: ${error.message}`);
+  }
+  
+  console.log(`[publishItemValuesBatch] Successfully published ${draftValues.length} values`);
+  return draftValues.length;
 }
 
 /**
@@ -406,9 +542,16 @@ async function hasValueChanges(itemId: string): Promise<boolean> {
 
 /**
  * Clean up soft-deleted items in both draft and published versions
+ * Uses batch DELETE for efficiency
  * If a draft item is soft-deleted, permanently remove both draft and published versions
  */
 async function cleanupDeletedPublishedItems(collectionId: string): Promise<void> {
+  const client = await getSupabaseAdmin();
+  
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+  
   // Get all items (including soft-deleted) from draft
   const { items: draftItems } = await getItemsByCollectionId(
     collectionId,
@@ -419,32 +562,50 @@ async function cleanupDeletedPublishedItems(collectionId: string): Promise<void>
   // Find soft-deleted items
   const deletedDraftItems = draftItems.filter(item => item.deleted_at !== null);
   
+  if (deletedDraftItems.length === 0) {
+    console.log(`[cleanupDeletedPublishedItems] No soft-deleted draft items found`);
+    return;
+  }
+  
   console.log(`[cleanupDeletedPublishedItems] Found ${deletedDraftItems.length} soft-deleted draft items`);
   
-  // Hard delete both published and draft versions
-  for (const deletedItem of deletedDraftItems) {
-    try {
-      // Check if published version exists
-      const publishedItem = await getItemById(deletedItem.id, true);
-      
-      if (publishedItem) {
-        // Hard delete the published version (CASCADE will delete values)
-        console.log(`[cleanupDeletedPublishedItems] Hard deleting published item ${deletedItem.id}`);
-        await hardDeleteItem(deletedItem.id, true);
-      }
-      
-      // Also hard delete the draft version (CASCADE will delete values)
-      console.log(`[cleanupDeletedPublishedItems] Hard deleting draft item ${deletedItem.id}`);
-      await hardDeleteItem(deletedItem.id, false);
-    } catch (error) {
-      // Log but don't fail the entire publish operation
-      console.error(`Failed to cleanup item ${deletedItem.id}:`, error);
-    }
+  // Extract item IDs
+  const deletedItemIds = deletedDraftItems.map(item => item.id);
+  
+  // Batch hard delete published versions (CASCADE will delete values)
+  console.log(`[cleanupDeletedPublishedItems] Batch deleting published items...`);
+  const { error: publishedError } = await client
+    .from('collection_items')
+    .delete()
+    .in('id', deletedItemIds)
+    .eq('is_published', true);
+  
+  if (publishedError) {
+    console.error(`[cleanupDeletedPublishedItems] Error deleting published items:`, publishedError);
+  } else {
+    console.log(`[cleanupDeletedPublishedItems] Deleted published items`);
   }
+  
+  // Batch hard delete draft versions (CASCADE will delete values)
+  console.log(`[cleanupDeletedPublishedItems] Batch deleting draft items...`);
+  const { error: draftError } = await client
+    .from('collection_items')
+    .delete()
+    .in('id', deletedItemIds)
+    .eq('is_published', false);
+  
+  if (draftError) {
+    console.error(`[cleanupDeletedPublishedItems] Error deleting draft items:`, draftError);
+  } else {
+    console.log(`[cleanupDeletedPublishedItems] Deleted draft items`);
+  }
+  
+  console.log(`[cleanupDeletedPublishedItems] Successfully cleaned up ${deletedDraftItems.length} items`);
 }
 
 /**
  * Clean up soft-deleted fields in both draft and published versions
+ * Uses batch DELETE for efficiency
  * If a draft field is soft-deleted, permanently remove both draft and published versions
  * This also removes all associated collection_item_values via CASCADE
  */
@@ -466,7 +627,7 @@ async function cleanupDeletedPublishedFields(collectionId: string): Promise<void
     .not('deleted_at', 'is', null); // Only get deleted fields
   
   if (error) {
-    console.error(`Error fetching deleted fields:`, error);
+    console.error(`[cleanupDeletedPublishedFields] Error fetching deleted fields:`, error);
     return;
   }
   
@@ -477,26 +638,38 @@ async function cleanupDeletedPublishedFields(collectionId: string): Promise<void
   
   console.log(`[cleanupDeletedPublishedFields] Found ${deletedDraftFields.length} soft-deleted draft fields`);
   
-  // Hard delete both published and draft versions
-  for (const deletedField of deletedDraftFields) {
-    try {
-      // Check if published version exists
-      const publishedField = await getFieldById(deletedField.id, true);
-      
-      if (publishedField) {
-        // Hard delete the published version (CASCADE will delete values)
-        console.log(`[cleanupDeletedPublishedFields] Hard deleting published field ${deletedField.id}`);
-        await hardDeleteField(deletedField.id, true);
-      }
-      
-      // Also hard delete the draft version (CASCADE will delete values)
-      console.log(`[cleanupDeletedPublishedFields] Hard deleting draft field ${deletedField.id}`);
-      await hardDeleteField(deletedField.id, false);
-    } catch (error) {
-      // Log but don't fail the entire publish operation
-      console.error(`Failed to cleanup field ${deletedField.id}:`, error);
-    }
+  // Extract field IDs
+  const deletedFieldIds = deletedDraftFields.map(field => field.id);
+  
+  // Batch hard delete published versions (CASCADE will delete values)
+  console.log(`[cleanupDeletedPublishedFields] Batch deleting published fields...`);
+  const { error: publishedError } = await client
+    .from('collection_fields')
+    .delete()
+    .in('id', deletedFieldIds)
+    .eq('is_published', true);
+  
+  if (publishedError) {
+    console.error(`[cleanupDeletedPublishedFields] Error deleting published fields:`, publishedError);
+  } else {
+    console.log(`[cleanupDeletedPublishedFields] Deleted published fields`);
   }
+  
+  // Batch hard delete draft versions (CASCADE will delete values)
+  console.log(`[cleanupDeletedPublishedFields] Batch deleting draft fields...`);
+  const { error: draftError } = await client
+    .from('collection_fields')
+    .delete()
+    .in('id', deletedFieldIds)
+    .eq('is_published', false);
+  
+  if (draftError) {
+    console.error(`[cleanupDeletedPublishedFields] Error deleting draft fields:`, draftError);
+  } else {
+    console.log(`[cleanupDeletedPublishedFields] Deleted draft fields`);
+  }
+  
+  console.log(`[cleanupDeletedPublishedFields] Successfully cleaned up ${deletedDraftFields.length} fields`);
 }
 
 /**
@@ -530,7 +703,8 @@ async function cleanupDeletedCollection(collectionId: string): Promise<void> {
 
 /**
  * Clean up all soft-deleted collections
- * Called during the main publish flow to ensure deleted collections are permanently removed
+ * Uses batch DELETE operations for efficiency
+ * Called during publish operations to ensure deleted collections are permanently removed
  */
 export async function cleanupDeletedCollections(): Promise<void> {
   const client = await getSupabaseAdmin();
@@ -560,14 +734,35 @@ export async function cleanupDeletedCollections(): Promise<void> {
   
   console.log(`[cleanupDeletedCollections] Found ${deletedCollections.length} deleted collection(s) to clean up`);
   
-  // Clean up each deleted collection
-  for (const collection of deletedCollections) {
-    try {
-      await cleanupDeletedCollection(collection.id);
-    } catch (error) {
-      console.error(`[cleanupDeletedCollections] Failed to cleanup collection ${collection.id}:`, error);
-      // Continue with other collections even if one fails
-    }
+  // Extract collection IDs
+  const collectionIds = deletedCollections.map(c => c.id);
+  
+  // Batch delete published versions (CASCADE deletes all related data: fields, items, values)
+  console.log('[cleanupDeletedCollections] Batch deleting published collections...');
+  const { error: publishedError } = await client
+    .from('collections')
+    .delete()
+    .in('id', collectionIds)
+    .eq('is_published', true);
+  
+  if (publishedError) {
+    console.error('[cleanupDeletedCollections] Error deleting published collections:', publishedError);
+  } else {
+    console.log('[cleanupDeletedCollections] Deleted published collections');
+  }
+  
+  // Batch delete draft versions (CASCADE deletes all related data: fields, items, values)
+  console.log('[cleanupDeletedCollections] Batch deleting draft collections...');
+  const { error: draftError } = await client
+    .from('collections')
+    .delete()
+    .in('id', collectionIds)
+    .eq('is_published', false);
+  
+  if (draftError) {
+    console.error('[cleanupDeletedCollections] Error deleting draft collections:', draftError);
+  } else {
+    console.log('[cleanupDeletedCollections] Deleted draft collections');
   }
   
   console.log(`[cleanupDeletedCollections] Cleanup complete for ${deletedCollections.length} collection(s)`);

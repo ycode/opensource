@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publishValues } from '@/lib/repositories/collectionItemValueRepository';
 import { hardDeleteItem, getItemById } from '@/lib/repositories/collectionItemRepository';
+import { cleanupDeletedCollections } from '@/lib/services/collectionPublishingService';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -48,6 +49,9 @@ export async function POST(request: NextRequest) {
         // Continue with other items
       }
     }
+    
+    // Clean up any soft-deleted collections
+    await cleanupDeletedCollections();
     
     return noCache({ 
       data: { count: publishedCount } 
