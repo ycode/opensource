@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { publishLayerStyle } from '@/lib/repositories/layerStyleRepository';
+import { publishLayerStyles } from '@/lib/repositories/layerStyleRepository';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 /**
  * POST /api/layer-styles/publish
- * Publish specified layer styles
+ * Publish specified layer styles - uses batch upsert for efficiency
  */
 export async function POST(request: NextRequest) {
   try {
@@ -19,21 +19,11 @@ export async function POST(request: NextRequest) {
       return noCache({ error: 'style_ids must be an array' }, 400);
     }
     
-    let publishedCount = 0;
-    
-    // Publish each style
-    for (const styleId of style_ids) {
-      try {
-        await publishLayerStyle(styleId);
-        publishedCount++;
-      } catch (error) {
-        console.error(`Error publishing layer style ${styleId}:`, error);
-        // Continue with other styles
-      }
-    }
+    // Use batch publish function
+    const result = await publishLayerStyles(style_ids);
     
     return noCache({ 
-      data: { count: publishedCount } 
+      data: { count: result.count } 
     });
   } catch (error) {
     console.error('Error publishing layer styles:', error);

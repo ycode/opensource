@@ -21,7 +21,7 @@ export async function up(knex: Knex): Promise<void> {
 
   // Create components table
   await knex.schema.createTable('components', (table) => {
-    table.uuid('id').defaultTo(knex.raw('uuid_generate_v4()'));
+    table.uuid('id').defaultTo(knex.raw('gen_random_uuid()'));
     table.string('name', 255).notNullable();
 
     // Component data - stores the complete layer tree

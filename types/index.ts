@@ -133,7 +133,6 @@ export interface LayerStyle {
   // Versioning fields
   content_hash?: string; // SHA-256 hash for change detection
   is_published: boolean;
-  publish_key: string;
 
   created_at: string;
   updated_at: string;
