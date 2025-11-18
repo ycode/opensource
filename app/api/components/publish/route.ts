@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { publishComponent } from '@/lib/repositories/componentRepository';
+import { publishComponents } from '@/lib/repositories/componentRepository';
+import { cleanupDeletedCollections } from '@/lib/services/collectionPublishingService';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -8,7 +9,7 @@ export const revalidate = 0;
 
 /**
  * POST /api/components/publish
- * Publish specified components
+ * Publish specified components - uses batch upsert for efficiency
  */
 export async function POST(request: NextRequest) {
   try {
@@ -19,21 +20,14 @@ export async function POST(request: NextRequest) {
       return noCache({ error: 'component_ids must be an array' }, 400);
     }
     
-    let publishedCount = 0;
+    // Use batch publish function
+    const result = await publishComponents(component_ids);
     
-    // Publish each component
-    for (const componentId of component_ids) {
-      try {
-        await publishComponent(componentId);
-        publishedCount++;
-      } catch (error) {
-        console.error(`Error publishing component ${componentId}:`, error);
-        // Continue with other components
-      }
-    }
+    // Clean up any soft-deleted collections
+    await cleanupDeletedCollections();
     
     return noCache({ 
-      data: { count: publishedCount } 
+      data: { count: result.count } 
     });
   } catch (error) {
     console.error('Error publishing components:', error);

@@ -2,6 +2,7 @@ import { publishAllPages } from '@/lib/services/publishingService';
 import { invalidatePage } from '@/lib/services/cacheInvalidationService';
 import { buildSlugPath } from '@/lib/page-utils';
 import { noCache } from '@/lib/api-response';
+import { cleanupDeletedCollections } from '@/lib/services/collectionPublishingService';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -10,16 +11,21 @@ export const revalidate = 0;
 /**
  * POST /api/publish
  *
- * Publish all draft records (pages, folders, and layers)
+ * Publish all draft records (pages, folders, layers, and clean up deleted collections)
  * Optimized with batch queries
  * Draft records remain unchanged
  */
 export async function POST() {
   try {
-    console.log('[Publish] Starting publish all pages and folders...');
+    console.log('[Publish] Starting publish all pages, folders, and collections cleanup...');
 
     // Publish all draft pages, folders, and their layers
     const result = await publishAllPages();
+    
+    // Clean up any soft-deleted collections
+    console.log('[Publish] Cleaning up deleted collections...');
+    await cleanupDeletedCollections();
+    console.log('[Publish] Deleted collections cleanup complete');
 
     // Count error pages vs regular pages
     const errorPages = result.published.filter(({ page }) => page.error_page !== null);

@@ -467,6 +467,51 @@ export async function createPage(pageData: Omit<Page, 'id' | 'created_at' | 'upd
 }
 ```
 
+### ALWAYS Use Upsert for Database Operations
+
+**NEVER execute queries in loops or use Promise.all for individual database operations.**
+
+Use batch operations with `upsert` instead of separate insert/update operations.
+
+```typescript
+// ✅ CORRECT: Batch upsert operation
+const itemsToUpsert = items.map(item => ({
+  id: item.id,
+  name: item.name,
+  is_published: true,
+  updated_at: new Date().toISOString(),
+}));
+
+await client
+  .from('table_name')
+  .upsert(itemsToUpsert, {
+    onConflict: 'id,is_published', // Composite key
+  });
+
+// ❌ WRONG: Queries in loops
+for (const item of items) {
+  const existing = await getItemById(item.id);
+  if (existing) {
+    await client.from('table_name').update(item).eq('id', item.id);
+  } else {
+    await client.from('table_name').insert(item);
+  }
+}
+
+// ❌ WRONG: Promise.all with individual queries
+const updates = items.map(item =>
+  client.from('table_name').update(item).eq('id', item.id)
+);
+await Promise.all(updates);
+```
+
+### Rules
+1. **ALWAYS** use `upsert` for insert/update operations
+2. **NEVER** execute queries inside loops
+3. **NEVER** use `Promise.all` with individual update queries
+4. **ALWAYS** batch operations when possible
+5. Use `onConflict` parameter to specify composite keys for upsert operations
+
 ---
 
 ## 🔄 8. API Response Format (Consistency)
@@ -954,20 +999,20 @@ export default function TypographyControls({ layer, onLayerUpdate }) {
     activeBreakpoint,
     activeUIState,
   });
-  
+
   const fontSize = getDesignProperty('typography', 'fontSize') || '';
-  
+
   // Hook automatically strips spaces
   const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize, extractMeasurementValue);
-  
+
   const handleFontSizeChange = (value: string) => {
     setFontSizeInput(value); // Spaces never appear in input
     const sanitized = removeSpaces(value); // Extra safety layer
     updateDesignProperty('typography', 'fontSize', sanitized || null);
   };
-  
+
   return (
-    <Input 
+    <Input
       value={fontSizeInput}
       onChange={(e) => handleFontSizeChange(e.target.value)}
     />
@@ -1230,35 +1275,35 @@ The `getSupabaseAdmin()` function can return `null` if Supabase is not configure
 // ✅ CORRECT: Always check for null
 export async function getPageById(id: string): Promise<Page | null> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase not configured');
   }
-  
+
   const { data, error } = await client
     .from('pages')
     .select('*')
     .eq('id', id)
     .single();
-    
+
   if (error && error.code !== 'PGRST116') {
     throw new Error(`Failed to fetch page: ${error.message}`);
   }
-  
+
   return data;
 }
 
 // ❌ WRONG: No null check - TypeScript error
 export async function getPageById(id: string): Promise<Page | null> {
   const client = await getSupabaseAdmin();
-  
+
   // TypeScript error: 'client' is possibly 'null'
   const { data, error } = await client
     .from('pages')
     .select('*')
     .eq('id', id)
     .single();
-    
+
   return data;
 }
 ```
@@ -1270,14 +1315,14 @@ export async function getPageById(id: string): Promise<Page | null> {
 export async function GET(request: NextRequest) {
   try {
     const client = await getSupabaseAdmin();
-    
+
     if (!client) {
       return NextResponse.json(
         { error: 'Supabase not configured' },
         { status: 500 }
       );
     }
-    
+
     // Use client safely
     const { data } = await client.from('pages').select('*');
     return NextResponse.json({ data });
@@ -1319,19 +1364,19 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
 // components/ui/icon.tsx
 const ICONS: Record<IconProps['name'], React.ReactNode> = {
   // ...existing icons...
-  
+
   pencil: (
     <>
       <path d="M8.85355339,0.146446609 C9.04881554..." />
     </>
   ),
-  
+
   trash: (
     <>
       <path d="M4.5,1 L7.5,1 L7.5,2..." />
     </>
   ),
-  
+
   // Add more icons here
 };
 ```
@@ -1371,11 +1416,11 @@ export async function createComponent(
   componentData: CreateComponentData
 ): Promise<Component> {
   const client = await getSupabaseAdmin();
-  
+
   if (!client) {
     throw new Error('Supabase not configured');
   }
-  
+
   // The repository sets is_published, publish_key, etc.
   const { data, error } = await client
     .from('components')
@@ -1388,7 +1433,7 @@ export async function createComponent(
     })
     .select()
     .single();
-    
+
   if (error) throw new Error(`Failed to create: ${error.message}`);
   return data;
 }

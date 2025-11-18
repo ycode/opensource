@@ -8,13 +8,20 @@ export const revalidate = 0;
 
 /**
  * GET /api/collections/publishable-counts
- * Get counts of items with "Ready for Publish" status for all collections
+ * Get counts of unpublished items for each collection
+ * 
+ * Returns an object mapping collection UUID to count of unpublished items.
+ * An item is considered unpublished if:
+ * - It has no published version (never published), OR
+ * - Its draft data/values differ from published data/values
  */
 export async function GET(request: NextRequest) {
   try {
     const counts = await getPublishableCountsByCollection();
     
-    return noCache({ data: counts });
+    return noCache({ 
+      data: counts 
+    });
   } catch (error) {
     console.error('Error fetching publishable counts:', error);
     return noCache(
@@ -23,10 +30,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
-
-
-
-
-
-

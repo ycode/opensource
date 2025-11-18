@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/collections/[id]/fields
- * Get all fields for a collection
+ * Get all fields for a collection (draft version)
  * Query params:
  *  - search: string (optional) - Filter fields by name or field_name
  */
@@ -18,14 +18,16 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    
+
     // Extract search query parameter
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || undefined;
-    
+
     const filters = search ? { search } : undefined;
-    const fields = await getFieldsByCollectionId(id, filters);
-    
+
+    // Always get draft fields in the builder
+    const fields = await getFieldsByCollectionId(id, false, filters);
+
     return noCache({ data: fields });
   } catch (error) {
     console.error('Error fetching collection fields:', error);
@@ -38,7 +40,7 @@ export async function GET(
 
 /**
  * POST /api/collections/[id]/fields
- * Create a new field for a collection
+ * Create a new field for a collection (draft)
  */
 export async function POST(
   request: NextRequest,
@@ -46,9 +48,9 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    
+
     const body = await request.json();
-    
+
     // Validate required fields
     if (!body.name || !body.field_name || !body.type) {
       return noCache(
@@ -56,7 +58,7 @@ export async function POST(
         400
       );
     }
-    
+
     // Validate field type
     const validTypes = ['text', 'rich_text', 'number', 'boolean', 'date', 'reference'];
     if (!validTypes.includes(body.type)) {
@@ -65,9 +67,10 @@ export async function POST(
         400
       );
     }
-    
+
     const field = await createField({
       collection_id: id,
+      collection_is_published: false, // Draft collection
       name: body.name,
       field_name: body.field_name,
       type: body.type,
@@ -78,9 +81,9 @@ export async function POST(
       reference_collection_id: body.reference_collection_id || null,
       hidden: body.hidden ?? false,
       data: body.data || {},
-      status: body.status || 'draft',
+      is_published: false, // Always create as draft
     });
-    
+
     return noCache(
       { data: field },
       201
@@ -93,5 +96,3 @@ export async function POST(
     );
   }
 }
-
-

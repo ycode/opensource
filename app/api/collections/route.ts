@@ -8,11 +8,12 @@ export const revalidate = 0;
 
 /**
  * GET /api/collections
- * Get all collections
+ * Get all collections (draft by default)
  */
 export async function GET() {
   try {
-    const collections = await getAllCollections({ deleted: false });
+    // Always get draft collections in the builder
+    const collections = await getAllCollections({ is_published: false, deleted: false });
     
     return noCache({
       data: collections,
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
       name: body.name,
       sorting: body.sorting || null,
       order: body.order || null,
-      status: body.status || 'draft',
+      is_published: false, // Always create as draft
     });
     
     return noCache(

@@ -1,6 +1,6 @@
 /**
  * Add Field Dialog
- * 
+ *
  * Dialog for adding or editing a field in a collection.
  */
 'use client';
@@ -46,7 +46,7 @@ export default function AddFieldDialog({
 }: AddFieldDialogProps) {
   const { createField, updateField, isLoading, fields } = useCollectionsStore();
   const isEditMode = !!field;
-  
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -55,7 +55,7 @@ export default function AddFieldDialog({
       default: field?.default || '',
     },
   });
-  
+
   // Update form when field changes
   useEffect(() => {
     if (field) {
@@ -72,7 +72,7 @@ export default function AddFieldDialog({
       });
     }
   }, [field, form]);
-  
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       if (isEditMode && field) {
@@ -85,7 +85,7 @@ export default function AddFieldDialog({
         // Create new field
         const collectionFields = fields[collectionId] || [];
         const order = collectionFields.length; // Place new field at the end
-        
+
         await createField(collectionId, {
           name: values.name,
           field_name: slugify(values.name).replace(/-/g, '_'), // Use underscores for field names
@@ -97,13 +97,13 @@ export default function AddFieldDialog({
           hidden: false,
         });
       }
-      
+
       // Reset form
       form.reset();
-      
+
       // Close dialog
       onClose();
-      
+
       // Call success callback
       if (onSuccess) {
         onSuccess();
@@ -112,19 +112,19 @@ export default function AddFieldDialog({
       console.error(`Failed to ${isEditMode ? 'update' : 'create'} field:`, error);
     }
   };
-  
+
   const handleClose = () => {
     form.reset();
     onClose();
   };
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEditMode ? 'Edit Field' : 'Add Field'}</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit Field x' : 'Add Field'}</DialogTitle>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
             <FormField
@@ -140,15 +140,15 @@ export default function AddFieldDialog({
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="type"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Field Type</FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
+                  <Select
+                    onValueChange={field.onChange}
                     defaultValue={field.value}
                     disabled={isEditMode}
                   >
@@ -172,7 +172,7 @@ export default function AddFieldDialog({
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="default"
@@ -180,8 +180,8 @@ export default function AddFieldDialog({
                 <FormItem>
                   <FormLabel>Default Value (Optional)</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="Enter default value..." 
+                    <Input
+                      placeholder="Enter default value..."
                       {...field}
                     />
                   </FormControl>
@@ -189,7 +189,7 @@ export default function AddFieldDialog({
                 </FormItem>
               )}
             />
-            
+
             <DialogFooter>
               <Button
                 type="button" variant="secondary"

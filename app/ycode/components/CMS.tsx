@@ -119,11 +119,11 @@ export default function CMS() {
   const [pageSize, setPageSize] = useState(25);
   const [showItemSheet, setShowItemSheet] = useState(false);
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [createFieldPopoverOpen, setCreateFieldPopoverOpen] = useState(false);
   const [editFieldDialogOpen, setEditFieldDialogOpen] = useState(false);
   const [editingField, setEditingField] = useState<CollectionField | null>(null);
-  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = useMemo(
@@ -311,7 +311,7 @@ export default function CMS() {
     }
   };
 
-  const handleDeleteItem = async (itemId: number) => {
+  const handleDeleteItem = async (itemId: string) => {
     if (!selectedCollectionId) return;
 
     if (confirm('Are you sure you want to delete this item?')) {
@@ -323,7 +323,7 @@ export default function CMS() {
     }
   };
 
-  const handleDuplicateItem = async (itemId: number) => {
+  const handleDuplicateItem = async (itemId: string) => {
     if (!selectedCollectionId) return;
 
     try {
@@ -394,7 +394,7 @@ export default function CMS() {
     }
   };
 
-  const handleToggleItemSelection = (itemId: number) => {
+  const handleToggleItemSelection = (itemId: string) => {
     const newSelected = new Set(selectedItemIds);
     if (newSelected.has(itemId)) {
       newSelected.delete(itemId);
@@ -448,7 +448,7 @@ export default function CMS() {
   };
 
 
-  const handleDeleteField = async (fieldId: number) => {
+  const handleDeleteField = async (fieldId: string) => {
     if (!selectedCollectionId) return;
 
     const field = collectionFields.find(f => f.id === fieldId);
@@ -466,7 +466,7 @@ export default function CMS() {
     }
   };
 
-  const handleHideField = async (fieldId: number) => {
+  const handleHideField = async (fieldId: string) => {
     if (!selectedCollectionId) return;
 
     const field = collectionFields.find(f => f.id === fieldId);
@@ -483,7 +483,7 @@ export default function CMS() {
     }
   };
 
-  const handleDuplicateField = async (fieldId: number) => {
+  const handleDuplicateField = async (fieldId: string) => {
     if (!selectedCollectionId) return;
 
     const field = collectionFields.find(f => f.id === fieldId);
@@ -509,7 +509,7 @@ export default function CMS() {
     }
   };
 
-  const handleToggleFieldVisibility = async (fieldId: number) => {
+  const handleToggleFieldVisibility = async (fieldId: string) => {
     if (!selectedCollectionId) return;
 
     const field = collectionFields.find(f => f.id === fieldId);
@@ -574,7 +574,7 @@ export default function CMS() {
   const handleEditFieldClick = (field: CollectionField) => {
     // Close the dropdown
     setOpenDropdownId(null);
-    
+
     // Set the editing field and open dialog
     setEditingField(field);
     setEditFieldDialogOpen(true);
@@ -662,8 +662,8 @@ export default function CMS() {
 
         <div className="w-full max-w-72">
           <InputGroup>
-            <InputGroupInput 
-              placeholder="Search..." 
+            <InputGroupInput
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -823,7 +823,7 @@ export default function CMS() {
                       <th className="px-4 py-3 text-left font-medium text-sm w-24">
                         <FieldFormPopover
                           trigger={
-                            <Button size="xs" variant="ghost">
+                            <Button size="sm" variant="ghost">
                               <Icon name="plus" />
                               Add field
                             </Button>

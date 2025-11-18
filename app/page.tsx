@@ -6,21 +6,21 @@ import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { generatePageMetadata } from '@/lib/page-utils';
 import type { Metadata } from 'next';
 
-// Force dynamic rendering with on-demand revalidation
-export const dynamic = 'force-static';
-export const revalidate = 3600;
+// Incremental Static Regeneration (ISR) with on-demand revalidation
+export const revalidate = false;
 export const dynamicParams = true;
 
 /**
- * Fetch homepage data from database with caching
+ * Fetch homepage data from database
+ * Cached with tag-based revalidation (no time-based stale cache)
  */
 async function fetchPublishedHomepage() {
   return unstable_cache(
     async () => fetchHomepage(true),
-    ['data-for-route-/'], // Cache key
+    ['data-for-route-/'],
     {
-      tags: ['route-/'], // Tags for revalidation (empty slug = homepage)
-      revalidate: 3600, // Cache for 1 hour
+      tags: ['route-/'], // Tag for on-demand revalidation via revalidateTag()
+      revalidate: 3600,
     }
   )();
 }

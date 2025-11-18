@@ -133,7 +133,6 @@ export interface LayerStyle {
   // Versioning fields
   content_hash?: string; // SHA-256 hash for change detection
   is_published: boolean;
-  publish_key: string; // Stable key linking draft and published versions
 
   created_at: string;
   updated_at: string;
@@ -150,7 +149,6 @@ export interface Component {
   // Versioning fields
   content_hash?: string; // SHA-256 hash for change detection
   is_published: boolean;
-  publish_key: string; // Stable key linking draft and published versions
 
   created_at: string;
   updated_at: string;
@@ -237,7 +235,6 @@ export interface Page {
   settings: PageSettings; // Page settings (CMS, auth, seo, custom code)
   content_hash?: string; // SHA-256 hash of page metadata for change detection
   is_published: boolean;
-  publish_key: string; // Stable key linking draft and published versions
   created_at: string;
   updated_at: string;
   deleted_at: string | null; // Soft delete timestamp
@@ -280,7 +277,6 @@ export interface PageLayers {
   layers: Layer[];
   content_hash?: string; // SHA-256 hash of layers and CSS for change detection
   is_published: boolean;
-  publish_key: string; // Stable key linking draft and published versions
   created_at: string;
   updated_at?: string;
   deleted_at: string | null; // Soft delete timestamp
@@ -303,7 +299,6 @@ export interface PageFolder {
   order: number; // Sort order within parent folder
   settings: PageFolderSettings; // Settings for auth (enabled + password), etc.
   is_published: boolean;
-  publish_key: string; // Stable key linking draft and published versions
   created_at: string;
   updated_at: string;
   deleted_at: string | null; // Soft delete timestamp
@@ -436,7 +431,6 @@ export interface AuthState {
 
 // Collection Types (EAV Architecture)
 export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
-export type CollectionStatus = 'draft' | 'published';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {
@@ -453,12 +447,12 @@ export interface Collection {
   deleted_at: string | null;
   sorting: CollectionSorting | null;
   order: number | null;
-  status: CollectionStatus;
+  is_published: boolean;
   draft_items_count?: number;
 }
 
 export interface CollectionField {
-  id: number;
+  id: string; // UUID
   name: string;
   field_name: string;
   type: CollectionFieldType;
@@ -466,31 +460,36 @@ export interface CollectionField {
   fillable: boolean;
   built_in: boolean;
   order: number;
-  collection_id: string; // UUID reference
-  reference_collection_id: string | null; // UUID reference
+  collection_id: string; // UUID
+  collection_is_published: boolean; // Composite FK part
+  reference_collection_id: string | null; // UUID
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
   hidden: boolean;
   data: Record<string, any>;
-  status: CollectionStatus;
+  is_published: boolean;
 }
 
 export interface CollectionItem {
-  id: number;
+  id: string; // UUID
   r_id: string;
-  collection_id: string; // UUID reference
+  collection_id: string; // UUID
+  collection_is_published: boolean; // Composite FK part
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
   manual_order: number;
+  is_published: boolean;
 }
 
 export interface CollectionItemValue {
-  id: number;
+  id: string; // UUID
   value: string | null;
-  item_id: number;
-  field_id: number;
+  item_id: string; // UUID
+  item_is_published: boolean; // Composite FK part
+  field_id: string; // UUID
+  field_is_published: boolean; // Composite FK part
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

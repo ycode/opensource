@@ -9,7 +9,8 @@ import PageSettingsPanel, { type PageFormData, type PageSettingsPanelHandle } fr
 import FolderSettingsPanel, { type FolderFormData, type FolderSettingsPanelHandle } from './FolderSettingsPanel';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
-import type { Page, PageFolder } from '@/types';
+import type { Collection, Page, PageFolder } from '@/types';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { Separator } from '@/components/ui/separator';
 import { generateUniqueSlug, generateUniqueFolderSlug, getNextNumberFromNames, getParentContextFromSelection, calculateNextOrder } from '@/lib/page-utils';
 
@@ -29,7 +30,7 @@ export default function LeftSidebarPages({
   setCurrentPageId,
 }: LeftSidebarPagesProps) {
   const { routeType } = useEditorUrl();
-  const { openPage, openPageEdit, openPageLayers, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorActions();
+  const { openPage, openPageEdit, openPageLayers, navigateToLayers, navigateToPage, navigateToPageEdit, navigateToCollections } = useEditorActions();
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [showFolderSettings, setShowFolderSettings] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
@@ -96,6 +97,7 @@ export default function LeftSidebarPages({
 
   // Get store actions
   const { createPage, updatePage, duplicatePage, deletePage, createFolder, updateFolder, duplicateFolder, deleteFolder, batchReorderPagesAndFolders } = usePagesStore();
+  const { collections } = useCollectionsStore();
 
   // Sync selection with current page when it changes externally
   useEffect(() => {
@@ -140,7 +142,7 @@ export default function LeftSidebarPages({
         if (selectedItemIdRef.current === result.tempId) {
           setSelectedItemId(result.data.id);
         }
-        
+
         // Navigate to the new page based on current route type
         if (routeType === 'layers') {
           navigateToLayers(result.data.id);
@@ -162,6 +164,16 @@ export default function LeftSidebarPages({
     if (tempPage) {
       setSelectedItemId(tempPage.id);
     }
+  };
+
+  const handleAddDynamicPage = async (collectionId: string | null) => {
+    if (!collectionId) {
+      // Navigate to CMS (collections view)
+      navigateToCollections();
+      return;
+    }
+
+    // TODO: Create a new dynamic page
   };
 
   // Handler to create a new folder
@@ -237,7 +249,7 @@ export default function LeftSidebarPages({
       return;
     }
     setSelectedItemId(pageId);
-    
+
     // Navigate to the same route type but with the new page ID
     if (routeType === 'layers') {
       navigateToLayers(pageId);
@@ -273,7 +285,7 @@ export default function LeftSidebarPages({
     setShowPageSettings(true);
     setEditingFolder(null);
     setShowFolderSettings(false);
-    
+
     // Navigate to the edit route
     navigateToPageEdit(page.id);
   };
@@ -660,7 +672,7 @@ export default function LeftSidebarPages({
           // Current page was deleted, switch to the suggested next page
           onPageSelect(result.nextPageId);
           setSelectedItemId(result.nextPageId);
-          
+
           // Navigate to the same route type but with the new page ID
           if (routeType === 'layers') {
             navigateToLayers(result.nextPageId);
@@ -700,8 +712,17 @@ export default function LeftSidebarPages({
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>CMS</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
-                  <DropdownMenuItem>Collection 1</DropdownMenuItem>
-                  <DropdownMenuItem>Collection 2</DropdownMenuItem>
+                  {collections.length > 0 ? (
+                    collections.map(collection => (
+                      <DropdownMenuItem key={collection.id} onClick={() => handleAddDynamicPage(collection.id)}>
+                        {collection.name}
+                      </DropdownMenuItem>
+                    ))
+                  ) : (
+                    <DropdownMenuItem key={null} onClick={() => handleAddDynamicPage(null)}>
+                      Add a collection
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSeparator />
@@ -764,7 +785,7 @@ export default function LeftSidebarPages({
         onClose={() => {
           setShowPageSettings(false);
           setEditingPage(null);
-          
+
           // Navigate back to pages view if we're on the edit route
           if (routeType === 'page-edit' && currentPageId) {
             navigateToPage(currentPageId);

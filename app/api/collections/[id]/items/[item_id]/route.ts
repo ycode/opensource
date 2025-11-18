@@ -19,22 +19,18 @@ export async function GET(
 ) {
   try {
     const { item_id } = await params;
-    const itemId = parseInt(item_id, 10);
-    
-    if (isNaN(itemId)) {
-      return noCache({ error: 'Invalid item ID' }, 400);
-    }
-    
+    const itemId = item_id; // UUID string, no parsing needed
+
     // Check for published query param
     const { searchParams } = new URL(request.url);
     const isPublished = searchParams.get('published') === 'true';
-    
+
     const item = await getItemWithValues(itemId, isPublished);
-    
+
     if (!item) {
       return noCache({ error: 'Item not found' }, 404);
     }
-    
+
     return noCache({ data: item });
   } catch (error) {
     console.error('Error fetching item:', error);
@@ -56,23 +52,19 @@ export async function PUT(
   try {
     const { id, item_id } = await params;
     const collectionId = id; // UUID string
-    const itemId = parseInt(item_id, 10);
-    
-    if (isNaN(itemId)) {
-      return noCache({ error: 'Invalid item ID' }, 400);
-    }
-    
+    const itemId = item_id; // UUID string
+
     const body = await request.json();
-    
+
     // Extract values from body
     const { values, ...itemData } = body;
-    
+
     // Always update the item's updated_at timestamp in collection_items table
     await updateItem(itemId, {
       ...itemData,
       // updated_at is automatically set in updateItem repository function
     });
-    
+
     // Update field values if provided, and automatically update "Updated Date" field
     if (values && typeof values === 'object') {
       const now = new Date().toISOString();
@@ -80,12 +72,20 @@ export async function PUT(
         ...values,
         updated_at: now, // Auto-update the "Updated Date" collection field
       };
-      await setValuesByFieldName(itemId, collectionId, valuesWithUpdatedDate, {});
+      await setValuesByFieldName(
+        itemId,
+        false, // itemIsPublished (draft)
+        collectionId,
+        false, // collectionIsPublished (draft)
+        valuesWithUpdatedDate,
+        {},
+        false // is_published (draft)
+      );
     }
-    
+
     // Get updated item with values
-    const updatedItem = await getItemWithValues(itemId);
-    
+    const updatedItem = await getItemWithValues(itemId, false);
+
     return noCache({ data: updatedItem });
   } catch (error) {
     console.error('Error updating item:', error);
@@ -107,14 +107,10 @@ export async function DELETE(
 ) {
   try {
     const { item_id } = await params;
-    const itemId = parseInt(item_id, 10);
-    
-    if (isNaN(itemId)) {
-      return noCache({ error: 'Invalid item ID' }, 400);
-    }
-    
+    const itemId = item_id; // UUID string, no parsing needed
+
     await deleteItem(itemId);
-    
+
     return noCache({ data: { success: true } }, 200);
   } catch (error) {
     console.error('Error deleting item:', error);

@@ -19,13 +19,13 @@ export interface QueryFilters {
  * Data required to create a new page folder
  */
 export interface CreatePageFolderData {
+  id?: string;
   name: string;
   slug: string;
   depth?: number;
   order?: number;
   settings?: Record<string, any>;
   is_published?: boolean;
-  publish_key?: string;
   page_folder_id?: string | null;
 }
 
@@ -175,6 +175,7 @@ export async function updatePageFolder(id: string, updates: UpdatePageFolderData
     .from('page_folders')
     .update(updates)
     .eq('id', id)
+    .eq('is_published', false)
     .select()
     .single();
 
@@ -252,12 +253,13 @@ export async function batchUpdateFolderOrder(updates: Array<{ id: string; order:
     throw new Error('Supabase not configured');
   }
 
-  // Update each folder's order
+  // Update each folder's order (drafts only - users edit drafts)
   const promises = updates.map(({ id, order }) =>
     client
       .from('page_folders')
       .update({ order })
       .eq('id', id)
+      .eq('is_published', false)
       .is('deleted_at', null)
   );
 
@@ -282,11 +284,12 @@ export async function reorderSiblings(parentId: string | null, depth: number): P
     throw new Error('Supabase not configured');
   }
 
-  // Fetch sibling folders - filter by parent_id AND depth
+  // Fetch sibling folders - filter by parent_id AND depth (drafts only)
   let foldersQuery = client
     .from('page_folders')
     .select('id, order')
     .eq('depth', depth)
+    .eq('is_published', false)
     .is('deleted_at', null);
 
   if (parentId === null) {
@@ -301,11 +304,12 @@ export async function reorderSiblings(parentId: string | null, depth: number): P
     throw new Error(`Failed to fetch sibling folders: ${foldersError.message}`);
   }
 
-  // Fetch sibling pages - filter by parent_id AND depth
+  // Fetch sibling pages - filter by parent_id AND depth (drafts only)
   let pagesQuery = client
     .from('pages')
     .select('id, order')
     .eq('depth', depth)
+    .eq('is_published', false)
     .is('deleted_at', null);
 
   if (parentId === null) {
@@ -342,13 +346,14 @@ export async function reorderSiblings(parentId: string | null, depth: number): P
     }
   });
 
-  // Apply updates
+  // Apply updates (drafts only)
   if (folderUpdates.length > 0) {
     const folderPromises = folderUpdates.map(({ id, order }) =>
       client
         .from('page_folders')
         .update({ order })
         .eq('id', id)
+        .eq('is_published', false)
         .is('deleted_at', null)
     );
 
@@ -365,6 +370,7 @@ export async function reorderSiblings(parentId: string | null, depth: number): P
         .from('pages')
         .update({ order })
         .eq('id', id)
+        .eq('is_published', false)
         .is('deleted_at', null)
     );
 
@@ -403,11 +409,12 @@ export async function deletePageFolder(id: string): Promise<void> {
 
   console.log(`[deletePageFolder] Deleting folder ${id} and ${descendantFolderIds.length} descendant folders`);
 
-  // Query 2: Get all page IDs within these folders
+  // Query 2: Get all draft page IDs within these folders
   const { data: affectedPages, error: fetchPagesError } = await client
     .from('pages')
     .select('id')
     .in('page_folder_id', allFolderIds)
+    .eq('is_published', false)
     .is('deleted_at', null);
 
   if (fetchPagesError) {
@@ -416,12 +423,13 @@ export async function deletePageFolder(id: string): Promise<void> {
 
   const affectedPageIds = affectedPages?.map(p => p.id) || [];
 
-  // Query 3: Delete all page_layers for affected pages (if any)
+  // Query 3: Soft-delete all draft page_layers for affected pages (if any)
   if (affectedPageIds.length > 0) {
     const { error: layersError } = await client
       .from('page_layers')
       .update({ deleted_at: deletedAt })
       .in('page_id', affectedPageIds)
+      .eq('is_published', false)
       .is('deleted_at', null);
 
     if (layersError) {
@@ -429,22 +437,24 @@ export async function deletePageFolder(id: string): Promise<void> {
     }
   }
 
-  // Query 4: Delete all pages within this folder and its descendants
+  // Query 4: Soft-delete all draft pages within this folder and its descendants
   const { error: pagesError } = await client
     .from('pages')
     .update({ deleted_at: deletedAt })
     .in('page_folder_id', allFolderIds)
+    .eq('is_published', false)
     .is('deleted_at', null);
 
   if (pagesError) {
     throw new Error(`Failed to delete pages in folder: ${pagesError.message}`);
   }
 
-  // Query 5: Delete ALL folders (parent + descendants) in a single query
+  // Query 5: Soft-delete ALL draft folders (parent + descendants) in a single query
   const { error: foldersError } = await client
     .from('page_folders')
     .update({ deleted_at: deletedAt })
     .in('id', allFolderIds)
+    .eq('is_published', false)
     .is('deleted_at', null);
 
   if (foldersError) {
@@ -473,10 +483,12 @@ export async function restorePageFolder(id: string): Promise<void> {
     throw new Error('Supabase not configured');
   }
 
+  // Restore draft folder (publishing service will handle published version)
   const { error } = await client
     .from('page_folders')
     .update({ deleted_at: null })
     .eq('id', id)
+    .eq('is_published', false)
     .not('deleted_at', 'is', null); // Only restore if deleted
 
   if (error) {
@@ -506,9 +518,9 @@ export async function forceDeletePageFolder(id: string): Promise<void> {
 }
 
 /**
- * Get draft page folder by publish_key
+ * Get draft page folder by ID
  */
-export async function getPageFolderByPublishKey(publishKey: string): Promise<PageFolder | null> {
+export async function getDraftPageFolderById(id: string): Promise<PageFolder | null> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
@@ -518,7 +530,7 @@ export async function getPageFolderByPublishKey(publishKey: string): Promise<Pag
   const { data, error } = await client
     .from('page_folders')
     .select('*')
-    .eq('publish_key', publishKey)
+    .eq('id', id)
     .eq('is_published', false)
     .is('deleted_at', null)
     .single();
@@ -534,9 +546,9 @@ export async function getPageFolderByPublishKey(publishKey: string): Promise<Pag
 }
 
 /**
- * Get published page folder by publish_key
+ * Get published page folder by ID
  */
-export async function getPublishedPageFolderByPublishKey(publishKey: string): Promise<PageFolder | null> {
+export async function getPublishedPageFolderById(id: string): Promise<PageFolder | null> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
@@ -546,7 +558,7 @@ export async function getPublishedPageFolderByPublishKey(publishKey: string): Pr
   const { data, error } = await client
     .from('page_folders')
     .select('*')
-    .eq('publish_key', publishKey)
+    .eq('id', id)
     .eq('is_published', true)
     .is('deleted_at', null)
     .single();
@@ -622,24 +634,24 @@ export async function getAllPublishedPageFolders(includeSoftDeleted = false): Pr
 }
 
 /**
- * Get published page folders by publish keys
+ * Get published page folders by IDs
  * Fetches multiple published folders in a single query
  */
-export async function getPublishedPageFoldersByPublishKeys(publishKeys: string[]): Promise<PageFolder[]> {
+export async function getPublishedPageFoldersByIds(ids: string[]): Promise<PageFolder[]> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
     throw new Error('Supabase not configured');
   }
 
-  if (publishKeys.length === 0) {
+  if (ids.length === 0) {
     return [];
   }
 
   const { data, error } = await client
     .from('page_folders')
     .select('*')
-    .in('publish_key', publishKeys)
+    .in('id', ids)
     .eq('is_published', true);
 
   if (error) {
@@ -698,12 +710,13 @@ export async function reorderFolders(updates: Array<{ id: string; order: number 
     throw new Error('Supabase not configured');
   }
 
-  // Update each folder's order
+  // Update each folder's order (drafts only)
   const promises = updates.map(({ id, order }) =>
     client
       .from('page_folders')
       .update({ order })
       .eq('id', id)
+      .eq('is_published', false)
   );
 
   const results = await Promise.all(promises);
@@ -914,7 +927,6 @@ async function duplicateFolderContents(
             page_id: duplicatedPage.id,
             layers: originalLayers.layers,
             is_published: false,
-            publish_key: duplicatedPage.publish_key,
           });
       }
     }

@@ -17,11 +17,7 @@ export async function POST(
 ) {
   try {
     const { item_id } = await params;
-    const itemId = parseInt(item_id, 10);
-    
-    if (isNaN(itemId)) {
-      return noCache({ error: 'Invalid item ID' }, 400);
-    }
+    const itemId = item_id;
 
     const newItem = await duplicateItem(itemId);
 

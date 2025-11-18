@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publishPages } from '@/lib/services/pageService';
+import { cleanupDeletedCollections } from '@/lib/services/collectionPublishingService';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -21,6 +22,9 @@ export async function POST(request: NextRequest) {
     
     // Use the proper publishing service that creates separate published records
     const result = await publishPages(page_ids);
+    
+    // Clean up any soft-deleted collections
+    await cleanupDeletedCollections();
     
     return noCache({ 
       data: { count: result.count } 

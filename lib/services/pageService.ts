@@ -8,9 +8,9 @@
  */
 
 import { getKnexClient } from '../knex-client';
-import { getPageById, getPublishedPageByPublishKey, createPage, updatePage } from '../repositories/pageRepository';
-import { publishPageLayers, getDraftLayers } from '../repositories/pageLayersRepository';
-import type { Page } from '@/types';
+import { getPublishedPagesByIds } from '../repositories/pageRepository';
+import { publishPageLayers } from '../repositories/pageLayersRepository';
+import { getSupabaseAdmin } from '../supabase-server';
 
 /**
  * Helper: Generate a unique slug from a page name
@@ -186,155 +186,224 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
   }
 
   // Import folder functions
-  const { getPageFolderById, createPageFolder, updatePageFolder, getPublishedPageFolderByPublishKey } = await import('../repositories/pageFolderRepository');
+  const {
+    getAllDraftPageFolders,
+    getPublishedPageFoldersByIds,
+  } = await import('../repositories/pageFolderRepository');
 
-  // Collect all unique folders that need to be published
-  const folderPublishKeysToPublish = new Set<string>();
-  const draftFolderIdToPublishKey = new Map<string, string>();
+  const client = await getSupabaseAdmin();
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
 
-  // First pass: identify all folders that need publishing
-  for (const draftPageId of pageIds) {
-    try {
-      const draftPage = await getPageById(draftPageId);
-      if (!draftPage || draftPage.deleted_at) {
+  // Step 1: Batch fetch all draft pages in a single query
+  const { data: draftPagesData, error: pagesError } = await client
+    .from('pages')
+    .select('*')
+    .in('id', pageIds)
+    .eq('is_published', false)
+    .is('deleted_at', null);
+
+  if (pagesError) {
+    throw new Error(`Failed to fetch draft pages: ${pagesError.message}`);
+  }
+
+  // Filter valid draft pages
+  const validDraftPages = (draftPagesData || []).filter(
+    (page) => !page.deleted_at && !page.is_published
+  );
+
+  if (validDraftPages.length === 0) {
+    return { count: 0 };
+  }
+
+  // Step 2: Collect all unique folder IDs from pages
+  const folderIdsFromPages = new Set<string>();
+  for (const page of validDraftPages) {
+    if (page.page_folder_id) {
+      folderIdsFromPages.add(page.page_folder_id);
+    }
+  }
+
+  // Step 3: Fetch all draft folders and build lookup map
+  const allDraftFolders = await getAllDraftPageFolders();
+  const draftFoldersById = new Map<string, typeof allDraftFolders[0]>();
+  for (const folder of allDraftFolders) {
+    draftFoldersById.set(folder.id, folder);
+  }
+
+  // Step 4: Collect all ancestor folders that need publishing (traverse in memory)
+  const folderIdsToPublish = new Set<string>();
+
+  const collectAncestors = (folderId: string | null) => {
+    if (!folderId) return;
+    const folder = draftFoldersById.get(folderId);
+    if (folder && !folder.deleted_at && !folder.is_published) {
+      folderIdsToPublish.add(folder.id);
+      collectAncestors(folder.page_folder_id);
+    }
+  };
+
+  for (const folderId of folderIdsFromPages) {
+    collectAncestors(folderId);
+  }
+
+  // Step 5: Batch fetch published folders and pages for lookups
+  const folderIdsArray = Array.from(folderIdsToPublish);
+  const pageIdsArray = validDraftPages.map((p) => p.id);
+
+  const [publishedFolders, publishedPages] = await Promise.all([
+    folderIdsArray.length > 0
+      ? getPublishedPageFoldersByIds(folderIdsArray)
+      : Promise.resolve([]),
+    pageIdsArray.length > 0
+      ? getPublishedPagesByIds(pageIdsArray)
+      : Promise.resolve([]),
+  ]);
+
+  // Build lookup maps
+  const publishedFoldersById = new Map<string, typeof publishedFolders[0]>();
+  for (const folder of publishedFolders) {
+    publishedFoldersById.set(folder.id, folder);
+  }
+
+  const publishedPagesById = new Map<string, typeof publishedPages[0]>();
+  for (const page of publishedPages) {
+    publishedPagesById.set(page.id, page);
+  }
+
+  // Step 6: Prepare folders to publish (sorted by depth - parents first)
+  const foldersToPublish = folderIdsArray
+    .map((id) => draftFoldersById.get(id))
+    .filter(
+      (folder): folder is NonNullable<typeof folder> =>
+        folder !== undefined && !folder.deleted_at && !folder.is_published
+    )
+    .sort((a, b) => a.depth - b.depth);
+
+  // Step 7: Publish folders using upsert
+  const foldersToUpsert: any[] = [];
+
+  for (const draftFolder of foldersToPublish) {
+    // Ensure parent folder is published
+    let publishedParentId: string | null = null;
+    if (draftFolder.page_folder_id) {
+      const publishedParent = publishedFoldersById.get(draftFolder.page_folder_id);
+      if (!publishedParent) {
+        console.warn(
+          `Parent folder ${draftFolder.page_folder_id} is not published, skipping folder ${draftFolder.id}`
+        );
         continue;
       }
+      publishedParentId = publishedParent.id;
+    }
 
-      // Collect all ancestor folders
-      let currentFolderId = draftPage.page_folder_id;
-      while (currentFolderId) {
-        const folder = await getPageFolderById(currentFolderId);
-        if (folder && !folder.deleted_at) {
-          folderPublishKeysToPublish.add(folder.publish_key);
-          draftFolderIdToPublishKey.set(folder.id, folder.publish_key);
-          currentFolderId = folder.page_folder_id;
-        } else {
-          break;
+    foldersToUpsert.push({
+      id: draftFolder.id,
+      name: draftFolder.name,
+      slug: draftFolder.slug,
+      page_folder_id: publishedParentId,
+      order: draftFolder.order,
+      depth: draftFolder.depth,
+      settings: draftFolder.settings,
+      is_published: true,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  // Batch upsert folders
+  if (foldersToUpsert.length > 0) {
+    await client
+      .from('page_folders')
+      .upsert(foldersToUpsert, {
+        onConflict: 'id,is_published',
+      });
+  }
+
+  // Step 8: Publish pages using upsert (only pages that changed or are new)
+  const pagesToUpsert: any[] = [];
+
+  for (const draftPage of validDraftPages) {
+    // Ensure parent folder is published
+    let publishedParentId: string | null = null;
+    if (draftPage.page_folder_id) {
+      const publishedParent = publishedFoldersById.get(draftPage.page_folder_id);
+      if (!publishedParent) {
+        console.warn(
+          `Parent folder ${draftPage.page_folder_id} is not published, skipping page ${draftPage.id}`
+        );
+        continue;
+      }
+      publishedParentId = publishedParent.id;
+    }
+
+    const existingPublished = publishedPagesById.get(draftPage.id);
+
+    // Only include if new or content_hash changed
+    if (!existingPublished || existingPublished.content_hash !== draftPage.content_hash) {
+      pagesToUpsert.push({
+        id: draftPage.id,
+        name: draftPage.name,
+        slug: draftPage.slug,
+        page_folder_id: publishedParentId,
+        order: draftPage.order,
+        depth: draftPage.depth,
+        is_index: draftPage.is_index,
+        is_dynamic: draftPage.is_dynamic,
+        error_page: draftPage.error_page,
+        settings: draftPage.settings,
+        content_hash: draftPage.content_hash,
+        is_published: true,
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Batch upsert pages
+  if (pagesToUpsert.length > 0) {
+    const { error: upsertError } = await client
+      .from('pages')
+      .upsert(pagesToUpsert, {
+        onConflict: 'id,is_published',
+      });
+
+    if (upsertError) {
+      throw new Error(`Failed to upsert pages: ${upsertError.message}`);
+    }
+  }
+
+  // Step 9: Publish page layers (can't batch due to individual logic in publishPageLayers)
+  // Publish layers for all valid draft pages, even if the page itself hasn't changed
+  let publishedCount = 0;
+  for (const draftPage of validDraftPages) {
+    try {
+      // Skip if parent folder check failed earlier
+      if (draftPage.page_folder_id) {
+        const publishedParent = publishedFoldersById.get(draftPage.page_folder_id);
+        if (!publishedParent) {
+          continue;
         }
       }
-    } catch (error) {
-      console.error(`Error collecting folders for page ${draftPageId}:`, error);
-    }
-  }
 
-  // Map to store draft folder ID → published folder ID
-  const draftToPublishedFolderIds = new Map<string, string>();
+      // Ensure page has a published version (either just upserted or already exists)
+      const pageWasUpserted = pagesToUpsert.some(p => p.id === draftPage.id);
+      const pageAlreadyPublished = publishedPagesById.has(draftPage.id);
 
-  // Publish all required folders
-  for (const publishKey of folderPublishKeysToPublish) {
-    try {
-      // Get draft folder by publish_key
-      const { getPageFolderByPublishKey } = await import('../repositories/pageFolderRepository');
-      const draftFolder = await getPageFolderByPublishKey(publishKey);
-
-      if (!draftFolder || draftFolder.deleted_at) {
+      if (!pageWasUpserted && !pageAlreadyPublished) {
+        // Page doesn't have a published version, skip layer publishing
         continue;
       }
 
-      // Check if published version exists
-      const existingPublishedFolder = await getPublishedPageFolderByPublishKey(publishKey);
-
-      // Resolve parent folder reference - use published folder ID if parent is being published
-      const publishedParentFolderId = draftFolder.page_folder_id
-        ? draftToPublishedFolderIds.get(draftFolder.page_folder_id) || draftFolder.page_folder_id
-        : null;
-
-      if (existingPublishedFolder) {
-        // Update existing published folder
-        await updatePageFolder(existingPublishedFolder.id, {
-          name: draftFolder.name,
-          slug: draftFolder.slug,
-          page_folder_id: publishedParentFolderId,
-          order: draftFolder.order,
-          depth: draftFolder.depth,
-          settings: draftFolder.settings,
-        });
-        draftToPublishedFolderIds.set(draftFolder.id, existingPublishedFolder.id);
-      } else {
-        // Create new published folder
-        const publishedFolder = await createPageFolder({
-          name: draftFolder.name,
-          slug: draftFolder.slug,
-          is_published: true,
-          publish_key: draftFolder.publish_key,
-          page_folder_id: publishedParentFolderId,
-          order: draftFolder.order,
-          depth: draftFolder.depth,
-          settings: draftFolder.settings,
-        });
-        draftToPublishedFolderIds.set(draftFolder.id, publishedFolder.id);
-      }
-    } catch (error) {
-      console.error(`Error publishing folder with publish_key ${publishKey}:`, error);
-    }
-  }
-
-  // Now publish the pages
-  let publishedCount = 0;
-
-  for (const draftPageId of pageIds) {
-    try {
-      // Get the draft page
-      const draftPage = await getPageById(draftPageId);
-      if (!draftPage || draftPage.deleted_at) {
-        console.warn(`Draft page ${draftPageId} not found or deleted, skipping`);
-        continue;
-      }
-
-      // Check if published version already exists
-      const existingPublishedPage = await getPublishedPageByPublishKey(draftPage.publish_key);
-
-      // Resolve folder reference - use published folder ID if folder was published
-      const publishedFolderId = draftPage.page_folder_id
-        ? draftToPublishedFolderIds.get(draftPage.page_folder_id) || draftPage.page_folder_id
-        : null;
-
-      let publishedPageId: string;
-
-      if (existingPublishedPage) {
-        // Update existing published page
-        await updatePage(existingPublishedPage.id, {
-          name: draftPage.name,
-          slug: draftPage.slug,
-          page_folder_id: publishedFolderId,
-          order: draftPage.order,
-          depth: draftPage.depth,
-          is_index: draftPage.is_index,
-          is_dynamic: draftPage.is_dynamic,
-          error_page: draftPage.error_page,
-          settings: draftPage.settings,
-          content_hash: draftPage.content_hash, // Copy hash for change detection
-        });
-        publishedPageId = existingPublishedPage.id;
-      } else {
-        // Create new published page with same publish_key
-        const publishedPage = await createPage({
-          name: draftPage.name,
-          slug: draftPage.slug,
-          is_published: true,
-          publish_key: draftPage.publish_key,
-          page_folder_id: publishedFolderId,
-          order: draftPage.order,
-          depth: draftPage.depth,
-          is_index: draftPage.is_index,
-          is_dynamic: draftPage.is_dynamic,
-          error_page: draftPage.error_page,
-          settings: draftPage.settings,
-          content_hash: draftPage.content_hash, // Copy hash for change detection
-        });
-        publishedPageId = publishedPage.id;
-      }
-
-      // Publish the layers (copy draft → published)
-      await publishPageLayers(draftPageId, publishedPageId);
-
+      await publishPageLayers(draftPage.id, draftPage.id);
       publishedCount++;
     } catch (error) {
-      console.error(`Error publishing page ${draftPageId}:`, error);
-      // Continue with other pages
+      console.error(`Error publishing layers for page ${draftPage.id}:`, error);
     }
   }
 
   return { count: publishedCount };
 }
+
+
+
 

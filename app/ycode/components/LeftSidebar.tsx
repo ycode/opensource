@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -26,12 +25,8 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useEditorUrl, useEditorActions } from '@/hooks/use-editor-url';
 import type { EditorTab } from '@/hooks/use-editor-url';
 
-// 6. Utils/lib
-import { pagesApi } from '@/lib/api';
-import { findLayerById } from '@/lib/layer-utils';
-
-// 7. Types
-import type { Layer, Page } from '@/types';
+// 6. Types
+import type { Layer } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
 // Helper function to find layer with parent context
@@ -62,22 +57,15 @@ export default function LeftSidebar({
   const { draftsByPageId, loadFolders, loadDraft, deletePage, addLayer, updateLayer, setDraftLayers } = usePagesStore();
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
-  const { setSelectedLayerId, setCurrentPageId, editingComponentId } = useEditorStore();
+  const { setCurrentPageId, editingComponentId } = useEditorStore();
   const { componentDrafts, getComponentById, updateComponentDraft } = useComponentsStore();
-  const { collections, loadCollections, selectedCollectionId, setSelectedCollectionId, createCollection, updateCollection, deleteCollection } = useCollectionsStore();
-  
+  const { collections, selectedCollectionId, setSelectedCollectionId, createCollection, updateCollection, deleteCollection } = useCollectionsStore();
+
   // Sidebar tab is inferred from route, not stored in URL query param
   const activeTab = sidebarTab;
 
   // Get component layers if in edit mode
   const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
-
-  // Load collections on mount
-  useEffect(() => {
-    loadCollections().catch(error => {
-      console.error('Failed to load collections:', error);
-    });
-  }, [loadCollections]);
 
   // Listen for keyboard shortcut to toggle ElementLibrary
   useEffect(() => {
@@ -88,12 +76,6 @@ export default function LeftSidebar({
     window.addEventListener('toggleElementLibrary', handleToggleElementLibrary);
     return () => window.removeEventListener('toggleElementLibrary', handleToggleElementLibrary);
   }, []);
-
-
-  const currentPage = useMemo(
-    () => pages.find(p => p.id === currentPageId) || null,
-    [pages, currentPageId]
-  );
 
   const layersForCurrentPage = useMemo(() => {
     // If editing a component, show component layers instead
@@ -143,45 +125,15 @@ export default function LeftSidebar({
     }
   }, [currentPageId, loadDraft, draftsByPageId]);
 
-  // Helper to get parent for new layers
-  const getParentForNewLayer = useCallback((): string | null => {
-    if (!selectedLayerId) {
-      // No layer selected - add inside Body by default
-      const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
-      return bodyLayer ? 'body' : null;
-    }
-
-    const selectedItem = findLayer(layersForCurrentPage, selectedLayerId);
-    if (!selectedItem) {
-      // Selected layer not found - add inside Body by default
-      const bodyLayer = layersForCurrentPage.find(l => l.id === 'body');
-      return bodyLayer ? 'body' : null;
-    }
-
-    // If selected is a container, add as child
-    if (selectedItem.layer.type === 'container') {
-      return selectedLayerId;
-    }
-
-    // Otherwise, add as sibling (same parent)
-    // But if parent is null (would be root level), use Body instead
-    if (selectedItem.parentId === null) {
-      return 'body';
-    }
-
-    return selectedItem.parentId;
-  }, [selectedLayerId, layersForCurrentPage, findLayer]);
-
-
   // Handle creating a new collection
   const handleCreateCollection = async () => {
     try {
-      // Generate unique collection name and slug
+      // Generate unique collection name
       const baseName = 'Collection';
       let collectionName = baseName;
       let counter = 1;
 
-      // Generate a unique display name (name can be duplicated, but add number for UX)
+      // Check if name already exists
       while (collections.some(c => c.name === collectionName)) {
         collectionName = `${baseName} ${counter}`;
         counter++;
@@ -323,7 +275,6 @@ export default function LeftSidebar({
           }}
           className="flex-1 gap-0"
         >
-
           <TabsList className="w-full">
             <TabsTrigger value="layers">Layers</TabsTrigger>
             <TabsTrigger value="pages">Pages</TabsTrigger>
@@ -404,8 +355,8 @@ export default function LeftSidebar({
                 return (
                   <div key={collection.id}>
                     {isRenaming ? (
-                      <div className="px-4 h-8 rounded-lg flex gap-2 items-center bg-secondary/50">
-                        <Icon name="database" className="size-3" />
+                      <div className="pl-3 pr-1.5 h-8 rounded-lg flex gap-2 items-center bg-secondary/50">
+                        <Icon name="database" className="size-3 shrink-0" />
                         <Input
                           value={renameValue}
                           onChange={(e) => setRenameValue(e.target.value)}
@@ -418,15 +369,15 @@ export default function LeftSidebar({
                           }}
                           onBlur={handleRenameCancel}
                           autoFocus
-                          className="h-6 px-2 py-0 text-sm"
+                          className="h-6 px-1 py-0 text-xs rounded-md -ml-1"
                         />
                       </div>
                     ) : (
                       <ContextMenu>
                         <ContextMenuTrigger asChild>
-                          <button
+                          <div
                             className={cn(
-                              'px-4 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full',
+                              'px-3 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full group cursor-pointer',
                               isSelected
                                 ? 'bg-primary text-primary-foreground'
                                 : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
@@ -445,54 +396,50 @@ export default function LeftSidebar({
                               <Icon name="database" className="size-3" />
                               <span>{collection.name}</span>
                             </div>
-                            {isHovered ? (
+
+                            <div className="group-hover:opacity-100 opacity-0">
+
                               <DropdownMenu
                                 open={openDropdownId === collection.id}
                                 onOpenChange={(open) => setOpenDropdownId(open ? collection.id : null)}
                               >
                                 <DropdownMenuTrigger asChild>
-                                  <span
-                                    className="inline-flex items-center justify-center p-1 rounded hover:bg-secondary/80 cursor-pointer"
+                                  <Button
+                                    size="xs"
+                                    variant={isSelected ? 'default' : 'ghost'}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                     }}
+                                    className="-mr-2"
                                   >
                                     <Icon name="more" className="size-3" />
-                                  </span>
+                                  </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
+
+                                <DropdownMenuContent>
                                   <DropdownMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
-                                    <Icon name="edit" className="size-3" />
                                     Rename
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    variant="destructive"
-                                    onClick={() => handleCollectionDelete(collection.id)}
-                                  >
-                                    <Icon name="x" className="size-3" />
+                                  <DropdownMenuItem onClick={() => handleCollectionDelete(collection.id)}>
                                     Delete
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
+
                               </DropdownMenu>
-                            ) : (
-                              collection.draft_items_count !== undefined && (
-                                <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-                                  {collection.draft_items_count}
-                                </Badge>
-                              )
-                            )}
-                          </button>
+
+                            </div>
+
+                              <span className="group-hover:hidden block text-xs opacity-50">
+                                {collection.draft_items_count}
+                              </span>
+
+                          </div>
                         </ContextMenuTrigger>
                         <ContextMenuContent>
                           <ContextMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
-                            <Icon name="edit" className="size-3" />
                             Rename
                           </ContextMenuItem>
-                          <ContextMenuItem 
-                            variant="destructive"
-                            onClick={() => handleCollectionDelete(collection.id)}
-                          >
-                            <Icon name="x" className="size-3" />
+                          <ContextMenuItem onClick={() => handleCollectionDelete(collection.id)}>
                             Delete
                           </ContextMenuItem>
                         </ContextMenuContent>

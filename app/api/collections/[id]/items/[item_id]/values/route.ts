@@ -9,7 +9,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/collections/[id]/items/[item_id]/values
- * Get all values for an item
+ * Get all values for an item (draft version)
  */
 export async function GET(
   request: NextRequest,
@@ -17,14 +17,10 @@ export async function GET(
 ) {
   try {
     const { item_id } = await params;
-    const itemId = parseInt(item_id, 10);
-    
-    if (isNaN(itemId)) {
-      return noCache({ error: 'Invalid item ID' }, 400);
-    }
-    
-    const values = await getValuesByItemId(itemId);
-    
+
+    // Always get draft values in the builder
+    const values = await getValuesByItemId(item_id, false, false);
+
     return noCache({ data: values });
   } catch (error) {
     console.error('Error fetching item values:', error);
@@ -37,7 +33,7 @@ export async function GET(
 
 /**
  * PUT /api/collections/[id]/items/[item_id]/values
- * Batch update values for an item
+ * Batch update values for an item (draft version)
  */
 export async function PUT(
   request: NextRequest,
@@ -45,25 +41,27 @@ export async function PUT(
 ) {
   try {
     const { id, item_id } = await params;
-    const collectionId = id; // UUID string
-    const itemId = parseInt(item_id, 10);
-    
-    if (isNaN(itemId)) {
-      return noCache({ error: 'Invalid item ID' }, 400);
-    }
-    
+
     const body = await request.json();
-    
+
     if (!body || typeof body !== 'object') {
       return noCache({ error: 'Request body must be an object' }, 400);
     }
-    
-    // Set values by field name
-    await setValuesByFieldName(itemId, collectionId, body, {});
-    
-    // Get updated values
-    const values = await getValuesByItemId(itemId);
-    
+
+    // Set draft values by field name
+    await setValuesByFieldName(
+      item_id,
+      false, // Item is draft
+      id,
+      false, // Collection is draft
+      body,
+      {},
+      false // Update draft values
+    );
+
+    // Get updated draft values
+    const values = await getValuesByItemId(item_id, false, false);
+
     return noCache({ data: values });
   } catch (error) {
     console.error('Error updating item values:', error);
@@ -73,10 +71,3 @@ export async function PUT(
     );
   }
 }
-
-
-
-
-
-
-

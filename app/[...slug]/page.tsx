@@ -8,10 +8,9 @@ import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import type { Page, PageFolder } from '@/types';
 
-// Force static generation with ISR
-export const dynamic = 'force-static';
-export const revalidate = 3600; // Revalidate every 1 hour
-export const dynamicParams = true; // Allow dynamic slugs not in generateStaticParams
+// Incremental Static Regeneration (ISR) with on-demand revalidation
+export const revalidate = false;
+export const dynamicParams = true;
 
 /**
  * Generate static params for known published pages
@@ -72,10 +71,10 @@ export async function generateStaticParams() {
 async function fetchPublishedPageWithLayers(slugPath: string) {
   return unstable_cache(
     async () => fetchPageByPath(slugPath, true),
-    [`data-for-route-/${slugPath}-v3`], // Unique cache key per slug path (v3 for full path support)
+    [`data-for-route-/${slugPath}`],
     {
       tags: [`route-/${slugPath}`], // Tag for revalidation on publish
-      revalidate: 60, // Cache for 1 minute (reduced for testing)
+      revalidate: 3600,
     }
   )();
 }

@@ -30,7 +30,7 @@ export function middleware(request: NextRequest) {
     // In development, it helps with browser caching
     response.headers.set(
       'Cache-Control',
-      'public, s-maxage=60, stale-while-revalidate=120, max-age=0, must-revalidate'
+      'public, s-maxage=0, stale-while-revalidate=0, max-age=0, must-revalidate'
     );
 
     // Add Vary header to ensure proper cache behavior

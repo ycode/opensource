@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/collections/[id]
- * Get collection by ID (UUID)
+ * Get collection by ID (draft version)
  */
 export async function GET(
   request: NextRequest,
@@ -16,14 +16,14 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    
-    // No validation needed - UUID format will be validated by database
-    const collection = await getCollectionById(id);
-    
+
+    // Always get draft version in the builder
+    const collection = await getCollectionById(id, false);
+
     if (!collection) {
       return noCache({ error: 'Collection not found' }, 404);
     }
-    
+
     return noCache({ data: collection });
   } catch (error) {
     console.error('Error fetching collection:', error);
@@ -36,7 +36,7 @@ export async function GET(
 
 /**
  * PUT /api/collections/[id]
- * Update collection
+ * Update collection (draft version)
  */
 export async function PUT(
   request: NextRequest,
@@ -44,11 +44,12 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    
+
     const body = await request.json();
-    
-    const collection = await updateCollection(id, body);
-    
+
+    // Always update draft version in the builder
+    const collection = await updateCollection(id, body, false);
+
     return noCache({ data: collection });
   } catch (error) {
     console.error('Error updating collection:', error);
@@ -61,7 +62,7 @@ export async function PUT(
 
 /**
  * DELETE /api/collections/[id]
- * Delete collection (soft delete)
+ * Delete collection (soft delete draft version)
  */
 export async function DELETE(
   request: NextRequest,
@@ -69,9 +70,10 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    
-    await deleteCollection(id);
-    
+
+    // Always delete draft version in the builder
+    await deleteCollection(id, false);
+
     return noCache({ data: { success: true } });
   } catch (error) {
     console.error('Error deleting collection:', error);
@@ -81,10 +83,3 @@ export async function DELETE(
     );
   }
 }
-
-
-
-
-
-
-
