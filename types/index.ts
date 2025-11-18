@@ -453,10 +453,10 @@ export interface Collection {
 export interface CollectionField {
   id: string; // UUID
   name: string;
+  key: string | null; // Built-in fields have a key to identify them
   type: CollectionFieldType;
   default: string | null;
   fillable: boolean;
-  built_in: boolean;
   order: number;
   collection_id: string; // UUID
   reference_collection_id: string | null; // UUID

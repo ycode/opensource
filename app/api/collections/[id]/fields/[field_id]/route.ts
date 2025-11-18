@@ -90,7 +90,7 @@ export async function DELETE(
       return noCache({ error: 'Field not found' }, 404);
     }
     
-    if (field.built_in) {
+    if (field.key) {
       return noCache({ error: 'Cannot delete built-in fields' }, 400);
     }
     

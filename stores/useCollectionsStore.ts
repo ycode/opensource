@@ -4,7 +4,7 @@ import type { Collection, CollectionField, CollectionItemWithValues } from '@/ty
 
 /**
  * Collections Store
- * 
+ *
  * Manages state for Collections (CMS) feature using EAV architecture.
  * Handles collections, fields, and items with their values.
  */
@@ -30,7 +30,7 @@ interface CollectionsActions {
   updateCollection: (id: string, data: Partial<Collection>) => Promise<void>;
   deleteCollection: (id: string) => Promise<void>;
   setSelectedCollectionId: (id: string | null) => void;
-  
+
   // Fields
   loadFields: (collectionId: string, search?: string) => Promise<void>;
   createField: (collectionId: string, data: {
@@ -40,13 +40,13 @@ interface CollectionsActions {
     order?: number;
     reference_collection_id?: string | null; // UUID
     fillable?: boolean;
-    built_in?: boolean;
+    key?: string | null;
     hidden?: boolean;
     data?: Record<string, any>;
   }) => Promise<CollectionField>;
   updateField: (collectionId: string, fieldId: string, data: Partial<CollectionField>) => Promise<void>;
   deleteField: (collectionId: string, fieldId: string) => Promise<void>;
-  
+
   // Items
   loadItems: (collectionId: string, page?: number, limit?: number) => Promise<void>;
   loadPublishedItems: (collectionId: string) => Promise<void>;
@@ -55,11 +55,11 @@ interface CollectionsActions {
   deleteItem: (collectionId: string, itemId: string) => Promise<void>;
   duplicateItem: (collectionId: string, itemId: string) => Promise<CollectionItemWithValues | undefined>;
   searchItems: (collectionId: string, query: string, page?: number, limit?: number) => Promise<void>;
-  
+
   // Sorting
   updateCollectionSorting: (collectionId: string, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => Promise<void>;
   reorderItems: (collectionId: string, updates: Array<{ id: string; manual_order: number }>) => Promise<void>;
-  
+
   // Utility
   clearError: () => void;
 
@@ -78,18 +78,18 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   selectedCollectionId: null,
   isLoading: false,
   error: null,
-  
+
   // Collections
   loadCollections: async () => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.getAll();
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       set({ collections: response.data || [], isLoading: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load collections';
@@ -97,64 +97,64 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   createCollection: async (data) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.create(data);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       const newCollection = response.data!;
-      
+
       // Automatically create built-in fields
       try {
         const builtInFields = [
           {
             name: 'ID',
+            key: 'id',
             type: 'number' as const,
             order: 0,
-            built_in: true,
             fillable: false,
             hidden: false,
           },
           {
             name: 'Name',
+            key: 'name',
             type: 'text' as const,
             order: 1,
-            built_in: true,
             fillable: true,
             hidden: false,
           },
           {
             name: 'Slug',
+            key: 'slug',
             type: 'text' as const,
             order: 2,
-            built_in: true,
             fillable: true,
             hidden: false,
           },
           {
             name: 'Created Date',
+            key: 'created_at',
             type: 'date' as const,
             order: 3,
-            built_in: true,
             fillable: false,
             hidden: false,
           },
           {
             name: 'Updated Date',
+            key: 'updated_at',
             type: 'date' as const,
             order: 4,
-            built_in: true,
             fillable: false,
             hidden: false,
           },
         ];
-        
+
         // Create all built-in fields
         for (const field of builtInFields) {
           await collectionsApi.createField(newCollection.id, field);
@@ -163,12 +163,12 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         console.error('Failed to create built-in fields:', fieldError);
         // Continue anyway - collection was created successfully
       }
-      
+
       set(state => ({
         collections: [...state.collections, newCollection],
         isLoading: false,
       }));
-      
+
       return newCollection;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create collection';
@@ -176,19 +176,19 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   updateCollection: async (id, data) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.update(id, data);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       const updated = response.data!;
-      
+
       set(state => ({
         collections: state.collections.map(c => c.id === id ? updated : c),
         isLoading: false,
@@ -199,26 +199,26 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   deleteCollection: async (id) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.delete(id);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       set(state => {
         const remainingCollections = state.collections.filter(c => c.id !== id);
         const wasSelected = state.selectedCollectionId === id;
-        
+
         // If the deleted collection was selected, select the first remaining collection
         const newSelectedId = wasSelected && remainingCollections.length > 0
           ? remainingCollections[0].id
           : (state.selectedCollectionId === id ? null : state.selectedCollectionId);
-        
+
         return {
           collections: remainingCollections,
           selectedCollectionId: newSelectedId,
@@ -231,22 +231,22 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   setSelectedCollectionId: (id) => {
     set({ selectedCollectionId: id });
   },
-  
+
   // Fields
   loadFields: async (collectionId: string, search?: string) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.getFields(collectionId, search);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       set(state => ({
         fields: {
           ...state.fields,
@@ -260,19 +260,19 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   createField: async (collectionId, data) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.createField(collectionId, data);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       const newField = response.data!;
-      
+
       set(state => ({
         fields: {
           ...state.fields,
@@ -280,7 +280,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         },
         isLoading: false,
       }));
-      
+
       return newField;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create field';
@@ -288,19 +288,19 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   updateField: async (collectionId, fieldId, data) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.updateField(collectionId, fieldId, data);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       const updated = response.data!;
-      
+
       set(state => ({
         fields: {
           ...state.fields,
@@ -314,17 +314,17 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   deleteField: async (collectionId, fieldId) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.deleteField(collectionId, fieldId);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       set(state => ({
         fields: {
           ...state.fields,
@@ -338,18 +338,18 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   // Items
   loadItems: async (collectionId: string, page?: number, limit?: number) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.getItems(collectionId, { page, limit });
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       set(state => ({
         items: {
           ...state.items,
@@ -370,14 +370,14 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
   loadPublishedItems: async (collectionId) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.getPublishedItems(collectionId);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       set(state => ({
         items: {
           ...state.items,
@@ -391,19 +391,19 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   createItem: async (collectionId, values) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.createItem(collectionId, values);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       const newItem = response.data!;
-      
+
       set(state => ({
         items: {
           ...state.items,
@@ -411,7 +411,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         },
         isLoading: false,
       }));
-      
+
       return newItem;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create item';
@@ -419,19 +419,19 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   updateItem: async (collectionId, itemId, values) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.updateItem(collectionId, itemId, values);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       const updated = response.data!;
-      
+
       set(state => ({
         items: {
           ...state.items,
@@ -445,17 +445,17 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   deleteItem: async (collectionId, itemId) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.deleteItem(collectionId, itemId);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       set(state => ({
         items: {
           ...state.items,
@@ -472,14 +472,14 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
   duplicateItem: async (collectionId: string, itemId: string) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.duplicateItem(collectionId, itemId);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       // Optimistically add the new item to the store
       if (response.data) {
         set(state => ({
@@ -490,7 +490,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
           isLoading: false,
         }));
       }
-      
+
       return response.data;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to duplicate item';
@@ -498,17 +498,17 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   searchItems: async (collectionId: string, query: string, page?: number, limit?: number) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.searchItems(collectionId, query, { page, limit });
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       set(state => ({
         items: {
           ...state.items,
@@ -530,7 +530,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   // Sorting
   updateCollectionSorting: async (collectionId: string, sorting: { field: string; direction: 'asc' | 'desc' | 'manual' }) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       // Optimistically update the collection sorting
       set(state => ({
@@ -538,13 +538,13 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
           c.id === collectionId ? { ...c, sorting } : c
         ),
       }));
-      
+
       const response = await collectionsApi.update(collectionId, { sorting });
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       set({ isLoading: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update sorting';
@@ -557,18 +557,18 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
   reorderItems: async (collectionId: string, updates: Array<{ id: string; manual_order: number }>) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       // Optimistically update items order
       set(state => {
         const items = state.items[collectionId] || [];
         const updateMap = new Map(updates.map(u => [u.id, u.manual_order]));
-        
+
         const updatedItems = items.map(item => {
           const newOrder = updateMap.get(item.id);
           return newOrder !== undefined ? { ...item, manual_order: newOrder } : item;
         });
-        
+
         return {
           items: {
             ...state.items,
@@ -576,13 +576,13 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
           },
         };
       });
-      
+
       const response = await collectionsApi.reorderItems(collectionId, updates);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       set({ isLoading: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to reorder items';
@@ -592,7 +592,7 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       throw error;
     }
   },
-  
+
   // Utility
   clearError: () => {
     set({ error: null });
@@ -601,19 +601,19 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   // Publish
   publishCollections: async (collectionIds: string[]) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await collectionsApi.publishCollections(collectionIds);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
-      
+
       // Reload items for affected collections
       for (const collectionId of collectionIds) {
         await get().loadItems(collectionId);
       }
-      
+
       set({ isLoading: false });
       return { success: true, published: response.data?.published || {} };
     } catch (error) {

@@ -14,10 +14,10 @@ import { randomUUID } from 'crypto';
 
 export interface CreateCollectionFieldData {
   name: string;
+  key?: string | null;
   type: CollectionFieldType;
   default?: string | null;
   fillable?: boolean;
-  built_in?: boolean;
   order: number;
   collection_id: string; // UUID
   reference_collection_id?: string | null; // UUID
@@ -28,10 +28,10 @@ export interface CreateCollectionFieldData {
 
 export interface UpdateCollectionFieldData {
   name?: string;
+  key?: string | null;
   type?: CollectionFieldType;
   default?: string | null;
   fillable?: boolean;
-  built_in?: boolean;
   order?: number;
   reference_collection_id?: string | null; // UUID
   hidden?: boolean;
@@ -128,7 +128,7 @@ export async function createField(fieldData: CreateCollectionFieldData): Promise
       id,
       ...fieldData,
       fillable: fieldData.fillable ?? true,
-      built_in: fieldData.built_in ?? false,
+      key: fieldData.key ?? null,
       hidden: fieldData.hidden ?? false,
       data: fieldData.data ?? {},
       is_published: isPublished,
@@ -319,10 +319,10 @@ export async function publishField(id: string): Promise<CollectionField> {
     .upsert({
       id: draft.id, // Same UUID
       name: draft.name,
+      key: draft.key,
       type: draft.type,
       default: draft.default,
       fillable: draft.fillable,
-      built_in: draft.built_in,
       order: draft.order,
       collection_id: draft.collection_id,
       reference_collection_id: draft.reference_collection_id,

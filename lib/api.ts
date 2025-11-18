@@ -344,7 +344,7 @@ export const collectionsApi = {
     type: 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
     default?: string | null;
     fillable?: boolean;
-    built_in?: boolean;
+    key?: string | null;
     order?: number;
     reference_collection_id?: string | null;
     hidden?: boolean;

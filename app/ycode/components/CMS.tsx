@@ -407,7 +407,7 @@ export default function CMS() {
     if (!selectedCollectionId) return;
 
     const field = collectionFields.find(f => f.id === fieldId);
-    if (field?.built_in) {
+    if (field?.key) {
       alert('Cannot delete built-in fields');
       return;
     }
@@ -509,7 +509,7 @@ export default function CMS() {
         default: data.default || null,
         order: newOrder,
         fillable: true,
-        built_in: false,
+        key: null,
         hidden: false,
       });
 
@@ -739,13 +739,13 @@ export default function CMS() {
                                 <DropdownMenuContent align="start">
                                   <DropdownMenuItem
                                     onSelect={() => handleEditFieldClick(field)}
-                                    disabled={field.built_in}
+                                    disabled={!!field.key}
                                   >
                                     Edit
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => handleDuplicateField(field.id)}
-                                    disabled={field.built_in}
+                                    disabled={!!field.key}
                                   >
                                     Duplicate
                                   </DropdownMenuItem>
@@ -758,7 +758,7 @@ export default function CMS() {
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     onClick={() => handleDeleteField(field.id)}
-                                    disabled={field.built_in}
+                                    disabled={!!field.key}
                                   >
                                     Delete
                                   </DropdownMenuItem>

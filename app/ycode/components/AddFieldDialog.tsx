@@ -91,7 +91,7 @@ export default function AddFieldDialog({
           type: values.type as CollectionFieldType,
           default: values.default || null,
           order,
-          built_in: false, // User-created fields are not built-in
+          key: null, // User-created fields have no key
           fillable: true,
           hidden: false,
         });

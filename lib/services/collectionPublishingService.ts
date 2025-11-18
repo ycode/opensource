@@ -288,10 +288,10 @@ async function publishAllFields(collectionId: string): Promise<number> {
   const fieldsToUpsert = draftFields.map(field => ({
     id: field.id,
     name: field.name,
+    key: field.key,
     type: field.type,
     default: field.default,
     fillable: field.fillable,
-    built_in: field.built_in,
     order: field.order,
     collection_id: field.collection_id,
     reference_collection_id: field.reference_collection_id,

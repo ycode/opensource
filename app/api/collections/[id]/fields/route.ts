@@ -71,10 +71,10 @@ export async function POST(
     const field = await createField({
       collection_id: id,
       name: body.name,
+      key: body.key || null,
       type: body.type,
       default: body.default || null,
       fillable: body.fillable ?? true,
-      built_in: body.built_in ?? false,
       order: body.order ?? 0,
       reference_collection_id: body.reference_collection_id || null,
       hidden: body.hidden ?? false,

@@ -16,9 +16,9 @@ export async function up(knex: Knex): Promise<void> {
     table.uuid('collection_id').notNullable();
     table.uuid('reference_collection_id').nullable();
     table.string('name', 255).notNullable();
+    table.string('key', 255).nullable(); // built-in fields have a key to identify them
     table.string('type', 255).notNullable();
     table.string('default', 255).nullable();
-    table.boolean('built_in').notNullable().defaultTo(false);
     table.boolean('fillable').notNullable().defaultTo(true);
     table.integer('order').notNullable();
     table.boolean('hidden').notNullable().defaultTo(false);
