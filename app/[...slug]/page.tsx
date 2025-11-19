@@ -41,9 +41,14 @@ export async function generateStaticParams() {
       return [];
     }
 
-    // Build full paths for all pages
+    // Build full paths for all pages (exclude dynamic pages - they use dynamicParams)
     return pages
       .map((page: Page) => {
+        // Skip dynamic pages - they are handled dynamically at request time
+        if (page.is_dynamic) {
+          return null;
+        }
+
         const fullPath = buildSlugPath(page, folders as PageFolder[], 'page');
         // Remove leading slash and split into segments
         const pathSegments = fullPath.slice(1).split('/').filter(Boolean);

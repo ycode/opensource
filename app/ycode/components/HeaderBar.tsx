@@ -26,6 +26,7 @@ import PublishDialog from './PublishDialog';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { publishApi } from '@/lib/api';
 import { buildSlugPath } from '@/lib/page-utils';
 
@@ -79,9 +80,10 @@ export default function HeaderBar({
   onPublishSuccess,
 }: HeaderBarProps) {
   const pageDropdownRef = useRef<HTMLDivElement>(null);
-  const { editingComponentId, returnToPageId } = useEditorStore();
+  const { editingComponentId, returnToPageId, currentPageCollectionItemId } = useEditorStore();
   const { getComponentById } = useComponentsStore();
   const { folders } = usePagesStore();
+  const { items } = useCollectionsStore();
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
@@ -107,7 +109,33 @@ export default function HeaderBar({
     return buildSlugPath(currentPage, folders, 'page');
   }, [currentPage, folders]);
 
-  // Build preview URL (special handling for error pages)
+  // Get collection item slug value for dynamic pages
+  const collectionItemSlug = useMemo(() => {
+    if (!currentPage?.is_dynamic || !currentPageCollectionItemId) {
+      return null;
+    }
+
+    const collectionId = currentPage.settings?.cms?.collection_id;
+    const slugFieldId = currentPage.settings?.cms?.slug_field_id;
+
+    if (!collectionId || !slugFieldId) {
+      return null;
+    }
+
+    // Find the item in the store
+    const collectionItems = items[collectionId] || [];
+    const selectedItem = collectionItems.find(item => item.id === currentPageCollectionItemId);
+
+    if (!selectedItem || !selectedItem.values) {
+      return null;
+    }
+
+    // Get the slug value from the item's values
+    const slugValue = selectedItem.values[slugFieldId];
+    return slugValue || null;
+  }, [currentPage, currentPageCollectionItemId, items]);
+
+  // Build preview URL (special handling for error pages and dynamic pages)
   const previewUrl = useMemo(() => {
     if (!currentPage) return '';
 
@@ -116,9 +144,27 @@ export default function HeaderBar({
       return `/ycode/preview/error-pages/${currentPage.error_page}`;
     }
 
-    // Regular pages use their slug path
-    return `/ycode/preview${fullPagePath === '/' ? '' : fullPagePath}`;
-  }, [currentPage, fullPagePath]);
+    // For dynamic pages, replace {slug} with actual slug value if item is selected
+    let path = fullPagePath;
+    if (currentPage.is_dynamic && collectionItemSlug) {
+      path = path.replace(/\{slug\}/g, collectionItemSlug);
+    }
+
+    return `/ycode/preview${path === '/' ? '' : path}`;
+  }, [currentPage, fullPagePath, collectionItemSlug]);
+
+  // Build published URL (for the link in the center)
+  const publishedUrl = useMemo(() => {
+    if (!currentPage) return '';
+
+    // For dynamic pages, replace {slug} with actual slug value if item is selected
+    let path = fullPagePath;
+    if (currentPage.is_dynamic && collectionItemSlug) {
+      path = path.replace(/\{slug\}/g, collectionItemSlug);
+    }
+
+    return path === '/' ? '' : path;
+  }, [currentPage, fullPagePath, collectionItemSlug]);
 
   // Apply theme to HTML element
   useEffect(() => {
@@ -238,7 +284,7 @@ export default function HeaderBar({
 
       <div className="flex gap-2.5 items-center justify-center">
         <a
-          href={baseUrl + (fullPagePath === '/' ? '' : fullPagePath)}
+          href={baseUrl + publishedUrl}
           target="_blank"
           className="text-xs text-current/50 hover:text-current transition ease-in-out duration-100"
         >
