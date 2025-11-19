@@ -1,4 +1,4 @@
-import type { CollectionFieldType } from '@/types';
+import type { Collection, CollectionFieldType } from '@/types';
 
 /**
  * Collection Utilities
@@ -6,6 +6,31 @@ import type { CollectionFieldType } from '@/types';
  * Helper functions for working with EAV (Entity-Attribute-Value) collections.
  * Handles value type casting between text storage and typed values.
  */
+
+/**
+ * Sort collections by order field
+ * If two collections have the same order, sort by name alphabetically
+ * If two collections have the same order and name, sort by created_at time
+ * @param collections - Array of collections to sort
+ * @returns Sorted array of collections
+ */
+export function sortCollectionsByOrder(collections: Collection[]): Collection[] {
+  return [...collections].sort((a, b) => {
+    // If orders are different, sort by order
+    if (a.order !== b.order) {
+      return a.order - b.order;
+    }
+
+    // If orders are the same, sort by name
+    const nameComparison = a.name.localeCompare(b.name);
+    if (nameComparison !== 0) {
+      return nameComparison;
+    }
+
+    // If names are also the same, sort by created_at (oldest first)
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
+}
 
 /**
  * Cast a text value to its proper type based on field type

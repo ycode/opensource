@@ -309,7 +309,7 @@ export const collectionsApi = {
   async create(data: {
     name: string;
     sorting?: Record<string, any> | null;
-    order?: number | null;
+    order?: number;
   }): Promise<ApiResponse<Collection>> {
     return apiRequest<Collection>('/api/collections', {
       method: 'POST',

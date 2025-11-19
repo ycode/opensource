@@ -9,7 +9,7 @@ import PageSettingsPanel, { type PageFormData, type PageSettingsPanelHandle } fr
 import FolderSettingsPanel, { type FolderFormData, type FolderSettingsPanelHandle } from './FolderSettingsPanel';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
-import type { Collection, Page, PageFolder } from '@/types';
+import type { Page, PageFolder, PageSettings } from '@/types';
 import { Separator } from '@/components/ui/separator';
 import { generateUniqueSlug, generateUniqueFolderSlug, getNextNumberFromNames, getParentContextFromSelection, calculateNextOrder } from '@/lib/page-utils';
 
@@ -84,7 +84,7 @@ export default function LeftSidebarPages({
 
   // Get store actions
   const { createPage, updatePage, duplicatePage, deletePage, createFolder, updateFolder, duplicateFolder, deleteFolder, batchReorderPagesAndFolders } = usePagesStore();
-  const { collections } = useCollectionsStore();
+  const { collections, fields } = useCollectionsStore();
 
   // Sync selection with current page when it changes externally
   useEffect(() => {
@@ -93,8 +93,8 @@ export default function LeftSidebarPages({
     }
   }, [currentPageId]);
 
-  // Handler to create a new page
-  const handleAddPage = async () => {
+  // Handler to create a new page (if a collection ID is given this will be a dynamic page)
+  const handleAddPage = async (collectionId?: string) => {
     const { parentFolderId, newDepth } = getParentContextFromSelection(selectedItemId, pages, folders);
 
     // Get the next available page number in this folder context
@@ -105,8 +105,41 @@ export default function LeftSidebarPages({
     // Calculate order: find max order at the target level
     const newOrder = calculateNextOrder(parentFolderId, newDepth, pages, folders);
 
-    // Generate unique slug for the new page
-    const newPageSlug = generateUniqueSlug(newPageName, pages, parentFolderId, false);
+    // Prepare settings object
+    const settings: PageSettings = {};
+
+    // If collection ID is provided, set up dynamic page with CMS settings
+    if (collectionId) {
+      // Check if folder already contains a dynamic page
+      const existingDynamicPage = pages.find(
+        (p) =>
+          p.is_dynamic &&
+          p.page_folder_id === parentFolderId &&
+          p.is_published === false // Check same published state
+      );
+
+      if (existingDynamicPage) {
+        const folderName = parentFolderId ? 'this folder' : 'the root folder';
+        alert(`A dynamic page already exists in ${folderName}. Each folder can only contain one dynamic page.`);
+        return;
+      }
+
+      // Use preloaded fields from store
+      const collectionFields = fields[collectionId] || [];
+
+      // Find the slug field (built-in field with key = 'slug')
+      const slugField = collectionFields.find(field => field.key === 'slug');
+
+      if (!slugField) return console.warn('Slug field not found for collection:', collectionId);
+
+      settings.cms = {
+        collection_id: collectionId,
+        slug_field_id: slugField.id,
+      };
+    }
+
+    // Dynamic pages should have empty slug
+    const newPageSlug = collectionId ? '*' : generateUniqueSlug(newPageName, pages, parentFolderId, false);
 
     // Create page with optimistic update
     const createPromise = createPage({
@@ -117,9 +150,9 @@ export default function LeftSidebarPages({
       order: newOrder,
       depth: newDepth,
       is_index: false,
-      is_dynamic: false,
+      is_dynamic: !!collectionId, // Set to true if collection ID is provided
       error_page: null,
-      settings: {},
+      settings,
     });
 
     // Handle the result asynchronously
@@ -139,16 +172,6 @@ export default function LeftSidebarPages({
     if (tempPage) {
       setSelectedItemId(tempPage.id);
     }
-  };
-
-  const handleAddDynamicPage = async (collectionId: string | null) => {
-    if (!collectionId) {
-      // Go to CMS tab
-      onSelectTab('cms');
-      return;
-    }
-
-    // TODO: Create a new dynamic page
   };
 
   // Handler to create a new folder
@@ -537,10 +560,12 @@ export default function LeftSidebarPages({
     const order = deletedItem.order || 0;
 
     // Get all siblings (pages and folders at same depth and parent)
+    // Filter out error pages - they should not be selected
     const siblingPages = pages.filter(p =>
       p.id !== deletedId &&
       p.page_folder_id === parentId &&
-      p.depth === depth
+      p.depth === depth &&
+      p.error_page === null // Exclude error pages
     );
     const siblingFolders = folders.filter(f =>
       f.id !== deletedId &&
@@ -655,7 +680,7 @@ export default function LeftSidebarPages({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="bottom">
-              <DropdownMenuItem onClick={handleAddPage}>
+              <DropdownMenuItem onClick={() => handleAddPage()}>
                 Regular
               </DropdownMenuItem>
               <DropdownMenuSub>
@@ -663,12 +688,12 @@ export default function LeftSidebarPages({
                 <DropdownMenuSubContent>
                   {collections.length > 0 ? (
                     collections.map(collection => (
-                      <DropdownMenuItem key={collection.id} onClick={() => handleAddDynamicPage(collection.id)}>
+                      <DropdownMenuItem key={collection.id} onClick={() => handleAddPage(collection.id)}>
                         {collection.name}
                       </DropdownMenuItem>
                     ))
                   ) : (
-                    <DropdownMenuItem key={null} onClick={() => handleAddDynamicPage(null)}>
+                    <DropdownMenuItem key={null} onClick={() => onSelectTab('cms')}>
                       Add a collection
                     </DropdownMenuItem>
                   )}

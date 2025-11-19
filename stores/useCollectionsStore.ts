@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { collectionsApi } from '@/lib/api';
+import { sortCollectionsByOrder } from '@/lib/collection-utils';
 import type { Collection, CollectionField, CollectionItemWithValues } from '@/types';
 
 /**
@@ -25,7 +26,7 @@ interface CollectionsActions {
   createCollection: (data: {
     name: string;
     sorting?: Record<string, any> | null;
-    order?: number | null;
+    order?: number;
   }) => Promise<Collection>;
   updateCollection: (id: string, data: Partial<Collection>) => Promise<void>;
   deleteCollection: (id: string) => Promise<void>;
@@ -90,7 +91,37 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         throw new Error(response.error);
       }
 
-      set({ collections: response.data || [], isLoading: false });
+      const collections = response.data || [];
+      const sortedCollections = sortCollectionsByOrder(collections);
+      set({ collections: sortedCollections, isLoading: false });
+
+      // Preload fields for all collections
+      const fieldsPromises = collections.map(async (collection) => {
+        try {
+          const fieldsResponse = await collectionsApi.getFields(collection.id);
+          if (!fieldsResponse.error && fieldsResponse.data) {
+            return { collectionId: collection.id, fields: fieldsResponse.data };
+          }
+          return { collectionId: collection.id, fields: [] };
+        } catch (error) {
+          console.error(`Failed to load fields for collection ${collection.id}:`, error);
+          return { collectionId: collection.id, fields: [] };
+        }
+      });
+
+      const fieldsResults = await Promise.all(fieldsPromises);
+      const fieldsMap: Record<string, CollectionField[]> = {};
+
+      fieldsResults.forEach(({ collectionId, fields }) => {
+        fieldsMap[collectionId] = fields;
+      });
+
+      set((state) => ({
+        fields: {
+          ...state.fields,
+          ...fieldsMap,
+        },
+      }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load collections';
       set({ error: errorMessage, isLoading: false });
@@ -156,18 +187,36 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         ];
 
         // Create all built-in fields
+        const createdFields: CollectionField[] = [];
         for (const field of builtInFields) {
-          await collectionsApi.createField(newCollection.id, field);
+          const fieldResponse = await collectionsApi.createField(newCollection.id, field);
+          if (!fieldResponse.error && fieldResponse.data) {
+            createdFields.push(fieldResponse.data);
+          }
+        }
+
+        // Load created fields into store
+        if (createdFields.length > 0) {
+          set(state => ({
+            fields: {
+              ...state.fields,
+              [newCollection.id]: createdFields,
+            },
+          }));
         }
       } catch (fieldError) {
         console.error('Failed to create built-in fields:', fieldError);
         // Continue anyway - collection was created successfully
       }
 
-      set(state => ({
-        collections: [...state.collections, newCollection],
-        isLoading: false,
-      }));
+      set(state => {
+        const updatedCollections = [...state.collections, newCollection];
+        const sortedCollections = sortCollectionsByOrder(updatedCollections);
+        return {
+          collections: sortedCollections,
+          isLoading: false,
+        };
+      });
 
       return newCollection;
     } catch (error) {
@@ -189,10 +238,14 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
       const updated = response.data!;
 
-      set(state => ({
-        collections: state.collections.map(c => c.id === id ? updated : c),
-        isLoading: false,
-      }));
+      set(state => {
+        const updatedCollections = state.collections.map(c => c.id === id ? updated : c);
+        const sortedCollections = sortCollectionsByOrder(updatedCollections);
+        return {
+          collections: sortedCollections,
+          isLoading: false,
+        };
+      });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update collection';
       set({ error: errorMessage, isLoading: false });
@@ -212,15 +265,16 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
       set(state => {
         const remainingCollections = state.collections.filter(c => c.id !== id);
+        const sortedCollections = sortCollectionsByOrder(remainingCollections);
         const wasSelected = state.selectedCollectionId === id;
 
         // If the deleted collection was selected, select the first remaining collection
-        const newSelectedId = wasSelected && remainingCollections.length > 0
-          ? remainingCollections[0].id
+        const newSelectedId = wasSelected && sortedCollections.length > 0
+          ? sortedCollections[0].id
           : (state.selectedCollectionId === id ? null : state.selectedCollectionId);
 
         return {
-          collections: remainingCollections,
+          collections: sortedCollections,
           selectedCollectionId: newSelectedId,
           isLoading: false,
         };
@@ -533,11 +587,15 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
     try {
       // Optimistically update the collection sorting
-      set(state => ({
-        collections: state.collections.map(c =>
+      set(state => {
+        const updatedCollections = state.collections.map(c =>
           c.id === collectionId ? { ...c, sorting } : c
-        ),
-      }));
+        );
+        const sortedCollections = sortCollectionsByOrder(updatedCollections);
+        return {
+          collections: sortedCollections,
+        };
+      });
 
       const response = await collectionsApi.update(collectionId, { sorting });
 

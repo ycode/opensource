@@ -15,7 +15,7 @@ export async function up(knex: Knex): Promise<void> {
     table.uuid('id').defaultTo(knex.raw('gen_random_uuid()'));
     table.string('name', 255).notNullable();
     table.jsonb('sorting').nullable();
-    table.integer('order').nullable();
+    table.integer('order').notNullable().defaultTo(0);
     table.boolean('is_published').notNullable().defaultTo(false);
     table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('updated_at', { useTz: true }).defaultTo(knex.fn.now());

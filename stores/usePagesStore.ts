@@ -1213,7 +1213,17 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     });
 
     try {
-      const response = await pagesApi.create(pageData);
+      // Sanitize pageData for API call: filter out temporary folder IDs
+      // Temporary IDs start with "temp-" and can't be inserted as UUIDs
+      // Keep original pageData for optimistic update, but use sanitized version for API
+      const sanitizedPageData = {
+        ...pageData,
+        page_folder_id: pageData.page_folder_id && pageData.page_folder_id.startsWith('temp-')
+          ? null
+          : pageData.page_folder_id,
+      };
+
+      const response = await pagesApi.create(sanitizedPageData);
 
       if (response.error) {
         console.error('[usePagesStore.createPage] Error:', response.error);
@@ -1393,6 +1403,11 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const originalPage = pages.find(p => p.id === pageId);
     if (!originalPage) {
       return { success: false, error: 'Page not found' };
+    }
+
+    // Dynamic pages cannot be duplicated
+    if (originalPage.is_dynamic) {
+      return { success: false, error: 'Dynamic pages cannot be duplicated' };
     }
 
     // Generate temporary ID for optimistic update
@@ -1632,10 +1647,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       set({ isLoading: false });
 
       // Determine next page to select if current was deleted
+      // Filter out error pages - they should not be selected
+      const regularPages = updatedPages.filter(p => p.error_page === null);
       let nextPageId: string | null = null;
-      if (isCurrentPage && updatedPages.length > 0) {
-        const homePage = findHomepage(updatedPages);
-        nextPageId = (homePage || updatedPages[0]).id;
+      if (isCurrentPage && regularPages.length > 0) {
+        const homePage = findHomepage(regularPages);
+        nextPageId = (homePage || regularPages[0]).id;
       }
 
       return {
@@ -1663,7 +1680,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     // Generate temporary ID for optimistic update
     const tempId = `temp-folder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const tempPublishKey = `temp-${Date.now()}`;
 
     // Create temporary folder object
     const tempFolder: PageFolder = {
@@ -1697,13 +1713,40 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
       if (response.data) {
         // Replace temp folder with real one from database
-        const { folders: currentFolders } = get();
+        const { folders: currentFolders, pages: currentPages } = get();
         const updatedFolders = currentFolders.map(f => f.id === tempId ? response.data! : f);
 
-        set({
-          folders: updatedFolders,
-          isLoading: false
-        });
+        // Update any pages that were created with the temp folder ID
+        // Find pages that reference the temp folder ID and update them to use the real folder ID
+        const pagesToUpdate = currentPages.filter(p => p.page_folder_id === tempId);
+
+        if (pagesToUpdate.length > 0) {
+          // Update pages optimistically
+          const updatedPages = currentPages.map(p =>
+            p.page_folder_id === tempId ? { ...p, page_folder_id: response.data!.id } : p
+          );
+
+          // Update pages in database
+          const updatePromises = pagesToUpdate.map(page =>
+            pagesApi.update(page.id, { page_folder_id: response.data!.id })
+          );
+
+          // Don't await - let it happen in background
+          Promise.all(updatePromises).catch(error => {
+            console.error('[usePagesStore.createFolder] Error updating pages with new folder ID:', error);
+          });
+
+          set({
+            folders: updatedFolders,
+            pages: updatedPages,
+            isLoading: false
+          });
+        } else {
+          set({
+            folders: updatedFolders,
+            isLoading: false
+          });
+        }
 
         return { success: true, data: response.data, tempId };
       }
@@ -2075,10 +2118,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       set({ isLoading: false });
 
       // Determine next page to select if current was affected
+      // Filter out error pages - they should not be selected
+      const regularPages = updatedPages.filter(p => p.error_page === null);
       let nextPageId: string | null = null;
-      if (isCurrentPageAffected && updatedPages.length > 0) {
-        const homePage = findHomepage(updatedPages);
-        nextPageId = (homePage || updatedPages[0]).id;
+      if (isCurrentPageAffected && regularPages.length > 0) {
+        const homePage = findHomepage(regularPages);
+        nextPageId = (homePage || regularPages[0]).id;
       }
 
       return {

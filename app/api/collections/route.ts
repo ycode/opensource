@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     const collection = await createCollection({
       name: body.name,
       sorting: body.sorting || null,
-      order: body.order || null,
+      order: body.order ?? 0,
       is_published: false, // Always create as draft
     });
     

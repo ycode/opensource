@@ -290,25 +290,27 @@ async function transferIndexPage(
 /**
  * Validate index page constraints
  * - Index pages must have empty slug
- * - Non-index pages must have non-empty slug (unless they're error pages)
+ * - Non-index pages must have non-empty slug (unless they're error pages or dynamic pages)
  * - Error pages can have empty slugs regardless of is_index status
+ * - Dynamic pages use "*" as slug placeholder
  * - Root folder (page_folder_id = null) must always have an index page
  * - Homepage (root index page) cannot be moved to another folder
  */
 async function validateIndexPageConstraints(
   client: any,
-  pageData: { is_index?: boolean; slug: string; page_folder_id?: string | null; error_page?: number | null },
+  pageData: { is_index?: boolean; slug: string; page_folder_id?: string | null; error_page?: number | null; is_dynamic?: boolean },
   excludePageId?: string,
-  currentPageData?: { is_index: boolean; page_folder_id: string | null }
+  currentPageData?: { is_index: boolean; page_folder_id: string | null; is_dynamic?: boolean }
 ): Promise<void> {
   // Rule 1: Index pages must have empty slug
   if (pageData.is_index && pageData.slug.trim() !== '') {
     throw new Error('Index pages must have an empty slug');
   }
 
-  // Rule 2: Non-index, non-error pages must have non-empty slug
+  // Rule 2: Non-index, non-error, non-dynamic pages must have non-empty slug
   const isErrorPage = pageData.error_page !== null && pageData.error_page !== undefined;
-  if (!pageData.is_index && !isErrorPage && pageData.slug.trim() === '') {
+  const isDynamicPage = pageData.is_dynamic === true;
+  if (!pageData.is_index && !isErrorPage && !isDynamicPage && pageData.slug.trim() === '') {
     throw new Error('Non-index pages must have a non-empty slug');
   }
 
@@ -361,6 +363,26 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
     throw new Error('Supabase not configured');
   }
 
+  // Check if trying to create a dynamic page in a folder that already has one
+  if (pageData.is_dynamic) {
+    const { data: existingDynamicPages, error: checkError } = await client
+      .from('pages')
+      .select('id, name')
+      .eq('is_dynamic', true)
+      .eq('page_folder_id', pageData.page_folder_id)
+      .eq('is_published', pageData.is_published || false)
+      .is('deleted_at', null);
+
+    if (checkError) {
+      throw new Error(`Failed to check for existing dynamic pages: ${checkError.message}`);
+    }
+
+    if (existingDynamicPages && existingDynamicPages.length > 0) {
+      const folderName = pageData.page_folder_id ? 'this folder' : 'the root folder';
+      throw new Error(`A dynamic page already exists in ${folderName}. Each folder can only contain one dynamic page.`);
+    }
+  }
+
   // Validate index page constraints (no current page data for new pages)
   await validateIndexPageConstraints(
     client,
@@ -369,6 +391,7 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
       slug: pageData.slug,
       page_folder_id: pageData.page_folder_id,
       error_page: pageData.error_page,
+      is_dynamic: pageData.is_dynamic || false,
     },
     undefined,
     undefined
@@ -434,7 +457,34 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
     slug: updates.slug !== undefined ? updates.slug : currentPage.slug,
     page_folder_id: updates.page_folder_id !== undefined ? updates.page_folder_id : currentPage.page_folder_id,
     error_page: updates.error_page !== undefined ? updates.error_page : currentPage.error_page,
+    is_dynamic: updates.is_dynamic !== undefined ? updates.is_dynamic : currentPage.is_dynamic,
   };
+
+  // Check if trying to make a page dynamic or move a dynamic page to a folder that already has one
+  const targetFolderId = updates.page_folder_id !== undefined ? updates.page_folder_id : currentPage.page_folder_id;
+  const willBeDynamic = updates.is_dynamic !== undefined ? updates.is_dynamic : currentPage.is_dynamic;
+  const isBecomingDynamic = updates.is_dynamic === true && !currentPage.is_dynamic;
+  const isMovingDynamicPage = currentPage.is_dynamic && updates.page_folder_id !== undefined && updates.page_folder_id !== currentPage.page_folder_id;
+
+  if (willBeDynamic && (isBecomingDynamic || isMovingDynamicPage)) {
+    const { data: existingDynamicPages, error: checkError } = await client
+      .from('pages')
+      .select('id, name')
+      .eq('is_dynamic', true)
+      .eq('page_folder_id', targetFolderId)
+      .eq('is_published', currentPage.is_published)
+      .neq('id', id) // Exclude current page
+      .is('deleted_at', null);
+
+    if (checkError) {
+      throw new Error(`Failed to check for existing dynamic pages: ${checkError.message}`);
+    }
+
+    if (existingDynamicPages && existingDynamicPages.length > 0) {
+      const folderName = targetFolderId ? 'this folder' : 'the root folder';
+      throw new Error(`A dynamic page already exists in ${folderName}. Each folder can only contain one dynamic page.`);
+    }
+  }
 
   // Validate index page constraints if is_index or slug is being updated
   if (updates.is_index !== undefined || updates.slug !== undefined || updates.page_folder_id !== undefined) {
@@ -792,6 +842,11 @@ export async function duplicatePage(pageId: string): Promise<Page> {
   const originalPage = await getPageById(pageId);
   if (!originalPage) {
     throw new Error('Page not found');
+  }
+
+  // Dynamic pages cannot be duplicated
+  if (originalPage.is_dynamic) {
+    throw new Error('Dynamic pages cannot be duplicated');
   }
 
   const newName = `${originalPage.name} (Copy)`;

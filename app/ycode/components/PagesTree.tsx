@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
-import { buildPageTree, flattenPageTree, rebuildPageTree, getNodeIcon, type PageTreeNode, type FlattenedPageNode } from '@/lib/page-utils';
+import { buildPageTree, flattenPageTree, rebuildPageTree, getNodeIcon, isHomepage, type PageTreeNode, type FlattenedPageNode } from '@/lib/page-utils';
 import Icon from '@/components/ui/icon';
 import PageContextMenu from './PageContextMenu';
 import type { Page, PageFolder } from '@/types';
@@ -285,6 +285,7 @@ export default function PagesTree({
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | 'inside' | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [cursorOffsetY, setCursorOffsetY] = useState<number>(0);
+  const [isDropNotAllowed, setIsDropNotAllowed] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Build tree structure
@@ -376,6 +377,7 @@ export default function PagesTree({
       }
 
       setActiveId(draggedId);
+      setIsDropNotAllowed(false);
     },
     [isProcessing, flattenedNodes, onPageSelect, onFolderSelect]
   );
@@ -386,20 +388,42 @@ export default function PagesTree({
       const overId = event.over?.id as string | null;
 
       if (!overId || !event.over?.rect) {
+        setIsDropNotAllowed(false);
         setOverId(null);
         setDropPosition(null);
         return;
       }
 
+      const overNode = flattenedNodes.find((n) => n.id === overId);
+      const activeNode = activeId ? flattenedNodes.find((n) => n.id === activeId) : null;
+
       // Handle drop at the end of the list
       if (overId === 'end-drop-zone') {
+        // Check if dragging a dynamic page to root that already has one
+        if (activeNode && activeNode.type === 'page') {
+          const activePage = activeNode.data as Page;
+          if (activePage.is_dynamic) {
+            const rootHasDynamicPage = pages.some(
+              (p) =>
+                p.id !== activePage.id &&
+                p.is_dynamic &&
+                p.page_folder_id === null &&
+                p.is_published === activePage.is_published
+            );
+
+            if (rootHasDynamicPage) {
+              setIsDropNotAllowed(true);
+              setOverId(null);
+              setDropPosition(null);
+              return;
+            }
+          }
+        }
+        setIsDropNotAllowed(false);
         setOverId(overId);
         setDropPosition('below'); // Will be treated as "after last item"
         return;
       }
-
-      const overNode = flattenedNodes.find((n) => n.id === overId);
-      const activeNode = activeId ? flattenedNodes.find((n) => n.id === activeId) : null;
 
       if (!overNode) {
         setDropPosition(null);
@@ -456,6 +480,17 @@ export default function PagesTree({
       // Prevent showing drop indicator if moving an index page to a folder that already has one
       if (activeNode && activeNode.type === 'page') {
         const activePage = activeNode.data as Page;
+
+        // Prevent dragging homepage out of root folder
+        if (isHomepage(activePage)) {
+          if (targetParentId !== null) {
+            setIsDropNotAllowed(true);
+            setOverId(null);
+            setDropPosition(null);
+            return;
+          }
+        }
+
         if (activePage.is_index) {
           const targetFolderHasIndex = pages.some(
             (p) =>
@@ -466,6 +501,7 @@ export default function PagesTree({
 
           if (targetFolderHasIndex) {
             // Don't show drop indicator for invalid drop
+            setIsDropNotAllowed(true);
             setOverId(null);
             setDropPosition(null);
             return;
@@ -483,9 +519,28 @@ export default function PagesTree({
         );
 
         if (slugConflict) {
+          setIsDropNotAllowed(true);
           setOverId(null);
           setDropPosition(null);
           return;
+        }
+
+        // Check if moving a dynamic page into a folder that already contains a dynamic page
+        if (activePage.is_dynamic) {
+          const targetFolderHasDynamicPage = pages.some(
+            (p) =>
+              p.id !== activePage.id &&
+              p.is_dynamic &&
+              p.page_folder_id === targetParentId &&
+              p.is_published === activePage.is_published
+          );
+
+          if (targetFolderHasDynamicPage) {
+            setIsDropNotAllowed(true);
+            setOverId(null);
+            setDropPosition(null);
+            return;
+          }
         }
       }
 
@@ -501,12 +556,15 @@ export default function PagesTree({
         );
 
         if (slugConflict) {
+          setIsDropNotAllowed(true);
           setOverId(null);
           setDropPosition(null);
           return;
         }
       }
 
+      // Reset drop not allowed if we get here (valid drop)
+      setIsDropNotAllowed(false);
       setOverId(overId);
       setDropPosition(position);
     },
@@ -557,6 +615,30 @@ export default function PagesTree({
         // Place at root level (parentId = null), after the last root item
         const newParentId = null;
         const newOrder = lastRootItem.index + 1;
+
+        // Validate dynamic page constraint for end-drop-zone
+        if (activeNode.type === 'page') {
+          const activePage = activeNode.data as Page;
+          if (activePage.is_dynamic) {
+            const targetFolderHasDynamicPage = pages.some(
+              (p) =>
+                p.id !== activePage.id &&
+                p.is_dynamic &&
+                p.page_folder_id === newParentId &&
+                p.is_published === activePage.is_published
+            );
+
+            if (targetFolderHasDynamicPage) {
+              console.warn('Cannot move dynamic page: target folder already contains a dynamic page');
+              setActiveId(null);
+              setOverId(null);
+              setDropPosition(null);
+              setCursorOffsetY(0);
+              setIsProcessing(false);
+              return;
+            }
+          }
+        }
 
         // Rebuild tree with the item moved to the end
         const newTree = rebuildPageTree(
@@ -658,6 +740,21 @@ export default function PagesTree({
       // Prevent moving an index page to a folder that already has an index page
       if (activeNode.type === 'page') {
         const activePage = activeNode.data as Page;
+
+        // Prevent moving homepage out of root folder
+        if (isHomepage(activePage)) {
+          if (targetParentId !== null) {
+            console.warn('Cannot move homepage: homepage must remain in the root folder');
+            setActiveId(null);
+            setOverId(null);
+            setDropPosition(null);
+            setCursorOffsetY(0);
+            setIsDropNotAllowed(false);
+            setIsProcessing(false);
+            return;
+          }
+        }
+
         if (activePage.is_index) {
           // Check if target folder already has an index page (excluding the one being moved)
           const targetFolderHasIndex = pages.some(
@@ -696,6 +793,27 @@ export default function PagesTree({
           setCursorOffsetY(0);
           setIsProcessing(false);
           return;
+        }
+
+        // Prevent moving a dynamic page into a folder that already contains a dynamic page
+        if (activePage.is_dynamic) {
+          const targetFolderHasDynamicPage = pages.some(
+            (p) =>
+              p.id !== activePage.id &&
+              p.is_dynamic &&
+              p.page_folder_id === targetParentId &&
+              p.is_published === activePage.is_published
+          );
+
+          if (targetFolderHasDynamicPage) {
+            console.warn('Cannot move dynamic page: target folder already contains a dynamic page');
+            setActiveId(null);
+            setOverId(null);
+            setDropPosition(null);
+            setCursorOffsetY(0);
+            setIsProcessing(false);
+            return;
+          }
         }
       }
 
@@ -804,6 +922,7 @@ export default function PagesTree({
       setOverId(null);
       setDropPosition(null);
       setCursorOffsetY(0);
+      setIsDropNotAllowed(false);
 
       setTimeout(() => setIsProcessing(false), 0);
     },
@@ -816,6 +935,7 @@ export default function PagesTree({
     setOverId(null);
     setDropPosition(null);
     setCursorOffsetY(0);
+    setIsDropNotAllowed(false);
   }, []);
 
   // Handle expand/collapse toggle
@@ -842,6 +962,23 @@ export default function PagesTree({
     },
     [onPageSelect, onFolderSelect]
   );
+
+  // Update cursor style based on drop not allowed state
+  React.useEffect(() => {
+    if (isDropNotAllowed && activeId) {
+      document.body.style.cursor = 'not-allowed';
+    } else if (activeId) {
+      document.body.style.cursor = 'grabbing';
+    } else {
+      document.body.style.cursor = '';
+    }
+
+    return () => {
+      if (!activeId) {
+        document.body.style.cursor = '';
+      }
+    };
+  }, [isDropNotAllowed, activeId]);
 
   return (
     <DndContext

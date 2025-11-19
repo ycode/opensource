@@ -146,12 +146,12 @@ export default function PublishDialog({
       if (selectedItemIds.size > 0) {
         // Build a map of collection ID -> selected item IDs
         const collectionItemsMap = new Map<string, string[]>();
-        
+
         collectionsWithItems.forEach(({ collection, items }) => {
           const selectedItemsInCollection = items
             .filter(item => selectedItemIds.has(item.id))
             .map(item => item.id);
-          
+
           if (selectedItemsInCollection.length > 0) {
             collectionItemsMap.set(collection.id, selectedItemsInCollection);
           }

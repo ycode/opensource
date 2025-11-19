@@ -49,7 +49,8 @@ export function isHomepage(page: Page): boolean {
 export function buildSlugPath(
   item: Page | PageFolder | null,
   allFolders: PageFolder[],
-  itemType: 'page' | 'folder'
+  itemType: 'page' | 'folder',
+  slugFieldKey: string = '{slug}'
 ): string {
   if (!item) return '/';
 
@@ -69,8 +70,10 @@ export function buildSlugPath(
     slugParts.push((item as PageFolder).slug);
   } else if (itemType === 'page') {
     const page = item as Page;
-    // Index pages don't have their own slug, just the folder path
-    if (!page.is_index && page.slug) {
+
+    if (page.is_dynamic) {
+      slugParts.push(slugFieldKey);
+    } else if (!page.is_index && page.slug) {
       slugParts.push(page.slug);
     }
   }
@@ -200,7 +203,9 @@ export function getNodeIcon(node: FlattenedPageNode | PageTreeNode): IconProps['
  * Get icon name based on node type and data
  */
 export function getPageIcon(page: Page): IconProps['name'] {
-  return page.is_index ? 'homepage' : 'page';
+  if (page.is_index) return 'homepage';
+  if (page.is_dynamic) return 'dynamicPage';
+  return 'page';
 }
 
 /**
@@ -440,11 +445,31 @@ export function isDescendant(
  * Generate a URL-safe slug from a name
  * @example generateSlug('About Us') // 'about-us'
  */
-export function generateSlug(name: string): string {
-  return name
+/**
+ * Sanitize slug to only allow [a-z0-9-] characters
+ * Replaces invalid characters with "-" and removes consecutive dashes
+ * @param slug - The slug to sanitize
+ * @param allowTrailingDash - If true, allows trailing dashes (for real-time input). Defaults to false.
+ */
+export function sanitizeSlug(slug: string, allowTrailingDash: boolean = false): string {
+  let sanitized = slug
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
+    .replace(/[^a-z0-9-]/g, '-') // Replace invalid chars with dash
+    .replace(/-+/g, '-'); // Replace multiple consecutive dashes with single dash
+
+  // Remove leading dashes
+  sanitized = sanitized.replace(/^-+/, '');
+
+  // Remove trailing dashes only if not allowed (for final validation)
+  if (!allowTrailingDash) {
+    sanitized = sanitized.replace(/-+$/, '');
+  }
+
+  return sanitized;
+}
+
+export function generateSlug(name: string): string {
+  return sanitizeSlug(name);
 }
 
 /**

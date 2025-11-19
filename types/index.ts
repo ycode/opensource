@@ -222,6 +222,16 @@ export interface Layer {
   src?: string;     // For image layers (use url instead)
 }
 
+/**
+ * File object for storing file metadata
+ */
+export interface FileObject {
+  name: string; // Custom name or file basename
+  mime_type: string; // MIME type (e.g., 'image/png')
+  path: string; // Storage path
+  url: string; // Public URL
+}
+
 export interface Page {
   id: string;
   slug: string;
@@ -240,20 +250,10 @@ export interface Page {
   deleted_at: string | null; // Soft delete timestamp
 }
 
-/**
- * File object for storing file metadata
- */
-export interface FileObject {
-  name: string; // Custom name or file basename
-  mime_type: string; // MIME type (e.g., 'image/png')
-  path: string; // Storage path
-  url: string; // Public URL
-}
-
 export interface PageSettings {
   cms?: {
-    key: string;
-    source: string;
+    collection_id: string;
+    slug_field_id: string;
   };
   auth?: {
     enabled: boolean;
@@ -445,7 +445,7 @@ export interface Collection {
   updated_at: string;
   deleted_at: string | null;
   sorting: CollectionSorting | null;
-  order: number | null;
+  order: number;
   is_published: boolean;
   draft_items_count?: number;
 }

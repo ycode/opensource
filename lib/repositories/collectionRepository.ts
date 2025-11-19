@@ -20,14 +20,14 @@ export interface QueryFilters {
 export interface CreateCollectionData {
   name: string;
   sorting?: Record<string, any> | null;
-  order?: number | null;
+  order?: number;
   is_published?: boolean;
 }
 
 export interface UpdateCollectionData {
   name?: string;
   sorting?: Record<string, any> | null;
-  order?: number | null;
+  order?: number;
 }
 
 /**
@@ -171,6 +171,7 @@ export async function createCollection(collectionData: CreateCollectionData): Pr
     .insert({
       id,
       ...collectionData,
+      order: collectionData.order ?? 0,
       is_published: isPublished,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
