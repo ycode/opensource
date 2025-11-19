@@ -34,6 +34,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import Icon from '@/components/ui/icon';
 import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug, sanitizeSlug } from '@/lib/page-utils';
 import { isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
@@ -140,6 +141,31 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
   const isErrorPage = useMemo(() => currentPage?.error_page !== null, [currentPage]);
   const isDynamicPage = useMemo(() => currentPage?.is_dynamic === true, [currentPage]);
+
+  // Check if there's a URL conflict warning: dynamic page + non-index pages in same folder
+  const urlConflictWarning = useMemo(() => {
+    if (!currentPage) return null;
+
+    const targetFolderId = pageFolderId !== undefined ? pageFolderId : currentPage.page_folder_id;
+    const currentPageIsPublished = currentPage?.is_published || false;
+
+    // Check if there are non-index pages in this folder
+    const hasNonIndexPages = pages.some(
+      (p) =>
+        p.page_folder_id === targetFolderId &&
+        !p.is_index &&
+        !p.is_dynamic &&
+        !p.error_page &&
+        p.is_published === currentPageIsPublished &&
+        p.id !== currentPage?.id
+    );
+
+    if (isDynamicPage && hasNonIndexPages) {
+      return 'The parent folder contains regular pages with custom slugs which could conflict with CMS slugs (regular pages would be displayed in priority).';
+    }
+
+    return null;
+  }, [currentPage, pageFolderId, pages, isDynamicPage]);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!initialValuesRef.current) return false;
@@ -871,6 +897,11 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
             )}
 
             <TabsContent value="general">
+              {urlConflictWarning && (
+                <Alert variant="warning" className="mb-4">
+                  <AlertDescription>{urlConflictWarning}</AlertDescription>
+                </Alert>
+              )}
               <FieldGroup>
                 <FieldSet>
                   <FieldGroup>

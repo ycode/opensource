@@ -22,6 +22,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 
 // 6. Utils
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
@@ -42,6 +43,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 
 type ViewportMode = 'desktop' | 'tablet' | 'mobile';
 
@@ -72,9 +81,12 @@ export default function CenterCanvas({
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(new Set());
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { draftsByPageId, addLayer, updateLayer, pages, folders } = usePagesStore();
-  const { setSelectedLayerId, activeUIState, editingComponentId, setCurrentPageId, returnToPageId } = useEditorStore();
+  const { setSelectedLayerId, activeUIState, editingComponentId, setCurrentPageId, returnToPageId, currentPageCollectionItemId, setCurrentPageCollectionItemId } = useEditorStore();
+  const { getDropdownItems } = useCollectionsStore();
   const components = useComponentsStore((state) => state.components);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
+  const [collectionItems, setCollectionItems] = useState<Array<{ id: string; label: string }>>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
 
   const layers = useMemo(() => {
     // If editing a component, show component layers
@@ -149,6 +161,38 @@ export default function CenterCanvas({
     };
     return getNodeIcon(node);
   }, [currentPage]);
+
+  // Get collection ID from current page if it's dynamic
+  const collectionId = useMemo(() => {
+    if (!currentPage?.is_dynamic) return null;
+    return currentPage.settings?.cms?.collection_id || null;
+  }, [currentPage]);
+
+  // Load collection items when dynamic page is selected
+  useEffect(() => {
+    if (!collectionId || !currentPage?.is_dynamic) {
+      setCollectionItems([]);
+      return;
+    }
+
+    const loadItems = async () => {
+      setIsLoadingItems(true);
+      try {
+        const itemsWithLabels = await getDropdownItems(collectionId);
+        setCollectionItems(itemsWithLabels);
+        // Auto-select first item if none selected
+        if (!currentPageCollectionItemId && itemsWithLabels.length > 0) {
+          setCurrentPageCollectionItemId(itemsWithLabels[0].id);
+        }
+      } catch (error) {
+        console.error('Failed to load collection items:', error);
+      } finally {
+        setIsLoadingItems(false);
+      }
+    };
+
+    loadItems();
+  }, [collectionId, currentPage?.is_dynamic, currentPageCollectionItemId, setCurrentPageCollectionItemId, getDropdownItems]);
 
   // Get return page for component edit mode
   const returnToPage = useMemo(() => {
@@ -233,7 +277,7 @@ export default function CenterCanvas({
             }
           }}
           className={cn(
-            "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-xs outline-hidden select-none data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+            "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-pointer items-center gap-1.25 rounded-sm py-1.5 pr-8 pl-2 text-xs outline-hidden select-none data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
             isCurrentPage && 'bg-secondary/50'
           )}
           style={{ paddingLeft: `${depth * 14 + 8}px` }}
@@ -248,23 +292,23 @@ export default function CenterCanvas({
                 }
               }}
               className={cn(
-                'w-4 h-4 flex items-center justify-center flex-shrink-0',
+                'size-3 flex items-center justify-center flex-shrink-0',
                 isCollapsed ? '' : 'rotate-90'
               )}
             >
               <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isCurrentPage && 'opacity-80')} />
             </button>
           ) : (
-            <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+            <div className="size-3 flex-shrink-0 flex items-center justify-center">
               <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-0', isCurrentPage && 'opacity-0')} />
             </div>
           )}
 
-          {/*/!* Icon *!/*/}
-          {/*<Icon*/}
-          {/*  name={getNodeIcon(node)}*/}
-          {/*  className={cn('size-3 ml-1 mr-2', isCurrentPage ? 'opacity-90' : 'opacity-50')}*/}
-          {/*/>*/}
+          {/* Icon */}
+          <Icon
+            name={getNodeIcon(node)}
+            className={cn('size-3 mr-0.5', isCurrentPage ? 'opacity-90' : 'opacity-50')}
+          />
 
           {/* Label */}
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
@@ -410,49 +454,80 @@ export default function CenterCanvas({
             Back to {returnToPage.name}
           </Button>
         ) : (
-          <div className="w-40 *:w-full">
-          <Popover open={pagePopoverOpen} onOpenChange={setPagePopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="input"
-                size="sm"
-                role="combobox"
-                aria-expanded={pagePopoverOpen}
-                className="w-full justify-between"
-              >
-                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                  <Icon name={currentPageIcon} className="size-3 opacity-50 shrink-0" />
-                  <span className="truncate">
-                    {currentPageName}
-                  </span>
-                </div>
-                <div className="shrink-0">
-                  <Icon name="chevronCombo" className="!size-2.5 shrink-0 opacity-50" />
-                </div>
-              </Button>
-            </PopoverTrigger>
-
-            <PopoverContent className="w-auto min-w-58 max-w-96 p-1" align="start">
-              <div className="max-h-[400px] overflow-y-auto">
-                {/* Regular pages tree */}
-                {pageTree.length > 0 && pageTree.map(node => renderPageTreeNode(node, 0))}
-
-                {/* Separator before error pages */}
-                <Separator className="my-1" />
-
-                {/* Virtual "Error pages" folder */}
-                {errorPagesNode && renderPageTreeNode(errorPagesNode, 0)}
-
-                {/* Empty state - only show if no pages at all */}
-                {pageTree.length === 0 && !errorPagesNode && (
-                  <div className="text-sm text-muted-foreground text-center py-4">
-                    No pages found
+          <div className="flex items-center gap-1.5">
+            <Popover open={pagePopoverOpen} onOpenChange={setPagePopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="input"
+                  size="sm"
+                  role="combobox"
+                  aria-expanded={pagePopoverOpen}
+                  className="w-40 justify-between"
+                >
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <Icon name={currentPageIcon} className="size-3 opacity-50 shrink-0" />
+                    <span className="truncate">
+                      {currentPageName}
+                    </span>
                   </div>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
+                  <div className="shrink-0">
+                    <Icon name="chevronCombo" className="!size-2.5 shrink-0 opacity-50" />
+                  </div>
+                </Button>
+              </PopoverTrigger>
+
+              <PopoverContent className="w-auto min-w-60 max-w-96 p-1" align="start">
+                <div className="max-h-[400px] overflow-y-auto">
+                  {/* Regular pages tree */}
+                  {pageTree.length > 0 && pageTree.map(node => renderPageTreeNode(node, 0))}
+
+                  {/* Separator before error pages */}
+                  <Separator className="my-1" />
+
+                  {/* Virtual "Error pages" folder */}
+                  {errorPagesNode && renderPageTreeNode(errorPagesNode, 0)}
+
+                  {/* Empty state - only show if no pages at all */}
+                  {pageTree.length === 0 && !errorPagesNode && (
+                    <div className="text-sm text-muted-foreground text-center py-4">
+                      No pages found
+                    </div>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Collection item selector for dynamic pages */}
+            {currentPage?.is_dynamic && collectionId && (
+              <Select
+                value={currentPageCollectionItemId || ''}
+                onValueChange={setCurrentPageCollectionItemId}
+                disabled={isLoadingItems || collectionItems.length === 0}
+              >
+                <SelectTrigger className="" size="sm">
+                  {isLoadingItems ? (
+                    <Spinner className="size-3" />
+                  ) : (
+                    <Icon name="database" className="size-3" />
+                  )}
+                </SelectTrigger>
+
+                <SelectContent>
+                  {collectionItems.length > 0 ? (
+                    collectionItems.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.label}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      No items available
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         )}
 
         {/* Viewport Controls */}

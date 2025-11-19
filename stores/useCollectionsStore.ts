@@ -51,6 +51,7 @@ interface CollectionsActions {
   // Items
   loadItems: (collectionId: string, page?: number, limit?: number) => Promise<void>;
   loadPublishedItems: (collectionId: string) => Promise<void>;
+  getDropdownItems: (collectionId: string) => Promise<Array<{ id: string; label: string }>>;
   createItem: (collectionId: string, values: Record<string, any>) => Promise<CollectionItemWithValues>;
   updateItem: (collectionId: string, itemId: string, values: Record<string, any>) => Promise<void>;
   deleteItem: (collectionId: string, itemId: string) => Promise<void>;
@@ -120,6 +121,44 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         fields: {
           ...state.fields,
           ...fieldsMap,
+        },
+      }));
+
+      // Preload 20 items per collection
+      const itemsPromises = collections.map(async (collection) => {
+        try {
+          const itemsResponse = await collectionsApi.getItems(collection.id, { page: 1, limit: 20 });
+          if (!itemsResponse.error && itemsResponse.data) {
+            return {
+              collectionId: collection.id,
+              items: itemsResponse.data.items || [],
+              total: itemsResponse.data.total || 0,
+            };
+          }
+          return { collectionId: collection.id, items: [], total: 0 };
+        } catch (error) {
+          console.error(`Failed to preload items for collection ${collection.id}:`, error);
+          return { collectionId: collection.id, items: [], total: 0 };
+        }
+      });
+
+      const itemsResults = await Promise.all(itemsPromises);
+      const itemsMap: Record<string, CollectionItemWithValues[]> = {};
+      const itemsTotalCountMap: Record<string, number> = {};
+
+      itemsResults.forEach(({ collectionId, items, total }) => {
+        itemsMap[collectionId] = items;
+        itemsTotalCountMap[collectionId] = total;
+      });
+
+      set((state) => ({
+        items: {
+          ...state.items,
+          ...itemsMap,
+        },
+        itemsTotalCount: {
+          ...state.itemsTotalCount,
+          ...itemsTotalCountMap,
         },
       }));
     } catch (error) {
@@ -654,6 +693,57 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   // Utility
   clearError: () => {
     set({ error: null });
+  },
+
+  getDropdownItems: async (collectionId: string) => {
+    try {
+      // Check if items are already loaded in store (from preload or previous load)
+      const state = get();
+      let items = state.items[collectionId];
+
+      // Only load items if not already in store
+      if (!items || items.length === 0) {
+        await get().loadItems(collectionId, 1, 20);
+        // Get updated state after loading
+        const updatedState = get();
+        items = updatedState.items[collectionId] || [];
+      }
+
+      // Fields are already loaded on builder init, so just use them from store
+      const collectionFields = state.fields[collectionId] || [];
+
+      // Find the name field (field with key = 'name')
+      const nameField = collectionFields.find(field => field.key === 'name');
+
+      if (!nameField) {
+        console.warn(`Name field not found for collection ${collectionId}. Available fields:`, collectionFields.map(f => ({ id: f.id, key: f.key, name: f.name })));
+      }
+
+      // Map items to { id, label } format
+      const itemsWithLabels = items.map(item => {
+        let label = `Item ${item.id.slice(0, 8)}`;
+
+        if (nameField) {
+          const nameValue = item.values?.[nameField.id];
+          if (nameValue !== null && nameValue !== undefined && String(nameValue).trim() !== '') {
+            label = String(nameValue);
+          } else {
+            // Debug: log when name value is missing
+            console.debug(`Item ${item.id} has no name value. Name field ID: ${nameField.id}, Available values:`, Object.keys(item.values || {}));
+          }
+        }
+
+        return {
+          id: item.id,
+          label,
+        };
+      });
+
+      return itemsWithLabels;
+    } catch (error) {
+      console.error('Failed to get dropdown items:', error);
+      return [];
+    }
   },
 
   // Publish
