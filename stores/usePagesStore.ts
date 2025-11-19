@@ -111,14 +111,19 @@ function reorderPagesAndFoldersTogether(
   pages: Page[],
   folders: PageFolder[]
 ): { pages: Page[]; folders: PageFolder[] } {
+  // Separate error/deleted pages (excluded from reordering but preserved in result)
+  const errorPages = pages.filter(p => p.error_page !== null);
+  const deletedPages = pages.filter(p => p.deleted_at !== null);
+  const regularPages = pages.filter(p => p.error_page === null && p.deleted_at === null);
+
   // Group items by parent_id AND depth (matching backend logic)
   const groupsByParentAndDepth = new Map<string, { pages: Page[]; folders: PageFolder[] }>();
 
   // Helper to create group key
   const getGroupKey = (parentId: string | null, depth: number) => `${parentId || 'root'}:${depth}`;
 
-  // Group pages
-  for (const page of pages) {
+  // Group regular pages (exclude error pages and deleted pages from reordering)
+  for (const page of regularPages) {
     const key = getGroupKey(page.page_folder_id, page.depth);
     if (!groupsByParentAndDepth.has(key)) {
       groupsByParentAndDepth.set(key, { pages: [], folders: [] });
@@ -126,8 +131,11 @@ function reorderPagesAndFoldersTogether(
     groupsByParentAndDepth.get(key)!.pages.push(page);
   }
 
-  // Group folders
+  // Group folders (exclude deleted folders from reordering)
   for (const folder of folders) {
+    if (folder.deleted_at !== null) {
+      continue;
+    }
     const key = getGroupKey(folder.page_folder_id, folder.depth);
     if (!groupsByParentAndDepth.has(key)) {
       groupsByParentAndDepth.set(key, { pages: [], folders: [] });
@@ -159,7 +167,10 @@ function reorderPagesAndFoldersTogether(
     });
   }
 
-  return { pages: reorderedPages, folders: reorderedFolders };
+  // Merge reordered pages with error pages and deleted pages (preserve them)
+  const allPages = [...reorderedPages, ...errorPages, ...deletedPages];
+
+  return { pages: allPages, folders: reorderedFolders };
 }
 
 function findLayerInTree(tree: Layer[], layerId: string): Layer | null {
@@ -1173,7 +1184,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   createPage: async (pageData) => {
-    const { pages, draftsByPageId } = get();
+    const { pages, folders, draftsByPageId } = get();
 
     // Generate temporary ID for optimistic update
     const tempId = `temp-page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -1204,9 +1215,95 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       deleted_at: null,
     };
 
+    // Check if inserting at specific order (siblings with order >= newOrder means inserting, not appending)
+    const newOrder = pageData.order || 0;
+    const hasSiblingsAfter = pages.some(p =>
+      p.page_folder_id === pageData.page_folder_id &&
+      p.depth === pageData.depth &&
+      p.order >= newOrder &&
+      p.error_page === null && // Exclude error pages
+      p.deleted_at === null // Exclude deleted pages
+    ) || folders.some(f =>
+      f.page_folder_id === pageData.page_folder_id &&
+      f.depth === pageData.depth &&
+      f.order >= newOrder &&
+      f.deleted_at === null // Exclude deleted folders
+    );
+
+    // Optimistic update: Increment orders of siblings that come after, then insert new page at correct position
+    let updatedPages = pages;
+    let updatedFolders = folders;
+
+    if (hasSiblingsAfter) {
+      // Increment order for siblings that come after (exclude error pages and deleted items)
+      updatedPages = pages.map(p => {
+        if (
+          p.page_folder_id === pageData.page_folder_id &&
+          p.depth === pageData.depth &&
+          p.order >= newOrder &&
+          p.error_page === null && // Exclude error pages
+          p.deleted_at === null // Exclude deleted pages
+        ) {
+          return { ...p, order: p.order + 1 };
+        }
+        return p;
+      });
+
+      updatedFolders = folders.map(f => {
+        if (
+          f.page_folder_id === pageData.page_folder_id &&
+          f.depth === pageData.depth &&
+          f.order >= newOrder &&
+          f.deleted_at === null // Exclude deleted folders
+        ) {
+          return { ...f, order: f.order + 1 };
+        }
+        return f;
+      });
+    }
+
+    // Insert new page at correct position: find first page sibling with order > newOrder (after incrementing)
+    const siblingPages = updatedPages.filter(p =>
+      p.page_folder_id === pageData.page_folder_id &&
+      p.depth === pageData.depth &&
+      p.error_page === null &&
+      p.deleted_at === null
+    );
+
+    // Sort sibling pages by order to find insertion point
+    const sortedSiblingPages = [...siblingPages].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    // Find the first page sibling with order > newOrder (this is where we insert before)
+    const nextPageSibling = sortedSiblingPages.find(p => (p.order || 0) > newOrder);
+
+    if (nextPageSibling) {
+      // Insert before the next page sibling
+      const nextPageIndex = updatedPages.findIndex(p => p.id === nextPageSibling.id);
+      updatedPages = [
+        ...updatedPages.slice(0, nextPageIndex),
+        tempPage,
+        ...updatedPages.slice(nextPageIndex),
+      ];
+    } else {
+      // No next page sibling - insert after the last page sibling with order <= newOrder
+      const lastPageSibling = [...sortedSiblingPages].reverse().find(p => (p.order || 0) <= newOrder);
+      if (lastPageSibling) {
+        const lastPageIndex = updatedPages.findIndex(p => p.id === lastPageSibling.id);
+        updatedPages = [
+          ...updatedPages.slice(0, lastPageIndex + 1),
+          tempPage,
+          ...updatedPages.slice(lastPageIndex + 1),
+        ];
+      } else {
+        // No page siblings in this folder, just append
+        updatedPages = [...updatedPages, tempPage];
+      }
+    }
+
     // Optimistic update: Add to UI immediately
     set({
-      pages: [...pages, tempPage],
+      pages: updatedPages,
+      folders: updatedFolders,
       draftsByPageId: { ...draftsByPageId, [tempId]: tempDraft },
       isLoading: true,
       error: null
@@ -1435,12 +1532,14 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     // Optimistic update: Increment order for all siblings that come after the original
     // This matches the backend behavior
+    // Exclude error pages from order updates
     const updatedPages = pages.map(p => {
       // If it's a sibling (same parent and depth) with order >= newOrder, increment its order
       if (
         p.page_folder_id === originalPage.page_folder_id &&
         p.depth === originalPage.depth &&
-        p.order >= newOrder
+        p.order >= newOrder &&
+        p.error_page === null // Exclude error pages
       ) {
         return { ...p, order: p.order + 1 };
       }
@@ -1676,7 +1775,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   createFolder: async (folderData) => {
-    const { folders } = get();
+    const { folders, pages } = get();
 
     // Generate temporary ID for optimistic update
     const tempId = `temp-folder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -1690,9 +1789,58 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       deleted_at: null,
     };
 
+    // If inserting at a specific order (not max + 1), increment sibling orders
+    // Check if there are siblings with order >= newOrder (means we're inserting, not appending)
+    const newOrder = folderData.order || 0;
+    const hasSiblingsAfter = pages.some(p =>
+      p.page_folder_id === folderData.page_folder_id &&
+      p.depth === folderData.depth &&
+      p.order >= newOrder &&
+      p.error_page === null // Exclude error pages
+    ) || folders.some(f =>
+      f.page_folder_id === folderData.page_folder_id &&
+      f.depth === folderData.depth &&
+      f.order >= newOrder
+    );
+
+    // Optimistic update: Increment orders of siblings that come after, then add new folder
+    let updatedPages = pages;
+    let updatedFolders = folders;
+
+    if (hasSiblingsAfter) {
+      // Increment order for all siblings (pages and folders) that come after
+      // Exclude error pages from order updates
+      updatedPages = pages.map(p => {
+        if (
+          p.page_folder_id === folderData.page_folder_id &&
+          p.depth === folderData.depth &&
+          p.order >= newOrder &&
+          p.error_page === null // Exclude error pages
+        ) {
+          return { ...p, order: p.order + 1 };
+        }
+        return p;
+      });
+
+      updatedFolders = folders.map(f => {
+        if (
+          f.page_folder_id === folderData.page_folder_id &&
+          f.depth === folderData.depth &&
+          f.order >= newOrder
+        ) {
+          return { ...f, order: f.order + 1 };
+        }
+        return f;
+      });
+    }
+
+    // Add new folder to the list
+    updatedFolders = [...updatedFolders, tempFolder];
+
     // Optimistic update: Add to UI immediately
     set({
-      folders: [...folders, tempFolder],
+      folders: updatedFolders,
+      pages: updatedPages,
       isLoading: true,
       error: null
     });
@@ -1716,28 +1864,41 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         const { folders: currentFolders, pages: currentPages } = get();
         const updatedFolders = currentFolders.map(f => f.id === tempId ? response.data! : f);
 
-        // Update any pages that were created with the temp folder ID
-        // Find pages that reference the temp folder ID and update them to use the real folder ID
+        // Update any pages and folders that were created with the temp folder ID
+        // Find pages and folders that reference the temp folder ID and update them to use the real folder ID
         const pagesToUpdate = currentPages.filter(p => p.page_folder_id === tempId);
+        const foldersToUpdate = currentFolders.filter(f => f.page_folder_id === tempId && f.id !== response.data!.id);
 
-        if (pagesToUpdate.length > 0) {
+        if (pagesToUpdate.length > 0 || foldersToUpdate.length > 0) {
           // Update pages optimistically
           const updatedPages = currentPages.map(p =>
             p.page_folder_id === tempId ? { ...p, page_folder_id: response.data!.id } : p
           );
 
-          // Update pages in database
-          const updatePromises = pagesToUpdate.map(page =>
-            pagesApi.update(page.id, { page_folder_id: response.data!.id })
+          // Update folders optimistically
+          const updatedFoldersWithChildren = updatedFolders.map(f =>
+            f.page_folder_id === tempId && f.id !== response.data!.id
+              ? { ...f, page_folder_id: response.data!.id }
+              : f
           );
+
+          // Update pages and folders in database
+          const updatePromises = [
+            ...pagesToUpdate.map(page =>
+              pagesApi.update(page.id, { page_folder_id: response.data!.id })
+            ),
+            ...foldersToUpdate.map(folder =>
+              foldersApi.update(folder.id, { page_folder_id: response.data!.id })
+            ),
+          ];
 
           // Don't await - let it happen in background
           Promise.all(updatePromises).catch(error => {
-            console.error('[usePagesStore.createFolder] Error updating pages with new folder ID:', error);
+            console.error('[usePagesStore.createFolder] Error updating children with new folder ID:', error);
           });
 
           set({
-            folders: updatedFolders,
+            folders: updatedFoldersWithChildren,
             pages: updatedPages,
             isLoading: false
           });

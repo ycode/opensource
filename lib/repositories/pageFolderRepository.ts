@@ -310,7 +310,8 @@ export async function reorderSiblings(parentId: string | null, depth: number): P
     .select('id, order')
     .eq('depth', depth)
     .eq('is_published', false)
-    .is('deleted_at', null);
+    .is('deleted_at', null)
+    .is('error_page', null);
 
   if (parentId === null) {
     pagesQuery = pagesQuery.is('page_folder_id', null);
@@ -346,39 +347,42 @@ export async function reorderSiblings(parentId: string | null, depth: number): P
     }
   });
 
-  // Apply updates (drafts only)
+  // Apply updates using batch CASE statements for efficiency (drafts only)
   if (folderUpdates.length > 0) {
-    const folderPromises = folderUpdates.map(({ id, order }) =>
-      client
-        .from('page_folders')
-        .update({ order })
-        .eq('id', id)
-        .eq('is_published', false)
-        .is('deleted_at', null)
-    );
+    const { getKnexClient } = await import('../knex-client');
+    const knex = await getKnexClient();
 
-    const folderResults = await Promise.all(folderPromises);
-    const folderErrors = folderResults.filter(r => r.error);
-    if (folderErrors.length > 0) {
-      throw new Error(`Failed to reorder folders: ${folderErrors[0].error?.message}`);
-    }
+    const caseStatements = folderUpdates.map(() => 'WHEN id = ? THEN ?').join(' ');
+    const values = folderUpdates.flatMap(u => [u.id, u.order]);
+    const idPlaceholders = folderUpdates.map(() => '?').join(', ');
+
+    await knex.raw(`
+      UPDATE page_folders
+      SET "order" = CASE ${caseStatements} END,
+          updated_at = NOW()
+      WHERE id IN (${idPlaceholders})
+        AND is_published = false
+        AND deleted_at IS NULL
+    `, [...values, ...folderUpdates.map(u => u.id)]);
   }
 
   if (pageUpdates.length > 0) {
-    const pagePromises = pageUpdates.map(({ id, order }) =>
-      client
-        .from('pages')
-        .update({ order })
-        .eq('id', id)
-        .eq('is_published', false)
-        .is('deleted_at', null)
-    );
+    const { getKnexClient } = await import('../knex-client');
+    const knex = await getKnexClient();
 
-    const pageResults = await Promise.all(pagePromises);
-    const pageErrors = pageResults.filter(r => r.error);
-    if (pageErrors.length > 0) {
-      throw new Error(`Failed to reorder pages: ${pageErrors[0].error?.message}`);
-    }
+    const caseStatements = pageUpdates.map(() => 'WHEN id = ? THEN ?').join(' ');
+    const values = pageUpdates.flatMap(u => [u.id, u.order]);
+    const idPlaceholders = pageUpdates.map(() => '?').join(', ');
+
+    await knex.raw(`
+      UPDATE pages
+      SET "order" = CASE ${caseStatements} END,
+          updated_at = NOW()
+      WHERE id IN (${idPlaceholders})
+        AND is_published = false
+        AND deleted_at IS NULL
+        AND error_page IS NULL
+    `, [...values, ...pageUpdates.map(u => u.id)]);
   }
 }
 
@@ -704,27 +708,26 @@ export async function getPageFolderBySlug(slug: string, filters?: QueryFilters):
  * @param updates - Array of { id, order } objects
  */
 export async function reorderFolders(updates: Array<{ id: string; order: number }>): Promise<void> {
-  const client = await getSupabaseAdmin();
-
-  if (!client) {
-    throw new Error('Supabase not configured');
+  if (updates.length === 0) {
+    return;
   }
 
-  // Update each folder's order (drafts only)
-  const promises = updates.map(({ id, order }) =>
-    client
-      .from('page_folders')
-      .update({ order })
-      .eq('id', id)
-      .eq('is_published', false)
-  );
+  const { getKnexClient } = await import('../knex-client');
+  const knex = await getKnexClient();
 
-  const results = await Promise.all(promises);
+  // Batch update using CASE statement for efficiency (drafts only)
+  const caseStatements = updates.map(() => 'WHEN id = ? THEN ?').join(' ');
+  const values = updates.flatMap(u => [u.id, u.order]);
+  const idPlaceholders = updates.map(() => '?').join(', ');
 
-  const errors = results.filter(r => r.error);
-  if (errors.length > 0) {
-    throw new Error(`Failed to reorder folders: ${errors[0].error?.message}`);
-  }
+  await knex.raw(`
+    UPDATE page_folders
+    SET "order" = CASE ${caseStatements} END,
+        updated_at = NOW()
+    WHERE id IN (${idPlaceholders})
+      AND is_published = false
+      AND deleted_at IS NULL
+  `, [...values, ...updates.map(u => u.id)]);
 }
 
 /**

@@ -238,10 +238,32 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       return;
     }
 
-    // If we just saved, skip unsaved changes check (state updates are async)
+    // If we just saved, accept the page update and sync initial values from the new page data
     if (skipNextInitializationRef.current) {
       setCurrentPage(page);
       rejectedPageRef.current = null;
+      // Sync initial values from the updated page to ensure they match what was saved
+      if (page && initialValuesRef.current) {
+        const settings = page.settings as PageSettings | undefined;
+        const isPageErrorPage = page.error_page !== null;
+        const isPageDynamic = page.is_dynamic === true;
+        const isPageIndex = isPageDynamic ? false : page.is_index;
+
+        initialValuesRef.current.name = page.name;
+        initialValuesRef.current.slug = isPageErrorPage || isPageIndex ? '' : (isPageDynamic ? '*' : page.slug || '');
+        initialValuesRef.current.pageFolderId = page.page_folder_id;
+        initialValuesRef.current.isIndex = isPageIndex;
+        initialValuesRef.current.seoTitle = settings?.seo?.title || '';
+        initialValuesRef.current.seoDescription = settings?.seo?.description || '';
+        initialValuesRef.current.seoImageId = settings?.seo?.image || null;
+        initialValuesRef.current.seoNoindex = isPageErrorPage ? true : (settings?.seo?.noindex || false);
+        initialValuesRef.current.customCodeHead = settings?.custom_code?.head || '';
+        initialValuesRef.current.customCodeBody = settings?.custom_code?.body || '';
+        initialValuesRef.current.authEnabled = settings?.auth?.enabled || false;
+        initialValuesRef.current.authPassword = settings?.auth?.password || '';
+        initialValuesRef.current.collectionId = settings?.cms?.collection_id || null;
+        initialValuesRef.current.slugFieldId = settings?.cms?.slug_field_id || null;
+      }
       return;
     }
 
@@ -767,12 +789,11 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
           head: customCodeHead.trim(),
           body: customCodeBody.trim(),
         },
-        ...(collectionId && slugFieldId ? {
-          cms: {
-            collection_id: collectionId,
-            slug_field_id: slugFieldId,
-          },
-        } : {}),
+        // Explicitly set or clear cms property
+        cms: collectionId && slugFieldId ? {
+          collection_id: collectionId,
+          slug_field_id: slugFieldId,
+        } : undefined,
       };
 
       // Sanitize slug and remove trailing dashes before saving
@@ -811,8 +832,11 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setCustomCodeHead(trimmedCustomCodeHead);
       setCustomCodeBody(trimmedCustomCodeBody);
       setAuthPassword(trimmedAuthPassword);
-      setCollectionId(collectionId);
-      setSlugFieldId(slugFieldId);
+      // Update collection values - normalize to null if either is missing
+      const savedCollectionId = collectionId && slugFieldId ? collectionId : null;
+      const savedSlugFieldId = collectionId && slugFieldId ? slugFieldId : null;
+      setCollectionId(savedCollectionId);
+      setSlugFieldId(savedSlugFieldId);
 
       initialValuesRef.current = {
         name: trimmedName,
@@ -827,8 +851,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         customCodeBody: trimmedCustomCodeBody,
         authEnabled,
         authPassword: trimmedAuthPassword,
-        collectionId: collectionId,
-        slugFieldId: slugFieldId,
+        collectionId: savedCollectionId,
+        slugFieldId: savedSlugFieldId,
       };
 
       rejectedPageRef.current = null;

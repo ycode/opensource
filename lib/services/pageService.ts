@@ -60,6 +60,7 @@ export async function incrementSiblingOrders(
 
   try {
     // Update pages - single query to increment all matching rows
+    // Exclude error pages (error_page IS NULL)
     if (parentFolderId === null) {
       await knex.raw(`
         UPDATE pages
@@ -68,6 +69,7 @@ export async function incrementSiblingOrders(
           AND depth = ?
           AND page_folder_id IS NULL
           AND deleted_at IS NULL
+          AND error_page IS NULL
       `, [startOrder, depth]);
     } else {
       await knex.raw(`
@@ -77,6 +79,7 @@ export async function incrementSiblingOrders(
           AND depth = ?
           AND page_folder_id = ?
           AND deleted_at IS NULL
+          AND error_page IS NULL
       `, [startOrder, depth, parentFolderId]);
     }
 

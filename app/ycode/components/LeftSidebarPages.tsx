@@ -102,8 +102,8 @@ export default function LeftSidebarPages({
     const pageNumber = getNextNumberFromNames(pagesInFolder, 'Page');
     const newPageName = `Page ${pageNumber}`;
 
-    // Calculate order: find max order at the target level
-    const newOrder = calculateNextOrder(parentFolderId, newDepth, pages, folders);
+    // Calculate order: insert right after selected item if it's a page, otherwise append to end
+    const newOrder = calculateNextOrder(parentFolderId, newDepth, pages, folders, selectedItemId);
 
     // Prepare settings object
     const settings: PageSettings = {};
@@ -158,19 +158,28 @@ export default function LeftSidebarPages({
     // Handle the result asynchronously
     createPromise.then(result => {
       if (result.success && result.data && result.tempId) {
-        // Update selection to use real ID if temp was selected
+        // Update selection to use real ID (the temp page should already be selected)
         if (selectedItemIdRef.current === result.tempId) {
           setSelectedItemId(result.data.id);
+          selectedItemIdRef.current = result.data.id;
         }
       } else if (result.error) {
         console.error('Error creating page:', result.error);
       }
     });
 
-    // Immediately select the new page from store (will have temp ID initially)
-    const tempPage = usePagesStore.getState().pages[usePagesStore.getState().pages.length - 1];
+    // Select new page from store (optimistic update is synchronous - find temp page matching order/parentFolderId)
+    const storeState = usePagesStore.getState();
+    const tempPage = storeState.pages.find(p =>
+      p.id.startsWith('temp-page-') &&
+      p.page_folder_id === parentFolderId &&
+      p.depth === newDepth &&
+      p.order === newOrder
+    );
+
     if (tempPage) {
       setSelectedItemId(tempPage.id);
+      selectedItemIdRef.current = tempPage.id;
     }
   };
 
@@ -183,8 +192,8 @@ export default function LeftSidebarPages({
     const folderNumber = getNextNumberFromNames(foldersInParent, 'Folder');
     const newFolderName = `Folder ${folderNumber}`;
 
-    // Calculate order: find max order at the target level
-    const newOrder = calculateNextOrder(parentFolderId, newDepth, pages, folders);
+    // Calculate order: insert right after selected item if it's a page, otherwise append to end
+    const newOrder = calculateNextOrder(parentFolderId, newDepth, pages, folders, selectedItemId);
 
     // Generate unique slug for the new folder
     const newFolderSlug = generateUniqueFolderSlug(newFolderName, folders, parentFolderId);

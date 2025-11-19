@@ -47,11 +47,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create folder
+    // Sanitize page_folder_id: filter out temp IDs (can't be UUIDs) - treat as root, will update when parent is saved
+    const sanitizedParentFolderId = page_folder_id && page_folder_id.startsWith('temp-')
+      ? null
+      : page_folder_id;
+
+    // Increment sibling orders if inserting (safe to call when appending - only updates order >= startOrder)
+    const { incrementSiblingOrders } = await import('@/lib/services/pageService');
+    await incrementSiblingOrders(order, depth, sanitizedParentFolderId);
+
+    // Create folder (use sanitized parent folder ID)
     const folder = await createPageFolder({
       name,
       slug,
-      page_folder_id,
+      page_folder_id: sanitizedParentFolderId,
       depth,
       order,
       settings,

@@ -611,19 +611,56 @@ export function getParentContextFromSelection(
 }
 
 /**
- * Calculate the next order value for a new item (max order of siblings + 1)
+ * Calculate the next order value for a new item
+ * If selectedItemId is provided and it's a page, insert right after it
+ * Otherwise, use max order of siblings + 1 (append to end)
  */
 export function calculateNextOrder(
   parentFolderId: string | null,
   depth: number,
   pages: Page[],
-  folders: PageFolder[]
+  folders: PageFolder[],
+  selectedItemId?: string | null
 ): number {
-  const siblingPages = pages.filter(p => p.page_folder_id === parentFolderId && p.depth === depth);
-  const siblingFolders = folders.filter(f => f.page_folder_id === parentFolderId && f.depth === depth);
-  const maxPageOrder = siblingPages.length > 0 ? Math.max(...siblingPages.map(p => p.order || 0)) : -1;
-  const maxFolderOrder = siblingFolders.length > 0 ? Math.max(...siblingFolders.map(f => f.order || 0)) : -1;
-  return Math.max(maxPageOrder, maxFolderOrder) + 1;
+  // If a page is selected, insert right after it
+  if (selectedItemId) {
+    const selectedPage = pages.find(p => p.id === selectedItemId);
+    if (
+      selectedPage &&
+      selectedPage.page_folder_id === parentFolderId &&
+      selectedPage.depth === depth &&
+      selectedPage.deleted_at === null // Don't use deleted pages as reference
+    ) {
+      // Insert right after the selected page
+      return (selectedPage.order || 0) + 1;
+    }
+  }
+
+  // Append to end: find max order across pages and folders (exclude error pages and deleted items)
+  const siblingPages = pages.filter(p =>
+    p.page_folder_id === parentFolderId &&
+    p.depth === depth &&
+    p.error_page === null && // Exclude error pages
+    p.deleted_at === null // Exclude deleted pages
+  );
+  const siblingFolders = folders.filter(f =>
+    f.page_folder_id === parentFolderId &&
+    f.depth === depth &&
+    f.deleted_at === null // Exclude deleted folders
+  );
+
+  // Combine all siblings and find the max order across both pages and folders
+  const allSiblings = [
+    ...siblingPages.map(p => ({ order: p.order || 0 })),
+    ...siblingFolders.map(f => ({ order: f.order || 0 })),
+  ];
+
+  if (allSiblings.length === 0) {
+    return 0; // First item in empty folder
+  }
+
+  const maxOrder = Math.max(...allSiblings.map(s => s.order));
+  return maxOrder + 1;
 }
 
 /**

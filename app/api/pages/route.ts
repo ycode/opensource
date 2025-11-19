@@ -134,6 +134,10 @@ export async function POST(request: NextRequest) {
       depth,
     });
 
+    // Increment sibling orders if inserting (safe to call when appending - only updates order >= startOrder)
+    const { incrementSiblingOrders } = await import('@/lib/services/pageService');
+    await incrementSiblingOrders(order, depth, page_folder_id);
+
     // Create page
     const page = await createPage({
       name,
