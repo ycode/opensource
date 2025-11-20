@@ -1,6 +1,8 @@
 import { getSupabaseAdmin } from '../supabase-server';
 import type { CollectionItem, CollectionItemWithValues } from '@/types';
 import { randomUUID } from 'crypto';
+import { getFieldsByCollectionId } from './collectionFieldRepository';
+import { getValuesByFieldId } from './collectionItemValueRepository';
 
 /**
  * Collection Item Repository
@@ -247,6 +249,54 @@ export async function getItemsWithValues(
   const filteredItems = itemsWithValues.filter((item): item is CollectionItemWithValues => item !== null);
 
   return { items: filteredItems, total };
+}
+
+/**
+ * Get the maximum ID value for the ID field in a collection
+ * @param collection_id - Collection UUID
+ * @param is_published - Filter for draft (false) or published (true) values. Defaults to false (draft).
+ * @returns The maximum numeric ID value, or 0 if no IDs exist
+ */
+export async function getMaxIdValue(
+  collection_id: string,
+  is_published: boolean = false
+): Promise<number> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  // Get all fields for the collection
+  const fields = await getFieldsByCollectionId(collection_id, is_published);
+
+  // Find the field with key = 'id'
+  const idField = fields.find(field => field.key === 'id');
+
+  if (!idField) {
+    // No ID field exists, return 0
+    return 0;
+  }
+
+  // Get all values for the ID field
+  const idValues = await getValuesByFieldId(idField.id, is_published);
+
+  if (idValues.length === 0) {
+    return 0;
+  }
+
+  // Parse all ID values as numbers and find the maximum
+  let maxId = 0;
+  for (const value of idValues) {
+    if (value.value) {
+      const numericId = parseInt(value.value, 10);
+      if (!isNaN(numericId) && numericId > maxId) {
+        maxId = numericId;
+      }
+    }
+  }
+
+  return maxId;
 }
 
 /**
