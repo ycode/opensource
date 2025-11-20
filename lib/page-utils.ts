@@ -82,6 +82,35 @@ export function buildSlugPath(
 }
 
 /**
+ * Build the full URL path for a dynamic page with a specific collection item slug
+ * Replaces the {slug} placeholder with the actual slug value from the collection item
+ *
+ * @param page - The dynamic page
+ * @param allFolders - Array of all folders
+ * @param collectionItemSlug - The slug value from the collection item's slug field
+ * @returns The full URL path with the slug value replaced, or the pattern path if slug is not provided
+ *
+ * @example
+ * buildDynamicPageUrl(dynamicPage, folders, 'my-item-slug') // "/products/my-item-slug"
+ * buildDynamicPageUrl(dynamicPage, folders, null) // "/products/{slug}"
+ */
+export function buildDynamicPageUrl(
+  page: Page,
+  allFolders: PageFolder[],
+  collectionItemSlug: string | null
+): string {
+  const patternPath = buildSlugPath(page, allFolders, 'page', '{slug}');
+
+  // If no slug value provided, return the pattern path
+  if (collectionItemSlug === null) {
+    return patternPath;
+  }
+
+  // Replace {slug} placeholder with the actual slug value
+  return patternPath.replace(/\{slug\}/g, collectionItemSlug);
+}
+
+/**
  * Build a hierarchical folder path string (e.g., "Products / Electronics / Phones")
  * Used for displaying folder paths in UI
  *

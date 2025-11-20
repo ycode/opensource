@@ -98,8 +98,10 @@ export async function getAllPages(filters?: QueryFilters): Promise<Page[]> {
 
 /**
  * Get page by ID
+ * @param id - Page ID
+ * @param isPublished - Get draft (false) or published (true) version. Defaults to false (draft).
  */
-export async function getPageById(id: string): Promise<Page | null> {
+export async function getPageById(id: string, isPublished: boolean = false): Promise<Page | null> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
@@ -110,6 +112,7 @@ export async function getPageById(id: string): Promise<Page | null> {
     .from('pages')
     .select('*')
     .eq('id', id)
+    .eq('is_published', isPublished)
     .is('deleted_at', null)
     .single();
 
@@ -445,8 +448,9 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
     throw new Error('Supabase not configured');
   }
 
-  // Get current page data to merge with updates for validation
-  const currentPage = await getPageById(id);
+  // Get current draft page data to merge with updates for validation
+  // Repository update functions always update draft versions (users edit drafts)
+  const currentPage = await getPageById(id, false);
   if (!currentPage) {
     throw new Error('Page not found');
   }
@@ -600,8 +604,9 @@ export async function deletePage(id: string): Promise<void> {
 
   const deletedAt = new Date().toISOString();
 
-  // Get the page before deletion to know its parent_id and depth
-  const pageToDelete = await getPageById(id);
+  // Get the draft page before deletion to know its parent_id and depth
+  // Repository delete functions always delete draft versions
+  const pageToDelete = await getPageById(id, false);
   if (!pageToDelete) {
     throw new Error('Page not found');
   }
@@ -766,35 +771,6 @@ export async function getPublishedPagesByIds(ids: string[]): Promise<Page[]> {
 }
 
 /**
- * Get published page by ID
- * Used to find the published version of a draft page
- */
-export async function getPublishedPageById(id: string): Promise<Page | null> {
-  const client = await getSupabaseAdmin();
-
-  if (!client) {
-    throw new Error('Supabase not configured');
-  }
-
-  const { data, error } = await client
-    .from('pages')
-    .select('*')
-    .eq('id', id)
-    .eq('is_published', true)
-    .is('deleted_at', null)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return null; // Not found
-    }
-    throw new Error(`Failed to fetch published page: ${error.message}`);
-  }
-
-  return data;
-}
-
-/**
  * Get all pages in a specific folder
  * @param folderId - Folder ID (null for root/unorganized pages)
  */
@@ -838,8 +814,8 @@ export async function duplicatePage(pageId: string): Promise<Page> {
     throw new Error('Supabase not configured');
   }
 
-  // Get the original page
-  const originalPage = await getPageById(pageId);
+  // Get the original draft page
+  const originalPage = await getPageById(pageId, false);
   if (!originalPage) {
     throw new Error('Page not found');
   }

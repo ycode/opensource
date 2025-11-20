@@ -28,7 +28,7 @@ import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { publishApi } from '@/lib/api';
-import { buildSlugPath } from '@/lib/page-utils';
+import { buildSlugPath, buildDynamicPageUrl } from '@/lib/page-utils';
 
 // 5. Types
 import type { Page } from '@/types';
@@ -144,27 +144,25 @@ export default function HeaderBar({
       return `/ycode/preview/error-pages/${currentPage.error_page}`;
     }
 
-    // For dynamic pages, replace {slug} with actual slug value if item is selected
-    let path = fullPagePath;
-    if (currentPage.is_dynamic && collectionItemSlug) {
-      path = path.replace(/\{slug\}/g, collectionItemSlug);
-    }
+    // For dynamic pages, use buildDynamicPageUrl to ensure slug value is always current
+    const path = currentPage.is_dynamic
+      ? buildDynamicPageUrl(currentPage, folders, collectionItemSlug)
+      : fullPagePath;
 
     return `/ycode/preview${path === '/' ? '' : path}`;
-  }, [currentPage, fullPagePath, collectionItemSlug]);
+  }, [currentPage, folders, fullPagePath, collectionItemSlug]);
 
   // Build published URL (for the link in the center)
   const publishedUrl = useMemo(() => {
     if (!currentPage) return '';
 
-    // For dynamic pages, replace {slug} with actual slug value if item is selected
-    let path = fullPagePath;
-    if (currentPage.is_dynamic && collectionItemSlug) {
-      path = path.replace(/\{slug\}/g, collectionItemSlug);
-    }
+    // For dynamic pages, use buildDynamicPageUrl to ensure slug value is always current
+    const path = currentPage.is_dynamic
+      ? buildDynamicPageUrl(currentPage, folders, collectionItemSlug)
+      : fullPagePath;
 
     return path === '/' ? '' : path;
-  }, [currentPage, fullPagePath, collectionItemSlug]);
+  }, [currentPage, folders, fullPagePath, collectionItemSlug]);
 
   // Apply theme to HTML element
   useEffect(() => {
