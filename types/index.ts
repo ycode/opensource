@@ -304,6 +304,21 @@ export interface PageFolder {
   deleted_at: string | null; // Soft delete timestamp
 }
 
+// Page/Folder Duplicate Operation Types
+export interface PageItemDuplicateMetadata {
+  tempId: string;
+  originalName: string;
+  parentFolderId: string | null;
+  expectedName: string;
+}
+
+export interface PageItemDuplicateResult<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  metadata?: PageItemDuplicateMetadata;
+}
+
 // Asset Types
 /**
  * Asset categories for validation

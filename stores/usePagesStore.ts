@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Layer, Page, PageLayers, PageFolder } from '../types';
+import type { Layer, Page, PageLayers, PageFolder, PageItemDuplicateResult } from '../types';
 import { pagesApi, pageLayersApi, foldersApi } from '../lib/api';
 import { getTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
@@ -19,46 +19,39 @@ interface PagesState {
 }
 
 interface PagesActions {
+  // State Setters
   setPages: (pages: Page[]) => void;
   setFolders: (folders: PageFolder[]) => void;
   setPagesAndDrafts: (pages: Page[], drafts: PageLayers[]) => void;
+  setError: (error: string | null) => void;
+
+  // Loading Operations
   loadPages: () => Promise<void>;
   loadFolders: () => Promise<void>;
   loadDraft: (pageId: string) => Promise<void>;
   loadAllDrafts: () => Promise<void>;
+
+  // Page CRUD Operations
   createPage: (pageData: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>) => Promise<{ success: boolean; data?: Page; error?: string; tempId?: string }>;
   updatePage: (pageId: string, updates: Partial<Page>) => Promise<{ success: boolean; error?: string }>;
-  duplicatePage: (pageId: string) => Promise<{
-    success: boolean;
-    data?: Page;
-    error?: string;
-    metadata?: {
-      tempId: string;
-      originalName: string;
-      parentFolderId: string | null;
-      expectedName: string;
-    };
-  }>;
+  duplicatePage: (pageId: string) => Promise<PageItemDuplicateResult<Page>>;
   deletePage: (pageId: string, currentPageId?: string | null) => Promise<{ success: boolean; error?: string; currentPageDeleted?: boolean; nextPageId?: string | null }>;
+
+  // Folder CRUD Operations
   createFolder: (folderData: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>) => Promise<{ success: boolean; data?: PageFolder; error?: string; tempId?: string }>;
   updateFolder: (folderId: string, updates: Partial<PageFolder>) => Promise<{ success: boolean; error?: string }>;
-  duplicateFolder: (folderId: string) => Promise<{
-    success: boolean;
-    data?: PageFolder;
-    error?: string;
-    metadata?: {
-      tempId: string;
-      originalName: string;
-      parentFolderId: string | null;
-      expectedName: string;
-    };
-  }>;
+  duplicateFolder: (folderId: string) => Promise<PageItemDuplicateResult<PageFolder>>;
   deleteFolder: (folderId: string, currentPageId?: string | null) => Promise<{ success: boolean; error?: string; currentPageAffected?: boolean; nextPageId?: string | null; deletedPageIds?: string[] }>;
+
+  // Page/Folder Operations
   batchReorderPagesAndFolders: (pages: Page[], folders: PageFolder[]) => Promise<{ success: boolean; error?: string }>;
+
+  // Draft Operations
   initDraft: (page: Page, initialLayers?: Layer[]) => void;
   updateLayerClasses: (pageId: string, layerId: string, classes: string) => void;
   saveDraft: (pageId: string) => Promise<void>;
-  setError: (error: string | null) => void;
+
+  // Layer Operations
   addLayer: (pageId: string, parentLayerId: string | null, layerType: Layer['type']) => void;
   addLayerFromTemplate: (pageId: string, parentLayerId: string | null, templateId: string) => { newLayerId: string; parentToExpand: string | null } | null;
   deleteLayer: (pageId: string, layerId: string) => void;
@@ -73,11 +66,11 @@ interface PagesActions {
   pasteAfter: (pageId: string, targetLayerId: string, layerToPaste: Layer) => void;
   pasteInside: (pageId: string, targetLayerId: string, layerToPaste: Layer) => void;
 
-  // Layer Style actions
+  // Layer Style Actions
   updateStyleOnLayers: (styleId: string, newClasses: string, newDesign?: Layer['design']) => void;
   detachStyleFromAllLayers: (styleId: string) => void;
 
-  // Component actions
+  // Component Actions
   createComponentFromLayer: (pageId: string, layerId: string, componentName: string) => Promise<string | null>;
   updateComponentOnLayers: (componentId: string, newLayers: Layer[]) => void;
   detachComponentFromAllLayers: (componentId: string) => void;
