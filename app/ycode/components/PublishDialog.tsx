@@ -387,11 +387,11 @@ export default function PublishDialog({
                         <div className="flex-1 flex items-start gap-2 p-3 -mx-3 hover:bg-secondary/50 rounded-lg">
                           <Checkbox
                             checked={selectedPageIds.has(page.id)}
-                            onChange={() => togglePage(page.id)}
+                            onCheckedChange={() => togglePage(page.id)}
                           />
-                          <div className="flex-1 flex items-center justify-between">
-                            <Label variant="muted">{page.name}</Label>
-                            <Label variant="muted" className="text-[10px]">/{page.slug}</Label>
+                          <div className="flex-1 flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{page.name}</span>
+                            <span className="text-[10px]">/{page.slug}</span>
                           </div>
                         </div>
                       </label>
@@ -445,13 +445,13 @@ export default function PublishDialog({
 
                                 <Checkbox
                                   checked={selectedItemIds.has(item.id)}
-                                  onChange={() => toggleItem(item.id)}
+                                  onCheckedChange={() => toggleItem(item.id)}
                                 />
 
-                                <div className="flex-1 flex items-center">
-                                  <Label variant="muted">{item.values.name || 'Untitled'}</Label>
+                                <div className="flex-1 flex items-center text-xs text-muted-foreground">
+                                  <span>{item.values.name || 'Untitled'}</span>
                                   {item.values.slug && (
-                                    <div className="text-xs text-muted-foreground">/{item.values.slug}</div>
+                                    <span className="text-xs text-muted-foreground ml-2">/{item.values.slug}</span>
                                   )}
                                 </div>
 
@@ -504,10 +504,10 @@ export default function PublishDialog({
                       >
                         <Checkbox
                           checked={selectedComponentIds.has(component.id)}
-                          onChange={() => toggleComponent(component.id)}
+                          onCheckedChange={() => toggleComponent(component.id)}
                         />
-                        <div className="flex-1">
-                          <Label variant="muted">{component.name}</Label>
+                        <div className="flex-1 text-xs text-muted-foreground">
+                          <span>{component.name}</span>
                         </div>
                       </label>
                     ))}
@@ -545,10 +545,10 @@ export default function PublishDialog({
                       >
                         <Checkbox
                           checked={selectedLayerStyleIds.has(style.id)}
-                          onChange={() => toggleLayerStyle(style.id)}
+                          onCheckedChange={() => toggleLayerStyle(style.id)}
                         />
-                        <div className="flex-1">
-                          <Label variant="muted">{style.name}</Label>
+                        <div className="flex-1 text-xs text-muted-foreground">
+                          <span>{style.name}</span>
                         </div>
                       </label>
                     ))}
