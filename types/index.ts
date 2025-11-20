@@ -98,6 +98,17 @@ export interface PositioningDesign {
   zIndex?: string;
 }
 
+export interface DesignProperties {
+  layout?: LayoutDesign;
+  typography?: TypographyDesign;
+  spacing?: SpacingDesign;
+  sizing?: SizingDesign;
+  borders?: BordersDesign;
+  backgrounds?: BackgroundsDesign;
+  effects?: EffectsDesign;
+  positioning?: PositioningDesign;
+}
+
 export interface LayerSettings {
   id?: string;           // Custom HTML ID attribute
   hidden?: boolean;      // Element visibility in canvas
@@ -119,16 +130,7 @@ export interface LayerStyle {
 
   // Style data
   classes: string;
-  design?: {
-    layout?: LayoutDesign;
-    typography?: TypographyDesign;
-    spacing?: SpacingDesign;
-    sizing?: SizingDesign;
-    borders?: BordersDesign;
-    backgrounds?: BackgroundsDesign;
-    effects?: EffectsDesign;
-    positioning?: PositioningDesign;
-  };
+  design?: DesignProperties;
 
   // Versioning fields
   content_hash?: string; // SHA-256 hash for change detection
@@ -163,7 +165,6 @@ export interface Layer {
   // Content
   text?: string; // Text content
   classes: string | string[]; // Tailwind CSS classes (support both formats)
-  style?: string; // Style preset name (legacy)
 
   // Children
   children?: Layer[];
@@ -173,16 +174,7 @@ export interface Layer {
   attributes?: Record<string, any>;
 
   // Design system (structured properties)
-  design?: {
-    layout?: LayoutDesign;
-    typography?: TypographyDesign;
-    spacing?: SpacingDesign;
-    sizing?: SizingDesign;
-    borders?: BordersDesign;
-    backgrounds?: BackgroundsDesign;
-    effects?: EffectsDesign;
-    positioning?: PositioningDesign;
-  };
+  design?: DesignProperties;
 
   // Settings (element-specific configuration)
   settings?: LayerSettings;
@@ -191,16 +183,7 @@ export interface Layer {
   styleId?: string; // Reference to applied LayerStyle
   styleOverrides?: {
     classes?: string;
-    design?: {
-      layout?: LayoutDesign;
-      typography?: TypographyDesign;
-      spacing?: SpacingDesign;
-      sizing?: SizingDesign;
-      borders?: BordersDesign;
-      backgrounds?: BackgroundsDesign;
-      effects?: EffectsDesign;
-      positioning?: PositioningDesign;
-    };
+    design?: DesignProperties;
   }; // Tracks local changes after style applied
 
   // Components (reusable layer trees)
@@ -218,18 +201,9 @@ export interface Layer {
   alt?: string;
 
   // Legacy properties
+  style?: string; // Style preset name (legacy)
   content?: string; // For text/heading layers (use text instead)
   src?: string;     // For image layers (use url instead)
-}
-
-/**
- * File object for storing file metadata
- */
-export interface FileObject {
-  name: string; // Custom name or file basename
-  mime_type: string; // MIME type (e.g., 'image/png')
-  path: string; // Storage path
-  url: string; // Public URL
 }
 
 export interface Page {
