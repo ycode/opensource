@@ -27,12 +27,14 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
-import { publishApi } from '@/lib/api';
+import { publishApi, pagesApi, collectionsApi, componentsApi, layerStylesApi, cacheApi } from '@/lib/api';
 import { buildSlugPath, buildDynamicPageUrl } from '@/lib/page-utils';
 
 // 5. Types
 import type { Page } from '@/types';
 import type { User } from '@supabase/supabase-js';
+import { Empty, EmptyContent, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import { Label } from '@/components/ui/label';
 
 interface HeaderBarProps {
   user: User | null;
@@ -85,6 +87,9 @@ export default function HeaderBar({
   const { folders } = usePagesStore();
   const { items } = useCollectionsStore();
   const [showPublishDialog, setShowPublishDialog] = useState(false);
+  const [showPublishPopover, setShowPublishPopover] = useState(false);
+  const [changesCount, setChangesCount] = useState(0);
+  const [isLoadingCount, setIsLoadingCount] = useState(false);
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme') as 'system' | 'light' | 'dark' | null;
@@ -197,6 +202,142 @@ export default function HeaderBar({
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showPageDropdown, setShowPageDropdown]);
+
+  // Load changes count when popover opens
+  useEffect(() => {
+    if (showPublishPopover) {
+      loadChangesCount();
+    }
+  }, [showPublishPopover]);
+
+  const loadChangesCount = async () => {
+    setIsLoadingCount(true);
+    try {
+      const [pagesResponse, collectionsResponse, componentsResponse, stylesResponse] = await Promise.all([
+        pagesApi.getUnpublished(),
+        collectionsApi.getAll(),
+        componentsApi.getUnpublished(),
+        layerStylesApi.getUnpublished(),
+      ]);
+
+      let count = 0;
+
+      // Count pages
+      if (pagesResponse.data) {
+        count += pagesResponse.data.length;
+      }
+
+      // Count collection items
+      if (collectionsResponse.data) {
+        for (const collection of collectionsResponse.data) {
+          const itemsResponse = await collectionsApi.getUnpublishedItems(collection.id);
+          if (itemsResponse.data) {
+            count += itemsResponse.data.length;
+          }
+        }
+      }
+
+      // Count components
+      if (componentsResponse.data) {
+        count += componentsResponse.data.length;
+      }
+
+      // Count layer styles
+      if (stylesResponse.data) {
+        count += stylesResponse.data.length;
+      }
+
+      setChangesCount(count);
+    } catch (error) {
+      console.error('Failed to load changes count:', error);
+      setChangesCount(0);
+    } finally {
+      setIsLoadingCount(false);
+    }
+  };
+
+  // Publish all changes directly
+  const handlePublishAll = async () => {
+    try {
+      setIsPublishing(true);
+
+      // Get all unpublished items
+      const [pagesResponse, collectionsResponse, componentsResponse, stylesResponse] = await Promise.all([
+        pagesApi.getUnpublished(),
+        collectionsApi.getAll(),
+        componentsApi.getUnpublished(),
+        layerStylesApi.getUnpublished(),
+      ]);
+
+      // Publish pages
+      if (pagesResponse.data && pagesResponse.data.length > 0) {
+        const pageIds = pagesResponse.data.map(p => p.id);
+        await pagesApi.publishPages(pageIds);
+      }
+
+      // Publish collections with all their unpublished items
+      if (collectionsResponse.data) {
+        const collectionPublishes = [];
+
+        for (const collection of collectionsResponse.data) {
+          const itemsResponse = await collectionsApi.getUnpublishedItems(collection.id);
+          if (itemsResponse.data && itemsResponse.data.length > 0) {
+            collectionPublishes.push({
+              collectionId: collection.id,
+              itemIds: itemsResponse.data.map(item => item.id),
+            });
+          }
+        }
+
+        if (collectionPublishes.length > 0) {
+          await collectionsApi.publishCollectionsWithItems(collectionPublishes);
+        }
+      }
+
+      // Publish components
+      if (componentsResponse.data && componentsResponse.data.length > 0) {
+        const componentIds = componentsResponse.data.map(c => c.id);
+        await componentsApi.publishComponents(componentIds);
+      }
+
+      // Publish layer styles
+      if (stylesResponse.data && stylesResponse.data.length > 0) {
+        const styleIds = stylesResponse.data.map(s => s.id);
+        await layerStylesApi.publishLayerStyles(styleIds);
+      }
+
+      // Copy draft CSS to published CSS
+      try {
+        const draftCssResponse = await fetch('/api/settings/draft_css');
+        if (draftCssResponse.ok) {
+          const draftCssResult = await draftCssResponse.json();
+          if (draftCssResult.data) {
+            await fetch('/api/settings/published_css', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ value: draftCssResult.data }),
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to publish CSS:', error);
+      }
+
+      // Clear cache
+      await cacheApi.clearAll();
+
+      // Success callback
+      onPublishSuccess();
+
+      // Close popover and refresh count
+      setShowPublishPopover(false);
+      await loadChangesCount();
+    } catch (error) {
+      console.error('Failed to publish all:', error);
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
   return (
     <header className="h-14 bg-background border-b grid grid-cols-3 items-center px-4">
@@ -328,30 +469,79 @@ export default function HeaderBar({
           Preview
         </Button>
 
-        {/* Publish button - purple in component edit mode */}
-        <Button
-          size="sm"
-          className={editingComponentId ? 'bg-purple-500 hover:bg-purple-600' : ''}
-          onClick={() => setShowPublishDialog(true)}
-        >
-          <Upload className="size-4 mr-1.5" />
-          Publish
-          {publishCount > 0 && (
-            <Badge variant="destructive" className="ml-2">
-              {publishCount}
-            </Badge>
-          )}
-        </Button>
+        <Popover open={showPublishPopover} onOpenChange={setShowPublishPopover}>
+          <PopoverTrigger asChild>
+            <Button size="sm">Publish</Button>
+          </PopoverTrigger>
+          <PopoverContent className="mr-4 mt-0.5">
 
-        {/* Publish Dialog */}
-        <PublishDialog
-          isOpen={showPublishDialog}
-          onClose={() => setShowPublishDialog(false)}
-          onSuccess={() => {
-            setShowPublishDialog(false);
-            onPublishSuccess();
-          }}
-        />
+            <div>
+              <Label>{baseUrl}</Label>
+              <span className="text-popover-foreground text-[10px]">Updated 5 minutes ago</span>
+            </div>
+
+            <hr className="my-3" />
+
+            <div className="flex items-center justify-between">
+
+              {/* Publish Dialog */}
+              <PublishDialog
+                isOpen={showPublishDialog}
+                onClose={() => setShowPublishDialog(false)}
+                onSuccess={() => {
+                  setShowPublishDialog(false);
+                  setShowPublishPopover(false);
+                  onPublishSuccess();
+                  loadChangesCount();
+                }}
+              />
+
+              <Label className="text-popover-foreground">
+                {isLoadingCount ? (
+                  <>
+                    <div className="flex items-center gap-1">
+                      <Spinner className="size-3" />
+                      Loading changes...
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {changesCount} {changesCount === 1 ? 'change' : 'changes'}
+                  </>
+                )}
+              </Label>
+
+              <Button
+                size="xs"
+                variant="ghost"
+                className="-my-1"
+                onClick={() => setShowPublishDialog(true)}
+              >
+                See changes
+              </Button>
+
+            </div>
+
+            <hr className="my-3" />
+
+            <Button
+              size="sm"
+              className="w-full"
+              onClick={handlePublishAll}
+              disabled={isPublishing}
+            >
+              {isPublishing ? (
+                <>
+                  <Spinner />
+                </>
+              ) : (
+                'Publish'
+              )}
+            </Button>
+
+          </PopoverContent>
+        </Popover>
+
       </div>
     </header>
   );
