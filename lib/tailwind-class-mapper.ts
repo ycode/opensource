@@ -1313,5 +1313,3 @@ export function setBreakpointClass(
 
   return newClasses;
 }
-
-

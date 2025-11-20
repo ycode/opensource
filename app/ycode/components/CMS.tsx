@@ -165,7 +165,7 @@ export default function CMS() {
       const urlSearch = urlState.search || '';
       const urlPage = urlState.page || 1;
       const urlPageSize = urlState.pageSize || 25;
-      
+
       if (prevCollectionIdRef.current !== selectedCollectionId) {
         // Collection changed - use URL state or reset
         setSearchQuery(urlSearch);
@@ -190,18 +190,18 @@ export default function CMS() {
   const updateUrlTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (!selectedCollectionId) return;
-    
+
     // Clear any pending updates
     if (updateUrlTimeoutRef.current) {
       clearTimeout(updateUrlTimeoutRef.current);
     }
-    
+
     // Debounce URL updates to prevent race conditions with URL sync
     updateUrlTimeoutRef.current = setTimeout(() => {
       const urlSearch = urlState.search || '';
       const urlPage = urlState.page || 1;
       const urlPageSize = urlState.pageSize || 25;
-      
+
       // Only update URL if local state is different from URL state
       if (searchQuery !== urlSearch || currentPage !== urlPage || pageSize !== urlPageSize) {
         navigateToCollection(
@@ -212,7 +212,7 @@ export default function CMS() {
         );
       }
     }, 100); // 100ms debounce
-    
+
     return () => {
       if (updateUrlTimeoutRef.current) {
         clearTimeout(updateUrlTimeoutRef.current);
@@ -229,14 +229,14 @@ export default function CMS() {
         const initialPage = urlState.page || 1;
         const initialSearch = urlState.search || '';
         const initialPageSize = urlState.pageSize || 25;
-        
+
         loadFields(selectedCollectionId);
         loadItems(selectedCollectionId, initialPage, initialPageSize);
-        
+
         // Clear selections when switching collections
         setSelectedItemIds(new Set());
         setFieldSearchQuery('');
-        
+
         // Update the ref to track current collection
         prevCollectionIdRef.current = selectedCollectionId;
       }
@@ -314,7 +314,7 @@ export default function CMS() {
       const defaults: Record<string, any> = {};
       collectionFields.forEach(field => {
         // Always set a value (use default or empty string) to avoid undefined
-        defaults[field.field_name] = field.default || '';
+        defaults[field.id] = field.default || '';
       });
       form.reset(defaults);
     }
@@ -340,7 +340,7 @@ export default function CMS() {
       setEditingItem(null);
       setShowItemSheet(true);
     } else if (urlState.itemId) {
-      const item = collectionItems.find(i => i.r_id === urlState.itemId);
+      const item = collectionItems.find(i => i.id === urlState.itemId);
       if (item) {
         setEditingItem(item);
         setShowItemSheet(true);
@@ -405,7 +405,7 @@ export default function CMS() {
       setEditingItem(item);
       setShowItemSheet(true);
       // Then navigate to update URL
-      navigateToCollectionItem(selectedCollectionId, item.r_id);
+      navigateToCollectionItem(selectedCollectionId, item.id);
     }
   };
 
@@ -431,25 +431,25 @@ export default function CMS() {
     }
   };
 
-  const handleColumnClick = async (fieldName: string) => {
+  const handleColumnClick = async (fieldId: string) => {
     if (!selectedCollectionId || !selectedCollection) return;
 
     const currentSorting = selectedCollection.sorting;
     let newSorting;
 
     // Cycle through: manual → asc → desc → manual
-    if (!currentSorting || currentSorting.field !== fieldName) {
+    if (!currentSorting || currentSorting.field !== fieldId) {
       // First click on this field - set to manual mode
-      newSorting = { field: fieldName, direction: 'manual' as const };
+      newSorting = { field: fieldId, direction: 'manual' as const };
     } else if (currentSorting.direction === 'manual') {
       // Second click - set to ASC
-      newSorting = { field: fieldName, direction: 'asc' as const };
+      newSorting = { field: fieldId, direction: 'asc' as const };
     } else if (currentSorting.direction === 'asc') {
       // Third click - set to DESC
-      newSorting = { field: fieldName, direction: 'desc' as const };
+      newSorting = { field: fieldId, direction: 'desc' as const };
     } else {
       // Fourth click - back to manual mode
-      newSorting = { field: fieldName, direction: 'manual' as const };
+      newSorting = { field: fieldId, direction: 'manual' as const };
     }
 
     try {
@@ -545,12 +545,11 @@ export default function CMS() {
     }
   };
 
-
   const handleDeleteField = async (fieldId: string) => {
     if (!selectedCollectionId) return;
 
     const field = collectionFields.find(f => f.id === fieldId);
-    if (field?.built_in) {
+    if (field?.key) {
       alert('Cannot delete built-in fields');
       return;
     }
@@ -592,7 +591,6 @@ export default function CMS() {
       // Store adds field to local state optimistically
       await createField(selectedCollectionId, {
         name: `${field.name} (Copy)`,
-        field_name: `${field.field_name}_copy`,
         type: field.type,
         default: field.default,
         fillable: field.fillable,
@@ -646,17 +644,15 @@ export default function CMS() {
 
     try {
       const newOrder = collectionFields.length;
-      const fieldName = data.name.toLowerCase().replace(/\s+/g, '_');
 
       // Store adds field to local state optimistically
       await createField(selectedCollectionId, {
         name: data.name,
-        field_name: fieldName,
         type: data.type,
         default: data.default || null,
         order: newOrder,
         fillable: true,
-        built_in: false,
+        key: null,
         hidden: false,
       });
 
@@ -755,8 +751,8 @@ export default function CMS() {
 
                 {collectionFields.filter(f => !f.hidden).map((field) => {
                   const sorting = selectedCollection?.sorting;
-                  const isActiveSort = sorting?.field === field.field_name;
-                  const sortIcon = isActiveSort ? (
+                  const isActiveSort = sorting?.field === field.id;
+                  const sortIcon = isActiveSort && sorting ? (
                     sorting.direction === 'manual' ? 'M' :
                       sorting.direction === 'asc' ? '↑' :
                         '↓'
@@ -766,7 +762,7 @@ export default function CMS() {
                     <th key={field.id} className="px-4 py-5 text-left font-normal">
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => handleColumnClick(field.field_name)}
+                          onClick={() => handleColumnClick(field.id)}
                           className="flex items-center gap-1 hover:opacity-50 cursor-pointer"
                         >
                           {field.name}
@@ -792,26 +788,26 @@ export default function CMS() {
                           <DropdownMenuContent align="start">
                             <DropdownMenuItem
                               onSelect={() => handleEditFieldClick(field)}
-                              disabled={field.built_in}
+                              disabled={!!field.key}
                             >
                               Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleDuplicateField(field.id)}
-                              disabled={field.built_in}
+                              disabled={!!field.key}
                             >
                               Duplicate
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleHideField(field.id)}
-                              disabled={field.field_name === 'name'}
+                              disabled={field.name.toLowerCase() === 'name'}
                             >
                               {field.hidden ? 'Show' : 'Hide'}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               onClick={() => handleDeleteField(field.id)}
-                              disabled={field.built_in}
+                              disabled={!!field.key}
                             >
                               Delete
                             </DropdownMenuItem>
@@ -865,7 +861,7 @@ export default function CMS() {
                       </div>
                     </td>
                     {collectionFields.filter(f => !f.hidden).map((field) => {
-                      const value = item.values[field.field_name];
+                      const value = item.values[field.id];
 
                       // Format date fields
                       if (field.type === 'date' && value) {
@@ -954,7 +950,6 @@ export default function CMS() {
           </InputGroup>
         </div>
 
-
         <div className="flex gap-2">
           {selectedItemIds.size > 0 && (
             <Button
@@ -1028,8 +1023,8 @@ export default function CMS() {
                 </div>
 
                 {/* Sheet for Create/Edit Item */}
-                <Sheet 
-                  open={showItemSheet} 
+                <Sheet
+                  open={showItemSheet}
                   onOpenChange={(open) => {
                     if (!open) {
                       // Optimistically close sheet immediately for smooth UX
@@ -1071,7 +1066,7 @@ export default function CMS() {
                               <FormField
                                 key={field.id}
                                 control={form.control}
-                                name={field.field_name}
+                                name={field.id}
                                 render={({ field: formField }) => (
                                   <FormItem>
                                     <FormLabel>{field.name}</FormLabel>

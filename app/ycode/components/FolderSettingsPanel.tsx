@@ -32,7 +32,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import Icon from '@/components/ui/icon';
-import { buildFolderPath, isDescendantFolder, generateUniqueFolderSlug } from '@/lib/page-utils';
+import { buildFolderPath, isDescendantFolder, generateUniqueFolderSlug, sanitizeSlug } from '@/lib/page-utils';
 
 export interface FolderSettingsPanelHandle {
   checkUnsavedChanges: () => Promise<boolean>;
@@ -345,7 +345,8 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
     }
 
     // Check for duplicate slug in the same parent folder
-    const trimmedSlug = slug.trim();
+    // Sanitize slug (remove trailing dashes) for comparison and saving
+    const trimmedSlug = sanitizeSlug(slug.trim(), false);
     const duplicateSlug = folders.find(
       (f) =>
         f.id !== currentFolder?.id && // Exclude current folder
@@ -470,7 +471,15 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
                     <Input
                       type="text"
                       value={slug}
-                      onChange={(e) => setSlug(e.target.value)}
+                      onChange={(e) => {
+                        const sanitized = sanitizeSlug(e.target.value, true); // Allow trailing dash during input
+                        setSlug(sanitized);
+                      }}
+                      onBlur={(e) => {
+                        // Remove trailing dashes on blur
+                        const sanitized = sanitizeSlug(e.target.value, false); // Remove trailing dashes
+                        setSlug(sanitized);
+                      }}
                       placeholder="index"
                     />
                   </Field>

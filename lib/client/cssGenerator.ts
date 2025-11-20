@@ -191,4 +191,3 @@ export async function generateAndSaveCSS(layers: Layer[]): Promise<string> {
   await saveCSS(css, 'draft_css');
   return css;
 }
-

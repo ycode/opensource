@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getItemsWithValues, createItem, getItemWithValues } from '@/lib/repositories/collectionItemRepository';
+import { getItemsWithValues, createItem, getItemWithValues, getMaxIdValue } from '@/lib/repositories/collectionItemRepository';
 import { setValuesByFieldName } from '@/lib/repositories/collectionItemValueRepository';
+import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -39,7 +40,7 @@ export async function GET(
     };
 
     // Always get draft items in the builder
-    const { items, total } = await getItemsWithValues(id, false, filters, false);
+    const { items, total } = await getItemsWithValues(id, false, filters);
 
     return noCache({
       data: {
@@ -77,33 +78,45 @@ export async function POST(
     // Create the item (draft)
     const item = await createItem({
       collection_id: id,
-      collection_is_published: false, // Draft collection
-      r_id: itemData.r_id,
       manual_order: itemData.manual_order ?? 0,
       is_published: false, // Always create as draft
     });
+    // Get all fields to map field keys to field IDs
+    const fields = await getFieldsByCollectionId(id, false);
 
-    // Calculate auto-incrementing ID based on item count
-    const { total } = await getItemsWithValues(id, false);
-    const autoIncrementId = total;
+    // Find field IDs for built-in fields
+    const idField = fields.find(f => f.key === 'id');
+    const createdAtField = fields.find(f => f.key === 'created_at');
+    const updatedAtField = fields.find(f => f.key === 'updated_at');
 
+    // Calculate auto-incrementing ID based on max ID value + 1
+    const maxId = await getMaxIdValue(id, false);
+    const autoIncrementId = maxId + 1;
     // Get current timestamp for created_at and updated_at
     const now = new Date().toISOString();
 
     // Set field values if provided, and add auto-generated fields
-    const valuesWithAutoFields = {
+    // Use field IDs (UUIDs) as keys, not field keys
+    const valuesWithAutoFields: Record<string, any> = {
       ...values,
-      id: autoIncrementId.toString(), // Auto-incrementing ID
-      created_at: now,
-      updated_at: now,
     };
+    // Set auto-incrementing ID if ID field exists
+    if (idField) {
+      valuesWithAutoFields[idField.id] = autoIncrementId.toString();
+    }
+
+    // Set timestamps if fields exist
+    if (createdAtField) {
+      valuesWithAutoFields[createdAtField.id] = now;
+    }
+    if (updatedAtField) {
+      valuesWithAutoFields[updatedAtField.id] = now;
+    }
 
     if (valuesWithAutoFields && typeof valuesWithAutoFields === 'object') {
       await setValuesByFieldName(
         item.id,
-        false, // Item is draft
         id,
-        false, // Collection is draft
         valuesWithAutoFields,
         {},
         false // Create draft values

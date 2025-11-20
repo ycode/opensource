@@ -50,4 +50,3 @@ export default function UIStateSelector({ selectedLayer }: UIStateSelectorProps)
     </div>
   );
 }
-

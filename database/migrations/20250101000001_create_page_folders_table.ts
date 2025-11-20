@@ -63,4 +63,3 @@ export async function down(knex: Knex): Promise<void> {
   // Drop table
   await knex.schema.dropTableIfExists('page_folders');
 }
-

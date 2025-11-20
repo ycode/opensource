@@ -74,9 +74,7 @@ export async function PUT(
       };
       await setValuesByFieldName(
         itemId,
-        false, // itemIsPublished (draft)
         collectionId,
-        false, // collectionIsPublished (draft)
         valuesWithUpdatedDate,
         {},
         false // is_published (draft)
@@ -120,4 +118,3 @@ export async function DELETE(
     );
   }
 }
-

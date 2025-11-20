@@ -90,4 +90,3 @@ export async function setSetting(key: string, value: any): Promise<Setting> {
 
   return data;
 }
-

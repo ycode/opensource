@@ -548,7 +548,6 @@ export default function LayersTree({
       return;
     }
 
-
     // CRITICAL: Prevent dropping outside Body layer
     // If hovering over Body itself, only allow "inside" drops
     if (overNode.id === 'body') {
@@ -632,7 +631,6 @@ export default function LayersTree({
       position = relativeY < 0.5 ? 'above' : 'below';
     }
 
-
     // CRITICAL: Prevent reordering within same parent from moving outside parent
     // If dragging an element within its own parent, "above/below" should only reorder
     // within that parent, not escape to the parent's parent level
@@ -694,7 +692,6 @@ export default function LayersTree({
         // Otherwise allow cross-container move - show indicator
       }
     }
-
 
     setOverId(overId);
     setDropPosition(position);

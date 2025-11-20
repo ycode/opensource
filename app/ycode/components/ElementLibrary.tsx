@@ -438,4 +438,3 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
     </div>
   );
 }
-

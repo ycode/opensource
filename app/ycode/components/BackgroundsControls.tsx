@@ -170,5 +170,3 @@ export default function BackgroundsControls({ layer, onLayerUpdate }: Background
     </div>
   );
 }
-
-

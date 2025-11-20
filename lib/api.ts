@@ -4,7 +4,7 @@
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting } from '../types';
+import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData } from '../types';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -309,7 +309,7 @@ export const collectionsApi = {
   async create(data: {
     name: string;
     sorting?: Record<string, any> | null;
-    order?: number | null;
+    order?: number;
   }): Promise<ApiResponse<Collection>> {
     return apiRequest<Collection>('/api/collections', {
       method: 'POST',
@@ -317,7 +317,7 @@ export const collectionsApi = {
     });
   },
 
-  async update(id: string, data: Partial<Collection>): Promise<ApiResponse<Collection>> {
+  async update(id: string, data: UpdateCollectionData): Promise<ApiResponse<Collection>> {
     return apiRequest<Collection>(`/api/collections/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -339,25 +339,14 @@ export const collectionsApi = {
     return apiRequest<CollectionField[]>(url);
   },
 
-  async createField(collectionId: string, data: {
-    name: string;
-    field_name: string;
-    type: 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
-    default?: string | null;
-    fillable?: boolean;
-    built_in?: boolean;
-    order?: number;
-    reference_collection_id?: string | null; // UUID
-    hidden?: boolean;
-    data?: Record<string, any>;
-  }): Promise<ApiResponse<CollectionField>> {
+  async createField(collectionId: string, data: Omit<CreateCollectionFieldData, 'collection_id' | 'is_published'>): Promise<ApiResponse<CollectionField>> {
     return apiRequest<CollectionField>(`/api/collections/${collectionId}/fields`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async updateField(collectionId: string, fieldId: string, data: Partial<CollectionField>): Promise<ApiResponse<CollectionField>> {
+  async updateField(collectionId: string, fieldId: string, data: UpdateCollectionFieldData): Promise<ApiResponse<CollectionField>> {
     return apiRequest<CollectionField>(`/api/collections/${collectionId}/fields/${fieldId}`, {
       method: 'PUT',
       body: JSON.stringify(data),

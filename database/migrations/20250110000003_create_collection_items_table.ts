@@ -2,68 +2,42 @@ import { Knex } from 'knex';
 
 /**
  * Migration: Create collection_items table
- * 
+ *
  * Individual collection entries (EAV "Entities").
  * Each row represents one item (e.g., a blog post, a category).
+ *
+ * Uses composite primary key (id, is_published) for draft/published workflow,
+ * same pattern as pages, components, and layer_styles tables.
  */
 export async function up(knex: Knex): Promise<void> {
-  // Check if table exists
-  const tableExists = await knex.schema.hasTable('collection_items');
-  
-  if (tableExists) {
-    console.log('⚠️  collection_items table already exists, skipping creation');
-    return;
-  }
-  
   // Create collection_items table
   await knex.schema.createTable('collection_items', (table) => {
-    table.bigIncrements('id').primary();
-    table.string('r_id', 255).notNullable();
-    table.string('status', 255).notNullable().defaultTo('draft');
-    table.bigInteger('collection_id').notNullable()
-      .references('id').inTable('collections').onDelete('CASCADE');
-    table.timestamp('created_at', { precision: 0 }).defaultTo(knex.fn.now());
-    table.timestamp('updated_at', { precision: 0 }).defaultTo(knex.fn.now());
-    table.timestamp('deleted_at', { precision: 0 }).nullable();
-    table.bigInteger('backup_id').nullable();
-    table.string('temp_id', 255).nullable();
-    table.boolean('is_promotable').notNullable().defaultTo(true);
+    table.uuid('id').defaultTo(knex.raw('gen_random_uuid()'));
+    table.uuid('collection_id').notNullable();
     table.bigInteger('manual_order').notNullable().defaultTo(0);
-    
+    table.boolean('is_published').notNullable().defaultTo(false);
+    table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
+    table.timestamp('updated_at', { useTz: true }).defaultTo(knex.fn.now());
+    table.timestamp('deleted_at', { useTz: true }).nullable();
+
+    // Composite primary key (id, is_published)
+    table.primary(['id', 'is_published']);
+
     // Indexes
-    table.index('collection_id', 'idx_collection_items_collection_id');
-    table.index('r_id', 'idx_collection_items_r_id');
-    table.index('status', 'idx_collection_items_status');
+    table.index('collection_id');
+    table.index('is_published');
   });
-  
-  // Add unique constraint on collection_id + r_id (excluding soft-deleted)
+
+  // Add composite foreign key to collections
   await knex.raw(`
-    CREATE UNIQUE INDEX idx_collection_items_unique_rid 
-    ON collection_items(collection_id, r_id) 
-    WHERE deleted_at IS NULL
+    ALTER TABLE collection_items
+    ADD CONSTRAINT collection_items_collection_fkey
+    FOREIGN KEY (collection_id, is_published)
+    REFERENCES collections(id, is_published)
+    ON DELETE CASCADE
   `);
-  
-  console.log('✅ Created collection_items table');
 }
 
 export async function down(knex: Knex): Promise<void> {
-  // Check if table exists
-  const tableExists = await knex.schema.hasTable('collection_items');
-  
-  if (!tableExists) {
-    console.log('⚠️  collection_items table does not exist, skipping drop');
-    return;
-  }
-  
-  // Drop collection_items table
-  await knex.schema.dropTable('collection_items');
-  
-  console.log('✅ Dropped collection_items table');
+  await knex.schema.dropTableIfExists('collection_items');
 }
-
-
-
-
-
-
-

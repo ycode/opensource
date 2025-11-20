@@ -33,6 +33,9 @@ export default function PageContextMenu({
   // Check if page is the homepage (homepage cannot be deleted)
   const isItemHomepage = nodeType === 'page' && isHomepage(item as Page);
 
+  // Check if page is dynamic (dynamic pages cannot be duplicated)
+  const isItemDynamic = nodeType === 'page' && (item as Page).is_dynamic;
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -80,7 +83,7 @@ export default function PageContextMenu({
         {(onDuplicate || onDelete) && <ContextMenuSeparator />}
 
         {onDuplicate && (
-          <ContextMenuItem onClick={onDuplicate}>
+          <ContextMenuItem onClick={onDuplicate} disabled={isItemDynamic}>
             <span>Duplicate</span>
           </ContextMenuItem>
         )}
@@ -94,4 +97,3 @@ export default function PageContextMenu({
     </ContextMenu>
   );
 }
-

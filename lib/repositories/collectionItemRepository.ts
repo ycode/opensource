@@ -1,7 +1,8 @@
 import { getSupabaseAdmin } from '../supabase-server';
 import type { CollectionItem, CollectionItemWithValues } from '@/types';
-import { generateRId } from '../collection-utils';
 import { randomUUID } from 'crypto';
+import { getFieldsByCollectionId } from './collectionFieldRepository';
+import { getValuesByFieldId } from './collectionItemValueRepository';
 
 /**
  * Collection Item Repository
@@ -11,7 +12,7 @@ import { randomUUID } from 'crypto';
  * Uses Supabase/PostgreSQL via admin client.
  *
  * NOTE: Uses composite primary key (id, is_published) architecture.
- * References parent collections using composite FK (collection_id, collection_is_published).
+ * References parent collections using FK (collection_id).
  */
 
 export interface QueryFilters {
@@ -22,27 +23,24 @@ export interface QueryFilters {
 }
 
 export interface CreateCollectionItemData {
-  r_id?: string;
   collection_id: string; // UUID
-  collection_is_published?: boolean; // Defaults to false (draft)
   manual_order?: number;
   is_published?: boolean;
 }
 
 export interface UpdateCollectionItemData {
-  r_id?: string;
   manual_order?: number;
 }
 
 /**
  * Get all items for a collection with pagination support
  * @param collection_id - Collection UUID
- * @param collectionIsPublished - Whether to get items for draft (false) or published (true) collection
+ * @param is_published - Filter for draft (false) or published (true) items. Defaults to false (draft).
  * @param filters - Optional query filters
  */
 export async function getItemsByCollectionId(
   collection_id: string,
-  collectionIsPublished: boolean = false,
+  is_published: boolean = false,
   filters?: QueryFilters
 ): Promise<{ items: CollectionItem[], total: number }> {
   const client = await getSupabaseAdmin();
@@ -61,8 +59,7 @@ export async function getItemsByCollectionId(
       .from('collection_item_values')
       .select('item_id')
       .ilike('value', searchTerm)
-      .eq('is_published', collectionIsPublished)
-      .eq('item_is_published', collectionIsPublished)
+      .eq('is_published', is_published)
       .is('deleted_at', null);
 
     if (searchError) {
@@ -85,9 +82,7 @@ export async function getItemsByCollectionId(
     .from('collection_items')
     .select('*', { count: 'exact', head: true })
     .eq('collection_id', collection_id)
-    .eq('collection_is_published', collectionIsPublished)
-    .eq('is_published', collectionIsPublished);
-
+    .eq('is_published', is_published);
   // Apply search filter to count query
   if (matchingItemIds !== null) {
     countQuery = countQuery.in('id', matchingItemIds);
@@ -116,8 +111,7 @@ export async function getItemsByCollectionId(
     .from('collection_items')
     .select('*')
     .eq('collection_id', collection_id)
-    .eq('collection_is_published', collectionIsPublished)
-    .eq('is_published', collectionIsPublished)
+    .eq('is_published', is_published)
     .order('manual_order', { ascending: true })
     .order('created_at', { ascending: false });
 
@@ -184,7 +178,7 @@ export async function getItemById(id: string, isPublished: boolean = false): Pro
 
 /**
  * Get item with all field values joined
- * Returns item with values as { field_name: value } object
+ * Returns item with values as { field_id: value } object
  * @param id - Item UUID
  * @param is_published - Get draft (false) or published (true) values. Defaults to false (draft).
  */
@@ -202,15 +196,8 @@ export async function getItemWithValues(id: string, is_published: boolean = fals
   // Build query for values
   let valuesQuery = client
     .from('collection_item_values')
-    .select(`
-      value,
-      field_id,
-      collection_fields!inner (
-        field_name
-      )
-    `)
+    .select('value, field_id')
     .eq('item_id', id)
-    .eq('item_is_published', is_published)
     .eq('is_published', is_published);
 
   // If the item itself is deleted, include deleted values (to show name in UI)
@@ -225,12 +212,11 @@ export async function getItemWithValues(id: string, is_published: boolean = fals
     throw new Error(`Failed to fetch item values: ${valuesError.message}`);
   }
 
-  // Transform to { field_name: value } object
+  // Transform to { field_id: value } object
   const values: Record<string, string> = {};
   valuesData?.forEach((row: any) => {
-    const fieldName = row.collection_fields?.field_name;
-    if (fieldName) {
-      values[fieldName] = row.value;
+    if (row.field_id) {
+      values[row.field_id] = row.value;
     }
   });
 
@@ -243,19 +229,17 @@ export async function getItemWithValues(id: string, is_published: boolean = fals
 /**
  * Get multiple items with their values
  * @param collection_id - Collection UUID
- * @param collectionIsPublished - Whether to get items for draft (false) or published (true) collection
+ * @param is_published - Filter for draft (false) or published (true) items and values. Defaults to false (draft).
  * @param filters - Optional query filters
- * @param is_published - Get draft (false) or published (true) values. Defaults to false (draft).
  */
 export async function getItemsWithValues(
   collection_id: string,
-  collectionIsPublished: boolean = false,
-  filters?: QueryFilters,
-  is_published: boolean = false
+  is_published: boolean = false,
+  filters?: QueryFilters
 ): Promise<{ items: CollectionItemWithValues[], total: number }> {
-  const { items, total } = await getItemsByCollectionId(collection_id, collectionIsPublished, filters);
-
+  const { items, total } = await getItemsByCollectionId(collection_id, is_published, filters);
   // Get all items with values in parallel
+  // Values use the same is_published status as items
   const itemsWithValues = await Promise.all(
     items.map(item => getItemWithValues(item.id, is_published))
   );
@@ -263,6 +247,54 @@ export async function getItemsWithValues(
   const filteredItems = itemsWithValues.filter((item): item is CollectionItemWithValues => item !== null);
 
   return { items: filteredItems, total };
+}
+
+/**
+ * Get the maximum ID value for the ID field in a collection
+ * @param collection_id - Collection UUID
+ * @param is_published - Filter for draft (false) or published (true) values. Defaults to false (draft).
+ * @returns The maximum numeric ID value, or 0 if no IDs exist
+ */
+export async function getMaxIdValue(
+  collection_id: string,
+  is_published: boolean = false
+): Promise<number> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  // Get all fields for the collection
+  const fields = await getFieldsByCollectionId(collection_id, is_published);
+
+  // Find the field with key = 'id'
+  const idField = fields.find(field => field.key === 'id');
+
+  if (!idField) {
+    // No ID field exists, return 0
+    return 0;
+  }
+
+  // Get all values for the ID field
+  const idValues = await getValuesByFieldId(idField.id, is_published);
+
+  if (idValues.length === 0) {
+    return 0;
+  }
+
+  // Parse all ID values as numbers and find the maximum
+  let maxId = 0;
+  for (const value of idValues) {
+    if (value.value) {
+      const numericId = parseInt(value.value, 10);
+      if (!isNaN(numericId) && numericId > maxId) {
+        maxId = numericId;
+      }
+    }
+  }
+
+  return maxId;
 }
 
 /**
@@ -277,15 +309,12 @@ export async function createItem(itemData: CreateCollectionItemData): Promise<Co
 
   const id = randomUUID();
   const isPublished = itemData.is_published ?? false;
-  const collectionIsPublished = itemData.collection_is_published ?? false;
 
   const { data, error } = await client
     .from('collection_items')
     .insert({
       id,
       ...itemData,
-      collection_is_published: collectionIsPublished,
-      r_id: itemData.r_id || generateRId(),
       manual_order: itemData.manual_order ?? 0,
       is_published: isPublished,
       created_at: new Date().toISOString(),
@@ -377,7 +406,6 @@ export async function deleteItem(id: string, isPublished: boolean = false): Prom
       updated_at: now,
     })
     .eq('item_id', id)
-    .eq('item_is_published', isPublished)
     .eq('is_published', isPublished)
     .is('deleted_at', null);
 
@@ -433,9 +461,8 @@ export async function duplicateItem(itemId: string, isPublished: boolean = false
   // Get all items in the collection to find existing slugs
   const { items: allItems } = await getItemsWithValues(
     originalItem.collection_id,
-    originalItem.collection_is_published,
-    undefined,
-    isPublished
+    isPublished, // Filter items and values by is_published
+    undefined
   );
 
   // Prepare the new values
@@ -508,8 +535,6 @@ export async function duplicateItem(itemId: string, isPublished: boolean = false
     .insert({
       id: newId,
       collection_id: originalItem.collection_id,
-      collection_is_published: originalItem.collection_is_published,
-      r_id: generateRId(),
       manual_order: originalItem.manual_order,
       is_published: isPublished,
       created_at: new Date().toISOString(),
@@ -525,9 +550,8 @@ export async function duplicateItem(itemId: string, isPublished: boolean = false
   // Get field mappings for the collection
   const { data: fields, error: fieldsError } = await client
     .from('collection_fields')
-    .select('id, field_name, type')
+    .select('id, type')
     .eq('collection_id', originalItem.collection_id)
-    .eq('collection_is_published', originalItem.collection_is_published)
     .eq('is_published', isPublished)
     .is('deleted_at', null);
 
@@ -535,21 +559,16 @@ export async function duplicateItem(itemId: string, isPublished: boolean = false
     throw new Error(`Failed to fetch fields: ${fieldsError.message}`);
   }
 
-  // Create mapping of field_name -> field_id
-  const fieldMap: Record<string, string> = {};
-  fields?.forEach((field: any) => {
-    fieldMap[field.field_name] = field.id;
-  });
+  // Create set of valid field IDs
+  const validFieldIds = new Set(fields?.map((field: any) => field.id) || []);
 
   // Create new values for the duplicated item
   const valuesToInsert = Object.entries(newValues)
-    .filter(([fieldName]) => fieldMap[fieldName]) // Only include fields that exist
-    .map(([fieldName, value]) => ({
+    .filter(([fieldId]) => validFieldIds.has(fieldId)) // Only include fields that exist
+    .map(([fieldId, value]) => ({
       id: randomUUID(),
       item_id: newItem.id,
-      item_is_published: isPublished,
-      field_id: fieldMap[fieldName],
-      field_is_published: isPublished,
+      field_id: fieldId,
       value: value,
       is_published: isPublished,
       created_at: new Date().toISOString(),
@@ -578,15 +597,13 @@ export async function duplicateItem(itemId: string, isPublished: boolean = false
 /**
  * Search items by field values
  * @param collection_id - Collection UUID
- * @param collectionIsPublished - Whether to search in draft (false) or published (true) collection
+ * @param is_published - Filter for draft (false) or published (true) items and values. Defaults to false (draft).
  * @param query - Search query string
- * @param isPublished - Whether to search draft (false) or published (true) values
  */
 export async function searchItems(
   collection_id: string,
-  collectionIsPublished: boolean,
-  query: string,
-  isPublished: boolean = false
+  is_published: boolean = false,
+  query: string
 ): Promise<{ items: CollectionItemWithValues[], total: number }> {
   const client = await getSupabaseAdmin();
 
@@ -595,11 +612,10 @@ export async function searchItems(
   }
 
   // Get all items for this collection
-  const { items, total } = await getItemsByCollectionId(collection_id, collectionIsPublished);
-
+  const { items, total } = await getItemsByCollectionId(collection_id, is_published);
   if (!query || query.trim() === '') {
     // Return all items with values if no query
-    return getItemsWithValues(collection_id, collectionIsPublished, undefined, isPublished);
+    return getItemsWithValues(collection_id, is_published, undefined);
   }
 
   // Search in item values
@@ -609,8 +625,7 @@ export async function searchItems(
     .from('collection_item_values')
     .select('item_id')
     .ilike('value', searchTerm)
-    .eq('is_published', isPublished)
-    .eq('item_is_published', isPublished)
+    .eq('is_published', is_published)
     .is('deleted_at', null);
 
   if (error) {
@@ -624,7 +639,7 @@ export async function searchItems(
   const filteredItems = items.filter(item => itemIds.includes(item.id));
 
   const itemsWithValues = await Promise.all(
-    filteredItems.map(item => getItemWithValues(item.id, isPublished))
+    filteredItems.map(item => getItemWithValues(item.id, is_published))
   ).then(results => results.filter((item): item is CollectionItemWithValues => item !== null));
 
   return { items: itemsWithValues, total: itemsWithValues.length };
@@ -633,6 +648,7 @@ export async function searchItems(
 /**
  * Publish an item
  * Creates or updates the published version by copying the draft
+ * Uses upsert with composite primary key for simplicity
  * @param id - Item UUID
  */
 export async function publishItem(id: string): Promise<CollectionItem> {
@@ -648,52 +664,27 @@ export async function publishItem(id: string): Promise<CollectionItem> {
     throw new Error('Draft item not found');
   }
 
-  // Check if published version exists
-  const existingPublished = await getItemById(id, true);
+  // Upsert published version (composite key handles insert/update automatically)
+  const { data, error } = await client
+    .from('collection_items')
+    .upsert({
+      id: draft.id, // Same UUID
+      collection_id: draft.collection_id,
+      manual_order: draft.manual_order,
+      is_published: true,
+      created_at: draft.created_at,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'id,is_published', // Composite primary key
+    }).select()
+    .single();
 
-  if (existingPublished) {
-    // Update existing published version
-    const { data, error } = await client
-      .from('collection_items')
-      .update({
-        r_id: draft.r_id,
-        manual_order: draft.manual_order,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .eq('is_published', true)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to update published item: ${error.message}`);
-    }
-
-    return data;
-  } else {
-    // Create new published version with same ID
-    // Note: collection_is_published should be true for published items
-    const { data, error } = await client
-      .from('collection_items')
-      .insert({
-        id: draft.id, // Same UUID
-        collection_id: draft.collection_id,
-        collection_is_published: true, // Reference published collection
-        r_id: draft.r_id,
-        manual_order: draft.manual_order,
-        is_published: true,
-        created_at: draft.created_at,
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to create published item: ${error.message}`);
-    }
-
-    return data;
+  if (error) {
+    throw new Error(`Failed to publish item: ${error.message}`);
   }
+
+  return data;
+
 }
 
 /**
@@ -729,9 +720,8 @@ export async function getPublishableCountsByCollection(): Promise<Record<string,
     // Get all draft items for this collection
     const { data: draftItems, error: itemsError } = await client
       .from('collection_items')
-      .select('id, r_id, manual_order')
+      .select('id, manual_order')
       .eq('collection_id', collection.id)
-      .eq('collection_is_published', false)
       .eq('is_published', false)
       .is('deleted_at', null);
 
@@ -761,7 +751,7 @@ export async function getPublishableCountsByCollection(): Promise<Record<string,
 
       // Check if draft differs from published
       const hasChanges =
-        draftItem.r_id !== publishedItem.r_id ||
+
         draftItem.manual_order !== publishedItem.manual_order;
 
       if (hasChanges) {

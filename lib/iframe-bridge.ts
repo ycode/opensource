@@ -178,4 +178,3 @@ export function serializeLayers(layers: Layer[], components: Component[] = []): 
     componentMap,
   };
 }
-

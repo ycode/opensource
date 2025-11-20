@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '../supabase-server';
-import type { Collection } from '@/types';
+import type { Collection, CreateCollectionData, UpdateCollectionData } from '@/types';
 import { randomUUID } from 'crypto';
 
 /**
@@ -15,19 +15,6 @@ import { randomUUID } from 'crypto';
 export interface QueryFilters {
   is_published?: boolean;
   deleted?: boolean;
-}
-
-export interface CreateCollectionData {
-  name: string;
-  sorting?: Record<string, any> | null;
-  order?: number | null;
-  is_published?: boolean;
-}
-
-export interface UpdateCollectionData {
-  name?: string;
-  sorting?: Record<string, any> | null;
-  order?: number | null;
 }
 
 /**
@@ -171,6 +158,7 @@ export async function createCollection(collectionData: CreateCollectionData): Pr
     .insert({
       id,
       ...collectionData,
+      order: collectionData.order ?? 0,
       is_published: isPublished,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -259,7 +247,6 @@ export async function deleteCollection(id: string, isPublished: boolean = false)
       updated_at: now,
     })
     .eq('collection_id', id)
-    .eq('collection_is_published', isPublished)
     .eq('is_published', isPublished)
     .is('deleted_at', null);
 
@@ -275,7 +262,6 @@ export async function deleteCollection(id: string, isPublished: boolean = false)
       updated_at: now,
     })
     .eq('collection_id', id)
-    .eq('collection_is_published', isPublished)
     .eq('is_published', isPublished)
     .is('deleted_at', null);
 
@@ -289,7 +275,6 @@ export async function deleteCollection(id: string, isPublished: boolean = false)
     .from('collection_items')
     .select('id')
     .eq('collection_id', id)
-    .eq('collection_is_published', isPublished)
     .eq('is_published', isPublished);
 
   if (items && items.length > 0) {
@@ -302,7 +287,6 @@ export async function deleteCollection(id: string, isPublished: boolean = false)
         updated_at: now,
       })
       .in('item_id', itemIds)
-      .eq('item_is_published', isPublished)
       .eq('is_published', isPublished)
       .is('deleted_at', null);
 
@@ -341,6 +325,7 @@ export async function hardDeleteCollection(id: string, isPublished: boolean = fa
 /**
  * Publish a collection
  * Creates or updates the published version by copying the draft
+ * Uses upsert with composite primary key for simplicity
  * @param id - Collection UUID
  */
 export async function publishCollection(id: string): Promise<Collection> {
@@ -356,51 +341,28 @@ export async function publishCollection(id: string): Promise<Collection> {
     throw new Error('Draft collection not found');
   }
 
-  // Check if published version exists
-  const existingPublished = await getCollectionById(id, true);
+  // Upsert published version (composite key handles insert/update automatically)
+  const { data, error } = await client
+    .from('collections')
+    .upsert({
+      id: draft.id, // Same UUID
+      name: draft.name,
+      sorting: draft.sorting,
+      order: draft.order,
+      is_published: true,
+      created_at: draft.created_at,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'id,is_published', // Composite primary key
+    }).select()
+    .single();
 
-  if (existingPublished) {
-    // Update existing published version
-    const { data, error } = await client
-      .from('collections')
-      .update({
-        name: draft.name,
-        sorting: draft.sorting,
-        order: draft.order,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .eq('is_published', true)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to update published collection: ${error.message}`);
-    }
-
-    return data;
-  } else {
-    // Create new published version with same ID
-    const { data, error } = await client
-      .from('collections')
-      .insert({
-        id: draft.id, // Same UUID
-        name: draft.name,
-        sorting: draft.sorting,
-        order: draft.order,
-        is_published: true,
-        created_at: draft.created_at,
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to create published collection: ${error.message}`);
-    }
-
-    return data;
+  if (error) {
+    throw new Error(`Failed to publish collection: ${error.message}`);
   }
+
+  return data;
+
 }
 
 /**

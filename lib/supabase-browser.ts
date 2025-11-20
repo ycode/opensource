@@ -60,4 +60,3 @@ export async function createBrowserClient(): Promise<SupabaseClient> {
 
   return browserClient;
 }
-

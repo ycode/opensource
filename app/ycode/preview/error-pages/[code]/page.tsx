@@ -68,4 +68,3 @@ export async function generateMetadata({ params }: ErrorPagePreviewProps): Promi
     isPreview: true,
   });
 }
-

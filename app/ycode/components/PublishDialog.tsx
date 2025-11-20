@@ -14,6 +14,8 @@ import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import Icon from '@/components/ui/icon';
 import { pagesApi, collectionsApi, componentsApi, layerStylesApi, cacheApi } from '@/lib/api';
 import type { Page, Collection, Component, LayerStyle, CollectionItemWithValues } from '@/types';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
 interface PublishDialogProps {
   isOpen: boolean;
@@ -146,12 +148,12 @@ export default function PublishDialog({
       if (selectedItemIds.size > 0) {
         // Build a map of collection ID -> selected item IDs
         const collectionItemsMap = new Map<string, string[]>();
-        
+
         collectionsWithItems.forEach(({ collection, items }) => {
           const selectedItemsInCollection = items
             .filter(item => selectedItemIds.has(item.id))
             .map(item => item.id);
-          
+
           if (selectedItemsInCollection.length > 0) {
             collectionItemsMap.set(collection.id, selectedItemsInCollection);
           }
@@ -352,60 +354,77 @@ export default function PublishDialog({
           </div>
         ) : (
           <>
-            <div className="flex-1 overflow-auto space-y-6">
+
+            <div className="flex-1 flex flex-col gap-2 -my-4">
               {/* Pages Section */}
               {unpublishedPages.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium">
-                      Pages ({unpublishedPages.length})
-                    </h3>
+                <div className="flex flex-col gap-2 bg-secondary/20 px-5 pt-4 pb-2 rounded-lg -mx-4">
+
+                  <div className="flex items-center justify-between">
+
+                    <Label className="gap-1">
+                      Pages
+                      <Badge variant="secondary" className="text-[10px]">
+                        <span className="-mx-1">{unpublishedPages.length}</span>
+                      </Badge>
+                    </Label>
+
                     <Button
-                      size="xs"
-                      variant="ghost"
+                      size="xs" variant="ghost"
                       onClick={toggleAllPages}
                     >
-                      {selectedPageIds.size === unpublishedPages.length ? 'Deselect All' : 'Select All'}
+                      {selectedPageIds.size === unpublishedPages.length ? 'Deselect all' : 'Select all'}
                     </Button>
+
                   </div>
-                  <div className="space-y-2">
+
+                  <div className="divide-y divide-secondary">
                     {unpublishedPages.map(page => (
                       <label
                         key={page.id}
-                        className="flex items-center gap-3 p-3 rounded border hover:bg-secondary/50 cursor-pointer transition-colors"
+                        className="flex cursor-pointer"
                       >
-                        <input
-                          type="checkbox"
-                          checked={selectedPageIds.has(page.id)}
-                          onChange={() => togglePage(page.id)}
-                          className="w-4 h-4"
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{page.name}</div>
-                          <div className="text-xs text-muted-foreground">/{page.slug}</div>
+                        <div className="flex-1 flex items-start gap-2 p-3 -mx-3 hover:bg-secondary/50 rounded-lg">
+                          <Checkbox
+                            checked={selectedPageIds.has(page.id)}
+                            onCheckedChange={() => togglePage(page.id)}
+                          />
+                          <div className="flex-1 flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{page.name}</span>
+                            <span className="text-[10px]">/{page.slug}</span>
+                          </div>
                         </div>
                       </label>
                     ))}
                   </div>
+
                 </div>
               )}
 
               {/* Collections Section */}
               {collectionsWithItems.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium mb-3">
-                    Collections ({totalCollectionItems} {totalCollectionItems === 1 ? 'item' : 'items'})
-                  </h3>
-                  <div className="space-y-4">
+                <div className="flex flex-col gap-2 bg-secondary/20 px-5 pt-4 pb-1 rounded-lg -mx-4">
+
+                  <Label className="gap-1">
+                    Collections
+                    <Badge variant="secondary" className="text-[10px]">
+                      <span className="-mx-1">{totalCollectionItems}</span>
+                    </Badge>
+                  </Label>
+
+                  <div className="divide-y divide-secondary">
                     {collectionsWithItems.map(({ collection, items }) => {
                       const itemIds = items.map(item => item.id);
                       const selectedCount = itemIds.filter(id => selectedItemIds.has(id)).length;
                       const allSelected = selectedCount === items.length;
 
                       return (
-                        <div key={collection.id} className="border rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="font-medium text-sm">{collection.name}</div>
+                        <div key={collection.id} className="flex flex-col gap-2 py-2">
+
+                          <div className="flex items-center justify-between">
+
+                            <Label variant="muted">{collection.name}</Label>
+
                             <Button
                               size="xs"
                               variant="ghost"
@@ -413,75 +432,82 @@ export default function PublishDialog({
                             >
                               {allSelected ? 'Deselect All' : 'Select All'}
                             </Button>
+
                           </div>
-                          <div className="space-y-2">
+
+                          <div className="divide-y divide-secondary">
+
                             {items.map(item => (
                               <label
                                 key={item.id}
-                                className="flex items-center gap-3 p-2 rounded hover:bg-secondary/50 cursor-pointer transition-colors"
+                                className="flex-1 flex items-center gap-2 p-3 -mx-3 hover:bg-secondary/50 rounded-lg"
                               >
-                                <input
-                                  type="checkbox"
+
+                                <Checkbox
                                   checked={selectedItemIds.has(item.id)}
-                                  onChange={() => toggleItem(item.id)}
-                                  className="w-4 h-4"
+                                  onCheckedChange={() => toggleItem(item.id)}
                                 />
-                                <div className="flex-1">
-                                  <div className="text-sm">{item.values.name || 'Untitled'}</div>
+
+                                <div className="flex-1 flex items-center text-xs text-muted-foreground">
+                                  <span>{item.values.name || 'Untitled'}</span>
                                   {item.values.slug && (
-                                    <div className="text-xs text-muted-foreground">/{item.values.slug}</div>
+                                    <span className="text-xs text-muted-foreground ml-2">/{item.values.slug}</span>
                                   )}
                                 </div>
+
                                 {item.publish_status && (
-                                  <Badge
-                                    variant={
-                                      item.publish_status === 'deleted' ? 'destructive' :
-                                        item.publish_status === 'new' ? 'default' :
-                                          'secondary'
-                                    }
-                                  >
+                                  <Badge className="text-[10px] px-1" variant="secondary">
                                     {item.publish_status.charAt(0).toUpperCase() + item.publish_status.slice(1)}
                                   </Badge>
                                 )}
+
                               </label>
                             ))}
+
                           </div>
+
                         </div>
                       );
                     })}
                   </div>
+
                 </div>
               )}
 
               {/* Components Section */}
               {unpublishedComponents.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium">
-                      Components ({unpublishedComponents.length})
-                    </h3>
+                <div className="flex flex-col gap-2 bg-secondary/20 px-5 pt-4 pb-2 rounded-lg -mx-4">
+
+                  <div className="flex items-center justify-between">
+
+                    <Label className="gap-1">
+                      Components
+                      <Badge variant="secondary" className="text-[10px]">
+                        <span className="-mx-1">{unpublishedComponents.length}</span>
+                      </Badge>
+                    </Label>
+
                     <Button
-                      size="xs"
-                      variant="ghost"
+                      size="xs" variant="ghost"
                       onClick={toggleAllComponents}
                     >
-                      {selectedComponentIds.size === unpublishedComponents.length ? 'Deselect All' : 'Select All'}
+                      {selectedComponentIds.size === unpublishedComponents.length ? 'Deselect all' : 'Select all'}
                     </Button>
+
                   </div>
-                  <div className="space-y-2">
+
+                  <div className="divide-y divide-secondary">
                     {unpublishedComponents.map(component => (
                       <label
                         key={component.id}
-                        className="flex items-center gap-3 p-3 rounded border hover:bg-secondary/50 cursor-pointer transition-colors"
+                        className="flex-1 flex items-center gap-2 p-3 -mx-3 hover:bg-secondary/50 rounded-lg"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={selectedComponentIds.has(component.id)}
-                          onChange={() => toggleComponent(component.id)}
-                          className="w-4 h-4"
+                          onCheckedChange={() => toggleComponent(component.id)}
                         />
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{component.name}</div>
+                        <div className="flex-1 text-xs text-muted-foreground">
+                          <span>{component.name}</span>
                         </div>
                       </label>
                     ))}
@@ -491,33 +517,38 @@ export default function PublishDialog({
 
               {/* Layer Styles Section */}
               {unpublishedLayerStyles.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium">
-                      Layer Styles ({unpublishedLayerStyles.length})
-                    </h3>
+                <div className="flex flex-col gap-2 bg-secondary/20 px-5 pt-4 pb-2 rounded-lg -mx-4">
+
+                  <div className="flex items-center justify-between">
+
+                    <Label className="gap-1">
+                      Layer styles
+                      <Badge variant="secondary" className="text-[10px]">
+                        <span className="-mx-1">{unpublishedLayerStyles.length}</span>
+                      </Badge>
+                    </Label>
+
                     <Button
-                      size="xs"
-                      variant="ghost"
+                      size="xs" variant="ghost"
                       onClick={toggleAllLayerStyles}
                     >
-                      {selectedLayerStyleIds.size === unpublishedLayerStyles.length ? 'Deselect All' : 'Select All'}
+                      {selectedComponentIds.size === unpublishedComponents.length ? 'Deselect all' : 'Select all'}
                     </Button>
+
                   </div>
-                  <div className="space-y-2">
+
+                  <div className="divide-y divide-secondary">
                     {unpublishedLayerStyles.map(style => (
                       <label
                         key={style.id}
-                        className="flex items-center gap-3 p-3 rounded border hover:bg-secondary/50 cursor-pointer transition-colors"
+                        className="flex-1 flex items-center gap-2 p-3 -mx-3 hover:bg-secondary/50 rounded-lg"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={selectedLayerStyleIds.has(style.id)}
-                          onChange={() => toggleLayerStyle(style.id)}
-                          className="w-4 h-4"
+                          onCheckedChange={() => toggleLayerStyle(style.id)}
                         />
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{style.name}</div>
+                        <div className="flex-1 text-xs text-muted-foreground">
+                          <span>{style.name}</span>
                         </div>
                       </label>
                     ))}
@@ -528,33 +559,32 @@ export default function PublishDialog({
 
             <div className="flex items-center justify-between pt-4 border-t">
               <Button
-                variant="secondary" onClick={onClose}
+                variant="secondary" size="sm"
+                onClick={onClose}
                 disabled={isPublishing}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handlePublish}
+                size="sm"
                 disabled={!hasSelections || isPublishing}
               >
                 {isPublishing ? (
                   <>
                     <Spinner />
-                    Publishing...
                   </>
                 ) : (
                   <>
-                    <Icon name="upload" />
-                    Publish Selected
+                    Publish
                   </>
                 )}
               </Button>
             </div>
+
           </>
         )}
       </DialogContent>
     </Dialog>
   );
 }
-
-

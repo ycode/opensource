@@ -41,4 +41,3 @@ export async function invalidatePages(routePaths: string[]): Promise<boolean> {
 
   return results.every((result) => result);
 }
-

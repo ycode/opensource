@@ -59,4 +59,3 @@ export function useAssets(assetIds: (string | null | undefined)[]): (Asset | nul
 
   return assets;
 }
-

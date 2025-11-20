@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '../supabase-server';
-import type { CollectionField, CollectionFieldType } from '@/types';
+import type { CollectionField, CreateCollectionFieldData, UpdateCollectionFieldData } from '@/types';
 import { randomUUID } from 'crypto';
 
 /**
@@ -9,37 +9,8 @@ import { randomUUID } from 'crypto';
  * Uses Supabase/PostgreSQL via admin client.
  *
  * NOTE: Uses composite primary key (id, is_published) architecture.
- * References parent collections using composite FK (collection_id, collection_is_published).
+ * References parent collections using FK (collection_id).
  */
-
-export interface CreateCollectionFieldData {
-  name: string;
-  field_name: string;
-  type: CollectionFieldType;
-  default?: string | null;
-  fillable?: boolean;
-  built_in?: boolean;
-  order: number;
-  collection_id: string; // UUID
-  collection_is_published?: boolean; // Defaults to false (draft)
-  reference_collection_id?: string | null; // UUID
-  hidden?: boolean;
-  data?: Record<string, any>;
-  is_published?: boolean;
-}
-
-export interface UpdateCollectionFieldData {
-  name?: string;
-  field_name?: string;
-  type?: CollectionFieldType;
-  default?: string | null;
-  fillable?: boolean;
-  built_in?: boolean;
-  order?: number;
-  reference_collection_id?: string | null; // UUID
-  hidden?: boolean;
-  data?: Record<string, any>;
-}
 
 export interface FieldFilters {
   search?: string;
@@ -48,12 +19,12 @@ export interface FieldFilters {
 /**
  * Get all fields for a collection with optional search filtering
  * @param collection_id - Collection UUID
- * @param collectionIsPublished - Whether to get fields for draft (false) or published (true) collection
+ * @param is_published - Filter for draft (false) or published (true) fields. Defaults to false (draft).
  * @param filters - Optional search filters
  */
 export async function getFieldsByCollectionId(
   collection_id: string,
-  collectionIsPublished: boolean = false,
+  is_published: boolean = false,
   filters?: FieldFilters
 ): Promise<CollectionField[]> {
   const client = await getSupabaseAdmin();
@@ -66,15 +37,14 @@ export async function getFieldsByCollectionId(
     .from('collection_fields')
     .select('*')
     .eq('collection_id', collection_id)
-    .eq('collection_is_published', collectionIsPublished)
-    .eq('is_published', collectionIsPublished)
+    .eq('is_published', is_published)
     .is('deleted_at', null)
     .order('order', { ascending: true });
 
   // Apply search filter
   if (filters?.search && filters.search.trim()) {
     const searchTerm = `%${filters.search.trim()}%`;
-    query = query.or(`name.ilike.${searchTerm},field_name.ilike.${searchTerm}`);
+    query = query.ilike('name', searchTerm);
   }
 
   const { data, error } = await query;
@@ -125,16 +95,14 @@ export async function createField(fieldData: CreateCollectionFieldData): Promise
 
   const id = randomUUID();
   const isPublished = fieldData.is_published ?? false;
-  const collectionIsPublished = fieldData.collection_is_published ?? false;
 
   const { data, error } = await client
     .from('collection_fields')
     .insert({
       id,
       ...fieldData,
-      collection_is_published: collectionIsPublished,
       fillable: fieldData.fillable ?? true,
-      built_in: fieldData.built_in ?? false,
+      key: fieldData.key ?? null,
       hidden: fieldData.hidden ?? false,
       data: fieldData.data ?? {},
       is_published: isPublished,
@@ -226,7 +194,6 @@ export async function deleteField(id: string, isPublished: boolean = false): Pro
       updated_at: now,
     })
     .eq('field_id', id)
-    .eq('field_is_published', isPublished)
     .eq('is_published', isPublished)
     .is('deleted_at', null);
 
@@ -238,12 +205,12 @@ export async function deleteField(id: string, isPublished: boolean = false): Pro
 /**
  * Reorder fields
  * @param collection_id - Collection UUID
- * @param collectionIsPublished - Whether this is for draft (false) or published (true) collection
+ * @param is_published - Filter for draft (false) or published (true) fields. Defaults to false (draft).
  * @param field_ids - Array of field UUIDs in desired order
  */
 export async function reorderFields(
   collection_id: string,
-  collectionIsPublished: boolean,
+  is_published: boolean = false,
   field_ids: string[]
 ): Promise<void> {
   const client = await getSupabaseAdmin();
@@ -262,8 +229,7 @@ export async function reorderFields(
       })
       .eq('id', field_id)
       .eq('collection_id', collection_id)
-      .eq('collection_is_published', collectionIsPublished)
-      .eq('is_published', collectionIsPublished)
+      .eq('is_published', is_published)
       .is('deleted_at', null)
   );
 
@@ -305,6 +271,7 @@ export async function hardDeleteField(id: string, isPublished: boolean = false):
 /**
  * Publish a field
  * Creates or updates the published version by copying the draft
+ * Uses upsert with composite primary key for simplicity
  * @param id - Field UUID
  */
 export async function publishField(id: string): Promise<CollectionField> {
@@ -320,66 +287,33 @@ export async function publishField(id: string): Promise<CollectionField> {
     throw new Error('Draft field not found');
   }
 
-  // Check if published version exists
-  const existingPublished = await getFieldById(id, true);
+  // Upsert published version (composite key handles insert/update automatically)
+  const { data, error } = await client
+    .from('collection_fields')
+    .upsert({
+      id: draft.id, // Same UUID
+      name: draft.name,
+      key: draft.key,
+      type: draft.type,
+      default: draft.default,
+      fillable: draft.fillable,
+      order: draft.order,
+      collection_id: draft.collection_id,
+      reference_collection_id: draft.reference_collection_id,
+      hidden: draft.hidden,
+      data: draft.data,
+      is_published: true,
+      created_at: draft.created_at,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'id,is_published', // Composite primary key
+    }).select()
+    .single();
 
-  if (existingPublished) {
-    // Update existing published version
-    const { data, error } = await client
-      .from('collection_fields')
-      .update({
-        name: draft.name,
-        field_name: draft.field_name,
-        type: draft.type,
-        default: draft.default,
-        fillable: draft.fillable,
-        built_in: draft.built_in,
-        order: draft.order,
-        reference_collection_id: draft.reference_collection_id,
-        hidden: draft.hidden,
-        data: draft.data,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .eq('is_published', true)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to update published field: ${error.message}`);
-    }
-
-    return data;
-  } else {
-    // Create new published version with same ID
-    // Note: collection_is_published should be true for published fields
-    const { data, error } = await client
-      .from('collection_fields')
-      .insert({
-        id: draft.id, // Same UUID
-        name: draft.name,
-        field_name: draft.field_name,
-        type: draft.type,
-        default: draft.default,
-        fillable: draft.fillable,
-        built_in: draft.built_in,
-        order: draft.order,
-        collection_id: draft.collection_id,
-        collection_is_published: true, // Reference published collection
-        reference_collection_id: draft.reference_collection_id,
-        hidden: draft.hidden,
-        data: draft.data,
-        is_published: true,
-        created_at: draft.created_at,
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to create published field: ${error.message}`);
-    }
-
-    return data;
+  if (error) {
+    throw new Error(`Failed to publish field: ${error.message}`);
   }
+
+  return data;
+
 }

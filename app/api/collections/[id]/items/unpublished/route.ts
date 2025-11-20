@@ -30,12 +30,10 @@ export async function GET(
     }
 
     // Get all items including deleted ones (no pagination for unpublished check)
-    // Parameters: collection_id, collectionIsPublished, filters, is_published
     const { items } = await getItemsWithValues(
       collectionId,
-      false, // collectionIsPublished (draft)
-      { deleted: undefined }, // filters (include all deleted states)
-      false // is_published (draft values)
+      false, // is_published (draft items and values)
+      { deleted: undefined } // filters (include all deleted states)
     );
 
     const unpublishedItems = [];
@@ -49,7 +47,6 @@ export async function GET(
           .from('collection_item_values')
           .select('field_id')
           .eq('item_id', item.id)
-          .eq('item_is_published', true)
           .eq('is_published', true)
           .is('deleted_at', null)
           .limit(1);
@@ -72,7 +69,6 @@ export async function GET(
         .from('collection_item_values')
         .select('field_id, value')
         .eq('item_id', item.id)
-        .eq('item_is_published', false)
         .eq('is_published', false)
         .is('deleted_at', null);
 
@@ -86,7 +82,6 @@ export async function GET(
         .from('collection_item_values')
         .select('field_id, value')
         .eq('item_id', item.id)
-        .eq('item_is_published', true)
         .eq('is_published', true)
         .is('deleted_at', null);
 
@@ -147,5 +142,3 @@ function hasChanges(
 
   return false;
 }
-
-

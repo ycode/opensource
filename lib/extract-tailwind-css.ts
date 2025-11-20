@@ -25,5 +25,3 @@ export function extractCanvasCSS(): string | null {
 export function extractTailwindCSS(): string | null {
   return extractCanvasCSS();
 }
-
-

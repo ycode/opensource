@@ -123,4 +123,3 @@ export function validateConnectionUrl(connectionUrl: string, password?: string):
   parseConnectionUrl(testUrl);
   return true;
 }
-

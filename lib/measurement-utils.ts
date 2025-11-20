@@ -52,4 +52,3 @@ export function formatMeasurementValue(value: string): string | null {
   // Strip all spaces to ensure valid Tailwind class syntax
   return value.replace(/\s+/g, '');
 }
-

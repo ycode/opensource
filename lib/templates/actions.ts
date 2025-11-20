@@ -80,4 +80,3 @@ export const actionTemplates: Record<string, BlockTemplate> = {
     }
   }
 };
-

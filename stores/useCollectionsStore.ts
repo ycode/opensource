@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { collectionsApi } from '@/lib/api';
-import type { Collection, CollectionField, CollectionItemWithValues } from '@/types';
+import { sortCollectionsByOrder } from '@/lib/collection-utils';
+import type { Collection, CollectionField, CollectionItemWithValues, CreateCollectionData, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData } from '@/types';
 
 /**
  * Collections Store
@@ -22,35 +23,21 @@ interface CollectionsState {
 interface CollectionsActions {
   // Collections
   loadCollections: () => Promise<void>;
-  createCollection: (data: {
-    name: string;
-    sorting?: Record<string, any> | null;
-    order?: number | null;
-  }) => Promise<Collection>;
-  updateCollection: (id: string, data: Partial<Collection>) => Promise<void>;
+  createCollection: (data: CreateCollectionData) => Promise<Collection>;
+  updateCollection: (id: string, data: UpdateCollectionData) => Promise<void>;
   deleteCollection: (id: string) => Promise<void>;
   setSelectedCollectionId: (id: string | null) => void;
 
   // Fields
   loadFields: (collectionId: string, search?: string) => Promise<void>;
-  createField: (collectionId: string, data: {
-    name: string;
-    field_name: string;
-    type: 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
-    default?: string | null;
-    order?: number;
-    reference_collection_id?: string | null; // UUID
-    fillable?: boolean;
-    built_in?: boolean;
-    hidden?: boolean;
-    data?: Record<string, any>;
-  }) => Promise<CollectionField>;
-  updateField: (collectionId: string, fieldId: string, data: Partial<CollectionField>) => Promise<void>;
+  createField: (collectionId: string, data: Omit<CreateCollectionFieldData, 'collection_id'>) => Promise<CollectionField>;
+  updateField: (collectionId: string, fieldId: string, data: UpdateCollectionFieldData) => Promise<void>;
   deleteField: (collectionId: string, fieldId: string) => Promise<void>;
 
   // Items
   loadItems: (collectionId: string, page?: number, limit?: number) => Promise<void>;
   loadPublishedItems: (collectionId: string) => Promise<void>;
+  getDropdownItems: (collectionId: string) => Promise<Array<{ id: string; label: string }>>;
   createItem: (collectionId: string, values: Record<string, any>) => Promise<CollectionItemWithValues>;
   updateItem: (collectionId: string, itemId: string, values: Record<string, any>) => Promise<void>;
   deleteItem: (collectionId: string, itemId: string) => Promise<void>;
@@ -91,7 +78,75 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         throw new Error(response.error);
       }
 
-      set({ collections: response.data || [], isLoading: false });
+      const collections = response.data || [];
+      const sortedCollections = sortCollectionsByOrder(collections);
+      set({ collections: sortedCollections, isLoading: false });
+
+      // Preload fields for all collections
+      const fieldsPromises = collections.map(async (collection) => {
+        try {
+          const fieldsResponse = await collectionsApi.getFields(collection.id);
+          if (!fieldsResponse.error && fieldsResponse.data) {
+            return { collectionId: collection.id, fields: fieldsResponse.data };
+          }
+          return { collectionId: collection.id, fields: [] };
+        } catch (error) {
+          console.error(`Failed to load fields for collection ${collection.id}:`, error);
+          return { collectionId: collection.id, fields: [] };
+        }
+      });
+
+      const fieldsResults = await Promise.all(fieldsPromises);
+      const fieldsMap: Record<string, CollectionField[]> = {};
+
+      fieldsResults.forEach(({ collectionId, fields }) => {
+        fieldsMap[collectionId] = fields;
+      });
+
+      set((state) => ({
+        fields: {
+          ...state.fields,
+          ...fieldsMap,
+        },
+      }));
+
+      // Preload 20 items per collection
+      const itemsPromises = collections.map(async (collection) => {
+        try {
+          const itemsResponse = await collectionsApi.getItems(collection.id, { page: 1, limit: 20 });
+          if (!itemsResponse.error && itemsResponse.data) {
+            return {
+              collectionId: collection.id,
+              items: itemsResponse.data.items || [],
+              total: itemsResponse.data.total || 0,
+            };
+          }
+          return { collectionId: collection.id, items: [], total: 0 };
+        } catch (error) {
+          console.error(`Failed to preload items for collection ${collection.id}:`, error);
+          return { collectionId: collection.id, items: [], total: 0 };
+        }
+      });
+
+      const itemsResults = await Promise.all(itemsPromises);
+      const itemsMap: Record<string, CollectionItemWithValues[]> = {};
+      const itemsTotalCountMap: Record<string, number> = {};
+
+      itemsResults.forEach(({ collectionId, items, total }) => {
+        itemsMap[collectionId] = items;
+        itemsTotalCountMap[collectionId] = total;
+      });
+
+      set((state) => ({
+        items: {
+          ...state.items,
+          ...itemsMap,
+        },
+        itemsTotalCount: {
+          ...state.itemsTotalCount,
+          ...itemsTotalCountMap,
+        },
+      }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load collections';
       set({ error: errorMessage, isLoading: false });
@@ -116,65 +171,77 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         const builtInFields = [
           {
             name: 'ID',
-            field_name: 'id',
+            key: 'id',
             type: 'number' as const,
             order: 0,
-            built_in: true,
             fillable: false,
             hidden: false,
           },
           {
             name: 'Name',
-            field_name: 'name',
+            key: 'name',
             type: 'text' as const,
             order: 1,
-            built_in: true,
             fillable: true,
             hidden: false,
           },
           {
             name: 'Slug',
-            field_name: 'slug',
+            key: 'slug',
             type: 'text' as const,
             order: 2,
-            built_in: true,
             fillable: true,
             hidden: false,
           },
           {
             name: 'Created Date',
-            field_name: 'created_at',
+            key: 'created_at',
             type: 'date' as const,
             order: 3,
-            built_in: true,
             fillable: false,
             hidden: false,
           },
           {
             name: 'Updated Date',
-            field_name: 'updated_at',
+            key: 'updated_at',
             type: 'date' as const,
             order: 4,
-            built_in: true,
             fillable: false,
             hidden: false,
           },
         ];
 
         // Create all built-in fields
+        const createdFields: CollectionField[] = [];
         for (const field of builtInFields) {
-          await collectionsApi.createField(newCollection.id, field);
+          const fieldResponse = await collectionsApi.createField(newCollection.id, field);
+          if (!fieldResponse.error && fieldResponse.data) {
+            createdFields.push(fieldResponse.data);
+          }
+        }
+
+        // Load created fields into store
+        if (createdFields.length > 0) {
+          set(state => ({
+            fields: {
+              ...state.fields,
+              [newCollection.id]: createdFields,
+            },
+          }));
         }
       } catch (fieldError) {
         console.error('Failed to create built-in fields:', fieldError);
         // Continue anyway - collection was created successfully
       }
 
-      set(state => ({
-        collections: [...state.collections, newCollection],
-        isLoading: false,
-      }));
-
+      set(state => {
+        const updatedCollections = [...state.collections, newCollection];
+        const sortedCollections = sortCollectionsByOrder(updatedCollections);
+        return {
+          collections: sortedCollections,
+          isLoading: false,
+        };
+      });
       return newCollection;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create collection';
@@ -195,10 +262,14 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
       const updated = response.data!;
 
-      set(state => ({
-        collections: state.collections.map(c => c.id === id ? updated : c),
-        isLoading: false,
-      }));
+      set(state => {
+        const updatedCollections = state.collections.map(c => c.id === id ? updated : c);
+        const sortedCollections = sortCollectionsByOrder(updatedCollections);
+        return {
+          collections: sortedCollections,
+          isLoading: false,
+        };
+      });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update collection';
       set({ error: errorMessage, isLoading: false });
@@ -218,15 +289,16 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
       set(state => {
         const remainingCollections = state.collections.filter(c => c.id !== id);
+        const sortedCollections = sortCollectionsByOrder(remainingCollections);
         const wasSelected = state.selectedCollectionId === id;
 
         // If the deleted collection was selected, select the first remaining collection
-        const newSelectedId = wasSelected && remainingCollections.length > 0
-          ? remainingCollections[0].id
+        const newSelectedId = wasSelected && sortedCollections.length > 0
+          ? sortedCollections[0].id
           : (state.selectedCollectionId === id ? null : state.selectedCollectionId);
 
         return {
-          collections: remainingCollections,
+          collections: sortedCollections,
           selectedCollectionId: newSelectedId,
           isLoading: false,
         };
@@ -547,12 +619,15 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
     try {
       // Optimistically update the collection sorting
-      set(state => ({
-        collections: state.collections.map(c =>
+      set(state => {
+        const updatedCollections = state.collections.map(c =>
           c.id === collectionId ? { ...c, sorting } : c
-        ),
-      }));
-
+        );
+        const sortedCollections = sortCollectionsByOrder(updatedCollections);
+        return {
+          collections: sortedCollections,
+        };
+      });
       const response = await collectionsApi.update(collectionId, { sorting });
 
       if (response.error) {
@@ -612,6 +687,57 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     set({ error: null });
   },
 
+  getDropdownItems: async (collectionId: string) => {
+    try {
+      // Check if items are already loaded in store (from preload or previous load)
+      const state = get();
+      let items = state.items[collectionId];
+
+      // Only load items if not already in store
+      if (!items || items.length === 0) {
+        await get().loadItems(collectionId, 1, 20);
+        // Get updated state after loading
+        const updatedState = get();
+        items = updatedState.items[collectionId] || [];
+      }
+
+      // Fields are already loaded on builder init, so just use them from store
+      const collectionFields = state.fields[collectionId] || [];
+
+      // Find the name field (field with key = 'name')
+      const nameField = collectionFields.find(field => field.key === 'name');
+
+      if (!nameField) {
+        console.warn(`Name field not found for collection ${collectionId}. Available fields:`, collectionFields.map(f => ({ id: f.id, key: f.key, name: f.name })));
+      }
+
+      // Map items to { id, label } format
+      const itemsWithLabels = items.map(item => {
+        let label = `Item ${item.id.slice(0, 8)}`;
+
+        if (nameField) {
+          const nameValue = item.values?.[nameField.id];
+          if (nameValue !== null && nameValue !== undefined && String(nameValue).trim() !== '') {
+            label = String(nameValue);
+          } else {
+            // Debug: log when name value is missing
+            console.debug(`Item ${item.id} has no name value. Name field ID: ${nameField.id}, Available values:`, Object.keys(item.values || {}));
+          }
+        }
+
+        return {
+          id: item.id,
+          label,
+        };
+      });
+
+      return itemsWithLabels;
+    } catch (error) {
+      console.error('Failed to get dropdown items:', error);
+      return [];
+    }
+  },
+
   // Publish
   publishCollections: async (collectionIds: string[]) => {
     set({ isLoading: true, error: null });
@@ -637,4 +763,3 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     }
   },
 }));
-

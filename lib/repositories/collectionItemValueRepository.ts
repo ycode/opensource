@@ -11,16 +11,14 @@ import { randomUUID } from 'crypto';
  * Uses Supabase/PostgreSQL via admin client.
  *
  * NOTE: Uses composite primary key (id, is_published) architecture.
- * References items using composite FK (item_id, item_is_published).
- * References fields using composite FK (field_id, field_is_published).
+ * References items using FK (item_id).
+ * References fields using FK (field_id).
  */
 
 export interface CreateCollectionItemValueData {
   value: string | null;
   item_id: string; // UUID
-  item_is_published?: boolean; // Defaults to false (draft)
   field_id: string; // UUID
-  field_is_published?: boolean; // Defaults to false (draft)
   is_published?: boolean;
 }
 
@@ -31,13 +29,11 @@ export interface UpdateCollectionItemValueData {
 /**
  * Get all values for an item
  * @param item_id - Item UUID
- * @param itemIsPublished - Whether this is for draft (false) or published (true) item
- * @param is_published - Optional filter for draft (false) or published (true) values. If undefined, returns all.
+ * @param is_published - Filter for draft (false) or published (true) values. Defaults to false (draft).
  */
 export async function getValuesByItemId(
   item_id: string,
-  itemIsPublished: boolean,
-  is_published?: boolean
+  is_published: boolean = false
 ): Promise<CollectionItemValue[]> {
   const client = await getSupabaseAdmin();
 
@@ -45,18 +41,12 @@ export async function getValuesByItemId(
     throw new Error('Supabase client not configured');
   }
 
-  let query = client
+  const { data, error } = await client
     .from('collection_item_values')
     .select('*')
     .eq('item_id', item_id)
-    .eq('item_is_published', itemIsPublished)
+    .eq('is_published', is_published)
     .is('deleted_at', null);
-
-  if (is_published !== undefined) {
-    query = query.eq('is_published', is_published);
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Failed to fetch item values: ${error.message}`);
@@ -68,11 +58,11 @@ export async function getValuesByItemId(
 /**
  * Get all values for a field
  * @param field_id - Field UUID
- * @param fieldIsPublished - Whether this is for draft (false) or published (true) field
+ * @param is_published - Filter for draft (false) or published (true) values. Defaults to false (draft).
  */
 export async function getValuesByFieldId(
   field_id: string,
-  fieldIsPublished: boolean
+  is_published: boolean = false
 ): Promise<CollectionItemValue[]> {
   const client = await getSupabaseAdmin();
 
@@ -84,7 +74,7 @@ export async function getValuesByFieldId(
     .from('collection_item_values')
     .select('*')
     .eq('field_id', field_id)
-    .eq('field_is_published', fieldIsPublished)
+    .eq('is_published', is_published)
     .is('deleted_at', null);
 
   if (error) {
@@ -97,16 +87,12 @@ export async function getValuesByFieldId(
 /**
  * Get a specific value
  * @param item_id - Item UUID
- * @param itemIsPublished - Whether this is for draft (false) or published (true) item
  * @param field_id - Field UUID
- * @param fieldIsPublished - Whether this is for draft (false) or published (true) field
  * @param is_published - Draft (false) or published (true) value. Defaults to false (draft).
  */
 export async function getValue(
   item_id: string,
-  itemIsPublished: boolean,
   field_id: string,
-  fieldIsPublished: boolean,
   is_published: boolean = false
 ): Promise<CollectionItemValue | null> {
   const client = await getSupabaseAdmin();
@@ -119,9 +105,7 @@ export async function getValue(
     .from('collection_item_values')
     .select('*')
     .eq('item_id', item_id)
-    .eq('item_is_published', itemIsPublished)
     .eq('field_id', field_id)
-    .eq('field_is_published', fieldIsPublished)
     .eq('is_published', is_published)
     .is('deleted_at', null)
     .single();
@@ -136,17 +120,13 @@ export async function getValue(
 /**
  * Set a value (upsert)
  * @param item_id - Item UUID
- * @param itemIsPublished - Whether this is for draft (false) or published (true) item
  * @param field_id - Field UUID
- * @param fieldIsPublished - Whether this is for draft (false) or published (true) field
  * @param value - Value to set
  * @param is_published - Draft (false) or published (true) value. Defaults to false (draft).
  */
 export async function setValue(
   item_id: string,
-  itemIsPublished: boolean,
   field_id: string,
-  fieldIsPublished: boolean,
   value: string | null,
   is_published: boolean = false
 ): Promise<CollectionItemValue> {
@@ -157,8 +137,7 @@ export async function setValue(
   }
 
   // Check if value already exists for this specific version (draft or published)
-  const existing = await getValue(item_id, itemIsPublished, field_id, fieldIsPublished, is_published);
-
+  const existing = await getValue(item_id, field_id, is_published);
   if (existing) {
     // Update existing value
     const { data, error } = await client
@@ -184,9 +163,7 @@ export async function setValue(
       .insert({
         id: randomUUID(),
         item_id,
-        item_is_published: itemIsPublished,
         field_id,
-        field_is_published: fieldIsPublished,
         value,
         is_published,
         created_at: new Date().toISOString(),
@@ -206,23 +183,19 @@ export async function setValue(
 /**
  * Set multiple values for an item (batch upsert)
  * @param item_id - Item UUID
- * @param itemIsPublished - Whether this is for draft (false) or published (true) item
  * @param values - Object mapping field_id (UUID) to value string
- * @param fieldIsPublished - Whether fields are draft (false) or published (true)
  * @param is_published - Draft (false) or published (true) values. Defaults to false (draft).
  */
 export async function setValues(
   item_id: string,
-  itemIsPublished: boolean,
   values: Record<string, string | null>,
-  fieldIsPublished: boolean,
   is_published: boolean = false
 ): Promise<CollectionItemValue[]> {
   const results: CollectionItemValue[] = [];
 
   // Process each value
   for (const [field_id, value] of Object.entries(values)) {
-    const result = await setValue(item_id, itemIsPublished, field_id, fieldIsPublished, value, is_published);
+    const result = await setValue(item_id, field_id, value, is_published);
     results.push(result);
   }
 
@@ -230,21 +203,18 @@ export async function setValues(
 }
 
 /**
- * Set multiple values by field name
- * Convenience method that looks up field IDs from collection
+ * Set multiple values by field ID
+ * Convenience method that validates field IDs and applies type casting
  * @param item_id - Item UUID
- * @param itemIsPublished - Whether this is for draft (false) or published (true) item
  * @param collection_id - Collection UUID
- * @param collectionIsPublished - Whether this is for draft (false) or published (true) collection
- * @param values - Object mapping field_name to value
+ * @param values - Object mapping field_id (UUID) to value
  * @param fieldType - Field type mapping (for casting)
  * @param is_published - Draft (false) or published (true) values. Defaults to false (draft).
+ *                       Fields are fetched with the same is_published status.
  */
 export async function setValuesByFieldName(
   item_id: string,
-  itemIsPublished: boolean,
   collection_id: string,
-  collectionIsPublished: boolean,
   values: Record<string, any>,
   fieldType: Record<string, CollectionFieldType>,
   is_published: boolean = false
@@ -255,52 +225,48 @@ export async function setValuesByFieldName(
     throw new Error('Supabase client not configured');
   }
 
-  // Get field mappings
+  // Get field mappings to validate field IDs and get types
+  // Fields are fetched with the same is_published status as the values
   const { data: fields, error } = await client
     .from('collection_fields')
-    .select('id, field_name, type')
+    .select('id, type')
     .eq('collection_id', collection_id)
-    .eq('collection_is_published', collectionIsPublished)
-    .eq('is_published', collectionIsPublished)
+    .eq('is_published', is_published)
     .is('deleted_at', null);
 
   if (error) {
     throw new Error(`Failed to fetch fields: ${error.message}`);
   }
 
-  // Create mapping of field_name -> field_id
-  const fieldMap: Record<string, { id: string; type: CollectionFieldType }> = {};
+  // Create mapping of field_id -> type
+  const fieldMap: Record<string, CollectionFieldType> = {};
   fields?.forEach((field: any) => {
-    fieldMap[field.field_name] = { id: field.id, type: field.type };
+    fieldMap[field.id] = field.type;
   });
 
   // Convert values to strings based on type and set
   const valuesToSet: Record<string, string | null> = {};
 
-  for (const [fieldName, value] of Object.entries(values)) {
-    const field = fieldMap[fieldName];
-    if (field) {
-      valuesToSet[field.id] = valueToString(value, field.type);
+  for (const [fieldId, value] of Object.entries(values)) {
+    const type = fieldMap[fieldId] || fieldType[fieldId];
+    if (type) {
+      valuesToSet[fieldId] = valueToString(value, type);
     }
   }
 
-  return setValues(item_id, itemIsPublished, valuesToSet, collectionIsPublished, is_published);
+  return setValues(item_id, valuesToSet, is_published);
 }
 
 /**
  * Delete a value
  * @param item_id - Item UUID
- * @param itemIsPublished - Whether this is for draft (false) or published (true) item
  * @param field_id - Field UUID
- * @param fieldIsPublished - Whether this is for draft (false) or published (true) field
- * @param isPublished - Which version to delete: draft (false) or published (true). Defaults to false (draft).
+ * @param is_published - Which version to delete: draft (false) or published (true). Defaults to false (draft).
  */
 export async function deleteValue(
   item_id: string,
-  itemIsPublished: boolean,
   field_id: string,
-  fieldIsPublished: boolean,
-  isPublished: boolean = false
+  is_published: boolean = false
 ): Promise<void> {
   const client = await getSupabaseAdmin();
 
@@ -315,10 +281,8 @@ export async function deleteValue(
       updated_at: new Date().toISOString(),
     })
     .eq('item_id', item_id)
-    .eq('item_is_published', itemIsPublished)
     .eq('field_id', field_id)
-    .eq('field_is_published', fieldIsPublished)
-    .eq('is_published', isPublished)
+    .eq('is_published', is_published)
     .is('deleted_at', null);
 
   if (error) {
@@ -329,6 +293,7 @@ export async function deleteValue(
 /**
  * Publish values for an item
  * Copies all draft values to published values for the same item
+ * Uses batch upsert for efficiency
  * @param item_id - Item UUID to publish
  * @returns Number of values published
  */
@@ -340,7 +305,7 @@ export async function publishValues(item_id: string): Promise<number> {
   }
 
   // Get all draft values for this item
-  const draftValues = await getValuesByItemId(item_id, false, false);
+  const draftValues = await getValuesByItemId(item_id, false);
   console.log(`[publishValues] Found ${draftValues.length} draft values for item ${item_id}`);
 
   if (draftValues.length === 0) {
@@ -348,25 +313,31 @@ export async function publishValues(item_id: string): Promise<number> {
     return 0;
   }
 
-  let publishedCount = 0;
+  // Prepare values for batch upsert
+  const now = new Date().toISOString();
+  const valuesToUpsert = draftValues.map(value => ({
+    id: value.id,
+    item_id: value.item_id,
+    field_id: value.field_id,
+    value: value.value,
+    is_published: true,
+    created_at: value.created_at,
+    updated_at: now,
+  }));
 
-  // Copy each draft value to published
-  for (const draftValue of draftValues) {
-    console.log(`[publishValues] Publishing value for field ${draftValue.field_id}, value: ${draftValue.value}`);
-    const result = await setValue(
-      item_id,
-      true, // Published item
-      draftValue.field_id,
-      true, // Published field
-      draftValue.value,
-      true // Published value
-    );
-    console.log(`[publishValues] Value published, result:`, result);
-    publishedCount++;
+  // Batch upsert all values
+  const { error } = await client
+    .from('collection_item_values')
+    .upsert(valuesToUpsert, {
+      onConflict: 'id,is_published', // Composite primary key
+    });
+
+  if (error) {
+    throw new Error(`Failed to publish values: ${error.message}`);
   }
 
-  console.log(`[publishValues] Total published: ${publishedCount} values for item ${item_id}`);
-  return publishedCount;
+  console.log(`[publishValues] Successfully published ${draftValues.length} values for item ${item_id}`);
+  return draftValues.length;
 }
 
 /**

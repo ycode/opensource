@@ -49,7 +49,6 @@ export async function getSupabaseAdmin(): Promise<SupabaseClient | null> {
     return null;
   }
 
-
   // Cache client if credentials haven't changed
   const credKey = `${credentials.projectUrl}:${credentials.serviceRoleKey}`;
   if (cachedClient && cachedCredentials === credKey) {
@@ -131,4 +130,3 @@ export async function executeSql(sql: string): Promise<{ success: boolean; error
     };
   }
 }
-

@@ -173,4 +173,3 @@ export async function uploadFile(file: File): Promise<{ path: string; url: strin
     url: urlData.publicUrl,
   };
 }
-

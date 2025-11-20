@@ -49,7 +49,8 @@ export function isHomepage(page: Page): boolean {
 export function buildSlugPath(
   item: Page | PageFolder | null,
   allFolders: PageFolder[],
-  itemType: 'page' | 'folder'
+  itemType: 'page' | 'folder',
+  slugFieldKey: string = '{slug}'
 ): string {
   if (!item) return '/';
 
@@ -69,13 +70,44 @@ export function buildSlugPath(
     slugParts.push((item as PageFolder).slug);
   } else if (itemType === 'page') {
     const page = item as Page;
-    // Index pages don't have their own slug, just the folder path
-    if (!page.is_index && page.slug) {
+
+    if (page.is_dynamic) {
+      slugParts.push(slugFieldKey);
+    } else if (!page.is_index && page.slug) {
       slugParts.push(page.slug);
     }
   }
 
   return '/' + slugParts.filter(Boolean).join('/');
+}
+
+/**
+ * Build the full URL path for a dynamic page with a specific collection item slug
+ * Replaces the {slug} placeholder with the actual slug value from the collection item
+ *
+ * @param page - The dynamic page
+ * @param allFolders - Array of all folders
+ * @param collectionItemSlug - The slug value from the collection item's slug field
+ * @returns The full URL path with the slug value replaced, or the pattern path if slug is not provided
+ *
+ * @example
+ * buildDynamicPageUrl(dynamicPage, folders, 'my-item-slug') // "/products/my-item-slug"
+ * buildDynamicPageUrl(dynamicPage, folders, null) // "/products/{slug}"
+ */
+export function buildDynamicPageUrl(
+  page: Page,
+  allFolders: PageFolder[],
+  collectionItemSlug: string | null
+): string {
+  const patternPath = buildSlugPath(page, allFolders, 'page', '{slug}');
+
+  // If no slug value provided, return the pattern path
+  if (collectionItemSlug === null) {
+    return patternPath;
+  }
+
+  // Replace {slug} placeholder with the actual slug value
+  return patternPath.replace(/\{slug\}/g, collectionItemSlug);
 }
 
 /**
@@ -200,7 +232,9 @@ export function getNodeIcon(node: FlattenedPageNode | PageTreeNode): IconProps['
  * Get icon name based on node type and data
  */
 export function getPageIcon(page: Page): IconProps['name'] {
-  return page.is_index ? 'homepage' : 'page';
+  if (page.is_index) return 'homepage';
+  if (page.is_dynamic) return 'dynamicPage';
+  return 'page';
 }
 
 /**
@@ -440,11 +474,31 @@ export function isDescendant(
  * Generate a URL-safe slug from a name
  * @example generateSlug('About Us') // 'about-us'
  */
-export function generateSlug(name: string): string {
-  return name
+/**
+ * Sanitize slug to only allow [a-z0-9-] characters
+ * Replaces invalid characters with "-" and removes consecutive dashes
+ * @param slug - The slug to sanitize
+ * @param allowTrailingDash - If true, allows trailing dashes (for real-time input). Defaults to false.
+ */
+export function sanitizeSlug(slug: string, allowTrailingDash: boolean = false): string {
+  let sanitized = slug
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
+    .replace(/[^a-z0-9-]/g, '-') // Replace invalid chars with dash
+    .replace(/-+/g, '-'); // Replace multiple consecutive dashes with single dash
+
+  // Remove leading dashes
+  sanitized = sanitized.replace(/^-+/, '');
+
+  // Remove trailing dashes only if not allowed (for final validation)
+  if (!allowTrailingDash) {
+    sanitized = sanitized.replace(/-+$/, '');
+  }
+
+  return sanitized;
+}
+
+export function generateSlug(name: string): string {
+  return sanitizeSlug(name);
 }
 
 /**
@@ -586,19 +640,56 @@ export function getParentContextFromSelection(
 }
 
 /**
- * Calculate the next order value for a new item (max order of siblings + 1)
+ * Calculate the next order value for a new item
+ * If selectedItemId is provided and it's a page, insert right after it
+ * Otherwise, use max order of siblings + 1 (append to end)
  */
 export function calculateNextOrder(
   parentFolderId: string | null,
   depth: number,
   pages: Page[],
-  folders: PageFolder[]
+  folders: PageFolder[],
+  selectedItemId?: string | null
 ): number {
-  const siblingPages = pages.filter(p => p.page_folder_id === parentFolderId && p.depth === depth);
-  const siblingFolders = folders.filter(f => f.page_folder_id === parentFolderId && f.depth === depth);
-  const maxPageOrder = siblingPages.length > 0 ? Math.max(...siblingPages.map(p => p.order || 0)) : -1;
-  const maxFolderOrder = siblingFolders.length > 0 ? Math.max(...siblingFolders.map(f => f.order || 0)) : -1;
-  return Math.max(maxPageOrder, maxFolderOrder) + 1;
+  // If a page is selected, insert right after it
+  if (selectedItemId) {
+    const selectedPage = pages.find(p => p.id === selectedItemId);
+    if (
+      selectedPage &&
+      selectedPage.page_folder_id === parentFolderId &&
+      selectedPage.depth === depth &&
+      selectedPage.deleted_at === null // Don't use deleted pages as reference
+    ) {
+      // Insert right after the selected page
+      return (selectedPage.order || 0) + 1;
+    }
+  }
+
+  // Append to end: find max order across pages and folders (exclude error pages and deleted items)
+  const siblingPages = pages.filter(p =>
+    p.page_folder_id === parentFolderId &&
+    p.depth === depth &&
+    p.error_page === null && // Exclude error pages
+    p.deleted_at === null // Exclude deleted pages
+  );
+  const siblingFolders = folders.filter(f =>
+    f.page_folder_id === parentFolderId &&
+    f.depth === depth &&
+    f.deleted_at === null // Exclude deleted folders
+  );
+
+  // Combine all siblings and find the max order across both pages and folders
+  const allSiblings = [
+    ...siblingPages.map(p => ({ order: p.order || 0 })),
+    ...siblingFolders.map(f => ({ order: f.order || 0 })),
+  ];
+
+  if (allSiblings.length === 0) {
+    return 0; // First item in empty folder
+  }
+
+  const maxOrder = Math.max(...allSiblings.map(s => s.order));
+  return maxOrder + 1;
 }
 
 /**

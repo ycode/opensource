@@ -98,6 +98,17 @@ export interface PositioningDesign {
   zIndex?: string;
 }
 
+export interface DesignProperties {
+  layout?: LayoutDesign;
+  typography?: TypographyDesign;
+  spacing?: SpacingDesign;
+  sizing?: SizingDesign;
+  borders?: BordersDesign;
+  backgrounds?: BackgroundsDesign;
+  effects?: EffectsDesign;
+  positioning?: PositioningDesign;
+}
+
 export interface LayerSettings {
   id?: string;           // Custom HTML ID attribute
   hidden?: boolean;      // Element visibility in canvas
@@ -119,16 +130,7 @@ export interface LayerStyle {
 
   // Style data
   classes: string;
-  design?: {
-    layout?: LayoutDesign;
-    typography?: TypographyDesign;
-    spacing?: SpacingDesign;
-    sizing?: SizingDesign;
-    borders?: BordersDesign;
-    backgrounds?: BackgroundsDesign;
-    effects?: EffectsDesign;
-    positioning?: PositioningDesign;
-  };
+  design?: DesignProperties;
 
   // Versioning fields
   content_hash?: string; // SHA-256 hash for change detection
@@ -163,7 +165,6 @@ export interface Layer {
   // Content
   text?: string; // Text content
   classes: string | string[]; // Tailwind CSS classes (support both formats)
-  style?: string; // Style preset name (legacy)
 
   // Children
   children?: Layer[];
@@ -173,16 +174,7 @@ export interface Layer {
   attributes?: Record<string, any>;
 
   // Design system (structured properties)
-  design?: {
-    layout?: LayoutDesign;
-    typography?: TypographyDesign;
-    spacing?: SpacingDesign;
-    sizing?: SizingDesign;
-    borders?: BordersDesign;
-    backgrounds?: BackgroundsDesign;
-    effects?: EffectsDesign;
-    positioning?: PositioningDesign;
-  };
+  design?: DesignProperties;
 
   // Settings (element-specific configuration)
   settings?: LayerSettings;
@@ -191,16 +183,7 @@ export interface Layer {
   styleId?: string; // Reference to applied LayerStyle
   styleOverrides?: {
     classes?: string;
-    design?: {
-      layout?: LayoutDesign;
-      typography?: TypographyDesign;
-      spacing?: SpacingDesign;
-      sizing?: SizingDesign;
-      borders?: BordersDesign;
-      backgrounds?: BackgroundsDesign;
-      effects?: EffectsDesign;
-      positioning?: PositioningDesign;
-    };
+    design?: DesignProperties;
   }; // Tracks local changes after style applied
 
   // Components (reusable layer trees)
@@ -218,6 +201,7 @@ export interface Layer {
   alt?: string;
 
   // Legacy properties
+  style?: string; // Style preset name (legacy)
   content?: string; // For text/heading layers (use text instead)
   src?: string;     // For image layers (use url instead)
 }
@@ -240,20 +224,10 @@ export interface Page {
   deleted_at: string | null; // Soft delete timestamp
 }
 
-/**
- * File object for storing file metadata
- */
-export interface FileObject {
-  name: string; // Custom name or file basename
-  mime_type: string; // MIME type (e.g., 'image/png')
-  path: string; // Storage path
-  url: string; // Public URL
-}
-
 export interface PageSettings {
   cms?: {
-    key: string;
-    source: string;
+    collection_id: string;
+    slug_field_id: string;
   };
   auth?: {
     enabled: boolean;
@@ -302,6 +276,21 @@ export interface PageFolder {
   created_at: string;
   updated_at: string;
   deleted_at: string | null; // Soft delete timestamp
+}
+
+// Page/Folder Duplicate Operation Types
+export interface PageItemDuplicateMetadata {
+  tempId: string;
+  originalName: string;
+  parentFolderId: string | null;
+  expectedName: string;
+}
+
+export interface PageItemDuplicateResult<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  metadata?: PageItemDuplicateMetadata;
 }
 
 // Asset Types
@@ -434,7 +423,7 @@ export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'refe
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {
-  field: string; // field_name or 'manual_order'
+  field: string; // field ID or 'manual_order'
   direction: CollectionSortDirection;
 }
 
@@ -446,22 +435,59 @@ export interface Collection {
   updated_at: string;
   deleted_at: string | null;
   sorting: CollectionSorting | null;
-  order: number | null;
+  order: number;
   is_published: boolean;
   draft_items_count?: number;
+}
+
+export interface CreateCollectionData {
+  name: string;
+  sorting?: CollectionSorting | null;
+  order?: number;
+  is_published?: boolean;
+}
+
+export interface UpdateCollectionData {
+  name?: string;
+  sorting?: CollectionSorting | null;
+  order?: number;
+}
+
+export interface CreateCollectionFieldData {
+  name: string;
+  key?: string | null;
+  type: CollectionFieldType;
+  default?: string | null;
+  fillable?: boolean;
+  order: number;
+  collection_id: string; // UUID
+  reference_collection_id?: string | null; // UUID
+  hidden?: boolean;
+  data?: Record<string, any>;
+  is_published?: boolean;
+}
+
+export interface UpdateCollectionFieldData {
+  name?: string;
+  key?: string | null;
+  type?: CollectionFieldType;
+  default?: string | null;
+  fillable?: boolean;
+  order?: number;
+  reference_collection_id?: string | null; // UUID
+  hidden?: boolean;
+  data?: Record<string, any>;
 }
 
 export interface CollectionField {
   id: string; // UUID
   name: string;
-  field_name: string;
+  key: string | null; // Built-in fields have a key to identify them
   type: CollectionFieldType;
   default: string | null;
   fillable: boolean;
-  built_in: boolean;
   order: number;
   collection_id: string; // UUID
-  collection_is_published: boolean; // Composite FK part
   reference_collection_id: string | null; // UUID
   created_at: string;
   updated_at: string;
@@ -473,9 +499,7 @@ export interface CollectionField {
 
 export interface CollectionItem {
   id: string; // UUID
-  r_id: string;
   collection_id: string; // UUID
-  collection_is_published: boolean; // Composite FK part
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -487,9 +511,7 @@ export interface CollectionItemValue {
   id: string; // UUID
   value: string | null;
   item_id: string; // UUID
-  item_is_published: boolean; // Composite FK part
   field_id: string; // UUID
-  field_is_published: boolean; // Composite FK part
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -498,7 +520,7 @@ export interface CollectionItemValue {
 
 // Helper type for working with items + values
 export interface CollectionItemWithValues extends CollectionItem {
-  values: Record<string, string>; // field_name -> value
+  values: Record<string, string>; // field_id (UUID) -> value
   publish_status?: 'new' | 'updated' | 'deleted'; // Status badge for publish modal
 }
 

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import {
   Field,
@@ -34,8 +35,9 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import Icon from '@/components/ui/icon';
-import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug } from '@/lib/page-utils';
+import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug, sanitizeSlug } from '@/lib/page-utils';
 import { isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 import { Textarea } from '@/components/ui/textarea';
 import { uploadFileApi, deleteAssetApi } from '@/lib/api';
@@ -95,6 +97,11 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const [authPassword, setAuthPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [slugFieldId, setSlugFieldId] = useState<string | null>(null);
+
+  const { collections, fields } = useCollectionsStore();
+
   const [uploadedAssetCache, setUploadedAssetCache] = useState<Asset | null>(null);
   const seoImageAsset = useAsset(seoImageId);
   const { addAsset, removeAsset } = useAssetsStore();
@@ -127,12 +134,40 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     customCodeBody: string;
     authEnabled: boolean;
     authPassword: string;
+    collectionId: string | null;
+    slugFieldId: string | null;
   } | null>(null);
 
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
 
   const isErrorPage = useMemo(() => currentPage?.error_page !== null, [currentPage]);
+  const isDynamicPage = useMemo(() => currentPage?.is_dynamic === true, [currentPage]);
+
+  // Check if there's a URL conflict warning: dynamic page + non-index pages in same folder
+  const urlConflictWarning = useMemo(() => {
+    if (!currentPage) return null;
+
+    const targetFolderId = pageFolderId !== undefined ? pageFolderId : currentPage.page_folder_id;
+    const currentPageIsPublished = currentPage?.is_published || false;
+
+    // Check if there are non-index pages in this folder
+    const hasNonIndexPages = pages.some(
+      (p) =>
+        p.page_folder_id === targetFolderId &&
+        !p.is_index &&
+        !p.is_dynamic &&
+        !p.error_page &&
+        p.is_published === currentPageIsPublished &&
+        p.id !== currentPage?.id
+    );
+
+    if (isDynamicPage && hasNonIndexPages) {
+      return 'The parent folder contains regular pages with custom slugs which could conflict with CMS slugs (regular pages would be displayed in priority).';
+    }
+
+    return null;
+  }, [currentPage, pageFolderId, pages, isDynamicPage]);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!initialValuesRef.current) return false;
@@ -152,6 +187,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       customCodeBody !== initial.customCodeBody ||
       authEnabled !== initial.authEnabled ||
       authPassword !== initial.authPassword ||
+      collectionId !== initial.collectionId ||
+      slugFieldId !== initial.slugFieldId ||
       pendingImageFile !== null
     );
 
@@ -162,7 +199,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
     return hasChanges;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImageId, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, pendingImageFile, saveCounter]);
+  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImageId, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, pendingImageFile, saveCounter]);
 
   // Expose method to check for unsaved changes externally
   useImperativeHandle(ref, () => ({
@@ -203,10 +240,32 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       return;
     }
 
-    // If we just saved, skip unsaved changes check (state updates are async)
+    // If we just saved, accept the page update and sync initial values from the new page data
     if (skipNextInitializationRef.current) {
       setCurrentPage(page);
       rejectedPageRef.current = null;
+      // Sync initial values from the updated page to ensure they match what was saved
+      if (page && initialValuesRef.current) {
+        const settings = page.settings as PageSettings | undefined;
+        const isPageErrorPage = page.error_page !== null;
+        const isPageDynamic = page.is_dynamic === true;
+        const isPageIndex = isPageDynamic ? false : page.is_index;
+
+        initialValuesRef.current.name = page.name;
+        initialValuesRef.current.slug = isPageErrorPage || isPageIndex ? '' : (isPageDynamic ? '*' : page.slug || '');
+        initialValuesRef.current.pageFolderId = page.page_folder_id;
+        initialValuesRef.current.isIndex = isPageIndex;
+        initialValuesRef.current.seoTitle = settings?.seo?.title || '';
+        initialValuesRef.current.seoDescription = settings?.seo?.description || '';
+        initialValuesRef.current.seoImageId = settings?.seo?.image || null;
+        initialValuesRef.current.seoNoindex = isPageErrorPage ? true : (settings?.seo?.noindex || false);
+        initialValuesRef.current.customCodeHead = settings?.custom_code?.head || '';
+        initialValuesRef.current.customCodeBody = settings?.custom_code?.body || '';
+        initialValuesRef.current.authEnabled = settings?.auth?.enabled || false;
+        initialValuesRef.current.authPassword = settings?.auth?.password || '';
+        initialValuesRef.current.collectionId = settings?.cms?.collection_id || null;
+        initialValuesRef.current.slugFieldId = settings?.cms?.slug_field_id || null;
+      }
       return;
     }
 
@@ -235,18 +294,19 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     if (currentPage) {
       const settings = currentPage.settings as PageSettings | undefined;
       const initialName = currentPage.name;
-      const initialIsIndex = currentPage.is_index;
-      const initialSlug = isErrorPage || initialIsIndex ? '' : currentPage.slug;
+      const initialIsIndex = currentPage.is_dynamic ? false : currentPage.is_index;
+      const initialSlug = isErrorPage || initialIsIndex ? '' : (currentPage.is_dynamic ? '*' : currentPage.slug || '');
       const initialFolderId = currentPage.page_folder_id;
       const initialSeoTitle = settings?.seo?.title || '';
       const initialSeoDescription = settings?.seo?.description || '';
       const initialSeoImageId = settings?.seo?.image || null; // Asset ID
-      // Normalize seoNoindex: always true for error pages (consistent with save logic)
       const initialSeoNoindex = isErrorPage ? true : (settings?.seo?.noindex || false);
       const initialCustomCodeHead = settings?.custom_code?.head || '';
       const initialCustomCodeBody = settings?.custom_code?.body || '';
       const initialAuthEnabled = settings?.auth?.enabled || false;
       const initialAuthPassword = settings?.auth?.password || '';
+      const initialCollectionId = settings?.cms?.collection_id || null;
+      const initialSlugFieldId = settings?.cms?.slug_field_id || null;
 
       setName(initialName);
       setSlug(initialSlug);
@@ -260,6 +320,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setCustomCodeBody(initialCustomCodeBody);
       setAuthEnabled(initialAuthEnabled);
       setAuthPassword(initialAuthPassword);
+      setCollectionId(initialCollectionId);
+      setSlugFieldId(initialSlugFieldId);
       setPendingImageFile(null);
       setUploadedAssetCache(null); // Clear cache when switching pages
 
@@ -283,6 +345,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         customCodeBody: initialCustomCodeBody,
         authEnabled: initialAuthEnabled,
         authPassword: initialAuthPassword,
+        collectionId: initialCollectionId,
+        slugFieldId: initialSlugFieldId,
       };
     } else {
       setName('');
@@ -297,6 +361,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setCustomCodeBody('');
       setAuthEnabled(false);
       setAuthPassword('');
+      setCollectionId(null);
+      setSlugFieldId(null);
       setPendingImageFile(null);
       setUploadedAssetCache(null); // Clear cache for new page
 
@@ -319,6 +385,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         customCodeBody: '',
         authEnabled: false,
         authPassword: '',
+        collectionId: null,
+        slugFieldId: null,
       };
     }
     setError(null);
@@ -342,16 +410,18 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     }
   }, [name, currentPage, isIndex, isErrorPage, pageFolderId, pages]);
 
-  // When isIndex or isErrorPage changes, update slug accordingly
+  // When isIndex, isErrorPage, or isDynamicPage changes, update slug accordingly
   useEffect(() => {
     if (isIndex || isErrorPage) {
       setSlug(''); // Index pages and error pages must have empty slug
+    } else if (isDynamicPage) {
+      setSlug('*'); // Dynamic pages use '*' as slug placeholder
     } else if (currentPage && !slug && name) {
-      // If switching to non-index/non-error and slug is empty, generate one
+      // If switching to non-index/non-error/non-dynamic and slug is empty, generate one
       const uniqueSlug = generateUniqueSlug(name, pages, pageFolderId, currentPage.is_published, currentPage.id);
       setSlug(uniqueSlug);
     }
-  }, [isIndex, isErrorPage, currentPage, name, slug, pageFolderId, pages]);
+  }, [isIndex, isErrorPage, isDynamicPage, currentPage, name, slug, pageFolderId, pages]);
 
   // When folder changes for new pages, regenerate slug to avoid duplicates in new folder
   useEffect(() => {
@@ -409,10 +479,24 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       slug: slug,
       page_folder_id: pageFolderId,
       is_index: isIndex,
+      is_dynamic: isDynamicPage,
     };
 
-    return buildSlugPath(tempPage as Page, folders, 'page');
-  }, [pageFolderId, slug, isIndex, folders, isErrorPage]);
+    let slugFieldKey = '';
+
+    if (isDynamicPage) {
+      const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+      const activeSlugFieldId = slugFieldId || currentPage?.settings?.cms?.slug_field_id || '';
+      const collectionFields = fields[activeCollectionId] || [];
+      const selectedSlugField = collectionFields.find(field => field.id === activeSlugFieldId);
+
+      slugFieldKey = `{${selectedSlugField?.key}}`;
+    }
+
+    const basePath = buildSlugPath(tempPage as Page, folders, 'page', slugFieldKey);
+
+    return basePath;
+  }, [pageFolderId, slug, isIndex, folders, isErrorPage, isDynamicPage, collectionId, slugFieldId, currentPage, fields]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -454,6 +538,18 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     }
   };
 
+  const handleCollectionChange = (value: string) => {
+    setCollectionId(value);
+    // Find the slug field for the selected collection
+    const collectionFields = fields[value] || [];
+    const slugField = collectionFields.find(field => field.key === 'slug');
+    if (slugField) {
+      setSlugFieldId(slugField.id);
+    } else {
+      setSlugFieldId(null);
+    }
+  };
+
   const handleClose = () => {
     if (hasUnsavedChanges) {
       setPendingAction('close');
@@ -481,6 +577,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         setCustomCodeBody(initialValuesRef.current.customCodeBody);
         setAuthEnabled(initialValuesRef.current.authEnabled);
         setAuthPassword(initialValuesRef.current.authPassword);
+        setCollectionId(initialValuesRef.current.collectionId);
+        setSlugFieldId(initialValuesRef.current.slugFieldId);
         setPendingImageFile(null);
 
         // Clean up preview URL
@@ -513,6 +611,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         setCustomCodeBody(initialValuesRef.current.customCodeBody);
         setAuthEnabled(initialValuesRef.current.authEnabled);
         setAuthPassword(initialValuesRef.current.authPassword);
+        setCollectionId(initialValuesRef.current.collectionId);
+        setSlugFieldId(initialValuesRef.current.slugFieldId);
         setPendingImageFile(null);
 
         // Clean up preview URL
@@ -564,6 +664,10 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         return;
       }
       // Note: We allow saving even if parent folder is set, backend should handle this
+    } else if (isDynamicPage && isIndex) {
+      // Dynamic pages cannot be set as index
+      setError(`CMS pages cannot be set as ${isOnRootFolder ? 'homepage' : 'index page'}`);
+      return;
     } else if (isIndex) {
       // Index page rules
       // Index pages must have empty slug
@@ -599,18 +703,44 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
       // Check for duplicate slug within the same folder and published state
       // The database has a unique constraint on (slug, is_published, page_folder_id)
-      const trimmedSlug = slug.trim();
-      const duplicateSlug = pages.find(
-        (p) =>
-          p.id !== currentPage?.id && // Exclude current page
-          p.slug === trimmedSlug &&
-          p.is_published === (currentPage?.is_published || false) && // Same published state
-          p.page_folder_id === pageFolderId // Same folder (including null for root)
-      );
+      // Skip slug validation for dynamic pages (they use "*" as slug placeholder)
+      if (!isDynamicPage) {
+        // Sanitize slug (remove trailing dashes) for comparison
+        const trimmedSlug = sanitizeSlug(slug.trim(), false);
+        const duplicateSlug = pages.find(
+          (p) =>
+            p.id !== currentPage?.id && // Exclude current page
+            p.slug === trimmedSlug &&
+            p.is_published === (currentPage?.is_published || false) && // Same published state
+            p.page_folder_id === pageFolderId // Same folder (including null for root)
+        );
 
-      if (duplicateSlug) {
-        setError('This slug is already used by another page in this folder');
-        return;
+        if (duplicateSlug) {
+          setError('This slug is already used by another page in this folder');
+          return;
+        }
+      }
+
+      // Check if trying to make a page dynamic or move a dynamic page to a folder that already has one
+      const targetFolderId = pageFolderId;
+      const willBeDynamic = isDynamicPage;
+      const isBecomingDynamic = isDynamicPage && !currentPage?.is_dynamic;
+      const isMovingDynamicPage = currentPage?.is_dynamic && pageFolderId !== currentPage?.page_folder_id;
+
+      if (willBeDynamic && (isBecomingDynamic || isMovingDynamicPage)) {
+        const existingDynamicPage = pages.find(
+          (p) =>
+            p.id !== currentPage?.id && // Exclude current page
+            p.is_dynamic &&
+            p.page_folder_id === targetFolderId &&
+            p.is_published === (currentPage?.is_published || false) // Same published state
+        );
+
+        if (existingDynamicPage) {
+          const folderName = targetFolderId ? 'this folder' : 'the root folder';
+          setError(`A dynamic page already exists in ${folderName}. Each folder can only contain one dynamic page.`);
+          return;
+        }
       }
     }
 
@@ -661,11 +791,19 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
           head: customCodeHead.trim(),
           body: customCodeBody.trim(),
         },
+        // Explicitly set or clear cms property
+        cms: collectionId && slugFieldId ? {
+          collection_id: collectionId,
+          slug_field_id: slugFieldId,
+        } : undefined,
       };
+
+      // Sanitize slug and remove trailing dashes before saving
+      const finalSlug = isErrorPage || isIndex ? '' : sanitizeSlug(slug.trim(), false);
 
       await onSave({
         name: name.trim(),
-        slug: isErrorPage || isIndex ? '' : slug.trim(),
+        slug: finalSlug,
         page_folder_id: pageFolderId,
         is_index: isIndex,
         is_published: false,
@@ -679,7 +817,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       }
 
       const trimmedName = name.trim();
-      const trimmedSlug = isErrorPage || isIndex ? '' : slug.trim();
+      const trimmedSlug = isErrorPage || isIndex ? '' : sanitizeSlug(slug.trim(), false);
       const trimmedSeoTitle = seoTitle.trim();
       const trimmedSeoDescription = seoDescription.trim();
       const normalizedSeoNoindex = isErrorPage ? true : seoNoindex;
@@ -696,6 +834,11 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setCustomCodeHead(trimmedCustomCodeHead);
       setCustomCodeBody(trimmedCustomCodeBody);
       setAuthPassword(trimmedAuthPassword);
+      // Update collection values - normalize to null if either is missing
+      const savedCollectionId = collectionId && slugFieldId ? collectionId : null;
+      const savedSlugFieldId = collectionId && slugFieldId ? slugFieldId : null;
+      setCollectionId(savedCollectionId);
+      setSlugFieldId(savedSlugFieldId);
 
       initialValuesRef.current = {
         name: trimmedName,
@@ -710,6 +853,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         customCodeBody: trimmedCustomCodeBody,
         authEnabled,
         authPassword: trimmedAuthPassword,
+        collectionId: savedCollectionId,
+        slugFieldId: savedSlugFieldId,
       };
 
       rejectedPageRef.current = null;
@@ -760,8 +905,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         <hr className="mx-5" />
 
         {/* Tabs */}
-        <Tabs 
-          value={activeTab} 
+        <Tabs
+          value={activeTab}
           onValueChange={(value) => setActiveTab(value as 'general' | 'seo' | 'custom-code')}
           className="flex-1 flex flex-col px-5 py-3.5"
         >
@@ -782,6 +927,11 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
             )}
 
             <TabsContent value="general">
+              {urlConflictWarning && (
+                <Alert variant="warning" className="mb-4">
+                  <AlertDescription>{urlConflictWarning}</AlertDescription>
+                </Alert>
+              )}
               <FieldGroup>
                 <FieldSet>
                   <FieldGroup>
@@ -795,39 +945,135 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       />
                     </Field>
 
-                    <Field>
-                      <div className="flex items-center gap-3">
-                        <FieldLabel>Slug</FieldLabel>
-                      </div>
-                      <Input
-                        type="text"
-                        value={slug}
-                        disabled={isIndex || isErrorPage}
-                        onChange={(e) => {
-                          // Prevent slug changes for error pages and index pages
-                          if (!isErrorPage && !isIndex) {
-                            setSlug(e.target.value);
-                          }
-                        }}
-                        placeholder={
-                          isErrorPage
-                            ? 'Error pages do not have a slug'
-                            : isIndex
-                              ? 'Index pages do not have a slug'
-                              : 'Add a slug (displayed in the URL)'
-                        }
-                      />
-                      <FieldDescription>
+                    {isDynamicPage && (
+                      <Field>
+                        <div className="flex items-center gap-2">
+                          <div className="w-full space-y-2">
+                            <FieldLabel>Collection</FieldLabel>
+                            <Select
+                              value={collectionId || currentPage?.settings?.cms?.collection_id || ''}
+                              onValueChange={handleCollectionChange}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select a collection" />
+                              </SelectTrigger>
+
+                              <SelectContent>
+                                {collections.length > 0 ? (
+                                  collections.map((collection) => (
+                                    <SelectItem key={collection.id} value={collection.id}>
+                                      {collection.name}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                    No collections available
+                                  </div>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="w-full space-y-2">
+                            <FieldLabel>Slug field</FieldLabel>
+                            <Select
+                              value={slugFieldId || currentPage?.settings?.cms?.slug_field_id || ''}
+                              onValueChange={setSlugFieldId}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select a slug field" />
+                              </SelectTrigger>
+
+                              <SelectContent>
+                                {(() => {
+                                  const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+                                  const collectionFields = fields[activeCollectionId] || [];
+                                  const availableFields = collectionFields.filter(field => field.key === 'id' || field.key === 'slug');
+
+                                  if (availableFields.length > 0) {
+                                    return availableFields.map((field) => (
+                                      <SelectItem key={field.id} value={field.id}>
+                                        {field.name}
+                                      </SelectItem>
+                                    ));
+                                  }
+
+                                  return (
+                                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                      No slug fields available
+                                    </div>
+                                  );
+                                })()}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <FieldDescription>
                           {slugPathPreview}
-                      </FieldDescription>
-                    </Field>
+                        </FieldDescription>
+                      </Field>
+                    )}
+
+                    {!isDynamicPage && (
+                      <Field>
+                        <div className="flex items-center gap-3">
+                          <FieldLabel>Slug</FieldLabel>
+
+                          {isErrorPage && (
+                            <FieldDescription>
+                              Error pages do not have a slug
+                            </FieldDescription>
+                          )}
+
+                          {isIndex && (
+                            <FieldDescription>
+                              {isOnRootFolder ? 'Homepages' : 'Index pages'} do not have a slug
+                            </FieldDescription>
+                          )}
+                        </div>
+
+                        <Input
+                          type="text"
+                          value={slug}
+                          disabled={isIndex || isErrorPage}
+                          onChange={(e) => {
+                            // Prevent slug changes for error pages and index pages
+                            if (!isErrorPage && !isIndex) {
+                              const sanitized = sanitizeSlug(e.target.value, true); // Allow trailing dash during input
+                              setSlug(sanitized);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            // Remove trailing dashes on blur
+                            if (!isErrorPage && !isIndex) {
+                              const sanitized = sanitizeSlug(e.target.value, false); // Remove trailing dashes
+                              setSlug(sanitized);
+                            }
+                          }}
+                          placeholder={
+                            isErrorPage
+                              ? 'None'
+                              : isIndex
+                                ? 'None'
+                                : 'Add a slug (displayed in the URL)'
+                          }
+                        />
+
+                        {!isErrorPage && (
+                          <FieldDescription>
+                            {slugPathPreview}
+                          </FieldDescription>
+                        )}
+                      </Field>
+                    )}
 
                     <Field>
                       <div className="flex items-center gap-3">
                         <FieldLabel>Parent folder</FieldLabel>
                         {currentPage && isHomepage(currentPage) && !isErrorPage && (
                           <FieldDescription className="text-xs text-muted-foreground">
-                            Homepage cannot be moved
+                            Homepages cannot be moved
                           </FieldDescription>
                         )}
                         {isErrorPage && (
@@ -929,9 +1175,11 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                           {
                             isErrorPage
                               ? 'Error pages cannot be set as index page.'
-                              : isLastRootIndexPage
-                                ? 'The root folder must have an homepage. Please open the settings of another page at this level and set it as homepage to change this.'
-                                : `Set this page as the ${isOnRootFolder ? 'homepage of the website' : 'index (default) page for its parent folder'}. If another ${isOnRootFolder ? 'homepage' : 'index page'} exists, it will converted to a regular page with a slug.`
+                              : isDynamicPage
+                                ? `CMS pages cannot be set as ${isOnRootFolder ? 'homepage' : 'index page'}.`
+                                : isLastRootIndexPage
+                                  ? 'The root folder must have an homepage. Please open the settings of another page at this level and set it as homepage to change this.'
+                                  : `Set this page as the ${isOnRootFolder ? 'homepage of the website' : 'index (default) page for its parent folder'}. If another ${isOnRootFolder ? 'homepage' : 'index page'} exists, it will converted to a regular page with a slug.`
                           }
                         </FieldDescription>
                       </FieldContent>
@@ -939,7 +1187,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       <Switch
                         id="homepage"
                         checked={isIndex}
-                        disabled={isLastRootIndexPage || isErrorPage}
+                        disabled={isLastRootIndexPage || isErrorPage || isDynamicPage}
                         onCheckedChange={setIsIndex}
                       />
                     </Field>
@@ -1116,5 +1364,3 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 PageSettingsPanel.displayName = 'PageSettingsPanel';
 
 export default PageSettingsPanel;
-
-

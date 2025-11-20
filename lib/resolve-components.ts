@@ -64,4 +64,3 @@ export function resolveComponents(layers: Layer[], components: Component[]): Lay
     return layer;
   });
 }
-

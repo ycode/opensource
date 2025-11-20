@@ -105,4 +105,3 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     }
   }
 };
-

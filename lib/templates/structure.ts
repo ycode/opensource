@@ -159,4 +159,3 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     }
   }
 };
-

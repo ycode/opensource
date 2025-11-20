@@ -17,7 +17,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const page = await getPageById(id);
+    // For GET requests, return draft version (what users edit)
+    const page = await getPageById(id, false);
 
     if (!page) {
       return noCache(
@@ -52,8 +53,9 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    // Get current page to check its state
-    const currentPage = await getPageById(id);
+    // Get current draft page to check its state
+    // Repository update functions only update draft versions
+    const currentPage = await getPageById(id, false);
     if (!currentPage) {
       return noCache(
         { error: 'Page not found' },
@@ -61,7 +63,7 @@ export async function PUT(
       );
     }
 
-    // Determine if the page is/will be an error page or index page
+    // Determine if the page is/will be an error page, index page, or dynamic page
     const isErrorPage = body.error_page !== undefined
       ? (body.error_page !== null)
       : (currentPage.error_page !== null);
@@ -69,6 +71,10 @@ export async function PUT(
     const isIndexPage = body.is_index !== undefined
       ? body.is_index
       : currentPage.is_index;
+
+    const isDynamicPage = body.is_dynamic !== undefined
+      ? body.is_dynamic
+      : currentPage.is_dynamic;
 
     // Error pages and index pages must have empty slugs
     if (isErrorPage || isIndexPage) {
@@ -81,6 +87,11 @@ export async function PUT(
       }
       // Force slug to empty
       body.slug = '';
+    }
+
+    // Dynamic pages should have "*" as slug (allow updates to "*")
+    if (isDynamicPage && body.slug !== undefined && body.slug !== '*') {
+      body.slug = '*';
     }
 
     // Pass all updates to the repository (it will handle further validation)
@@ -125,4 +136,3 @@ export async function DELETE(
     );
   }
 }
-

@@ -452,9 +452,10 @@ export default function LeftSidebar({
               })}
 
               {collections.length === 0 && (
-                <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-                  No collections yet. Click + to create one.
-                </div>
+                <Empty>
+                  <EmptyTitle>Collections</EmptyTitle>
+                  <EmptyDescription>No collections yet. Click + to create new.</EmptyDescription>
+                </Empty>
               )}
             </div>
           </TabsContent>

@@ -63,5 +63,3 @@ export async function completeSetup(): Promise<ApiResponse<{ redirect_url: strin
     },
   };
 }
-
-

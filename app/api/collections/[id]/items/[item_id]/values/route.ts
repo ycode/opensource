@@ -19,8 +19,7 @@ export async function GET(
     const { item_id } = await params;
 
     // Always get draft values in the builder
-    const values = await getValuesByItemId(item_id, false, false);
-
+    const values = await getValuesByItemId(item_id, false);
     return noCache({ data: values });
   } catch (error) {
     console.error('Error fetching item values:', error);
@@ -51,17 +50,14 @@ export async function PUT(
     // Set draft values by field name
     await setValuesByFieldName(
       item_id,
-      false, // Item is draft
       id,
-      false, // Collection is draft
       body,
       {},
       false // Update draft values
     );
 
     // Get updated draft values
-    const values = await getValuesByItemId(item_id, false, false);
-
+    const values = await getValuesByItemId(item_id, false);
     return noCache({ data: values });
   } catch (error) {
     console.error('Error updating item values:', error);

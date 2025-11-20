@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getItemsWithValues } from '@/lib/repositories/collectionItemRepository';
 import { noCache } from '@/lib/api-response';
 
@@ -21,12 +21,10 @@ export async function GET(
     const collectionId = id;
 
     // Get items with published values
-    // Parameters: (collection_id, collectionIsPublished, filters?, is_published)
     const { items: publishedItems } = await getItemsWithValues(
       collectionId,
-      true,      // collectionIsPublished = true (query published collection)
-      undefined, // filters (optional)
-      true       // is_published = true (get published item values)
+      true,      // is_published = true (query published items and values)
+      undefined  // filters (optional)
     );
 
     // Filter out items with no values (edge case)
@@ -43,4 +41,3 @@ export async function GET(
     );
   }
 }
-

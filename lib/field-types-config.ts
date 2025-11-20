@@ -15,4 +15,3 @@ export const FIELD_TYPES = [
 ] as const;
 
 export type FieldType = typeof FIELD_TYPES[number]['value'];
-

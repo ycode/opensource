@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
 
     console.log('[GET /api/pages] Found pages:', pages.length);
 
-
     return noCache({
       data: pages,
     });
@@ -135,6 +134,10 @@ export async function POST(request: NextRequest) {
       depth,
     });
 
+    // Increment sibling orders if inserting (safe to call when appending - only updates order >= startOrder)
+    const { incrementSiblingOrders } = await import('@/lib/services/pageService');
+    await incrementSiblingOrders(order, depth, page_folder_id);
+
     // Create page
     const page = await createPage({
       name,
@@ -148,7 +151,6 @@ export async function POST(request: NextRequest) {
       error_page,
       settings,
     });
-
 
     // Create initial draft with Body container
     const bodyLayer = {
@@ -177,4 +179,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

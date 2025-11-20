@@ -395,4 +395,3 @@ export default function LayerStylesPanel({
     </div>
   );
 }
-

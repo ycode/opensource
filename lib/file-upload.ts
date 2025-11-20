@@ -151,4 +151,3 @@ export async function deleteAsset(assetId: string): Promise<boolean> {
     return false;
   }
 }
-

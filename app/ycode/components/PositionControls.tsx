@@ -266,4 +266,3 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
     </div>
   );
 }
-
