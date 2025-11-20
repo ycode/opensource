@@ -266,175 +266,6 @@ export default function YCodeBuilder() {
     }
   }, [currentPageId, draftsByPageId, setSelectedLayerId]);
 
-  // Keyboard shortcuts for layer operations
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Check if user is typing in an input/textarea
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-        return;
-      }
-
-      // A - Toggle Element Library (when on layers tab)
-      if (e.key === 'a' && activeTab === 'layers') {
-        e.preventDefault();
-        // Dispatch custom event to toggle ElementLibrary
-        window.dispatchEvent(new CustomEvent('toggleElementLibrary'));
-        return;
-      }
-
-      // Escape - Select parent layer
-      if (e.key === 'Escape' && (currentPageId || editingComponentId) && selectedLayerId) {
-        e.preventDefault();
-
-        const layers = getCurrentLayers();
-        if (!layers.length) return;
-
-        const findParent = (layers: Layer[], targetId: string, parent: Layer | null = null): Layer | null => {
-          for (const layer of layers) {
-            if (layer.id === targetId) {
-              return parent;
-            }
-            if (layer.children) {
-              const found = findParent(layer.children, targetId, layer);
-              if (found !== undefined) return found;
-            }
-          }
-          return undefined as any;
-        };
-
-        const parentLayer = findParent(layers, selectedLayerId);
-
-        // If parent exists, select it. If no parent (root level), deselect
-        if (parentLayer) {
-          setSelectedLayerId(parentLayer.id);
-        } else {
-          // At root level or Body layer selected - deselect
-          setSelectedLayerId(null);
-        }
-
-        return;
-      }
-
-      // Arrow Up/Down - Reorder layer within siblings
-      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (currentPageId || editingComponentId) && selectedLayerId) {
-        e.preventDefault();
-
-        const layers = getCurrentLayers();
-        if (!layers.length) return;
-
-        const direction = e.key === 'ArrowUp' ? -1 : 1;
-
-        // Find the layer, its parent, and its index within siblings
-        const findLayerInfo = (
-          layers: Layer[],
-          targetId: string,
-          parent: Layer | null = null
-        ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
-          for (let i = 0; i < layers.length; i++) {
-            const layer = layers[i];
-            if (layer.id === targetId) {
-              return { layer, parent, siblings: layers, index: i };
-            }
-            if (layer.children) {
-              const found = findLayerInfo(layer.children, targetId, layer);
-              if (found) return found;
-            }
-          }
-          return null;
-        };
-
-        const info = findLayerInfo(layers, selectedLayerId);
-        if (!info) return;
-
-        const { siblings, index } = info;
-        const newIndex = index + direction;
-
-        // Check bounds
-        if (newIndex < 0 || newIndex >= siblings.length) {
-          return;
-        }
-
-        // Swap the layers
-        const reorderLayers = (layers: Layer[]): Layer[] => {
-          return layers.map(layer => {
-            // If this is the parent containing our siblings, reorder them
-            if (info.parent && layer.id === info.parent.id) {
-              const newChildren = [...(layer.children || [])];
-              // Swap
-              [newChildren[index], newChildren[newIndex]] = [newChildren[newIndex], newChildren[index]];
-              return { ...layer, children: newChildren };
-            }
-
-            // Recursively process children
-            if (layer.children) {
-              return { ...layer, children: reorderLayers(layer.children) };
-            }
-
-            return layer;
-          });
-        };
-
-        let newLayers: Layer[];
-
-        // If at root level, reorder root array directly
-        if (!info.parent) {
-          newLayers = [...layers];
-          [newLayers[index], newLayers[newIndex]] = [newLayers[newIndex], newLayers[index]];
-        } else {
-          newLayers = reorderLayers(layers);
-        }
-
-        updateCurrentLayers(newLayers);
-
-        return;
-      }
-
-      // Tab - Select next sibling layer
-      if (e.key === 'Tab' && (currentPageId || editingComponentId) && selectedLayerId) {
-        e.preventDefault();
-
-        const layers = getCurrentLayers();
-        if (!layers.length) return;
-
-        // Find the layer, its parent, and its index within siblings
-        const findLayerInfo = (
-          layers: Layer[],
-          targetId: string,
-          parent: Layer | null = null
-        ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
-          for (let i = 0; i < layers.length; i++) {
-            const layer = layers[i];
-            if (layer.id === targetId) {
-              return { layer, parent, siblings: layers, index: i };
-            }
-            if (layer.children) {
-              const found = findLayerInfo(layer.children, targetId, layer);
-              if (found) return found;
-            }
-          }
-          return null;
-        };
-
-        const info = findLayerInfo(layers, selectedLayerId);
-        if (!info) return;
-
-        const { siblings, index } = info;
-
-        // Check if there's a next sibling
-        if (index + 1 < siblings.length) {
-          const nextSibling = siblings[index + 1];
-          setSelectedLayerId(nextSibling.id);
-        }
-
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, currentPageId, editingComponentId, draftsByPageId, setSelectedLayerId, activeTab, getCurrentLayers, updateCurrentLayers]);
-
   // Handle undo
   const handleUndo = useCallback(() => {
     if (!canUndo()) return;
@@ -575,6 +406,379 @@ export default function YCodeBuilder() {
     }
   }, [saveDraft]);
 
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // Save: Cmd/Ctrl + S
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault(); // Always prevent default browser save dialog
+        if (editingComponentId) {
+          // Component save is automatic via store, no manual save needed
+          return;
+        }
+        if (currentPageId) {
+          saveImmediately(currentPageId);
+        }
+      }
+
+      // Undo: Cmd/Ctrl + Z
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+
+      // Redo: Cmd/Ctrl + Shift + Z
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        handleRedo();
+      }
+
+      // Layer-specific shortcuts (only work on layers tab)
+      if (activeTab === 'layers') {
+        // A - Toggle Element Library (when on layers tab)
+        if (e.key === 'a') {
+          e.preventDefault();
+          // Dispatch custom event to toggle ElementLibrary
+          window.dispatchEvent(new CustomEvent('toggleElementLibrary'));
+          return;
+        }
+
+        // Escape - Select parent layer
+        if (e.key === 'Escape' && (currentPageId || editingComponentId) && selectedLayerId) {
+          e.preventDefault();
+
+          const layers = getCurrentLayers();
+          if (!layers.length) return;
+
+          const findParent = (layers: Layer[], targetId: string, parent: Layer | null = null): Layer | null => {
+            for (const layer of layers) {
+              if (layer.id === targetId) {
+                return parent;
+              }
+              if (layer.children) {
+                const found = findParent(layer.children, targetId, layer);
+                if (found !== undefined) return found;
+              }
+            }
+            return undefined as any;
+          };
+
+          const parentLayer = findParent(layers, selectedLayerId);
+
+          // If parent exists, select it. If no parent (root level), deselect
+          if (parentLayer) {
+            setSelectedLayerId(parentLayer.id);
+          } else {
+            // At root level or Body layer selected - deselect
+            setSelectedLayerId(null);
+          }
+
+          return;
+        }
+
+        // Arrow Up/Down - Reorder layer within siblings
+        if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (currentPageId || editingComponentId) && selectedLayerId) {
+          e.preventDefault();
+
+          const layers = getCurrentLayers();
+          if (!layers.length) return;
+
+          const direction = e.key === 'ArrowUp' ? -1 : 1;
+
+          // Find the layer, its parent, and its index within siblings
+          const findLayerInfo = (
+            layers: Layer[],
+            targetId: string,
+            parent: Layer | null = null
+          ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
+            for (let i = 0; i < layers.length; i++) {
+              const layer = layers[i];
+              if (layer.id === targetId) {
+                return { layer, parent, siblings: layers, index: i };
+              }
+              if (layer.children) {
+                const found = findLayerInfo(layer.children, targetId, layer);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+
+          const info = findLayerInfo(layers, selectedLayerId);
+          if (!info) return;
+
+          const { siblings, index } = info;
+          const newIndex = index + direction;
+
+          // Check bounds
+          if (newIndex < 0 || newIndex >= siblings.length) {
+            return;
+          }
+
+          // Swap the layers
+          const reorderLayers = (layers: Layer[]): Layer[] => {
+            return layers.map(layer => {
+              // If this is the parent containing our siblings, reorder them
+              if (info.parent && layer.id === info.parent.id) {
+                const newChildren = [...(layer.children || [])];
+                // Swap
+                [newChildren[index], newChildren[newIndex]] = [newChildren[newIndex], newChildren[index]];
+                return { ...layer, children: newChildren };
+              }
+
+              // Recursively process children
+              if (layer.children) {
+                return { ...layer, children: reorderLayers(layer.children) };
+              }
+
+              return layer;
+            });
+          };
+
+          let newLayers: Layer[];
+
+          // If at root level, reorder root array directly
+          if (!info.parent) {
+            newLayers = [...layers];
+            [newLayers[index], newLayers[newIndex]] = [newLayers[newIndex], newLayers[index]];
+          } else {
+            newLayers = reorderLayers(layers);
+          }
+
+          updateCurrentLayers(newLayers);
+
+          return;
+        }
+
+        // Tab - Select next sibling layer
+        if (e.key === 'Tab' && (currentPageId || editingComponentId) && selectedLayerId) {
+          e.preventDefault();
+
+          const layers = getCurrentLayers();
+          if (!layers.length) return;
+
+          // Find the layer, its parent, and its index within siblings
+          const findLayerInfo = (
+            layers: Layer[],
+            targetId: string,
+            parent: Layer | null = null
+          ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
+            for (let i = 0; i < layers.length; i++) {
+              const layer = layers[i];
+              if (layer.id === targetId) {
+                return { layer, parent, siblings: layers, index: i };
+              }
+              if (layer.children) {
+                const found = findLayerInfo(layer.children, targetId, layer);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+
+          const info = findLayerInfo(layers, selectedLayerId);
+          if (!info) return;
+
+          const { siblings, index } = info;
+
+          // Check if there's a next sibling
+          if (index + 1 < siblings.length) {
+            const nextSibling = siblings[index + 1];
+            setSelectedLayerId(nextSibling.id);
+          }
+
+          return;
+        }
+
+        // Copy: Cmd/Ctrl + C (supports multi-select)
+        if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+          if (currentPageId) {
+            e.preventDefault();
+            if (selectedLayerIds.length > 1) {
+              // Multi-select: copy all
+              const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
+              // Store first layer in clipboard store for compatibility
+              if (layers.length > 0) {
+                copyToClipboard(layers[0], currentPageId);
+              }
+            } else if (selectedLayerId) {
+              // Single select - use clipboard store
+              const layer = copyLayerFromStore(currentPageId, selectedLayerId);
+              if (layer) {
+                copyToClipboard(layer, currentPageId);
+              }
+            }
+          }
+        }
+
+        // Cut: Cmd/Ctrl + X (supports multi-select)
+        if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
+          if (currentPageId) {
+            e.preventDefault();
+            if (selectedLayerIds.length > 1) {
+              // Multi-select: cut all (copy then delete)
+              const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
+              if (layers.length > 0) {
+                // Store first layer in clipboard for compatibility
+                cutToClipboard(layers[0], currentPageId);
+                deleteLayers(currentPageId, selectedLayerIds);
+                clearSelection();
+              }
+            } else if (selectedLayerId) {
+              // Single select
+              const layer = copyLayerFromStore(currentPageId, selectedLayerId);
+              if (layer && layer.id !== 'body' && !layer.locked) {
+                cutToClipboard(layer, currentPageId);
+                deleteLayer(currentPageId, selectedLayerId);
+                setSelectedLayerId(null);
+              }
+            }
+          }
+        }
+
+        // Paste: Cmd/Ctrl + V
+        if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+          if (currentPageId) {
+            e.preventDefault();
+            // Use clipboard store for paste (works with context menu)
+            if (clipboardLayer && selectedLayerId) {
+              pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
+            }
+          }
+        }
+
+        // Duplicate: Cmd/Ctrl + D (supports multi-select)
+        if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+          if (currentPageId) {
+            e.preventDefault();
+            if (selectedLayerIds.length > 1) {
+              // Multi-select: duplicate all
+              duplicateLayersFromStore(currentPageId, selectedLayerIds);
+            } else if (selectedLayerId) {
+              // Single select
+              duplicateLayer(currentPageId, selectedLayerId);
+            }
+          }
+        }
+
+        // Delete: Delete or Backspace (supports multi-select)
+        if ((e.key === 'Delete' || e.key === 'Backspace')) {
+          if ((currentPageId || editingComponentId)) {
+            e.preventDefault();
+            if (selectedLayerIds.length > 1) {
+              // Multi-select: delete all
+              if (editingComponentId) {
+                // Delete multiple from component
+                const layers = getCurrentLayers();
+                let newLayers = layers;
+                for (const layerId of selectedLayerIds) {
+                  newLayers = removeLayerById(newLayers, layerId);
+                }
+                updateCurrentLayers(newLayers);
+                clearSelection();
+              } else if (currentPageId) {
+                deleteLayers(currentPageId, selectedLayerIds);
+                clearSelection();
+              }
+            } else if (selectedLayerId) {
+              // Single select
+              deleteSelectedLayer();
+            }
+          }
+        }
+
+        // Copy Style: Option + Cmd + C
+        if (e.altKey && e.metaKey && e.key === 'c') {
+          if ((currentPageId || editingComponentId) && selectedLayerId) {
+            e.preventDefault();
+            const layers = getCurrentLayers();
+            const layer = findLayerById(layers, selectedLayerId);
+            if (layer) {
+              const classes = getClassesString(layer);
+              copyStyleToClipboard(classes, layer.design, layer.styleId, layer.styleOverrides);
+            }
+          }
+        }
+
+        // Paste Style: Option + Cmd + V
+        if (e.altKey && e.metaKey && e.key === 'v') {
+          if ((currentPageId || editingComponentId) && selectedLayerId) {
+            e.preventDefault();
+            const style = pasteStyleFromClipboard();
+            if (style) {
+              if (editingComponentId) {
+                // Update style in component
+                const layers = getCurrentLayers();
+                const updateLayerStyle = (layers: Layer[]): Layer[] => {
+                  return layers.map(layer => {
+                    if (layer.id === selectedLayerId) {
+                      return {
+                        ...layer,
+                        classes: style.classes,
+                        design: style.design,
+                        styleId: style.styleId,
+                        styleOverrides: style.styleOverrides,
+                      };
+                    }
+                    if (layer.children) {
+                      return { ...layer, children: updateLayerStyle(layer.children) };
+                    }
+                    return layer;
+                  });
+                };
+                updateCurrentLayers(updateLayerStyle(layers));
+              } else if (currentPageId) {
+                updateLayer(currentPageId, selectedLayerId, {
+                  classes: style.classes,
+                  design: style.design,
+                  styleId: style.styleId,
+                  styleOverrides: style.styleOverrides,
+                });
+              }
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    activeTab,
+    selectedLayerId,
+    selectedLayerIds,
+    currentPageId,
+    editingComponentId,
+    draftsByPageId,
+    setSelectedLayerId,
+    getCurrentLayers,
+    updateCurrentLayers,
+    copyLayersFromStore,
+    copyLayerFromStore,
+    copyToClipboard,
+    cutToClipboard,
+    clipboardLayer,
+    pasteAfter,
+    duplicateLayersFromStore,
+    duplicateLayer,
+    deleteLayers,
+    deleteLayer,
+    clearSelection,
+    saveImmediately,
+    updateLayer,
+    copyStyleToClipboard,
+    pasteStyleFromClipboard,
+    deleteSelectedLayer,
+    handleUndo,
+    handleRedo
+  ]);
+
   // Debounced autosave function
   const debouncedSave = useCallback((pageId: string) => {
     // Clear existing timeout
@@ -707,194 +911,6 @@ export default function YCodeBuilder() {
     // Clear selection
     setSelectedLayerId(null);
   }, [setCurrentPageId, setSelectedLayerId]);
-
-  // Global keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
-                             document.activeElement?.tagName === 'TEXTAREA';
-
-      // Save: Cmd/Ctrl + S
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault(); // Always prevent default browser save dialog
-        if (editingComponentId) {
-          // Component save is automatic via store, no manual save needed
-          return;
-        }
-        if (currentPageId) {
-          saveImmediately(currentPageId);
-        }
-      }
-
-      // Undo: Cmd/Ctrl + Z
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
-        if (!isInputFocused) {
-          e.preventDefault();
-          handleUndo();
-        }
-      }
-
-      // Redo: Cmd/Ctrl + Shift + Z
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
-        if (!isInputFocused) {
-          e.preventDefault();
-          handleRedo();
-        }
-      }
-
-      // Copy: Cmd/Ctrl + C (supports multi-select)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
-        if (!isInputFocused && currentPageId) {
-          e.preventDefault();
-          if (selectedLayerIds.length > 1) {
-            // Multi-select: copy all
-            const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
-            // Store first layer in clipboard store for compatibility
-            if (layers.length > 0) {
-              copyToClipboard(layers[0], currentPageId);
-            }
-          } else if (selectedLayerId) {
-            // Single select - use clipboard store
-            const layer = copyLayerFromStore(currentPageId, selectedLayerId);
-            if (layer) {
-              copyToClipboard(layer, currentPageId);
-            }
-          }
-        }
-      }
-
-      // Cut: Cmd/Ctrl + X (supports multi-select)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
-        if (!isInputFocused && currentPageId) {
-          e.preventDefault();
-          if (selectedLayerIds.length > 1) {
-            // Multi-select: cut all (copy then delete)
-            const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
-            if (layers.length > 0) {
-              // Store first layer in clipboard for compatibility
-              cutToClipboard(layers[0], currentPageId);
-              deleteLayers(currentPageId, selectedLayerIds);
-              clearSelection();
-            }
-          } else if (selectedLayerId) {
-            // Single select
-            const layer = copyLayerFromStore(currentPageId, selectedLayerId);
-            if (layer && layer.id !== 'body' && !layer.locked) {
-              cutToClipboard(layer, currentPageId);
-              deleteLayer(currentPageId, selectedLayerId);
-              setSelectedLayerId(null);
-            }
-          }
-        }
-      }
-
-      // Paste: Cmd/Ctrl + V
-      if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
-        if (!isInputFocused && currentPageId) {
-          e.preventDefault();
-          // Use clipboard store for paste (works with context menu)
-          if (clipboardLayer && selectedLayerId) {
-            pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
-          }
-        }
-      }
-
-      // Duplicate: Cmd/Ctrl + D (supports multi-select)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
-        if (!isInputFocused && currentPageId) {
-          e.preventDefault();
-          if (selectedLayerIds.length > 1) {
-            // Multi-select: duplicate all
-            duplicateLayersFromStore(currentPageId, selectedLayerIds);
-          } else if (selectedLayerId) {
-            // Single select
-            duplicateLayer(currentPageId, selectedLayerId);
-          }
-        }
-      }
-
-      // Delete: Delete or Backspace (supports multi-select)
-      if ((e.key === 'Delete' || e.key === 'Backspace')) {
-        if (!isInputFocused && (currentPageId || editingComponentId)) {
-          e.preventDefault();
-          if (selectedLayerIds.length > 1) {
-            // Multi-select: delete all
-            if (editingComponentId) {
-              // Delete multiple from component
-              const layers = getCurrentLayers();
-              let newLayers = layers;
-              for (const layerId of selectedLayerIds) {
-                newLayers = removeLayerById(newLayers, layerId);
-              }
-              updateCurrentLayers(newLayers);
-              clearSelection();
-            } else if (currentPageId) {
-              deleteLayers(currentPageId, selectedLayerIds);
-              clearSelection();
-            }
-          } else if (selectedLayerId) {
-            // Single select
-            deleteSelectedLayer();
-          }
-        }
-      }
-
-      // Copy Style: Option + Cmd + C
-      if (e.altKey && e.metaKey && e.key === 'c') {
-        if (!isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
-          e.preventDefault();
-          const layers = getCurrentLayers();
-          const layer = findLayerById(layers, selectedLayerId);
-          if (layer) {
-            const classes = getClassesString(layer);
-            copyStyleToClipboard(classes, layer.design, layer.styleId, layer.styleOverrides);
-          }
-        }
-      }
-
-      // Paste Style: Option + Cmd + V
-      if (e.altKey && e.metaKey && e.key === 'v') {
-        if (!isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
-          e.preventDefault();
-          const style = pasteStyleFromClipboard();
-          if (style) {
-            if (editingComponentId) {
-              // Update style in component
-              const layers = getCurrentLayers();
-              const updateLayerStyle = (layers: Layer[]): Layer[] => {
-                return layers.map(layer => {
-                  if (layer.id === selectedLayerId) {
-                    return {
-                      ...layer,
-                      classes: style.classes,
-                      design: style.design,
-                      styleId: style.styleId,
-                      styleOverrides: style.styleOverrides,
-                    };
-                  }
-                  if (layer.children) {
-                    return { ...layer, children: updateLayerStyle(layer.children) };
-                  }
-                  return layer;
-                });
-              };
-              updateCurrentLayers(updateLayerStyle(layers));
-            } else if (currentPageId) {
-              updateLayer(currentPageId, selectedLayerId, {
-                classes: style.classes,
-                design: style.design,
-                styleId: style.styleId,
-                styleOverrides: style.styleOverrides,
-              });
-            }
-          }
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, selectedLayerIds, currentPageId, editingComponentId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately, draftsByPageId, updateLayer, copyStyleToClipboard, pasteStyleFromClipboard, deleteSelectedLayer, handleUndo, handleRedo, getCurrentLayers, updateCurrentLayers]);
 
   // Show login form if not authenticated
   if (!user) {
