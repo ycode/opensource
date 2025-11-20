@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '../supabase-server';
-import type { CollectionField, CollectionFieldType } from '@/types';
+import type { CollectionField, CreateCollectionFieldData, UpdateCollectionFieldData } from '@/types';
 import { randomUUID } from 'crypto';
 
 /**
@@ -11,32 +11,6 @@ import { randomUUID } from 'crypto';
  * NOTE: Uses composite primary key (id, is_published) architecture.
  * References parent collections using FK (collection_id).
  */
-
-export interface CreateCollectionFieldData {
-  name: string;
-  key?: string | null;
-  type: CollectionFieldType;
-  default?: string | null;
-  fillable?: boolean;
-  order: number;
-  collection_id: string; // UUID
-  reference_collection_id?: string | null; // UUID
-  hidden?: boolean;
-  data?: Record<string, any>;
-  is_published?: boolean;
-}
-
-export interface UpdateCollectionFieldData {
-  name?: string;
-  key?: string | null;
-  type?: CollectionFieldType;
-  default?: string | null;
-  fillable?: boolean;
-  order?: number;
-  reference_collection_id?: string | null; // UUID
-  hidden?: boolean;
-  data?: Record<string, any>;
-}
 
 export interface FieldFilters {
   search?: string;

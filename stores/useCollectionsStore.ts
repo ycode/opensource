@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { collectionsApi } from '@/lib/api';
 import { sortCollectionsByOrder } from '@/lib/collection-utils';
-import type { Collection, CollectionField, CollectionItemWithValues } from '@/types';
+import type { Collection, CollectionField, CollectionItemWithValues, CreateCollectionData, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData } from '@/types';
 
 /**
  * Collections Store
@@ -23,29 +23,15 @@ interface CollectionsState {
 interface CollectionsActions {
   // Collections
   loadCollections: () => Promise<void>;
-  createCollection: (data: {
-    name: string;
-    sorting?: Record<string, any> | null;
-    order?: number;
-  }) => Promise<Collection>;
-  updateCollection: (id: string, data: Partial<Collection>) => Promise<void>;
+  createCollection: (data: CreateCollectionData) => Promise<Collection>;
+  updateCollection: (id: string, data: UpdateCollectionData) => Promise<void>;
   deleteCollection: (id: string) => Promise<void>;
   setSelectedCollectionId: (id: string | null) => void;
 
   // Fields
   loadFields: (collectionId: string, search?: string) => Promise<void>;
-  createField: (collectionId: string, data: {
-    name: string;
-    type: 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
-    default?: string | null;
-    order?: number;
-    reference_collection_id?: string | null; // UUID
-    fillable?: boolean;
-    key?: string | null;
-    hidden?: boolean;
-    data?: Record<string, any>;
-  }) => Promise<CollectionField>;
-  updateField: (collectionId: string, fieldId: string, data: Partial<CollectionField>) => Promise<void>;
+  createField: (collectionId: string, data: Omit<CreateCollectionFieldData, 'collection_id'>) => Promise<CollectionField>;
+  updateField: (collectionId: string, fieldId: string, data: UpdateCollectionFieldData) => Promise<void>;
   deleteField: (collectionId: string, fieldId: string) => Promise<void>;
 
   // Items

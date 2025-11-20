@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '../supabase-server';
-import type { Collection } from '@/types';
+import type { Collection, CreateCollectionData, UpdateCollectionData } from '@/types';
 import { randomUUID } from 'crypto';
 
 /**
@@ -15,19 +15,6 @@ import { randomUUID } from 'crypto';
 export interface QueryFilters {
   is_published?: boolean;
   deleted?: boolean;
-}
-
-export interface CreateCollectionData {
-  name: string;
-  sorting?: Record<string, any> | null;
-  order?: number;
-  is_published?: boolean;
-}
-
-export interface UpdateCollectionData {
-  name?: string;
-  sorting?: Record<string, any> | null;
-  order?: number;
 }
 
 /**
