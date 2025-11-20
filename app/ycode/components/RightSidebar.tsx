@@ -62,8 +62,10 @@ export default function RightSidebar({
   selectedLayerId,
   onLayerUpdate,
 }: RightSidebarProps) {
-  const { openComponent } = useEditorActions();
-  const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'content'>('design');
+  const { openComponent, urlState, updateQueryParams } = useEditorActions();
+  const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'content'>(
+    urlState.rightTab || 'design'
+  );
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
   const [attributesOpen, setAttributesOpen] = useState(true);
   const [customId, setCustomId] = useState<string>('');
@@ -103,6 +105,20 @@ export default function RightSidebar({
     }
     return null;
   }, [editingComponentId, componentDrafts, currentPageId, selectedLayerId, draftsByPageId]);
+
+  // Sync right sidebar tab to URL
+  useEffect(() => {
+    if (activeTab === 'design' || activeTab === 'settings') {
+      updateQueryParams({ tab: activeTab });
+    }
+  }, [activeTab, updateQueryParams]);
+
+  // Sync URL tab changes to local state
+  useEffect(() => {
+    if (urlState.rightTab && urlState.rightTab !== activeTab) {
+      setActiveTab(urlState.rightTab);
+    }
+  }, [urlState.rightTab]);
 
   // Helper function to check if layer is a heading
   const isHeadingLayer = (layer: Layer | null): boolean => {

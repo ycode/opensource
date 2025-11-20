@@ -550,6 +550,7 @@ export const editorApi = {
     components: Component[];
     styles: LayerStyle[];
     settings: Setting[];
+    collections: Collection[];
   }>> {
     return apiRequest('/api/editor/init');
   },

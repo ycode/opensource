@@ -15,7 +15,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
   SheetActions,
 } from '@/components/ui/sheet';
 import {
@@ -101,6 +100,8 @@ export default function CMS() {
     isLoading,
     loadFields,
     loadItems,
+    createItem,
+    updateItem,
     deleteItem,
     duplicateItem,
     deleteField,
@@ -113,10 +114,14 @@ export default function CMS() {
 
   const { urlState, navigateToCollection, navigateToCollectionItem, navigateToNewCollectionItem } = useEditorUrl();
 
+  // Track previous collection ID to prevent unnecessary reloads
+  const prevCollectionIdRef = React.useRef<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [fieldSearchQuery, setFieldSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  // Initialize from URL state to prevent overwriting URL params
+  const [currentPage, setCurrentPage] = useState(urlState.page || 1);
+  const [pageSize, setPageSize] = useState(urlState.pageSize || 25);
   const [showItemSheet, setShowItemSheet] = useState(false);
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
@@ -153,31 +158,106 @@ export default function CMS() {
   // Check if we're in manual sort mode
   const isManualMode = selectedCollection?.sorting?.direction === 'manual';
 
-  // Load fields and items when collection changes
+  // Sync search and page from URL on collection change or URL change
   useEffect(() => {
     if (selectedCollectionId) {
-      loadFields(selectedCollectionId);
-      loadItems(selectedCollectionId, 1, pageSize); // Always load page 1 when collection changes
-      // Clear selections and search when switching collections
-      setSelectedItemIds(new Set());
-      setSearchQuery('');
-      setFieldSearchQuery('');
-      setCurrentPage(1); // Reset to page 1
+      // Only update if collection changed or URL search/page/pageSize changed
+      const urlSearch = urlState.search || '';
+      const urlPage = urlState.page || 1;
+      const urlPageSize = urlState.pageSize || 25;
+      
+      if (prevCollectionIdRef.current !== selectedCollectionId) {
+        // Collection changed - use URL state or reset
+        setSearchQuery(urlSearch);
+        setCurrentPage(urlPage);
+        setPageSize(urlPageSize);
+      } else {
+        // Same collection - sync with URL if different
+        if (urlSearch !== searchQuery) {
+          setSearchQuery(urlSearch);
+        }
+        if (urlPage !== currentPage) {
+          setCurrentPage(urlPage);
+        }
+        if (urlPageSize !== pageSize) {
+          setPageSize(urlPageSize);
+        }
+      }
     }
-  }, [selectedCollectionId, loadFields, loadItems, pageSize]);
+  }, [selectedCollectionId, urlState.search, urlState.page, urlState.pageSize]);
 
-  // Debounced field search - queries backend
+  // Update URL when search or page changes locally (debounced to prevent loops)
+  const updateUrlTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (!selectedCollectionId) return;
+    
+    // Clear any pending updates
+    if (updateUrlTimeoutRef.current) {
+      clearTimeout(updateUrlTimeoutRef.current);
+    }
+    
+    // Debounce URL updates to prevent race conditions with URL sync
+    updateUrlTimeoutRef.current = setTimeout(() => {
+      const urlSearch = urlState.search || '';
+      const urlPage = urlState.page || 1;
+      const urlPageSize = urlState.pageSize || 25;
+      
+      // Only update URL if local state is different from URL state
+      if (searchQuery !== urlSearch || currentPage !== urlPage || pageSize !== urlPageSize) {
+        navigateToCollection(
+          selectedCollectionId,
+          currentPage,
+          searchQuery || undefined,
+          pageSize
+        );
+      }
+    }, 100); // 100ms debounce
+    
+    return () => {
+      if (updateUrlTimeoutRef.current) {
+        clearTimeout(updateUrlTimeoutRef.current);
+      }
+    };
+  }, [searchQuery, currentPage, pageSize, selectedCollectionId]);
+
+  // Load fields and items when collection changes (not when just navigating within same collection)
+  useEffect(() => {
+    if (selectedCollectionId) {
+      // Only reload if the collection actually changed
+      if (prevCollectionIdRef.current !== selectedCollectionId) {
+        // Use URL state for initial page, search, and pageSize, or defaults
+        const initialPage = urlState.page || 1;
+        const initialSearch = urlState.search || '';
+        const initialPageSize = urlState.pageSize || 25;
+        
+        loadFields(selectedCollectionId);
+        loadItems(selectedCollectionId, initialPage, initialPageSize);
+        
+        // Clear selections when switching collections
+        setSelectedItemIds(new Set());
+        setFieldSearchQuery('');
+        
+        // Update the ref to track current collection
+        prevCollectionIdRef.current = selectedCollectionId;
+      }
+    } else {
+      // Reset ref when no collection selected
+      prevCollectionIdRef.current = null;
+    }
+  }, [selectedCollectionId, urlState.page, urlState.search, urlState.pageSize, loadFields, loadItems]);
+
+  // Debounced field search - queries backend (only when user types, not on collection change)
+  useEffect(() => {
+    if (!selectedCollectionId || !fieldSearchQuery) return;
 
     const debounceTimer = setTimeout(() => {
-      loadFields(selectedCollectionId, fieldSearchQuery || undefined);
+      loadFields(selectedCollectionId, fieldSearchQuery);
     }, 300); // 300ms debounce
 
     return () => clearTimeout(debounceTimer);
-  }, [fieldSearchQuery, selectedCollectionId, loadFields]);
+  }, [fieldSearchQuery]); // Only trigger on search query change, not collection change
 
-  // Debounced search - queries backend with pagination
+  // Debounced search - queries backend with pagination (only when user types or changes page, not on collection change)
   useEffect(() => {
     if (!selectedCollectionId) return;
 
@@ -191,21 +271,38 @@ export default function CMS() {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(debounceTimer);
-  }, [searchQuery, selectedCollectionId, currentPage, pageSize, searchItems, loadItems]);
+  }, [searchQuery, currentPage, pageSize]); // Only trigger on search/pagination changes, not collection change
 
-  // Reset to page 1 when search query changes
+  // Reset to page 1 when search query changes (only if user typed, not from URL sync)
+  const prevSearchRef = React.useRef<string>('');
   useEffect(() => {
-    setCurrentPage(1);
+    // Only reset page if search changed from user input (not initial URL load)
+    if (prevSearchRef.current !== searchQuery && prevSearchRef.current !== '') {
+      setCurrentPage(1);
+    }
+    prevSearchRef.current = searchQuery;
   }, [searchQuery]);
 
-  // Reset to page 1 when sorting changes
+  // Reset to page 1 when sorting changes (only if user changed it, not on initial collection load)
+  const prevSortingRef = React.useRef<{ field?: string; direction?: string } | null | undefined>(undefined);
   useEffect(() => {
-    setCurrentPage(1);
+    // Only reset page if sorting changed from user input (not initial collection load)
+    // Skip reset on first mount or when collection first loads (when prevSortingRef is undefined)
+    if (prevSortingRef.current !== undefined && prevSortingRef.current !== selectedCollection?.sorting) {
+      setCurrentPage(1);
+    }
+    prevSortingRef.current = selectedCollection?.sorting;
   }, [selectedCollection?.sorting]);
 
-  // Reset to page 1 when page size changes
+  // Reset to page 1 when page size changes (only if user changed it, not from URL sync)
+  const prevPageSizeRef = React.useRef<number | null>(null);
   useEffect(() => {
-    setCurrentPage(1);
+    // Only reset page if pageSize changed from user input (not initial URL load)
+    // Skip reset on first mount (when prevPageSizeRef is null)
+    if (prevPageSizeRef.current !== null && prevPageSizeRef.current !== pageSize) {
+      setCurrentPage(1);
+    }
+    prevPageSizeRef.current = pageSize;
   }, [pageSize]);
 
   // Update form when editing item or collection fields change
@@ -235,31 +332,24 @@ export default function CMS() {
     }
   }, [form, editingItem]);
 
-  // Sync URL with item editing state
+  // Sync URL with item editing state (URL is source of truth for persistence, not immediate UI)
   useEffect(() => {
     if (!selectedCollectionId) return;
 
-    if (urlState.type === 'collection-item' && urlState.itemId) {
-      if (urlState.itemId === 'new') {
-        // Creating new item
-        if (!showItemSheet) {
-          setEditingItem(null);
-          setShowItemSheet(true);
-        }
-      } else {
-        // Editing existing item by r_id
-        const item = collectionItems.find(i => i.r_id === urlState.itemId);
-        if (item && (!editingItem || editingItem.r_id !== urlState.itemId)) {
-          setEditingItem(item);
-          setShowItemSheet(true);
-        }
+    if (urlState.itemId === 'new') {
+      setEditingItem(null);
+      setShowItemSheet(true);
+    } else if (urlState.itemId) {
+      const item = collectionItems.find(i => i.r_id === urlState.itemId);
+      if (item) {
+        setEditingItem(item);
+        setShowItemSheet(true);
       }
-    } else if (urlState.type === 'collection' && showItemSheet) {
-      // URL changed to collection list - close sheet
+    } else {
       setShowItemSheet(false);
       setEditingItem(null);
     }
-  }, [urlState, selectedCollectionId, collectionItems, showItemSheet, editingItem]);
+  }, [urlState.itemId, selectedCollectionId, collectionItems]);
 
   // Sort items (search filtering now happens on backend)
   const sortedItems = React.useMemo(() => {
@@ -301,12 +391,20 @@ export default function CMS() {
 
   const handleCreateItem = () => {
     if (selectedCollectionId) {
+      // Optimistically open sheet immediately for smooth UX
+      setEditingItem(null);
+      setShowItemSheet(true);
+      // Then navigate to update URL
       navigateToNewCollectionItem(selectedCollectionId);
     }
   };
 
   const handleEditItem = (item: CollectionItemWithValues) => {
     if (selectedCollectionId) {
+      // Optimistically open sheet immediately for smooth UX
+      setEditingItem(item);
+      setShowItemSheet(true);
+      // Then navigate to update URL
       navigateToCollectionItem(selectedCollectionId, item.r_id);
     }
   };
@@ -491,6 +589,7 @@ export default function CMS() {
 
     try {
       const newOrder = collectionFields.length;
+      // Store adds field to local state optimistically
       await createField(selectedCollectionId, {
         name: `${field.name} (Copy)`,
         field_name: `${field.field_name}_copy`,
@@ -502,8 +601,7 @@ export default function CMS() {
         hidden: field.hidden,
         data: field.data,
       });
-      // Reload fields to show new field
-      await loadFields(selectedCollectionId);
+      // No reload needed - store already updated local state optimistically
     } catch (error) {
       console.error('Failed to duplicate field:', error);
     }
@@ -516,11 +614,11 @@ export default function CMS() {
     if (!field) return;
 
     try {
+      // Store updates field visibility optimistically
       await updateField(selectedCollectionId, fieldId, {
         hidden: !field.hidden,
       });
-      // Reload fields to show updated state
-      await loadFields(selectedCollectionId);
+      // No reload needed - store already updated local state optimistically
     } catch (error) {
       console.error('Failed to toggle field visibility:', error);
     }
@@ -532,7 +630,7 @@ export default function CMS() {
     try {
       const fieldIds = reorderedFields.map(f => f.id);
       await collectionsApi.reorderFields(selectedCollectionId, fieldIds);
-      // Reload fields to show new order
+      // Reload fields to show new order (reorder API doesn't return updated fields)
       await loadFields(selectedCollectionId);
     } catch (error) {
       console.error('Failed to reorder fields:', error);
@@ -550,6 +648,7 @@ export default function CMS() {
       const newOrder = collectionFields.length;
       const fieldName = data.name.toLowerCase().replace(/\s+/g, '_');
 
+      // Store adds field to local state optimistically
       await createField(selectedCollectionId, {
         name: data.name,
         field_name: fieldName,
@@ -561,8 +660,7 @@ export default function CMS() {
         hidden: false,
       });
 
-      // Reload fields to show new field
-      await loadFields(selectedCollectionId);
+      // No reload needed - store already updated local state optimistically
 
       // Close popover
       setCreateFieldPopoverOpen(false);
@@ -588,13 +686,13 @@ export default function CMS() {
     if (!selectedCollectionId || !editingField) return;
 
     try {
+      // Store updates local state optimistically
       await updateField(selectedCollectionId, editingField.id, {
         name: data.name,
         default: data.default || null,
       });
 
-      // Reload fields to show updated field
-      await loadFields(selectedCollectionId);
+      // No reload needed - store already updated local state optimistically
 
       // Close dialog and reset
       setEditFieldDialogOpen(false);
@@ -609,15 +707,14 @@ export default function CMS() {
 
     try {
       if (editingItem) {
-        // Update existing item
-        await collectionsApi.updateItem(selectedCollectionId, editingItem.id, values);
+        // Update existing item (store updates local state optimistically)
+        await updateItem(selectedCollectionId, editingItem.id, values);
       } else {
-        // Create new item
-        await collectionsApi.createItem(selectedCollectionId, values);
+        // Create new item (store adds to local state optimistically)
+        await createItem(selectedCollectionId, values);
       }
 
-      // Reload items
-      await loadItems(selectedCollectionId, currentPage, pageSize);
+      // No reload needed - store already updated local state optimistically
 
       // Close sheet and reset
       setShowItemSheet(false);
@@ -631,6 +728,190 @@ export default function CMS() {
       alert('Failed to save item. Please try again.');
     }
   };
+
+  // Memoize table to prevent unnecessary re-renders during navigation
+  const tableContent = React.useMemo(() => {
+    return (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={sortedItems.map(item => item.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <table className="w-full">
+            <thead className="border-b">
+              <tr>
+                <th className="pl-5 pr-3 py-5 text-left font-normal w-12">
+                  <div className="flex">
+                  <Checkbox
+                    checked={sortedItems.length > 0 && selectedItemIds.size === sortedItems.length}
+                    onCheckedChange={handleSelectAll}
+                  />
+                  </div>
+                </th>
+
+                {collectionFields.filter(f => !f.hidden).map((field) => {
+                  const sorting = selectedCollection?.sorting;
+                  const isActiveSort = sorting?.field === field.field_name;
+                  const sortIcon = isActiveSort ? (
+                    sorting.direction === 'manual' ? 'M' :
+                      sorting.direction === 'asc' ? '↑' :
+                        '↓'
+                  ) : null;
+
+                  return (
+                    <th key={field.id} className="px-4 py-5 text-left font-normal">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleColumnClick(field.field_name)}
+                          className="flex items-center gap-1 hover:opacity-50 cursor-pointer"
+                        >
+                          {field.name}
+                          {sortIcon && (
+                            <span className="text-xs font-mono">
+                              {sortIcon}
+                            </span>
+                          )}
+                        </button>
+                        <DropdownMenu
+                          open={openDropdownId === field.id}
+                          onOpenChange={(open) => setOpenDropdownId(open ? field.id : null)}
+                        >
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              className="-my-2"
+                            >
+                              <Icon name="more" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem
+                              onSelect={() => handleEditFieldClick(field)}
+                              disabled={field.built_in}
+                            >
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDuplicateField(field.id)}
+                              disabled={field.built_in}
+                            >
+                              Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleHideField(field.id)}
+                              disabled={field.field_name === 'name'}
+                            >
+                              {field.hidden ? 'Show' : 'Hide'}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteField(field.id)}
+                              disabled={field.built_in}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </th>
+                  );
+                })}
+                <th className="px-4 py-3 text-left font-medium text-sm w-24">
+                  <FieldFormPopover
+                    trigger={
+                      <Button size="sm" variant="ghost">
+                        <Icon name="plus" />
+                        Add field
+                      </Button>
+                    }
+                    mode="create"
+                    onSubmit={handleCreateFieldFromPopover}
+                    open={createFieldPopoverOpen}
+                    onOpenChange={setCreateFieldPopoverOpen}
+                  />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedItems.length > 0 ? (
+                sortedItems.map((item) => (
+                  <SortableRow
+                    key={item.id}
+                    item={item}
+                    isManualMode={isManualMode}
+                    onDuplicate={() => handleDuplicateItem(item.id)}
+                    onDelete={() => handleDeleteItem(item.id)}
+                  >
+                    <td
+                      className="pl-5 pr-3 py-3 w-12"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isManualMode) {
+                          handleEditItem(item);
+                        }
+                      }}
+                    >
+                      <div className="flex">
+                      <Checkbox
+                        checked={selectedItemIds.has(item.id)}
+                        onCheckedChange={() => handleToggleItemSelection(item.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      </div>
+                    </td>
+                    {collectionFields.filter(f => !f.hidden).map((field) => {
+                      const value = item.values[field.field_name];
+
+                      // Format date fields
+                      if (field.type === 'date' && value) {
+                        return (
+                          <td
+                            key={field.id}
+                            className="px-4 py-5 text-muted-foreground"
+                            onClick={() => !isManualMode && handleEditItem(item)}
+                          >
+                            {formatDate(value, 'MMM D YYYY, HH:mm')}
+                          </td>
+                        );
+                      }
+
+                      return (
+                        <td
+                          key={field.id}
+                          className="px-4 py-5 text-muted-foreground"
+                          onClick={() => !isManualMode && handleEditItem(item)}
+                        >
+                          {value || '-'}
+                        </td>
+                      );
+                    })}
+                    <td className="px-4 py-3"></td>
+                  </SortableRow>
+                ))
+              ) : (
+                <tr className="group">
+                  <td colSpan={collectionFields.filter(f => !f.hidden).length + 2} className="px-4 ">
+                    {searchQuery && collectionItems.length > 0 ? (
+                      <div className="text-muted-foreground py-32">
+                        No items found matching &quot;{searchQuery}&quot;
+                      </div>
+                    ) : (
+                      <div></div>
+                    )}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </SortableContext>
+      </DndContext>
+    );
+  }, [sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, createFieldPopoverOpen, searchQuery, collectionItems.length, handleSelectAll, handleColumnClick, handleEditFieldClick, handleDuplicateField, handleHideField, handleDeleteField, handleCreateFieldFromPopover, handleDragEnd, handleDuplicateItem, handleDeleteItem, handleEditItem, handleToggleItemSelection, sensors]);
 
   // No collection selected
   if (!selectedCollectionId) {
@@ -731,207 +1012,36 @@ export default function CMS() {
           </div>
         ) : (
           <>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={sortedItems.map(item => item.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <table className="w-full">
-                  <thead className="border-b">
-                    <tr>
-                      <th className="pl-5 pr-3 py-5 text-left font-normal w-12">
-                        <div className="flex">
-                        <Checkbox
-                          checked={sortedItems.length > 0 && selectedItemIds.size === sortedItems.length}
-                          onCheckedChange={handleSelectAll}
-                        />
-                        </div>
-                      </th>
-
-                      {collectionFields.filter(f => !f.hidden).map((field) => {
-                        const sorting = selectedCollection?.sorting;
-                        const isActiveSort = sorting?.field === field.field_name;
-                        const sortIcon = isActiveSort ? (
-                          sorting.direction === 'manual' ? 'M' :
-                            sorting.direction === 'asc' ? '↑' :
-                              '↓'
-                        ) : null;
-
-                        return (
-                          <th key={field.id} className="px-4 py-5 text-left font-normal">
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleColumnClick(field.field_name)}
-                                className="flex items-center gap-1 hover:opacity-50 cursor-pointer"
-                              >
-                                {field.name}
-                                {sortIcon && (
-                                  <span className="text-xs font-mono">
-                                    {sortIcon}
-                                  </span>
-                                )}
-                              </button>
-                              <DropdownMenu
-                                open={openDropdownId === field.id}
-                                onOpenChange={(open) => setOpenDropdownId(open ? field.id : null)}
-                              >
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    size="xs"
-                                    variant="ghost"
-                                    className="-my-2"
-                                  >
-                                    <Icon name="more" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start">
-                                  <DropdownMenuItem
-                                    onSelect={() => handleEditFieldClick(field)}
-                                    disabled={field.built_in}
-                                  >
-                                    Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => handleDuplicateField(field.id)}
-                                    disabled={field.built_in}
-                                  >
-                                    Duplicate
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => handleHideField(field.id)}
-                                    disabled={field.field_name === 'name'}
-                                  >
-                                    {field.hidden ? 'Show' : 'Hide'}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => handleDeleteField(field.id)}
-                                    disabled={field.built_in}
-                                  >
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </th>
-                        );
-                      })}
-                      <th className="px-4 py-3 text-left font-medium text-sm w-24">
-                        <FieldFormPopover
-                          trigger={
-                            <Button size="sm" variant="ghost">
-                              <Icon name="plus" />
-                              Add field
-                            </Button>
-                          }
-                          mode="create"
-                          onSubmit={handleCreateFieldFromPopover}
-                          open={createFieldPopoverOpen}
-                          onOpenChange={setCreateFieldPopoverOpen}
-                        />
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedItems.length > 0 ? (
-                      sortedItems.map((item) => (
-                        <SortableRow
-                          key={item.id}
-                          item={item}
-                          isManualMode={isManualMode}
-                          onDuplicate={() => handleDuplicateItem(item.id)}
-                          onDelete={() => handleDeleteItem(item.id)}
-                        >
-                          <td
-                            className="pl-5 pr-3 py-3 w-12"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!isManualMode) {
-                                handleEditItem(item);
-                              }
-                            }}
-                          >
-                            <div className="flex">
-                            <Checkbox
-                              checked={selectedItemIds.has(item.id)}
-                              onCheckedChange={() => handleToggleItemSelection(item.id)}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            </div>
-                          </td>
-                          {collectionFields.filter(f => !f.hidden).map((field) => {
-                            const value = item.values[field.field_name];
-
-                            // Format date fields
-                            if (field.type === 'date' && value) {
-                              return (
-                                <td
-                                  key={field.id}
-                                  className="px-4 py-5 text-muted-foreground"
-                                  onClick={() => !isManualMode && handleEditItem(item)}
-                                >
-                                  {formatDate(value, 'MMM D YYYY, HH:mm')}
-                                </td>
-                              );
-                            }
-
-                            return (
-                              <td
-                                key={field.id}
-                                className="px-4 py-5 text-muted-foreground"
-                                onClick={() => !isManualMode && handleEditItem(item)}
-                              >
-                                {value || '-'}
-                              </td>
-                            );
-                          })}
-                          <td className="px-4 py-3"></td>
-                        </SortableRow>
-                      ))
-                    ) : (
-                      <tr className="group">
-                        <td colSpan={collectionFields.filter(f => !f.hidden).length + 2} className="px-4 ">
-                          {searchQuery && collectionItems.length > 0 ? (
-                            <div className="text-muted-foreground py-32">
-                              No items found matching &quot;{searchQuery}&quot;
-                            </div>
-                          ) : (
-                            <div></div>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </SortableContext>
-            </DndContext>
+            {tableContent}
 
             <div>
               <div>
+                {/* Add Item Button */}
+                <div className="group cursor-pointer" onClick={handleCreateItem}>
+                  <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary/50">
+                    <div className="px-4 py-4">
+                      <Button size="xs" variant="ghost">
+                        <Icon name="plus" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sheet for Create/Edit Item */}
                 <Sheet 
                   open={showItemSheet} 
                   onOpenChange={(open) => {
-                    if (!open && selectedCollectionId) {
-                      // Navigate back to collection list when closing
-                      navigateToCollection(selectedCollectionId);
+                    if (!open) {
+                      // Optimistically close sheet immediately for smooth UX
+                      setShowItemSheet(false);
+                      setEditingItem(null);
+                      // Then navigate to update URL
+                      if (selectedCollectionId) {
+                        navigateToCollection(selectedCollectionId);
+                      }
                     }
                   }}
                 >
-                  <SheetTrigger asChild>
-                    <div className="group">
-                      <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary/50">
-                        <div className="px-4 py-4">
-                          <Button size="xs" variant="ghost">
-                            <Icon name="plus" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </SheetTrigger>
                   <SheetContent>
                     <SheetHeader>
                       <SheetTitle>

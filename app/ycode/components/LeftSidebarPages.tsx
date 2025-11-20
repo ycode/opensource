@@ -29,7 +29,7 @@ export default function LeftSidebarPages({
   onPageSelect,
   setCurrentPageId,
 }: LeftSidebarPagesProps) {
-  const { routeType } = useEditorUrl();
+  const { routeType, urlState } = useEditorUrl();
   const { openPage, openPageEdit, openPageLayers, navigateToLayers, navigateToPage, navigateToPageEdit, navigateToCollections } = useEditorActions();
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [showFolderSettings, setShowFolderSettings] = useState(false);
@@ -85,15 +85,15 @@ export default function LeftSidebarPages({
 
   // Open page settings panel when on the edit route
   useEffect(() => {
-    if (routeType === 'page-edit' && selectedPage) {
+    if (urlState.isEditing && selectedPage) {
       setEditingPage(selectedPage);
       setShowPageSettings(true);
-    } else if (routeType !== 'page-edit' && showPageSettings) {
+    } else if (!urlState.isEditing && showPageSettings) {
       // Close settings panel when navigating away from edit route
       setShowPageSettings(false);
       setEditingPage(null);
     }
-  }, [routeType, selectedPage]);
+  }, [urlState.isEditing, selectedPage, showPageSettings]);
 
   // Get store actions
   const { createPage, updatePage, duplicatePage, deletePage, createFolder, updateFolder, duplicateFolder, deleteFolder, batchReorderPagesAndFolders } = usePagesStore();
@@ -145,14 +145,14 @@ export default function LeftSidebarPages({
 
         // Navigate to the new page based on current route type
         if (routeType === 'layers') {
-          navigateToLayers(result.data.id);
-        } else if (routeType === 'page') {
-          navigateToPage(result.data.id);
-        } else if (routeType === 'page-edit') {
+          navigateToLayers(result.data.id, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
+        } else if (routeType === 'page' && urlState.isEditing) {
           navigateToPageEdit(result.data.id);
+        } else if (routeType === 'page') {
+          navigateToPage(result.data.id, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
         } else {
           // Default to layers if no route type
-          navigateToLayers(result.data.id);
+          navigateToLayers(result.data.id, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
         }
       } else if (result.error) {
         console.error('Error creating page:', result.error);
@@ -250,16 +250,21 @@ export default function LeftSidebarPages({
     }
     setSelectedItemId(pageId);
 
+    // Preserve current query params (convert null to undefined)
+    const view = urlState.view || undefined;
+    const rightTab = urlState.rightTab || undefined;
+    const layerId = urlState.layerId || undefined;
+
     // Navigate to the same route type but with the new page ID
     if (routeType === 'layers') {
-      navigateToLayers(pageId);
-    } else if (routeType === 'page') {
-      navigateToPage(pageId);
-    } else if (routeType === 'page-edit') {
+      navigateToLayers(pageId, view, rightTab, layerId);
+    } else if (routeType === 'page' && urlState.isEditing) {
       navigateToPageEdit(pageId);
+    } else if (routeType === 'page') {
+      navigateToPage(pageId, view, rightTab, layerId);
     } else {
       // Default to layers if no route type (shouldn't happen, but safe fallback)
-      navigateToLayers(pageId);
+      navigateToLayers(pageId, view, rightTab, layerId);
     }
   };
 
@@ -675,14 +680,14 @@ export default function LeftSidebarPages({
 
           // Navigate to the same route type but with the new page ID
           if (routeType === 'layers') {
-            navigateToLayers(result.nextPageId);
-          } else if (routeType === 'page') {
-            navigateToPage(result.nextPageId);
-          } else if (routeType === 'page-edit') {
+            navigateToLayers(result.nextPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
+          } else if (routeType === 'page' && urlState.isEditing) {
             navigateToPageEdit(result.nextPageId);
+          } else if (routeType === 'page') {
+            navigateToPage(result.nextPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
           } else {
             // Default to layers if no route type
-            navigateToLayers(result.nextPageId);
+            navigateToLayers(result.nextPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
           }
         } else {
           // No pages left
@@ -786,9 +791,9 @@ export default function LeftSidebarPages({
           setShowPageSettings(false);
           setEditingPage(null);
 
-          // Navigate back to pages view if we're on the edit route
-          if (routeType === 'page-edit' && currentPageId) {
-            navigateToPage(currentPageId);
+          // Navigate back to pages view if we're in edit mode
+          if (urlState.isEditing && currentPageId) {
+            navigateToPage(currentPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
           }
         }}
         page={editingPage}

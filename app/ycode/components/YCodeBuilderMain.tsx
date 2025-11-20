@@ -62,7 +62,7 @@ import { Alert, AlertTitle } from '@/components/ui/alert';
 
 export default function YCodeBuilder() {
   const router = useRouter();
-  const { routeType, resourceId, sidebarTab, navigateToLayers } = useEditorUrl();
+  const { routeType, resourceId, sidebarTab, navigateToLayers, urlState, updateQueryParams } = useEditorUrl();
   const { signOut, user } = useAuthStore();
   const { selectedLayerId, selectedLayerIds, setSelectedLayerId, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, editingComponentId } = useEditorStore();
   const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter, setDraftLayers, loadPages } = usePagesStore();
@@ -75,12 +75,16 @@ export default function YCodeBuilder() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [showPageDropdown, setShowPageDropdown] = useState(false);
-  const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>(
+    urlState.view || 'desktop'
+  );
   const [zoom, setZoom] = useState(100);
   const [publishCount, setPublishCount] = useState(0);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersByPageRef = useRef<Map<string, string>>(new Map());
   const previousPageIdRef = useRef<string | null>(null);
+  const hasInitializedLayerFromUrlRef = useRef(false);
+  const lastUrlLayerIdRef = useRef<string | null>(null);
   
   // Sidebar tab is inferred from route type
   const activeTab = sidebarTab;
@@ -115,6 +119,61 @@ export default function YCodeBuilder() {
   useEffect(() => {
     setActiveBreakpoint(viewportMode);
   }, [viewportMode, setActiveBreakpoint]);
+
+  // Sync viewport changes to URL
+  useEffect(() => {
+    if (routeType === 'page' || routeType === 'layers') {
+      updateQueryParams({ view: viewportMode });
+    }
+  }, [viewportMode, routeType, updateQueryParams]);
+
+  // Initialize selected layer from URL on mount/navigation
+  useEffect(() => {
+    if ((routeType === 'page' || routeType === 'layers') && urlState.layerId && currentPageId) {
+      // Wait for the draft to be loaded before trying to select layer
+      const draft = draftsByPageId[currentPageId];
+      if (!draft || !draft.layers) {
+        return; // Draft not loaded yet, wait for next render
+      }
+      
+      // Only set from URL if the URL layer ID actually changed (not from our own sync)
+      if (urlState.layerId !== lastUrlLayerIdRef.current) {
+        lastUrlLayerIdRef.current = urlState.layerId;
+        
+        // Validate that the layer exists in current page/component
+        const layers = getCurrentLayers();
+        const layerExists = findLayerById(layers, urlState.layerId);
+        
+        if (layerExists) {
+          // Layer found - use it
+          console.log('[Editor] Setting layer from URL:', urlState.layerId);
+          setSelectedLayerId(urlState.layerId);
+          hasInitializedLayerFromUrlRef.current = true;
+        } else {
+          // Layer not found - default to "body" and update URL
+          console.warn(`[Editor] Layer "${urlState.layerId}" not found, defaulting to "body"`);
+          setSelectedLayerId('body');
+          hasInitializedLayerFromUrlRef.current = true;
+          updateQueryParams({ layer: 'body' });
+          lastUrlLayerIdRef.current = 'body';
+        }
+      }
+    } else if ((routeType === 'page' || routeType === 'layers') && !urlState.layerId) {
+      // Reset the refs when there's no layer in URL (navigating to a page without layer param)
+      hasInitializedLayerFromUrlRef.current = false;
+      lastUrlLayerIdRef.current = null;
+    }
+  }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, updateQueryParams, currentPageId, draftsByPageId]); // Added currentPageId and draftsByPageId
+
+  // Sync selected layer to URL (but only after initialization from URL)
+  useEffect(() => {
+    if ((routeType === 'page' || routeType === 'layers') && hasInitializedLayerFromUrlRef.current) {
+      const layerParam = selectedLayerId || undefined;
+      // Update URL and track it to prevent loop
+      updateQueryParams({ layer: layerParam });
+      lastUrlLayerIdRef.current = layerParam || null;
+    }
+  }, [selectedLayerId, routeType, updateQueryParams]);
 
   // Generate initial CSS if draft_css is empty (one-time check after data loads)
   const initialCssCheckRef = useRef(false);
@@ -222,6 +281,12 @@ export default function YCodeBuilder() {
             setComponents(response.data.components);
             setStyles(response.data.styles);
             setSettings(response.data.settings);
+
+            // Set collections directly in store
+            if (response.data.collections) {
+              useCollectionsStore.setState({ collections: response.data.collections });
+            }
+
             loadAssets();
           }
         } catch (error) {
@@ -258,22 +323,19 @@ export default function YCodeBuilder() {
   useEffect(() => {
     if (!migrationsComplete || pages.length === 0) return;
 
-    // Handle route types: layers, page, page-edit, collection, collections-base, component
-    if ((routeType === 'layers' || routeType === 'page' || routeType === 'page-edit') && resourceId) {
+    // Handle route types: layers, page, collection, collections-base, component
+    if ((routeType === 'layers' || routeType === 'page') && resourceId) {
       const page = pages.find(p => p.id === resourceId);
       if (page && currentPageId !== resourceId) {
         setCurrentPageId(resourceId);
-        // Only select body for layers mode
-        if (routeType === 'layers') {
+        // Only select body for layers mode if no layer is specified in URL
+        if (routeType === 'layers' && !urlState.layerId) {
           setSelectedLayerId('body');
         }
       }
     } else if (routeType === 'collection' && resourceId) {
       const { setSelectedCollectionId } = useCollectionsStore.getState();
       setSelectedCollectionId(resourceId); // resourceId is already a UUID string
-    } else if (routeType === 'collection-item' && resourceId) {
-      const { setSelectedCollectionId } = useCollectionsStore.getState();
-      setSelectedCollectionId(resourceId); // Set the collection as selected, item handled by CMS
     } else if (routeType === 'collections-base') {
       // On base collections route, don't set a selected collection
       // The CMS component will show all collections or empty state
@@ -293,20 +355,22 @@ export default function YCodeBuilder() {
       // Redirect to layers route for the default page
       navigateToLayers(defaultPage.id);
     }
-  }, [migrationsComplete, pages.length, routeType, resourceId, currentPageId, editingComponentId, pages, setCurrentPageId, setSelectedLayerId, navigateToLayers]);
+  }, [migrationsComplete, pages.length, routeType, resourceId, currentPageId, editingComponentId, pages, setCurrentPageId, setSelectedLayerId, navigateToLayers, urlState.layerId]);
 
   // Auto-select Body layer when switching pages (not when draft updates)
   useEffect(() => {
-    // Only select Body if the page ID actually changed
+    // Only select Body if the page ID actually changed and no layer is specified in URL
     if (currentPageId && currentPageId !== previousPageIdRef.current) {
+      // Update the ref to track this page FIRST
+      previousPageIdRef.current = currentPageId;
+      
       // Check if draft is loaded
-      if (draftsByPageId[currentPageId]) {
+      if (draftsByPageId[currentPageId] && !urlState.layerId) {
         setSelectedLayerId('body');
       }
-      // Update the ref to track this page
-      previousPageIdRef.current = currentPageId;
+      // If urlState.layerId exists, let the URL initialization effect handle it
     }
-  }, [currentPageId, draftsByPageId, setSelectedLayerId]);
+  }, [currentPageId, draftsByPageId, setSelectedLayerId, urlState.layerId]);
 
   // Keyboard shortcuts for layer operations
   useEffect(() => {
@@ -1070,7 +1134,7 @@ export default function YCodeBuilder() {
         publishCount={publishCount}
         onPublishSuccess={() => {
           loadPublishCounts();
-          loadPages();
+          // No need to reload pages - publish already updates store state
         }}
       />
 

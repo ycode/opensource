@@ -166,10 +166,7 @@ export default function LayerContextMenu({
 
   const handleConfirmCreateComponent = async (componentName: string) => {
     const componentId = await createComponentFromLayer(pageId, layerId, componentName);
-    if (componentId) {
-      // Reload components to show the new one in the library
-      await loadComponents();
-    }
+    // No need to reload components - createComponentFromLayer already adds it to the store
   };
 
   const handleEditMasterComponent = () => {

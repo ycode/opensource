@@ -415,6 +415,10 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
           ...state.items,
           [collectionId]: [...(state.items[collectionId] || []), newItem],
         },
+        itemsTotalCount: {
+          ...state.itemsTotalCount,
+          [collectionId]: (state.itemsTotalCount[collectionId] || 0) + 1,
+        },
         isLoading: false,
       }));
 
@@ -466,6 +470,10 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         items: {
           ...state.items,
           [collectionId]: (state.items[collectionId] || []).filter(item => item.id !== itemId),
+        },
+        itemsTotalCount: {
+          ...state.itemsTotalCount,
+          [collectionId]: Math.max(0, (state.itemsTotalCount[collectionId] || 0) - 1),
         },
         isLoading: false,
       }));

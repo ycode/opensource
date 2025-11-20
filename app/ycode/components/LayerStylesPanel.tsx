@@ -58,7 +58,7 @@ export default function LayerStylesPanel({
     getStyleById,
   } = useLayerStylesStore();
 
-  const { updateStyleOnLayers, loadDraft } = usePagesStore();
+  const { updateStyleOnLayers, detachStyleFromAllLayers } = usePagesStore();
 
   const [isCreating, setIsCreating] = useState(false);
   const [newStyleName, setNewStyleName] = useState('');
@@ -179,12 +179,10 @@ export default function LayerStylesPanel({
     // Delete the style (backend will detach from all page versions in the database)
     await deleteStyle(styleId);
 
-    // Reload the current page draft to get updated layers from the database
-    // The backend has already removed styleId from all layers
-    if (pageId) {
-      await loadDraft(pageId);
-    }
-  }, [deleteStyle, loadDraft, pageId]);
+    // Update local state to detach style from all layers
+    // No need to reload draft - this updates all drafts instantly
+    detachStyleFromAllLayers(styleId);
+  }, [deleteStyle, detachStyleFromAllLayers]);
 
   /**
    * Rename the applied style

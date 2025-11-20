@@ -46,7 +46,7 @@ export default function LeftSidebar({
   currentPageId,
   onPageSelect,
 }: LeftSidebarProps) {
-  const { sidebarTab } = useEditorUrl();
+  const { sidebarTab, urlState } = useEditorUrl();
   const { openCollection, navigateToLayers, navigateToPage, navigateToCollections } = useEditorActions();
   const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
@@ -253,14 +253,16 @@ export default function LeftSidebar({
 
             // Navigate to appropriate route based on tab selection
             if (newTab === 'layers') {
-              // Navigate to layers view for current page
-              if (currentPageId) {
-                navigateToLayers(currentPageId);
+              // Navigate to layers view for current page, or first page if none selected
+              const targetPageId = currentPageId || (pages.length > 0 ? pages[0].id : null);
+              if (targetPageId) {
+                navigateToLayers(targetPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
               }
             } else if (newTab === 'pages') {
-              // Navigate to pages view for current page
-              if (currentPageId) {
-                navigateToPage(currentPageId);
+              // Navigate to pages view for current page, or first page if none selected
+              const targetPageId = currentPageId || (pages.length > 0 ? pages[0].id : null);
+              if (targetPageId) {
+                navigateToPage(targetPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
               }
             } else if (newTab === 'cms') {
               // Navigate to first collection or selected collection

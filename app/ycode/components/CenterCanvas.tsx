@@ -74,7 +74,7 @@ export default function CenterCanvas({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { draftsByPageId, addLayer, updateLayer, pages, folders } = usePagesStore();
   const { setSelectedLayerId, activeUIState, editingComponentId, setCurrentPageId, returnToPageId } = useEditorStore();
-  const { routeType, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorUrl();
+  const { routeType, urlState, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorUrl();
   const components = useComponentsStore((state) => state.components);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
 
@@ -219,15 +219,15 @@ export default function CenterCanvas({
     // Navigate to the same route type but with the new page ID
     if (routeType === 'layers') {
       navigateToLayers(pageId);
+    } else if (routeType === 'page' && urlState.isEditing) {
+      navigateToPageEdit(pageId);
     } else if (routeType === 'page') {
       navigateToPage(pageId);
-    } else if (routeType === 'page-edit') {
-      navigateToPageEdit(pageId);
     } else {
       // Default to layers if no route type
       navigateToLayers(pageId);
     }
-  }, [setCurrentPageId, routeType, navigateToLayers, navigateToPage, navigateToPageEdit]);
+  }, [setCurrentPageId, routeType, urlState.isEditing, navigateToLayers, navigateToPage, navigateToPageEdit]);
 
   // Render page tree recursively
   const renderPageTreeNode = useCallback((node: PageTreeNode, depth: number = 0) => {
