@@ -1,6 +1,6 @@
 /**
  * Fields Dropdown
- * 
+ *
  * Dropdown menu for managing field visibility and order
  */
 'use client';
@@ -12,6 +12,10 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import type { CollectionField } from '@/types';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface FieldsDropdownProps {
   fields: CollectionField[];
@@ -21,6 +25,52 @@ interface FieldsDropdownProps {
   onReorder: (fields: CollectionField[]) => void;
 }
 
+// Sortable field item component
+interface SortableFieldItemProps {
+  field: CollectionField;
+  onToggleVisibility: (fieldId: string) => void;
+}
+
+function SortableFieldItem({ field, onToggleVisibility }: SortableFieldItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: field.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="flex items-center gap-2 p-2 rounded-lg -mx-2 cursor-grab active:cursor-grabbing hover:bg-secondary/50"
+    >
+      <Icon
+        name="grip-vertical"
+        className="size-3.5 text-muted-foreground flex-shrink-0"
+      />
+      <Switch
+        checked={!field.hidden}
+        onCheckedChange={() => onToggleVisibility(field.id)}
+        disabled={field.name.toLowerCase() === 'name'}
+        className="flex-shrink-0"
+        size="sm"
+      />
+      <span className="truncate text-xs text-muted-foreground select-none">{field.name}</span>
+    </div>
+  );
+}
+
 export default function FieldsDropdown({
   fields,
   searchQuery,
@@ -28,9 +78,17 @@ export default function FieldsDropdown({
   onToggleVisibility,
   onReorder,
 }: FieldsDropdownProps) {
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [orderedFields, setOrderedFields] = useState<CollectionField[]>(
     [...fields].sort((a, b) => a.order - b.order)
+  );
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Require 5px movement before drag starts
+      },
+    })
   );
 
   // Update ordered fields when fields prop changes
@@ -38,94 +96,89 @@ export default function FieldsDropdown({
     setOrderedFields([...fields].sort((a, b) => a.order - b.order));
   }, [fields]);
 
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    
-    if (draggedIndex === null || draggedIndex === index) return;
+    if (!over || active.id === over.id) {
+      return;
+    }
 
-    const newFields = [...orderedFields];
-    const draggedField = newFields[draggedIndex];
-    
-    // Remove from old position
-    newFields.splice(draggedIndex, 1);
-    // Insert at new position
-    newFields.splice(index, 0, draggedField);
-    
-    setOrderedFields(newFields);
-    setDraggedIndex(index);
-  };
+    // Find the indices of the dragged and target fields
+    const oldIndex = orderedFields.findIndex(field => field.id === active.id);
+    const newIndex = orderedFields.findIndex(field => field.id === over.id);
 
-  const handleDragEnd = () => {
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Reorder the fields array
+    const reorderedFields = [...orderedFields];
+    const [movedField] = reorderedFields.splice(oldIndex, 1);
+    reorderedFields.splice(newIndex, 0, movedField);
+
     // Update order values based on new positions
-    const reorderedFields = orderedFields.map((field, index) => ({
+    const updatedFields = reorderedFields.map((field, index) => ({
       ...field,
       order: index,
     }));
-    
-    onReorder(reorderedFields);
-    setDraggedIndex(null);
+
+    setOrderedFields(updatedFields);
+    onReorder(updatedFields);
   };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="secondary">
-          <Icon name="columns" />
+        <Button size="sm" variant="ghost">
           Fields
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
-        <div className="p-2">
-          <div 
-            className="mb-2"
+        <div className="px-2 pt-2 pb-1">
+
+          <div
             onKeyDown={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            <Input
-              placeholder="Search fields..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              size="sm"
-              className="h-8"
-            />
+            <InputGroup>
+              <InputGroupInput
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+              />
+              <InputGroupAddon>
+                <Icon name="search" className="size-3" />
+              </InputGroupAddon>
+            </InputGroup>
           </div>
-          <div className="text-xs font-medium mb-2 text-muted-foreground">
-            Show/Hide & Reorder Fields
-          </div>
-          <div className="flex flex-col gap-1">
-            {orderedFields.length === 0 ? (
-              <div className="text-sm text-muted-foreground text-center py-4">
-                No fields found
-              </div>
-            ) : (
-              orderedFields.map((field, index) => (
-                <div
-                  key={field.id}
-                  draggable
-                  onDragStart={() => handleDragStart(index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDragEnd={handleDragEnd}
-                  className="flex items-center justify-between gap-2 p-2 rounded hover:bg-secondary/50 cursor-move transition-colors"
-                >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Icon name="grip-vertical" className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm truncate">{field.name}</span>
+
+          <hr className="my-3" />
+
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={orderedFields.map(field => field.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="flex flex-col gap-0.5">
+                {orderedFields.length === 0 ? (
+                  <div className="text-sm text-muted-foreground text-center py-4">
+                    No fields found
                   </div>
-                  <Switch
-                    checked={!field.hidden}
-                    onCheckedChange={() => onToggleVisibility(field.id)}
-                    disabled={field.name.toLowerCase() === 'name'}
-                    className="flex-shrink-0"
-                  />
-                </div>
-              ))
-            )}
-          </div>
+                ) : (
+                  orderedFields.map((field) => (
+                    <SortableFieldItem
+                      key={field.id}
+                      field={field}
+                      onToggleVisibility={onToggleVisibility}
+                    />
+                  ))
+                )}
+              </div>
+            </SortableContext>
+          </DndContext>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
