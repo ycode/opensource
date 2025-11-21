@@ -12,4 +12,3 @@ import YCodeBuilder from '../YCodeBuilderMain';
 export default function ComponentRoute() {
   return <YCodeBuilder />;
 }
-
