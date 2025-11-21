@@ -132,7 +132,7 @@ export default function FieldsDropdown({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
-        <div className="px-2 pt-2 pb-1">
+        <div className="px-2 pt-2 pb-1 flex flex-col gap-2">
 
           <div
             onKeyDown={(e) => e.stopPropagation()}
@@ -150,8 +150,6 @@ export default function FieldsDropdown({
               </InputGroupAddon>
             </InputGroup>
           </div>
-
-          <hr className="my-3" />
 
           <DndContext
             sensors={sensors}
