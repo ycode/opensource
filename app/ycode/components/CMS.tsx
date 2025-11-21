@@ -130,6 +130,7 @@ export default function CMS() {
   const [editFieldDialogOpen, setEditFieldDialogOpen] = useState(false);
   const [editingField, setEditingField] = useState<CollectionField | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [showSkeleton, setShowSkeleton] = useState(false);
 
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = useMemo(
@@ -158,6 +159,27 @@ export default function CMS() {
 
   // Check if we're in manual sort mode
   const isManualMode = selectedCollection?.sorting?.direction === 'manual';
+
+  // Debounced skeleton loading state to prevent flickering
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    if (isLoading) {
+      // Only show skeleton after 150ms to avoid flicker on fast loads
+      timeoutId = setTimeout(() => {
+        setShowSkeleton(true);
+      }, 150);
+    } else {
+      // Hide skeleton immediately when loading completes
+      setShowSkeleton(false);
+    }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isLoading]);
 
   // Sync search and page from URL on collection change or URL change
   useEffect(() => {
@@ -746,6 +768,7 @@ export default function CMS() {
                   <Checkbox
                     checked={sortedItems.length > 0 && selectedItemIds.size === sortedItems.length}
                     onCheckedChange={handleSelectAll}
+                    disabled={showSkeleton}
                   />
                   </div>
                 </th>
@@ -763,8 +786,9 @@ export default function CMS() {
                     <th key={field.id} className="px-4 py-5 text-left font-normal">
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => handleColumnClick(field.id)}
+                          onClick={() => !showSkeleton && handleColumnClick(field.id)}
                           className="flex items-center gap-1 hover:opacity-50 cursor-pointer"
+                          style={{ pointerEvents: showSkeleton ? 'none' : 'auto' }}
                         >
                           {field.name}
                           {sortIcon && (
@@ -775,13 +799,14 @@ export default function CMS() {
                         </button>
                         <DropdownMenu
                           open={openDropdownId === field.id}
-                          onOpenChange={(open) => setOpenDropdownId(open ? field.id : null)}
+                          onOpenChange={(open) => !showSkeleton && setOpenDropdownId(open ? field.id : null)}
                         >
                           <DropdownMenuTrigger asChild>
                             <Button
                               size="xs"
                               variant="ghost"
                               className="-my-2"
+                              disabled={showSkeleton}
                             >
                               <Icon name="more" />
                             </Button>
@@ -821,7 +846,10 @@ export default function CMS() {
                 <th className="px-4 py-3 text-left font-medium text-sm w-24">
                   <FieldFormPopover
                     trigger={
-                      <Button size="sm" variant="ghost">
+                      <Button
+                        size="sm" variant="ghost"
+                        disabled={showSkeleton}
+                      >
                         <Icon name="plus" />
                         Add field
                       </Button>
@@ -835,7 +863,25 @@ export default function CMS() {
               </tr>
             </thead>
             <tbody>
-              {sortedItems.length > 0 ? (
+              {showSkeleton && totalItems > 0 ? (
+                // Skeleton loading rows - show exact expected number
+                Array.from({ length: Math.min(pageSize, totalItems) }).map((_, index) => (
+                  <tr key={`skeleton-${index}`} className="border-b">
+                    <td className="pl-5 pr-3 py-5 w-12">
+                      <div className="w-4 h-4 bg-secondary rounded animate-pulse" />
+                    </td>
+                    {collectionFields.filter(f => !f.hidden).map((field) => (
+                      <td key={field.id} className="px-4 py-5">
+                        <div className="h-4 bg-secondary/50 rounded-[6px] animate-pulse w-1/3" />
+                      </td>
+                    ))}
+                    <td className="px-4 py-3"></td>
+                  </tr>
+                ))
+              ) : showSkeleton ? (
+                // No skeleton rows when totalItems is 0
+                null
+              ) : sortedItems.length > 0 ? (
                 sortedItems.map((item) => (
                   <SortableRow
                     key={item.id}
@@ -908,7 +954,7 @@ export default function CMS() {
         </SortableContext>
       </DndContext>
     );
-  }, [sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, createFieldPopoverOpen, searchQuery, collectionItems.length, handleSelectAll, handleColumnClick, handleEditFieldClick, handleDuplicateField, handleHideField, handleDeleteField, handleCreateFieldFromPopover, handleDragEnd, handleDuplicateItem, handleDeleteItem, handleEditItem, handleToggleItemSelection, sensors]);
+  }, [sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, createFieldPopoverOpen, searchQuery, collectionItems.length, showSkeleton, totalItems, pageSize, handleSelectAll, handleColumnClick, handleEditFieldClick, handleDuplicateField, handleHideField, handleDeleteField, handleCreateFieldFromPopover, handleDragEnd, handleDuplicateItem, handleDeleteItem, handleEditItem, handleToggleItemSelection, sensors]);
 
   // No collection selected
   if (!selectedCollectionId) {
@@ -924,15 +970,6 @@ export default function CMS() {
     );
   }
 
-  // Loading
-  if (isLoading) {
-    return (
-      <div className="flex-1 bg-background flex items-center justify-center">
-        <Spinner />
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 bg-background flex flex-col">
 
@@ -944,6 +981,7 @@ export default function CMS() {
               placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={showSkeleton}
             />
             <InputGroupAddon>
               <Icon name="search" className="size-3" />
@@ -957,6 +995,7 @@ export default function CMS() {
               size="sm"
               variant="destructive"
               onClick={handleDeleteSelected}
+              disabled={showSkeleton}
             >
               Delete
               <Badge variant="secondary" className="text-[10px] px-1.5">{selectedItemIds.size}</Badge>
@@ -975,7 +1014,7 @@ export default function CMS() {
             size="sm"
             variant="secondary"
             onClick={handleCreateItem}
-            disabled={collectionFields.length === 0}
+            disabled={collectionFields.length === 0 || showSkeleton}
           >
             <Icon name="plus" />
             New Item
@@ -1013,15 +1052,17 @@ export default function CMS() {
             <div>
               <div>
                 {/* Add Item Button */}
-                <div className="group cursor-pointer" onClick={handleCreateItem}>
-                  <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary/50">
-                    <div className="px-4 py-4">
-                      <Button size="xs" variant="ghost">
-                        <Icon name="plus" />
-                      </Button>
+                {!showSkeleton && (
+                  <div className="group cursor-pointer" onClick={handleCreateItem}>
+                    <div className="grid grid-flow-col text-muted-foreground group-hover:bg-secondary/50">
+                      <div className="px-4 py-4">
+                        <Button size="xs" variant="ghost">
+                          <Icon name="plus" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Sheet for Create/Edit Item */}
                 <Sheet
@@ -1099,31 +1140,40 @@ export default function CMS() {
             </div>
 
             {/* Pagination Controls */}
-            {selectedCollectionId && sortedItems.length > 0 && (
+            {selectedCollectionId && (showSkeleton || sortedItems.length > 0) && (
               <div className="flex items-center justify-between px-4 py-4 border-t mt-auto">
 
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Show:</span>
-                  <Select
-                    value={pageSize.toString()}
-                    onValueChange={(value) => setPageSize(Number(value))}
-                  >
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="2">2</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {showSkeleton ? (
+                    <div className="w-20 h-8 bg-secondary/50 rounded-lg animate-pulse" />
+                  ) : (
+                    <Select
+                      value={pageSize.toString()}
+                      onValueChange={(value) => setPageSize(Number(value))}
+                      disabled={showSkeleton}
+                    >
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="2">2</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <p className="text-xs text-muted-foreground">
-                    Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
-                  </p>
+                  {showSkeleton ? (
+                    <div className="h-4 w-48 bg-secondary/50 rounded-[6px] animate-pulse" />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1131,7 +1181,7 @@ export default function CMS() {
                     size="sm"
                     variant="secondary"
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
+                    disabled={currentPage === 1 || showSkeleton}
                   >
                     Previous
                   </Button>
@@ -1139,7 +1189,7 @@ export default function CMS() {
                     size="sm"
                     variant="secondary"
                     onClick={() => setCurrentPage(p => p + 1)}
-                    disabled={currentPage * pageSize >= totalItems}
+                    disabled={currentPage * pageSize >= totalItems || showSkeleton}
                   >
                     Next
                   </Button>
