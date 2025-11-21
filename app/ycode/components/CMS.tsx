@@ -45,6 +45,7 @@ import FieldFormPopover from './FieldFormPopover';
 import type { CollectionItemWithValues, CollectionField } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Badge } from '@/components/ui/badge';
 
 // Sortable row component for drag and drop
 interface SortableRowProps {
@@ -957,8 +958,8 @@ export default function CMS() {
               variant="destructive"
               onClick={handleDeleteSelected}
             >
-              <Icon name="trash" />
-              Delete ({selectedItemIds.size})
+              Delete
+              <Badge variant="secondary" className="text-[10px] px-1.5">{selectedItemIds.size}</Badge>
             </Button>
           )}
 

@@ -157,7 +157,10 @@ export default function FieldFormPopover({
       </div>
       <div className="flex justify-end gap-2">
         {useDialog && (
-          <Button variant="secondary" onClick={() => handleOpenChange(false)}>
+          <Button
+            variant="secondary" size="sm"
+            onClick={() => handleOpenChange(false)}
+          >
             Cancel
           </Button>
         )}
@@ -181,7 +184,7 @@ export default function FieldFormPopover({
               {mode === 'create' ? 'Create Field' : 'Edit Field'}
             </DialogTitle>
           </DialogHeader>
-          <div className="py-4">{formContent}</div>
+          <div className="">{formContent}</div>
         </DialogContent>
       </Dialog>
     );
