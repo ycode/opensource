@@ -29,6 +29,8 @@ export interface ConfirmDialogProps {
   onConfirm: () => void;
   onCancel?: () => void;
   showCloseButton?: boolean;
+  saveLabel?: string;
+  onSave?: () => void;
 }
 
 export function ConfirmDialog({
@@ -42,6 +44,8 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   showCloseButton = false,
+  saveLabel,
+  onSave,
 }: ConfirmDialogProps) {
   const handleCancel = () => {
     onCancel?.();
@@ -50,6 +54,11 @@ export function ConfirmDialog({
 
   const handleConfirm = () => {
     onConfirm();
+    onOpenChange?.(false);
+  };
+
+  const handleSave = () => {
+    onSave?.();
     onOpenChange?.(false);
   };
 
@@ -62,19 +71,28 @@ export function ConfirmDialog({
         <DialogDescription>{description}</DialogDescription>
         <DialogFooter>
           <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleCancel}
-          >
-            {cancelLabel}
-          </Button>
-          <Button
             variant={confirmVariant}
             size="sm"
             onClick={handleConfirm}
           >
             {confirmLabel}
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleCancel}
+          >
+            {cancelLabel}
+          </Button>
+          {saveLabel && onSave && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleSave}
+            >
+              {saveLabel}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

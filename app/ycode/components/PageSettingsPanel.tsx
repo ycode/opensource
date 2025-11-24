@@ -648,6 +648,30 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     // Don't change currentPage - stay on the current page with unsaved changes
   };
 
+  // Handle saving changes from the unsaved changes dialog
+  const handleSaveFromDialog = async () => {
+    setShowUnsavedDialog(false);
+
+    // Save changes first
+    await handleSave();
+
+    // After save, proceed with the pending action
+    if (pendingAction === 'close') {
+      onClose();
+    } else if (pendingAction === 'navigate' && pendingPageChange !== undefined) {
+      // Proceed to load the new page
+      setCurrentPage(pendingPageChange);
+      setPendingPageChange(null);
+      rejectedPageRef.current = null;
+    } else if (pendingAction === 'external' && confirmationResolverRef.current) {
+      // External check - resolve with true (changes saved)
+      confirmationResolverRef.current(true);
+      confirmationResolverRef.current = null;
+    }
+
+    setPendingAction(null);
+  };
+
   const handleSave = async () => {
     // Validation
     if (!name.trim()) {
@@ -1356,6 +1380,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         confirmVariant="destructive"
         onConfirm={handleConfirmDiscard}
         onCancel={handleCancelDiscard}
+        saveLabel="Save changes"
+        onSave={handleSaveFromDialog}
       />
     </>
   );
