@@ -4,14 +4,14 @@
  * YCode Builder Main Component
  *
  * Three-panel editor layout inspired by modern design tools
- * 
+ *
  * This component is shared across ALL editor routes to prevent remounts:
  * - /ycode (base route)
  * - /ycode/pages/[id]/edit (page settings)
  * - /ycode/pages/[id]/layers (page layers)
  * - /ycode/collections/[id] (collections)
  * - /ycode/components/[id] (component editing)
- * 
+ *
  * By using the same component instance everywhere, we prevent migration
  * checks and data reloads on every navigation.
  */
@@ -29,6 +29,7 @@ import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
 import UpdateNotification from '@/components/UpdateNotification';
 import MigrationChecker from '@/components/MigrationChecker';
+import BuilderLoading from '@/components/BuilderLoading';
 
 // 3. Hooks
 // useCanvasCSS removed - now handled by iframe with Tailwind JIT CDN
@@ -63,7 +64,7 @@ import { Alert, AlertTitle } from '@/components/ui/alert';
 export default function YCodeBuilder() {
   const router = useRouter();
   const { routeType, resourceId, sidebarTab, navigateToLayers, urlState, updateQueryParams } = useEditorUrl();
-  const { signOut, user } = useAuthStore();
+  const { signOut, user, initialized: authInitialized } = useAuthStore();
   const { selectedLayerId, selectedLayerIds, setSelectedLayerId, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, editingComponentId } = useEditorStore();
   const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter, setDraftLayers, loadPages } = usePagesStore();
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard, copyStyle: copyStyleToClipboard, pasteStyle: pasteStyleFromClipboard } = useClipboardStore();
@@ -85,7 +86,7 @@ export default function YCodeBuilder() {
   const previousPageIdRef = useRef<string | null>(null);
   const hasInitializedLayerFromUrlRef = useRef(false);
   const lastUrlLayerIdRef = useRef<string | null>(null);
-  
+
   // Sidebar tab is inferred from route type
   const activeTab = sidebarTab;
 
@@ -135,15 +136,15 @@ export default function YCodeBuilder() {
       if (!draft || !draft.layers) {
         return; // Draft not loaded yet, wait for next render
       }
-      
+
       // Only set from URL if the URL layer ID actually changed (not from our own sync)
       if (urlState.layerId !== lastUrlLayerIdRef.current) {
         lastUrlLayerIdRef.current = urlState.layerId;
-        
+
         // Validate that the layer exists in current page/component
         const layers = getCurrentLayers();
         const layerExists = findLayerById(layers, urlState.layerId);
-        
+
         if (layerExists) {
           // Layer found - use it
           console.log('[Editor] Setting layer from URL:', urlState.layerId);
@@ -250,8 +251,9 @@ export default function YCodeBuilder() {
     // If successful, user state will update and component will re-render with builder
   };
 
-  // Load all data in one request after migrations complete
+  // Track initial data load completion
   const initialLoadRef = useRef(false);
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
 
   useEffect(() => {
     if (migrationsComplete && pages.length === 0 && !initialLoadRef.current) {
@@ -265,6 +267,7 @@ export default function YCodeBuilder() {
 
           if (response.error) {
             console.error('[Editor] Error loading initial data:', response.error);
+            setInitialDataLoaded(true); // Allow UI to render even on error
             return;
           }
 
@@ -282,15 +285,20 @@ export default function YCodeBuilder() {
             setStyles(response.data.styles);
             setSettings(response.data.settings);
 
-            // Set collections directly in store
+            // Set collections and preload fields/items
             if (response.data.collections) {
-              useCollectionsStore.setState({ collections: response.data.collections });
+              const { preloadCollectionsAndItems } = useCollectionsStore.getState();
+              await preloadCollectionsAndItems(response.data.collections);
             }
 
             loadAssets();
+
+            // Mark initial data as loaded - NOW UI can render
+            setInitialDataLoaded(true);
           }
         } catch (error) {
           console.error('[Editor] Error loading initial data:', error);
+          setInitialDataLoaded(true); // Allow UI to render even on error
         }
       };
 
@@ -363,7 +371,7 @@ export default function YCodeBuilder() {
     if (currentPageId && currentPageId !== previousPageIdRef.current) {
       // Update the ref to track this page FIRST
       previousPageIdRef.current = currentPageId;
-      
+
       // Check if draft is loaded
       if (draftsByPageId[currentPageId] && !urlState.layerId) {
         setSelectedLayerId('body');
@@ -1002,6 +1010,11 @@ export default function YCodeBuilder() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedLayerId, selectedLayerIds, currentPageId, editingComponentId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately, draftsByPageId, updateLayer, copyStyleToClipboard, pasteStyleFromClipboard, deleteSelectedLayer, handleUndo, handleRedo, getCurrentLayers, updateCurrentLayers]);
 
+  // Show loading screen while checking authentication
+  if (!authInitialized) {
+    return <BuilderLoading message="Checking authentication..." />;
+  }
+
   // Show login form if not authenticated
   if (!user) {
     return (
@@ -1104,7 +1117,12 @@ export default function YCodeBuilder() {
     return <MigrationChecker onComplete={() => setMigrationsComplete(true)} />;
   }
 
-  // Authenticated - show builder (only after migrations complete)
+  // Wait for initial data to load (BLOCKING) - prevents race conditions
+  if (!initialDataLoaded) {
+    return <BuilderLoading message="Loading builder data..." />;
+  }
+
+  // Authenticated - show builder (only after migrations AND data load complete)
   return (
     <>
       <div className="h-screen flex flex-col">

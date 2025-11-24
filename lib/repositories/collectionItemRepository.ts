@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '../supabase-server';
 import type { CollectionItem, CollectionItemWithValues } from '@/types';
 import { randomUUID } from 'crypto';
 import { getFieldsByCollectionId } from './collectionFieldRepository';
-import { getValuesByFieldId } from './collectionItemValueRepository';
+import { getValuesByFieldId, getValuesByItemIds } from './collectionItemValueRepository';
 
 /**
  * Collection Item Repository
@@ -20,6 +20,69 @@ export interface QueryFilters {
   search?: string;
   limit?: number;
   offset?: number;
+}
+
+/**
+ * Get top N items per collection for multiple collections in one query
+ * Uses window function (ROW_NUMBER() OVER PARTITION BY) for efficient batch loading
+ * @param collectionIds - Array of collection UUIDs
+ * @param is_published - Filter for draft (false) or published (true) items. Defaults to false (draft).
+ * @param limit - Number of items per collection. Defaults to 10.
+ */
+export async function getTopItemsPerCollection(
+  collectionIds: string[],
+  is_published: boolean = false,
+  limit: number = 10
+): Promise<CollectionItem[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  if (collectionIds.length === 0) {
+    return [];
+  }
+
+  // Use raw SQL with window function to get top N items per collection
+  const { data, error } = await client.rpc('get_top_items_per_collection', {
+    p_collection_ids: collectionIds,
+    p_is_published: is_published,
+    p_limit: limit,
+  });
+
+  if (error) {
+    // Fallback to manual approach if RPC doesn't exist yet
+    const { data: manualData, error: manualError } = await client
+      .from('collection_items')
+      .select('*')
+      .in('collection_id', collectionIds)
+      .eq('is_published', is_published)
+      .is('deleted_at', null)
+      .order('collection_id', { ascending: true })
+      .order('manual_order', { ascending: true })
+      .order('created_at', { ascending: false })
+      .limit(collectionIds.length * limit);
+
+    if (manualError) {
+      throw new Error(`Failed to fetch items: ${manualError.message}`);
+    }
+
+    // Group by collection and take first N per collection
+    const itemsByCollection: Record<string, CollectionItem[]> = {};
+    manualData?.forEach(item => {
+      if (!itemsByCollection[item.collection_id]) {
+        itemsByCollection[item.collection_id] = [];
+      }
+      if (itemsByCollection[item.collection_id].length < limit) {
+        itemsByCollection[item.collection_id].push(item);
+      }
+    });
+
+    return Object.values(itemsByCollection).flat();
+  }
+
+  return data || [];
 }
 
 export interface CreateCollectionItemData {
@@ -247,6 +310,68 @@ export async function getItemsWithValues(
   const filteredItems = itemsWithValues.filter((item): item is CollectionItemWithValues => item !== null);
 
   return { items: filteredItems, total };
+}
+
+/**
+ * Get top N items with values for multiple collections in 2 queries
+ * Uses optimized batch queries with PARTITION BY and WHERE IN
+ * @param collectionIds - Array of collection UUIDs
+ * @param is_published - Filter for draft (false) or published (true). Defaults to false (draft).
+ * @param limit - Number of items per collection. Defaults to 10.
+ */
+export async function getTopItemsWithValuesPerCollection(
+  collectionIds: string[],
+  is_published: boolean = false,
+  limit: number = 10
+): Promise<Record<string, { items: CollectionItemWithValues[]; total: number }>> {
+  if (collectionIds.length === 0) {
+    return {};
+  }
+
+  // Query 1: Get top N items per collection using window function
+  const items = await getTopItemsPerCollection(collectionIds, is_published, limit);
+
+  if (items.length === 0) {
+    // Return empty results for all collections
+    const result: Record<string, { items: CollectionItemWithValues[]; total: number }> = {};
+    collectionIds.forEach(id => {
+      result[id] = { items: [], total: 0 };
+    });
+    return result;
+  }
+
+  // Query 2: Get all values for these items in one query
+  const itemIds = items.map(item => item.id);
+  const valuesByItem = await getValuesByItemIds(itemIds, is_published);
+
+  // Combine items with their values
+  const itemsWithValues: CollectionItemWithValues[] = items.map(item => ({
+    ...item,
+    values: valuesByItem[item.id] || {},
+  }));
+
+  // Group by collection_id
+  const result: Record<string, { items: CollectionItemWithValues[]; total: number }> = {};
+
+  // Initialize all collections
+  collectionIds.forEach(id => {
+    result[id] = { items: [], total: 0 };
+  });
+
+  // Populate with actual data
+  itemsWithValues.forEach(item => {
+    if (!result[item.collection_id]) {
+      result[item.collection_id] = { items: [], total: 0 };
+    }
+    result[item.collection_id].items.push(item);
+  });
+
+  // Set total to the number of items we got (limited by N)
+  Object.keys(result).forEach(collectionId => {
+    result[collectionId].total = result[collectionId].items.length;
+  });
+
+  return result;
 }
 
 /**

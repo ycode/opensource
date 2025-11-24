@@ -28,6 +28,7 @@ import {
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import BuilderLoading from '@/components/BuilderLoading';
 import { Spinner } from '@/components/ui/spinner';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 
@@ -185,19 +186,7 @@ export default function WelcomePage() {
     // Show loading while checking environment
     if (isVercel === null) {
       return (
-        <div className="min-h-screen flex flex-col gap-2 text-center items-center justify-center bg-neutral-950 py-10">
-
-            <Label size="sm">
-              Please wait
-            </Label>
-            <Label
-              variant="muted" size="sm"
-              className="bg-gradient-to-r from-muted-foreground via-muted-foreground/40 to-muted-foreground bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent !font-normal"
-            >
-              Detecting environment...
-            </Label>
-
-        </div>
+        <BuilderLoading message="Detecting environment..." />
       );
     }
 
