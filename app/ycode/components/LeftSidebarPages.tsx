@@ -8,6 +8,7 @@ import PagesTree from './PagesTree';
 import PageSettingsPanel, { type PageFormData, type PageSettingsPanelHandle } from './PageSettingsPanel';
 import FolderSettingsPanel, { type FolderFormData, type FolderSettingsPanelHandle } from './FolderSettingsPanel';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useEditorStore } from '@/stores/useEditorStore';
 import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
 import type { Page, PageFolder, PageSettings } from '@/types';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
@@ -323,7 +324,7 @@ export default function LeftSidebarPages({
     setEditingFolder(null);
     setShowFolderSettings(false);
 
-    // Navigate to the edit route
+    // Navigate to the edit route (preserves existing query params)
     navigateToPageEdit(page.id);
   };
 
@@ -827,7 +828,13 @@ export default function LeftSidebarPages({
 
           // Navigate back to pages view if we're in edit mode
           if (urlState.isEditing && currentPageId) {
-            navigateToPage(currentPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
+            // Since edit param preserves other params, we can just remove the edit param
+            // The URL already has view, tab, layer params preserved
+            const view = urlState.view || undefined;
+            const rightTab = urlState.rightTab || undefined;
+            const layerId = urlState.layerId || undefined;
+
+            navigateToPage(currentPageId, view, rightTab, layerId);
           }
         }}
         page={editingPage}

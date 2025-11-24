@@ -87,6 +87,7 @@ export default function YCodeBuilder() {
   const previousPageIdRef = useRef<string | null>(null);
   const hasInitializedLayerFromUrlRef = useRef(false);
   const lastUrlLayerIdRef = useRef<string | null>(null);
+  const previousIsEditingRef = useRef<boolean | undefined>(undefined);
 
   // Sidebar tab is inferred from route type
   const activeTab = sidebarTab;
@@ -122,12 +123,26 @@ export default function YCodeBuilder() {
     setActiveBreakpoint(viewportMode);
   }, [viewportMode, setActiveBreakpoint]);
 
-  // Sync viewport changes to URL
+  // Track edit mode transitions to prevent effects from running during navigation
+  const currentIsEditing = urlState.isEditing;
+  const justExitedEditMode = previousIsEditingRef.current === true && currentIsEditing === false;
+
+  // Update ref synchronously before effects run
+  if (previousIsEditingRef.current !== currentIsEditing) {
+    previousIsEditingRef.current = currentIsEditing;
+  }
+
+  // Sync viewport changes to URL (skip when in page settings mode or during edit mode transition)
   useEffect(() => {
-    if (routeType === 'page' || routeType === 'layers') {
+    // Skip if we just transitioned away from edit mode - navigation already includes all params
+    if (justExitedEditMode) {
+      return;
+    }
+
+    if ((routeType === 'page' || routeType === 'layers') && !urlState.isEditing && urlState.view !== viewportMode) {
       updateQueryParams({ view: viewportMode });
     }
-  }, [viewportMode, routeType, updateQueryParams]);
+  }, [viewportMode, routeType, updateQueryParams, urlState.view, urlState.isEditing, justExitedEditMode]);
 
   // Reset layer initialization flag when route type changes
   useEffect(() => {
@@ -141,7 +156,7 @@ export default function YCodeBuilder() {
     // Handle layer selection for pages and components
     const isPageOrLayersRoute = routeType === 'page' || routeType === 'layers';
     const isComponentRoute = routeType === 'component';
-    
+
     if ((isPageOrLayersRoute || isComponentRoute) && urlState.layerId) {
       // For pages, wait for draft. For components, wait for component draft
       if (isPageOrLayersRoute && currentPageId) {
@@ -200,64 +215,79 @@ export default function YCodeBuilder() {
     }
   }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, updateQueryParams, currentPageId, editingComponentId, draftsByPageId, getCurrentLayers]);
 
-  // Sync selected layer to URL (but only after initialization from URL)
+  // Sync selected layer to URL (but only after initialization from URL, skip when in page settings mode or during edit mode transition)
   useEffect(() => {
+    // Skip if we just transitioned away from edit mode - navigation already includes all params
+    if (justExitedEditMode) {
+      return;
+    }
+
     const isPageOrLayersRoute = routeType === 'page' || routeType === 'layers';
     const isComponentRoute = routeType === 'component';
-    
-    if ((isPageOrLayersRoute || isComponentRoute) && hasInitializedLayerFromUrlRef.current) {
+
+    if ((isPageOrLayersRoute || isComponentRoute) && !urlState.isEditing && hasInitializedLayerFromUrlRef.current) {
       const layerParam = selectedLayerId || undefined;
-      // Update URL and track it to prevent loop
-      updateQueryParams({ layer: layerParam });
-      lastUrlLayerIdRef.current = layerParam || null;
+      // Only update if the layer has actually changed from URL
+      if (urlState.layerId !== layerParam) {
+        updateQueryParams({ layer: layerParam });
+        lastUrlLayerIdRef.current = layerParam || null;
+      }
     }
-  }, [selectedLayerId, routeType, updateQueryParams]);
+  }, [selectedLayerId, routeType, updateQueryParams, urlState.layerId, urlState.isEditing, justExitedEditMode]);
 
   // Generate initial CSS if draft_css is empty (one-time check after data loads)
   const initialCssCheckRef = useRef(false);
   const settingsLoaded = useSettingsStore((state) => state.settings.length > 0);
+  const draftsCount = Object.keys(draftsByPageId).length;
 
   useEffect(() => {
-    // Wait for all initial data to be loaded
-    if (!migrationsComplete || Object.keys(draftsByPageId).length === 0 || !settingsLoaded) {
+    // Early return if already checked - this must be the FIRST check
+    if (initialCssCheckRef.current) {
       return;
     }
 
-    // On initial load, check if draft_css exists in settings
-    if (!initialCssCheckRef.current) {
-      initialCssCheckRef.current = true;
-      const { getSettingByKey } = useSettingsStore.getState();
-      const existingDraftCSS = getSettingByKey('draft_css');
-
-      // If draft_css exists and is not empty, skip initial generation
-      if (existingDraftCSS && existingDraftCSS.trim().length > 0) {
-        console.log('[Editor] draft_css already exists, skipping initial generation');
-        return;
-      }
-
-      // Generate initial CSS if it doesn't exist
-      console.log('[Editor] draft_css is empty, generating initial CSS');
-      const generateInitialCSS = async () => {
-        try {
-          const { generateAndSaveCSS } = await import('@/lib/client/cssGenerator');
-
-          // Collect layers from ALL pages for comprehensive CSS generation
-          const allLayers: Layer[] = [];
-          Object.values(draftsByPageId).forEach(draft => {
-            if (draft.layers) {
-              allLayers.push(...draft.layers);
-            }
-          });
-
-          await generateAndSaveCSS(allLayers);
-        } catch (error) {
-          console.error('[Editor] Failed to generate initial CSS:', error);
-        }
-      };
-
-      generateInitialCSS();
+    // Wait for all initial data to be loaded
+    if (!migrationsComplete || draftsCount === 0 || !settingsLoaded) {
+      return;
     }
-  }, [draftsByPageId, migrationsComplete, settingsLoaded]);
+
+    // Mark as checked immediately to prevent re-runs, even if we return early below
+    initialCssCheckRef.current = true;
+
+    // On initial load, check if draft_css exists in settings
+    const { getSettingByKey } = useSettingsStore.getState();
+    const existingDraftCSS = getSettingByKey('draft_css');
+
+    // If draft_css exists and is not empty, skip initial generation
+    if (existingDraftCSS && existingDraftCSS.trim().length > 0) {
+      // Don't log here - this is expected behavior and happens once
+      return;
+    }
+
+    // Generate initial CSS if it doesn't exist
+    console.log('[Editor] draft_css is empty, generating initial CSS');
+    const generateInitialCSS = async () => {
+      try {
+        const { generateAndSaveCSS } = await import('@/lib/client/cssGenerator');
+
+        // Collect layers from ALL pages for comprehensive CSS generation
+        // Use current draftsByPageId from store at execution time
+        const currentDrafts = usePagesStore.getState().draftsByPageId;
+        const allLayers: Layer[] = [];
+        Object.values(currentDrafts).forEach(draft => {
+          if (draft.layers) {
+            allLayers.push(...draft.layers);
+          }
+        });
+
+        await generateAndSaveCSS(allLayers);
+      } catch (error) {
+        console.error('[Editor] Failed to generate initial CSS:', error);
+      }
+    };
+
+    generateInitialCSS();
+  }, [migrationsComplete, draftsCount, settingsLoaded]);
 
   // Add overflow-hidden to body when builder is mounted
   useEffect(() => {
@@ -375,7 +405,7 @@ export default function YCodeBuilder() {
     // For pages, wait for pages to load. For components, wait for components to load
     const isPagesRoute = routeType === 'layers' || routeType === 'page' || !routeType;
     const isComponentRoute = routeType === 'component';
-    
+
     if (!migrationsComplete) return;
     if (isPagesRoute && pages.length === 0) return;
     if (isComponentRoute && components.length === 0) return;
@@ -412,7 +442,8 @@ export default function YCodeBuilder() {
       const defaultPage = homePage || pages[0];
       setCurrentPageId(defaultPage.id);
       setSelectedLayerId('body');
-      // Redirect to layers route for the default page
+      // Redirect to layers route for the default page with default params
+      // navigateToLayers will automatically include view=desktop, tab=design, layer=body
       navigateToLayers(defaultPage.id);
     }
   }, [migrationsComplete, pages.length, components.length, routeType, resourceId, currentPageId, editingComponentId, pages, components, setCurrentPageId, setSelectedLayerId, navigateToLayers, urlState.layerId]);
