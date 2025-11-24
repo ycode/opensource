@@ -332,6 +332,30 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
     // Don't change currentFolder - stay on the current folder with unsaved changes
   };
 
+  // Handle saving changes from the unsaved changes dialog
+  const handleSaveFromDialog = async () => {
+    setShowUnsavedDialog(false);
+
+    // Save changes first
+    await handleSave();
+
+    // After save, proceed with the pending action
+    if (pendingAction === 'close') {
+      onClose();
+    } else if (pendingAction === 'navigate' && pendingFolderChange !== undefined) {
+      // Proceed to load the new folder
+      setCurrentFolder(pendingFolderChange);
+      setPendingFolderChange(null);
+      rejectedFolderRef.current = null;
+    } else if (pendingAction === 'external' && confirmationResolverRef.current) {
+      // External check - resolve with true (changes saved)
+      confirmationResolverRef.current(true);
+      confirmationResolverRef.current = null;
+    }
+
+    setPendingAction(null);
+  };
+
   const handleSave = async () => {
     // Validation
     if (!name.trim()) {
@@ -416,7 +440,7 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
       {/* Backdrop */}
       <div
         className="fixed inset-0 left-64 z-40"
-        onClick={onClose}
+        onClick={handleClose}
       />
 
       {/* Panel */}
@@ -570,6 +594,8 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
         confirmVariant="destructive"
         onConfirm={handleConfirmDiscard}
         onCancel={handleCancelDiscard}
+        saveLabel="Save changes"
+        onSave={handleSaveFromDialog}
       />
     </>
   );
