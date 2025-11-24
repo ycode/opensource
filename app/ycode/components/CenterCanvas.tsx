@@ -28,7 +28,7 @@ import { useEditorUrl } from '@/hooks/use-editor-url';
 // 6. Utils
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
 import type { IframeToParentMessage } from '@/lib/iframe-bridge';
-import { buildPageTree, getNodeIcon } from '@/lib/page-utils';
+import { buildPageTree, getNodeIcon, findHomepage } from '@/lib/page-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
 
@@ -223,9 +223,23 @@ export default function CenterCanvas({
     // Clear component draft
     clearComponentDraft(editingComponentId);
 
-    // Return to previous page
-    if (returnToPageId) {
-      setCurrentPageId(returnToPageId);
+    // Determine which page to navigate to
+    let targetPageId = returnToPageId;
+    if (!targetPageId) {
+      // No return page - use homepage
+      const homePage = findHomepage(pages);
+      const defaultPage = homePage || pages[0];
+      targetPageId = defaultPage?.id || null;
+    }
+
+    // IMPORTANT: Navigate FIRST, then clear state
+    // This ensures the navigation happens before component unmounts
+    if (targetPageId) {
+      // Navigate to the target page
+      navigateToLayers(targetPageId);
+      
+      // Small delay to ensure navigation starts before clearing state
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
 
     // Exit edit mode
@@ -233,7 +247,7 @@ export default function CenterCanvas({
 
     // Clear selection
     setSelectedLayerId(null);
-  }, [editingComponentId, returnToPageId, setCurrentPageId, setSelectedLayerId]);
+  }, [editingComponentId, returnToPageId, pages, setSelectedLayerId, navigateToLayers]);
 
   // Initialize all folders as collapsed on mount (including virtual error pages folder)
   useEffect(() => {
@@ -458,7 +472,7 @@ export default function CenterCanvas({
       {/* Top Bar */}
       <div className="grid grid-cols-3 items-center p-4 border-b bg-background">
         {/* Page Selector or Back to Page Button */}
-        {editingComponentId && returnToPage ? (
+        {editingComponentId ? (
           <Button
             variant="purple"
             size="sm"
@@ -466,7 +480,7 @@ export default function CenterCanvas({
             className="gap-1 w-fit"
           >
             <Icon name="arrowLeft" />
-            Back to {returnToPage.name}
+            Back to {returnToPage ? returnToPage.name : 'Homepage'}
           </Button>
         ) : (
           <div className="flex items-center gap-1.5">

@@ -70,6 +70,7 @@ export default function YCodeBuilder() {
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard, copyStyle: copyStyleToClipboard, pasteStyle: pasteStyleFromClipboard } = useClipboardStore();
   const componentIsSaving = useComponentsStore((state) => state.isSaving);
   const pages = usePagesStore((state) => state.pages);
+  const components = useComponentsStore((state) => state.components);
   const { migrationsComplete, setMigrationsComplete } = useMigrationStore();
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -128,13 +129,33 @@ export default function YCodeBuilder() {
     }
   }, [viewportMode, routeType, updateQueryParams]);
 
+  // Reset layer initialization flag when route type changes
+  useEffect(() => {
+    // When switching between route types, reset initialization so new route can initialize properly
+    hasInitializedLayerFromUrlRef.current = false;
+    lastUrlLayerIdRef.current = null;
+  }, [routeType]);
+
   // Initialize selected layer from URL on mount/navigation
   useEffect(() => {
-    if ((routeType === 'page' || routeType === 'layers') && urlState.layerId && currentPageId) {
-      // Wait for the draft to be loaded before trying to select layer
-      const draft = draftsByPageId[currentPageId];
-      if (!draft || !draft.layers) {
-        return; // Draft not loaded yet, wait for next render
+    // Handle layer selection for pages and components
+    const isPageOrLayersRoute = routeType === 'page' || routeType === 'layers';
+    const isComponentRoute = routeType === 'component';
+    
+    if ((isPageOrLayersRoute || isComponentRoute) && urlState.layerId) {
+      // For pages, wait for draft. For components, wait for component draft
+      if (isPageOrLayersRoute && currentPageId) {
+        const draft = draftsByPageId[currentPageId];
+        if (!draft || !draft.layers) {
+          return; // Draft not loaded yet, wait for next render
+        }
+      } else if (isComponentRoute && editingComponentId) {
+        const componentDrafts = useComponentsStore.getState().componentDrafts;
+        if (!componentDrafts[editingComponentId]) {
+          return; // Component draft not loaded yet
+        }
+      } else {
+        return; // Not ready yet
       }
 
       // Only set from URL if the URL layer ID actually changed (not from our own sync)
@@ -151,28 +172,40 @@ export default function YCodeBuilder() {
           setSelectedLayerId(urlState.layerId);
           hasInitializedLayerFromUrlRef.current = true;
         } else {
-          // Layer not found - default to "body" and update URL
-          console.warn(`[Editor] Layer "${urlState.layerId}" not found, defaulting to "body"`);
-          setSelectedLayerId('body');
+          // Layer not found - clear selection and update URL
+          console.warn(`[Editor] Layer "${urlState.layerId}" not found, clearing selection`);
+          setSelectedLayerId(null);
           hasInitializedLayerFromUrlRef.current = true;
-          updateQueryParams({ layer: 'body' });
-          lastUrlLayerIdRef.current = 'body';
+          updateQueryParams({ layer: undefined });
+          lastUrlLayerIdRef.current = null;
         }
       }
-    } else if ((routeType === 'page' || routeType === 'layers') && !urlState.layerId && currentPageId) {
+    } else if ((isPageOrLayersRoute || isComponentRoute) && !urlState.layerId) {
       // No layer in URL - mark as initialized so clicks will update URL from now on
-      const draft = draftsByPageId[currentPageId];
-      if (draft && draft.layers) {
-        // Once the draft is loaded, mark as initialized even without a layer param
-        hasInitializedLayerFromUrlRef.current = true;
-        lastUrlLayerIdRef.current = null;
+      if (isPageOrLayersRoute && currentPageId) {
+        const draft = draftsByPageId[currentPageId];
+        if (draft && draft.layers) {
+          // Once the draft is loaded, mark as initialized even without a layer param
+          hasInitializedLayerFromUrlRef.current = true;
+          lastUrlLayerIdRef.current = null;
+        }
+      } else if (isComponentRoute && editingComponentId) {
+        const componentDrafts = useComponentsStore.getState().componentDrafts;
+        if (componentDrafts[editingComponentId]) {
+          // Once the component draft is loaded, mark as initialized
+          hasInitializedLayerFromUrlRef.current = true;
+          lastUrlLayerIdRef.current = null;
+        }
       }
     }
-  }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, updateQueryParams, currentPageId, draftsByPageId, getCurrentLayers]);
+  }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, updateQueryParams, currentPageId, editingComponentId, draftsByPageId, getCurrentLayers]);
 
   // Sync selected layer to URL (but only after initialization from URL)
   useEffect(() => {
-    if ((routeType === 'page' || routeType === 'layers') && hasInitializedLayerFromUrlRef.current) {
+    const isPageOrLayersRoute = routeType === 'page' || routeType === 'layers';
+    const isComponentRoute = routeType === 'component';
+    
+    if ((isPageOrLayersRoute || isComponentRoute) && hasInitializedLayerFromUrlRef.current) {
       const layerParam = selectedLayerId || undefined;
       // Update URL and track it to prevent loop
       updateQueryParams({ layer: layerParam });
@@ -339,7 +372,13 @@ export default function YCodeBuilder() {
 
   // Handle URL-based navigation after data loads
   useEffect(() => {
-    if (!migrationsComplete || pages.length === 0) return;
+    // For pages, wait for pages to load. For components, wait for components to load
+    const isPagesRoute = routeType === 'layers' || routeType === 'page' || !routeType;
+    const isComponentRoute = routeType === 'component';
+    
+    if (!migrationsComplete) return;
+    if (isPagesRoute && pages.length === 0) return;
+    if (isComponentRoute && components.length === 0) return;
 
     // Handle route types: layers, page, collection, collections-base, component
     if ((routeType === 'layers' || routeType === 'page') && resourceId) {
@@ -358,13 +397,16 @@ export default function YCodeBuilder() {
       // On base collections route, don't set a selected collection
       // The CMS component will show all collections or empty state
     } else if (routeType === 'component' && resourceId) {
-      const { getComponentById } = useComponentsStore.getState();
+      const { getComponentById, loadComponentDraft } = useComponentsStore.getState();
       const component = getComponentById(resourceId);
       if (component && editingComponentId !== resourceId) {
         const { setEditingComponentId } = useEditorStore.getState();
-        setEditingComponentId(resourceId, currentPageId);
+        // Use currentPageId if available, otherwise find homepage as fallback
+        const returnPageId = currentPageId || (pages.length > 0 ? (findHomepage(pages)?.id || pages[0]?.id) : null);
+        setEditingComponentId(resourceId, returnPageId);
+        loadComponentDraft(resourceId);
       }
-    } else if (!currentPageId && !routeType) {
+    } else if (!currentPageId && !routeType && pages.length > 0) {
       // No URL resource and no current page - set default page and redirect to layers
       const homePage = findHomepage(pages);
       const defaultPage = homePage || pages[0];
@@ -373,7 +415,7 @@ export default function YCodeBuilder() {
       // Redirect to layers route for the default page
       navigateToLayers(defaultPage.id);
     }
-  }, [migrationsComplete, pages.length, routeType, resourceId, currentPageId, editingComponentId, pages, setCurrentPageId, setSelectedLayerId, navigateToLayers, urlState.layerId]);
+  }, [migrationsComplete, pages.length, components.length, routeType, resourceId, currentPageId, editingComponentId, pages, components, setCurrentPageId, setSelectedLayerId, navigateToLayers, urlState.layerId]);
 
   // Auto-select Body layer when switching pages (not when draft updates)
   useEffect(() => {

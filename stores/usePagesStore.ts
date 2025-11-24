@@ -2505,6 +2505,11 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
       const newComponent = result.data;
 
+      // Add the component to the components store
+      const { useComponentsStore } = await import('./useComponentsStore');
+      const componentsState = useComponentsStore.getState();
+      componentsState.setComponents([newComponent, ...componentsState.components]);
+
       // Replace the layer with a component instance
       const updateLayerToInstance = (layers: Layer[]): Layer[] => {
         return layers.map(layer => {

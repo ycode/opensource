@@ -49,7 +49,6 @@ export function useEditorUrl() {
     const collectionMatch = pathname?.match(/^\/ycode\/collections\/([^/]+)$/);
     const componentMatch = pathname?.match(/^\/ycode\/components\/([^/]+)$/);
 
-
     if (layersMatch) {
       const viewParam = searchParams?.get('view');
       const rightTabParam = searchParams?.get('tab');
@@ -116,12 +115,17 @@ export function useEditorUrl() {
     }
 
     if (componentMatch) {
+      const rightTabParam = searchParams?.get('tab');
+      const layerParam = searchParams?.get('layer');
+      
       return {
         type: 'component',
         resourceId: componentMatch[1],
         tab: null,
         page: null,
         sidebarTab: 'layers', // Inferred: components show layers sidebar
+        rightTab: rightTabParam as 'design' | 'settings' | null,
+        layerId: layerParam,
       };
     }
 
@@ -214,8 +218,12 @@ export function useEditorUrl() {
   );
 
   const navigateToComponent = useCallback(
-    (componentId: string) => {
-      router.push(`/ycode/components/${componentId}`);
+    (componentId: string, rightTab?: string, layerId?: string) => {
+      const params = new URLSearchParams();
+      if (rightTab) params.set('tab', rightTab);
+      if (layerId) params.set('layer', layerId);
+      const query = params.toString();
+      router.push(`/ycode/components/${componentId}${query ? `?${query}` : ''}`);
     },
     [router]
   );
@@ -337,9 +345,9 @@ export function useEditorActions() {
 
   // Combined action: Open component edit mode (updates state + URL)
   const openComponent = useCallback(
-    (componentId: string, returnPageId: string | null) => {
+    (componentId: string, returnPageId: string | null, rightTab?: string, layerId?: string) => {
       setEditingComponentId(componentId, returnPageId);
-      navigateToComponent(componentId);
+      navigateToComponent(componentId, rightTab, layerId);
     },
     [setEditingComponentId, navigateToComponent]
   );
@@ -373,4 +381,3 @@ export function useEditorActions() {
     navigateToComponent,     // URL only
   };
 }
-
