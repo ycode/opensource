@@ -4,14 +4,14 @@
  * YCode Builder Main Component
  *
  * Three-panel editor layout inspired by modern design tools
- * 
+ *
  * This component is shared across ALL editor routes to prevent remounts:
  * - /ycode (base route)
  * - /ycode/pages/[id]/edit (page settings)
  * - /ycode/pages/[id]/layers (page layers)
  * - /ycode/collections/[id] (collections)
  * - /ycode/components/[id] (component editing)
- * 
+ *
  * By using the same component instance everywhere, we prevent migration
  * checks and data reloads on every navigation.
  */
@@ -29,6 +29,7 @@ import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
 import UpdateNotification from '@/components/UpdateNotification';
 import MigrationChecker from '@/components/MigrationChecker';
+import BuilderLoading from '@/components/BuilderLoading';
 
 // 3. Hooks
 // useCanvasCSS removed - now handled by iframe with Tailwind JIT CDN
@@ -63,8 +64,8 @@ import { Alert, AlertTitle } from '@/components/ui/alert';
 export default function YCodeBuilder() {
   const router = useRouter();
   const { routeType, resourceId, sidebarTab, navigateToLayers, urlState, updateQueryParams } = useEditorUrl();
-  const { signOut, user } = useAuthStore();
-  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, editingComponentId } = useEditorStore();
+  const { signOut, user, initialized: authInitialized } = useAuthStore();
+  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, editingComponentId, builderDataPreloaded, setBuilderDataPreloaded } = useEditorStore();
   const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter, setDraftLayers, loadPages } = usePagesStore();
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard, copyStyle: copyStyleToClipboard, pasteStyle: pasteStyleFromClipboard } = useClipboardStore();
   const componentIsSaving = useComponentsStore((state) => state.isSaving);
@@ -85,7 +86,7 @@ export default function YCodeBuilder() {
   const previousPageIdRef = useRef<string | null>(null);
   const hasInitializedLayerFromUrlRef = useRef(false);
   const lastUrlLayerIdRef = useRef<string | null>(null);
-  
+
   // Sidebar tab is inferred from route type
   const activeTab = sidebarTab;
 
@@ -135,15 +136,15 @@ export default function YCodeBuilder() {
       if (!draft || !draft.layers) {
         return; // Draft not loaded yet, wait for next render
       }
-      
+
       // Only set from URL if the URL layer ID actually changed (not from our own sync)
       if (urlState.layerId !== lastUrlLayerIdRef.current) {
         lastUrlLayerIdRef.current = urlState.layerId;
-        
+
         // Validate that the layer exists in current page/component
         const layers = getCurrentLayers();
         const layerExists = findLayerById(layers, urlState.layerId);
-        
+
         if (layerExists) {
           // Layer found - use it
           console.log('[Editor] Setting layer from URL:', urlState.layerId);
@@ -167,7 +168,7 @@ export default function YCodeBuilder() {
         lastUrlLayerIdRef.current = null;
       }
     }
-  }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, updateQueryParams, currentPageId, draftsByPageId]); // Added currentPageId and draftsByPageId
+  }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, updateQueryParams, currentPageId, draftsByPageId, getCurrentLayers]);
 
   // Sync selected layer to URL (but only after initialization from URL)
   useEffect(() => {
@@ -254,56 +255,69 @@ export default function YCodeBuilder() {
     // If successful, user state will update and component will re-render with builder
   };
 
-  // Load all data in one request after migrations complete
+  // Track initial data load completion
   const initialLoadRef = useRef(false);
 
   useEffect(() => {
-    if (migrationsComplete && pages.length === 0 && !initialLoadRef.current) {
+    if (migrationsComplete && !builderDataPreloaded && !initialLoadRef.current) {
       initialLoadRef.current = true;
 
-      // Load everything in one unified request
-      const loadInitialData = async () => {
+      // Load everything in parallel using Promise.all
+      const loadBuilderData = async () => {
         try {
           const { editorApi } = await import('@/lib/api');
           const response = await editorApi.init();
 
           if (response.error) {
             console.error('[Editor] Error loading initial data:', response.error);
+            setBuilderDataPreloaded(true); // Allow UI to render even on error
             return;
           }
 
           if (response.data) {
-            // Set all data in stores
+            // Get store actions
             const { setPagesAndDrafts, setFolders } = usePagesStore.getState();
             const { setComponents } = useComponentsStore.getState();
             const { setStyles } = useLayerStylesStore.getState();
             const { setSettings } = useSettingsStore.getState();
             const { loadAssets } = useAssetsStore.getState();
+            const { preloadCollectionsAndItems } = useCollectionsStore.getState();
 
+            // Set synchronous data first
             setPagesAndDrafts(response.data.pages, response.data.drafts);
             setFolders(response.data.folders || []);
             setComponents(response.data.components);
             setStyles(response.data.styles);
             setSettings(response.data.settings);
 
-            // Set collections directly in store
-            if (response.data.collections) {
-              useCollectionsStore.setState({ collections: response.data.collections });
+            // Load async data in parallel
+            const asyncTasks = [
+              loadAssets(),
+            ];
+
+            // Add collections preloading if we have collections
+            if (response.data.collections && response.data.collections.length > 0) {
+              asyncTasks.push(preloadCollectionsAndItems(response.data.collections));
             }
 
-            loadAssets();
+            // Wait for all async tasks to complete
+            await Promise.all(asyncTasks);
+
+            // Mark data as preloaded - NOW UI can render
+            setBuilderDataPreloaded(true);
           }
         } catch (error) {
-          console.error('[Editor] Error loading initial data:', error);
+          console.error('[Editor] Error loading builder data:', error);
+          setBuilderDataPreloaded(true); // Allow UI to render even on error
         }
       };
 
-      loadInitialData();
+      loadBuilderData();
 
-      // Load publish counts
+      // Load publish counts (non-blocking)
       loadPublishCounts();
     }
-  }, [migrationsComplete, pages.length]);
+  }, [migrationsComplete, builderDataPreloaded, setBuilderDataPreloaded]);
 
   // Load publish counts
   const loadPublishCounts = async () => {
@@ -367,7 +381,7 @@ export default function YCodeBuilder() {
     if (currentPageId && currentPageId !== previousPageIdRef.current) {
       // Update the ref to track this page FIRST
       previousPageIdRef.current = currentPageId;
-      
+
       // Check if draft is loaded
       if (draftsByPageId[currentPageId] && !urlState.layerId) {
         setSelectedLayerId('body');
@@ -1006,6 +1020,11 @@ export default function YCodeBuilder() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedLayerId, selectedLayerIds, currentPageId, editingComponentId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately, draftsByPageId, updateLayer, copyStyleToClipboard, pasteStyleFromClipboard, deleteSelectedLayer, handleUndo, handleRedo, getCurrentLayers, updateCurrentLayers]);
 
+  // Show loading screen while checking authentication
+  if (!authInitialized) {
+    return <BuilderLoading message="Checking authentication..." />;
+  }
+
   // Show login form if not authenticated
   if (!user) {
     return (
@@ -1108,7 +1127,12 @@ export default function YCodeBuilder() {
     return <MigrationChecker onComplete={() => setMigrationsComplete(true)} />;
   }
 
-  // Authenticated - show builder (only after migrations complete)
+  // Wait for builder data to be preloaded (BLOCKING) - prevents race conditions
+  if (!builderDataPreloaded) {
+    return <BuilderLoading message="Loading builder data..." />;
+  }
+
+  // Authenticated - show builder (only after migrations AND data preload complete)
   return (
     <>
       <div className="h-screen flex flex-col">

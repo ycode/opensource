@@ -23,13 +23,14 @@ interface CollectionsState {
 interface CollectionsActions {
   // Collections
   loadCollections: () => Promise<void>;
+  preloadCollectionsAndItems: (collections: Collection[]) => Promise<void>;
   createCollection: (data: CreateCollectionData) => Promise<Collection>;
   updateCollection: (id: string, data: UpdateCollectionData) => Promise<void>;
   deleteCollection: (id: string) => Promise<void>;
   setSelectedCollectionId: (id: string | null) => void;
 
   // Fields
-  loadFields: (collectionId: string, search?: string) => Promise<void>;
+  loadFields: (collectionId: string | null, search?: string) => Promise<void>;
   createField: (collectionId: string, data: Omit<CreateCollectionFieldData, 'collection_id'>) => Promise<CollectionField>;
   updateField: (collectionId: string, fieldId: string, data: UpdateCollectionFieldData) => Promise<void>;
   deleteField: (collectionId: string, fieldId: string) => Promise<void>;
@@ -79,79 +80,53 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       }
 
       const collections = response.data || [];
-      const sortedCollections = sortCollectionsByOrder(collections);
-      set({ collections: sortedCollections, isLoading: false });
-
-      // Preload fields for all collections
-      const fieldsPromises = collections.map(async (collection) => {
-        try {
-          const fieldsResponse = await collectionsApi.getFields(collection.id);
-          if (!fieldsResponse.error && fieldsResponse.data) {
-            return { collectionId: collection.id, fields: fieldsResponse.data };
-          }
-          return { collectionId: collection.id, fields: [] };
-        } catch (error) {
-          console.error(`Failed to load fields for collection ${collection.id}:`, error);
-          return { collectionId: collection.id, fields: [] };
-        }
-      });
-
-      const fieldsResults = await Promise.all(fieldsPromises);
-      const fieldsMap: Record<string, CollectionField[]> = {};
-
-      fieldsResults.forEach(({ collectionId, fields }) => {
-        fieldsMap[collectionId] = fields;
-      });
-
-      set((state) => ({
-        fields: {
-          ...state.fields,
-          ...fieldsMap,
-        },
-      }));
-
-      // Preload 20 items per collection
-      const itemsPromises = collections.map(async (collection) => {
-        try {
-          const itemsResponse = await collectionsApi.getItems(collection.id, { page: 1, limit: 20 });
-          if (!itemsResponse.error && itemsResponse.data) {
-            return {
-              collectionId: collection.id,
-              items: itemsResponse.data.items || [],
-              total: itemsResponse.data.total || 0,
-            };
-          }
-          return { collectionId: collection.id, items: [], total: 0 };
-        } catch (error) {
-          console.error(`Failed to preload items for collection ${collection.id}:`, error);
-          return { collectionId: collection.id, items: [], total: 0 };
-        }
-      });
-
-      const itemsResults = await Promise.all(itemsPromises);
-      const itemsMap: Record<string, CollectionItemWithValues[]> = {};
-      const itemsTotalCountMap: Record<string, number> = {};
-
-      itemsResults.forEach(({ collectionId, items, total }) => {
-        itemsMap[collectionId] = items;
-        itemsTotalCountMap[collectionId] = total;
-      });
-
-      set((state) => ({
-        items: {
-          ...state.items,
-          ...itemsMap,
-        },
-        itemsTotalCount: {
-          ...state.itemsTotalCount,
-          ...itemsTotalCountMap,
-        },
-      }));
+      await get().preloadCollectionsAndItems(collections);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load collections';
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
+  },
+
+  preloadCollectionsAndItems: async (collections: Collection[]) => {
+    const sortedCollections = sortCollectionsByOrder(collections);
+    set({ collections: sortedCollections, isLoading: false });
+
+    // Preload all fields in a single query
+    await get().loadFields(null);
+
+    // Skip item preload if no collections
+    if (collections.length === 0) {
+      return;
+    }
+
+    // Preload 10 items per collection using optimized batch queries (2 queries total)
+    const collectionIds = collections.map(c => c.id);
+    const response = await collectionsApi.getTopItemsPerCollection(collectionIds, 10);
+
+    if (response.error) {
+      throw new Error(`Failed to preload items: ${response.error}`);
+    }
+
+    const result = response.data || {};
+    const itemsMap: Record<string, CollectionItemWithValues[]> = {};
+    const itemsTotalCountMap: Record<string, number> = {};
+
+    Object.entries(result).forEach(([collectionId, { items, total }]) => {
+      itemsMap[collectionId] = items;
+      itemsTotalCountMap[collectionId] = total;
+    });
+
+    set((state) => ({
+      items: {
+        ...state.items,
+        ...itemsMap,
+      },
+      itemsTotalCount: {
+        ...state.itemsTotalCount,
+        ...itemsTotalCountMap,
+      },
+    }));
   },
 
   createCollection: async (data) => {
@@ -315,23 +290,52 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   },
 
   // Fields
-  loadFields: async (collectionId: string, search?: string) => {
+  loadFields: async (collectionId: string | null, search?: string) => {
     set({ isLoading: true, error: null });
 
     try {
-      const response = await collectionsApi.getFields(collectionId, search);
+      // If collectionId is null, load all fields for all collections in one query
+      if (collectionId === null) {
+        const response = await collectionsApi.getAllFields();
 
-      if (response.error) {
-        throw new Error(response.error);
+        if (response.error) {
+          throw new Error(response.error);
+        }
+
+        // Group fields by collection_id
+        const allFields = response.data || [];
+        const fieldsMap: Record<string, CollectionField[]> = {};
+
+        allFields.forEach(field => {
+          if (!fieldsMap[field.collection_id]) {
+            fieldsMap[field.collection_id] = [];
+          }
+          fieldsMap[field.collection_id].push(field);
+        });
+
+        set(state => ({
+          fields: {
+            ...state.fields,
+            ...fieldsMap,
+          },
+          isLoading: false,
+        }));
+      } else {
+        // Load fields for a specific collection
+        const response = await collectionsApi.getFields(collectionId, search);
+
+        if (response.error) {
+          throw new Error(response.error);
+        }
+
+        set(state => ({
+          fields: {
+            ...state.fields,
+            [collectionId]: response.data || [],
+          },
+          isLoading: false,
+        }));
       }
-
-      set(state => ({
-        fields: {
-          ...state.fields,
-          [collectionId]: response.data || [],
-        },
-        isLoading: false,
-      }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load fields';
       set({ error: errorMessage, isLoading: false });
@@ -689,20 +693,12 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
   getDropdownItems: async (collectionId: string) => {
     try {
-      // Check if items are already loaded in store (from preload or previous load)
       const state = get();
-      let items = state.items[collectionId];
 
-      // Only load items if not already in store
-      if (!items || items.length === 0) {
-        await get().loadItems(collectionId, 1, 20);
-        // Get updated state after loading
-        const updatedState = get();
-        items = updatedState.items[collectionId] || [];
-      }
-
-      // Fields are already loaded on builder init, so just use them from store
+      // Fields and items are ALWAYS preloaded before UI renders
+      // No defensive loading needed - guaranteed to be available
       const collectionFields = state.fields[collectionId] || [];
+      const items = state.items[collectionId] || [];
 
       // Find the name field (field with key = 'name')
       const nameField = collectionFields.find(field => field.key === 'name');

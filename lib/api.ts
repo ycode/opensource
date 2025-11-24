@@ -331,6 +331,10 @@ export const collectionsApi = {
   },
 
   // Fields
+  async getAllFields(): Promise<ApiResponse<CollectionField[]>> {
+    return apiRequest<CollectionField[]>('/api/collections/fields');
+  },
+
   async getFields(collectionId: string, search?: string): Promise<ApiResponse<CollectionField[]>> {
     const params = new URLSearchParams();
     if (search) params.append('search', search);
@@ -405,6 +409,16 @@ export const collectionsApi = {
   },
 
   // Items (with values)
+  async getTopItemsPerCollection(
+    collectionIds: string[],
+    limit: number = 10
+  ): Promise<ApiResponse<Record<string, { items: CollectionItemWithValues[]; total: number }>>> {
+    return apiRequest('/api/collections/items/batch', {
+      method: 'POST',
+      body: JSON.stringify({ collectionIds, limit }),
+    });
+  },
+
   async getItems(
     collectionId: string,
     options?: { page?: number; limit?: number }

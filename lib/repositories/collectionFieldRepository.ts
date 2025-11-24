@@ -17,6 +17,34 @@ export interface FieldFilters {
 }
 
 /**
+ * Get all fields for all collections
+ * @param is_published - Filter for draft (false) or published (true) fields. Defaults to false (draft).
+ */
+export async function getAllFields(
+  is_published: boolean = false
+): Promise<CollectionField[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  const { data, error } = await client
+    .from('collection_fields')
+    .select('*')
+    .eq('is_published', is_published)
+    .is('deleted_at', null)
+    .order('collection_id', { ascending: true })
+    .order('order', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to fetch all collection fields: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
  * Get all fields for a collection with optional search filtering
  * @param collection_id - Collection UUID
  * @param is_published - Filter for draft (false) or published (true) fields. Defaults to false (draft).

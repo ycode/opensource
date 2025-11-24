@@ -174,6 +174,7 @@ export default function CenterCanvas({
   useEffect(() => {
     if (!collectionId || !currentPage?.is_dynamic) {
       setCollectionItems([]);
+      setIsLoadingItems(false);
       return;
     }
 
@@ -194,7 +195,7 @@ export default function CenterCanvas({
     };
 
     loadItems();
-  }, [collectionId, currentPage?.is_dynamic, currentPageCollectionItemId, setCurrentPageCollectionItemId, getDropdownItems]);
+  }, [collectionId, currentPage?.is_dynamic, getDropdownItems]);
 
   // Get return page for component edit mode
   const returnToPage = useMemo(() => {

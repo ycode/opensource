@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import BuilderLoading from '@/components/BuilderLoading';
 
 /**
  * Migration Checker Component: Checks for and runs pending migrations before allowing
@@ -80,47 +81,36 @@ export default function MigrationChecker({ onComplete }: MigrationCheckerProps) 
     return null;
   }
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-neutral-950 flex items-center justify-center">
-      <div className="max-w-md w-full mx-4">
-        {error ? (
-        // Error state - BLOCKING
-
-            <div className="flex-1 flex items-center text-center flex-col gap-1">
-              <Label size="sm">
-                Migration failed
-              </Label>
-              <Label variant="muted" size="sm">
-                {error}
-              </Label>
-              <div className="w-full max-w-xs grid grid-cols-2 gap-3 mt-2">
-                <Button onClick={handleRetry}>
-                  Retry migration
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={handleSkip}
-                >
-                  <span>Skip</span>
-                  <span className="text-[10px] opacity-60">Not recommended</span>
-                </Button>
-              </div>
-            </div>
-        ) : (
-            // Running/Checking state - BLOCKING
-            <div className="flex-1 flex items-center text-center flex-col gap-2">
-              <Label size="sm">
-                Please wait
-              </Label>
-              <Label
-                variant="muted" size="sm"
-                className="bg-gradient-to-r from-muted-foreground via-muted-foreground/40 to-muted-foreground bg-[length:200%_100%] animate-shimmer bg-clip-text text-transparent !font-normal"
+  // Show error state
+  if (error) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-neutral-950 flex items-center justify-center">
+        <div className="max-w-md w-full mx-4">
+          <div className="flex-1 flex items-center text-center flex-col gap-1">
+            <Label size="sm">
+              Migration failed
+            </Label>
+            <Label variant="muted" size="sm">
+              {error}
+            </Label>
+            <div className="w-full max-w-xs grid grid-cols-2 gap-3 mt-2">
+              <Button onClick={handleRetry}>
+                Retry migration
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleSkip}
               >
-                {progress}
-              </Label>
+                <span>Skip</span>
+                <span className="text-[10px] opacity-60">Not recommended</span>
+              </Button>
             </div>
-        )}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Show loading state
+  return <BuilderLoading message={progress} />;
 }

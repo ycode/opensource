@@ -27,6 +27,49 @@ export interface UpdateCollectionItemValueData {
 }
 
 /**
+ * Get all values for multiple items in one query (batch operation)
+ * @param item_ids - Array of item UUIDs
+ * @param is_published - Filter for draft (false) or published (true) values. Defaults to false (draft).
+ */
+export async function getValuesByItemIds(
+  item_ids: string[],
+  is_published: boolean = false
+): Promise<Record<string, Record<string, string>>> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  if (item_ids.length === 0) {
+    return {};
+  }
+
+  const { data, error } = await client
+    .from('collection_item_values')
+    .select('item_id, field_id, value')
+    .in('item_id', item_ids)
+    .eq('is_published', is_published)
+    .is('deleted_at', null);
+
+  if (error) {
+    throw new Error(`Failed to fetch item values: ${error.message}`);
+  }
+
+  // Transform to { item_id: { field_id: value } } structure
+  const valuesByItem: Record<string, Record<string, string>> = {};
+  
+  data?.forEach((row: any) => {
+    if (!valuesByItem[row.item_id]) {
+      valuesByItem[row.item_id] = {};
+    }
+    valuesByItem[row.item_id][row.field_id] = row.value;
+  });
+
+  return valuesByItem;
+}
+
+/**
  * Get all values for an item
  * @param item_id - Item UUID
  * @param is_published - Filter for draft (false) or published (true) values. Defaults to false (draft).
