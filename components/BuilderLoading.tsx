@@ -16,7 +16,7 @@ export default function BuilderLoading({
   message = 'Loading...'
 }: BuilderLoadingProps) {
   return (
-    <div className="fixed inset-0 z-[100] bg-neutral-950 flex items-center justify-center">
+    <div className="absolute inset-0 z-[200] bg-neutral-950 flex items-center justify-center">
       <div className="max-w-md w-full mx-4">
         <div className="flex-1 flex items-center text-center flex-col gap-2">
           <Label size="sm">
