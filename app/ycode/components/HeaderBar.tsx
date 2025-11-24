@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PublishDialog from './PublishDialog';
+import { FileManagerDialog } from './FileManagerDialog';
 
 // 4. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -90,6 +91,7 @@ export default function HeaderBar({
   const [showPublishPopover, setShowPublishPopover] = useState(false);
   const [changesCount, setChangesCount] = useState(0);
   const [isLoadingCount, setIsLoadingCount] = useState(false);
+  const [showFileManagerDialog, setShowFileManagerDialog] = useState(false);
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme') as 'system' | 'light' | 'dark' | null;
@@ -340,6 +342,7 @@ export default function HeaderBar({
   };
 
   return (
+    <>
     <header className="h-14 bg-background border-b grid grid-cols-3 items-center px-4">
       {/* Left: Logo & Navigation */}
       <div className="flex items-center gap-2">
@@ -405,6 +408,13 @@ export default function HeaderBar({
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
+
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => setShowFileManagerDialog(true)}
+            >
+              File manager
+            </DropdownMenuItem>
 
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -544,5 +554,12 @@ export default function HeaderBar({
 
       </div>
     </header>
+
+    {/* File Manager Dialog */}
+    <FileManagerDialog
+      open={showFileManagerDialog}
+      onOpenChange={setShowFileManagerDialog}
+    />
+    </>
   );
 }
