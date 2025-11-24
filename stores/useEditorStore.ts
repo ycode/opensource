@@ -24,6 +24,7 @@ interface EditorActions {
   setActiveBreakpoint: (breakpoint: 'mobile' | 'tablet' | 'desktop') => void;
   setActiveUIState: (state: UIState) => void;
   setEditingComponentId: (id: string | null, returnPageId?: string | null) => void;
+  setBuilderDataPreloaded: (preloaded: boolean) => void;
   pushHistory: (pageId: string, layers: Layer[]) => void;
   undo: () => HistoryEntry | null;
   redo: () => HistoryEntry | null;
@@ -38,6 +39,7 @@ interface EditorStoreWithHistory extends EditorState {
   editingComponentId: string | null;
   returnToPageId: string | null;
   currentPageCollectionItemId: string | null;
+  builderDataPreloaded: boolean;
 }
 
 type EditorStore = EditorStoreWithHistory & EditorActions;
@@ -58,6 +60,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   editingComponentId: null,
   returnToPageId: null,
   currentPageCollectionItemId: null,
+  builderDataPreloaded: false,
 
   setSelectedLayerId: (id) => {
     // Legacy support - also update selectedLayerIds
@@ -153,6 +156,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     editingComponentId: id,
     returnToPageId: returnPageId,
   }),
+  setBuilderDataPreloaded: (preloaded) => set({ builderDataPreloaded: preloaded }),
 
   pushHistory: (pageId, layers) => {
     const { history, historyIndex, maxHistorySize } = get();

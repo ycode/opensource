@@ -14,7 +14,6 @@ type MigrationStore = MigrationState & MigrationActions;
 
 export const useMigrationStore = create<MigrationStore>((set) => ({
   migrationsComplete: false,
-  
+
   setMigrationsComplete: (complete) => set({ migrationsComplete: complete }),
 }));
-

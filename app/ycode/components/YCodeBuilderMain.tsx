@@ -65,7 +65,7 @@ export default function YCodeBuilder() {
   const router = useRouter();
   const { routeType, resourceId, sidebarTab, navigateToLayers, urlState, updateQueryParams } = useEditorUrl();
   const { signOut, user, initialized: authInitialized } = useAuthStore();
-  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, editingComponentId } = useEditorStore();
+  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, editingComponentId, builderDataPreloaded, setBuilderDataPreloaded } = useEditorStore();
   const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter, setDraftLayers, loadPages } = usePagesStore();
   const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard, copyStyle: copyStyleToClipboard, pasteStyle: pasteStyleFromClipboard } = useClipboardStore();
   const componentIsSaving = useComponentsStore((state) => state.isSaving);
@@ -164,7 +164,7 @@ export default function YCodeBuilder() {
       hasInitializedLayerFromUrlRef.current = false;
       lastUrlLayerIdRef.current = null;
     }
-  }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, updateQueryParams, currentPageId, draftsByPageId]); // Added currentPageId and draftsByPageId
+  }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, updateQueryParams, currentPageId, draftsByPageId, getCurrentLayers]);
 
   // Sync selected layer to URL (but only after initialization from URL)
   useEffect(() => {
@@ -253,68 +253,67 @@ export default function YCodeBuilder() {
 
   // Track initial data load completion
   const initialLoadRef = useRef(false);
-  const [initialDataLoaded, setInitialDataLoaded] = useState(false);
-
-  // If data is already present, mark as loaded immediately
-  useEffect(() => {
-    if (migrationsComplete && pages.length > 0 && !initialDataLoaded) {
-      setInitialDataLoaded(true);
-    }
-  }, [migrationsComplete, pages.length, initialDataLoaded]);
 
   useEffect(() => {
-    if (migrationsComplete && pages.length === 0 && !initialLoadRef.current) {
+    if (migrationsComplete && !builderDataPreloaded && !initialLoadRef.current) {
       initialLoadRef.current = true;
 
-      // Load everything in one unified request
-      const loadInitialData = async () => {
+      // Load everything in parallel using Promise.all
+      const loadBuilderData = async () => {
         try {
           const { editorApi } = await import('@/lib/api');
           const response = await editorApi.init();
 
           if (response.error) {
             console.error('[Editor] Error loading initial data:', response.error);
-            setInitialDataLoaded(true); // Allow UI to render even on error
+            setBuilderDataPreloaded(true); // Allow UI to render even on error
             return;
           }
 
           if (response.data) {
-            // Set all data in stores
+            // Get store actions
             const { setPagesAndDrafts, setFolders } = usePagesStore.getState();
             const { setComponents } = useComponentsStore.getState();
             const { setStyles } = useLayerStylesStore.getState();
             const { setSettings } = useSettingsStore.getState();
             const { loadAssets } = useAssetsStore.getState();
+            const { preloadCollectionsAndItems } = useCollectionsStore.getState();
 
+            // Set synchronous data first
             setPagesAndDrafts(response.data.pages, response.data.drafts);
             setFolders(response.data.folders || []);
             setComponents(response.data.components);
             setStyles(response.data.styles);
             setSettings(response.data.settings);
 
-            // Set collections and preload fields/items
-            if (response.data.collections) {
-              const { preloadCollectionsAndItems } = useCollectionsStore.getState();
-              await preloadCollectionsAndItems(response.data.collections);
+            // Load async data in parallel
+            const asyncTasks = [
+              loadAssets(),
+            ];
+
+            // Add collections preloading if we have collections
+            if (response.data.collections && response.data.collections.length > 0) {
+              asyncTasks.push(preloadCollectionsAndItems(response.data.collections));
             }
 
-            loadAssets();
+            // Wait for all async tasks to complete
+            await Promise.all(asyncTasks);
 
-            // Mark initial data as loaded - NOW UI can render
-            setInitialDataLoaded(true);
+            // Mark data as preloaded - NOW UI can render
+            setBuilderDataPreloaded(true);
           }
         } catch (error) {
-          console.error('[Editor] Error loading initial data:', error);
-          setInitialDataLoaded(true); // Allow UI to render even on error
+          console.error('[Editor] Error loading builder data:', error);
+          setBuilderDataPreloaded(true); // Allow UI to render even on error
         }
       };
 
-      loadInitialData();
+      loadBuilderData();
 
-      // Load publish counts
+      // Load publish counts (non-blocking)
       loadPublishCounts();
     }
-  }, [migrationsComplete, pages.length]);
+  }, [migrationsComplete, builderDataPreloaded, setBuilderDataPreloaded]);
 
   // Load publish counts
   const loadPublishCounts = async () => {
@@ -1124,12 +1123,12 @@ export default function YCodeBuilder() {
     return <MigrationChecker onComplete={() => setMigrationsComplete(true)} />;
   }
 
-  // Wait for initial data to load (BLOCKING) - prevents race conditions
-  if (!initialDataLoaded) {
+  // Wait for builder data to be preloaded (BLOCKING) - prevents race conditions
+  if (!builderDataPreloaded) {
     return <BuilderLoading message="Loading builder data..." />;
   }
 
-  // Authenticated - show builder (only after migrations AND data load complete)
+  // Authenticated - show builder (only after migrations AND data preload complete)
   return (
     <>
       <div className="h-screen flex flex-col">
