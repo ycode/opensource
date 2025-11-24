@@ -255,6 +255,13 @@ export default function YCodeBuilder() {
   const initialLoadRef = useRef(false);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
 
+  // If data is already present, mark as loaded immediately
+  useEffect(() => {
+    if (migrationsComplete && pages.length > 0 && !initialDataLoaded) {
+      setInitialDataLoaded(true);
+    }
+  }, [migrationsComplete, pages.length, initialDataLoaded]);
+
   useEffect(() => {
     if (migrationsComplete && pages.length === 0 && !initialLoadRef.current) {
       initialLoadRef.current = true;
