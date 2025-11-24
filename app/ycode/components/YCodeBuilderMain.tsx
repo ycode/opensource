@@ -158,10 +158,14 @@ export default function YCodeBuilder() {
           lastUrlLayerIdRef.current = 'body';
         }
       }
-    } else if ((routeType === 'page' || routeType === 'layers') && !urlState.layerId) {
-      // Reset the refs when there's no layer in URL (navigating to a page without layer param)
-      hasInitializedLayerFromUrlRef.current = false;
-      lastUrlLayerIdRef.current = null;
+    } else if ((routeType === 'page' || routeType === 'layers') && !urlState.layerId && currentPageId) {
+      // No layer in URL - mark as initialized so clicks will update URL from now on
+      const draft = draftsByPageId[currentPageId];
+      if (draft && draft.layers) {
+        // Once the draft is loaded, mark as initialized even without a layer param
+        hasInitializedLayerFromUrlRef.current = true;
+        lastUrlLayerIdRef.current = null;
+      }
     }
   }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, updateQueryParams, currentPageId, draftsByPageId]); // Added currentPageId and draftsByPageId
 
