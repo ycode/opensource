@@ -43,7 +43,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { uploadFileApi, deleteAssetApi } from '@/lib/api';
 import { useAsset } from '@/hooks/use-asset';
 import { useAssetsStore } from '@/stores/useAssetsStore';
-import DynamicTextInput, { type DynamicTextInputHandle, type FieldVariableData } from './DynamicTextInput';
+import InputWithInlineVariables from './InputWithInlineVariables';
 
 export interface PageSettingsPanelHandle {
   checkUnsavedChanges: () => Promise<boolean>;
@@ -90,7 +90,6 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const seoTitleInputRef = useRef<DynamicTextInputHandle>(null);
 
   const [customCodeHead, setCustomCodeHead] = useState('');
   const [customCodeBody, setCustomCodeBody] = useState('');
@@ -1231,75 +1230,25 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       <FieldDescription>
                         Appears in search results and browser tabs. Page name is used when empty.
                       </FieldDescription>
-                      <div className="flex gap-2">
-                        {isDynamicPage ? (
-                          <>
-                            <DynamicTextInput
-                              ref={seoTitleInputRef}
-                              value={seoTitle}
-                              onChange={setSeoTitle}
-                              placeholder={name || 'Page title'}
-                              fields={(() => {
-                                const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
-                                return fields[activeCollectionId] || [];
-                              })()}
-                            />
-
-                            <Select
-                              value=""
-                              onValueChange={(fieldId) => {
-                                const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
-                                const collectionFields = fields[activeCollectionId] || [];
-                                const field = collectionFields.find(f => f.id === fieldId);
-
-                                if (field && seoTitleInputRef.current) {
-                                  // Add field variable to the input
-                                  seoTitleInputRef.current.addFieldVariable({
-                                    type: 'field',
-                                    data: {
-                                      field_id: field.id,
-                                      relationships: [],
-                                    },
-                                  });
-                                }
-                              }}
-                            >
-                              <SelectTrigger>
-                                <Icon name="database" className="size-3" />
-                              </SelectTrigger>
-
-                              <SelectContent>
-                                {(() => {
-                                  const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
-                                  const collectionFields = fields[activeCollectionId] || [];
-
-                                  if (collectionFields.length > 0) {
-                                    return collectionFields.map((field) => (
-                                      <SelectItem key={field.id} value={field.id}>
-                                        {field.name}
-                                      </SelectItem>
-                                    ));
-                                  }
-
-                                  return (
-                                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                                      No fields available
-                                    </div>
-                                  );
-                                })()}
-                              </SelectContent>
-                            </Select>
-                          </>
-                        ) : (
-                          <Input
-                            type="text"
-                            value={seoTitle}
-                            onChange={(e) => setSeoTitle(e.target.value)}
-                            placeholder={name || 'Page title'}
-                            className="flex-1"
-                          />
-                        )}
-                      </div>
+                      {isDynamicPage ? (
+                        <InputWithInlineVariables
+                          value={seoTitle}
+                          onChange={setSeoTitle}
+                          placeholder={name || 'Page title'}
+                          fields={(() => {
+                            const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+                            return fields[activeCollectionId] || [];
+                          })()}
+                        />
+                      ) : (
+                        <Input
+                          type="text"
+                          value={seoTitle}
+                          onChange={(e) => setSeoTitle(e.target.value)}
+                          placeholder={name || 'Page title'}
+                          className="flex-1"
+                        />
+                      )}
                     </Field>
 
                     <Field>
@@ -1307,15 +1256,32 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       <FieldDescription>
                         Brief description for search engines (generally 150 to 160 characters).
                       </FieldDescription>
-                      <Textarea
-                        value={seoDescription}
-                        onChange={(e) => setSeoDescription(e.target.value)}
-                        placeholder={
-                          isErrorPage
-                            ? 'Describe in more detail what error occurred on this page and why.'
-                            : 'What makes this page unique? Describe your business and the content of this page.'
-                        }
-                      />
+                      {isDynamicPage ? (
+                        <InputWithInlineVariables
+                          value={seoDescription}
+                          onChange={setSeoDescription}
+                          className="min-h-18"
+                          placeholder={
+                            isErrorPage
+                              ? 'Describe in more detail what error occurred on this page and why.'
+                              : 'Describe your business and/or the content of this page.'
+                          }
+                          fields={(() => {
+                            const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+                            return fields[activeCollectionId] || [];
+                          })()}
+                        />
+                      ) : (
+                        <Textarea
+                          value={seoDescription}
+                          onChange={(e) => setSeoDescription(e.target.value)}
+                          placeholder={
+                            isErrorPage
+                              ? 'Describe in more detail what error occurred on this page and why.'
+                              : 'Describe your business and/or the content of this page.'
+                          }
+                        />
+                      )}
                     </Field>
 
                     {!isErrorPage && (

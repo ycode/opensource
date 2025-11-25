@@ -1,23 +1,37 @@
 'use client';
 
 /**
- * Dynamic Text Input (with inline variables)
+ * Input With Inline Variables
  *
  * Tiptap-based input that displays variable badges inline
  * Supports custom objects like { type: 'field', data: { field_id: ... } }
  * Data is stored in data-variable attribute as JSON-encoded string
  */
 
-import React, { useEffect, useState, useImperativeHandle, forwardRef } from 'react';
+import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Text from '@tiptap/extension-text';
 import Paragraph from '@tiptap/extension-paragraph';
+import Placeholder from '@tiptap/extension-placeholder';
 import { cn } from '@/lib/utils';
 import type { CollectionField } from '@/types';
+import {
+  parseValueToContent,
+  convertContentToValue,
+  getVariableLabel,
+} from '@/lib/cms-variables-utils';
+import type { FieldVariable } from '@/types';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select';
+import Icon from '@/components/ui/icon';
 
-interface DynamicTextInputProps {
+interface InputWithInlineVariablesProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -25,20 +39,11 @@ interface DynamicTextInputProps {
   fields?: CollectionField[];
 }
 
-export interface DynamicTextInputHandle {
-  addFieldVariable: (variableData: FieldVariableData) => void;
+export interface InputWithInlineVariablesHandle {
+  addFieldVariable: (variableData: FieldVariable) => void;
 }
 
-export type VariableData = FieldVariableData;
-
-export interface FieldVariableData {
-  type: 'field';
-  data: {
-    field_id: string;
-    relationships: string[];
-    format?: string;
-  };
-}
+export type { FieldVariable } from '@/types';
 
 /**
  * Custom Tiptap node for dynamic variable badges
@@ -155,119 +160,13 @@ const DynamicVariable = Node.create({
   },
 });
 
-/**
- * Converts string with variables to Tiptap JSON content
- * Expects format: <ycode-inline-variable>JSON</ycode-inline-variable>
- */
-function parseValueToContent(text: string, fields?: CollectionField[]) {
-  const content: any[] = [];
-  const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
-  let lastIndex = 0;
-  let match;
-
-  while ((match = regex.exec(text)) !== null) {
-    // Add text before the match
-    if (match.index > lastIndex) {
-      const textContent = text.slice(lastIndex, match.index);
-      if (textContent) {
-        content.push({
-          type: 'text',
-          text: textContent,
-        });
-      }
-    }
-
-    // Parse the variable content as JSON
-    const variableContent = match[1].trim();
-    let variable: VariableData | null = null;
-    let label: string = 'variable';
-
-    try {
-      const parsed = JSON.parse(variableContent);
-      if (parsed.type && parsed.data) {
-        variable = parsed;
-
-        // Look up field name when type is 'field'
-        if (parsed.type === 'field' && parsed.data?.field_id) {
-          const field = fields?.find(f => f.id === parsed.data.field_id);
-          label = field?.name || parsed.data.field_id;
-        } else {
-          label = parsed.type;
-        }
-      }
-    } catch {
-      // Invalid JSON, skip this variable
-    }
-
-    if (variable) {
-      content.push({
-        type: 'dynamicVariable',
-        attrs: {
-          variable,
-          label,
-        },
-      });
-    }
-
-    lastIndex = regex.lastIndex;
-  }
-
-  // Add remaining text
-  if (lastIndex < text.length) {
-    const textContent = text.slice(lastIndex);
-    if (textContent) {
-      content.push({
-        type: 'text',
-        text: textContent,
-      });
-    }
-  }
-
-  return {
-    type: 'doc',
-    content: [
-      {
-        type: 'paragraph',
-        content: content.length > 0 ? content : undefined,
-      },
-    ],
-  };
-}
-
-/**
- * Converts Tiptap JSON content back to string
- * Outputs format: <ycode-inline-variable>{"type":"field","data":{"field_id":"..."}}</ycode-inline-variable>
- */
-function convertContentToValue(content: any): string {
-  let result = '';
-
-  if (content?.content) {
-    for (const block of content.content) {
-      if (block.content) {
-        for (const node of block.content) {
-          if (node.type === 'text') {
-            result += node.text;
-          } else if (node.type === 'dynamicVariable') {
-            if (node.attrs.variable) {
-              result += `<ycode-inline-variable>${JSON.stringify(node.attrs.variable)}</ycode-inline-variable>`;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return result;
-}
-
-const DynamicTextInput = forwardRef<DynamicTextInputHandle, DynamicTextInputProps>(({
+const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, InputWithInlineVariablesProps>(({
   value,
   onChange,
   placeholder = '',
   className,
   fields,
 }, ref) => {
-  const [isEmpty, setIsEmpty] = useState(true);
   const [isFocused, setIsFocused] = useState(false);
 
   const editor = useEditor({
@@ -277,6 +176,9 @@ const DynamicTextInput = forwardRef<DynamicTextInputHandle, DynamicTextInputProp
       Paragraph,
       Text,
       DynamicVariable,
+      Placeholder.configure({
+        placeholder,
+      }),
     ],
     content: parseValueToContent(value, fields),
     editorProps: {
@@ -288,6 +190,7 @@ const DynamicTextInput = forwardRef<DynamicTextInputHandle, DynamicTextInputProp
           'disabled:cursor-not-allowed disabled:opacity-50',
           '[&_.ProseMirror]:outline-none [&_.ProseMirror]:w-full [&_.ProseMirror]:min-h-full',
           '[&_.ProseMirror_p]:m-0 [&_.ProseMirror_p]:p-0 [&_.ProseMirror_p]:flex [&_.ProseMirror_p]:flex-wrap [&_.ProseMirror_p]:items-center [&_.ProseMirror_p]:gap-y-0.5',
+          '[&_.ProseMirror_p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child]:before:inline-block [&_.ProseMirror_p.is-editor-empty:first-child]:before:w-full [&_.ProseMirror_p.is-editor-empty:first-child]:before:text-xs [&_.ProseMirror_p.is-editor-empty:first-child]:before:text-current/25 [&_.ProseMirror_p.is-editor-empty:first-child]:before:pointer-events-none',
           className
         ),
       },
@@ -302,7 +205,6 @@ const DynamicTextInput = forwardRef<DynamicTextInputHandle, DynamicTextInputProp
     },
     onUpdate: ({ editor }) => {
       const newValue = convertContentToValue(editor.getJSON());
-      setIsEmpty(editor.isEmpty);
       if (newValue !== value) {
         onChange(newValue);
       }
@@ -311,7 +213,6 @@ const DynamicTextInput = forwardRef<DynamicTextInputHandle, DynamicTextInputProp
       // Set initial content
       const content = parseValueToContent(value, fields);
       editor.commands.setContent(content);
-      setIsEmpty(editor.isEmpty);
     },
     onFocus: () => {
       setIsFocused(true);
@@ -321,6 +222,18 @@ const DynamicTextInput = forwardRef<DynamicTextInputHandle, DynamicTextInputProp
     },
   });
 
+  // Update placeholder attribute when placeholder prop changes
+  useEffect(() => {
+    if (!editor) return;
+
+    const proseMirror = editor.view.dom;
+    const paragraph = proseMirror?.querySelector('p');
+
+    if (paragraph) {
+      paragraph.setAttribute('data-placeholder', placeholder);
+    }
+  }, [editor, placeholder]);
+
   // Update editor content when value or fields change externally
   useEffect(() => {
     if (!editor) return;
@@ -329,7 +242,6 @@ const DynamicTextInput = forwardRef<DynamicTextInputHandle, DynamicTextInputProp
     if (currentValue !== value) {
       const content = parseValueToContent(value, fields);
       editor.commands.setContent(content);
-      setIsEmpty(editor.isEmpty);
 
       // Move cursor to end
       setTimeout(() => {
@@ -377,51 +289,157 @@ const DynamicTextInput = forwardRef<DynamicTextInputHandle, DynamicTextInputProp
     }
   }, [value, fields, editor]);
 
+  // Internal function to add a field variable
+  const addFieldVariableInternal = useCallback((variableData: FieldVariable) => {
+    if (!editor) return;
+
+    // Save current cursor position
+    const { from } = editor.state.selection;
+    const doc = editor.state.doc;
+
+    // Check what's before the cursor
+    let needsSpaceBefore = false;
+    if (from > 0) {
+      const nodeBefore = doc.nodeAt(from - 1);
+      if (nodeBefore) {
+        // Check if it's a variable node
+        if (nodeBefore.type.name === 'dynamicVariable') {
+          needsSpaceBefore = true;
+        } else {
+          // Check if it's text that's not a space
+          const charBefore = doc.textBetween(from - 1, from);
+          needsSpaceBefore = Boolean(charBefore && charBefore !== ' ' && charBefore !== '\n');
+        }
+      } else {
+        // Check character before cursor
+        const charBefore = doc.textBetween(from - 1, from);
+        needsSpaceBefore = Boolean(charBefore && charBefore !== ' ' && charBefore !== '\n');
+      }
+    }
+
+    // Check what's after the cursor
+    let needsSpaceAfter = false;
+    if (from < doc.content.size) {
+      const nodeAfter = doc.nodeAt(from);
+      if (nodeAfter) {
+        // Check if it's a variable node
+        if (nodeAfter.type.name === 'dynamicVariable') {
+          needsSpaceAfter = true;
+        } else {
+          // Check if it's text that's not a space
+          const charAfter = doc.textBetween(from, from + 1);
+          needsSpaceAfter = Boolean(charAfter && charAfter !== ' ' && charAfter !== '\n');
+        }
+      } else {
+        // Check character at cursor position
+        const charAfter = doc.textBetween(from, from + 1);
+        needsSpaceAfter = Boolean(charAfter && charAfter !== ' ' && charAfter !== '\n');
+      }
+    }
+
+    // Get label for the variable
+    const label = getVariableLabel(variableData, fields);
+
+    // Build content to insert
+    const contentToInsert: any[] = [];
+
+    // Add space before if needed
+    if (needsSpaceBefore) {
+      contentToInsert.push({ type: 'text', text: ' ' });
+    }
+
+    // Add the variable node
+    contentToInsert.push({
+      type: 'dynamicVariable',
+      attrs: {
+        variable: variableData,
+        label,
+      },
+    });
+
+    // Add space after if needed
+    if (needsSpaceAfter) {
+      contentToInsert.push({ type: 'text', text: ' ' });
+    }
+
+    // Insert content
+    editor.chain().focus().insertContent(contentToInsert).run();
+
+    // Trigger onChange with updated value
+    const newValue = convertContentToValue(editor.getJSON());
+    onChange(newValue);
+
+    // Calculate final cursor position
+    // Variable is 1 character, plus spaces if added
+    let finalPosition = from;
+    if (needsSpaceBefore) finalPosition += 1; // space before
+    finalPosition += 1; // variable itself
+    if (needsSpaceAfter) finalPosition += 1; // space after
+
+    // Restore focus at the position after the inserted content
+    setTimeout(() => {
+      editor.commands.focus(finalPosition);
+    }, 0);
+  }, [editor, fields, onChange]);
+
   // Expose addFieldVariable function via ref
   useImperativeHandle(ref, () => ({
-    addFieldVariable: (variableData: FieldVariableData) => {
-      if (!editor) return;
-
-      // Look up label from fields when type is 'field'
-      let label: string = 'variable';
-      if (variableData.type === 'field' && variableData.data?.field_id) {
-        const field = fields?.find(f => f.id === variableData.data.field_id);
-        label = field?.name || variableData.data.field_id;
-      } else {
-        label = variableData.type;
-      }
-
-      // Insert the variable node at the current cursor position
-      editor.chain().focus().insertContent({
-        type: 'dynamicVariable',
-        attrs: {
-          variable: variableData,
-          label,
-        },
-      }).run();
-
-      // Trigger onChange with updated value
-      const newValue = convertContentToValue(editor.getJSON());
-      onChange(newValue);
-    },
-  }), [editor, fields, onChange]);
+    addFieldVariable: addFieldVariableInternal,
+  }), [addFieldVariableInternal]);
 
   if (!editor) {
     return null;
   }
 
+  const handleFieldSelect = (fieldId: string) => {
+    if (!fields) return;
+
+    const field = fields.find(f => f.id === fieldId);
+    if (field) {
+      addFieldVariableInternal({
+        type: 'field',
+        data: {
+          field_id: field.id,
+          relationships: [],
+        },
+      });
+    }
+  };
+
   return (
-    <div className="relative flex-1">
-      {isEmpty && (
-        <div className="pointer-events-none absolute left-2 top-2 text-xs text-current/25 z-10">
-          {placeholder}
-        </div>
+    <div className="flex gap-2 flex-1 input-with-inline-variables">
+      <div className="relative flex-1">
+        <EditorContent editor={editor} />
+      </div>
+
+      {fields && fields.length > 0 && (
+        <Select
+          value=""
+          onValueChange={handleFieldSelect}
+        >
+          <SelectTrigger className="w-auto">
+            <Icon name="database" className="size-3" />
+          </SelectTrigger>
+
+          <SelectContent>
+            {fields.length > 0 ? (
+              fields.map((field) => (
+                <SelectItem key={field.id} value={field.id}>
+                  {field.name}
+                </SelectItem>
+              ))
+            ) : (
+              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                No fields available
+              </div>
+            )}
+          </SelectContent>
+        </Select>
       )}
-      <EditorContent editor={editor} />
     </div>
   );
 });
 
-DynamicTextInput.displayName = 'DynamicTextInput';
+InputWithInlineVariables.displayName = 'InputWithInlineVariables';
 
-export default DynamicTextInput;
+export default InputWithInlineVariables;
