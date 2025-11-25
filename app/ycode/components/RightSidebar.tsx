@@ -7,7 +7,7 @@
  */
 
 // 1. React/Next.js
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 
 // 2. External libraries
 import debounce from 'lodash.debounce';
@@ -43,7 +43,7 @@ import UIStateSelector from './UIStateSelector';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
-import { useEditorActions } from '@/hooks/use-editor-url';
+import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
 
 // 6. Utils, APIs, lib
 import { classesToDesign, mergeDesign, removeConflictsForClass } from '@/lib/tailwind-class-mapper';
@@ -63,6 +63,7 @@ const RightSidebar = React.memo(function RightSidebar({
   onLayerUpdate,
 }: RightSidebarProps) {
   const { openComponent, urlState, updateQueryParams } = useEditorActions();
+  const { routeType } = useEditorUrl();
   const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'content'>(
     urlState.rightTab || 'design'
   );
@@ -82,11 +83,21 @@ const RightSidebar = React.memo(function RightSidebar({
   const currentPageId = useEditorStore((state) => state.currentPageId);
   const activeBreakpoint = useEditorStore((state) => state.activeBreakpoint);
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
-  
+
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
-  
+
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
+  const previousIsEditingRef = useRef<boolean | undefined>(undefined);
+
+  // Track edit mode transitions synchronously
+  const currentIsEditing = urlState.isEditing;
+  const justExitedEditMode = previousIsEditingRef.current === true && currentIsEditing === false;
+
+  // Update ref synchronously before effects run
+  if (previousIsEditingRef.current !== currentIsEditing) {
+    previousIsEditingRef.current = currentIsEditing;
+  }
 
   const selectedLayer: Layer | null = useMemo(() => {
     if (!selectedLayerId) return null;
@@ -112,12 +123,18 @@ const RightSidebar = React.memo(function RightSidebar({
     return null;
   }, [editingComponentId, componentDrafts, currentPageId, selectedLayerId, draftsByPageId]);
 
-  // Sync right sidebar tab to URL
+  // Sync right sidebar tab to URL (skip when in page settings mode or during edit mode transition)
   useEffect(() => {
-    if (activeTab === 'design' || activeTab === 'settings') {
+    // Skip if we just transitioned away from edit mode - navigation already includes all params
+    if (justExitedEditMode) {
+      return;
+    }
+
+    // Only update query params when on a valid route (page or layers)
+    if ((routeType === 'page' || routeType === 'layers') && (activeTab === 'design' || activeTab === 'settings') && !urlState.isEditing && urlState.rightTab !== activeTab) {
       updateQueryParams({ tab: activeTab });
     }
-  }, [activeTab, updateQueryParams]);
+  }, [activeTab, updateQueryParams, urlState.rightTab, urlState.isEditing, justExitedEditMode, routeType]);
 
   // Sync URL tab changes to local state
   useEffect(() => {
@@ -379,7 +396,7 @@ const RightSidebar = React.memo(function RightSidebar({
       } else {
         setSelectedLayerId(null);
       }
-      
+
       // Open component (updates state + URL)
       openComponent(component.id, currentPageId);
     };

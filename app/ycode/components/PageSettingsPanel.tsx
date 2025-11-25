@@ -43,6 +43,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { uploadFileApi, deleteAssetApi } from '@/lib/api';
 import { useAsset } from '@/hooks/use-asset';
 import { useAssetsStore } from '@/stores/useAssetsStore';
+import InputWithInlineVariables from './InputWithInlineVariables';
 
 export interface PageSettingsPanelHandle {
   checkUnsavedChanges: () => Promise<boolean>;
@@ -1229,12 +1230,25 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       <FieldDescription>
                         Appears in search results and browser tabs. Page name is used when empty.
                       </FieldDescription>
-                      <Input
-                        type="text"
-                        value={seoTitle}
-                        onChange={(e) => setSeoTitle(e.target.value)}
-                        placeholder={name || 'Page title'}
-                      />
+                      {isDynamicPage ? (
+                        <InputWithInlineVariables
+                          value={seoTitle}
+                          onChange={setSeoTitle}
+                          placeholder={name || 'Page title'}
+                          fields={(() => {
+                            const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+                            return fields[activeCollectionId] || [];
+                          })()}
+                        />
+                      ) : (
+                        <Input
+                          type="text"
+                          value={seoTitle}
+                          onChange={(e) => setSeoTitle(e.target.value)}
+                          placeholder={name || 'Page title'}
+                          className="flex-1"
+                        />
+                      )}
                     </Field>
 
                     <Field>
@@ -1242,15 +1256,32 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       <FieldDescription>
                         Brief description for search engines (generally 150 to 160 characters).
                       </FieldDescription>
-                      <Textarea
-                        value={seoDescription}
-                        onChange={(e) => setSeoDescription(e.target.value)}
-                        placeholder={
-                          isErrorPage
-                            ? 'Describe in more detail what error occurred on this page and why.'
-                            : 'What makes this page unique? Describe your business and the content of this page.'
-                        }
-                      />
+                      {isDynamicPage ? (
+                        <InputWithInlineVariables
+                          value={seoDescription}
+                          onChange={setSeoDescription}
+                          className="min-h-18"
+                          placeholder={
+                            isErrorPage
+                              ? 'Describe in more detail what error occurred on this page and why.'
+                              : 'Describe your business and/or the content of this page.'
+                          }
+                          fields={(() => {
+                            const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+                            return fields[activeCollectionId] || [];
+                          })()}
+                        />
+                      ) : (
+                        <Textarea
+                          value={seoDescription}
+                          onChange={(e) => setSeoDescription(e.target.value)}
+                          placeholder={
+                            isErrorPage
+                              ? 'Describe in more detail what error occurred on this page and why.'
+                              : 'Describe your business and/or the content of this page.'
+                          }
+                        />
+                      )}
                     </Field>
 
                     {!isErrorPage && (
@@ -1345,7 +1376,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                         value={customCodeHead}
                         onChange={(e) => setCustomCodeHead(e.target.value)}
                         placeholder="<script>...</script>"
-                        className="font-mono text-sm min-h-48"
+                        className="min-h-48"
                       />
                     </Field>
 
@@ -1358,7 +1389,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                         value={customCodeBody}
                         onChange={(e) => setCustomCodeBody(e.target.value)}
                         placeholder="<script>...</script>"
-                        className="font-mono text-sm min-h-48"
+                        className="min-h-48"
                       />
                     </Field>
                   </FieldGroup>

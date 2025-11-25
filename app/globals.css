@@ -160,3 +160,25 @@
   display: none;
 }
 
+/* InputWithInlineVariables Placeholder Styles */
+.input-with-inline-variables .ProseMirror p.is-editor-empty:first-child {
+  position: relative;
+}
+
+.input-with-inline-variables .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: currentColor;
+  opacity: 0.25;
+  pointer-events: none;
+  font-size: 0.75rem;
+  line-height: 1.375rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+

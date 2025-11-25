@@ -126,6 +126,7 @@ export default function YCodeBuilder() {
   const previousPageIdRef = useRef<string | null>(null);
   const hasInitializedLayerFromUrlRef = useRef(false);
   const lastUrlLayerIdRef = useRef<string | null>(null);
+  const previousIsEditingRef = useRef<boolean | undefined>(undefined);
 
   // Sidebar tab is inferred from route type
   const activeTab = sidebarTab;
@@ -161,12 +162,26 @@ export default function YCodeBuilder() {
     setActiveBreakpoint(viewportMode);
   }, [viewportMode, setActiveBreakpoint]);
 
-  // Sync viewport changes to URL
+  // Track edit mode transitions to prevent effects from running during navigation
+  const currentIsEditing = urlState.isEditing;
+  const justExitedEditMode = previousIsEditingRef.current === true && currentIsEditing === false;
+
+  // Update ref synchronously before effects run
+  if (previousIsEditingRef.current !== currentIsEditing) {
+    previousIsEditingRef.current = currentIsEditing;
+  }
+
+  // Sync viewport changes to URL (skip when in page settings mode or during edit mode transition)
   useEffect(() => {
-    if (routeType === 'page' || routeType === 'layers') {
+    // Skip if we just transitioned away from edit mode - navigation already includes all params
+    if (justExitedEditMode) {
+      return;
+    }
+
+    if ((routeType === 'page' || routeType === 'layers') && !urlState.isEditing && urlState.view !== viewportMode) {
       updateQueryParams({ view: viewportMode });
     }
-  }, [viewportMode, routeType, updateQueryParams]);
+  }, [viewportMode, routeType, updateQueryParams, urlState.view, urlState.isEditing, justExitedEditMode]);
 
   // Reset layer initialization flag when route type changes
   useEffect(() => {
@@ -180,7 +195,7 @@ export default function YCodeBuilder() {
     // Handle layer selection for pages and components
     const isPageOrLayersRoute = routeType === 'page' || routeType === 'layers';
     const isComponentRoute = routeType === 'component';
-    
+
     if ((isPageOrLayersRoute || isComponentRoute) && urlState.layerId) {
       // For pages, wait for draft. For components, wait for component draft
       if (isPageOrLayersRoute && currentPageId) {
@@ -239,64 +254,79 @@ export default function YCodeBuilder() {
     }
   }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, updateQueryParams, currentPageId, editingComponentId, draftsByPageId, getCurrentLayers]);
 
-  // Sync selected layer to URL (but only after initialization from URL)
+  // Sync selected layer to URL (but only after initialization from URL, skip when in page settings mode or during edit mode transition)
   useEffect(() => {
+    // Skip if we just transitioned away from edit mode - navigation already includes all params
+    if (justExitedEditMode) {
+      return;
+    }
+
     const isPageOrLayersRoute = routeType === 'page' || routeType === 'layers';
     const isComponentRoute = routeType === 'component';
-    
-    if ((isPageOrLayersRoute || isComponentRoute) && hasInitializedLayerFromUrlRef.current) {
+
+    if ((isPageOrLayersRoute || isComponentRoute) && !urlState.isEditing && hasInitializedLayerFromUrlRef.current) {
       const layerParam = selectedLayerId || undefined;
-      // Update URL and track it to prevent loop
-      updateQueryParams({ layer: layerParam });
-      lastUrlLayerIdRef.current = layerParam || null;
+      // Only update if the layer has actually changed from URL
+      if (urlState.layerId !== layerParam) {
+        updateQueryParams({ layer: layerParam });
+        lastUrlLayerIdRef.current = layerParam || null;
+      }
     }
-  }, [selectedLayerId, routeType, updateQueryParams]);
+  }, [selectedLayerId, routeType, updateQueryParams, urlState.layerId, urlState.isEditing, justExitedEditMode]);
 
   // Generate initial CSS if draft_css is empty (one-time check after data loads)
   const initialCssCheckRef = useRef(false);
   const settingsLoaded = useSettingsStore((state) => state.settings.length > 0);
+  const draftsCount = Object.keys(draftsByPageId).length;
 
   useEffect(() => {
-    // Wait for all initial data to be loaded
-    if (!migrationsComplete || Object.keys(draftsByPageId).length === 0 || !settingsLoaded) {
+    // Early return if already checked - this must be the FIRST check
+    if (initialCssCheckRef.current) {
       return;
     }
 
-    // On initial load, check if draft_css exists in settings
-    if (!initialCssCheckRef.current) {
-      initialCssCheckRef.current = true;
-      const { getSettingByKey } = useSettingsStore.getState();
-      const existingDraftCSS = getSettingByKey('draft_css');
-
-      // If draft_css exists and is not empty, skip initial generation
-      if (existingDraftCSS && existingDraftCSS.trim().length > 0) {
-        console.log('[Editor] draft_css already exists, skipping initial generation');
-        return;
-      }
-
-      // Generate initial CSS if it doesn't exist
-      console.log('[Editor] draft_css is empty, generating initial CSS');
-      const generateInitialCSS = async () => {
-        try {
-          const { generateAndSaveCSS } = await import('@/lib/client/cssGenerator');
-
-          // Collect layers from ALL pages for comprehensive CSS generation
-          const allLayers: Layer[] = [];
-          Object.values(draftsByPageId).forEach(draft => {
-            if (draft.layers) {
-              allLayers.push(...draft.layers);
-            }
-          });
-
-          await generateAndSaveCSS(allLayers);
-        } catch (error) {
-          console.error('[Editor] Failed to generate initial CSS:', error);
-        }
-      };
-
-      generateInitialCSS();
+    // Wait for all initial data to be loaded
+    if (!migrationsComplete || draftsCount === 0 || !settingsLoaded) {
+      return;
     }
-  }, [draftsByPageId, migrationsComplete, settingsLoaded]);
+
+    // Mark as checked immediately to prevent re-runs, even if we return early below
+    initialCssCheckRef.current = true;
+
+    // On initial load, check if draft_css exists in settings
+    const { getSettingByKey } = useSettingsStore.getState();
+    const existingDraftCSS = getSettingByKey('draft_css');
+
+    // If draft_css exists and is not empty, skip initial generation
+    if (existingDraftCSS && existingDraftCSS.trim().length > 0) {
+      // Don't log here - this is expected behavior and happens once
+      return;
+    }
+
+    // Generate initial CSS if it doesn't exist
+    console.log('[Editor] draft_css is empty, generating initial CSS');
+    const generateInitialCSS = async () => {
+      try {
+        const { generateAndSaveCSS } = await import('@/lib/client/cssGenerator');
+
+        // Collect layers from ALL pages for comprehensive CSS generation
+        // Use current draftsByPageId from store at execution time
+        const currentDrafts = usePagesStore.getState().draftsByPageId;
+        const allLayers: Layer[] = [];
+        Object.values(currentDrafts).forEach(draft => {
+          if (draft.layers) {
+            allLayers.push(...draft.layers);
+          }
+        });
+
+        await generateAndSaveCSS(allLayers);
+      } catch (error) {
+        console.error('[Editor] Failed to generate initial CSS:', error);
+      }
+    };
+
+    generateInitialCSS();
+  }, [migrationsComplete, draftsCount, settingsLoaded]);
 
   // Add overflow-hidden to body when builder is mounted
   useEffect(() => {
@@ -414,7 +444,7 @@ export default function YCodeBuilder() {
     // For pages, wait for pages to load. For components, wait for components to load
     const isPagesRoute = routeType === 'layers' || routeType === 'page' || !routeType;
     const isComponentRoute = routeType === 'component';
-    
+
     if (!migrationsComplete) return;
     if (isPagesRoute && pages.length === 0) return;
     if (isComponentRoute && components.length === 0) return;
@@ -451,7 +481,8 @@ export default function YCodeBuilder() {
       const defaultPage = homePage || pages[0];
       setCurrentPageId(defaultPage.id);
       setSelectedLayerId('body');
-      // Redirect to layers route for the default page
+      // Redirect to layers route for the default page with default params
+      // navigateToLayers will automatically include view=desktop, tab=design, layer=body
       navigateToLayers(defaultPage.id);
     }
   }, [migrationsComplete, pages.length, components.length, routeType, resourceId, currentPageId, editingComponentId, pages, components, setCurrentPageId, setSelectedLayerId, navigateToLayers, urlState.layerId]);
@@ -470,175 +501,6 @@ export default function YCodeBuilder() {
       // If urlState.layerId exists, let the URL initialization effect handle it
     }
   }, [currentPageId, draftsByPageId, setSelectedLayerId, urlState.layerId]);
-
-  // Keyboard shortcuts for layer operations
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Check if user is typing in an input/textarea
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-        return;
-      }
-
-      // A - Toggle Element Library (when on layers tab)
-      if (e.key === 'a' && activeTab === 'layers') {
-        e.preventDefault();
-        // Dispatch custom event to toggle ElementLibrary
-        window.dispatchEvent(new CustomEvent('toggleElementLibrary'));
-        return;
-      }
-
-      // Escape - Select parent layer
-      if (e.key === 'Escape' && (currentPageId || editingComponentId) && selectedLayerId) {
-        e.preventDefault();
-
-        const layers = getCurrentLayers();
-        if (!layers.length) return;
-
-        const findParent = (layers: Layer[], targetId: string, parent: Layer | null = null): Layer | null => {
-          for (const layer of layers) {
-            if (layer.id === targetId) {
-              return parent;
-            }
-            if (layer.children) {
-              const found = findParent(layer.children, targetId, layer);
-              if (found !== undefined) return found;
-            }
-          }
-          return undefined as any;
-        };
-
-        const parentLayer = findParent(layers, selectedLayerId);
-
-        // If parent exists, select it. If no parent (root level), deselect
-        if (parentLayer) {
-          setSelectedLayerId(parentLayer.id);
-        } else {
-          // At root level or Body layer selected - deselect
-          setSelectedLayerId(null);
-        }
-
-        return;
-      }
-
-      // Arrow Up/Down - Reorder layer within siblings
-      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (currentPageId || editingComponentId) && selectedLayerId) {
-        e.preventDefault();
-
-        const layers = getCurrentLayers();
-        if (!layers.length) return;
-
-        const direction = e.key === 'ArrowUp' ? -1 : 1;
-
-        // Find the layer, its parent, and its index within siblings
-        const findLayerInfo = (
-          layers: Layer[],
-          targetId: string,
-          parent: Layer | null = null
-        ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
-          for (let i = 0; i < layers.length; i++) {
-            const layer = layers[i];
-            if (layer.id === targetId) {
-              return { layer, parent, siblings: layers, index: i };
-            }
-            if (layer.children) {
-              const found = findLayerInfo(layer.children, targetId, layer);
-              if (found) return found;
-            }
-          }
-          return null;
-        };
-
-        const info = findLayerInfo(layers, selectedLayerId);
-        if (!info) return;
-
-        const { siblings, index } = info;
-        const newIndex = index + direction;
-
-        // Check bounds
-        if (newIndex < 0 || newIndex >= siblings.length) {
-          return;
-        }
-
-        // Swap the layers
-        const reorderLayers = (layers: Layer[]): Layer[] => {
-          return layers.map(layer => {
-            // If this is the parent containing our siblings, reorder them
-            if (info.parent && layer.id === info.parent.id) {
-              const newChildren = [...(layer.children || [])];
-              // Swap
-              [newChildren[index], newChildren[newIndex]] = [newChildren[newIndex], newChildren[index]];
-              return { ...layer, children: newChildren };
-            }
-
-            // Recursively process children
-            if (layer.children) {
-              return { ...layer, children: reorderLayers(layer.children) };
-            }
-
-            return layer;
-          });
-        };
-
-        let newLayers: Layer[];
-
-        // If at root level, reorder root array directly
-        if (!info.parent) {
-          newLayers = [...layers];
-          [newLayers[index], newLayers[newIndex]] = [newLayers[newIndex], newLayers[index]];
-        } else {
-          newLayers = reorderLayers(layers);
-        }
-
-        updateCurrentLayers(newLayers);
-
-        return;
-      }
-
-      // Tab - Select next sibling layer
-      if (e.key === 'Tab' && (currentPageId || editingComponentId) && selectedLayerId) {
-        e.preventDefault();
-
-        const layers = getCurrentLayers();
-        if (!layers.length) return;
-
-        // Find the layer, its parent, and its index within siblings
-        const findLayerInfo = (
-          layers: Layer[],
-          targetId: string,
-          parent: Layer | null = null
-        ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
-          for (let i = 0; i < layers.length; i++) {
-            const layer = layers[i];
-            if (layer.id === targetId) {
-              return { layer, parent, siblings: layers, index: i };
-            }
-            if (layer.children) {
-              const found = findLayerInfo(layer.children, targetId, layer);
-              if (found) return found;
-            }
-          }
-          return null;
-        };
-
-        const info = findLayerInfo(layers, selectedLayerId);
-        if (!info) return;
-
-        const { siblings, index } = info;
-
-        // Check if there's a next sibling
-        if (index + 1 < siblings.length) {
-          const nextSibling = siblings[index + 1];
-          setSelectedLayerId(nextSibling.id);
-        }
-
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, currentPageId, editingComponentId, draftsByPageId, setSelectedLayerId, activeTab, getCurrentLayers, updateCurrentLayers]);
 
   // Handle undo
   const handleUndo = useCallback(() => {
@@ -916,8 +778,11 @@ export default function YCodeBuilder() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
-                             document.activeElement?.tagName === 'TEXTAREA';
+      // Check if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      const isInputFocused = target.tagName === 'INPUT' ||
+                             target.tagName === 'TEXTAREA' ||
+                             target.isContentEditable;
 
       // Save: Cmd/Ctrl + S
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -947,150 +812,308 @@ export default function YCodeBuilder() {
         }
       }
 
-      // Copy: Cmd/Ctrl + C (supports multi-select)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
-        if (!isInputFocused && currentPageId) {
+      // Layer-specific shortcuts (only work on layers tab)
+      if (activeTab === 'layers') {
+        // A - Toggle Element Library (when on layers tab)
+        if (e.key === 'a') {
           e.preventDefault();
-          if (selectedLayerIds.length > 1) {
-            // Multi-select: copy all
-            const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
-            // Store first layer in clipboard store for compatibility
-            if (layers.length > 0) {
-              copyToClipboard(layers[0], currentPageId);
-            }
-          } else if (selectedLayerId) {
-            // Single select - use clipboard store
-            const layer = copyLayerFromStore(currentPageId, selectedLayerId);
-            if (layer) {
-              copyToClipboard(layer, currentPageId);
-            }
-          }
+          // Dispatch custom event to toggle ElementLibrary
+          window.dispatchEvent(new CustomEvent('toggleElementLibrary'));
+          return;
         }
-      }
 
-      // Cut: Cmd/Ctrl + X (supports multi-select)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
-        if (!isInputFocused && currentPageId) {
+        // Escape - Select parent layer
+        if (e.key === 'Escape' && (currentPageId || editingComponentId) && selectedLayerId) {
           e.preventDefault();
-          if (selectedLayerIds.length > 1) {
-            // Multi-select: cut all (copy then delete)
-            const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
-            if (layers.length > 0) {
-              // Store first layer in clipboard for compatibility
-              cutToClipboard(layers[0], currentPageId);
-              deleteLayers(currentPageId, selectedLayerIds);
-              clearSelection();
-            }
-          } else if (selectedLayerId) {
-            // Single select
-            const layer = copyLayerFromStore(currentPageId, selectedLayerId);
-            if (layer && layer.id !== 'body' && !layer.locked) {
-              cutToClipboard(layer, currentPageId);
-              deleteLayer(currentPageId, selectedLayerId);
-              setSelectedLayerId(null);
-            }
-          }
-        }
-      }
 
-      // Paste: Cmd/Ctrl + V
-      if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
-        if (!isInputFocused && currentPageId) {
-          e.preventDefault();
-          // Use clipboard store for paste (works with context menu)
-          if (clipboardLayer && selectedLayerId) {
-            pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
-          }
-        }
-      }
-
-      // Duplicate: Cmd/Ctrl + D (supports multi-select)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
-        if (!isInputFocused && currentPageId) {
-          e.preventDefault();
-          if (selectedLayerIds.length > 1) {
-            // Multi-select: duplicate all
-            duplicateLayersFromStore(currentPageId, selectedLayerIds);
-          } else if (selectedLayerId) {
-            // Single select
-            duplicateLayer(currentPageId, selectedLayerId);
-          }
-        }
-      }
-
-      // Delete: Delete or Backspace (supports multi-select)
-      if ((e.key === 'Delete' || e.key === 'Backspace')) {
-        if (!isInputFocused && (currentPageId || editingComponentId)) {
-          e.preventDefault();
-          if (selectedLayerIds.length > 1) {
-            // Multi-select: delete all
-            if (editingComponentId) {
-              // Delete multiple from component
-              const layers = getCurrentLayers();
-              let newLayers = layers;
-              for (const layerId of selectedLayerIds) {
-                newLayers = removeLayerById(newLayers, layerId);
-              }
-              updateCurrentLayers(newLayers);
-              clearSelection();
-            } else if (currentPageId) {
-              deleteLayers(currentPageId, selectedLayerIds);
-              clearSelection();
-            }
-          } else if (selectedLayerId) {
-            // Single select
-            deleteSelectedLayer();
-          }
-        }
-      }
-
-      // Copy Style: Option + Cmd + C
-      if (e.altKey && e.metaKey && e.key === 'c') {
-        if (!isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
-          e.preventDefault();
           const layers = getCurrentLayers();
-          const layer = findLayerById(layers, selectedLayerId);
-          if (layer) {
-            const classes = getClassesString(layer);
-            copyStyleToClipboard(classes, layer.design, layer.styleId, layer.styleOverrides);
+          if (!layers.length) return;
+
+          const findParent = (layers: Layer[], targetId: string, parent: Layer | null = null): Layer | null => {
+            for (const layer of layers) {
+              if (layer.id === targetId) {
+                return parent;
+              }
+              if (layer.children) {
+                const found = findParent(layer.children, targetId, layer);
+                if (found !== undefined) return found;
+              }
+            }
+            return undefined as any;
+          };
+
+          const parentLayer = findParent(layers, selectedLayerId);
+
+          // If parent exists, select it. If no parent (root level), deselect
+          if (parentLayer) {
+            setSelectedLayerId(parentLayer.id);
+          } else {
+            // At root level or Body layer selected - deselect
+            setSelectedLayerId(null);
+          }
+
+          return;
+        }
+
+        // Arrow Up/Down - Reorder layer within siblings
+        if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (currentPageId || editingComponentId) && selectedLayerId) {
+          e.preventDefault();
+
+          const layers = getCurrentLayers();
+          if (!layers.length) return;
+
+          const direction = e.key === 'ArrowUp' ? -1 : 1;
+
+          // Find the layer, its parent, and its index within siblings
+          const findLayerInfo = (
+            layers: Layer[],
+            targetId: string,
+            parent: Layer | null = null
+          ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
+            for (let i = 0; i < layers.length; i++) {
+              const layer = layers[i];
+              if (layer.id === targetId) {
+                return { layer, parent, siblings: layers, index: i };
+              }
+              if (layer.children) {
+                const found = findLayerInfo(layer.children, targetId, layer);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+
+          const info = findLayerInfo(layers, selectedLayerId);
+          if (!info) return;
+
+          const { siblings, index } = info;
+          const newIndex = index + direction;
+
+          // Check bounds
+          if (newIndex < 0 || newIndex >= siblings.length) {
+            return;
+          }
+
+          // Swap the layers
+          const reorderLayers = (layers: Layer[]): Layer[] => {
+            return layers.map(layer => {
+              // If this is the parent containing our siblings, reorder them
+              if (info.parent && layer.id === info.parent.id) {
+                const newChildren = [...(layer.children || [])];
+                // Swap
+                [newChildren[index], newChildren[newIndex]] = [newChildren[newIndex], newChildren[index]];
+                return { ...layer, children: newChildren };
+              }
+
+              // Recursively process children
+              if (layer.children) {
+                return { ...layer, children: reorderLayers(layer.children) };
+              }
+
+              return layer;
+            });
+          };
+
+          let newLayers: Layer[];
+
+          // If at root level, reorder root array directly
+          if (!info.parent) {
+            newLayers = [...layers];
+            [newLayers[index], newLayers[newIndex]] = [newLayers[newIndex], newLayers[index]];
+          } else {
+            newLayers = reorderLayers(layers);
+          }
+
+          updateCurrentLayers(newLayers);
+
+          return;
+        }
+
+        // Tab - Select next sibling layer
+        if (e.key === 'Tab' && (currentPageId || editingComponentId) && selectedLayerId) {
+          e.preventDefault();
+
+          const layers = getCurrentLayers();
+          if (!layers.length) return;
+
+          // Find the layer, its parent, and its index within siblings
+          const findLayerInfo = (
+            layers: Layer[],
+            targetId: string,
+            parent: Layer | null = null
+          ): { layer: Layer; parent: Layer | null; siblings: Layer[]; index: number } | null => {
+            for (let i = 0; i < layers.length; i++) {
+              const layer = layers[i];
+              if (layer.id === targetId) {
+                return { layer, parent, siblings: layers, index: i };
+              }
+              if (layer.children) {
+                const found = findLayerInfo(layer.children, targetId, layer);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+
+          const info = findLayerInfo(layers, selectedLayerId);
+          if (!info) return;
+
+          const { siblings, index } = info;
+
+          // Check if there's a next sibling
+          if (index + 1 < siblings.length) {
+            const nextSibling = siblings[index + 1];
+            setSelectedLayerId(nextSibling.id);
+          }
+
+          return;
+        }
+
+        // Copy: Cmd/Ctrl + C (supports multi-select)
+        if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+          if (!isInputFocused && currentPageId) {
+            e.preventDefault();
+            if (selectedLayerIds.length > 1) {
+              // Multi-select: copy all
+              const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
+              // Store first layer in clipboard store for compatibility
+              if (layers.length > 0) {
+                copyToClipboard(layers[0], currentPageId);
+              }
+            } else if (selectedLayerId) {
+              // Single select - use clipboard store
+              const layer = copyLayerFromStore(currentPageId, selectedLayerId);
+              if (layer) {
+                copyToClipboard(layer, currentPageId);
+              }
+            }
           }
         }
-      }
 
-      // Paste Style: Option + Cmd + V
-      if (e.altKey && e.metaKey && e.key === 'v') {
-        if (!isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
-          e.preventDefault();
-          const style = pasteStyleFromClipboard();
-          if (style) {
-            if (editingComponentId) {
-              // Update style in component
-              const layers = getCurrentLayers();
-              const updateLayerStyle = (layers: Layer[]): Layer[] => {
-                return layers.map(layer => {
-                  if (layer.id === selectedLayerId) {
-                    return {
-                      ...layer,
-                      classes: style.classes,
-                      design: style.design,
-                      styleId: style.styleId,
-                      styleOverrides: style.styleOverrides,
-                    };
-                  }
-                  if (layer.children) {
-                    return { ...layer, children: updateLayerStyle(layer.children) };
-                  }
-                  return layer;
+        // Cut: Cmd/Ctrl + X (supports multi-select)
+        if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
+          if (!isInputFocused && currentPageId) {
+            e.preventDefault();
+            if (selectedLayerIds.length > 1) {
+              // Multi-select: cut all (copy then delete)
+              const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
+              if (layers.length > 0) {
+                // Store first layer in clipboard for compatibility
+                cutToClipboard(layers[0], currentPageId);
+                deleteLayers(currentPageId, selectedLayerIds);
+                clearSelection();
+              }
+            } else if (selectedLayerId) {
+              // Single select
+              const layer = copyLayerFromStore(currentPageId, selectedLayerId);
+              if (layer && layer.id !== 'body' && !layer.locked) {
+                cutToClipboard(layer, currentPageId);
+                deleteLayer(currentPageId, selectedLayerId);
+                setSelectedLayerId(null);
+              }
+            }
+          }
+        }
+
+        // Paste: Cmd/Ctrl + V
+        if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+          if (!isInputFocused && currentPageId) {
+            e.preventDefault();
+            // Use clipboard store for paste (works with context menu)
+            if (clipboardLayer && selectedLayerId) {
+              pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
+            }
+          }
+        }
+
+        // Duplicate: Cmd/Ctrl + D (supports multi-select)
+        if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+          if (!isInputFocused && currentPageId) {
+            e.preventDefault();
+            if (selectedLayerIds.length > 1) {
+              // Multi-select: duplicate all
+              duplicateLayersFromStore(currentPageId, selectedLayerIds);
+            } else if (selectedLayerId) {
+              // Single select
+              duplicateLayer(currentPageId, selectedLayerId);
+            }
+          }
+        }
+
+        // Delete: Delete or Backspace (supports multi-select)
+        if ((e.key === 'Delete' || e.key === 'Backspace')) {
+          if (!isInputFocused && (currentPageId || editingComponentId)) {
+            e.preventDefault();
+            if (selectedLayerIds.length > 1) {
+              // Multi-select: delete all
+              if (editingComponentId) {
+                // Delete multiple from component
+                const layers = getCurrentLayers();
+                let newLayers = layers;
+                for (const layerId of selectedLayerIds) {
+                  newLayers = removeLayerById(newLayers, layerId);
+                }
+                updateCurrentLayers(newLayers);
+                clearSelection();
+              } else if (currentPageId) {
+                deleteLayers(currentPageId, selectedLayerIds);
+                clearSelection();
+              }
+            } else if (selectedLayerId) {
+              // Single select
+              deleteSelectedLayer();
+            }
+          }
+        }
+
+        // Copy Style: Option + Cmd + C
+        if (e.altKey && e.metaKey && e.key === 'c') {
+          if (!isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
+            e.preventDefault();
+            const layers = getCurrentLayers();
+            const layer = findLayerById(layers, selectedLayerId);
+            if (layer) {
+              const classes = getClassesString(layer);
+              copyStyleToClipboard(classes, layer.design, layer.styleId, layer.styleOverrides);
+            }
+          }
+        }
+
+        // Paste Style: Option + Cmd + V
+        if (e.altKey && e.metaKey && e.key === 'v') {
+          if (!isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
+            e.preventDefault();
+            const style = pasteStyleFromClipboard();
+            if (style) {
+              if (editingComponentId) {
+                // Update style in component
+                const layers = getCurrentLayers();
+                const updateLayerStyle = (layers: Layer[]): Layer[] => {
+                  return layers.map(layer => {
+                    if (layer.id === selectedLayerId) {
+                      return {
+                        ...layer,
+                        classes: style.classes,
+                        design: style.design,
+                        styleId: style.styleId,
+                        styleOverrides: style.styleOverrides,
+                      };
+                    }
+                    if (layer.children) {
+                      return { ...layer, children: updateLayerStyle(layer.children) };
+                    }
+                    return layer;
+                  });
+                };
+                updateCurrentLayers(updateLayerStyle(layers));
+              } else if (currentPageId) {
+                updateLayer(currentPageId, selectedLayerId, {
+                  classes: style.classes,
+                  design: style.design,
+                  styleId: style.styleId,
+                  styleOverrides: style.styleOverrides,
                 });
-              };
-              updateCurrentLayers(updateLayerStyle(layers));
-            } else if (currentPageId) {
-              updateLayer(currentPageId, selectedLayerId, {
-                classes: style.classes,
-                design: style.design,
-                styleId: style.styleId,
-                styleOverrides: style.styleOverrides,
-              });
+              }
             }
           }
         }
@@ -1099,7 +1122,35 @@ export default function YCodeBuilder() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, selectedLayerIds, currentPageId, editingComponentId, copyLayersFromStore, copyLayerFromStore, copyToClipboard, cutToClipboard, clipboardLayer, pasteAfter, duplicateLayersFromStore, duplicateLayer, deleteLayers, deleteLayer, clearSelection, setSelectedLayerId, saveImmediately, draftsByPageId, updateLayer, copyStyleToClipboard, pasteStyleFromClipboard, deleteSelectedLayer, handleUndo, handleRedo, getCurrentLayers, updateCurrentLayers]);
+  }, [
+    activeTab,
+    selectedLayerId,
+    selectedLayerIds,
+    currentPageId,
+    editingComponentId,
+    draftsByPageId,
+    setSelectedLayerId,
+    getCurrentLayers,
+    updateCurrentLayers,
+    copyLayersFromStore,
+    copyLayerFromStore,
+    copyToClipboard,
+    cutToClipboard,
+    clipboardLayer,
+    pasteAfter,
+    duplicateLayersFromStore,
+    duplicateLayer,
+    deleteLayers,
+    deleteLayer,
+    clearSelection,
+    saveImmediately,
+    updateLayer,
+    copyStyleToClipboard,
+    pasteStyleFromClipboard,
+    deleteSelectedLayer,
+    handleUndo,
+    handleRedo
+  ]);
 
   // Show loading screen while checking authentication
   if (!authInitialized) {

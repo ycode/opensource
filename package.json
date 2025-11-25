@@ -41,6 +41,7 @@
     "@supabase/supabase-js": "^2.75.0",
     "@tiptap/core": "^3.10.5",
     "@tiptap/extension-heading": "^3.10.7",
+    "@tiptap/extension-placeholder": "^3.11.0",
     "@tiptap/pm": "^3.10.5",
     "@tiptap/react": "^3.10.7",
     "@tiptap/starter-kit": "^3.10.7",

@@ -53,10 +53,12 @@ function DialogContent({
   children,
   showCloseButton = true,
   variant = 'default',
+  width,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
   variant?: 'default' | 'side'
+  width?: string
 }) {
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -65,10 +67,13 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           'bg-background fixed z-50 gap-6 p-6 duration-200',
-          variant === 'default' && 'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 top-[50%] left-[50%] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] rounded-lg sm:max-w-lg',
-          variant === 'side' && 'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-right-[20%] data-[state=closed]:slide-out-to-right-[20%] inset-y-0 right-0 h-full w-full max-w-screen-md flex flex-col border-l',
+          variant === 'default' && 'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 top-[50%] left-[50%] flex flex-col w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] rounded-lg',
+          variant === 'default' && !width && 'sm:max-w-lg',
+          variant === 'side' && 'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-right-[20%] data-[state=closed]:slide-out-to-right-[20%] inset-y-0 right-0 h-full w-full flex flex-col border-l',
+          variant === 'side' && !width && 'max-w-screen-md',
           className
         )}
+        style={width ? { maxWidth: width } : undefined}
         {...props}
       >
         {children}
@@ -76,7 +81,7 @@ function DialogContent({
           <DialogPrimitive.Close
             asChild
             data-slot="dialog-close"
-            className="data-[state=open]:text-muted-foreground absolute top-3.5 right-3.5 opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+            className="data-[state=open]:text-muted-foreground absolute top-3 right-3 opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <Button variant="ghost" size="sm">
               <Icon name="x" />

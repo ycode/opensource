@@ -532,3 +532,15 @@ export interface Setting {
   created_at: string;
   updated_at: string;
 }
+
+// CMS Field Variables, used for inline variables (text contents) and layer dynamic variables (images, files, links)
+export interface FieldVariable {
+  type: 'field';
+  data: {
+    field_id: string;
+    relationships: string[];
+    format?: string;
+  };
+}
+
+export type InlineVariable = FieldVariable;

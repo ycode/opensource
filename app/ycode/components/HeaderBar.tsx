@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useMemo } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { ArrowLeft, LogOut, Monitor, Moon, Sun, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PublishDialog from './PublishDialog';
+import { FileManagerDialog } from './FileManagerDialog';
 
 // 4. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -35,6 +37,7 @@ import type { Page } from '@/types';
 import type { User } from '@supabase/supabase-js';
 import { Empty, EmptyContent, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { Label } from '@/components/ui/label';
+import Icon from '@/components/ui/icon';
 
 interface HeaderBarProps {
   user: User | null;
@@ -81,6 +84,8 @@ export default function HeaderBar({
   publishCount,
   onPublishSuccess,
 }: HeaderBarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const pageDropdownRef = useRef<HTMLDivElement>(null);
   const { editingComponentId, returnToPageId, currentPageCollectionItemId } = useEditorStore();
   const { getComponentById } = useComponentsStore();
@@ -90,6 +95,7 @@ export default function HeaderBar({
   const [showPublishPopover, setShowPublishPopover] = useState(false);
   const [changesCount, setChangesCount] = useState(0);
   const [isLoadingCount, setIsLoadingCount] = useState(false);
+  const [showFileManagerDialog, setShowFileManagerDialog] = useState(false);
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme') as 'system' | 'light' | 'dark' | null;
@@ -339,10 +345,14 @@ export default function HeaderBar({
     }
   };
 
+  const isSettingsRoute = pathname?.startsWith('/settings');
+
   return (
+    <>
     <header className="h-14 bg-background border-b grid grid-cols-3 items-center px-4">
       {/* Left: Logo & Navigation */}
       <div className="flex items-center gap-2">
+
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -408,6 +418,19 @@ export default function HeaderBar({
 
             <DropdownMenuSeparator />
             <DropdownMenuItem
+              onClick={() => setShowFileManagerDialog(true)}
+            >
+              File manager
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() => router.push('/settings')}
+            >
+              Settings
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
               variant="destructive"
               onClick={async () => {
                 await signOut();
@@ -418,6 +441,18 @@ export default function HeaderBar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Back Button (Settings) */}
+        {isSettingsRoute && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => router.push('/ycode')}
+          >
+            <Icon name="arrowLeft" />
+            Return back
+          </Button>
+        )}
 
       </div>
 
@@ -544,5 +579,12 @@ export default function HeaderBar({
 
       </div>
     </header>
+
+    {/* File Manager Dialog */}
+    <FileManagerDialog
+      open={showFileManagerDialog}
+      onOpenChange={setShowFileManagerDialog}
+    />
+    </>
   );
 }

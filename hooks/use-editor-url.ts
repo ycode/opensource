@@ -42,7 +42,7 @@ export function useEditorUrl() {
     // - /ycode/collections → base collections view (no ID)
     // - /ycode/collections/[id] → specific collection view (with optional ?new or ?edit=itemId query params)
     // - /ycode/components/[id] → component editing
-    
+
     const layersMatch = pathname?.match(/^\/ycode\/layers\/([^/]+)$/);
     const pageMatch = pathname?.match(/^\/ycode\/pages\/([^/]+)$/);
     const collectionsBaseMatch = pathname?.match(/^\/ycode\/collections$/);
@@ -53,7 +53,7 @@ export function useEditorUrl() {
       const viewParam = searchParams?.get('view');
       const rightTabParam = searchParams?.get('tab');
       const layerParam = searchParams?.get('layer');
-      
+
       return {
         type: 'layers',
         resourceId: layersMatch[1],
@@ -71,7 +71,7 @@ export function useEditorUrl() {
       const viewParam = searchParams?.get('view');
       const rightTabParam = searchParams?.get('tab');
       const layerParam = searchParams?.get('layer');
-      
+
       return {
         type: 'page',
         resourceId: pageMatch[1],
@@ -101,7 +101,7 @@ export function useEditorUrl() {
       const searchParam = searchParams?.get('search');
       const newParam = searchParams?.has('new');
       const editParam = searchParams?.get('edit');
-      
+
       return {
         type: 'collection',
         resourceId: collectionMatch[1],
@@ -117,7 +117,7 @@ export function useEditorUrl() {
     if (componentMatch) {
       const rightTabParam = searchParams?.get('tab');
       const layerParam = searchParams?.get('layer');
-      
+
       return {
         type: 'component',
         resourceId: componentMatch[1],
@@ -143,11 +143,12 @@ export function useEditorUrl() {
   const navigateToLayers = useCallback(
     (pageId: string, view?: string, rightTab?: string, layerId?: string) => {
       const params = new URLSearchParams();
-      if (view) params.set('view', view);
-      if (rightTab) params.set('tab', rightTab);
-      if (layerId) params.set('layer', layerId);
+      // Always include view, tab, and layer params (with defaults if not provided)
+      params.set('view', view || 'desktop');
+      params.set('tab', rightTab || 'design');
+      params.set('layer', layerId || 'body');
       const query = params.toString();
-      router.push(`/ycode/layers/${pageId}${query ? `?${query}` : ''}`);
+      router.push(`/ycode/layers/${pageId}?${query}`);
     },
     [router]
   );
@@ -155,11 +156,13 @@ export function useEditorUrl() {
   const navigateToPage = useCallback(
     (pageId: string, view?: string, rightTab?: string, layerId?: string) => {
       const params = new URLSearchParams();
-      if (view) params.set('view', view);
-      if (rightTab) params.set('tab', rightTab);
-      if (layerId) params.set('layer', layerId);
+      // Always include view, tab, and layer params (with defaults if not provided)
+      params.set('view', view || 'desktop');
+      params.set('tab', rightTab || 'design');
+      // For pages route, use provided layerId or 'body' as default
+      params.set('layer', layerId || 'body');
       const query = params.toString();
-      router.push(`/ycode/pages/${pageId}${query ? `?${query}` : ''}`);
+      router.push(`/ycode/pages/${pageId}?${query}`);
     },
     [router]
   );
@@ -167,9 +170,13 @@ export function useEditorUrl() {
   const navigateToPageEdit = useCallback(
     (pageId: string, tab?: PageSettingsTab) => {
       // Tab parameter is ignored - tabs are handled client-side
-      router.push(`/ycode/pages/${pageId}?edit`);
+      // Preserve current query params and add edit param
+      const currentParams = new URLSearchParams(searchParams?.toString() || '');
+      currentParams.set('edit', ''); // Add edit param (empty value)
+      const query = currentParams.toString();
+      router.push(`/ycode/pages/${pageId}${query ? `?${query}` : ''}`);
     },
-    [router]
+    [router, searchParams]
   );
 
   const navigateToPageLayers = useCallback(
@@ -234,23 +241,40 @@ export function useEditorUrl() {
 
   const updateQueryParams = useCallback(
     (params: { view?: string; tab?: string; layer?: string }) => {
-      const searchParams = new URLSearchParams(window.location.search);
-      
+      const currentSearchParams = new URLSearchParams(window.location.search);
+      const newSearchParams = new URLSearchParams(currentSearchParams);
+      let hasChanges = false;
+
       if (params.view !== undefined) {
-        if (params.view) searchParams.set('view', params.view);
-        else searchParams.delete('view');
+        const currentView = currentSearchParams.get('view');
+        if (params.view !== currentView) {
+          hasChanges = true;
+          if (params.view) newSearchParams.set('view', params.view);
+          else newSearchParams.delete('view');
+        }
       }
       if (params.tab !== undefined) {
-        if (params.tab) searchParams.set('tab', params.tab);
-        else searchParams.delete('tab');
+        const currentTab = currentSearchParams.get('tab');
+        if (params.tab !== currentTab) {
+          hasChanges = true;
+          if (params.tab) newSearchParams.set('tab', params.tab);
+          else newSearchParams.delete('tab');
+        }
       }
       if (params.layer !== undefined) {
-        if (params.layer) searchParams.set('layer', params.layer);
-        else searchParams.delete('layer');
+        const currentLayer = currentSearchParams.get('layer');
+        if (params.layer !== currentLayer) {
+          hasChanges = true;
+          if (params.layer) newSearchParams.set('layer', params.layer);
+          else newSearchParams.delete('layer');
+        }
       }
-      
-      const query = searchParams.toString();
-      router.replace(`${pathname}${query ? `?${query}` : ''}`);
+
+      // Only navigate if something actually changed
+      if (hasChanges) {
+        const query = newSearchParams.toString();
+        router.replace(`${pathname}${query ? `?${query}` : ''}`);
+      }
     },
     [router, pathname]
   );
@@ -263,7 +287,7 @@ export function useEditorUrl() {
     tab: urlState.tab,
     page: urlState.page,
     sidebarTab: urlState.sidebarTab,
-    
+
     // Navigation functions
     navigateToLayers,
     navigateToPage,
@@ -282,7 +306,7 @@ export function useEditorUrl() {
 /**
  * Combined actions hook - convenience methods that update both state AND URL
  * Use these for normal user interactions where you want both to happen
- * 
+ *
  * For edge cases (initial load, back/forward), use the individual store methods directly
  */
 export function useEditorActions() {
