@@ -7,7 +7,7 @@
  */
 
 // 1. React/Next.js
-import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 
 // 2. External libraries
 import { ArrowLeft } from 'lucide-react';
@@ -69,7 +69,7 @@ const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: 
   mobile: { width: '375px', label: 'Mobile', icon: '📱' },
 };
 
-export default function CenterCanvas({
+const CenterCanvas = React.memo(function CenterCanvas({
   selectedLayerId,
   currentPageId,
   viewportMode,
@@ -81,9 +81,24 @@ export default function CenterCanvas({
   const [pagePopoverOpen, setPagePopoverOpen] = useState(false);
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(new Set());
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { draftsByPageId, addLayer, updateLayer, pages, folders } = usePagesStore();
-  const { setSelectedLayerId, activeUIState, editingComponentId, setCurrentPageId, returnToPageId, currentPageCollectionItemId, setCurrentPageCollectionItemId } = useEditorStore();
-  const { getDropdownItems } = useCollectionsStore();
+  
+  // Optimize store subscriptions - use selective selectors
+  const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
+  const addLayer = usePagesStore((state) => state.addLayer);
+  const updateLayer = usePagesStore((state) => state.updateLayer);
+  const pages = usePagesStore((state) => state.pages);
+  const folders = usePagesStore((state) => state.folders);
+  
+  const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
+  const activeUIState = useEditorStore((state) => state.activeUIState);
+  const editingComponentId = useEditorStore((state) => state.editingComponentId);
+  const setCurrentPageId = useEditorStore((state) => state.setCurrentPageId);
+  const returnToPageId = useEditorStore((state) => state.returnToPageId);
+  const currentPageCollectionItemId = useEditorStore((state) => state.currentPageCollectionItemId);
+  const setCurrentPageCollectionItemId = useEditorStore((state) => state.setCurrentPageCollectionItemId);
+  
+  const getDropdownItems = useCollectionsStore((state) => state.getDropdownItems);
+  
   const { routeType, urlState, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorUrl();
   const components = useComponentsStore((state) => state.components);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
@@ -731,4 +746,6 @@ export default function CenterCanvas({
       </div>
     </div>
   );
-}
+});
+
+export default CenterCanvas;

@@ -64,14 +64,53 @@ import { Alert, AlertTitle } from '@/components/ui/alert';
 export default function YCodeBuilder() {
   const router = useRouter();
   const { routeType, resourceId, sidebarTab, navigateToLayers, urlState, updateQueryParams } = useEditorUrl();
-  const { signOut, user, initialized: authInitialized } = useAuthStore();
-  const { selectedLayerId, selectedLayerIds, setSelectedLayerId, clearSelection, currentPageId, setCurrentPageId, activeBreakpoint, setActiveBreakpoint, undo, redo, canUndo, canRedo, editingComponentId, builderDataPreloaded, setBuilderDataPreloaded } = useEditorStore();
-  const { updateLayer, draftsByPageId, deleteLayer, deleteLayers, saveDraft, copyLayer: copyLayerFromStore, copyLayers: copyLayersFromStore, duplicateLayer, duplicateLayers: duplicateLayersFromStore, pasteAfter, setDraftLayers, loadPages } = usePagesStore();
-  const { clipboardLayer, copyLayer: copyToClipboard, cutLayer: cutToClipboard, copyStyle: copyStyleToClipboard, pasteStyle: pasteStyleFromClipboard } = useClipboardStore();
-  const componentIsSaving = useComponentsStore((state) => state.isSaving);
+  
+  // Optimize store subscriptions - use selective selectors to prevent unnecessary re-renders
+  const signOut = useAuthStore((state) => state.signOut);
+  const user = useAuthStore((state) => state.user);
+  const authInitialized = useAuthStore((state) => state.initialized);
+  
+  const selectedLayerId = useEditorStore((state) => state.selectedLayerId);
+  const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds);
+  const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
+  const clearSelection = useEditorStore((state) => state.clearSelection);
+  const currentPageId = useEditorStore((state) => state.currentPageId);
+  const setCurrentPageId = useEditorStore((state) => state.setCurrentPageId);
+  const activeBreakpoint = useEditorStore((state) => state.activeBreakpoint);
+  const setActiveBreakpoint = useEditorStore((state) => state.setActiveBreakpoint);
+  const undo = useEditorStore((state) => state.undo);
+  const redo = useEditorStore((state) => state.redo);
+  const canUndo = useEditorStore((state) => state.canUndo);
+  const canRedo = useEditorStore((state) => state.canRedo);
+  const editingComponentId = useEditorStore((state) => state.editingComponentId);
+  const builderDataPreloaded = useEditorStore((state) => state.builderDataPreloaded);
+  const setBuilderDataPreloaded = useEditorStore((state) => state.setBuilderDataPreloaded);
+  
+  const updateLayer = usePagesStore((state) => state.updateLayer);
+  const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
+  const deleteLayer = usePagesStore((state) => state.deleteLayer);
+  const deleteLayers = usePagesStore((state) => state.deleteLayers);
+  const saveDraft = usePagesStore((state) => state.saveDraft);
+  const copyLayerFromStore = usePagesStore((state) => state.copyLayer);
+  const copyLayersFromStore = usePagesStore((state) => state.copyLayers);
+  const duplicateLayer = usePagesStore((state) => state.duplicateLayer);
+  const duplicateLayersFromStore = usePagesStore((state) => state.duplicateLayers);
+  const pasteAfter = usePagesStore((state) => state.pasteAfter);
+  const setDraftLayers = usePagesStore((state) => state.setDraftLayers);
+  const loadPages = usePagesStore((state) => state.loadPages);
   const pages = usePagesStore((state) => state.pages);
+  
+  const clipboardLayer = useClipboardStore((state) => state.clipboardLayer);
+  const copyToClipboard = useClipboardStore((state) => state.copyLayer);
+  const cutToClipboard = useClipboardStore((state) => state.cutLayer);
+  const copyStyleToClipboard = useClipboardStore((state) => state.copyStyle);
+  const pasteStyleFromClipboard = useClipboardStore((state) => state.pasteStyle);
+  
+  const componentIsSaving = useComponentsStore((state) => state.isSaving);
   const components = useComponentsStore((state) => state.components);
-  const { migrationsComplete, setMigrationsComplete } = useMigrationStore();
+  
+  const migrationsComplete = useMigrationStore((state) => state.migrationsComplete);
+  const setMigrationsComplete = useMigrationStore((state) => state.setMigrationsComplete);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
