@@ -282,11 +282,49 @@ export default function GeneralSettingsPage() {
 
           </TabsContent>
 
-          <TabsContent value="custom-code" className="mt-6">
-            <div className="border rounded-lg p-8 text-center text-muted-foreground">
-              Custom code content goes here
+          <TabsContent value="custom-code" className="mt-2">
+
+            <div className="grid grid-cols-3 gap-10 bg-secondary/20 p-8 rounded-lg">
+
+              <div>
+                <FieldLegend>Custom code</FieldLegend>
+                <FieldDescription>Set up custom codes that should be added on your website.</FieldDescription>
+              </div>
+
+              <div className="col-span-2 grid grid-cols-2 gap-8">
+
+                <Field className="col-span-2">
+                  <FieldLabel htmlFor="header">
+                    Header
+                  </FieldLabel>
+                  <FieldDescription>
+                    Enter code that will be injected into the &lt;head&gt; tag on every page of your site.
+                  </FieldDescription>
+                  <Textarea />
+                </Field>
+
+                <Field className="col-span-2">
+                  <FieldLabel htmlFor="Body">
+                    Body
+                  </FieldLabel>
+                  <FieldDescription>
+                    Enter code that will be injected before the &lt;/body&gt; tag on every page of your site.
+                  </FieldDescription>
+                  <Textarea />
+                </Field>
+
+                <FieldSeparator className="col-span-2" />
+
+                <div className="col-span-2 flex justify-end">
+                  <Button size="sm">Save changes</Button>
+                </div>
+
+              </div>
+
             </div>
+
           </TabsContent>
+
         </Tabs>
 
       </div>
