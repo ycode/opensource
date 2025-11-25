@@ -1410,7 +1410,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                         value={customCodeHead}
                         onChange={(e) => setCustomCodeHead(e.target.value)}
                         placeholder="<script>...</script>"
-                        className="font-mono text-sm min-h-48"
+                        className="min-h-48"
                       />
                     </Field>
 
@@ -1423,7 +1423,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                         value={customCodeBody}
                         onChange={(e) => setCustomCodeBody(e.target.value)}
                         placeholder="<script>...</script>"
-                        className="font-mono text-sm min-h-48"
+                        className="min-h-48"
                       />
                     </Field>
                   </FieldGroup>
