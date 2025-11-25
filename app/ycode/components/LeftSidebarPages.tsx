@@ -84,17 +84,20 @@ export default function LeftSidebarPages({
     }
   }, [selectedPage, selectedFolder, showPageSettings, showFolderSettings]);
 
-  // Open page settings panel when on the edit route
+  // No reactive opening/closing - panel is controlled purely by user actions
+  // However, check URL on initial load to open panel if URL has ?edit param
+  const hasCheckedInitialUrlRef = useRef(false);
   useEffect(() => {
-    if (urlState.isEditing && selectedPage) {
+    // Only check once on initial mount
+    if (hasCheckedInitialUrlRef.current) return;
+    hasCheckedInitialUrlRef.current = true;
+
+    // If URL has ?edit param and the selected page matches the URL page ID, open the panel
+    if (urlState.isEditing && urlState.resourceId && selectedPage && selectedPage.id === urlState.resourceId && !showPageSettings) {
       setEditingPage(selectedPage);
       setShowPageSettings(true);
-    } else if (!urlState.isEditing && showPageSettings) {
-      // Close settings panel when navigating away from edit route
-      setShowPageSettings(false);
-      setEditingPage(null);
     }
-  }, [urlState.isEditing, selectedPage, showPageSettings]);
+  }, [urlState.isEditing, urlState.resourceId, selectedPage, showPageSettings]);
 
   // Get store actions
   const { createPage, updatePage, duplicatePage, deletePage, createFolder, updateFolder, duplicateFolder, deleteFolder, batchReorderPagesAndFolders } = usePagesStore();
