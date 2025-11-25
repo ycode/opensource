@@ -1,14 +1,10 @@
-'use client';
-
-import YCodeBuilder from '../YCodeBuilderMain';
-
 /**
  * Dynamic route for editing a specific component
  * URL: /ycode/components/[id]
  *
- * This route renders the same YCodeBuilder component.
- * The main editor reads the URL and navigates to the component automatically.
+ * The YCodeBuilder component is now rendered in layout.tsx to persist
+ * across route changes. This prevents remounts and duplicate API calls.
  */
 export default function ComponentRoute() {
-  return <YCodeBuilder />;
+  return null;
 }

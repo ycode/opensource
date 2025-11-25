@@ -1,14 +1,10 @@
-'use client';
-
-import YCodeBuilder from '../../components/YCodeBuilderMain';
-
 /**
  * Dynamic route for viewing page layers
  * URL: /ycode/layers/[id]
  *
- * This route renders the same YCodeBuilder component.
- * The main editor reads the URL and shows the layers panel.
+ * The YCodeBuilder component is now rendered in layout.tsx to persist
+ * across route changes. This prevents remounts and duplicate API calls.
  */
 export default function LayersRoute() {
-  return <YCodeBuilder />;
+  return null;
 }

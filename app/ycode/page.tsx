@@ -1,14 +1,10 @@
-'use client';
-
-import YCodeBuilder from './components/YCodeBuilderMain';
-
 /**
  * Base route for YCode editor
  * URL: /ycode
  *
- * This route renders the same YCodeBuilder component as all other routes.
- * By using the same component everywhere, we prevent remounts during navigation.
+ * The YCodeBuilder component is now rendered in layout.tsx to persist
+ * across route changes. This prevents remounts and duplicate API calls.
  */
 export default function YCodeEditorRoute() {
-  return <YCodeBuilder />;
+  return null;
 }
