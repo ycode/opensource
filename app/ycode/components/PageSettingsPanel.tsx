@@ -8,14 +8,13 @@
 
 import React, { useState, useEffect, useMemo, useRef, useImperativeHandle } from 'react';
 import Image from 'next/image';
-import type { Page, PageSettings, Asset } from '@/types';
+import type { Page, PageSettings, Asset, FieldVariable } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
-import { useEditorUrl } from '@/hooks/use-editor-url';
 import {
   Field,
   FieldContent,
@@ -36,6 +35,7 @@ import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import Icon from '@/components/ui/icon';
 import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug, sanitizeSlug } from '@/lib/page-utils';
 import { isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
@@ -85,7 +85,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
   const [seoTitle, setSeoTitle] = useState('');
   const [seoDescription, setSeoDescription] = useState('');
-  const [seoImageId, setSeoImageId] = useState<string | null>(null);
+  const [seoImage, setSeoImage] = useState<string | FieldVariable | null>(null);
   const [seoNoindex, setSeoNoindex] = useState(false);
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -104,9 +104,21 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const { collections, fields } = useCollectionsStore();
 
   const [uploadedAssetCache, setUploadedAssetCache] = useState<Asset | null>(null);
+  // Only use asset hook if seoImage is a string (asset ID)
+  const seoImageId = typeof seoImage === 'string' ? seoImage : null;
   const seoImageAsset = useAsset(seoImageId);
   const { addAsset, removeAsset } = useAssetsStore();
   const displayAsset = uploadedAssetCache || seoImageAsset;
+
+  // Helper to check if seoImage is a FieldVariable
+  const isSeoImageFieldVariable = (image: string | FieldVariable | null): image is FieldVariable => {
+    return image !== null && typeof image === 'object' && 'type' in image && image.type === 'field';
+  };
+
+  // Check if there's any image displayed (including temp preview)
+  const hasImage = seoImage !== null || imagePreviewUrl !== null || displayAsset !== null;
+  // Check if there's an uploaded asset (not a field variable)
+  const hasUploadedAsset = (imagePreviewUrl || displayAsset) && !isSeoImageFieldVariable(seoImage);
 
   useEffect(() => {
     if (uploadedAssetCache && seoImageAsset && uploadedAssetCache.id === seoImageAsset.id) {
@@ -129,7 +141,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     isIndex: boolean;
     seoTitle: string;
     seoDescription: string;
-    seoImageId: string | null;
+    seoImage: string | FieldVariable | null;
     seoNoindex: boolean;
     customCodeHead: string;
     customCodeBody: string;
@@ -182,7 +194,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       isIndex !== initial.isIndex ||
       seoTitle !== initial.seoTitle ||
       seoDescription !== initial.seoDescription ||
-      seoImageId !== initial.seoImageId ||
+      seoImage !== initial.seoImage ||
       seoNoindex !== initial.seoNoindex ||
       customCodeHead !== initial.customCodeHead ||
       customCodeBody !== initial.customCodeBody ||
@@ -258,7 +270,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         initialValuesRef.current.isIndex = isPageIndex;
         initialValuesRef.current.seoTitle = settings?.seo?.title || '';
         initialValuesRef.current.seoDescription = settings?.seo?.description || '';
-        initialValuesRef.current.seoImageId = settings?.seo?.image || null;
+        initialValuesRef.current.seoImage = settings?.seo?.image || null;
         initialValuesRef.current.seoNoindex = isPageErrorPage ? true : (settings?.seo?.noindex || false);
         initialValuesRef.current.customCodeHead = settings?.custom_code?.head || '';
         initialValuesRef.current.customCodeBody = settings?.custom_code?.body || '';
@@ -300,7 +312,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       const initialFolderId = currentPage.page_folder_id;
       const initialSeoTitle = settings?.seo?.title || '';
       const initialSeoDescription = settings?.seo?.description || '';
-      const initialSeoImageId = settings?.seo?.image || null; // Asset ID
+      const initialSeoImage = settings?.seo?.image || null; // Asset ID or FieldVariable
       const initialSeoNoindex = isErrorPage ? true : (settings?.seo?.noindex || false);
       const initialCustomCodeHead = settings?.custom_code?.head || '';
       const initialCustomCodeBody = settings?.custom_code?.body || '';
@@ -315,7 +327,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setIsIndex(initialIsIndex);
       setSeoTitle(initialSeoTitle);
       setSeoDescription(initialSeoDescription);
-      setSeoImageId(initialSeoImageId);
+      setSeoImage(initialSeoImage);
       setSeoNoindex(initialSeoNoindex);
       setCustomCodeHead(initialCustomCodeHead);
       setCustomCodeBody(initialCustomCodeBody);
@@ -340,7 +352,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         isIndex: initialIsIndex,
         seoTitle: initialSeoTitle,
         seoDescription: initialSeoDescription,
-        seoImageId: initialSeoImageId,
+        seoImage: initialSeoImage,
         seoNoindex: initialSeoNoindex,
         customCodeHead: initialCustomCodeHead,
         customCodeBody: initialCustomCodeBody,
@@ -356,7 +368,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setIsIndex(false);
       setSeoTitle('');
       setSeoDescription('');
-      setSeoImageId(null);
+      setSeoImage(null);
       setSeoNoindex(false);
       setCustomCodeHead('');
       setCustomCodeBody('');
@@ -380,7 +392,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         isIndex: false,
         seoTitle: '',
         seoDescription: '',
-        seoImageId: null,
+        seoImage: null,
         seoNoindex: false,
         customCodeHead: '',
         customCodeBody: '',
@@ -531,12 +543,93 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     }
 
     setPendingImageFile(null);
-    setSeoImageId(null);
+    setSeoImage(null);
     setUploadedAssetCache(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  // Render Select component for image field variables
+  const renderImageFieldSelect = (clearAsset: boolean = false) => {
+    if (!isDynamicPage) return null;
+
+    const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+    const activeCollection = collections.find(c => c.id === activeCollectionId);
+    const activeCollectionName = activeCollection?.name || 'this collection';
+    const collectionFields = fields[activeCollectionId] || [];
+    const imageFields = collectionFields.filter(field => field.type === 'image');
+    const hasImageFields = imageFields.length > 0;
+
+    // Get the selected field name if a field variable is selected
+    const selectedField = isSeoImageFieldVariable(seoImage)
+      ? imageFields.find(f => f.id === seoImage.data.field_id)
+      : null;
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div>
+            <Select
+              value={isSeoImageFieldVariable(seoImage) ? seoImage.data.field_id : undefined}
+              onValueChange={(fieldId) => {
+                setSeoImage({
+                  type: 'field',
+                  data: {
+                    field_id: fieldId,
+                    relationships: [],
+                  },
+                });
+
+                // Clear uploaded file if switching to field variable
+                if (pendingImageFile) {
+                  setPendingImageFile(null);
+                  if (imagePreviewUrl) {
+                    URL.revokeObjectURL(imagePreviewUrl);
+                    setImagePreviewUrl(null);
+                  }
+                }
+
+                // Clear asset cache and delete asset if needed
+                if (clearAsset) {
+                  setUploadedAssetCache(null);
+                  // Delete asset if it was a string
+                  if (typeof seoImage === 'string' && seoImage) {
+                    deleteAssetApi(seoImage).catch(console.error);
+                    removeAsset(seoImage);
+                  }
+                }
+              }}
+              disabled={!hasImageFields}
+            >
+              <SelectTrigger variant={hasUploadedAsset ? 'overlay' : 'default'} className="w-auto">
+                <span className="flex items-center gap-2">
+                  <Icon name="database" className="size-3" />
+                  {selectedField ? selectedField.name : 'Select field'}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {hasImageFields && (
+                  <>
+                    {imageFields.map((field) => (
+                      <SelectItem key={field.id} value={field.id}>
+                        {field.name}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </TooltipTrigger>
+        {!hasImageFields && (
+          <TooltipContent>
+            <p>No image fields available in &quot;{activeCollectionName}&quot;</p>
+          </TooltipContent>
+        )}
+      </Tooltip>
+    );
   };
 
   const handleCollectionChange = (value: string) => {
@@ -572,7 +665,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         setIsIndex(initialValuesRef.current.isIndex);
         setSeoTitle(initialValuesRef.current.seoTitle);
         setSeoDescription(initialValuesRef.current.seoDescription);
-        setSeoImageId(initialValuesRef.current.seoImageId);
+        setSeoImage(initialValuesRef.current.seoImage);
         setSeoNoindex(initialValuesRef.current.seoNoindex);
         setCustomCodeHead(initialValuesRef.current.customCodeHead);
         setCustomCodeBody(initialValuesRef.current.customCodeBody);
@@ -606,7 +699,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         setIsIndex(initialValuesRef.current.isIndex);
         setSeoTitle(initialValuesRef.current.seoTitle);
         setSeoDescription(initialValuesRef.current.seoDescription);
-        setSeoImageId(initialValuesRef.current.seoImageId);
+        setSeoImage(initialValuesRef.current.seoImage);
         setSeoNoindex(initialValuesRef.current.seoNoindex);
         setCustomCodeHead(initialValuesRef.current.customCodeHead);
         setCustomCodeBody(initialValuesRef.current.customCodeBody);
@@ -773,7 +866,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     setError(null);
 
     try {
-      let finalSeoImageId: string | null = seoImageId;
+      let finalSeoImage: string | FieldVariable | null = seoImage;
 
       if (pendingImageFile) {
         const uploadedAsset = await uploadFileApi(pendingImageFile, 'page-settings', 'images');
@@ -782,19 +875,21 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
           throw new Error('Failed to upload image');
         }
 
-        finalSeoImageId = uploadedAsset.id;
+        finalSeoImage = uploadedAsset.id;
         setUploadedAssetCache(uploadedAsset);
         addAsset(uploadedAsset);
 
-        if (seoImageId && seoImageId !== uploadedAsset.id) {
-          await deleteAssetApi(seoImageId);
-          removeAsset(seoImageId);
+        // Delete old asset if it was a string (asset ID) and different from new one
+        if (typeof seoImage === 'string' && seoImage !== uploadedAsset.id) {
+          await deleteAssetApi(seoImage);
+          removeAsset(seoImage);
         }
-      } else if (!seoImageId && currentPage?.settings?.seo?.image) {
-        const existingImageId = currentPage.settings.seo.image;
-        if (existingImageId) {
-          await deleteAssetApi(existingImageId);
-          removeAsset(existingImageId);
+      } else if (!seoImage && currentPage?.settings?.seo?.image) {
+        // Delete existing asset if it was a string (asset ID)
+        const existingImage = currentPage.settings.seo.image;
+        if (typeof existingImage === 'string') {
+          await deleteAssetApi(existingImage);
+          removeAsset(existingImage);
         }
       }
 
@@ -809,7 +904,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         seo: {
           title: seoTitle.trim(),
           description: seoDescription.trim(),
-          image: isErrorPage ? null : finalSeoImageId,
+          image: isErrorPage ? null : finalSeoImage,
           noindex: isErrorPage ? true : seoNoindex,
         },
         custom_code: {
@@ -855,7 +950,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       setSeoTitle(trimmedSeoTitle);
       setSeoDescription(trimmedSeoDescription);
       setSeoNoindex(normalizedSeoNoindex);
-      setSeoImageId(finalSeoImageId);
+      setSeoImage(finalSeoImage);
       setCustomCodeHead(trimmedCustomCodeHead);
       setCustomCodeBody(trimmedCustomCodeBody);
       setAuthPassword(trimmedAuthPassword);
@@ -872,7 +967,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         isIndex,
         seoTitle: trimmedSeoTitle,
         seoDescription: trimmedSeoDescription,
-        seoImageId: finalSeoImageId,
+        seoImage: finalSeoImage,
         seoNoindex: normalizedSeoNoindex,
         customCodeHead: trimmedCustomCodeHead,
         customCodeBody: trimmedCustomCodeBody,
@@ -1298,7 +1393,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                               onChange={handleFileSelect}
                             />
                             <div className="bg-input rounded-lg w-full aspect-[1.91/1] flex items-center justify-center overflow-hidden relative">
-                              {(imagePreviewUrl || displayAsset) && (
+                              {isSeoImageFieldVariable(seoImage) ? null : (imagePreviewUrl || displayAsset) ? (
                                 <Image
                                   className="object-cover"
                                   src={imagePreviewUrl || displayAsset?.public_url || ''}
@@ -1306,36 +1401,53 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                                   fill
                                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                 />
-                              )}
+                              ) : null}
 
-                              {!(imagePreviewUrl || displayAsset) ? (
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => fileInputRef.current?.click()}
-                                >
-                                  Upload
-                                </Button>
-                              ) : (
-                                <div className="flex gap-2 relative z-10">
-                                  <Button
-                                    variant="overlay"
-                                    size="sm"
-                                    onClick={() => fileInputRef.current?.click()}
-                                  >
-                                    <Icon name="refresh" />
-                                    Replace
-                                  </Button>
-                                  <Button
-                                    variant="overlay"
-                                    size="sm"
-                                    onClick={handleRemoveImage}
-                                  >
-                                    <Icon name="trash" />
-                                    Delete
-                                  </Button>
-                                </div>
-                              )}
+                              {(() => {
+                                const hasFieldVariable = isSeoImageFieldVariable(seoImage);
+
+                                return (
+                                  <div className="flex items-center gap-2 relative z-10">
+                                    {hasUploadedAsset ? (
+                                      <Button
+                                        variant="overlay"
+                                        size="sm"
+                                        onClick={() => fileInputRef.current?.click()}
+                                      >
+                                        <Icon name="refresh" />
+                                        Replace
+                                      </Button>
+                                    ) : (
+                                      <>
+                                        {!hasFieldVariable && (
+                                          <Button
+                                            variant={hasImage ? 'overlay' : 'secondary'}
+                                            size="sm"
+                                            onClick={() => fileInputRef.current?.click()}
+                                          >
+                                            Upload image
+                                          </Button>
+                                        )}
+
+                                        {!hasFieldVariable && !hasUploadedAsset && <span className="text-muted-foreground">or</span>}
+
+                                        {!hasUploadedAsset && renderImageFieldSelect(hasFieldVariable)}
+                                      </>
+                                    )}
+
+                                    {(hasUploadedAsset || hasFieldVariable) && (
+                                      <Button
+                                        variant={hasUploadedAsset ? 'overlay' : 'secondary'}
+                                        size="sm"
+                                        onClick={handleRemoveImage}
+                                      >
+                                        <Icon name="trash" />
+                                        Remove
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                         </Field>

@@ -234,7 +234,7 @@ export interface PageSettings {
     password: string;
   };
   seo?: {
-    image: string | null; // Asset ID
+    image: string | FieldVariable | null; // Asset ID or Field Variable (image field)
     title: string;
     description: string;
     noindex: boolean; // Prevent search engines from indexing the page
@@ -419,7 +419,7 @@ export interface AuthState {
 }
 
 // Collection Types (EAV Architecture)
-export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text';
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text' | 'image';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {

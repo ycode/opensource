@@ -23,7 +23,7 @@ const formSchema = z.object({
   name: z.string().min(2, {
     message: 'Name must be at least 2 characters.',
   }),
-  type: z.enum(['text', 'number', 'boolean', 'date', 'reference', 'rich_text'], {
+  type: z.enum(['text', 'number', 'boolean', 'date', 'reference', 'rich_text', 'image'], {
     message: 'Please select a field type.',
   }),
   default: z.string().optional(),

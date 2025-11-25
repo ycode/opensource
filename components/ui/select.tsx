@@ -33,6 +33,7 @@ const selectVariants = cva(
       variant: {
         default: 'bg-input hover:bg-input/60',
         ghost: 'hover:bg-input dark:hover:bg-input/70 border-transparent shadow-none backdrop-blur',
+        overlay: 'bg-white/90 text-neutral-800 hover:bg-white dark:bg-neutral-800/90 dark:text-white dark:hover:bg-neutral-800 disabled:opacity-80',
       },
       size: {
         default: 'h-9',

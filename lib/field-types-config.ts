@@ -1,6 +1,6 @@
 /**
  * Field Types Configuration
- * 
+ *
  * Centralized configuration for collection field types.
  * Used across CMS components for consistent field type handling.
  */
@@ -12,6 +12,7 @@ export const FIELD_TYPES = [
   { value: 'boolean', label: 'Boolean' },
   { value: 'date', label: 'Date' },
   { value: 'reference', label: 'Reference' },
+  { value: 'image', label: 'Image' },
 ] as const;
 
 export type FieldType = typeof FIELD_TYPES[number]['value'];
