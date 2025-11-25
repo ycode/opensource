@@ -58,7 +58,7 @@ interface RightSidebarProps {
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
 }
 
-export default function RightSidebar({
+const RightSidebar = React.memo(function RightSidebar({
   selectedLayerId,
   onLayerUpdate,
 }: RightSidebarProps) {
@@ -78,9 +78,15 @@ export default function RightSidebar({
   const [newAttributeValue, setNewAttributeValue] = useState('');
   const [classesOpen, setClassesOpen] = useState(true);
 
-  const { currentPageId, activeBreakpoint, editingComponentId } = useEditorStore();
-  const { draftsByPageId } = usePagesStore();
-  const { getComponentById, componentDrafts } = useComponentsStore();
+  // Optimize store subscriptions - use selective selectors
+  const currentPageId = useEditorStore((state) => state.currentPageId);
+  const activeBreakpoint = useEditorStore((state) => state.activeBreakpoint);
+  const editingComponentId = useEditorStore((state) => state.editingComponentId);
+  
+  const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
+  
+  const getComponentById = useComponentsStore((state) => state.getComponentById);
+  const componentDrafts = useComponentsStore((state) => state.componentDrafts);
 
   const selectedLayer: Layer | null = useMemo(() => {
     if (!selectedLayerId) return null;
@@ -670,4 +676,6 @@ export default function RightSidebar({
       </Tabs>
     </div>
   );
-}
+});
+
+export default RightSidebar;

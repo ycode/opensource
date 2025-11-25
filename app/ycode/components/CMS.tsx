@@ -91,7 +91,7 @@ function SortableRow({ item, isManualMode, children, onDuplicate, onDelete }: So
   );
 }
 
-export default function CMS() {
+const CMS = React.memo(function CMS() {
   const {
     selectedCollectionId,
     collections,
@@ -1218,4 +1218,6 @@ export default function CMS() {
       )}
     </div>
   );
-}
+});
+
+export default CMS;
