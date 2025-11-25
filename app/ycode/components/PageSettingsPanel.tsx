@@ -69,6 +69,34 @@ export interface PageFormData {
   settings?: PageSettings;
 }
 
+// Helper to check if image is a FieldVariable
+const isSeoImageFieldVariable = (image: string | FieldVariable | null): image is FieldVariable => {
+  return image !== null && typeof image === 'object' && 'type' in image && image.type === 'field';
+};
+
+// Helper to compare seoImage values (handles FieldVariable deep comparison)
+const compareSeoImage = (
+  a: string | FieldVariable | null,
+  b: string | FieldVariable | null
+): boolean => {
+  // Both null or both same string
+  if (a === b) return true;
+
+  // One is null, other is not
+  if (a === null || b === null) return false;
+
+  // Both are strings
+  if (typeof a === 'string' && typeof b === 'string') return a === b;
+
+  // Both are FieldVariables - compare field_id
+  if (isSeoImageFieldVariable(a) && isSeoImageFieldVariable(b)) {
+    return a.data.field_id === b.data.field_id;
+  }
+
+  // Different types
+  return false;
+};
+
 const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettingsPanelProps>(({
   isOpen,
   onClose,
@@ -109,11 +137,6 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const seoImageAsset = useAsset(seoImageId);
   const { addAsset, removeAsset } = useAssetsStore();
   const displayAsset = uploadedAssetCache || seoImageAsset;
-
-  // Helper to check if seoImage is a FieldVariable
-  const isSeoImageFieldVariable = (image: string | FieldVariable | null): image is FieldVariable => {
-    return image !== null && typeof image === 'object' && 'type' in image && image.type === 'field';
-  };
 
   // Check if there's any image displayed (including temp preview)
   const hasImage = seoImage !== null || imagePreviewUrl !== null || displayAsset !== null;
@@ -194,7 +217,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       isIndex !== initial.isIndex ||
       seoTitle !== initial.seoTitle ||
       seoDescription !== initial.seoDescription ||
-      seoImage !== initial.seoImage ||
+      !compareSeoImage(seoImage, initial.seoImage) ||
       seoNoindex !== initial.seoNoindex ||
       customCodeHead !== initial.customCodeHead ||
       customCodeBody !== initial.customCodeBody ||
@@ -212,7 +235,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
     return hasChanges;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImageId, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, pendingImageFile, saveCounter]);
+  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImage, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, pendingImageFile, saveCounter]);
 
   // Expose method to check for unsaved changes externally
   useImperativeHandle(ref, () => ({
@@ -559,7 +582,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     const activeCollection = collections.find(c => c.id === activeCollectionId);
     const activeCollectionName = activeCollection?.name || 'this collection';
     const collectionFields = fields[activeCollectionId] || [];
-    const imageFields = collectionFields.filter(field => field.type === 'image');
+    const imageFields = collectionFields // .filter(field => field.type === 'image');
     const hasImageFields = imageFields.length > 0;
 
     // Get the selected field name if a field variable is selected
@@ -572,6 +595,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         <TooltipTrigger asChild>
           <div>
             <Select
+              key={isSeoImageFieldVariable(seoImage) ? seoImage.data.field_id : 'none'}
               value={isSeoImageFieldVariable(seoImage) ? seoImage.data.field_id : undefined}
               onValueChange={(fieldId) => {
                 setSeoImage({

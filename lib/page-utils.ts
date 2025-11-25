@@ -2,7 +2,6 @@
  * Utilities for pages and folders
  */
 
-import type { Metadata } from 'next';
 import { IconProps } from '@/components/ui/icon';
 import type { Page, PageFolder, PageSettings, FieldVariable } from '../types';
 
@@ -871,92 +870,6 @@ export function validateRootIndexPageRequirement(
   }
 
   return { isValid: true };
-}
-
-/**
- * Generate metadata options
- */
-export interface GenerateMetadataOptions {
-  /** Include [Preview] prefix in title */
-  isPreview?: boolean;
-  /** Fallback title if page has no name */
-  fallbackTitle?: string;
-  /** Fallback description if page has no SEO description */
-  fallbackDescription?: string;
-}
-
-/**
- * Generate Next.js metadata from a page object
- * Handles SEO settings, Open Graph, Twitter Card, and noindex rules
- *
- * @param page - The page object containing settings and metadata
- * @param options - Optional configuration for metadata generation
- * @returns Next.js Metadata object
- */
-export function generatePageMetadata(
-  page: Page,
-  options: GenerateMetadataOptions = {}
-): Metadata {
-  const { isPreview = false, fallbackTitle, fallbackDescription } = options;
-
-  const seo = page.settings?.seo;
-  const isErrorPage = page.error_page !== null;
-
-  // Build title
-  let title = seo?.title || page.name || fallbackTitle || 'Page';
-  if (isPreview) {
-    title = `[Preview] ${title}`;
-  }
-
-  // Build description
-  const description =
-    seo?.description ||
-    fallbackDescription ||
-    `${page.name} - Built with YCode`;
-
-  // Base metadata
-  const metadata: Metadata = {
-    title,
-    description,
-  };
-
-  // Add Open Graph and Twitter Card metadata (not for error pages)
-  if (seo?.image && !isErrorPage) {
-    // seo.image can be Asset ID (string), FieldVariable, or null
-    const imageUrl = typeof seo.image === 'string' ? seo.image : null;
-
-    // TODO: Handle field variable
-
-    if (imageUrl) {
-      metadata.openGraph = {
-        title,
-        description,
-        images: [
-          {
-            url: imageUrl,
-            width: 1200,
-            height: 630,
-          },
-        ],
-      };
-      metadata.twitter = {
-        card: 'summary_large_image',
-        title,
-        description,
-        images: [imageUrl],
-      };
-    }
-  }
-
-  // Add noindex if enabled, if error page, or if preview
-  if (seo?.noindex || isErrorPage || isPreview) {
-    metadata.robots = {
-      index: false,
-      follow: false,
-    };
-  }
-
-  return metadata;
 }
 
 /**

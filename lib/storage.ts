@@ -1,7 +1,11 @@
 /**
  * Storage for Supabase credentials.
  * Uses environment variables on Vercel, file-based storage locally.
+ * 
+ * SERVER-ONLY: This module uses Node.js fs module and should never be imported in client code.
  */
+
+import 'server-only';
 
 import fs from 'fs/promises';
 import path from 'path';

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { fetchHomepage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import { generatePageMetadata } from '@/lib/page-utils';
+import { generatePageMetadata } from '@/lib/generate-page-metadata';
 import type { Metadata } from 'next';
 
 // Incremental Static Regeneration (ISR) with on-demand revalidation

@@ -1,7 +1,7 @@
 import PageRenderer from '@/components/PageRenderer';
 import { fetchErrorPage } from '@/lib/page-fetcher';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import { generatePageMetadata } from '@/lib/page-utils';
+import { generatePageMetadata } from '@/lib/generate-page-metadata';
 import type { Metadata } from 'next';
 
 interface ErrorPagePreviewProps {

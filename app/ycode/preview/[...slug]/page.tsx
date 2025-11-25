@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import { generatePageMetadata } from '@/lib/page-utils';
+import { generatePageMetadata } from '@/lib/generate-page-metadata';
 
 // Force dynamic rendering - no caching for preview
 export const dynamic = 'force-dynamic';
@@ -75,5 +75,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   return generatePageMetadata(data.page, {
     isPreview: true,
+    collectionItem: data.collectionItem,
   });
 }
