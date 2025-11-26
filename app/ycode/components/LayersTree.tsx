@@ -26,11 +26,12 @@ import LayerContextMenu from './LayerContextMenu';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 
 // 6. Utils/lib
 import { cn } from '@/lib/utils';
 import { flattenTree, type FlattenedItem } from '@/lib/tree-utilities';
-import { canHaveChildren } from '@/lib/layer-utils';
+import { canHaveChildren, getCollectionVariable } from '@/lib/layer-utils';
 import { hasStyleOverrides } from '@/lib/layer-style-utils';
 
 // 7. Types
@@ -62,6 +63,7 @@ interface LayerRowProps {
   onMultiSelect: (id: string, modifiers: { meta: boolean; shift: boolean }) => void;
   onToggle: (id: string) => void;
   pageId: string;
+  selectedLayerId: string | null; // Added for context menu
 }
 
 // Element icon mapping - Now supports both old 'type' and new 'name' properties
@@ -120,7 +122,7 @@ const elementIcons: Record<string, React.ElementType> = {
 };
 
 // Helper function to get display name for layer
-function getLayerDisplayName(layer: Layer, component?: { name: string } | null): string {
+function getLayerDisplayName(layer: Layer, component?: { name: string } | null, collectionName?: string): string {
   // Special case for Body layer
   if (layer.id === 'body') {
     return 'Body';
@@ -129,6 +131,14 @@ function getLayerDisplayName(layer: Layer, component?: { name: string } | null):
   // Use component name if this is a component instance
   if (component) {
     return component.name;
+  }
+
+  // Special case for collection layers
+  if (layer.type === 'collection' || layer.name === 'collection') {
+    if (collectionName) {
+      return `Collection (${collectionName})`;
+    }
+    return 'Collection';
   }
 
   // Use custom name if available
@@ -154,6 +164,11 @@ function getLayerDisplayName(layer: Layer, component?: { name: string } | null):
 
 // Helper function to get icon key for a layer
 function getIconKey(layer: Layer): string {
+  // Special case for collection layers
+  if (layer.type === 'collection' || layer.name === 'collection') {
+    return 'database';
+  }
+  
   // Use name property (new system) or fallback to type (old system)
   return layer.name || layer.type || 'div';
 }
@@ -189,9 +204,11 @@ function LayerRow({
   onMultiSelect,
   onToggle,
   pageId,
+  selectedLayerId,
 }: LayerRowProps) {
   const { getStyleById } = useLayerStylesStore();
   const { getComponentById } = useComponentsStore();
+  const { collections } = useCollectionsStore();
   const { editingComponentId } = useEditorStore();
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
@@ -214,6 +231,17 @@ function LayerRow({
   const appliedComponent = node.layer.componentId ? getComponentById(node.layer.componentId) : null;
   const isComponentInstance = !!appliedComponent;
 
+  // Get collection name if this is a collection layer
+  const collectionName = node.layer.collection?.id
+    ? collections.find(c => c.id === node.layer.collection?.id)?.name
+    : undefined;
+  
+  // Also check new variables structure
+  const collectionVariable = getCollectionVariable(node.layer);
+  const finalCollectionName = collectionVariable?.id
+    ? collections.find(c => c.id === collectionVariable.id)?.name
+    : collectionName;
+
   // Component instances should not show children in the tree (unless editing master)
   // Children can only be edited via "Edit master component"
   const shouldHideChildren = isComponentInstance && !editingComponentId;
@@ -233,6 +261,7 @@ function LayerRow({
       pageId={pageId}
       isLocked={isLocked}
       onLayerSelect={onSelect}
+      selectedLayerId={selectedLayerId}
     >
       <div className="relative">
         {/* Vertical connector lines - one for each depth level */}
@@ -384,7 +413,7 @@ function LayerRow({
 
           {/* Label */}
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
-            {getLayerDisplayName(node.layer, appliedComponent)}
+            {getLayerDisplayName(node.layer, appliedComponent, finalCollectionName)}
           </span>
 
           {/* Style Indicator */}
@@ -935,6 +964,7 @@ export default function LayersTree({
               onMultiSelect={handleMultiSelect}
               onToggle={handleToggle}
               pageId={pageId}
+              selectedLayerId={selectedLayerId}
             />
           );
         })}

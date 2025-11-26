@@ -16,6 +16,8 @@
   let currentUIState = 'neutral'; // Active UI state for visual preview
   let componentMap = {}; // Maps layer IDs to their root component layer ID
   let editingComponentId = null; // ID of component being edited
+  let collectionItems = {}; // Collection items by collection ID
+  let collectionFields = {}; // Collection fields by collection ID
   
   // Root element
   const root = document.getElementById('canvas-root');
@@ -43,6 +45,14 @@
         selectedLayerId = message.payload.selectedLayerId;
         componentMap = message.payload.componentMap || {};
         editingComponentId = message.payload.editingComponentId;
+        collectionItems = message.payload.collectionItems || {};
+        collectionFields = message.payload.collectionFields || {};
+        console.log('[Canvas] Received UPDATE_LAYERS', { 
+          layersCount: layers.length,
+          collectionItemsKeys: Object.keys(collectionItems),
+          collectionItems,
+          collectionFieldsKeys: Object.keys(collectionFields)
+        });
         render();
         break;
         
@@ -326,9 +336,91 @@
   
   /**
    * Get text content from layer
+   * If collectionItemData is provided, use it for field variable resolution
+   * If collectionId is provided, validates that referenced fields still exist
    */
-  function getText(layer) {
-    return layer.text || layer.content || '';
+  function getText(layer, collectionItemData, collectionId) {
+    const text = layer.text || layer.content || '';
+    
+    console.log('[getText]', {
+      layerId: layer.id,
+      hasVariables: !!layer.variables?.text,
+      variablesText: layer.variables?.text,
+      text,
+      collectionItemData
+    });
+    
+    // Check if text is a field variable
+    if (text && typeof text === 'object' && text.type === 'field' && text.data && text.data.field_id) {
+      // Resolve field variable from collection item data
+      if (collectionItemData) {
+        const fieldId = text.data.field_id;
+        const value = collectionItemData[fieldId];
+        if (value !== undefined && value !== null) {
+          return value;
+        }
+      }
+      return ''; // No data to resolve
+    }
+    
+    // Check if it's inline variable content (variables.text structure)
+    if (layer.variables && layer.variables.text) {
+      const inlineContent = layer.variables.text;
+      let resolvedText = inlineContent.data || '';
+      
+      console.log('[getText] Processing inline variables', {
+        data: resolvedText,
+        variables: inlineContent.variables,
+        hasCollectionData: !!collectionItemData
+      });
+      
+      // Replace ID-based placeholders: <ycode-inline-variable id="uuid"></ycode-inline-variable>
+      const regex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
+      
+      if (collectionItemData && inlineContent.variables) {
+        // Get fields for this collection to validate existence
+        const fieldsForCollection = collectionId && collectionFields[collectionId] ? collectionFields[collectionId] : [];
+        
+        // Resolve with actual field values
+        resolvedText = resolvedText.replace(regex, function(match, variableId) {
+          const variable = inlineContent.variables[variableId];
+          console.log('[getText] Resolving variable', { variableId, variable, match, collectionId, fieldsCount: fieldsForCollection.length });
+          if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
+            const fieldId = variable.data.field_id;
+            
+            // Check if field still exists in collection schema
+            const fieldExists = fieldsForCollection.some(f => f.id === fieldId);
+            console.log('[getText] Field validation', { fieldId, fieldExists, fields: fieldsForCollection.map(f => ({ id: f.id, name: f.name })) });
+            
+            if (!fieldExists) {
+              console.log('[getText] Field deleted, showing empty string');
+              return ''; // Field was deleted, show nothing
+            }
+            
+            const value = collectionItemData[fieldId];
+            if (value !== undefined && value !== null) {
+              console.log('[getText] Resolved to value:', value);
+              return value;
+            }
+          }
+          return ''; // Empty string for deleted/missing fields
+        });
+      } else {
+        // No collection data - just remove the tags completely
+        resolvedText = resolvedText.replace(regex, '');
+      }
+      
+      console.log('[getText] Final resolved text:', resolvedText);
+      return resolvedText;
+    }
+    
+    // Check if text is a string but contains variable tags (shouldn't happen, but handle it)
+    if (typeof text === 'string' && text.includes('<ycode-inline-variable')) {
+      // Strip out variable tags completely for display
+      return text.replace(/<ycode-inline-variable[^>]*>.*?<\/ycode-inline-variable>/g, '');
+    }
+    
+    return text;
   }
   
   /**
@@ -370,10 +462,40 @@
   /**
    * Render a single layer and its children
    */
-  function renderLayer(layer) {
+  function renderLayer(layer, collectionItemData, parentCollectionId) {
     // Skip hidden layers
     if (layer.settings && layer.settings.hidden) {
       return null;
+    }
+    
+    // Check if this is a collection layer
+    const isCollectionLayer = layer.type === 'collection' || layer.name === 'collection';
+    const collectionVariable = isCollectionLayer ? (layer.variables?.collection || layer.collection) : null;
+    const collectionId = collectionVariable?.id;
+    
+    // Use parent collection ID if not a collection layer itself
+    const activeCollectionId = collectionId || parentCollectionId;
+    
+    // Debug logging for all layers with variables
+    if (layer.variables) {
+      console.log('[Canvas Layer with Variables]', {
+        layerId: layer.id,
+        layerName: layer.name,
+        hasVariablesText: !!layer.variables.text,
+        variablesText: layer.variables.text,
+        collectionItemData
+      });
+    }
+    
+    // Debug logging for collection layers
+    if (isCollectionLayer) {
+      console.log('[Canvas Collection Layer]', {
+        layerId: layer.id,
+        collectionVariable,
+        collectionId,
+        hasChildren: !!(layer.children && layer.children.length > 0),
+        childrenCount: layer.children?.length || 0
+      });
     }
     
     const tag = getHtmlTag(layer);
@@ -421,21 +543,56 @@
     }
     
     // Add text content
-    const textContent = getText(layer);
+    const textContent = getText(layer, collectionItemData, activeCollectionId);
     const hasChildren = layer.children && layer.children.length > 0;
     
     if (textContent && !hasChildren) {
       element.textContent = textContent;
     }
     
-    // Render children
+    // Render children - handle collection layers specially
     if (hasChildren) {
-      layer.children.forEach(child => {
-        const childElement = renderLayer(child);
-        if (childElement) {
-          element.appendChild(childElement);
+      if (isCollectionLayer && collectionId) {
+        // Collection layer: render children once for each collection item
+        const items = collectionItems[collectionId] || [];
+        console.log('[Canvas] Rendering collection children', {
+          collectionId,
+          itemsCount: items.length,
+          items,
+          allCollectionIds: Object.keys(collectionItems),
+          hasItemsForThisCollection: !!collectionItems[collectionId]
+        });
+        
+        if (items.length > 0) {
+          items.forEach((item, index) => {
+            console.log('[Canvas] Rendering item', index, item);
+            const itemWrapper = document.createElement('div');
+            itemWrapper.setAttribute('data-collection-item-id', item.id);
+            
+            layer.children.forEach(child => {
+              console.log('[Canvas] Rendering child for item', { childId: child.id, childType: child.type, childName: child.name, itemValues: item.values });
+              const childElement = renderLayer(child, item.values, activeCollectionId);
+              console.log('[Canvas] Child element result:', childElement);
+              if (childElement) {
+                itemWrapper.appendChild(childElement);
+              }
+            });
+            
+            console.log('[Canvas] Item wrapper children count:', itemWrapper.children.length);
+            element.appendChild(itemWrapper);
+          });
+        } else {
+          console.warn('[Canvas] Collection has no items!', { collectionId });
         }
-      });
+      } else {
+        // Regular rendering: just render children normally
+        layer.children.forEach(child => {
+          const childElement = renderLayer(child, collectionItemData, activeCollectionId);
+          if (childElement) {
+            element.appendChild(childElement);
+          }
+        });
+      }
     }
     
     // Add event listeners in edit mode
@@ -554,7 +711,7 @@
     }
     
     // Get current text from layer data, not from DOM (to avoid badge text)
-    const currentText = getText(layer);
+    const currentText = getText(layer, collectionItemData, activeCollectionId);
     
     // Create input element
     const input = document.createElement('input');

@@ -157,5 +157,24 @@ export const structureTemplates: Record<string, BlockTemplate> = {
         layout: { isActive: true, display: 'Grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }
       }
     }
+  },
+
+  collection: {
+    icon: 'database',
+    name: 'Collection',
+    template: {
+      name: 'div',
+      type: 'collection',
+      classes: ['flex', 'flex-col', 'gap-[1rem]'],
+      children: [],
+      design: {
+        layout: { isActive: true, display: 'Flex', flexDirection: 'column', gap: '1rem' }
+      },
+      variables: {
+        collection: {
+          id: '' // To be set by user
+        }
+      }
+    }
   }
 };

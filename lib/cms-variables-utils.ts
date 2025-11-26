@@ -16,18 +16,21 @@ export function getVariableLabel(
 ): string {
   if (variable.type === 'field' && variable.data?.field_id) {
     const field = fields?.find(f => f.id === variable.data.field_id);
-    return field?.name || variable.data.field_id;
+    return field?.name || '[Deleted Field]';
   }
   return variable.type;
 }
 
 /**
  * Converts string with variables to Tiptap JSON content
- * Expects format: <ycode-inline-variable>JSON</ycode-inline-variable>
+ * Supports both ID-based format and legacy embedded JSON format
+ * ID-based: <ycode-inline-variable id="uuid"></ycode-inline-variable>
+ * Legacy: <ycode-inline-variable>JSON</ycode-inline-variable>
  */
 export function parseValueToContent(
   text: string,
-  fields?: CollectionField[]
+  fields?: CollectionField[],
+  variables?: Record<string, InlineVariable>
 ): {
   type: 'doc';
   content: Array<{
@@ -36,7 +39,7 @@ export function parseValueToContent(
   }>;
 } {
   const content: any[] = [];
-  const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+  const regex = /<ycode-inline-variable(?:\s+id="([^"]+)")?>([\s\S]*?)<\/ycode-inline-variable>/g;
   let lastIndex = 0;
   let match;
 
@@ -52,19 +55,27 @@ export function parseValueToContent(
       }
     }
 
-    // Parse the variable content as JSON
-    const variableContent = match[1].trim();
+    const variableId = match[1]; // ID from id="..." attribute
+    const variableContent = match[2].trim(); // Content inside tag
     let variable: InlineVariable | null = null;
     let label: string = 'variable';
 
-    try {
-      const parsed = JSON.parse(variableContent);
-      if (parsed.type && parsed.data) {
-        variable = parsed;
-        label = getVariableLabel(parsed, fields);
+    // Priority 1: Look up by ID if provided and variables map exists
+    if (variableId && variables && variables[variableId]) {
+      variable = variables[variableId];
+      label = getVariableLabel(variable, fields);
+    }
+    // Priority 2: Parse embedded JSON (legacy format)
+    else if (variableContent) {
+      try {
+        const parsed = JSON.parse(variableContent);
+        if (parsed.type && parsed.data) {
+          variable = parsed;
+          label = getVariableLabel(parsed, fields);
+        }
+      } catch {
+        // Invalid JSON, skip this variable
       }
-    } catch {
-      // Invalid JSON, skip this variable
     }
 
     if (variable) {

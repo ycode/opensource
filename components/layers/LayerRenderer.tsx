@@ -4,9 +4,10 @@ import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
-import { getHtmlTag, getClassesString, getText, getImageUrl } from '../../lib/layer-utils';
+import { getHtmlTag, getClassesString, getTextWithBinding, getImageUrlWithBinding, getCollectionVariable } from '../../lib/layer-utils';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 import { useComponentsStore } from '../../stores/useComponentsStore';
+import { useCollectionsStore } from '../../stores/useCollectionsStore';
 import { cn } from '@/lib/utils';
 
 interface LayerRendererProps {
@@ -20,6 +21,7 @@ interface LayerRendererProps {
   activeLayerId?: string | null;
   projected?: { depth: number; parentId: string | null } | null;
   pageId?: string;
+  collectionItemData?: Record<string, string>; // Collection item field values (field_id -> value)
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -33,6 +35,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   activeLayerId = null,
   projected = null,
   pageId = '',
+  collectionItemData,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -56,6 +59,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
           editingContent={editingContent}
           setEditingContent={setEditingContent}
           pageId={pageId}
+          collectionItemData={collectionItemData}
         />
       ))}
     </>
@@ -78,6 +82,7 @@ const LayerItem: React.FC<{
   editingContent: string;
   setEditingContent: (content: string) => void;
   pageId: string;
+  collectionItemData?: Record<string, string>;
 }> = ({
   layer,
   isEditMode,
@@ -93,6 +98,7 @@ const LayerItem: React.FC<{
   editingContent,
   setEditingContent,
   pageId,
+  collectionItemData,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isEditing = editingLayerId === layer.id;
@@ -100,18 +106,51 @@ const LayerItem: React.FC<{
   const isDragging = activeLayerId === layer.id;
   const htmlTag = getHtmlTag(layer);
   const classesString = getClassesString(layer);
-  const textContent = getText(layer);
-  const imageUrl = getImageUrl(layer);
+  
+  // Resolve text and image URLs with field binding support
+  const textContent = getTextWithBinding(layer, collectionItemData);
+  const imageUrl = getImageUrlWithBinding(layer, collectionItemData);
 
   // Handle component instances - only fetch from store in edit mode
   // In published pages, components are pre-resolved server-side via resolveComponents()
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const component = (isEditMode && layer.componentId) ? getComponentById(layer.componentId) : null;
 
+  // Get collection items if this is a collection layer
+  const items = useCollectionsStore((state) => state.items);
+  const isCollectionLayer = layer.type === 'collection' || layer.name === 'collection';
+  
+  // Debug: Always log to verify execution
+  console.log('[LayerRenderer]', {
+    layerId: layer.id,
+    layerType: layer.type,
+    layerName: layer.name,
+    isCollectionLayer,
+    NODE_ENV: process.env.NODE_ENV
+  });
+  
+  // Use new getCollectionVariable helper (checks variables first, then fallback)
+  const collectionVariable = isCollectionLayer ? getCollectionVariable(layer) : null;
+  const collectionId = collectionVariable?.id;
+  const collectionItems = (isCollectionLayer && collectionId) ? (items[collectionId] || []) : [];
+
   // For component instances in edit mode, use the component's layers as children
   // For published pages, children are already resolved server-side
   const children = (isEditMode && component && component.layers) ? component.layers : layer.children;
   const hasChildren = (children && children.length > 0) || false;
+
+  // Debug logging for collection rendering (always show for collection layers)
+  if (isCollectionLayer) {
+    console.log(`[Collection Layer ${layer.id}]`, {
+      collectionVariable,
+      collectionId,
+      collectionItemsCount: collectionItems.length,
+      collectionItems,
+      hasChildren: children && children.length > 0,
+      childrenCount: children?.length || 0,
+      allItemsInStore: Object.keys(items)
+    });
+  }
 
   // Use sortable for drag and drop
   const {
@@ -276,6 +315,7 @@ const LayerItem: React.FC<{
               activeLayerId={activeLayerId}
               projected={projected}
               pageId={pageId}
+              collectionItemData={collectionItemData}
             />
           )}
         </Tag>
@@ -326,19 +366,52 @@ const LayerItem: React.FC<{
 
         {textContent && textContent}
 
-        {children && children.length > 0 && (
-          <LayerRenderer
-            layers={children}
-            onLayerClick={onLayerClick}
-            onLayerUpdate={onLayerUpdate}
-            selectedLayerId={selectedLayerId}
-            isEditMode={isEditMode}
-            isPublished={isPublished}
-            enableDragDrop={enableDragDrop}
-            activeLayerId={activeLayerId}
-            projected={projected}
-            pageId={pageId}
-          />
+        {/* Collection layer repeater logic 
+            When a collection layer is bound to a collection with items:
+            - Renders children once for each collection item
+            - Since LayerRenderer is recursive, this automatically repeats ALL descendants
+              (children, grandchildren, great-grandchildren, etc.) for each item
+            - Each repeated instance is wrapped in a div with data-collection-item-id
+            - Passes the item's field values as collectionItemData for field binding resolution
+        */}
+        {isCollectionLayer && collectionItems.length > 0 ? (
+          // Render children once for each collection item
+          children && children.length > 0 ? (
+            collectionItems.map((item) => (
+              <div key={item.id} data-collection-item-id={item.id}>
+                <LayerRenderer
+                  layers={children}
+                  onLayerClick={onLayerClick}
+                  onLayerUpdate={onLayerUpdate}
+                  selectedLayerId={selectedLayerId}
+                  isEditMode={isEditMode}
+                  isPublished={isPublished}
+                  enableDragDrop={enableDragDrop}
+                  activeLayerId={activeLayerId}
+                  projected={projected}
+                  pageId={pageId}
+                  collectionItemData={item.values}
+                />
+              </div>
+            ))
+          ) : null
+        ) : (
+          // Regular rendering for non-collection layers
+          children && children.length > 0 && (
+            <LayerRenderer
+              layers={children}
+              onLayerClick={onLayerClick}
+              onLayerUpdate={onLayerUpdate}
+              selectedLayerId={selectedLayerId}
+              isEditMode={isEditMode}
+              isPublished={isPublished}
+              enableDragDrop={enableDragDrop}
+              activeLayerId={activeLayerId}
+              projected={projected}
+              pageId={pageId}
+              collectionItemData={collectionItemData}
+            />
+          )
         )}
       </Tag>
     );
@@ -356,6 +429,7 @@ const LayerItem: React.FC<{
         pageId={pageId}
         isLocked={isLocked}
         onLayerSelect={onLayerClick}
+        selectedLayerId={selectedLayerId}
       >
         {content}
       </LayerContextMenu>

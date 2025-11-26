@@ -814,8 +814,8 @@ export default function YCodeBuilder() {
 
       // Layer-specific shortcuts (only work on layers tab)
       if (activeTab === 'layers') {
-        // A - Toggle Element Library (when on layers tab)
-        if (e.key === 'a') {
+        // A - Toggle Element Library (when on layers tab and not typing)
+        if (e.key === 'a' && !isInputFocused) {
           e.preventDefault();
           // Dispatch custom event to toggle ElementLibrary
           window.dispatchEvent(new CustomEvent('toggleElementLibrary'));

@@ -98,6 +98,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const setCurrentPageCollectionItemId = useEditorStore((state) => state.setCurrentPageCollectionItemId);
   
   const getDropdownItems = useCollectionsStore((state) => state.getDropdownItems);
+  const collectionItemsFromStore = useCollectionsStore((state) => state.items);
+  const collectionsFromStore = useCollectionsStore((state) => state.collections);
+  const collectionFieldsFromStore = useCollectionsStore((state) => state.fields);
   
   const { routeType, urlState, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorUrl();
   const components = useComponentsStore((state) => state.components);
@@ -388,9 +391,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
         selectedLayerId,
         componentMap,
         editingComponentId: editingComponentId || null,
+        collectionItems: collectionItemsFromStore,
+        collectionFields: collectionFieldsFromStore,
       },
     });
-  }, [layers, selectedLayerId, iframeReady, components, editingComponentId]);
+  }, [layers, selectedLayerId, iframeReady, components, editingComponentId, collectionItemsFromStore, collectionFieldsFromStore]);
 
   // Send breakpoint updates to iframe
   useEffect(() => {

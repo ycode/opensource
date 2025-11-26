@@ -5,7 +5,7 @@
  */
 
 // Layer Types
-export type LayerType = 'container' | 'text' | 'image' | 'heading';
+export type LayerType = 'container' | 'text' | 'image' | 'heading' | 'collection';
 
 // UI State Types (for state-specific styling: hover, focus, etc.)
 export type UIState = 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current';
@@ -163,7 +163,7 @@ export interface Layer {
   type?: LayerType; // For compatibility
 
   // Content
-  text?: string; // Text content
+  text?: string | FieldVariable; // Text content (can be static or bound to a field)
   classes: string | string[]; // Tailwind CSS classes (support both formats)
 
   // Children
@@ -197,8 +197,16 @@ export interface Layer {
   icon?: { name: string; svg_code: string }; // For icon elements
 
   // Image-specific
-  url?: string; // Image URL
+  url?: string | FieldVariable; // Image URL (can be static or bound to a field)
   alt?: string;
+
+  // Collection binding (for collection layers)
+  collection?: {
+    id: string; // Collection ID
+  };
+
+  // Layer variables (new structured approach)
+  variables?: LayerVariables;
 
   // Legacy properties
   style?: string; // Style preset name (legacy)
@@ -544,3 +552,20 @@ export interface FieldVariable {
 }
 
 export type InlineVariable = FieldVariable;
+
+// Layer Variable Types
+export interface CollectionVariable {
+  id: string; // Collection ID
+  // Future: filtering, sorting, limit, etc.
+}
+
+export interface InlineVariableContent {
+  data: string; // Text with placeholders like "Hello <ycode-inline-variable id=\"uuid\"></ycode-inline-variable>"
+  variables: Record<string, FieldVariable>; // Map of variable ID to FieldVariable object for O(1) lookup
+}
+
+export interface LayerVariables {
+  collection?: CollectionVariable;
+  text?: InlineVariableContent;
+  // Future: image, link, etc.
+}
