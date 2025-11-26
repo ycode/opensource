@@ -107,6 +107,20 @@
       outline: 1px solid #0b7efd !important;
       outline-offset: 0 !important;
     }
+
+    /* Empty element styling */
+    .ycode-layer:empty::before {
+      content: ' ';
+      display: block;
+      background-color: rgb(191 219 254 / 0.1);
+      border: 1px dashed rgb(59 130 246 / 0.5);
+      border-radius: 0.125rem;
+      color: rgb(59 130 246);
+      font-size: 0.75rem;
+      padding: 2rem;
+      text-align: center;
+      width: 100%;
+    }
   </style>
 </head>
 <body id="canvas-root">
