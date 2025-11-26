@@ -1539,7 +1539,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                                           </Button>
                                         )}
 
-                                        {!hasFieldVariable && !hasUploadedAsset && <span className="text-muted-foreground">or</span>}
+                                        {isDynamicPage && !hasFieldVariable && !hasUploadedAsset && <span className="text-muted-foreground">or</span>}
 
                                         {!hasUploadedAsset && renderImageFieldSelect(hasFieldVariable)}
                                       </>
