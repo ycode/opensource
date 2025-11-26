@@ -250,13 +250,15 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
 
     const currentValue = convertContentToValue(editor.getJSON());
     if (currentValue !== value) {
+      // Check if editor was focused before updating content
+      const wasFocused = editor.isFocused;
       const content = parseValueToContent(value, fields);
       editor.commands.setContent(content);
 
-      // Move cursor to end
-      setTimeout(() => {
-        editor.commands.focus('end');
-      }, 0);
+      // Only focus if editor was already focused (user was actively editing)
+      if (wasFocused) {
+        setTimeout(() => { editor.commands.focus('end'); }, 0);
+      }
     } else if (fields) {
       // Update labels for existing nodes when fields change
       const json = editor.getJSON();

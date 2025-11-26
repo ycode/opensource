@@ -419,6 +419,21 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, currentPage, isSaving]);
 
+  // Update URL when panel opens based on currently active tab
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const currentParams = new URLSearchParams(searchParams?.toString() || '');
+    const currentEditParam = currentParams.get('edit');
+
+    // Update URL if it doesn't match the active tab
+    if (currentEditParam !== activeTab) {
+      currentParams.set('edit', activeTab);
+      const query = currentParams.toString();
+      router.replace(`${pathname}${query ? `?${query}` : ''}`);
+    }
+  }, [isOpen, activeTab, searchParams, router, pathname]);
+
   // Handle tab changes - update local state AND URL
   // URL is updated for navigation/sharing, but doesn't control tab selection
   const handleTabChange = useCallback((value: string) => {
@@ -427,13 +442,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
     // Update URL with edit param (for navigation/sharing purposes)
     const currentParams = new URLSearchParams(searchParams?.toString() || '');
-
-    // Set edit param to tab value (or 'general' for 'general')
-    if (newTab === 'general') {
-      currentParams.set('edit', 'general');
-    } else {
-      currentParams.set('edit', newTab);
-    }
+    currentParams.set('edit', newTab);
 
     const query = currentParams.toString();
     router.replace(`${pathname}${query ? `?${query}` : ''}`);
