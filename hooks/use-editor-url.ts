@@ -67,7 +67,12 @@ export function useEditorUrl() {
     }
 
     if (pageMatch) {
-      const editParam = searchParams?.has('edit');
+      const editParam = searchParams?.get('edit');
+      const isEditing = searchParams?.has('edit');
+      // Parse tab: 'general' or empty means 'general', otherwise use the param value
+      const editTab = editParam && editParam !== '' && editParam !== 'general' 
+        ? (editParam as PageSettingsTab) 
+        : null;
       const viewParam = searchParams?.get('view');
       const rightTabParam = searchParams?.get('tab');
       const layerParam = searchParams?.get('layer');
@@ -75,8 +80,8 @@ export function useEditorUrl() {
       return {
         type: 'page',
         resourceId: pageMatch[1],
-        isEditing: editParam,
-        tab: null,
+        isEditing,
+        tab: editTab,
         page: null,
         sidebarTab: 'pages', // Inferred: pages route shows pages sidebar
         view: viewParam as 'desktop' | 'tablet' | 'mobile' | null,
@@ -169,10 +174,26 @@ export function useEditorUrl() {
 
   const navigateToPageEdit = useCallback(
     (pageId: string, tab?: PageSettingsTab) => {
-      // Tab parameter is ignored - tabs are handled client-side
-      // Preserve current query params and add edit param
+      // Preserve current query params and add edit param with tab value
       const currentParams = new URLSearchParams(searchParams?.toString() || '');
-      currentParams.set('edit', ''); // Add edit param (empty value)
+      
+      // Determine which tab to use:
+      // 1. Use provided tab if given
+      // 2. Otherwise, preserve current tab from URL if it exists
+      // 3. Default to 'general' only if no tab was provided and no current tab exists
+      const currentEditParam = searchParams?.get('edit');
+      const currentTab = currentEditParam && currentEditParam !== '' && currentEditParam !== 'general'
+        ? (currentEditParam as PageSettingsTab)
+        : null;
+      
+      const tabToUse = tab || currentTab;
+      
+      if (tabToUse && tabToUse !== 'general') {
+        currentParams.set('edit', tabToUse);
+      } else {
+        currentParams.set('edit', 'general'); // Use 'general' for 'general' tab
+      }
+      
       const query = currentParams.toString();
       router.push(`/ycode/pages/${pageId}${query ? `?${query}` : ''}`);
     },

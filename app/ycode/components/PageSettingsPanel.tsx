@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useImperativeHandle, useCallback } from 'react';
 import Image from 'next/image';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import type { Page, PageSettings, Asset, FieldVariable } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -106,7 +107,19 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   page,
   onSave,
 }, ref) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'seo' | 'custom-code'>('general');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Initialize tab from URL only on mount (for initial load)
+  const [activeTab, setActiveTab] = useState<'general' | 'seo' | 'custom-code'>(() => {
+    const editParam = searchParams?.get('edit');
+    // 'general' or empty means 'general', otherwise use the param value
+    if (editParam === 'seo' || editParam === 'custom-code') {
+      return editParam;
+    }
+    return 'general';
+  });
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [pageFolderId, setPageFolderId] = useState<string | null>(null);
@@ -405,6 +418,26 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     rejectedPageRef.current = null; // Clear rejected page since we're accepting a change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, currentPage, isSaving]);
+
+  // Handle tab changes - update local state AND URL
+  // URL is updated for navigation/sharing, but doesn't control tab selection
+  const handleTabChange = useCallback((value: string) => {
+    const newTab = value as 'general' | 'seo' | 'custom-code';
+    setActiveTab(newTab);
+
+    // Update URL with edit param (for navigation/sharing purposes)
+    const currentParams = new URLSearchParams(searchParams?.toString() || '');
+
+    // Set edit param to tab value (or 'general' for 'general')
+    if (newTab === 'general') {
+      currentParams.set('edit', 'general');
+    } else {
+      currentParams.set('edit', newTab);
+    }
+
+    const query = currentParams.toString();
+    router.replace(`${pathname}${query ? `?${query}` : ''}`);
+  }, [searchParams, router, pathname]);
 
   // Initialize form when currentPage changes (after confirmation or when no unsaved changes)
   useEffect(() => {
@@ -1138,7 +1171,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         {/* Tabs */}
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as 'general' | 'seo' | 'custom-code')}
+          onValueChange={handleTabChange}
           className="flex-1 flex flex-col px-5 py-3.5"
         >
           <TabsList className="w-full">
