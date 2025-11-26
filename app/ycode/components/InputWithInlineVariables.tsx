@@ -157,7 +157,10 @@ const DynamicVariable = Node.create({
       return {
         dom: container,
         destroy: () => {
-          root.unmount();
+          // Defer unmount to avoid synchronous unmount during render
+          setTimeout(() => {
+            root.unmount();
+          }, 0);
         },
       };
     };
