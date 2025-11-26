@@ -30,7 +30,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     activeBreakpoint,
     activeUIState,
   });
-  
+
   // Get current values from layer (with inheritance)
   const display = getDesignProperty('layout', 'display') || '';
   const flexDirection = getDesignProperty('layout', 'flexDirection') || 'row';
@@ -47,7 +47,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   const paddingRight = getDesignProperty('spacing', 'paddingRight') || '';
   const paddingBottom = getDesignProperty('spacing', 'paddingBottom') || '';
   const paddingLeft = getDesignProperty('spacing', 'paddingLeft') || '';
-  
+
   // Local controlled inputs (prevents repopulation bug)
   const inputs = useControlledInputs({
     gap,
@@ -68,7 +68,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   const [paddingRightInput, setPaddingRightInput] = inputs.paddingRight;
   const [paddingBottomInput, setPaddingBottomInput] = inputs.paddingBottom;
   const [paddingLeftInput, setPaddingLeftInput] = inputs.paddingLeft;
-  
+
   // Use mode toggle hooks for gap and padding
   const gapModeToggle = useModeToggle({
     category: 'layout',
@@ -79,7 +79,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
     getCurrentValue: (prop: string) => getDesignProperty('layout', prop) || '',
   });
-  
+
   const paddingModeToggle = useModeToggle({
     category: 'spacing',
     unifiedProperty: 'padding',
@@ -89,19 +89,19 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
     getCurrentValue: (prop: string) => getDesignProperty('spacing', prop) || '',
   });
-  
+
   // Determine layout type from current values
-  const layoutType = 
-      display === 'grid' ? 'grid' : 
-        flexDirection === 'column' || flexDirection === 'column-reverse' ? 'rows' : 
+  const layoutType =
+      display === 'grid' ? 'grid' :
+        flexDirection === 'column' || flexDirection === 'column-reverse' ? 'rows' :
           'columns';
-  
+
   const wrapMode = flexWrap === 'wrap' ? 'yes' : 'no';
-  
+
   // Handle layout type change
   const handleLayoutTypeChange = (type: 'columns' | 'rows' | 'grid') => {
     const updates = [];
-    
+
     if (type === 'grid') {
       updates.push(
         { category: 'layout' as const, property: 'display', value: 'grid' },
@@ -111,32 +111,32 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
       updates.push(
         { category: 'layout' as const, property: 'display', value: 'flex' }
       );
-      
+
       if (type === 'columns') {
         updates.push({ category: 'layout' as const, property: 'flexDirection', value: 'row' });
       } else {
         updates.push({ category: 'layout' as const, property: 'flexDirection', value: 'column' });
       }
     }
-    
+
     updateDesignProperties(updates);
   };
-  
+
   // Handle align items change
   const handleAlignChange = (value: string) => {
     updateDesignProperty('layout', 'alignItems', value);
   };
-  
+
   // Handle justify content change
   const handleJustifyChange = (value: string) => {
     updateDesignProperty('layout', 'justifyContent', value);
   };
-  
+
   // Handle wrap mode change
   const handleWrapChange = (value: 'yes' | 'no') => {
     updateDesignProperty('layout', 'flexWrap', value === 'yes' ? 'wrap' : 'nowrap');
   };
-  
+
   // Handle gap changes
   const handleGapChange = (value: string) => {
     setGapInput(value);
@@ -145,19 +145,19 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
       updateDesignProperty('layout', 'gap', sanitized || null);
     }
   };
-  
+
   const handleColumnGapChange = (value: string) => {
     setColumnGapInput(value);
     const sanitized = removeSpaces(value);
     updateDesignProperty('layout', 'columnGap', sanitized || null);
   };
-  
+
   const handleRowGapChange = (value: string) => {
     setRowGapInput(value);
     const sanitized = removeSpaces(value);
     updateDesignProperty('layout', 'rowGap', sanitized || null);
   };
-  
+
   // Handle padding changes
   const handlePaddingChange = (value: string) => {
     setPaddingInput(value);
@@ -166,42 +166,42 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
       updateDesignProperty('spacing', 'padding', sanitized || null);
     }
   };
-  
+
   const handlePaddingTopChange = (value: string) => {
     setPaddingTopInput(value);
     const sanitized = removeSpaces(value);
     updateDesignProperty('spacing', 'paddingTop', sanitized || null);
   };
-  
+
   const handlePaddingRightChange = (value: string) => {
     setPaddingRightInput(value);
     const sanitized = removeSpaces(value);
     updateDesignProperty('spacing', 'paddingRight', sanitized || null);
   };
-  
+
   const handlePaddingBottomChange = (value: string) => {
     setPaddingBottomInput(value);
     const sanitized = removeSpaces(value);
     updateDesignProperty('spacing', 'paddingBottom', sanitized || null);
   };
-  
+
   const handlePaddingLeftChange = (value: string) => {
     setPaddingLeftInput(value);
     const sanitized = removeSpaces(value);
     updateDesignProperty('spacing', 'paddingLeft', sanitized || null);
   };
-  
+
   // Handle grid template changes
   const handleGridColsChange = (value: string) => {
     const sanitized = removeSpaces(value);
     updateDesignProperty('layout', 'gridTemplateColumns', sanitized || null);
   };
-  
+
   const handleGridRowsChange = (value: string) => {
     const sanitized = removeSpaces(value);
     updateDesignProperty('layout', 'gridTemplateRows', sanitized || null);
   };
-  
+
   // Extract numeric value from design property
   return (
     <div className="py-5">
@@ -306,7 +306,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                             className="!pr-0"
                             value={gridCols}
                             onChange={(e) => handleGridColsChange(e.target.value)}
-                            placeholder="repeat(3, 1fr)"
                           />
                       </InputGroup>
                       <InputGroup>
@@ -326,7 +325,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                             className="!pr-0"
                             value={gridRows}
                             onChange={(e) => handleGridRowsChange(e.target.value)}
-                            placeholder="auto"
                           />
                       </InputGroup>
                   </div>
@@ -360,7 +358,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                             disabled={gapModeToggle.mode === 'individual-borders'}
                             value={gapInput}
                             onChange={(e) => handleGapChange(e.target.value)}
-                            placeholder="16"
                           />
                       </InputGroup>
                       <Button
@@ -390,7 +387,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                              className="!pr-0"
                              value={columnGapInput}
                              onChange={(e) => handleColumnGapChange(e.target.value)}
-                             placeholder="16"
                            />
                        </InputGroup>
                        <InputGroup>
@@ -410,7 +406,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                              className="!pr-0"
                              value={rowGapInput}
                              onChange={(e) => handleRowGapChange(e.target.value)}
-                             placeholder="16"
                            />
                        </InputGroup>
                    </div>
@@ -427,7 +422,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                             disabled={paddingModeToggle.mode === 'individual-borders'}
                             value={paddingInput}
                             onChange={(e) => handlePaddingChange(e.target.value)}
-                            placeholder="16"
                           />
                       </InputGroup>
                       <Button
@@ -457,7 +451,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                 className="!pr-0"
                                 value={paddingLeftInput}
                                 onChange={(e) => handlePaddingLeftChange(e.target.value)}
-                                placeholder="16"
                               />
                           </InputGroup>
                           <InputGroup>
@@ -477,7 +470,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                 className="!pr-0"
                                 value={paddingTopInput}
                                 onChange={(e) => handlePaddingTopChange(e.target.value)}
-                                placeholder="16"
                               />
                           </InputGroup>
                           <InputGroup>
@@ -497,7 +489,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                 className="!pr-0"
                                 value={paddingRightInput}
                                 onChange={(e) => handlePaddingRightChange(e.target.value)}
-                                placeholder="16"
                               />
                           </InputGroup>
                           <InputGroup>
@@ -517,7 +508,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                 className="!pr-0"
                                 value={paddingBottomInput}
                                 onChange={(e) => handlePaddingBottomChange(e.target.value)}
-                                placeholder="16"
                               />
                           </InputGroup>
                       </div>
