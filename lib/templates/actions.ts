@@ -16,9 +16,17 @@ export const actionTemplates: Record<string, BlockTemplate> = {
     name: 'Button',
     template: {
       name: 'button',
-      classes: ['px-[1.5rem]', 'py-[0.5rem]', 'bg-[#2563eb]', 'text-[#ffffff]', 'rounded-[0.5rem]', 'hover:bg-[#1d4ed8]', 'transition-colors'],
-      text: 'Button',
-      children: [], // Can contain icons, spans, etc.
+      classes: ['flex', 'flex-row', 'items-center', 'justify-center', 'text-[#FFFFFF]', 'pr-[20px]', 'pl-[20px]', 'pt-[10px]', 'pb-[10px]', 'text-[16px]', 'rounded-[12px]', 'bg-[#171717]'],
+      children: [
+        {
+          id: 'button-text',
+          name: 'text',
+          classes: [],
+          text: 'Button',
+          children: [],
+          design: {}
+        }
+      ],
       attributes: {
         type: 'button'
       },
@@ -31,7 +39,8 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       design: {
         typography: {
           isActive: true,
-          color: '#ffffff'
+          color: '#ffffff',
+          fontSize: '16px',
         },
         spacing: {
           isActive: true,
@@ -51,7 +60,7 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   link: {
     icon: 'link',
     name: 'Link',
