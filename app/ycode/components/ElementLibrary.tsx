@@ -28,7 +28,7 @@ interface ElementLibraryProps {
 
 // Category definitions
 const structureElements = ['section', 'container', 'div', 'hr', 'columns', 'rows', 'grid'];
-const contentElements = ['heading', 'p', 'span', 'richtext'];
+const contentElements = ['heading', 'p', 'richtext'];
 const actionElements = ['button', 'link'];
 const mediaElements = ['image', 'icon', 'video', 'audio', 'youtube', 'iframe'];
 const formElements = ['form', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label', 'submit'];

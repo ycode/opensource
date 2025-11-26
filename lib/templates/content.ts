@@ -15,16 +15,15 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     icon: 'text',
     name: 'Heading',
     template: {
-      name: 'h2',
-      classes: ['text-[1.875rem]', 'font-[700]', 'text-[#111827]'],
+      name: 'h1',
+      classes: ['text-[48px]', 'font-[700]'],
       text: 'Heading',
       children: [], // Can contain inline elements
       design: {
         typography: {
           isActive: true,
-          fontSize: '1.875rem',
+          fontSize: '48px',
           fontWeight: '700',
-          color: '#111827'
         }
       }
     }
@@ -32,18 +31,17 @@ export const contentTemplates: Record<string, BlockTemplate> = {
 
   p: {
     icon: 'text',
-    name: 'Paragraph',
+    name: 'Text',
     template: {
       name: 'p',
-      classes: ['text-[1rem]', 'text-[#111827]'],
-      text: 'This is a paragraph. Edit this text to customize it.',
+      classes: ['text-[16px]'],
+      text: 'Text',
       children: [], // Can contain inline elements
       formattable: true,
       design: {
         typography: {
           isActive: true,
-          fontSize: '1rem',
-          color: '#111827'
+          fontSize: '16px',
         }
       }
     }
@@ -54,35 +52,14 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     name: 'Text',
     template: {
       name: 'span',
-      classes: ['text-[1rem]', 'text-[#111827]'],
+      classes: ['text-[16px]'],
       text: 'Text',
       children: [], // Can contain inline elements
       formattable: true,
       design: {
         typography: {
           isActive: true,
-          fontSize: '1rem',
-          color: '#111827'
-        }
-      }
-    }
-  },
-
-  // Legacy 'text' type (maps to span)
-  text: {
-    icon: 'text',
-    name: 'Text',
-    template: {
-      name: 'span',
-      classes: ['text-[1rem]', 'text-[#111827]'],
-      text: 'Text',
-      children: [], // Can contain inline elements
-      formattable: true,
-      design: {
-        typography: {
-          isActive: true,
-          fontSize: '1rem',
-          color: '#111827'
+          fontSize: '16px',
         }
       }
     }
