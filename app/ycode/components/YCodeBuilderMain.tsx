@@ -157,6 +157,32 @@ export default function YCodeBuilder() {
     }
   }, [editingComponentId, currentPageId, setDraftLayers]);
 
+  // Check if Supabase is configured, redirect to setup if not
+  const [supabaseConfigured, setSupabaseConfigured] = useState<boolean | null>(null);
+  
+  useEffect(() => {
+    const checkSupabaseConfig = async () => {
+      try {
+        const response = await fetch('/api/setup/status');
+        const data = await response.json();
+        
+        if (!data.is_configured) {
+          // Redirect to setup wizard
+          router.push('/welcome');
+          return;
+        }
+        
+        setSupabaseConfigured(true);
+      } catch (err) {
+        console.error('Failed to check Supabase config:', err);
+        // On error, redirect to setup to be safe
+        router.push('/welcome');
+      }
+    };
+    
+    checkSupabaseConfig();
+  }, [router]);
+
   // Sync viewportMode with activeBreakpoint in store
   useEffect(() => {
     setActiveBreakpoint(viewportMode);
@@ -815,7 +841,7 @@ export default function YCodeBuilder() {
       // Layer-specific shortcuts (only work on layers tab)
       if (activeTab === 'layers') {
         // A - Toggle Element Library (when on layers tab)
-        if (e.key === 'a') {
+        if (e.key === 'a' && !isInputFocused) {
           e.preventDefault();
           // Dispatch custom event to toggle ElementLibrary
           window.dispatchEvent(new CustomEvent('toggleElementLibrary'));
@@ -929,8 +955,8 @@ export default function YCodeBuilder() {
           return;
         }
 
-        // Tab - Select next sibling layer
-        if (e.key === 'Tab' && (currentPageId || editingComponentId) && selectedLayerId) {
+        // Tab - Select next sibling layer (only when not in input)
+        if (e.key === 'Tab' && !isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
           e.preventDefault();
 
           const layers = getCurrentLayers();
@@ -1151,6 +1177,11 @@ export default function YCodeBuilder() {
     handleUndo,
     handleRedo
   ]);
+
+  // Show loading screen while checking Supabase config
+  if (supabaseConfigured === null) {
+    return <BuilderLoading message="Checking configuration..." />;
+  }
 
   // Show loading screen while checking authentication
   if (!authInitialized) {
