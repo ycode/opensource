@@ -251,9 +251,9 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 w-7 p-0"
+            className="h-6 w-6 p-0"
           >
-            <Icon name="database" className="size-3" />
+            <Icon name="database" className="size-2.5" />
           </Button>
         </SelectPrimitive.Trigger>
         <SelectContent>
@@ -1452,7 +1452,6 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                           value={seoTitle}
                           onChange={(e) => setSeoTitle(e.target.value)}
                           placeholder={name || 'Page title'}
-                          className="flex-1"
                         />
                       )}
                     </Field>
@@ -1618,14 +1617,16 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                           className="min-h-48 w-full"
                         />
                         {isDynamicPage && (
-                          <div className="absolute top-1.5 right-1.5">
-                            {renderCustomCodeFieldSelector({
-                              textareaRef: customCodeHeadRef,
-                              value: customCodeHead,
-                              setValue: setCustomCodeHead,
-                              selectKey: headVariableSelectKey,
-                              setSelectKey: setHeadVariableSelectKey,
-                            })}
+                          <div className="absolute top-1 right-1 pointer-events-none">
+                            <div className="pointer-events-auto">
+                              {renderCustomCodeFieldSelector({
+                                textareaRef: customCodeHeadRef,
+                                value: customCodeHead,
+                                setValue: setCustomCodeHead,
+                                selectKey: headVariableSelectKey,
+                                setSelectKey: setHeadVariableSelectKey,
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1646,14 +1647,16 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                         />
 
                         {isDynamicPage && (
-                          <div className="absolute top-1.5 right-1.5">
-                            {renderCustomCodeFieldSelector({
-                              textareaRef: customCodeBodyRef,
-                              value: customCodeBody,
-                              setValue: setCustomCodeBody,
-                              selectKey: bodyVariableSelectKey,
-                              setSelectKey: setBodyVariableSelectKey,
-                            })}
+                          <div className="absolute top-1 right-1 pointer-events-none">
+                            <div className="pointer-events-auto">
+                              {renderCustomCodeFieldSelector({
+                                textareaRef: customCodeBodyRef,
+                                value: customCodeBody,
+                                setValue: setCustomCodeBody,
+                                selectKey: bodyVariableSelectKey,
+                                setSelectKey: setBodyVariableSelectKey,
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>

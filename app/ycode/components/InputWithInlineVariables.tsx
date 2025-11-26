@@ -27,8 +27,9 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectTrigger,
 } from '@/components/ui/select';
+import * as SelectPrimitive from '@radix-ui/react-select';
+import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 
 interface InputWithInlineVariablesProps {
@@ -407,34 +408,42 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   };
 
   return (
-    <div className="flex gap-2 flex-1 input-with-inline-variables">
-      <div className="relative flex-1">
+    <div className="relative flex-1 input-with-inline-variables">
+      <div className="relative">
         <EditorContent editor={editor} />
       </div>
 
       {fields && fields.length > 0 && (
-        <Select
-          value=""
-          onValueChange={handleFieldSelect}
-        >
-          <SelectTrigger className="w-auto">
-            <Icon name="database" className="size-3" />
-          </SelectTrigger>
+        <div className="absolute top-1 right-1">
+          <Select
+            value=""
+            onValueChange={handleFieldSelect}
+          >
+            <SelectPrimitive.Trigger asChild>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-6 w-6 p-0"
+              >
+                <Icon name="database" className="size-2.5" />
+              </Button>
+            </SelectPrimitive.Trigger>
 
-          <SelectContent>
-            {fields.length > 0 ? (
-              fields.map((field) => (
-                <SelectItem key={field.id} value={field.id}>
-                  {field.name}
-                </SelectItem>
-              ))
-            ) : (
-              <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                No fields available
-              </div>
-            )}
-          </SelectContent>
-        </Select>
+            <SelectContent>
+              {fields.length > 0 ? (
+                fields.map((field) => (
+                  <SelectItem key={field.id} value={field.id}>
+                    {field.name}
+                  </SelectItem>
+                ))
+              ) : (
+                <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                  No fields available
+                </div>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
       )}
     </div>
   );
