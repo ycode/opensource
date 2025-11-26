@@ -1,13 +1,15 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
 import { getItemWithValues } from '@/lib/repositories/collectionItemRepository';
-import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues } from '@/types';
+import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
+import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField } from '@/types';
 
 export interface PageData {
   page: Page;
   pageLayers: PageLayers;
   components: Component[];
   collectionItem?: CollectionItemWithValues; // For dynamic pages
+  collectionFields?: CollectionField[]; // For dynamic pages
 }
 
 /**
@@ -179,11 +181,18 @@ export async function fetchPageByPath(
               .from('components')
               .select('*');
 
+            // Fetch collection fields for resolving custom code placeholders
+            const collectionFields = await getFieldsByCollectionId(
+              cmsSettings.collection_id,
+              isPublished
+            );
+
             return {
               page: matchingPage,
               pageLayers,
               components: components || [],
               collectionItem, // Include collection item for dynamic pages
+              collectionFields, // Include collection fields for resolving placeholders
             };
           }
         }

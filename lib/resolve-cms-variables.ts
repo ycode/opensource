@@ -8,7 +8,7 @@
  * - Server-only: Asset resolution functions (require database access)
  */
 
-import type { FieldVariable, CollectionItemWithValues } from '@/types';
+import type { FieldVariable, CollectionItemWithValues, CollectionField } from '@/types';
 import { isValidUUID } from '@/lib/utils';
 
 /**
@@ -43,6 +43,46 @@ export function resolveInlineVariables(
     }
 
     return match;
+  });
+}
+
+/**
+ * Resolve {{FieldName}} placeholders in custom code
+ * Replaces {{FieldName}} with actual field values from the collection item
+ *
+ * SERVER-ONLY: Requires collection fields to map field names to IDs
+ */
+export function resolveCustomCodePlaceholders(
+  code: string,
+  collectionItem: CollectionItemWithValues | null | undefined,
+  fields: CollectionField[]
+): string {
+  if (!collectionItem || !collectionItem.values || !fields.length) {
+    return code;
+  }
+
+  // Create a map of field name -> field ID for quick lookup
+  const fieldNameToId = new Map<string, string>();
+  fields.forEach(field => {
+    fieldNameToId.set(field.name, field.id);
+  });
+
+  // Replace {{FieldName}} placeholders with actual values
+  return code.replace(/\{\{([^}]+)\}\}/g, (match, fieldName) => {
+    const trimmedFieldName = fieldName.trim();
+    const fieldId = fieldNameToId.get(trimmedFieldName);
+
+    if (!fieldId) {
+      // Field name not found, return placeholder as-is
+      return match;
+    }
+
+    // Get the value from collection item
+    const fieldValue = collectionItem.values[fieldId];
+
+    // Return the value, or empty string if not found
+    // Convert to string if it's not already
+    return fieldValue != null ? String(fieldValue) : '';
   });
 }
 

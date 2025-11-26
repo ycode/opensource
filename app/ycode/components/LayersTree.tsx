@@ -313,7 +313,7 @@ function LayerRow({
           data-drag-active={isDragActive}
           data-layer-id={node.id}
           className={cn(
-            'group relative flex items-center h-8 outline-none focus:outline-none',
+            'group relative flex items-center h-8 outline-none focus:outline-none cursor-pointer',
             // Conditional rounding based on position in selected group
             // Selected parent: rounded top, rounded bottom ONLY if no visible children
             isSelected && !hasVisibleChildren && 'rounded-lg', // No children: fully rounded

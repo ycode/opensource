@@ -117,7 +117,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     notFound();
   }
 
-  const { page, pageLayers, components } = data;
+  const { page, pageLayers, components, collectionItem, collectionFields } = data;
 
   // Load published CSS from settings
   const publishedCSS = await getSettingByKey('published_css');
@@ -128,6 +128,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       layers={pageLayers.layers || []}
       components={components}
       generatedCss={publishedCSS}
+      collectionItem={collectionItem}
+      collectionFields={collectionFields}
     />
   );
 }
