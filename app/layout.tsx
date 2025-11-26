@@ -29,6 +29,21 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className={isDarkMode ? 'dark' : ''}>
+      <head>
+        {/* Apply dark mode immediately for /ycode routes to prevent FOUC */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                const pathname = window.location.pathname;
+                if (pathname.startsWith('/ycode') && !pathname.startsWith('/ycode/preview')) {
+                  document.documentElement.classList.add('dark');
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${inter.variable} font-sans antialiased text-xs`}
       >

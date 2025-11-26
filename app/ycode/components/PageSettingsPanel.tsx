@@ -6,7 +6,7 @@
  * Slide-out panel for creating and editing pages
  */
 
-import React, { useState, useEffect, useMemo, useRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useImperativeHandle, useCallback } from 'react';
 import Image from 'next/image';
 import type { Page, PageSettings, Asset, FieldVariable } from '@/types';
 import { Label } from '@/components/ui/label';
@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import * as SelectPrimitive from '@radix-ui/react-select';
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -44,6 +45,8 @@ import { uploadFileApi, deleteAssetApi } from '@/lib/api';
 import { useAsset } from '@/hooks/use-asset';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import InputWithInlineVariables from './InputWithInlineVariables';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 export interface PageSettingsPanelHandle {
   checkUnsavedChanges: () => Promise<boolean>;
@@ -69,6 +72,34 @@ export interface PageFormData {
   settings?: PageSettings;
 }
 
+// Helper to check if image is a FieldVariable
+const isSeoImageFieldVariable = (image: string | FieldVariable | null): image is FieldVariable => {
+  return image !== null && typeof image === 'object' && 'type' in image && image.type === 'field';
+};
+
+// Helper to compare seoImage values (handles FieldVariable deep comparison)
+const compareSeoImage = (
+  a: string | FieldVariable | null,
+  b: string | FieldVariable | null
+): boolean => {
+  // Both null or both same string
+  if (a === b) return true;
+
+  // One is null, other is not
+  if (a === null || b === null) return false;
+
+  // Both are strings
+  if (typeof a === 'string' && typeof b === 'string') return a === b;
+
+  // Both are FieldVariables - compare field_id
+  if (isSeoImageFieldVariable(a) && isSeoImageFieldVariable(b)) {
+    return a.data.field_id === b.data.field_id;
+  }
+
+  // Different types
+  return false;
+};
+
 const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettingsPanelProps>(({
   isOpen,
   onClose,
@@ -93,6 +124,10 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
   const [customCodeHead, setCustomCodeHead] = useState('');
   const [customCodeBody, setCustomCodeBody] = useState('');
+  const [headVariableSelectKey, setHeadVariableSelectKey] = useState(0);
+  const [bodyVariableSelectKey, setBodyVariableSelectKey] = useState(0);
+  const customCodeHeadRef = useRef<HTMLTextAreaElement | null>(null);
+  const customCodeBodyRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [authEnabled, setAuthEnabled] = useState(false);
   const [authPassword, setAuthPassword] = useState('');
@@ -109,11 +144,6 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const seoImageAsset = useAsset(seoImageId);
   const { addAsset, removeAsset } = useAssetsStore();
   const displayAsset = uploadedAssetCache || seoImageAsset;
-
-  // Helper to check if seoImage is a FieldVariable
-  const isSeoImageFieldVariable = (image: string | FieldVariable | null): image is FieldVariable => {
-    return image !== null && typeof image === 'object' && 'type' in image && image.type === 'field';
-  };
 
   // Check if there's any image displayed (including temp preview)
   const hasImage = seoImage !== null || imagePreviewUrl !== null || displayAsset !== null;
@@ -157,6 +187,86 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const isErrorPage = useMemo(() => currentPage?.error_page !== null, [currentPage]);
   const isDynamicPage = useMemo(() => currentPage?.is_dynamic === true, [currentPage]);
 
+  // Get collection fields for variable insertion
+  const collectionFields = useMemo(() => {
+    if (!isDynamicPage) return [];
+    const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+    return fields[activeCollectionId] || [];
+  }, [isDynamicPage, collectionId, currentPage?.settings?.cms?.collection_id, fields]);
+
+  // Get available field variables for the selected collection
+  const customCodeVariables = useMemo(() => {
+    return collectionFields.map(field => `{{${field.name}}}`).join(', ');
+  }, [collectionFields]);
+
+  // Helper function to insert text at cursor position in textarea
+  const insertTextAtCursor = useCallback((textarea: HTMLTextAreaElement | null, text: string, setValue: (value: string) => void, currentValue: string) => {
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const newValue = currentValue.substring(0, start) + text + currentValue.substring(end);
+
+    setValue(newValue);
+
+    // Set cursor position after inserted text
+    setTimeout(() => {
+      const newCursorPos = start + text.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      textarea.focus();
+    }, 0);
+  }, []);
+
+  // Handle field variable insertion
+  const handleFieldVariableInsert = useCallback((fieldName: string, textareaRef: React.RefObject<HTMLTextAreaElement | null>, setValue: (value: string) => void, currentValue: string) => {
+    const variableText = `{{${fieldName}}}`;
+    insertTextAtCursor(textareaRef.current, variableText, setValue, currentValue);
+  }, [insertTextAtCursor]);
+
+  // Reusable field variable select component
+  const renderCustomCodeFieldSelector = useCallback(({
+    textareaRef,
+    value,
+    setValue,
+    selectKey,
+    setSelectKey,
+  }: {
+    textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+    value: string;
+    setValue: (value: string) => void;
+    selectKey: number;
+    setSelectKey: (updater: (prev: number) => number) => void;
+  }) => {
+    if (!isDynamicPage || collectionFields.length === 0) return null;
+
+    return (
+      <Select
+        key={selectKey}
+        onValueChange={(fieldName) => {
+          handleFieldVariableInsert(fieldName, textareaRef, setValue, value);
+          setSelectKey(prev => prev + 1);
+        }}
+      >
+        <SelectPrimitive.Trigger asChild>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-6 w-6 p-0"
+          >
+            <Icon name="database" className="size-2.5" />
+          </Button>
+        </SelectPrimitive.Trigger>
+        <SelectContent>
+          {collectionFields.map((field) => (
+            <SelectItem key={field.id} value={field.name}>
+              {field.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }, [isDynamicPage, collectionFields, handleFieldVariableInsert]);
+
   // Check if there's a URL conflict warning: dynamic page + non-index pages in same folder
   const urlConflictWarning = useMemo(() => {
     if (!currentPage) return null;
@@ -194,7 +304,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       isIndex !== initial.isIndex ||
       seoTitle !== initial.seoTitle ||
       seoDescription !== initial.seoDescription ||
-      seoImage !== initial.seoImage ||
+      !compareSeoImage(seoImage, initial.seoImage) ||
       seoNoindex !== initial.seoNoindex ||
       customCodeHead !== initial.customCodeHead ||
       customCodeBody !== initial.customCodeBody ||
@@ -212,7 +322,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
 
     return hasChanges;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImageId, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, pendingImageFile, saveCounter]);
+  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImage, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, pendingImageFile, saveCounter]);
 
   // Expose method to check for unsaved changes externally
   useImperativeHandle(ref, () => ({
@@ -559,7 +669,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     const activeCollection = collections.find(c => c.id === activeCollectionId);
     const activeCollectionName = activeCollection?.name || 'this collection';
     const collectionFields = fields[activeCollectionId] || [];
-    const imageFields = collectionFields.filter(field => field.type === 'image');
+    const imageFields = collectionFields // .filter(field => field.type === 'image');
     const hasImageFields = imageFields.length > 0;
 
     // Get the selected field name if a field variable is selected
@@ -572,6 +682,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         <TooltipTrigger asChild>
           <div>
             <Select
+              key={isSeoImageFieldVariable(seoImage) ? seoImage.data.field_id : 'none'}
               value={isSeoImageFieldVariable(seoImage) ? seoImage.data.field_id : undefined}
               onValueChange={(fieldId) => {
                 setSeoImage({
@@ -1341,7 +1452,6 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                           value={seoTitle}
                           onChange={(e) => setSeoTitle(e.target.value)}
                           placeholder={name || 'Page title'}
-                          className="flex-1"
                         />
                       )}
                     </Field>
@@ -1429,7 +1539,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                                           </Button>
                                         )}
 
-                                        {!hasFieldVariable && !hasUploadedAsset && <span className="text-muted-foreground">or</span>}
+                                        {isDynamicPage && !hasFieldVariable && !hasUploadedAsset && <span className="text-muted-foreground">or</span>}
 
                                         {!hasUploadedAsset && renderImageFieldSelect(hasFieldVariable)}
                                       </>
@@ -1479,17 +1589,47 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
               <FieldGroup>
                 <FieldSet>
                   <FieldGroup>
+                    {isDynamicPage && (
+                      <Field>
+                        <FieldLabel>Dynamic variables</FieldLabel>
+
+                        <FieldDescription className="flex flex-col gap-2.5">
+                          <span>
+                            The page CMS item values can be added to your custom codes (for example to improve SEO with JSON-LD) by adding
+                            field names like <span className="text-foreground">{'{{Name}}'}</span>, which will be replaced with the value
+                            of the <span className="text-foreground">Name</span> field on each generated page.
+                          </span>
+                        </FieldDescription>
+                      </Field>
+                    )}
+
                     <Field>
                       <FieldLabel>Header</FieldLabel>
                       <FieldDescription>
                         Add custom code to the &lt;head&gt; section of the page. It can be useful when you want to add custom meta tags, analytics, or custom CSS.
                       </FieldDescription>
-                      <Textarea
-                        value={customCodeHead}
-                        onChange={(e) => setCustomCodeHead(e.target.value)}
-                        placeholder="<script>...</script>"
-                        className="min-h-48"
-                      />
+                      <div className="relative">
+                        <Textarea
+                          ref={(el) => { customCodeHeadRef.current = el; }}
+                          value={customCodeHead}
+                          onChange={(e) => setCustomCodeHead(e.target.value)}
+                          placeholder="<script>...</script>"
+                          className="min-h-48 w-full"
+                        />
+                        {isDynamicPage && (
+                          <div className="absolute top-1 right-1 pointer-events-none">
+                            <div className="pointer-events-auto">
+                              {renderCustomCodeFieldSelector({
+                                textareaRef: customCodeHeadRef,
+                                value: customCodeHead,
+                                setValue: setCustomCodeHead,
+                                selectKey: headVariableSelectKey,
+                                setSelectKey: setHeadVariableSelectKey,
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </Field>
 
                     <Field>
@@ -1497,12 +1637,29 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       <FieldDescription>
                         Add custom code before the closing &lt;/body&gt; tag. It can be useful when you want to add custom scripts that need to run after the page loads.
                       </FieldDescription>
-                      <Textarea
-                        value={customCodeBody}
-                        onChange={(e) => setCustomCodeBody(e.target.value)}
-                        placeholder="<script>...</script>"
-                        className="min-h-48"
-                      />
+                      <div className="relative">
+                        <Textarea
+                          ref={(el) => { customCodeBodyRef.current = el; }}
+                          value={customCodeBody}
+                          onChange={(e) => setCustomCodeBody(e.target.value)}
+                          placeholder="<script>...</script>"
+                          className="min-h-48 w-full"
+                        />
+
+                        {isDynamicPage && (
+                          <div className="absolute top-1 right-1 pointer-events-none">
+                            <div className="pointer-events-auto">
+                              {renderCustomCodeFieldSelector({
+                                textareaRef: customCodeBodyRef,
+                                value: customCodeBody,
+                                setValue: setCustomCodeBody,
+                                selectKey: bodyVariableSelectKey,
+                                setSelectKey: setBodyVariableSelectKey,
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </Field>
                   </FieldGroup>
                 </FieldSet>

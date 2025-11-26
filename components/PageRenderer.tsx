@@ -1,12 +1,15 @@
 import LayerRenderer from '@/components/layers/LayerRenderer';
 import { resolveComponents } from '@/lib/resolve-components';
-import type { Layer, Component, Page } from '@/types';
+import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
+import type { Layer, Component, Page, CollectionItemWithValues, CollectionField } from '@/types';
 
 interface PageRendererProps {
   page: Page;
   layers: Layer[];
   components: Component[];
   generatedCss?: string;
+  collectionItem?: CollectionItemWithValues;
+  collectionFields?: CollectionField[];
 }
 
 /**
@@ -21,13 +24,23 @@ export default function PageRenderer({
   layers,
   components,
   generatedCss,
+  collectionItem,
+  collectionFields = [],
 }: PageRendererProps) {
   // Resolve component instances in the layer tree before rendering
   const resolvedLayers = resolveComponents(layers || [], components);
 
-  // Extract custom code from page settings
-  const customCodeHead = page.settings?.custom_code?.head || '';
-  const customCodeBody = page.settings?.custom_code?.body || '';
+  // Extract custom code from page settings and resolve placeholders for dynamic pages
+  const rawCustomCodeHead = page.settings?.custom_code?.head || '';
+  const rawCustomCodeBody = page.settings?.custom_code?.body || '';
+
+  const customCodeHead = page.is_dynamic && collectionItem
+    ? resolveCustomCodePlaceholders(rawCustomCodeHead, collectionItem, collectionFields)
+    : rawCustomCodeHead;
+
+  const customCodeBody = page.is_dynamic && collectionItem
+    ? resolveCustomCodePlaceholders(rawCustomCodeBody, collectionItem, collectionFields)
+    : rawCustomCodeBody;
 
   return (
     <>

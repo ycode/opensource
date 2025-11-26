@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import { generatePageMetadata } from '@/lib/page-utils';
+import { generatePageMetadata } from '@/lib/generate-page-metadata';
 
 // Force dynamic rendering - no caching for preview
 export const dynamic = 'force-dynamic';
@@ -41,7 +41,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     notFound();
   }
 
-  const { page, pageLayers, components } = data;
+  const { page, pageLayers, components, collectionItem, collectionFields } = data;
 
   // Load draft CSS from settings
   const draftCSS = await getSettingByKey('draft_css');
@@ -53,6 +53,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       layers={pageLayers.layers || []}
       components={components}
       generatedCss={draftCSS}
+      collectionItem={collectionItem}
+      collectionFields={collectionFields}
     />
   );
 }
@@ -75,5 +77,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   return generatePageMetadata(data.page, {
     isPreview: true,
+    collectionItem: data.collectionItem,
   });
 }

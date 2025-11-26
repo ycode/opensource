@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import YCodeBuilder from './components/YCodeBuilderMain';
 
 /**
@@ -16,10 +18,29 @@ import YCodeBuilder from './components/YCodeBuilderMain';
  * - /ycode/collections/[id] - Collection management
  * - /ycode/components/[id] - Component editing
  * 
+ * Excluded routes:
+ * - /ycode/preview - Preview routes are excluded and render independently
+ * 
  * YCodeBuilder uses useEditorUrl() to detect route changes and update
  * the UI accordingly without remounting.
  */
 export default function YCodeLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  
+  // Ensure dark mode is applied immediately on mount (before React hydrates)
+  useEffect(() => {
+    const root = document.documentElement;
+    if (pathname?.startsWith('/ycode') && !pathname?.startsWith('/ycode/preview')) {
+      root.classList.add('dark');
+    }
+  }, [pathname]);
+  
+  // Exclude preview routes from YCodeBuilder
+  // Preview routes should render independently without the editor UI
+  if (pathname?.startsWith('/ycode/preview')) {
+    return <>{children}</>;
+  }
+  
   // YCodeBuilder handles all rendering based on URL
   // Children are ignored - routes are just for URL structure
   return <YCodeBuilder />;

@@ -2,7 +2,8 @@ import { notFound } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { buildSlugPath, generatePageMetadata } from '@/lib/page-utils';
+import { buildSlugPath } from '@/lib/page-utils';
+import { generatePageMetadata } from '@/lib/generate-page-metadata';
 import { fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
@@ -116,7 +117,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     notFound();
   }
 
-  const { page, pageLayers, components } = data;
+  const { page, pageLayers, components, collectionItem, collectionFields } = data;
 
   // Load published CSS from settings
   const publishedCSS = await getSettingByKey('published_css');
@@ -127,6 +128,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       layers={pageLayers.layers || []}
       components={components}
       generatedCss={publishedCSS}
+      collectionItem={collectionItem}
+      collectionFields={collectionFields}
     />
   );
 }
@@ -149,5 +152,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   return generatePageMetadata(data.page, {
     fallbackTitle: slugPath.charAt(0).toUpperCase() + slugPath.slice(1),
+    collectionItem: data.collectionItem,
   });
 }

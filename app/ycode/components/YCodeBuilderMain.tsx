@@ -64,12 +64,12 @@ import { Alert, AlertTitle } from '@/components/ui/alert';
 export default function YCodeBuilder() {
   const router = useRouter();
   const { routeType, resourceId, sidebarTab, navigateToLayers, urlState, updateQueryParams } = useEditorUrl();
-  
+
   // Optimize store subscriptions - use selective selectors to prevent unnecessary re-renders
   const signOut = useAuthStore((state) => state.signOut);
   const user = useAuthStore((state) => state.user);
   const authInitialized = useAuthStore((state) => state.initialized);
-  
+
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId);
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds);
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
@@ -85,7 +85,7 @@ export default function YCodeBuilder() {
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
   const builderDataPreloaded = useEditorStore((state) => state.builderDataPreloaded);
   const setBuilderDataPreloaded = useEditorStore((state) => state.setBuilderDataPreloaded);
-  
+
   const updateLayer = usePagesStore((state) => state.updateLayer);
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const deleteLayer = usePagesStore((state) => state.deleteLayer);
@@ -99,16 +99,16 @@ export default function YCodeBuilder() {
   const setDraftLayers = usePagesStore((state) => state.setDraftLayers);
   const loadPages = usePagesStore((state) => state.loadPages);
   const pages = usePagesStore((state) => state.pages);
-  
+
   const clipboardLayer = useClipboardStore((state) => state.clipboardLayer);
   const copyToClipboard = useClipboardStore((state) => state.copyLayer);
   const cutToClipboard = useClipboardStore((state) => state.cutLayer);
   const copyStyleToClipboard = useClipboardStore((state) => state.copyStyle);
   const pasteStyleFromClipboard = useClipboardStore((state) => state.pasteStyle);
-  
+
   const componentIsSaving = useComponentsStore((state) => state.isSaving);
   const components = useComponentsStore((state) => state.components);
-  
+
   const migrationsComplete = useMigrationStore((state) => state.migrationsComplete);
   const setMigrationsComplete = useMigrationStore((state) => state.setMigrationsComplete);
   const [isSaving, setIsSaving] = useState(false);
@@ -156,6 +156,32 @@ export default function YCodeBuilder() {
       setDraftLayers(currentPageId, newLayers);
     }
   }, [editingComponentId, currentPageId, setDraftLayers]);
+
+  // Check if Supabase is configured, redirect to setup if not
+  const [supabaseConfigured, setSupabaseConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkSupabaseConfig = async () => {
+      try {
+        const response = await fetch('/api/setup/status');
+        const data = await response.json();
+
+        if (!data.is_configured) {
+          // Redirect to setup wizard
+          router.push('/welcome');
+          return;
+        }
+
+        setSupabaseConfigured(true);
+      } catch (err) {
+        console.error('Failed to check Supabase config:', err);
+        // On error, redirect to setup to be safe
+        router.push('/welcome');
+      }
+    };
+
+    checkSupabaseConfig();
+  }, [router]);
 
   // Sync viewportMode with activeBreakpoint in store
   useEffect(() => {
@@ -929,8 +955,8 @@ export default function YCodeBuilder() {
           return;
         }
 
-        // Tab - Select next sibling layer
-        if (e.key === 'Tab' && (currentPageId || editingComponentId) && selectedLayerId) {
+        // Tab - Select next sibling layer (only when not in input)
+        if (e.key === 'Tab' && !isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
           e.preventDefault();
 
           const layers = getCurrentLayers();
@@ -1151,6 +1177,11 @@ export default function YCodeBuilder() {
     handleUndo,
     handleRedo
   ]);
+
+  // Show loading screen while checking Supabase config
+  if (supabaseConfigured === null) {
+    return <BuilderLoading message="Checking configuration..." />;
+  }
 
   // Show loading screen while checking authentication
   if (!authInitialized) {

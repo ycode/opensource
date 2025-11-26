@@ -481,7 +481,6 @@ export default function WelcomePage() {
                           id="anon_key"
                           name="anon_key"
                           required
-                          placeholder="sb_publishable_ABCABCABCABCABC"
                           size="sm"
                         />
                         <FieldDescription>
@@ -495,7 +494,6 @@ export default function WelcomePage() {
                           id="service_role_key"
                           name="service_role_key"
                           required
-                          placeholder="sb_secret_ABCABCABCABCABC"
                           size="sm"
                         />
                         <FieldDescription>
@@ -510,7 +508,6 @@ export default function WelcomePage() {
                           id="connection_url"
                           name="connection_url"
                           required
-                          placeholder="postgresql://postgres.zxzgetrkwbpvakuzpytt:[YOUR-PASSWORD]@aws-1-eu-west-3.pooler.supabase.com:6543/postgres"
                           size="sm"
                         />
                         <FieldDescription>
@@ -525,7 +522,6 @@ export default function WelcomePage() {
                           id="db_password"
                           name="db_password"
                           required
-                          placeholder="••••••••••••••••"
                           size="sm"
                         />
                         <FieldDescription>
@@ -761,7 +757,6 @@ export default function WelcomePage() {
                     id="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@yourdomain.com"
                     disabled={loading}
                     size="sm"
                   />
@@ -774,7 +769,6 @@ export default function WelcomePage() {
                     id="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
                     disabled={loading}
                     size="sm"
                   />
@@ -788,7 +782,6 @@ export default function WelcomePage() {
                     id="confirmPassword"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
                     disabled={loading}
                     size="sm"
                   />
