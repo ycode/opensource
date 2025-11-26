@@ -139,20 +139,23 @@ const DynamicVariable = Node.create({
         }
       };
 
-      // Render React Badge component
+      // Render React Badge component asynchronously to avoid triggering updates during render phase
+      // The renderHTML fallback matches Badge styling exactly, so there's no visual difference
       const root = createRoot(container);
-      root.render(
-        <Badge variant="secondary">
-          <span>{label}</span>
-          <Button
-            onClick={handleDelete}
-            className="!size-4 !p-0 -mr-1"
-            variant="outline"
-          >
-            <Icon name="x" className="size-2" />
-          </Button>
-        </Badge>
-      );
+      queueMicrotask(() => {
+        root.render(
+          <Badge variant="secondary">
+            <span>{label}</span>
+            <Button
+              onClick={handleDelete}
+              className="!size-4 !p-0 -mr-1"
+              variant="outline"
+            >
+              <Icon name="x" className="size-2" />
+            </Button>
+          </Badge>
+        );
+      });
 
       return {
         dom: container,
@@ -177,7 +180,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   const [isFocused, setIsFocused] = useState(false);
 
   const editor = useEditor({
-    immediatelyRender: false,
+    immediatelyRender: true,
     extensions: [
       Document,
       Paragraph,
