@@ -9,6 +9,7 @@
  */
 
 import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/select';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
 
 interface InputWithInlineVariablesProps {
@@ -105,57 +107,58 @@ const DynamicVariable = Node.create({
     return [
       'span',
       mergeAttributes(HTMLAttributes, {
-        class: 'inline-flex items-center justify-center rounded-sm border px-1.5 py-0 text-[10px] font-medium whitespace-nowrap shrink-0 border-transparent bg-secondary text-secondary-foreground/70 mx-0.5',
+        class: 'inline-flex items-center justify-center gap-1 rounded-sm border px-1.5 py-0 text-[10px] font-medium whitespace-nowrap shrink-0 border-transparent bg-secondary text-secondary-foreground/70 mx-0.5',
         'data-variable': node.attrs.variable ? JSON.stringify(node.attrs.variable) : undefined,
       }),
-      label,
+      ['span', {}, label],
     ];
   },
 
   addNodeView() {
     return ({ node, getPos, editor }) => {
-      const span = document.createElement('span');
-      span.className = 'inline-flex items-center justify-center gap-0.5 rounded-sm border px-1.25 pt-0.25 text-[11px] leading-none font-medium whitespace-nowrap shrink-0 border-transparent bg-primary/50 text-primary-foreground mx-0.25';
+      // Create container for React component
+      const container = document.createElement('span');
+      container.className = 'inline-block';
+      container.contentEditable = 'false';
 
       const variable = node.attrs.variable;
       if (variable) {
-        span.setAttribute('data-variable', JSON.stringify(variable));
+        container.setAttribute('data-variable', JSON.stringify(variable));
       }
-      span.contentEditable = 'false';
 
       // Extract label from variable data
       const label = node.attrs.label ||
         (variable?.data?.field_id) ||
         (variable?.type || 'variable');
 
-      // Add the label text
-      const textNode = document.createTextNode(label);
-      span.appendChild(textNode);
-
-      // Create X icon
-      const icon = document.createElement('span');
-      icon.className = 'inline-flex items-center justify-center size-3.5 rounded-sm hover:bg-black/20 cursor-pointer transition-colors -mr-0.5';
-      icon.innerHTML = '<svg class="size-2 fill-current" viewBox="0 0 12 12"><path d="M9.5,1.79289322 L10.2071068,2.5 L6.70689322,5.99989322 L10.2071068,9.5 L9.5,10.2071068 L5.99989322,6.70689322 L2.5,10.2071068 L1.79289322,9.5 L5.29289322,5.99989322 L1.79289322,2.5 L2.5,1.79289322 L5.99989322,5.29289322 L9.5,1.79289322 Z"/></svg>';
-
-      // Handle click on X icon
-      icon.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      });
-
-      icon.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+      // Handle delete
+      const handleDelete = () => {
         const pos = getPos();
         if (typeof pos === 'number') {
           editor.chain().focus().deleteRange({ from: pos, to: pos + 1 }).run();
         }
-      });
+      };
 
-      span.appendChild(icon);
+      // Render React Badge component
+      const root = createRoot(container);
+      root.render(
+        <Badge variant="secondary">
+          <span>{label}</span>
+          <Button
+            onClick={handleDelete}
+            className="!size-4 !p-0 -mr-1"
+            variant="outline"
+          >
+            <Icon name="x" className="size-2" />
+          </Button>
+        </Badge>
+      );
 
       return {
-        dom: span,
+        dom: container,
+        destroy: () => {
+          root.unmount();
+        },
       };
     };
   },
@@ -422,8 +425,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
             <SelectPrimitive.Trigger asChild>
               <Button
                 variant="secondary"
-                size="sm"
-                className="h-6 w-6 p-0"
+                size="xs"
               >
                 <Icon name="database" className="size-2.5" />
               </Button>
