@@ -27,7 +27,7 @@ interface ElementLibraryProps {
 }
 
 // Category definitions
-const structureElements = ['div', 'section', 'container', 'hr', 'columns', 'rows', 'grid'];
+const structureElements = ['section', 'container', 'div', 'hr', 'columns', 'rows', 'grid'];
 const contentElements = ['heading', 'p', 'span', 'richtext'];
 const actionElements = ['button', 'link'];
 const mediaElements = ['image', 'icon', 'video', 'audio', 'youtube', 'iframe'];

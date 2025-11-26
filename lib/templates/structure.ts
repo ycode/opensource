@@ -16,145 +16,156 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Block',
     template: {
       name: 'div',
-      classes: ['block'],
+      classes: ['flex', 'flex-col'],
       children: [],
       design: {
-        layout: { isActive: true, display: 'Block' }
+        layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
       }
     }
   },
-  
+
   section: {
     icon: 'section',
     name: 'Section',
     template: {
       name: 'section',
-      classes: ['flex', 'flex-col', 'gap-[1rem]', 'py-[3rem]'],
+      classes: ['flex', 'flex-col', 'pt-[80px]', 'pb-[80px]', 'items-center'],
       children: [],
       design: {
-        layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
-        spacing: { isActive: true, paddingTop: '3rem', paddingBottom: '3rem' }
+        layout: { isActive: true, display: 'Flex', flexDirection: 'column', alignItems: 'center' },
+        spacing: { isActive: true, paddingTop: '80px', paddingBottom: '80px' }
       }
     }
   },
-  
+
   container: {
     icon: 'container',
     name: 'Container',
     template: {
       name: 'div',
-      classes: ['max-w-[80rem]', 'mx-auto', 'px-[1rem]'],
+      classes: ['flex', 'flex-col', 'max-w-[1280px]', 'w-[100%]'],
       children: [],
       design: {
-        sizing: { isActive: true, maxWidth: '80rem' },
-        spacing: { isActive: true, marginLeft: 'auto', marginRight: 'auto', paddingLeft: '1rem', paddingRight: '1rem' }
+        layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
+        sizing: { isActive: true, width: '100%', maxWidth: '1280px' },
       }
     }
   },
-  
+
   hr: {
     icon: 'separator',
     name: 'Separator',
     template: {
       name: 'hr',
-      classes: ['border-t', 'border-[#d1d5db]', 'my-[1rem]'],
+      classes: ['border-t', 'border-[#d1d5db]'],
       design: {
         borders: { isActive: true, borderWidth: '1px 0 0 0', borderColor: '#d1d5db' },
-        spacing: { isActive: true, marginTop: '1rem', marginBottom: '1rem' }
       }
     }
   },
-  
+
   columns: {
     icon: 'columns',
     name: 'Columns',
     template: {
       name: 'div',
-      classes: ['flex', 'gap-[1rem]'],
+      classes: ['flex', 'gap-[16px]'],
       children: [
         {
           name: 'div',
-          classes: ['w-[100%]'],
+          classes: ['flex', 'flex-col'],
           children: [],
           design: {
-            sizing: {
-              isActive: true,
-              width: '100%'
-            }
+            layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
           }
         },
         {
           name: 'div',
-          classes: ['w-[100%]'],
+          classes: ['flex', 'flex-col'],
           children: [],
           design: {
-            sizing: {
-              isActive: true,
-              width: '100%'
-            }
+            layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
           }
         }
       ] as any[],
       design: {
-        layout: { isActive: true, display: 'Flex', gap: '1rem' }
+        layout: { isActive: true, display: 'Flex', gap: '16px' }
       }
     }
   },
-  
+
   rows: {
     icon: 'rows',
     name: 'Rows',
     template: {
       name: 'div',
-      classes: ['flex', 'flex-col', 'gap-[1rem]'],
+      classes: ['flex', 'flex-col', 'gap-[16px]'],
       children: [
         {
           name: 'div',
-          classes: ['block'],
-          children: []
+          classes: ['flex', 'flex-col'],
+          children: [],
+          design: {
+            layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
+          }
         },
         {
           name: 'div',
-          classes: ['block'],
-          children: []
+          classes: ['flex', 'flex-col'],
+          children: [],
+          design: {
+            layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
+          }
         }
       ] as any[],
       design: {
-        layout: { isActive: true, display: 'Flex', flexDirection: 'column', gap: '1rem' }
+        layout: { isActive: true, display: 'Flex', flexDirection: 'column', gap: '16px' }
       }
     }
   },
-  
+
   grid: {
     icon: 'grid',
     name: 'Grid',
     template: {
       name: 'div',
-      classes: ['grid', 'grid-cols-[repeat(2,1fr)]', 'gap-[1rem]'],
+      classes: ['grid', 'gap-[16px]'],
       children: [
         {
           name: 'div',
-          classes: ['block'],
-          children: []
+          classes: ['flex', 'flex-col'],
+          children: [],
+          design: {
+            layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
+          }
         },
         {
           name: 'div',
-          classes: ['block'],
-          children: []
+          classes: ['flex', 'flex-col'],
+          children: [],
+          design: {
+            layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
+          }
         },
         {
           name: 'div',
-          classes: ['block'],
-          children: []
+          classes: ['flex', 'flex-col'],
+          children: [],
+          design: {
+            layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
+          }
         },
         {
           name: 'div',
-          classes: ['block'],
-          children: []
+          classes: ['flex', 'flex-col'],
+          children: [],
+          design: {
+            layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
+          }
         }
       ] as any[],
       design: {
-        layout: { isActive: true, display: 'Grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }
+        layout: { isActive: true, display: 'Grid', gap: '1px' }
       }
     }
   }
