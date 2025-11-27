@@ -6,7 +6,7 @@ import { pagesApi, pageLayersApi, foldersApi } from '../lib/api';
 import { getTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
 import { canHaveChildren } from '../lib/layer-utils';
-import { getDescendantFolderIds, isHomepage, findHomepage } from '../lib/page-utils';
+import { getDescendantFolderIds, isHomepage, findHomepage, findNextSelection } from '../lib/page-utils';
 import { updateLayersWithStyle, detachStyleFromLayers } from '../lib/layer-style-utils';
 import { updateLayersWithComponent, detachComponentFromLayers } from '../lib/component-utils';
 
@@ -1699,53 +1699,72 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const isCurrentPage = currentPageId === pageId;
 
     // Store original state for rollback
-    const originalPages = pages;
-    const originalFolders = folders;
-    const originalDrafts = draftsByPageId;
+    const originalState = {
+      pages,
+      folders,
+      draftsByPageId,
+    };
 
     // Optimistic update: Remove from UI immediately
     const filteredPages = pages.filter(p => p.id !== pageId);
-
-    // Reorder pages and folders together to eliminate gaps in the order sequence
     const { pages: updatedPages, folders: updatedFolders } = reorderPagesAndFoldersTogether(filteredPages, folders);
-
     const updatedDrafts = { ...draftsByPageId };
     delete updatedDrafts[pageId];
 
+    // Calculate next page to select optimistically (before API call)
+    const nextSelection = findNextSelection(pageId, 'page', updatedPages, updatedFolders);
+    // Ensure we select a page, not a folder
+    let nextPageId: string | null = null;
+    if (nextSelection) {
+      const isPage = updatedPages.some(p => p.id === nextSelection && p.error_page === null);
+      if (isPage) {
+        nextPageId = nextSelection;
+      }
+    }
+    // Fallback: if no sibling page found and current page was deleted, select homepage or first page
+    if (!nextPageId && isCurrentPage) {
+      const regularPages = updatedPages.filter(p => p.error_page === null);
+      if (regularPages.length > 0) {
+        const homePage = findHomepage(regularPages);
+        nextPageId = (homePage || regularPages[0]).id;
+      }
+    }
+
+    // Apply optimistic update
     set({
       pages: updatedPages,
       folders: updatedFolders,
       draftsByPageId: updatedDrafts,
       isLoading: true,
-      error: null
+      error: null,
     });
+
+    // Temp pages should not be deletable (deletion is disabled in UI)
+    // This is a defensive check in case deletion is called programmatically
+    const isTempPage = pageId.startsWith('temp-page-');
+    if (isTempPage) {
+      set({
+        ...originalState,
+        error: 'Cannot delete a page that is still being created',
+        isLoading: false,
+      });
+      return { success: false, error: 'Cannot delete a page that is still being created' };
+    }
 
     try {
       const response = await pagesApi.delete(pageId);
 
       if (response.error) {
         console.error('[usePagesStore.deletePage] Error:', response.error);
-        // Rollback optimistic update
         set({
-          pages: originalPages,
-          folders: originalFolders,
-          draftsByPageId: originalDrafts,
+          ...originalState,
           error: response.error,
-          isLoading: false
+          isLoading: false,
         });
         return { success: false, error: response.error };
       }
 
       set({ isLoading: false });
-
-      // Determine next page to select if current was deleted
-      // Filter out error pages - they should not be selected
-      const regularPages = updatedPages.filter(p => p.error_page === null);
-      let nextPageId: string | null = null;
-      if (isCurrentPage && regularPages.length > 0) {
-        const homePage = findHomepage(regularPages);
-        nextPageId = (homePage || regularPages[0]).id;
-      }
 
       return {
         success: true,
@@ -1755,13 +1774,10 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     } catch (error) {
       console.error('[usePagesStore.deletePage] Exception:', error);
       const errorMsg = error instanceof Error ? error.message : 'Failed to delete page';
-      // Rollback optimistic update
       set({
-        pages: originalPages,
-        folders: originalFolders,
-        draftsByPageId: originalDrafts,
+        ...originalState,
         error: errorMsg,
-        isLoading: false
+        isLoading: false,
       });
       return { success: false, error: errorMsg };
     }
@@ -2216,10 +2232,23 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   deleteFolder: async (folderId, currentPageId?: string | null) => {
     const { folders, pages, draftsByPageId } = get();
 
+    // Find the folder
+    const folderToDelete = folders.find(f => f.id === folderId);
+    if (!folderToDelete) {
+      return { success: false, error: 'Folder not found' };
+    }
+
     // Store original state for rollback
     const originalFolders = folders;
     const originalPages = pages;
     const originalDrafts = draftsByPageId;
+
+    // Temp folders should not be deletable (deletion is disabled in UI)
+    // This is a defensive check in case deletion is called programmatically
+    const isTempFolder = folderId.startsWith('temp-folder-');
+    if (isTempFolder) {
+      return { success: false, error: 'Cannot delete a folder that is still being created' };
+    }
 
     // Get all descendant folder IDs using the utility function
     const descendantFolderIds = getDescendantFolderIds(folderId, folders);

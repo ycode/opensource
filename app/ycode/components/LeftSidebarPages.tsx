@@ -13,7 +13,7 @@ import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
 import type { Page, PageFolder, PageSettings } from '@/types';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { Separator } from '@/components/ui/separator';
-import { generateUniqueSlug, generateUniqueFolderSlug, getNextNumberFromNames, getParentContextFromSelection, calculateNextOrder } from '@/lib/page-utils';
+import { generateUniqueSlug, generateUniqueFolderSlug, getNextNumberFromNames, getParentContextFromSelection, calculateNextOrder, findNextSelection } from '@/lib/page-utils';
 
 interface LeftSidebarPagesProps {
   pages: Page[];
@@ -599,54 +599,20 @@ export default function LeftSidebarPages({
     }
   };
 
-  // Find the best next item to select after deleting an item
-  const findNextSelection = (deletedId: string, deletedType: 'folder' | 'page'): string | null => {
-    // Get the deleted item's parent and depth
-    const deletedItem = deletedType === 'folder'
-      ? folders.find(f => f.id === deletedId)
-      : pages.find(p => p.id === deletedId);
-
-    if (!deletedItem) return null;
-
-    const parentId = deletedType === 'folder'
-      ? deletedItem.page_folder_id
-      : deletedItem.page_folder_id;
-    const depth = deletedItem.depth;
-    const order = deletedItem.order || 0;
-
-    // Get all siblings (pages and folders at same depth and parent)
-    // Filter out error pages - they should not be selected
-    const siblingPages = pages.filter(p =>
-      p.id !== deletedId &&
-      p.page_folder_id === parentId &&
-      p.depth === depth &&
-      p.error_page === null // Exclude error pages
-    );
-    const siblingFolders = folders.filter(f =>
-      f.id !== deletedId &&
-      f.page_folder_id === parentId &&
-      f.depth === depth
-    );
-
-    // Combine and sort by order
-    const allSiblings = [
-      ...siblingPages.map(p => ({ id: p.id, order: p.order || 0, type: 'page' as const })),
-      ...siblingFolders.map(f => ({ id: f.id, order: f.order || 0, type: 'folder' as const }))
-    ].sort((a, b) => a.order - b.order);
-
-    if (allSiblings.length > 0) {
-      // Try to find the next sibling (item with order greater than deleted item)
-      const nextSibling = allSiblings.find(s => s.order > order);
-      if (nextSibling) {
-        return nextSibling.id;
-      }
-
-      // No next sibling, get the last sibling (previous)
-      return allSiblings[allSiblings.length - 1].id;
+  /**
+   * Navigate to a page based on current route type
+   */
+  const navigateToNextPage = (pageId: string) => {
+    if (routeType === 'layers') {
+      navigateToLayers(pageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
+    } else if (routeType === 'page' && urlState.isEditing) {
+      navigateToPageEdit(pageId);
+    } else if (routeType === 'page') {
+      navigateToPage(pageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
+    } else {
+      // Default to layers if no route type
+      navigateToLayers(pageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
     }
-
-    // No siblings, select parent folder
-    return parentId;
   };
 
   // Handle page or folder deletion
@@ -654,16 +620,23 @@ export default function LeftSidebarPages({
     const wasSelected = selectedItemId === id;
     const wasCurrentPage = currentPageId === id;
 
-    // Find next selection BEFORE deletion (while item still exists)
-    const nextSelection = wasSelected ? findNextSelection(id, type) : null;
-
-    // Update selection immediately (optimistically) if item was selected but not opened
-    if (wasSelected && !wasCurrentPage) {
-      setSelectedItemId(nextSelection);
+    // Close settings panel if item was being edited
+    if (type === 'folder' && editingFolder?.id === id) {
+      setShowFolderSettings(false);
+      setEditingFolder(null);
+    } else if (type === 'page' && editingPage?.id === id) {
+      setShowPageSettings(false);
+      setEditingPage(null);
     }
 
+    // Handle folder deletion
     if (type === 'folder') {
-      // Delete folder via store (handles all logic including cascade deletion)
+      // Find next selection optimistically
+      const nextSelection = wasSelected ? findNextSelection(id, type, pages, folders) : null;
+      if (wasSelected && !wasCurrentPage && nextSelection) {
+        setSelectedItemId(nextSelection);
+      }
+
       const result = await deleteFolder(id, currentPageId);
 
       if (!result.success) {
@@ -675,15 +648,13 @@ export default function LeftSidebarPages({
         return;
       }
 
-      // Handle current page updates (only if the opened page was affected)
+      // Handle current page updates if affected
       if (result.currentPageAffected) {
         if (result.nextPageId) {
-          // Current page was deleted, switch to the suggested next page
           onPageSelect(result.nextPageId);
           setSelectedItemId(result.nextPageId);
           openPage(result.nextPageId);
         } else {
-          // No pages left
           onPageSelect('');
           setCurrentPageId(null);
           setSelectedItemId(null);
@@ -693,44 +664,52 @@ export default function LeftSidebarPages({
     }
 
     // Handle page deletion
-    if (type === 'page') {
-      // Delete via store (handles all logic)
-      const result = await deletePage(id, currentPageId);
+    // Find next selection optimistically (before API call)
+    const nextSelection = wasSelected ? findNextSelection(id, type, pages, folders) : null;
 
-      if (!result.success) {
-        console.error('Failed to delete page:', result.error);
-        // Revert selection on error
-        if (wasSelected && !wasCurrentPage) {
-          setSelectedItemId(id);
-        }
-        return;
-      }
+    // Select next item immediately (optimistically) - can be page or folder
+    if (nextSelection) {
+      setSelectedItemId(nextSelection);
+    } else if (wasSelected) {
+      setSelectedItemId(null);
+    }
 
-      // Handle current page updates (only if the opened page was deleted)
-      if (result.currentPageDeleted) {
-        if (result.nextPageId) {
-          // Current page was deleted, switch to the suggested next page
-          onPageSelect(result.nextPageId);
-          setSelectedItemId(result.nextPageId);
+    // If current page is being deleted, handle navigation optimistically
+    if (wasCurrentPage) {
+      // Only navigate if next selection is a page (not a folder)
+      const nextPageId = nextSelection && pages.some(p => p.id === nextSelection && p.error_page === null)
+        ? nextSelection
+        : null;
 
-          // Navigate to the same route type but with the new page ID
-          if (routeType === 'layers') {
-            navigateToLayers(result.nextPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
-          } else if (routeType === 'page' && urlState.isEditing) {
-            navigateToPageEdit(result.nextPageId);
-          } else if (routeType === 'page') {
-            navigateToPage(result.nextPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
-          } else {
-            // Default to layers if no route type
-            navigateToLayers(result.nextPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
-          }
+      if (nextPageId) {
+        onPageSelect(nextPageId);
+        navigateToNextPage(nextPageId);
+      } else {
+        // No pages left - fallback to homepage or first page
+        const regularPages = pages.filter(p => p.id !== id && p.error_page === null);
+        if (regularPages.length > 0) {
+          const homePage = regularPages.find(p => p.is_index && !p.page_folder_id);
+          const fallbackPageId = (homePage || regularPages[0]).id;
+          onPageSelect(fallbackPageId);
+          navigateToNextPage(fallbackPageId);
+          setSelectedItemId(fallbackPageId);
         } else {
-          // No pages left
           onPageSelect('');
           setCurrentPageId(null);
-          setSelectedItemId(null);
         }
       }
+    }
+
+    // Delete via store (handles API call and state updates)
+    const result = await deletePage(id, currentPageId);
+
+    if (!result.success) {
+      console.error('Failed to delete page:', result.error);
+      // Revert selection on error
+      if (wasSelected) {
+        setSelectedItemId(id);
+      }
+      return;
     }
   };
 
