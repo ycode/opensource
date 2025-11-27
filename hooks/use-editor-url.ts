@@ -10,7 +10,7 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
  * Handles routing for pages, collections, and components with semantic routes
  */
 
-export type EditorRouteType = 'page' | 'layers' | 'collection' | 'collections-base' | 'component' | null;
+export type EditorRouteType = 'page' | 'layers' | 'collection' | 'collections-base' | 'component' | 'settings' | null;
 export type PageSettingsTab = 'general' | 'seo' | 'custom-code';
 export type EditorTab = 'layers' | 'pages' | 'cms';
 
@@ -48,6 +48,7 @@ export function useEditorUrl() {
     const collectionsBaseMatch = pathname?.match(/^\/ycode\/collections$/);
     const collectionMatch = pathname?.match(/^\/ycode\/collections\/([^/]+)$/);
     const componentMatch = pathname?.match(/^\/ycode\/components\/([^/]+)$/);
+    const settingsMatch = pathname?.match(/^\/ycode\/settings(?:\/([^/]+))?$/);
 
     if (layersMatch) {
       const viewParam = searchParams?.get('view');
@@ -116,6 +117,16 @@ export function useEditorUrl() {
         pageSize: limitParam ? parseInt(limitParam, 10) : null,
         search: searchParam || null,
         sidebarTab: 'cms', // Inferred: collections show CMS sidebar
+      };
+    }
+
+    if (settingsMatch) {
+      return {
+        type: 'settings',
+        resourceId: settingsMatch[1] || null, // e.g., 'general', 'redirects', or null for base
+        tab: null,
+        page: null,
+        sidebarTab: 'pages', // Settings uses pages sidebar
       };
     }
 

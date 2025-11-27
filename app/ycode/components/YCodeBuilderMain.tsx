@@ -11,6 +11,7 @@
  * - /ycode/pages/[id]/layers (page layers)
  * - /ycode/collections/[id] (collections)
  * - /ycode/components/[id] (component editing)
+ * - /ycode/settings (settings pages)
  *
  * By using the same component instance everywhere, we prevent migration
  * checks and data reloads on every navigation.
@@ -27,6 +28,7 @@ import CMS from '../components/CMS';
 import HeaderBar from '../components/HeaderBar';
 import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
+import SettingsContent from '../components/SettingsContent';
 import UpdateNotification from '@/components/UpdateNotification';
 import MigrationChecker from '@/components/MigrationChecker';
 import BuilderLoading from '@/components/BuilderLoading';
@@ -61,15 +63,19 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 
-export default function YCodeBuilder() {
+interface YCodeBuilderProps {
+  children?: React.ReactNode;
+}
+
+export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCodeBuilderProps) {
   const router = useRouter();
   const { routeType, resourceId, sidebarTab, navigateToLayers, urlState, updateQueryParams } = useEditorUrl();
-  
+
   // Optimize store subscriptions - use selective selectors to prevent unnecessary re-renders
   const signOut = useAuthStore((state) => state.signOut);
   const user = useAuthStore((state) => state.user);
   const authInitialized = useAuthStore((state) => state.initialized);
-  
+
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId);
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds);
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
@@ -85,7 +91,7 @@ export default function YCodeBuilder() {
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
   const builderDataPreloaded = useEditorStore((state) => state.builderDataPreloaded);
   const setBuilderDataPreloaded = useEditorStore((state) => state.setBuilderDataPreloaded);
-  
+
   const updateLayer = usePagesStore((state) => state.updateLayer);
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const deleteLayer = usePagesStore((state) => state.deleteLayer);
@@ -99,16 +105,16 @@ export default function YCodeBuilder() {
   const setDraftLayers = usePagesStore((state) => state.setDraftLayers);
   const loadPages = usePagesStore((state) => state.loadPages);
   const pages = usePagesStore((state) => state.pages);
-  
+
   const clipboardLayer = useClipboardStore((state) => state.clipboardLayer);
   const copyToClipboard = useClipboardStore((state) => state.copyLayer);
   const cutToClipboard = useClipboardStore((state) => state.cutLayer);
   const copyStyleToClipboard = useClipboardStore((state) => state.copyStyle);
   const pasteStyleFromClipboard = useClipboardStore((state) => state.pasteStyle);
-  
+
   const componentIsSaving = useComponentsStore((state) => state.isSaving);
   const components = useComponentsStore((state) => state.components);
-  
+
   const migrationsComplete = useMigrationStore((state) => state.migrationsComplete);
   const setMigrationsComplete = useMigrationStore((state) => state.setMigrationsComplete);
   const [isSaving, setIsSaving] = useState(false);
@@ -159,19 +165,19 @@ export default function YCodeBuilder() {
 
   // Check if Supabase is configured, redirect to setup if not
   const [supabaseConfigured, setSupabaseConfigured] = useState<boolean | null>(null);
-  
+
   useEffect(() => {
     const checkSupabaseConfig = async () => {
       try {
         const response = await fetch('/api/setup/status');
         const data = await response.json();
-        
+
         if (!data.is_configured) {
           // Redirect to setup wizard
           router.push('/welcome');
           return;
         }
-        
+
         setSupabaseConfigured(true);
       } catch (err) {
         console.error('Failed to check Supabase config:', err);
@@ -179,7 +185,7 @@ export default function YCodeBuilder() {
         router.push('/welcome');
       }
     };
-    
+
     checkSupabaseConfig();
   }, [router]);
 
@@ -1308,82 +1314,90 @@ export default function YCodeBuilder() {
         signOut={signOut}
         showPageDropdown={showPageDropdown}
         setShowPageDropdown={setShowPageDropdown}
-        currentPage={currentPage}
-        currentPageId={currentPageId}
-        pages={pages}
-        setCurrentPageId={setCurrentPageId}
-        zoom={zoom}
-        setZoom={setZoom}
-        isSaving={isCurrentlySaving}
-        hasUnsavedChanges={hasUnsavedChanges}
-        lastSaved={lastSaved}
-        isPublishing={isPublishing}
-        setIsPublishing={setIsPublishing}
-        saveImmediately={saveImmediately}
-        activeTab={activeTab}
+        currentPage={routeType === 'settings' ? undefined : currentPage}
+        currentPageId={routeType === 'settings' ? null : currentPageId}
+        pages={routeType === 'settings' ? [] : pages}
+        setCurrentPageId={routeType === 'settings' ? () => {} : setCurrentPageId}
+        zoom={routeType === 'settings' ? 100 : zoom}
+        setZoom={routeType === 'settings' ? () => {} : setZoom}
+        isSaving={routeType === 'settings' ? false : isCurrentlySaving}
+        hasUnsavedChanges={routeType === 'settings' ? false : hasUnsavedChanges}
+        lastSaved={routeType === 'settings' ? null : lastSaved}
+        isPublishing={routeType === 'settings' ? false : isPublishing}
+        setIsPublishing={routeType === 'settings' ? () => {} : setIsPublishing}
+        saveImmediately={routeType === 'settings' ? async () => {} : saveImmediately}
+        activeTab={routeType === 'settings' ? 'pages' : activeTab}
         onExitComponentEditMode={handleExitComponentEditMode}
-        publishCount={publishCount}
-        onPublishSuccess={() => {
+        publishCount={routeType === 'settings' ? 0 : publishCount}
+        onPublishSuccess={routeType === 'settings' ? () => {} : () => {
           loadPublishCounts();
           // No need to reload pages - publish already updates store state
         }}
+        isSettingsRoute={routeType === 'settings'}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Pages & Layers */}
-        <LeftSidebar
-          selectedLayerId={selectedLayerId}
-          selectedLayerIds={selectedLayerIds}
-          onLayerSelect={setSelectedLayerId}
-          currentPageId={currentPageId}
-          onPageSelect={setCurrentPageId}
-        />
-
-        {/* Conditional Content Based on Active Tab */}
-        {activeTab === 'cms' ? (
-          <CMS />
+        {/* Settings Route - Render Settings Content */}
+        {routeType === 'settings' ? (
+          <SettingsContent>{children}</SettingsContent>
         ) : (
           <>
-            {/* Center Canvas - Preview */}
-            <CenterCanvas
+            {/* Left Sidebar - Pages & Layers */}
+            <LeftSidebar
               selectedLayerId={selectedLayerId}
+              selectedLayerIds={selectedLayerIds}
+              onLayerSelect={setSelectedLayerId}
               currentPageId={currentPageId}
-              viewportMode={viewportMode}
-              setViewportMode={setViewportMode}
-              zoom={zoom}
+              onPageSelect={setCurrentPageId}
             />
 
-            {/* Right Sidebar - Properties */}
-            <RightSidebar
-              selectedLayerId={selectedLayerId}
-              onLayerUpdate={(layerId, updates) => {
-                // If editing component, update component draft
-                if (editingComponentId) {
-                  const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
-                  const layers = componentDrafts[editingComponentId] || [];
+            {/* Conditional Content Based on Active Tab */}
+            {activeTab === 'cms' ? (
+              <CMS />
+            ) : (
+              <>
+                {/* Center Canvas - Preview */}
+                <CenterCanvas
+                  selectedLayerId={selectedLayerId}
+                  currentPageId={currentPageId}
+                  viewportMode={viewportMode}
+                  setViewportMode={setViewportMode}
+                  zoom={zoom}
+                />
 
-                  // Find and update layer in tree
-                  const updateLayerInTree = (tree: Layer[]): Layer[] => {
-                    return tree.map(layer => {
-                      if (layer.id === layerId) {
-                        return { ...layer, ...updates };
-                      }
-                      if (layer.children) {
-                        return { ...layer, children: updateLayerInTree(layer.children) };
-                      }
-                      return layer;
-                    });
-                  };
+                {/* Right Sidebar - Properties */}
+                <RightSidebar
+                  selectedLayerId={selectedLayerId}
+                  onLayerUpdate={(layerId, updates) => {
+                    // If editing component, update component draft
+                    if (editingComponentId) {
+                      const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
+                      const layers = componentDrafts[editingComponentId] || [];
 
-                  const updatedLayers = updateLayerInTree(layers);
-                  updateComponentDraft(editingComponentId, updatedLayers);
-                } else if (currentPageId) {
-                  // Regular page mode
-                  updateLayer(currentPageId, layerId, updates);
-                }
-              }}
-            />
+                      // Find and update layer in tree
+                      const updateLayerInTree = (tree: Layer[]): Layer[] => {
+                        return tree.map(layer => {
+                          if (layer.id === layerId) {
+                            return { ...layer, ...updates };
+                          }
+                          if (layer.children) {
+                            return { ...layer, children: updateLayerInTree(layer.children) };
+                          }
+                          return layer;
+                        });
+                      };
+
+                      const updatedLayers = updateLayerInTree(layers);
+                      updateComponentDraft(editingComponentId, updatedLayers);
+                    } else if (currentPageId) {
+                      // Regular page mode
+                      updateLayer(currentPageId, layerId, updates);
+                    }
+                  }}
+                />
+              </>
+            )}
           </>
         )}
       </div>

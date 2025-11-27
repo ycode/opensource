@@ -2,6 +2,8 @@
 
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useEditorUrl } from '@/hooks/use-editor-url';
+import { findHomepage } from '@/lib/page-utils';
 import { ArrowLeft, LogOut, Monitor, Moon, Sun, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +62,7 @@ interface HeaderBarProps {
   onExitComponentEditMode?: () => void;
   publishCount: number;
   onPublishSuccess: () => void;
+  isSettingsRoute?: boolean;
 }
 
 export default function HeaderBar({
@@ -83,14 +86,16 @@ export default function HeaderBar({
   onExitComponentEditMode,
   publishCount,
   onPublishSuccess,
+  isSettingsRoute = false,
 }: HeaderBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const pageDropdownRef = useRef<HTMLDivElement>(null);
-  const { editingComponentId, returnToPageId, currentPageCollectionItemId } = useEditorStore();
+  const { editingComponentId, returnToPageId, currentPageCollectionItemId, currentPageId: storeCurrentPageId } = useEditorStore();
   const { getComponentById } = useComponentsStore();
-  const { folders } = usePagesStore();
+  const { folders, pages: storePages } = usePagesStore();
   const { items } = useCollectionsStore();
+  const { navigateToLayers } = useEditorUrl();
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [showPublishPopover, setShowPublishPopover] = useState(false);
   const [changesCount, setChangesCount] = useState(0);
@@ -345,8 +350,6 @@ export default function HeaderBar({
     }
   };
 
-  const isSettingsRoute = pathname?.startsWith('/settings');
-
   return (
     <>
     <header className="h-14 bg-background border-b grid grid-cols-3 items-center px-4">
@@ -424,7 +427,7 @@ export default function HeaderBar({
             </DropdownMenuItem>
 
             <DropdownMenuItem
-              onClick={() => router.push('/settings')}
+              onClick={() => router.push('/ycode/settings/general')}
             >
               Settings
             </DropdownMenuItem>
@@ -447,7 +450,16 @@ export default function HeaderBar({
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => router.push('/ycode')}
+            onClick={() => {
+              // Use store's currentPageId (persists even on settings route) or fallback to homepage/first page
+              const targetPageId = storeCurrentPageId || findHomepage(storePages)?.id || storePages[0]?.id;
+
+              if (targetPageId) {
+                navigateToLayers(targetPageId);
+              } else {
+                router.push('/ycode');
+              }
+            }}
           >
             <Icon name="arrowLeft" />
             Return back
@@ -506,7 +518,7 @@ export default function HeaderBar({
 
         <Popover open={showPublishPopover} onOpenChange={setShowPublishPopover}>
           <PopoverTrigger asChild>
-            <Button size="sm">Publish</Button>
+            <Button size="sm" disabled={isSettingsRoute}>Publish</Button>
           </PopoverTrigger>
           <PopoverContent className="mr-4 mt-0.5">
 
