@@ -326,9 +326,6 @@ export default function LeftSidebarPages({
     setShowPageSettings(true);
     setEditingFolder(null);
     setShowFolderSettings(false);
-
-    // Navigate to the edit route (preserves existing query params)
-    navigateToPageEdit(page.id);
   };
 
   const handleEditFolder = async (folder: PageFolder) => {

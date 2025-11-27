@@ -111,15 +111,6 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const router = useRouter();
   const pathname = usePathname();
 
-  // Initialize tab from URL only on mount (for initial load)
-  const [activeTab, setActiveTab] = useState<'general' | 'seo' | 'custom-code'>(() => {
-    const editParam = searchParams?.get('edit');
-    // 'general' or empty means 'general', otherwise use the param value
-    if (editParam === 'seo' || editParam === 'custom-code') {
-      return editParam;
-    }
-    return 'general';
-  });
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [pageFolderId, setPageFolderId] = useState<string | null>(null);
@@ -163,6 +154,45 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   // Check if there's an uploaded asset (not a field variable)
   const hasUploadedAsset = (imagePreviewUrl || displayAsset) && !isSeoImageFieldVariable(seoImage);
 
+  const [currentPage, setCurrentPage] = useState<Page | null | undefined>(page);
+
+  // Initialize active tab from URL or default to general
+  const [activeTab, setActiveTab] = useState<'general' | 'seo' | 'custom-code'>(() => {
+    const editParam = searchParams?.get('edit');
+    if (['seo', 'custom-code', 'general'].includes(editParam || '')) {
+      return editParam as 'general' | 'seo' | 'custom-code';
+    }
+    return 'general';
+  });
+
+  // Update URL when panel opens or activeTab changes
+  useEffect(() => {
+    // Reset URL ref when panel closes (so URL can be updated when panel opens again)
+    if (!isOpen || !currentPage?.id) {
+      lastUrlRef.current = null;
+      return;
+    }
+
+    // If the panel was opened or activeTab changed, build the target URL
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('edit', activeTab || 'general');
+    const query = params.toString();
+    const targetUrl = `${pathname}${query ? `?${query}` : ''}`;
+
+    // Only navigate if URL is actually different from what we last set
+    if (lastUrlRef.current !== targetUrl) {
+      lastUrlRef.current = targetUrl;
+      router.replace(targetUrl);
+    }
+  }, [isOpen, activeTab, currentPage?.id, router, pathname, searchParams]);
+
+  // Handle tab changes - update local state
+  // URL is updated by the effect below when activeTab changes
+  const handleTabChange = useCallback((value: string) => {
+    const newTab = value as 'general' | 'seo' | 'custom-code';
+    setActiveTab(newTab);
+  }, []);
+
   useEffect(() => {
     if (uploadedAssetCache && seoImageAsset && uploadedAssetCache.id === seoImageAsset.id) {
       setUploadedAssetCache(null);
@@ -172,11 +202,12 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const [saveCounter, setSaveCounter] = useState(0);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<'close' | 'navigate' | 'external' | null>(null);
-  const [currentPage, setCurrentPage] = useState<Page | null | undefined>(page);
+
   const [pendingPageChange, setPendingPageChange] = useState<Page | null | undefined>(null);
   const rejectedPageRef = useRef<Page | null | undefined>(null);
   const confirmationResolverRef = useRef<((value: boolean) => void) | null>(null);
   const skipNextInitializationRef = useRef(false);
+  const lastUrlRef = useRef<string | null>(null);
   const initialValuesRef = useRef<{
     name: string;
     slug: string;
@@ -418,35 +449,6 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     rejectedPageRef.current = null; // Clear rejected page since we're accepting a change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, currentPage, isSaving]);
-
-  // Update URL when panel opens based on currently active tab
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const currentParams = new URLSearchParams(searchParams?.toString() || '');
-    const currentEditParam = currentParams.get('edit');
-
-    // Update URL if it doesn't match the active tab
-    if (currentEditParam !== activeTab) {
-      currentParams.set('edit', activeTab);
-      const query = currentParams.toString();
-      router.replace(`${pathname}${query ? `?${query}` : ''}`);
-    }
-  }, [isOpen, activeTab, searchParams, router, pathname]);
-
-  // Handle tab changes - update local state AND URL
-  // URL is updated for navigation/sharing, but doesn't control tab selection
-  const handleTabChange = useCallback((value: string) => {
-    const newTab = value as 'general' | 'seo' | 'custom-code';
-    setActiveTab(newTab);
-
-    // Update URL with edit param (for navigation/sharing purposes)
-    const currentParams = new URLSearchParams(searchParams?.toString() || '');
-    currentParams.set('edit', newTab);
-
-    const query = currentParams.toString();
-    router.replace(`${pathname}${query ? `?${query}` : ''}`);
-  }, [searchParams, router, pathname]);
 
   // Initialize form when currentPage changes (after confirmation or when no unsaved changes)
   useEffect(() => {
