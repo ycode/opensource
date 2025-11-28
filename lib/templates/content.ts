@@ -73,7 +73,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     icon: 'rich-text',
     name: 'Rich Text',
     template: {
-      name: 'div',
+      name: 'richtext',
       classes: ['prose', 'max-w-none'],
       text: '<p>This is rich text content. You can format it with <strong>bold</strong>, <em>italic</em>, and more.</p>',
       formattable: true,

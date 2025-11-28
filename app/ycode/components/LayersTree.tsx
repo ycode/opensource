@@ -309,14 +309,10 @@ function LayerRow({
 
           {/* Label */}
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
-            {(() => {
-              const baseName = getLayerName(node.layer, { component: appliedComponent });
-              // Special case for collection layers - show collection name if bound
-              if (finalCollectionName) {
-                return `Collection (${finalCollectionName})`;
-              }
-              return baseName;
-            })()}
+            {getLayerName(node.layer, {
+              component_name: appliedComponent?.name,
+              collection_name: finalCollectionName,
+            })}
           </span>
 
           {/* Style Indicator */}
@@ -364,6 +360,9 @@ export default function LayersTree({
   // Get component by ID function for drag overlay
   const { getComponentById } = useComponentsStore();
 
+  // Get collections from store
+  const { collections } = useCollectionsStore();
+
   // Use prop or store state (prop takes precedence for compatibility)
   const selectedLayerIds = propSelectedLayerIds ?? storeSelectedLayerIds;
 
@@ -393,6 +392,17 @@ export default function LayersTree({
     () => flattenedNodes.find((node) => node.id === activeId),
     [activeId, flattenedNodes]
   );
+
+  // Get collection name for active node (for drag overlay)
+  const activeNodeCollectionName = useMemo(() => {
+    if (!activeNode) return undefined;
+    const collectionVariable = getCollectionVariable(activeNode.layer);
+    return collectionVariable?.id
+      ? collections.find(c => c.id === collectionVariable.id)?.name
+      : activeNode.layer.collection?.id
+        ? collections.find(c => c.id === activeNode.layer.collection?.id)?.name
+        : undefined;
+  }, [activeNode, collections]);
 
   // Configure sensors for drag detection
   const sensors = useSensors(
@@ -881,7 +891,10 @@ export default function LayersTree({
               );
             })()}
             <span className="pointer-events-none">
-              {getLayerName(activeNode.layer, { component: activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId) : null })}
+              {getLayerName(activeNode.layer, {
+                component_name: activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId)?.name : null,
+                collection_name: activeNodeCollectionName,
+              })}
             </span>
           </div>
         ) : null}

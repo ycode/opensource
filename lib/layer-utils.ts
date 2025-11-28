@@ -362,9 +362,9 @@ export function getLayerIcon(
   if (layer.componentId) return 'component';
 
   // Collection layers
-  // if (layer.collection) {
-  //   return 'database';
-  // }
+  if (getCollectionVariable(layer)) {
+    return 'database';
+  }
 
   // Tag icons ('h1', 'h2', ...)
   if (layer.settings?.tag && iconExists(layer.settings?.tag)) {
@@ -387,8 +387,8 @@ export function getLayerIcon(
 export function getLayerName(
   layer: Layer,
   context?: {
-    component?: Component | undefined | null,
-    collection?: Collection | undefined | null,
+    component_name?: string | undefined | null,
+    collection_name?: string | undefined | null,
   }
 ): string {
   // Special case for Body layer
@@ -397,19 +397,19 @@ export function getLayerName(
   }
 
   // Use component name if this is a component instance
-  if (layer.componentId && context?.component) {
-    return context.component.name || 'Component';
+  if (layer.componentId && context?.component_name) {
+    return context.component_name || 'Component';
+  }
+
+  // Use collection name with formatting
+  if (getCollectionVariable(layer)) {
+    return `Collection${context?.collection_name ? ` (${context.collection_name})` : ''}`;
   }
 
   // Use custom name if available
   if (layer.customName) {
     return layer.customName;
   }
-
-  // Use collection name
-  // if (layer.collection && context?.collection) {
-  //   return context.collection.name || 'Collection';
-  // }
 
   return getBlockName(layer.name) || 'Layer';
 }
