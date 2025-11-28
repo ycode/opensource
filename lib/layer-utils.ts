@@ -356,7 +356,7 @@ export function getLayerIcon(
   defaultIcon: IconProps['name'] = 'box'
 ): IconProps['name'] {
   // Body layers
-  if (layer.id === 'body') return 'page';
+  if (layer.id === 'body') return 'layout';
 
   // Component layers
   if (layer.componentId) return 'component';
