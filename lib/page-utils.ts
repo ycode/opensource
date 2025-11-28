@@ -692,6 +692,62 @@ export function calculateNextOrder(
 }
 
 /**
+ * Find the next item to select after deleting an item
+ * Returns the next sibling (page or folder) at the same parent and depth
+ */
+export function findNextSelection(
+  deletedId: string,
+  deletedType: 'folder' | 'page',
+  pages: Page[],
+  folders: PageFolder[]
+): string | null {
+  // Get the deleted item's parent and depth
+  const deletedItem = deletedType === 'folder'
+    ? folders.find(f => f.id === deletedId)
+    : pages.find(p => p.id === deletedId);
+
+  if (!deletedItem) return null;
+
+  const parentId = deletedItem.page_folder_id;
+  const depth = deletedItem.depth;
+  const order = deletedItem.order || 0;
+
+  // Get all siblings (pages and folders) at same depth and parent
+  // Filter out error pages - they should not be selected
+  const siblingPages = pages.filter(p =>
+    p.id !== deletedId &&
+    p.page_folder_id === parentId &&
+    p.depth === depth &&
+    p.error_page === null // Exclude error pages
+  );
+  const siblingFolders = folders.filter(f =>
+    f.id !== deletedId &&
+    f.page_folder_id === parentId &&
+    f.depth === depth
+  );
+
+  // Combine and sort by order
+  const allSiblings = [
+    ...siblingPages.map(p => ({ id: p.id, order: p.order || 0, type: 'page' as const })),
+    ...siblingFolders.map(f => ({ id: f.id, order: f.order || 0, type: 'folder' as const }))
+  ].sort((a, b) => a.order - b.order);
+
+  if (allSiblings.length > 0) {
+    // Try to find the next sibling (item with order greater than deleted item)
+    const nextSibling = allSiblings.find(s => s.order > order);
+    if (nextSibling) {
+      return nextSibling.id;
+    }
+
+    // No next sibling, get the last sibling (previous)
+    return allSiblings[allSiblings.length - 1].id;
+  }
+
+  // No siblings, select parent folder
+  return parentId;
+}
+
+/**
  * Validation result type
  */
 export interface ValidationResult {

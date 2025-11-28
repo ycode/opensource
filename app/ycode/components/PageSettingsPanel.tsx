@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useImperativeHandle, useCallback } from 'react';
 import Image from 'next/image';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import type { Page, PageSettings, Asset, FieldVariable } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -106,7 +107,10 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   page,
   onSave,
 }, ref) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'seo' | 'custom-code'>('general');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [pageFolderId, setPageFolderId] = useState<string | null>(null);
@@ -150,6 +154,45 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   // Check if there's an uploaded asset (not a field variable)
   const hasUploadedAsset = (imagePreviewUrl || displayAsset) && !isSeoImageFieldVariable(seoImage);
 
+  const [currentPage, setCurrentPage] = useState<Page | null | undefined>(page);
+
+  // Initialize active tab from URL or default to general
+  const [activeTab, setActiveTab] = useState<'general' | 'seo' | 'custom-code'>(() => {
+    const editParam = searchParams?.get('edit');
+    if (['seo', 'custom-code', 'general'].includes(editParam || '')) {
+      return editParam as 'general' | 'seo' | 'custom-code';
+    }
+    return 'general';
+  });
+
+  // Update URL when panel opens or activeTab changes
+  useEffect(() => {
+    // Reset URL ref when panel closes (so URL can be updated when panel opens again)
+    if (!isOpen || !currentPage?.id) {
+      lastUrlRef.current = null;
+      return;
+    }
+
+    // If the panel was opened or activeTab changed, build the target URL
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('edit', activeTab || 'general');
+    const query = params.toString();
+    const targetUrl = `${pathname}${query ? `?${query}` : ''}`;
+
+    // Only navigate if URL is actually different from what we last set
+    if (lastUrlRef.current !== targetUrl) {
+      lastUrlRef.current = targetUrl;
+      router.replace(targetUrl);
+    }
+  }, [isOpen, activeTab, currentPage?.id, router, pathname, searchParams]);
+
+  // Handle tab changes - update local state
+  // URL is updated by the effect below when activeTab changes
+  const handleTabChange = useCallback((value: string) => {
+    const newTab = value as 'general' | 'seo' | 'custom-code';
+    setActiveTab(newTab);
+  }, []);
+
   useEffect(() => {
     if (uploadedAssetCache && seoImageAsset && uploadedAssetCache.id === seoImageAsset.id) {
       setUploadedAssetCache(null);
@@ -159,11 +202,12 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
   const [saveCounter, setSaveCounter] = useState(0);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<'close' | 'navigate' | 'external' | null>(null);
-  const [currentPage, setCurrentPage] = useState<Page | null | undefined>(page);
+
   const [pendingPageChange, setPendingPageChange] = useState<Page | null | undefined>(null);
   const rejectedPageRef = useRef<Page | null | undefined>(null);
   const confirmationResolverRef = useRef<((value: boolean) => void) | null>(null);
   const skipNextInitializationRef = useRef(false);
+  const lastUrlRef = useRef<string | null>(null);
   const initialValuesRef = useRef<{
     name: string;
     slug: string;
@@ -1138,7 +1182,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         {/* Tabs */}
         <Tabs
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as 'general' | 'seo' | 'custom-code')}
+          onValueChange={handleTabChange}
           className="flex-1 flex flex-col px-5 py-3.5"
         >
           <TabsList className="w-full">

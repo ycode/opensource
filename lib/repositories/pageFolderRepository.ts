@@ -352,7 +352,7 @@ export async function reorderSiblings(parentId: string | null, depth: number): P
     const { getKnexClient } = await import('../knex-client');
     const knex = await getKnexClient();
 
-    const caseStatements = folderUpdates.map(() => 'WHEN id = ? THEN ?').join(' ');
+    const caseStatements = folderUpdates.map(() => 'WHEN id = ? THEN ?::integer').join(' ');
     const values = folderUpdates.flatMap(u => [u.id, u.order]);
     const idPlaceholders = folderUpdates.map(() => '?').join(', ');
 
@@ -370,7 +370,7 @@ export async function reorderSiblings(parentId: string | null, depth: number): P
     const { getKnexClient } = await import('../knex-client');
     const knex = await getKnexClient();
 
-    const caseStatements = pageUpdates.map(() => 'WHEN id = ? THEN ?').join(' ');
+    const caseStatements = pageUpdates.map(() => 'WHEN id = ? THEN ?::integer').join(' ');
     const values = pageUpdates.flatMap(u => [u.id, u.order]);
     const idPlaceholders = pageUpdates.map(() => '?').join(', ');
 
@@ -716,7 +716,7 @@ export async function reorderFolders(updates: Array<{ id: string; order: number 
   const knex = await getKnexClient();
 
   // Batch update using CASE statement for efficiency (drafts only)
-  const caseStatements = updates.map(() => 'WHEN id = ? THEN ?').join(' ');
+  const caseStatements = updates.map(() => 'WHEN id = ? THEN ?::integer').join(' ');
   const values = updates.flatMap(u => [u.id, u.order]);
   const idPlaceholders = updates.map(() => '?').join(', ');
 

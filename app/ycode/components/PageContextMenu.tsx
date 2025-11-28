@@ -36,6 +36,9 @@ export default function PageContextMenu({
   // Check if page is dynamic (dynamic pages cannot be duplicated)
   const isItemDynamic = nodeType === 'page' && (item as Page).is_dynamic;
 
+  // Check if item is a temp item (temp items cannot be deleted until creation completes)
+  const isTempItem = item.id.startsWith('temp-page-') || item.id.startsWith('temp-folder-');
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -89,7 +92,7 @@ export default function PageContextMenu({
         )}
 
         {onDelete && (
-          <ContextMenuItem onClick={onDelete} disabled={isItemHomepage}>
+          <ContextMenuItem onClick={onDelete} disabled={isItemHomepage || isTempItem}>
             <span>Delete</span>
           </ContextMenuItem>
         )}
