@@ -104,14 +104,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
     // Use a large fixed value to ensure scrolling works in both directions
     return '50vw';
   }, [zoom]);
-  
+
   // Optimize store subscriptions - use selective selectors
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const addLayer = usePagesStore((state) => state.addLayer);
   const updateLayer = usePagesStore((state) => state.updateLayer);
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
-  
+
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
   const activeUIState = useEditorStore((state) => state.activeUIState);
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
@@ -119,9 +119,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const returnToPageId = useEditorStore((state) => state.returnToPageId);
   const currentPageCollectionItemId = useEditorStore((state) => state.currentPageCollectionItemId);
   const setCurrentPageCollectionItemId = useEditorStore((state) => state.setCurrentPageCollectionItemId);
-  
+
   const getDropdownItems = useCollectionsStore((state) => state.getDropdownItems);
-  
+
   const { routeType, urlState, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorUrl();
   const components = useComponentsStore((state) => state.components);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
@@ -275,7 +275,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (targetPageId) {
       // Navigate to the target page
       navigateToLayers(targetPageId);
-      
+
       // Small delay to ensure navigation starts before clearing state
       await new Promise(resolve => setTimeout(resolve, 50));
     }
@@ -558,10 +558,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
       // Store current scroll position
       const oldScrollLeft = container.scrollLeft;
       const oldScrollTop = container.scrollTop;
-      
+
       // Calculate zoom ratio
       const zoomRatio = zoom / previousZoomRef.current;
-      
+
       // Wait for layout to update, then adjust scroll proportionally
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -571,7 +571,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         });
       });
     }
-    
+
     previousZoomRef.current = zoom;
   }, [zoom]);
 
@@ -596,7 +596,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     const handleMouseDown = (e: MouseEvent) => {
       // Middle mouse button (button 1) or spacebar + left click
       const canPan = e.button === 1 || (e.button === 0 && spacePressed);
-      
+
       if (canPan) {
         // Don't pan if clicking on the iframe
         const target = e.target as HTMLElement;
@@ -653,26 +653,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
     };
 
     const handleWheel = (e: WheelEvent) => {
-      // Only zoom when Ctrl (Windows/Linux) or Cmd (Mac) is pressed
-      // On Mac, trackpad pinch automatically sets metaKey
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        
-        // Handle different delta modes - trackpad gestures often use pixels (deltaMode 0)
-        let deltaY = e.deltaY;
-        if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) {
-          deltaY *= 16; // Convert lines to pixels
-        } else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-          deltaY *= 100; // Convert pages to pixels
-        }
-        
-        // Calculate zoom delta - negative multiplier so scroll up zooms in
-        const zoomDelta = deltaY * -1;
-        const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
-        setZoom(Math.round(newZoom)); // Always round to whole number
-      } else if (spacePressed && container.contains(e.target as Node)) {
+      // Only handle spacebar panning here - zoom is handled globally
+      if (spacePressed && container.contains(e.target as Node)) {
         // Prevent default scroll when spacebar is held (for panning mode)
         e.preventDefault();
       }
@@ -684,10 +666,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    
+
     // Listen for wheel events on container
     container.addEventListener('wheel', handleWheel, { passive: false });
-    
+
     // Also listen on iframe contentDocument if it exists (for events inside iframe)
     const iframe = container.querySelector('iframe');
     if (iframe?.contentDocument) {
@@ -701,7 +683,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       container.removeEventListener('wheel', handleWheel);
-      
+
       // Clean up iframe listener
       const iframe = container.querySelector('iframe');
       if (iframe?.contentDocument) {
@@ -710,41 +692,102 @@ const CenterCanvas = React.memo(function CenterCanvas({
     };
   }, [zoom, setZoom]);
 
-  // Separate effect to attach iframe listener when iframe becomes ready
+  // Global wheel handler for zoom - works regardless of mouse position
+  // This allows zoom to work anywhere in the editor, including inside the iframe
   useEffect(() => {
-    if (!iframeReady || !canvasContainerRef.current) return;
-
-    const container = canvasContainerRef.current;
     const handleWheel = (e: WheelEvent) => {
       // Only zoom when Ctrl (Windows/Linux) or Cmd (Mac) is pressed
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        
-        // Handle different delta modes - trackpad gestures often use pixels (deltaMode 0)
-        let deltaY = e.deltaY;
-        if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) {
-          deltaY *= 16; // Convert lines to pixels
-        } else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-          deltaY *= 100; // Convert pages to pixels
-        }
-        
-        // Calculate zoom delta - negative multiplier so scroll up zooms in
-        const zoomDelta = deltaY * -1;
-        const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
-        setZoom(Math.round(newZoom * 100) / 100);
+      // On Mac, trackpad pinch automatically sets metaKey
+      if (!(e.ctrlKey || e.metaKey)) {
+        return; // Let normal scrolling happen
       }
+
+      // Check if user is typing in an input/textarea - don't interfere
+      const target = e.target as HTMLElement;
+      const isInputFocused = target.tagName === 'INPUT' ||
+                             target.tagName === 'TEXTAREA' ||
+                             target.isContentEditable;
+
+      if (isInputFocused) {
+        return; // Let input scrolling work normally
+      }
+
+      // Prevent default browser zoom behavior
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      // Handle different delta modes - trackpad gestures often use pixels (deltaMode 0)
+      let deltaY = e.deltaY;
+      if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        deltaY *= 16; // Convert lines to pixels
+      } else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        deltaY *= 100; // Convert pages to pixels
+      }
+
+      // Calculate zoom delta - negative multiplier so scroll up zooms in
+      const zoomDelta = deltaY * -1;
+      const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
+      setZoom(Math.round(newZoom));
     };
 
-    // Attach listener to iframe contentDocument
-    const iframe = container.querySelector('iframe');
-    if (iframe?.contentDocument) {
-      iframe.contentDocument.addEventListener('wheel', handleWheel, { passive: false });
-      
+    // Attach to window for global zoom support (handles events outside iframe)
+    window.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [zoom, setZoom]);
+
+  // Also attach zoom handler to iframe contentDocument when ready
+  // This ensures zoom works even when iframe is focused/selected
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Only zoom when Ctrl (Windows/Linux) or Cmd (Mac) is pressed
+      if (!(e.ctrlKey || e.metaKey)) {
+        return;
+      }
+
+      // Check if user is typing in an input/textarea - don't interfere
+      const target = e.target as HTMLElement;
+      const isInputFocused = target.tagName === 'INPUT' ||
+                             target.tagName === 'TEXTAREA' ||
+                             target.isContentEditable;
+
+      if (isInputFocused) {
+        return;
+      }
+
+      // Prevent default browser zoom behavior
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      // Handle different delta modes
+      let deltaY = e.deltaY;
+      if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        deltaY *= 16;
+      } else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        deltaY *= 100;
+      }
+
+      // Calculate zoom delta - negative multiplier so scroll up zooms in
+      const zoomDelta = deltaY * -1;
+      const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
+      setZoom(Math.round(newZoom));
+    };
+
+    const iframe = iframeRef.current;
+    const contentDoc = iframe?.contentDocument;
+
+    if (contentDoc) {
+      contentDoc.addEventListener('wheel', handleWheel, { passive: false });
+
       return () => {
-        if (iframe?.contentDocument) {
-          iframe.contentDocument.removeEventListener('wheel', handleWheel);
+        if (contentDoc) {
+          contentDoc.removeEventListener('wheel', handleWheel);
         }
       };
     }
@@ -904,7 +947,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
       </div>
 
       {/* Canvas Area */}
-      <div 
+      <div
         ref={canvasContainerRef}
         className={cn(
           'flex-1 overflow-auto bg-neutral-50 dark:bg-neutral-950/80',
@@ -949,7 +992,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               ref={iframeRef}
               src="/canvas.html"
               className="w-full border-0"
-              style={{ 
+              style={{
                 minHeight: '100%',
                 height: iframeHeight ? `${iframeHeight}px` : 'auto'
               }}
