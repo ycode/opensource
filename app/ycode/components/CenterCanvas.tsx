@@ -497,42 +497,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
           setIframeHeight(message.payload.height);
           break;
 
-        case 'WHEEL_ZOOM':
-          // Handle wheel zoom events from inside iframe
-          // Coordinates from iframe are relative to iframe viewport, need to convert to parent coordinates
-          const { deltaY, deltaMode, clientX, clientY } = message.payload;
-          const canvasContainer = canvasContainerRef.current;
-          const iframe = iframeRef.current;
-          
-          if (canvasContainer && iframe) {
-            // Get iframe position relative to viewport
-            const iframeRect = iframe.getBoundingClientRect();
-            // Convert iframe coordinates to parent window coordinates
-            const parentX = iframeRect.left + clientX;
-            const parentY = iframeRect.top + clientY;
-            
-            // Check if coordinates are within container
-            const containerRect = canvasContainer.getBoundingClientRect();
-            if (
-              parentX >= containerRect.left &&
-              parentX <= containerRect.right &&
-              parentY >= containerRect.top &&
-              parentY <= containerRect.bottom
-            ) {
-              // Handle different delta modes
-              let adjustedDeltaY = deltaY;
-              if (deltaMode === 1) { // DOM_DELTA_LINE
-                adjustedDeltaY *= 16;
-              } else if (deltaMode === 2) { // DOM_DELTA_PAGE
-                adjustedDeltaY *= 100;
-              }
-              const zoomDelta = -adjustedDeltaY * 0.5;
-              const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
-              setZoom(Math.round(newZoom));
-            }
-          }
-          break;
-
         case 'DRAG_START':
         case 'DRAG_OVER':
         case 'DROP':
@@ -689,67 +653,21 @@ const CenterCanvas = React.memo(function CenterCanvas({
     };
 
     const handleWheel = (e: WheelEvent) => {
-      // Zoom with Cmd/Ctrl + wheel or trackpad pinch (ctrlKey indicates pinch on trackpads)
-      // On macOS, trackpad pinch gestures come through as wheel events with ctrlKey=true
-      const isZoomGesture = e.metaKey || e.ctrlKey;
-      
-      // Check if the event is within the canvas container using mouse coordinates
-      // This works even when the event target is inside an iframe
-      const containerRect = container.getBoundingClientRect();
-      const mouseX = e.clientX;
-      const mouseY = e.clientY;
-      const isInContainer = 
-        mouseX >= containerRect.left &&
-        mouseX <= containerRect.right &&
-        mouseY >= containerRect.top &&
-        mouseY <= containerRect.bottom;
-      
-      if (isZoomGesture && isInContainer) {
-        // Prevent browser zoom and handle canvas zoom
+      // Only zoom when Ctrl (Windows/Linux) or Cmd (Mac) is pressed
+      // On Mac, trackpad pinch automatically sets metaKey
+      if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
         
-        // Handle different delta modes (pixel, line, page)
-        let deltaY = e.deltaY;
-        if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) {
-          deltaY *= 16; // Convert lines to pixels (approximate)
-        } else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-          deltaY *= 100; // Convert pages to pixels (approximate)
-        }
-        
-        // Calculate zoom delta - use deltaY for vertical scroll/pinch
-        // Negative deltaY = zoom in, positive = zoom out
-        const zoomDelta = -deltaY * 0.5; // Scale factor for smooth zooming
+        // Calculate zoom delta - negative multiplier so scroll up zooms in
+        // Use sensitivity of 0.01 for smooth zooming (matches guide)
+        const zoomDelta = e.deltaY * -0.01;
         const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
-        setZoom(Math.round(newZoom));
-      } else if (spacePressed && isInContainer) {
+        setZoom(Math.round(newZoom * 100) / 100); // Round to 2 decimal places for smoothness
+      } else if (spacePressed && container.contains(e.target as Node)) {
         // Prevent default scroll when spacebar is held (for panning mode)
         e.preventDefault();
-      }
-    };
-    
-    // Also add a document-level handler to prevent browser zoom when over canvas
-    const handleDocumentWheel = (e: WheelEvent) => {
-      const isZoomGesture = e.metaKey || e.ctrlKey;
-      
-      if (!isZoomGesture) return;
-      
-      // Check if mouse is over canvas container using coordinates
-      const containerRect = container.getBoundingClientRect();
-      const mouseX = e.clientX;
-      const mouseY = e.clientY;
-      const isInContainer = 
-        mouseX >= containerRect.left &&
-        mouseX <= containerRect.right &&
-        mouseY >= containerRect.top &&
-        mouseY <= containerRect.bottom;
-      
-      // Prevent browser zoom when pinching/zooming over the canvas container
-      if (isInContainer) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
       }
     };
 
@@ -759,10 +677,15 @@ const CenterCanvas = React.memo(function CenterCanvas({
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    // Use capture phase for wheel events to intercept before browser handles them
-    container.addEventListener('wheel', handleWheel, { passive: false, capture: true });
-    // Also add document-level handler in capture phase to prevent browser zoom
-    document.addEventListener('wheel', handleDocumentWheel, { passive: false, capture: true });
+    
+    // Listen for wheel events on container
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    
+    // Also listen on iframe contentDocument if it exists (for events inside iframe)
+    const iframe = container.querySelector('iframe');
+    if (iframe?.contentDocument) {
+      iframe.contentDocument.addEventListener('wheel', handleWheel, { passive: false });
+    }
 
     return () => {
       container.removeEventListener('mousedown', handleMouseDown, true);
@@ -770,10 +693,47 @@ const CenterCanvas = React.memo(function CenterCanvas({
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      container.removeEventListener('wheel', handleWheel, true);
-      document.removeEventListener('wheel', handleDocumentWheel, true);
+      container.removeEventListener('wheel', handleWheel);
+      
+      // Clean up iframe listener
+      const iframe = container.querySelector('iframe');
+      if (iframe?.contentDocument) {
+        iframe.contentDocument.removeEventListener('wheel', handleWheel);
+      }
     };
   }, [zoom, setZoom]);
+
+  // Separate effect to attach iframe listener when iframe becomes ready
+  useEffect(() => {
+    if (!iframeReady || !canvasContainerRef.current) return;
+
+    const container = canvasContainerRef.current;
+    const handleWheel = (e: WheelEvent) => {
+      // Only zoom when Ctrl (Windows/Linux) or Cmd (Mac) is pressed
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        // Calculate zoom delta - negative multiplier so scroll up zooms in
+        const zoomDelta = e.deltaY * -0.01;
+        const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
+        setZoom(Math.round(newZoom * 100) / 100);
+      }
+    };
+
+    // Attach listener to iframe contentDocument
+    const iframe = container.querySelector('iframe');
+    if (iframe?.contentDocument) {
+      iframe.contentDocument.addEventListener('wheel', handleWheel, { passive: false });
+      
+      return () => {
+        if (iframe?.contentDocument) {
+          iframe.contentDocument.removeEventListener('wheel', handleWheel);
+        }
+      };
+    }
+  }, [iframeReady, zoom, setZoom]);
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">

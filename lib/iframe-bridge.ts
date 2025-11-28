@@ -24,8 +24,7 @@ export type IframeToParentMessage =
   | { type: 'DRAG_OVER'; payload: { layerId: string | null; position: 'before' | 'after' | 'inside' } }
   | { type: 'DROP'; payload: { targetLayerId: string; position: 'before' | 'after' | 'inside'; sourceLayerId?: string } }
   | { type: 'CONTEXT_MENU'; payload: { layerId: string; x: number; y: number } }
-  | { type: 'CONTENT_HEIGHT'; payload: { height: number } }
-  | { type: 'WHEEL_ZOOM'; payload: { deltaY: number; deltaMode: number; clientX: number; clientY: number } };
+  | { type: 'CONTENT_HEIGHT'; payload: { height: number } };
 
 export type IframeMessage = ParentToIframeMessage | IframeToParentMessage;
 
@@ -88,7 +87,6 @@ function isIframeToParentMessage(message: any): message is IframeToParentMessage
     'DROP',
     'CONTEXT_MENU',
     'CONTENT_HEIGHT',
-    'WHEEL_ZOOM',
   ];
 
   return validTypes.includes(message.type);
