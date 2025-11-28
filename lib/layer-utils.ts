@@ -397,8 +397,8 @@ export function getLayerName(
   }
 
   // Use component name if this is a component instance
-  if (layer.componentId && context?.component_name) {
-    return context.component_name || 'Component';
+  if (layer.componentId) {
+    return context?.component_name || 'Component';
   }
 
   // Use collection name with formatting
