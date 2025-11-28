@@ -12,7 +12,7 @@ interface BlockTemplate {
 
 export const contentTemplates: Record<string, BlockTemplate> = {
   heading: {
-    icon: 'text',
+    icon: 'heading',
     name: 'Heading',
     template: {
       name: 'h1',
@@ -66,7 +66,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
   },
 
   richtext: {
-    icon: 'text',
+    icon: 'rich-text',
     name: 'Rich Text',
     template: {
       name: 'div',

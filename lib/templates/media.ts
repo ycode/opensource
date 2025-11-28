@@ -31,7 +31,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   icon: {
     icon: 'icon',
     name: 'Icon',
@@ -51,7 +51,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   video: {
     icon: 'video',
     name: 'Video',
@@ -73,9 +73,9 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   audio: {
-    icon: 'block',
+    icon: 'audio',
     name: 'Audio',
     template: {
       name: 'audio',
@@ -94,7 +94,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   youtube: {
     icon: 'video',
     name: 'YouTube',
@@ -120,7 +120,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   iframe: {
     icon: 'block',
     name: 'Iframe',

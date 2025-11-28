@@ -30,8 +30,8 @@ interface ElementLibraryProps {
 const structureElements = ['section', 'container', 'div', 'hr', 'columns', 'rows', 'grid', 'collection'];
 const contentElements = ['heading', 'p', 'richtext'];
 const actionElements = ['button', 'link'];
-const mediaElements = ['image', 'icon', 'video', 'audio', 'youtube', 'iframe'];
-const formElements = ['form', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label', 'submit'];
+const mediaElements = ['image', 'icon', 'video', 'audio'];
+const formElements = ['form', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label'];
 
 export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps) {
   const { addLayerFromTemplate, updateLayer, setDraftLayers, draftsByPageId } = usePagesStore();
