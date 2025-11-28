@@ -653,8 +653,20 @@ const CenterCanvas = React.memo(function CenterCanvas({
     };
 
     const handleWheel = (e: WheelEvent) => {
-      // Prevent default scroll when spacebar is held (for panning mode)
-      if (spacePressed && container.contains(e.target as Node)) {
+      // Zoom with Cmd/Ctrl + wheel or trackpad pinch (ctrlKey indicates pinch on trackpads)
+      const isZoomGesture = e.metaKey || e.ctrlKey;
+      
+      if (isZoomGesture && container.contains(e.target as Node)) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Calculate zoom delta - use deltaY for vertical scroll/pinch
+        // Negative deltaY = zoom in, positive = zoom out
+        const zoomDelta = -e.deltaY * 0.5; // Scale factor for smooth zooming
+        const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
+        setZoom(Math.round(newZoom));
+      } else if (spacePressed && container.contains(e.target as Node)) {
+        // Prevent default scroll when spacebar is held (for panning mode)
         e.preventDefault();
       }
     };
@@ -675,7 +687,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
       window.removeEventListener('keyup', handleKeyUp);
       container.removeEventListener('wheel', handleWheel);
     };
-  }, [zoom]);
+  }, [zoom, setZoom]);
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">
