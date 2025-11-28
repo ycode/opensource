@@ -212,6 +212,9 @@ export interface Layer {
   style?: string; // Style preset name (legacy)
   content?: string; // For text/heading layers (use text instead)
   src?: string;     // For image layers (use url instead)
+
+  // SSR-only property for resolved collection items
+  _collectionItems?: CollectionItemWithValues[];
 }
 
 export interface Page {
@@ -558,6 +561,8 @@ export interface CollectionVariable {
   id: string; // Collection ID
   sort_by?: 'none' | 'manual' | 'random' | string; // 'none', 'manual', 'random', or field ID
   sort_order?: 'asc' | 'desc'; // Only used when sort_by is a field ID
+  limit?: number; // Maximum number of items to show
+  offset?: number; // Number of items to skip
 }
 
 export interface InlineVariableContent {

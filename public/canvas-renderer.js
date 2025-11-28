@@ -16,8 +16,9 @@
   let currentUIState = 'neutral'; // Active UI state for visual preview
   let componentMap = {}; // Maps layer IDs to their root component layer ID
   let editingComponentId = null; // ID of component being edited
-  let collectionItems = {}; // Collection items by collection ID
+  let collectionItems = {}; // Collection items by collection ID (for CMS view)
   let collectionFields = {}; // Collection fields by collection ID
+  let collectionLayerData = {}; // Collection items by layer ID (for collection layers)
   
   // Root element
   const root = document.getElementById('canvas-root');
@@ -47,12 +48,6 @@
         editingComponentId = message.payload.editingComponentId;
         collectionItems = message.payload.collectionItems || {};
         collectionFields = message.payload.collectionFields || {};
-        console.log('[Canvas] Received UPDATE_LAYERS', { 
-          layersCount: layers.length,
-          collectionItemsKeys: Object.keys(collectionItems),
-          collectionItems,
-          collectionFieldsKeys: Object.keys(collectionFields)
-        });
         render();
         break;
         
@@ -73,6 +68,16 @@
         
       case 'ENABLE_EDIT_MODE':
         editMode = message.payload.enabled;
+        render();
+        break;
+        
+      case 'COLLECTION_LAYER_DATA':
+        // Store collection data specific to this layer
+        collectionLayerData[message.payload.layerId] = message.payload.items;
+        console.log('[Canvas] Received COLLECTION_LAYER_DATA', {
+          layerId: message.payload.layerId,
+          itemsCount: message.payload.items.length
+        });
         render();
         break;
         
@@ -499,6 +504,29 @@
   }
   
   /**
+   * Apply limit and offset to collection items (after sorting)
+   * @param {Array} items - Array of collection items
+   * @param {number} limit - Maximum number of items to show
+   * @param {number} offset - Number of items to skip
+   * @returns {Array} Filtered array of collection items
+   */
+  function applyLimitOffset(items, limit, offset) {
+    let result = [...items];
+    
+    // Apply offset first (skip items)
+    if (offset && offset > 0) {
+      result = result.slice(offset);
+    }
+    
+    // Apply limit (take first N items)
+    if (limit && limit > 0) {
+      result = result.slice(0, limit);
+    }
+    
+    return result;
+  }
+  
+  /**
    * Render layer tree
    */
   function render() {
@@ -534,25 +562,13 @@
     // Use parent collection ID if not a collection layer itself
     const activeCollectionId = collectionId || parentCollectionId;
     
-    // Debug logging for all layers with variables
-    if (layer.variables) {
-      console.log('[Canvas Layer with Variables]', {
-        layerId: layer.id,
-        layerName: layer.name,
-        hasVariablesText: !!layer.variables.text,
-        variablesText: layer.variables.text,
-        collectionItemData
-      });
-    }
-    
     // Debug logging for collection layers
     if (isCollectionLayer) {
-      console.log('[Canvas Collection Layer]', {
+      console.log('[Canvas] Collection Layer Detected', {
         layerId: layer.id,
-        collectionVariable,
         collectionId,
-        hasChildren: !!(layer.children && layer.children.length > 0),
-        childrenCount: layer.children?.length || 0
+        collectionVariable,
+        hasChildren: !!(layer.children && layer.children.length > 0)
       });
     }
     
@@ -611,45 +627,46 @@
     // Render children - handle collection layers specially
     if (hasChildren) {
       if (isCollectionLayer && collectionId) {
-        // Collection layer: render children once for each collection item
-        const rawItems = collectionItems[collectionId] || [];
-        const fields = collectionFields[collectionId] || [];
+        // Collection layer: use layer-specific data instead of global collection items
+        const items = collectionLayerData[layer.id] || [];
         
-        // Apply sorting to collection items
-        const items = sortCollectionItems(rawItems, collectionVariable, fields);
-        
-        console.log('[Canvas] Rendering collection children', {
+        console.log('[Canvas] Rendering collection layer', {
+          layerId: layer.id,
           collectionId,
           itemsCount: items.length,
-          items,
-          allCollectionIds: Object.keys(collectionItems),
-          hasItemsForThisCollection: !!collectionItems[collectionId],
-          sorting: {
-            sort_by: collectionVariable?.sort_by,
-            sort_order: collectionVariable?.sort_order
-          }
+          hasLayerData: !!collectionLayerData[layer.id]
         });
         
         if (items.length > 0) {
-          items.forEach((item, index) => {
-            console.log('[Canvas] Rendering item', index, item);
+          items.forEach((item) => {
             const itemWrapper = document.createElement('div');
             itemWrapper.setAttribute('data-collection-item-id', item.id);
             
             layer.children.forEach(child => {
-              console.log('[Canvas] Rendering child for item', { childId: child.id, childType: child.type, childName: child.name, itemValues: item.values });
               const childElement = renderLayer(child, item.values, activeCollectionId);
-              console.log('[Canvas] Child element result:', childElement);
               if (childElement) {
                 itemWrapper.appendChild(childElement);
               }
             });
             
-            console.log('[Canvas] Item wrapper children count:', itemWrapper.children.length);
             element.appendChild(itemWrapper);
           });
-        } else {
-          console.warn('[Canvas] Collection has no items!', { collectionId });
+        } else if (editMode) {
+          // Show skeleton placeholder in edit mode when no data yet
+          const skeleton = document.createElement('div');
+          skeleton.className = 'p-4';
+          skeleton.innerHTML = `
+            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #27272a 0%, #3f3f46 50%, #27272a 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem; margin-bottom: 1rem;"></div>
+            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #27272a 0%, #3f3f46 50%, #27272a 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem; margin-bottom: 1rem;"></div>
+            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #27272a 0%, #3f3f46 50%, #27272a 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem;"></div>
+            <style>
+              @keyframes shimmer {
+                0% { background-position: 200% 0; }
+                100% { background-position: -200% 0; }
+              }
+            </style>
+          `;
+          element.appendChild(skeleton);
         }
       } else {
         // Regular rendering: just render children normally

@@ -398,3 +398,30 @@ export function sortCollectionItems(
     return sortOrder === 'asc' ? comparison : -comparison;
   });
 }
+
+/**
+ * Apply limit and offset to collection items (after sorting)
+ * @param items - Array of collection items
+ * @param limit - Maximum number of items to show
+ * @param offset - Number of items to skip
+ * @returns Filtered array of collection items
+ */
+export function applyLimitOffset(
+  items: CollectionItemWithValues[],
+  limit?: number,
+  offset?: number
+): CollectionItemWithValues[] {
+  let result = [...items];
+  
+  // Apply offset first (skip items)
+  if (offset && offset > 0) {
+    result = result.slice(offset);
+  }
+  
+  // Apply limit (take first N items)
+  if (limit && limit > 0) {
+    result = result.slice(0, limit);
+  }
+  
+  return result;
+}

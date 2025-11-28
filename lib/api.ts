@@ -421,11 +421,22 @@ export const collectionsApi = {
 
   async getItems(
     collectionId: string,
-    options?: { page?: number; limit?: number }
+    options?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      sortBy?: string;
+      sortOrder?: string;
+      offset?: number;
+    }
   ): Promise<ApiResponse<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>> {
     const params = new URLSearchParams();
     if (options?.page) params.append('page', options.page.toString());
     if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.search) params.append('search', options.search);
+    if (options?.sortBy) params.append('sortBy', options.sortBy);
+    if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
+    if (options?.offset !== undefined) params.append('offset', options.offset.toString());
     const queryString = params.toString();
     const url = `/api/collections/${collectionId}/items${queryString ? `?${queryString}` : ''}`;
     return apiRequest<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>(url);

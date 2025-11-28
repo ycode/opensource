@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
-import { getHtmlTag, getClassesString, getTextWithBinding, getImageUrlWithBinding, getCollectionVariable, sortCollectionItems } from '../../lib/layer-utils';
+import { getHtmlTag, getClassesString, getTextWithBinding, getImageUrlWithBinding, getCollectionVariable } from '../../lib/layer-utils';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 import { useComponentsStore } from '../../stores/useComponentsStore';
-import { useCollectionsStore } from '../../stores/useCollectionsStore';
+import { useCollectionLayerStore } from '../../stores/useCollectionLayerStore';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { cn } from '@/lib/utils';
 
 interface LayerRendererProps {
@@ -116,46 +117,33 @@ const LayerItem: React.FC<{
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const component = (isEditMode && layer.componentId) ? getComponentById(layer.componentId) : null;
 
-  // Get collection items if this is a collection layer
-  const items = useCollectionsStore((state) => state.items);
-  const fields = useCollectionsStore((state) => state.fields);
+  // Collection layer handling - use new independent store
   const isCollectionLayer = layer.type === 'collection' || layer.name === 'collection';
-  
-  // Debug: Always log to verify execution
-  console.log('[LayerRenderer]', {
-    layerId: layer.id,
-    layerType: layer.type,
-    layerName: layer.name,
-    isCollectionLayer,
-    NODE_ENV: process.env.NODE_ENV
-  });
-  
-  // Use new getCollectionVariable helper (checks variables first, then fallback)
   const collectionVariable = isCollectionLayer ? getCollectionVariable(layer) : null;
   const collectionId = collectionVariable?.id;
-  const rawCollectionItems = (isCollectionLayer && collectionId) ? (items[collectionId] || []) : [];
   
-  // Apply sorting to collection items
-  const collectionFields = collectionId ? (fields[collectionId] || []) : [];
-  const collectionItems = sortCollectionItems(rawCollectionItems, collectionVariable, collectionFields);
+  // Use collection layer store for independent data fetching
+  const layerData = useCollectionLayerStore((state) => state.layerData[layer.id]);
+  const isLoadingLayerData = useCollectionLayerStore((state) => state.loading[layer.id]);
+  
+  // Collection items from layer-specific store
+  const collectionItems = layerData || [];
+  
+  // Debug: Log collection layer state
+  if (isCollectionLayer) {
+    console.log('[LayerRenderer] Collection Layer', {
+      layerId: layer.id,
+      collectionId,
+      itemsCount: collectionItems.length,
+      isLoading: isLoadingLayerData,
+      collectionVariable
+    });
+  }
 
   // For component instances in edit mode, use the component's layers as children
   // For published pages, children are already resolved server-side
   const children = (isEditMode && component && component.layers) ? component.layers : layer.children;
   const hasChildren = (children && children.length > 0) || false;
-
-  // Debug logging for collection rendering (always show for collection layers)
-  if (isCollectionLayer) {
-    console.log(`[Collection Layer ${layer.id}]`, {
-      collectionVariable,
-      collectionId,
-      collectionItemsCount: collectionItems.length,
-      collectionItems,
-      hasChildren: children && children.length > 0,
-      childrenCount: children?.length || 0,
-      allItemsInStore: Object.keys(items)
-    });
-  }
 
   // Use sortable for drag and drop
   const {
@@ -373,32 +361,43 @@ const LayerItem: React.FC<{
 
         {/* Collection layer repeater logic 
             When a collection layer is bound to a collection with items:
+            - Shows shimmer skeleton while loading
             - Renders children once for each collection item
             - Since LayerRenderer is recursive, this automatically repeats ALL descendants
               (children, grandchildren, great-grandchildren, etc.) for each item
             - Each repeated instance is wrapped in a div with data-collection-item-id
             - Passes the item's field values as collectionItemData for field binding resolution
         */}
-        {isCollectionLayer && collectionItems.length > 0 ? (
-          // Render children once for each collection item
-          children && children.length > 0 ? (
-            collectionItems.map((item) => (
-              <div key={item.id} data-collection-item-id={item.id}>
-                <LayerRenderer
-                  layers={children}
-                  onLayerClick={onLayerClick}
-                  onLayerUpdate={onLayerUpdate}
-                  selectedLayerId={selectedLayerId}
-                  isEditMode={isEditMode}
-                  isPublished={isPublished}
-                  enableDragDrop={enableDragDrop}
-                  activeLayerId={activeLayerId}
-                  projected={projected}
-                  pageId={pageId}
-                  collectionItemData={item.values}
-                />
-              </div>
-            ))
+        {isCollectionLayer && collectionId ? (
+          // Show loading skeleton while fetching
+          isLoadingLayerData && isEditMode ? (
+            <div className="w-full p-4">
+              <ShimmerSkeleton
+                count={3} height="60px"
+                gap="1rem"
+              />
+            </div>
+          ) : collectionItems.length > 0 ? (
+            // Render children once for each collection item
+            children && children.length > 0 ? (
+              collectionItems.map((item) => (
+                <div key={item.id} data-collection-item-id={item.id}>
+                  <LayerRenderer
+                    layers={children}
+                    onLayerClick={onLayerClick}
+                    onLayerUpdate={onLayerUpdate}
+                    selectedLayerId={selectedLayerId}
+                    isEditMode={isEditMode}
+                    isPublished={isPublished}
+                    enableDragDrop={enableDragDrop}
+                    activeLayerId={activeLayerId}
+                    projected={projected}
+                    pageId={pageId}
+                    collectionItemData={item.values}
+                  />
+                </div>
+              ))
+            ) : null
           ) : null
         ) : (
           // Regular rendering for non-collection layers

@@ -23,6 +23,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { useEditorUrl } from '@/hooks/use-editor-url';
 
 // 6. Utils
@@ -102,6 +103,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const collectionsFromStore = useCollectionsStore((state) => state.collections);
   const collectionFieldsFromStore = useCollectionsStore((state) => state.fields);
   
+  // Collection layer store for independent layer data
+  const collectionLayerData = useCollectionLayerStore((state) => state.layerData);
+  
   const { routeType, urlState, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorUrl();
   const components = useComponentsStore((state) => state.components);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
@@ -122,6 +126,79 @@ const CenterCanvas = React.memo(function CenterCanvas({
     const draft = draftsByPageId[currentPageId];
     return draft ? draft.layers : [];
   }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
+
+  // Fetch collection data for all collection layers in the page
+  const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Create a stable string representation of collection layer settings for dependency
+  const collectionLayersKey = useMemo(() => {
+    const extractCollectionSettings = (layerList: Layer[]): string[] => {
+      const settings: string[] = [];
+      layerList.forEach((layer) => {
+        const isCollectionLayer = layer.type === 'collection' || layer.name === 'collection';
+        if (isCollectionLayer && layer.variables?.collection?.id) {
+          const cv = layer.variables.collection;
+          settings.push(`${layer.id}:${cv.id}:${cv.sort_by}:${cv.sort_order}:${cv.limit}:${cv.offset}`);
+        }
+        if (layer.children && layer.children.length > 0) {
+          settings.push(...extractCollectionSettings(layer.children));
+        }
+      });
+      return settings;
+    };
+    
+    return extractCollectionSettings(layers).join('|');
+  }, [layers]);
+  
+  // Debounce the fetch to prevent duplicate calls during rapid updates
+  useEffect(() => {
+    // Clear any existing timeout
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+    
+    // Set new timeout
+    fetchTimeoutRef.current = setTimeout(() => {
+      // Recursively find all collection layers and fetch their data
+      const findAndFetchCollectionLayers = (layerList: Layer[]) => {
+        layerList.forEach((layer) => {
+          const isCollectionLayer = layer.type === 'collection' || layer.name === 'collection';
+          if (isCollectionLayer && layer.variables?.collection?.id) {
+            const collectionVariable = layer.variables.collection;
+            console.log('[CenterCanvas] Fetching data for collection layer:', layer.id, collectionVariable);
+            fetchLayerData(
+              layer.id,
+              collectionVariable.id,
+              collectionVariable.sort_by,
+              collectionVariable.sort_order,
+              collectionVariable.limit,
+              collectionVariable.offset
+            );
+          }
+          
+          // Recursively check children
+          if (layer.children && layer.children.length > 0) {
+            findAndFetchCollectionLayers(layer.children);
+          }
+        });
+      };
+      
+      if (layers.length > 0) {
+        findAndFetchCollectionLayers(layers);
+      }
+      
+      fetchTimeoutRef.current = null;
+    }, 100); // 100ms debounce - waits for rapid updates to settle
+
+    // Cleanup function
+    return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+        fetchTimeoutRef.current = null;
+      }
+    };
+  }, [collectionLayersKey, fetchLayerData, layers]);
 
   // Separate regular pages from error pages
   const { regularPages, errorPages } = useMemo(() => {
@@ -396,6 +473,22 @@ const CenterCanvas = React.memo(function CenterCanvas({
       },
     });
   }, [layers, selectedLayerId, iframeReady, components, editingComponentId, collectionItemsFromStore, collectionFieldsFromStore]);
+
+  // Send collection layer data to iframe whenever it changes
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    console.log('[CenterCanvas] Sending collection layer data to iframe:', collectionLayerData);
+
+    // Send each layer's data separately
+    Object.entries(collectionLayerData).forEach(([layerId, items]) => {
+      console.log(`[CenterCanvas] Sending data for layer ${layerId}:`, items);
+      sendToIframe(iframeRef.current!, {
+        type: 'COLLECTION_LAYER_DATA',
+        payload: { layerId, items },
+      });
+    });
+  }, [collectionLayerData, iframeReady]);
 
   // Send breakpoint updates to iframe
   useEffect(() => {

@@ -489,6 +489,44 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   };
 
+  // Handle limit change
+  const handleLimitChange = (value: string) => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      if (currentCollectionVariable) {
+        const limit = value === '' ? undefined : parseInt(value, 10);
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              limit: limit && limit > 0 ? limit : undefined,
+            }
+          }
+        });
+      }
+    }
+  };
+
+  // Handle offset change
+  const handleOffsetChange = (value: string) => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      if (currentCollectionVariable) {
+        const offset = value === '' ? undefined : parseInt(value, 10);
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              offset: offset && offset >= 0 ? offset : undefined,
+            }
+          }
+        });
+      }
+    }
+  };
+
   // Handle field binding change
   const handleFieldBindingChange = (fieldId: string) => {
     if (selectedLayerId) {
@@ -801,102 +839,6 @@ const RightSidebar = React.memo(function RightSidebar({
 
         <TabsContent value="settings" className="flex-1 overflow-y-auto no-scrollbar mt-0 data-[state=inactive]:hidden">
           <div className="flex flex-col divide-y">
-            {/* Collection Binding Panel - only show for collection layers */}
-            {selectedLayer && (selectedLayer.type === 'collection' || selectedLayer.name === 'collection') && (
-              <SettingsPanel
-                title="CMS"
-                isOpen={collectionBindingOpen}
-                onToggle={() => setCollectionBindingOpen(!collectionBindingOpen)}
-              >
-                <div className="flex flex-col gap-2">
-                  <div className="grid grid-cols-3">
-                    <Label variant="muted">Source</Label>
-                    <div className="col-span-2 *:w-full">
-                      <Select
-                        value={getCollectionVariable(selectedLayer)?.id || ''}
-                        onValueChange={handleCollectionChange}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a collection" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            {collections.length > 0 ? (
-                              collections.map((collection) => (
-                                <SelectItem key={collection.id} value={collection.id}>
-                                  {collection.name}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                                No collections available
-                              </div>
-                            )}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Sort By - only show if collection is selected */}
-                  {getCollectionVariable(selectedLayer)?.id && (
-                    <>
-                      <div className="grid grid-cols-3">
-                        <Label variant="muted">Sort by</Label>
-                        <div className="col-span-2 *:w-full">
-                          <Select
-                            value={getCollectionVariable(selectedLayer)?.sort_by || 'none'}
-                            onValueChange={handleSortByChange}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select sorting" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              <SelectItem value="manual">Manual</SelectItem>
-                              <SelectItem value="random">Random</SelectItem>
-                              {selectedCollectionFields.length > 0 &&
-                                selectedCollectionFields.map((field) => (
-                                  <SelectItem key={field.id} value={field.id}>
-                                    {field.name}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      {/* Sort Order - only show when a field is selected */}
-                      {getCollectionVariable(selectedLayer)?.sort_by &&
-                       getCollectionVariable(selectedLayer)?.sort_by !== 'none' &&
-                       getCollectionVariable(selectedLayer)?.sort_by !== 'manual' &&
-                       getCollectionVariable(selectedLayer)?.sort_by !== 'random' && (
-                        <div className="grid grid-cols-3">
-                          <Label variant="muted">Sort order</Label>
-                          <div className="col-span-2 *:w-full">
-                            <Select
-                              value={getCollectionVariable(selectedLayer)?.sort_order || 'asc'}
-                              onValueChange={handleSortOrderChange}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectGroup>
-                                  <SelectItem value="asc">Ascending</SelectItem>
-                                  <SelectItem value="desc">Descending</SelectItem>
-                                </SelectGroup>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </SettingsPanel>
-            )}
-
             {/* Attributes Panel */}
             <SettingsPanel
               title="Attributes"
@@ -985,6 +927,135 @@ const RightSidebar = React.memo(function RightSidebar({
               )}
 
             </SettingsPanel>
+
+            {/* Collection Binding Panel - only show for collection layers */}
+            {selectedLayer && (selectedLayer.type === 'collection' || selectedLayer.name === 'collection') && (
+              <SettingsPanel
+                title="CMS"
+                isOpen={collectionBindingOpen}
+                onToggle={() => setCollectionBindingOpen(!collectionBindingOpen)}
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-3">
+                    <Label variant="muted">Source</Label>
+                    <div className="col-span-2 *:w-full">
+                      <Select
+                        value={getCollectionVariable(selectedLayer)?.id || ''}
+                        onValueChange={handleCollectionChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a collection" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {collections.length > 0 ? (
+                              collections.map((collection) => (
+                                <SelectItem key={collection.id} value={collection.id}>
+                                  {collection.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                No collections available
+                              </div>
+                            )}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Sort By - only show if collection is selected */}
+                  {getCollectionVariable(selectedLayer)?.id && (
+                    <>
+                      <div className="grid grid-cols-3">
+                        <Label variant="muted">Sort by</Label>
+                        <div className="col-span-2 *:w-full">
+                          <Select
+                            value={getCollectionVariable(selectedLayer)?.sort_by || 'none'}
+                            onValueChange={handleSortByChange}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select sorting" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectItem value="none">None</SelectItem>
+                                <SelectItem value="manual">Manual</SelectItem>
+                                <SelectItem value="random">Random</SelectItem>
+                              </SelectGroup>
+                              <SelectGroup>
+                                <SelectLabel>Fields</SelectLabel>
+                                {selectedCollectionFields.length > 0 &&
+                                  selectedCollectionFields.map((field) => (
+                                    <SelectItem key={field.id} value={field.id}>
+                                      {field.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Sort Order - only show when a field is selected */}
+                      {getCollectionVariable(selectedLayer)?.sort_by &&
+                        getCollectionVariable(selectedLayer)?.sort_by !== 'none' &&
+                        getCollectionVariable(selectedLayer)?.sort_by !== 'manual' &&
+                        getCollectionVariable(selectedLayer)?.sort_by !== 'random' && (
+                          <div className="grid grid-cols-3">
+                            <Label variant="muted">Sort order</Label>
+                            <div className="col-span-2 *:w-full">
+                              <Select
+                                value={getCollectionVariable(selectedLayer)?.sort_order || 'asc'}
+                                onValueChange={handleSortOrderChange}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectGroup>
+                                    <SelectItem value="asc">Ascending</SelectItem>
+                                    <SelectItem value="desc">Descending</SelectItem>
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                      )}
+
+                      {/* Total Limit */}
+                      <div className="grid grid-cols-3">
+                        <Label variant="muted">Total limit</Label>
+                        <div className="col-span-2 *:w-full">
+                          <Input
+                            type="number"
+                            min="1"
+                            value={getCollectionVariable(selectedLayer)?.limit || ''}
+                            onChange={(e) => handleLimitChange(e.target.value)}
+                            placeholder="No limit"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Offset */}
+                      <div className="grid grid-cols-3">
+                        <Label variant="muted">Offset</Label>
+                        <div className="col-span-2 *:w-full">
+                          <Input
+                            type="number"
+                            min="0"
+                            value={getCollectionVariable(selectedLayer)?.offset || ''}
+                            onChange={(e) => handleOffsetChange(e.target.value)}
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </SettingsPanel>
+            )}
 
             {/* Custom Attributes Panel */}
             <SettingsPanel

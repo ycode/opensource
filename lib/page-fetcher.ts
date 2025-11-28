@@ -1,8 +1,9 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
-import { getItemWithValues } from '@/lib/repositories/collectionItemRepository';
+import { getItemWithValues, getItemsWithValues } from '@/lib/repositories/collectionItemRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
-import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField } from '@/types';
+import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer } from '@/types';
+import { getCollectionVariable } from '@/lib/layer-utils';
 
 export interface PageData {
   page: Page;
@@ -345,4 +346,98 @@ export async function fetchHomepage(isPublished: boolean): Promise<Pick<PageData
   } catch (error) {
     return null;
   }
+}
+
+/**
+ * Resolve collection layers server-side by fetching their data
+ * Recursively traverses the layer tree and injects collection items
+ * @param layers - Layer tree to resolve
+ * @param isPublished - Whether to fetch published or draft items
+ * @returns Layers with collection data injected
+ */
+export async function resolveCollectionLayers(
+  layers: Layer[],
+  isPublished: boolean
+): Promise<Layer[]> {
+  const resolveLayer = async (layer: Layer): Promise<Layer> => {
+    // Check if this is a collection layer
+    const isCollectionLayer = layer.type === 'collection' || layer.name === 'collection';
+    
+    if (isCollectionLayer) {
+      const collectionVariable = getCollectionVariable(layer);
+      
+      if (collectionVariable && collectionVariable.id) {
+        try {
+          // Fetch collection items with layer-specific settings
+          const sortBy = collectionVariable.sort_by;
+          const sortOrder = collectionVariable.sort_order;
+          const limit = collectionVariable.limit;
+          const offset = collectionVariable.offset;
+          
+          // Build filters for the query
+          const filters: any = {};
+          if (limit) filters.limit = limit;
+          if (offset) filters.offset = offset;
+          
+          // Fetch items with values
+          const { items } = await getItemsWithValues(
+            collectionVariable.id,
+            isPublished,
+            filters
+          );
+          
+          // Apply sorting if specified (since API doesn't handle sortBy yet)
+          let sortedItems = items;
+          if (sortBy && sortBy !== 'none') {
+            if (sortBy === 'manual') {
+              sortedItems = items.sort((a, b) => a.manual_order - b.manual_order);
+            } else if (sortBy === 'random') {
+              sortedItems = items.sort(() => Math.random() - 0.5);
+            } else {
+              // Field-based sorting
+              sortedItems = items.sort((a, b) => {
+                const aValue = a.values[sortBy] || '';
+                const bValue = b.values[sortBy] || '';
+                const aNum = parseFloat(String(aValue));
+                const bNum = parseFloat(String(bValue));
+                
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                  return sortOrder === 'desc' ? bNum - aNum : aNum - bNum;
+                }
+                
+                const comparison = String(aValue).localeCompare(String(bValue));
+                return sortOrder === 'desc' ? -comparison : comparison;
+              });
+            }
+          }
+          
+          // Store items in a way the renderer can access
+          // For SSR, we'll inject it as a special property
+          return {
+            ...layer,
+            _collectionItems: sortedItems, // Temporary property for SSR
+            children: layer.children ? await Promise.all(layer.children.map(resolveLayer)) : undefined,
+          };
+        } catch (error) {
+          console.error(`Failed to resolve collection layer ${layer.id}:`, error);
+          return {
+            ...layer,
+            children: layer.children ? await Promise.all(layer.children.map(resolveLayer)) : undefined,
+          };
+        }
+      }
+    }
+    
+    // Recursively resolve children
+    if (layer.children) {
+      return {
+        ...layer,
+        children: await Promise.all(layer.children.map(resolveLayer)),
+      };
+    }
+    
+    return layer;
+  };
+  
+  return Promise.all(layers.map(resolveLayer));
 }
