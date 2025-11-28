@@ -654,20 +654,39 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
     const handleWheel = (e: WheelEvent) => {
       // Zoom with Cmd/Ctrl + wheel or trackpad pinch (ctrlKey indicates pinch on trackpads)
+      // On macOS, trackpad pinch gestures come through as wheel events with ctrlKey=true
       const isZoomGesture = e.metaKey || e.ctrlKey;
       
-      if (isZoomGesture && container.contains(e.target as Node)) {
+      // Check if the event is within the canvas container
+      const isInContainer = container.contains(e.target as Node);
+      
+      if (isZoomGesture && isInContainer) {
+        // Prevent browser zoom and handle canvas zoom
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         
         // Calculate zoom delta - use deltaY for vertical scroll/pinch
         // Negative deltaY = zoom in, positive = zoom out
         const zoomDelta = -e.deltaY * 0.5; // Scale factor for smooth zooming
         const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
         setZoom(Math.round(newZoom));
-      } else if (spacePressed && container.contains(e.target as Node)) {
+      } else if (spacePressed && isInContainer) {
         // Prevent default scroll when spacebar is held (for panning mode)
         e.preventDefault();
+      }
+    };
+    
+    // Also add a document-level handler to prevent browser zoom when over canvas
+    const handleDocumentWheel = (e: WheelEvent) => {
+      const isZoomGesture = e.metaKey || e.ctrlKey;
+      const isInContainer = container.contains(e.target as Node);
+      
+      // Prevent browser zoom when pinching/zooming over the canvas container
+      if (isZoomGesture && isInContainer) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
       }
     };
 
@@ -677,7 +696,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    container.addEventListener('wheel', handleWheel, { passive: false });
+    // Use capture phase for wheel events to intercept before browser handles them
+    container.addEventListener('wheel', handleWheel, { passive: false, capture: true });
+    // Also add document-level handler in capture phase to prevent browser zoom
+    document.addEventListener('wheel', handleDocumentWheel, { passive: false, capture: true });
 
     return () => {
       container.removeEventListener('mousedown', handleMouseDown, true);
@@ -685,7 +707,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('wheel', handleWheel, true);
+      document.removeEventListener('wheel', handleDocumentWheel, true);
     };
   }, [zoom, setZoom]);
 
