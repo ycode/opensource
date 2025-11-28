@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
-import { getHtmlTag, getClassesString, getTextWithBinding, getImageUrlWithBinding, getCollectionVariable } from '../../lib/layer-utils';
+import { getHtmlTag, getClassesString, getTextWithBinding, getImageUrlWithBinding, getCollectionVariable, sortCollectionItems } from '../../lib/layer-utils';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 import { useComponentsStore } from '../../stores/useComponentsStore';
 import { useCollectionsStore } from '../../stores/useCollectionsStore';
@@ -118,6 +118,7 @@ const LayerItem: React.FC<{
 
   // Get collection items if this is a collection layer
   const items = useCollectionsStore((state) => state.items);
+  const fields = useCollectionsStore((state) => state.fields);
   const isCollectionLayer = layer.type === 'collection' || layer.name === 'collection';
   
   // Debug: Always log to verify execution
@@ -132,7 +133,11 @@ const LayerItem: React.FC<{
   // Use new getCollectionVariable helper (checks variables first, then fallback)
   const collectionVariable = isCollectionLayer ? getCollectionVariable(layer) : null;
   const collectionId = collectionVariable?.id;
-  const collectionItems = (isCollectionLayer && collectionId) ? (items[collectionId] || []) : [];
+  const rawCollectionItems = (isCollectionLayer && collectionId) ? (items[collectionId] || []) : [];
+  
+  // Apply sorting to collection items
+  const collectionFields = collectionId ? (fields[collectionId] || []) : [];
+  const collectionItems = sortCollectionItems(rawCollectionItems, collectionVariable, collectionFields);
 
   // For component instances in edit mode, use the component's layers as children
   // For published pages, children are already resolved server-side

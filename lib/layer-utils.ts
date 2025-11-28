@@ -2,7 +2,7 @@
  * Layer utilities for rendering and manipulation
  */
 
-import { Layer, FieldVariable, CollectionVariable, InlineVariableContent } from '@/types';
+import { Layer, FieldVariable, CollectionVariable, InlineVariableContent, CollectionItemWithValues, CollectionField } from '@/types';
 import { cn } from '@/lib/utils';
 
 /**
@@ -335,4 +335,66 @@ export function getImageUrlWithBinding(
   
   // Fall back to static URL
   return typeof url === 'string' ? url : undefined;
+}
+
+/**
+ * Sort collection items based on layer sorting settings
+ * @param items - Array of collection items to sort
+ * @param collectionVariable - Collection variable containing sorting preferences
+ * @param fields - Array of collection fields for field-based sorting
+ * @returns Sorted array of collection items
+ */
+export function sortCollectionItems(
+  items: CollectionItemWithValues[],
+  collectionVariable: CollectionVariable | null,
+  fields: CollectionField[]
+): CollectionItemWithValues[] {
+  // If no collection variable or no items, return as-is
+  if (!collectionVariable || items.length === 0) {
+    return items;
+  }
+
+  const sortBy = collectionVariable.sort_by;
+  const sortOrder = collectionVariable.sort_order || 'asc';
+
+  // Create a copy to avoid mutating the original array
+  const sortedItems = [...items];
+
+  // No sorting - return database order (as-is)
+  if (!sortBy || sortBy === 'none') {
+    return sortedItems;
+  }
+
+  // Manual sorting - sort by manual_order field
+  if (sortBy === 'manual') {
+    return sortedItems.sort((a, b) => a.manual_order - b.manual_order);
+  }
+
+  // Random sorting - shuffle the array
+  if (sortBy === 'random') {
+    for (let i = sortedItems.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [sortedItems[i], sortedItems[j]] = [sortedItems[j], sortedItems[i]];
+    }
+    return sortedItems;
+  }
+
+  // Field-based sorting - sortBy is a field ID
+  return sortedItems.sort((a, b) => {
+    const aValue = a.values[sortBy] || '';
+    const bValue = b.values[sortBy] || '';
+
+    // Try to parse as numbers if possible
+    const aNum = parseFloat(String(aValue));
+    const bNum = parseFloat(String(bValue));
+
+    if (!isNaN(aNum) && !isNaN(bNum)) {
+      // Numeric comparison
+      return sortOrder === 'asc' ? aNum - bNum : bNum - aNum;
+    }
+
+    // String comparison
+    const comparison = String(aValue).localeCompare(String(bValue));
+    return sortOrder === 'asc' ? comparison : -comparison;
+  });
 }

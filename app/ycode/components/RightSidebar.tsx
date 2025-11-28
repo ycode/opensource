@@ -21,7 +21,7 @@ import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectLabel, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 // 4. Internal components
@@ -95,10 +95,10 @@ const RightSidebar = React.memo(function RightSidebar({
 
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
-  
+
   const collections = useCollectionsStore((state) => state.collections);
   const fields = useCollectionsStore((state) => state.fields);
-  
+
   const previousIsEditingRef = useRef<boolean | undefined>(undefined);
 
   // Track edit mode transitions synchronously
@@ -354,10 +354,10 @@ const RightSidebar = React.memo(function RightSidebar({
     // Parse the value from InputWithInlineVariables
     // The component returns embedded JSON format: <ycode-inline-variable>{...}</ycode-inline-variable>
     // We need to transform it to ID-based format: <ycode-inline-variable id="uuid"></ycode-inline-variable>
-    
+
     const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
     const matches = [...value.matchAll(regex)];
-    
+
     let transformedData = value;
     const variablesMap: Record<string, FieldVariable> = {};
 
@@ -365,17 +365,17 @@ const RightSidebar = React.memo(function RightSidebar({
     matches.forEach((match) => {
       const fullMatch = match[0];
       const jsonContent = match[1].trim();
-      
+
       try {
         const variable = JSON.parse(jsonContent) as FieldVariable;
-        
+
         // Generate unique ID for this variable
         const variableId = `var-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
+
         // Replace embedded JSON with ID-only format
         const idBasedTag = `<ycode-inline-variable id="${variableId}"></ycode-inline-variable>`;
         transformedData = transformedData.replace(fullMatch, idBasedTag);
-        
+
         // Store variable in map
         variablesMap[variableId] = variable;
       } catch (error) {
@@ -435,13 +435,57 @@ const RightSidebar = React.memo(function RightSidebar({
 
   // Handle collection binding change
   const handleCollectionChange = (collectionId: string) => {
-    if (selectedLayerId) {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
       onLayerUpdate(selectedLayerId, {
         variables: {
           ...selectedLayer?.variables,
-          collection: collectionId ? { id: collectionId } : undefined
+          collection: collectionId ? {
+            id: collectionId,
+            // Preserve existing sort settings when changing collection
+            sort_by: currentCollectionVariable?.sort_by,
+            sort_order: currentCollectionVariable?.sort_order,
+          } : undefined
         }
       });
+    }
+  };
+
+  // Handle sort by change
+  const handleSortByChange = (sortBy: string) => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      if (currentCollectionVariable) {
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              sort_by: sortBy,
+              // Reset sort_order to 'asc' when changing sort_by
+              sort_order: (sortBy !== 'none' && sortBy !== 'manual' && sortBy !== 'random') ? 'asc' : currentCollectionVariable.sort_order,
+            }
+          }
+        });
+      }
+    }
+  };
+
+  // Handle sort order change
+  const handleSortOrderChange = (sortOrder: 'asc' | 'desc') => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      if (currentCollectionVariable) {
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              sort_order: sortOrder,
+            }
+          }
+        });
+      }
     }
   };
 
@@ -492,7 +536,7 @@ const RightSidebar = React.memo(function RightSidebar({
   // Get parent collection layer for the selected layer
   const parentCollectionLayer = useMemo(() => {
     if (!selectedLayerId || !currentPageId) return null;
-    
+
     // Get layers from either component draft or page draft
     let layers: Layer[] = [];
     if (editingComponentId) {
@@ -515,6 +559,18 @@ const RightSidebar = React.memo(function RightSidebar({
     if (!collectionId) return [];
     return fields[collectionId] || [];
   }, [parentCollectionLayer, fields]);
+
+  // Get collection fields for the currently selected collection layer (for Sort By dropdown)
+  const selectedCollectionFields = useMemo(() => {
+    if (!selectedLayer) return [];
+    const isCollectionLayer = selectedLayer.type === 'collection' || selectedLayer.name === 'collection';
+    if (!isCollectionLayer) return [];
+
+    const collectionVariable = getCollectionVariable(selectedLayer);
+    const collectionId = collectionVariable?.id;
+    if (!collectionId) return [];
+    return fields[collectionId] || [];
+  }, [selectedLayer, fields]);
 
   // Handle adding custom attribute
   const handleAddAttribute = () => {
@@ -630,47 +686,6 @@ const RightSidebar = React.memo(function RightSidebar({
             onLayerUpdate={onLayerUpdate}
           />
 
-          {/* Collection Binding Panel - only show for collection layers */}
-          {selectedLayer && (selectedLayer.type === 'collection' || selectedLayer.name === 'collection') && (
-            <SettingsPanel
-              title="Collection Binding"
-              isOpen={collectionBindingOpen}
-              onToggle={() => setCollectionBindingOpen(!collectionBindingOpen)}
-            >
-              <div className="flex flex-col gap-2">
-                <Label>Collection</Label>
-                <Select
-                  value={getCollectionVariable(selectedLayer)?.id || ''}
-                  onValueChange={handleCollectionChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a collection" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {collections.length > 0 ? (
-                        collections.map((collection) => (
-                          <SelectItem key={collection.id} value={collection.id}>
-                            {collection.name}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                          No collections available
-                        </div>
-                      )}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                {!getCollectionVariable(selectedLayer)?.id && (
-                  <p className="text-xs text-muted-foreground">
-                    Select a collection to bind this layer to collection data
-                  </p>
-                )}
-              </div>
-            </SettingsPanel>
-          )}
-
           {/* Content Panel - show for text-editable layers */}
           {selectedLayer && isTextEditable(selectedLayer) && (
             <SettingsPanel
@@ -679,85 +694,48 @@ const RightSidebar = React.memo(function RightSidebar({
               onToggle={() => setContentOpen(!contentOpen)}
             >
               <div className="flex flex-col gap-2">
-                <Label>Text</Label>
                 <InputWithInlineVariables
                   value={getContentValue(selectedLayer)}
                   onChange={handleContentChange}
                   placeholder="Enter text..."
                   fields={parentCollectionFields}
                 />
-                {parentCollectionFields.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Use the dropdown to insert field variables from the parent collection
-                  </p>
-                )}
               </div>
             </SettingsPanel>
           )}
 
           {/* Field Binding Panel - show for text/image layers inside a collection */}
-          {selectedLayer && parentCollectionLayer && parentCollectionFields.length > 0 && (
+          {selectedLayer && parentCollectionLayer && parentCollectionFields.length > 0 && (selectedLayer.type === 'image' || selectedLayer.name === 'img') && (
             <SettingsPanel
               title="Field Binding"
               isOpen={fieldBindingOpen}
               onToggle={() => setFieldBindingOpen(!fieldBindingOpen)}
             >
               <div className="flex flex-col gap-2">
-                {/* Text field binding */}
-                {(selectedLayer.type === 'text' || selectedLayer.type === 'heading' || selectedLayer.name === 'p' || selectedLayer.name === 'h1' || selectedLayer.name === 'h2' || selectedLayer.name === 'h3' || selectedLayer.name === 'h4' || selectedLayer.name === 'h5' || selectedLayer.name === 'h6' || selectedLayer.name === 'span') && (
-                  <div className="flex flex-col gap-2">
-                    <Label>Text Field</Label>
-                    <Select
-                      value={isFieldVariable(selectedLayer.text) ? selectedLayer.text.data.field_id : 'none'}
-                      onValueChange={handleFieldBindingChange}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a field" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value="none">None (Static text)</SelectItem>
-                          {parentCollectionFields.map((field) => (
-                            <SelectItem key={field.id} value={field.id}>
-                              {field.name} ({field.type})
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Bind this text to a collection field
-                    </p>
-                  </div>
-                )}
-
-                {/* Image field binding */}
-                {(selectedLayer.type === 'image' || selectedLayer.name === 'img') && (
-                  <div className="flex flex-col gap-2">
-                    <Label>Image Field</Label>
-                    <Select
-                      value={isFieldVariable(selectedLayer.url) ? selectedLayer.url.data.field_id : 'none'}
-                      onValueChange={handleImageFieldBindingChange}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a field" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value="none">None (Static image)</SelectItem>
-                          {parentCollectionFields.filter(f => f.type === 'image').map((field) => (
-                            <SelectItem key={field.id} value={field.id}>
-                              {field.name}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Bind this image to a collection image field
-                    </p>
-                  </div>
-                )}
+                <div className="flex flex-col gap-2">
+                  <Label>Image Field</Label>
+                  <Select
+                    value={isFieldVariable(selectedLayer.url) ? selectedLayer.url.data.field_id : 'none'}
+                    onValueChange={handleImageFieldBindingChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a field" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="none">None (Static image)</SelectItem>
+                        {parentCollectionFields.filter(f => f.type === 'image').map((field) => (
+                          <SelectItem key={field.id} value={field.id}>
+                            {field.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Bind this image to a collection image field
+                  </p>
+                </div>
               </div>
             </SettingsPanel>
           )}
@@ -823,6 +801,102 @@ const RightSidebar = React.memo(function RightSidebar({
 
         <TabsContent value="settings" className="flex-1 overflow-y-auto no-scrollbar mt-0 data-[state=inactive]:hidden">
           <div className="flex flex-col divide-y">
+            {/* Collection Binding Panel - only show for collection layers */}
+            {selectedLayer && (selectedLayer.type === 'collection' || selectedLayer.name === 'collection') && (
+              <SettingsPanel
+                title="CMS"
+                isOpen={collectionBindingOpen}
+                onToggle={() => setCollectionBindingOpen(!collectionBindingOpen)}
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-3">
+                    <Label variant="muted">Source</Label>
+                    <div className="col-span-2 *:w-full">
+                      <Select
+                        value={getCollectionVariable(selectedLayer)?.id || ''}
+                        onValueChange={handleCollectionChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a collection" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {collections.length > 0 ? (
+                              collections.map((collection) => (
+                                <SelectItem key={collection.id} value={collection.id}>
+                                  {collection.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                No collections available
+                              </div>
+                            )}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Sort By - only show if collection is selected */}
+                  {getCollectionVariable(selectedLayer)?.id && (
+                    <>
+                      <div className="grid grid-cols-3">
+                        <Label variant="muted">Sort by</Label>
+                        <div className="col-span-2 *:w-full">
+                          <Select
+                            value={getCollectionVariable(selectedLayer)?.sort_by || 'none'}
+                            onValueChange={handleSortByChange}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select sorting" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              <SelectItem value="manual">Manual</SelectItem>
+                              <SelectItem value="random">Random</SelectItem>
+                              {selectedCollectionFields.length > 0 &&
+                                selectedCollectionFields.map((field) => (
+                                  <SelectItem key={field.id} value={field.id}>
+                                    {field.name}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Sort Order - only show when a field is selected */}
+                      {getCollectionVariable(selectedLayer)?.sort_by &&
+                       getCollectionVariable(selectedLayer)?.sort_by !== 'none' &&
+                       getCollectionVariable(selectedLayer)?.sort_by !== 'manual' &&
+                       getCollectionVariable(selectedLayer)?.sort_by !== 'random' && (
+                        <div className="grid grid-cols-3">
+                          <Label variant="muted">Sort order</Label>
+                          <div className="col-span-2 *:w-full">
+                            <Select
+                              value={getCollectionVariable(selectedLayer)?.sort_order || 'asc'}
+                              onValueChange={handleSortOrderChange}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectGroup>
+                                  <SelectItem value="asc">Ascending</SelectItem>
+                                  <SelectItem value="desc">Descending</SelectItem>
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </SettingsPanel>
+            )}
+
             {/* Attributes Panel */}
             <SettingsPanel
               title="Attributes"

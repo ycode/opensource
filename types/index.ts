@@ -556,7 +556,8 @@ export type InlineVariable = FieldVariable;
 // Layer Variable Types
 export interface CollectionVariable {
   id: string; // Collection ID
-  // Future: filtering, sorting, limit, etc.
+  sort_by?: 'none' | 'manual' | 'random' | string; // 'none', 'manual', 'random', or field ID
+  sort_order?: 'asc' | 'desc'; // Only used when sort_by is a field ID
 }
 
 export interface InlineVariableContent {
