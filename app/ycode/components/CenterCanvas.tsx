@@ -61,10 +61,11 @@ interface CenterCanvasProps {
   viewportMode: ViewportMode;
   setViewportMode: (mode: ViewportMode) => void;
   zoom: number;
+  setZoom: (zoom: number) => void;
 }
 
 const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: string }> = {
-  desktop: { width: '1200px', label: 'Desktop', icon: '🖥️' },
+  desktop: { width: '1366px', label: 'Desktop', icon: '🖥️' },
   tablet: { width: '768px', label: 'Tablet', icon: '📱' },
   mobile: { width: '375px', label: 'Mobile', icon: '📱' },
 };
@@ -75,12 +76,34 @@ const CenterCanvas = React.memo(function CenterCanvas({
   viewportMode,
   setViewportMode,
   zoom,
+  setZoom,
 }: CenterCanvasProps) {
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
   const [iframeReady, setIframeReady] = useState(false);
   const [pagePopoverOpen, setPagePopoverOpen] = useState(false);
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(new Set());
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [iframeHeight, setIframeHeight] = useState<number | null>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Calculate scaled width for horizontal overflow when zoomed in
+  // Include padding (p-8 = 32px per side = 64px total) in the width calculation
+  const scaledWidth = useMemo(() => {
+    if (zoom <= 100) return undefined;
+    const viewportWidth = parseInt(viewportSizes[viewportMode].width);
+    const padding = 64; // p-8 = 32px * 2 sides
+    return viewportWidth * (zoom / 100) + padding;
+  }, [zoom, viewportMode]);
+
+  // Calculate spacer width for horizontal scrolling when zoomed in
+  // Spacer should be at least half the container width to allow scrolling in both directions
+  const spacerWidth = useMemo(() => {
+    if (zoom <= 100) return undefined;
+    // Use a large fixed value to ensure scrolling works in both directions
+    return '50vw';
+  }, [zoom]);
   
   // Optimize store subscriptions - use selective selectors
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
@@ -470,6 +493,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
           // Context menu will be handled later
           break;
 
+        case 'CONTENT_HEIGHT':
+          setIframeHeight(message.payload.height);
+          break;
+
         case 'DRAG_START':
         case 'DRAG_OVER':
         case 'DROP':
@@ -481,6 +508,177 @@ const CenterCanvas = React.memo(function CenterCanvas({
     const cleanup = listenToIframe(handleIframeMessage);
     return cleanup;
   }, [currentPageId, editingComponentId, componentDrafts, setSelectedLayerId, updateLayer]);
+
+  // Zoom handlers
+  const handleZoomIn = useCallback(() => {
+    setZoom(Math.min(zoom + 5, 200)); // Max 200%
+  }, [zoom, setZoom]);
+
+  const handleZoomOut = useCallback(() => {
+    setZoom(Math.max(zoom - 5, 25)); // Min 25%
+  }, [zoom, setZoom]);
+
+  const handleZoomTo100 = useCallback(() => {
+    setZoom(100);
+  }, [setZoom]);
+
+  const handleZoomToFit = useCallback(() => {
+    // Calculate zoom to fit based on viewport width
+    const canvasContainer = document.querySelector('[data-canvas-container]');
+    if (canvasContainer) {
+      const containerWidth = canvasContainer.clientWidth - 64; // Account for padding
+      const viewportWidth = parseInt(viewportSizes[viewportMode].width);
+      const fitZoom = Math.floor((containerWidth / viewportWidth) * 100);
+      setZoom(Math.max(25, Math.min(fitZoom, 200)));
+    }
+  }, [viewportMode, setZoom]);
+
+  const handleAutofit = useCallback(() => {
+    // Similar to zoom to fit but with more margin
+    const canvasContainer = document.querySelector('[data-canvas-container]');
+    if (canvasContainer) {
+      const containerWidth = canvasContainer.clientWidth - 128; // More margin
+      const viewportWidth = parseInt(viewportSizes[viewportMode].width);
+      const fitZoom = Math.floor((containerWidth / viewportWidth) * 100);
+      setZoom(Math.max(25, Math.min(fitZoom, 200)));
+    }
+  }, [viewportMode, setZoom]);
+
+  // Preserve scroll position when zoom changes to prevent bouncing
+  const previousZoomRef = useRef(zoom);
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container || zoom <= 100) {
+      previousZoomRef.current = zoom;
+      return;
+    }
+
+    // Only adjust scroll if zoom actually changed
+    if (previousZoomRef.current !== zoom && previousZoomRef.current > 100) {
+      // Store current scroll position
+      const oldScrollLeft = container.scrollLeft;
+      const oldScrollTop = container.scrollTop;
+      
+      // Calculate zoom ratio
+      const zoomRatio = zoom / previousZoomRef.current;
+      
+      // Wait for layout to update, then adjust scroll proportionally
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Scale scroll position by zoom ratio to maintain relative position
+          container.scrollLeft = oldScrollLeft * zoomRatio;
+          container.scrollTop = oldScrollTop * zoomRatio;
+        });
+      });
+    }
+    
+    previousZoomRef.current = zoom;
+  }, [zoom]);
+
+  // Pan/drag handlers for zoomed canvas
+  // Enable panning when zoomed in using middle mouse button or spacebar + drag
+  useEffect(() => {
+    if (zoom <= 100) {
+      setIsPanning(false);
+      return;
+    }
+
+    const container = canvasContainerRef.current;
+    if (!container) return;
+
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let scrollLeft = 0;
+    let scrollTop = 0;
+    let spacePressed = false;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      // When zoomed in: allow left-click drag panning
+      // When zoomed out: middle mouse button (button 1) or spacebar + left click
+      const canPan = zoom > 100 
+        ? e.button === 0 || e.button === 1 || (e.button === 0 && spacePressed)
+        : e.button === 1 || (e.button === 0 && spacePressed);
+      
+      if (canPan) {
+        // Don't pan if clicking on the iframe
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'IFRAME' || target.closest('iframe')) {
+          return;
+        }
+
+        isDragging = true;
+        setIsPanning(true);
+        startX = e.pageX - container.offsetLeft;
+        startY = e.pageY - container.offsetTop;
+        scrollLeft = container.scrollLeft;
+        scrollTop = container.scrollTop;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const x = e.pageX - container.offsetLeft;
+      const y = e.pageY - container.offsetTop;
+      const walkX = (x - startX) * 1; // Scroll speed multiplier
+      const walkY = (y - startY) * 1;
+      container.scrollLeft = scrollLeft - walkX;
+      container.scrollTop = scrollTop - walkY;
+    };
+
+    const handleMouseUp = () => {
+      isDragging = false;
+      setIsPanning(false);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat) {
+        spacePressed = true;
+        // Prevent page scroll when spacebar is pressed
+        if (container.contains(document.activeElement) || document.activeElement === document.body) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        spacePressed = false;
+        if (isDragging) {
+          isDragging = false;
+          setIsPanning(false);
+        }
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      // Prevent default scroll when spacebar is held (for panning mode)
+      if (spacePressed && container.contains(e.target as Node)) {
+        e.preventDefault();
+      }
+    };
+
+    // Use capture phase to catch events early
+    container.addEventListener('mousedown', handleMouseDown, true);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    container.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener('mousedown', handleMouseDown, true);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [zoom]);
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">
@@ -592,31 +790,31 @@ const CenterCanvas = React.memo(function CenterCanvas({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="input" size="sm">
-                80%
+                {zoom}%
                 <div>
                   <Icon name="chevronCombo" className="!size-2.5 opacity-50" />
                 </div>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleZoomIn}>
                 Zoom in
                 <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleZoomOut}>
                 Zoom out
                 <DropdownMenuShortcut>⌘-</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleZoomTo100}>
                 Zoom to 100%
                 <DropdownMenuShortcut>⌘0</DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleZoomToFit}>
                 Zoom to Fit
                 <DropdownMenuShortcut>⌘1</DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleAutofit}>
                 Autofit
                 <DropdownMenuShortcut>⌘2</DropdownMenuShortcut>
               </DropdownMenuItem>
@@ -636,22 +834,55 @@ const CenterCanvas = React.memo(function CenterCanvas({
       </div>
 
       {/* Canvas Area */}
-      <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-neutral-50 dark:bg-neutral-950/80">
+      <div 
+        ref={canvasContainerRef}
+        className={cn(
+          'flex-1 overflow-auto bg-neutral-50 dark:bg-neutral-950/80',
+          zoom > 100 && isPanning && 'cursor-grabbing',
+          zoom > 100 && !isPanning && 'cursor-grab'
+        )}
+        data-canvas-container
+      >
         <div
-          className="bg-white shadow-3xl transition-all origin-top"
+          className={cn(
+            'flex p-8',
+            zoom <= 100 ? 'flex-col justify-center items-center' : 'flex-row justify-center items-start'
+          )}
           style={{
-            transform: `scale(${zoom / 100})`,
-            width: viewportSizes[viewportMode].width,
-            minHeight: '800px',
+            minHeight: zoom <= 100 ? '100%' : undefined,
+            width: scaledWidth ? `${scaledWidth}px` : undefined,
+            minWidth: zoom > 100 ? '100%' : undefined,
+            transition: 'width 0.2s ease-out',
           }}
         >
+          {zoom <= 100 && (
+            <div className="flex-shrink" style={{ flex: '1 1 auto' }} />
+          )}
+          {zoom > 100 && (
+            <div className="flex-shrink-0" style={{ width: spacerWidth }} />
+          )}
+          <div
+            className="bg-white shadow-3xl origin-top flex-shrink-0"
+            style={{
+              transform: `scale(${zoom / 100})`,
+              transformOrigin: 'top center',
+              width: viewportSizes[viewportMode].width,
+              minHeight: zoom > 100 ? '100%' : undefined,
+              height: zoom > 100 ? '100%' : (iframeHeight ? `${iframeHeight * zoom / 100}px` : 'auto'),
+              transition: 'transform 0.2s ease-out, height 0.2s ease-out',
+              willChange: 'transform',
+            }}
+          >
           {/* Iframe Canvas */}
           {layers.length > 0 ? (
             <iframe
               ref={iframeRef}
               src="/canvas.html"
-              className="w-full h-full border-0"
-              style={{ minHeight: '800px' }}
+              className="w-full border-0"
+              style={{ 
+                minHeight: '100%',
+                height: iframeHeight ? `${iframeHeight}px` : 'auto'
+              }}
               title="Canvas Preview"
             />
           ) : (
@@ -742,6 +973,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
               </div>
             </div>
           )}
+          </div>
+          {zoom > 100 && (
+            <div className="flex-shrink-0" style={{ width: spacerWidth }} />
+          )}
+          {zoom <= 100 && <div className="flex-shrink" style={{ flex: '1 1 auto' }} />}
         </div>
       </div>
     </div>

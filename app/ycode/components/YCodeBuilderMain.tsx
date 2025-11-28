@@ -203,6 +203,28 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     previousIsEditingRef.current = currentIsEditing;
   }
 
+  // Calculate autofit zoom on initial load and when viewport mode changes
+  useEffect(() => {
+    const calculateAutofit = () => {
+      const canvasContainer = document.querySelector('[data-canvas-container]');
+      if (canvasContainer) {
+        const viewportSizes: Record<string, { width: string }> = {
+          desktop: { width: '1366px' },
+          tablet: { width: '768px' },
+          mobile: { width: '375px' },
+        };
+        const containerWidth = canvasContainer.clientWidth - 128; // More margin (same as autofit)
+        const viewportWidth = parseInt(viewportSizes[viewportMode].width);
+        const fitZoom = Math.floor((containerWidth / viewportWidth) * 100);
+        setZoom(Math.max(25, Math.min(fitZoom, 200)));
+      }
+    };
+
+    // Wait for DOM to be ready
+    const timeoutId = setTimeout(calculateAutofit, 100);
+    return () => clearTimeout(timeoutId);
+  }, [viewportMode]); // Recalculate when viewport mode changes
+
   // Sync viewport changes to URL (skip when in page settings mode or during edit mode transition)
   useEffect(() => {
     // Skip if we just transitioned away from edit mode - navigation already includes all params
@@ -816,6 +838,67 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                              target.tagName === 'TEXTAREA' ||
                              target.isContentEditable;
 
+      // Handle zoom shortcuts FIRST and aggressively prevent default
+      // This prevents browser zoom in Cursor/Electron environments
+      if (!isInputFocused && (e.metaKey || e.ctrlKey)) {
+        // Zoom in: Cmd/Ctrl + + or =
+        if (e.key === '+' || e.key === '=' || e.code === 'Equal' || e.code === 'NumpadAdd') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          setZoom(prev => Math.min(prev + 10, 200));
+          return;
+        }
+
+        // Zoom out: Cmd/Ctrl + -
+        if (e.key === '-' || e.code === 'Minus' || e.code === 'NumpadSubtract') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          setZoom(prev => Math.max(prev - 10, 25));
+          return;
+        }
+
+        // Zoom to 100%: Cmd/Ctrl + 0
+        if (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          setZoom(100);
+          return;
+        }
+
+        // Zoom to Fit: Cmd/Ctrl + 1
+        if (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          const canvasContainer = document.querySelector('[data-canvas-container]');
+          if (canvasContainer) {
+            const containerWidth = canvasContainer.clientWidth - 64;
+            const viewportWidth = viewportMode === 'desktop' ? 1366 : viewportMode === 'tablet' ? 768 : 375;
+            const fitZoom = Math.floor((containerWidth / viewportWidth) * 100);
+            setZoom(Math.max(25, Math.min(fitZoom, 200)));
+          }
+          return;
+        }
+
+        // Autofit: Cmd/Ctrl + 2
+        if (e.key === '2' || e.code === 'Digit2' || e.code === 'Numpad2') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          const canvasContainer = document.querySelector('[data-canvas-container]');
+          if (canvasContainer) {
+            const containerWidth = canvasContainer.clientWidth - 128;
+            const viewportWidth = viewportMode === 'desktop' ? 1366 : viewportMode === 'tablet' ? 768 : 375;
+            const fitZoom = Math.floor((containerWidth / viewportWidth) * 100);
+            setZoom(Math.max(25, Math.min(fitZoom, 200)));
+          }
+          return;
+        }
+      }
+
       // Save: Cmd/Ctrl + S
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault(); // Always prevent default browser save dialog
@@ -1152,8 +1235,10 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    // Use capture phase to catch events before browser handles them
+    // This is especially important for Cursor/Electron browsers
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [
     activeTab,
     selectedLayerId,
@@ -1181,7 +1266,9 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     pasteStyleFromClipboard,
     deleteSelectedLayer,
     handleUndo,
-    handleRedo
+    handleRedo,
+    setZoom,
+    viewportMode
   ]);
 
   // Show loading screen while checking Supabase config
@@ -1364,6 +1451,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                   viewportMode={viewportMode}
                   setViewportMode={setViewportMode}
                   zoom={zoom}
+                  setZoom={setZoom}
                 />
 
                 {/* Right Sidebar - Properties */}

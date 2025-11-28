@@ -349,6 +349,24 @@
   }
   
   /**
+   * Send content height to parent
+   */
+  function sendContentHeight() {
+    if (root) {
+      const height = Math.max(
+        root.scrollHeight,
+        root.offsetHeight,
+        document.body.scrollHeight,
+        document.body.offsetHeight,
+        document.documentElement.clientHeight,
+        document.documentElement.scrollHeight,
+        document.documentElement.offsetHeight
+      );
+      sendToParent('CONTENT_HEIGHT', { height: height });
+    }
+  }
+
+  /**
    * Render layer tree
    */
   function render() {
@@ -356,6 +374,8 @@
     
     if (layers.length === 0) {
       root.innerHTML = '<div style="padding: 40px; text-align: center; color: #9ca3af;">No layers to display</div>';
+      // Send height after a short delay to ensure DOM is updated
+      setTimeout(sendContentHeight, 0);
       return;
     }
     
@@ -365,6 +385,9 @@
         root.appendChild(element);
       }
     });
+    
+    // Send height after a short delay to ensure DOM is updated
+    setTimeout(sendContentHeight, 0);
   }
   
   /**
@@ -686,6 +709,26 @@
     }
     return null;
   }
+  
+  // Watch for content changes and update height
+  const observer = new MutationObserver(function() {
+    sendContentHeight();
+  });
+  
+  // Observe changes to the root element
+  if (root) {
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class']
+    });
+  }
+  
+  // Also listen for window resize
+  window.addEventListener('resize', function() {
+    sendContentHeight();
+  });
   
   // Initialize - notify parent that iframe is ready
   sendToParent('READY', null);
