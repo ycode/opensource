@@ -660,9 +660,17 @@ const CenterCanvas = React.memo(function CenterCanvas({
         e.stopPropagation();
         e.stopImmediatePropagation();
         
+        // Handle different delta modes - trackpad gestures often use pixels (deltaMode 0)
+        let deltaY = e.deltaY;
+        if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+          deltaY *= 16; // Convert lines to pixels
+        } else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+          deltaY *= 100; // Convert pages to pixels
+        }
+        
         // Calculate zoom delta - negative multiplier so scroll up zooms in
-        // Use sensitivity of 0.01 for smooth zooming (matches guide)
-        const zoomDelta = e.deltaY * -0.01;
+        // Increased sensitivity for trackpad gestures (0.1 instead of 0.01)
+        const zoomDelta = deltaY * -0.1;
         const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
         setZoom(Math.round(newZoom * 100) / 100); // Round to 2 decimal places for smoothness
       } else if (spacePressed && container.contains(e.target as Node)) {
@@ -715,8 +723,17 @@ const CenterCanvas = React.memo(function CenterCanvas({
         e.stopPropagation();
         e.stopImmediatePropagation();
         
+        // Handle different delta modes - trackpad gestures often use pixels (deltaMode 0)
+        let deltaY = e.deltaY;
+        if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+          deltaY *= 16; // Convert lines to pixels
+        } else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+          deltaY *= 100; // Convert pages to pixels
+        }
+        
         // Calculate zoom delta - negative multiplier so scroll up zooms in
-        const zoomDelta = e.deltaY * -0.01;
+        // Increased sensitivity for trackpad gestures (0.1 instead of 0.01)
+        const zoomDelta = deltaY * -0.1;
         const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
         setZoom(Math.round(newZoom * 100) / 100);
       }
