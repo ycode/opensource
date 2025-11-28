@@ -594,11 +594,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
     let spacePressed = false;
 
     const handleMouseDown = (e: MouseEvent) => {
-      // When zoomed in: allow left-click drag panning
-      // When zoomed out: middle mouse button (button 1) or spacebar + left click
-      const canPan = zoom > 100 
-        ? e.button === 0 || e.button === 1 || (e.button === 0 && spacePressed)
-        : e.button === 1 || (e.button === 0 && spacePressed);
+      // Middle mouse button (button 1) or spacebar + left click
+      const canPan = e.button === 1 || (e.button === 0 && spacePressed);
       
       if (canPan) {
         // Don't pan if clicking on the iframe
