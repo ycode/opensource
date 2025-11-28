@@ -671,7 +671,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         // Calculate zoom delta - negative multiplier so scroll up zooms in
         const zoomDelta = deltaY * -1;
         const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
-        setZoom(Math.round(newZoom * 100) / 100); // Round to 2 decimal places for smoothness
+        setZoom(Math.round(newZoom)); // Always round to whole number
       } else if (spacePressed && container.contains(e.target as Node)) {
         // Prevent default scroll when spacebar is held (for panning mode)
         e.preventDefault();
