@@ -511,11 +511,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   // Zoom handlers
   const handleZoomIn = useCallback(() => {
-    setZoom(Math.min(zoom + 5, 200)); // Max 200%
+    setZoom(Math.min(zoom + 10, 200)); // Max 200%
   }, [zoom, setZoom]);
 
   const handleZoomOut = useCallback(() => {
-    setZoom(Math.max(zoom - 5, 25)); // Min 25%
+    setZoom(Math.max(zoom - 10, 25)); // Min 25%
   }, [zoom, setZoom]);
 
   const handleZoomTo100 = useCallback(() => {
