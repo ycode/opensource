@@ -497,6 +497,42 @@ const CenterCanvas = React.memo(function CenterCanvas({
           setIframeHeight(message.payload.height);
           break;
 
+        case 'WHEEL_ZOOM':
+          // Handle wheel zoom events from inside iframe
+          // Coordinates from iframe are relative to iframe viewport, need to convert to parent coordinates
+          const { deltaY, deltaMode, clientX, clientY } = message.payload;
+          const canvasContainer = canvasContainerRef.current;
+          const iframe = iframeRef.current;
+          
+          if (canvasContainer && iframe) {
+            // Get iframe position relative to viewport
+            const iframeRect = iframe.getBoundingClientRect();
+            // Convert iframe coordinates to parent window coordinates
+            const parentX = iframeRect.left + clientX;
+            const parentY = iframeRect.top + clientY;
+            
+            // Check if coordinates are within container
+            const containerRect = canvasContainer.getBoundingClientRect();
+            if (
+              parentX >= containerRect.left &&
+              parentX <= containerRect.right &&
+              parentY >= containerRect.top &&
+              parentY <= containerRect.bottom
+            ) {
+              // Handle different delta modes
+              let adjustedDeltaY = deltaY;
+              if (deltaMode === 1) { // DOM_DELTA_LINE
+                adjustedDeltaY *= 16;
+              } else if (deltaMode === 2) { // DOM_DELTA_PAGE
+                adjustedDeltaY *= 100;
+              }
+              const zoomDelta = -adjustedDeltaY * 0.5;
+              const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
+              setZoom(Math.round(newZoom));
+            }
+          }
+          break;
+
         case 'DRAG_START':
         case 'DRAG_OVER':
         case 'DROP':
@@ -657,8 +693,16 @@ const CenterCanvas = React.memo(function CenterCanvas({
       // On macOS, trackpad pinch gestures come through as wheel events with ctrlKey=true
       const isZoomGesture = e.metaKey || e.ctrlKey;
       
-      // Check if the event is within the canvas container
-      const isInContainer = container.contains(e.target as Node);
+      // Check if the event is within the canvas container using mouse coordinates
+      // This works even when the event target is inside an iframe
+      const containerRect = container.getBoundingClientRect();
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+      const isInContainer = 
+        mouseX >= containerRect.left &&
+        mouseX <= containerRect.right &&
+        mouseY >= containerRect.top &&
+        mouseY <= containerRect.bottom;
       
       if (isZoomGesture && isInContainer) {
         // Prevent browser zoom and handle canvas zoom
@@ -666,9 +710,17 @@ const CenterCanvas = React.memo(function CenterCanvas({
         e.stopPropagation();
         e.stopImmediatePropagation();
         
+        // Handle different delta modes (pixel, line, page)
+        let deltaY = e.deltaY;
+        if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+          deltaY *= 16; // Convert lines to pixels (approximate)
+        } else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+          deltaY *= 100; // Convert pages to pixels (approximate)
+        }
+        
         // Calculate zoom delta - use deltaY for vertical scroll/pinch
         // Negative deltaY = zoom in, positive = zoom out
-        const zoomDelta = -e.deltaY * 0.5; // Scale factor for smooth zooming
+        const zoomDelta = -deltaY * 0.5; // Scale factor for smooth zooming
         const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
         setZoom(Math.round(newZoom));
       } else if (spacePressed && isInContainer) {
@@ -680,10 +732,21 @@ const CenterCanvas = React.memo(function CenterCanvas({
     // Also add a document-level handler to prevent browser zoom when over canvas
     const handleDocumentWheel = (e: WheelEvent) => {
       const isZoomGesture = e.metaKey || e.ctrlKey;
-      const isInContainer = container.contains(e.target as Node);
+      
+      if (!isZoomGesture) return;
+      
+      // Check if mouse is over canvas container using coordinates
+      const containerRect = container.getBoundingClientRect();
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+      const isInContainer = 
+        mouseX >= containerRect.left &&
+        mouseX <= containerRect.right &&
+        mouseY >= containerRect.top &&
+        mouseY <= containerRect.bottom;
       
       // Prevent browser zoom when pinching/zooming over the canvas container
-      if (isZoomGesture && isInContainer) {
+      if (isInContainer) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();

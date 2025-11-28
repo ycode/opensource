@@ -730,6 +730,23 @@
     sendContentHeight();
   });
   
+  // Listen for wheel events (trackpad pinch / mouse scroll) and forward to parent
+  window.addEventListener('wheel', function(e) {
+    // Forward wheel events with ctrl/meta key (pinch gestures) to parent
+    if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Send message to parent window with wheel event data
+      sendToParent('WHEEL_ZOOM', {
+        deltaY: e.deltaY,
+        deltaMode: e.deltaMode,
+        clientX: e.clientX,
+        clientY: e.clientY,
+      });
+    }
+  }, { passive: false, capture: true });
+  
   // Initialize - notify parent that iframe is ready
   sendToParent('READY', null);
   
