@@ -669,8 +669,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         }
         
         // Calculate zoom delta - negative multiplier so scroll up zooms in
-        // Increased sensitivity for trackpad gestures (0.1 instead of 0.01)
-        const zoomDelta = deltaY * -0.1;
+        const zoomDelta = deltaY * -1;
         const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
         setZoom(Math.round(newZoom * 100) / 100); // Round to 2 decimal places for smoothness
       } else if (spacePressed && container.contains(e.target as Node)) {
@@ -732,8 +731,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         }
         
         // Calculate zoom delta - negative multiplier so scroll up zooms in
-        // Increased sensitivity for trackpad gestures (0.1 instead of 0.01)
-        const zoomDelta = deltaY * -0.1;
+        const zoomDelta = deltaY * -1;
         const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
         setZoom(Math.round(newZoom * 100) / 100);
       }
