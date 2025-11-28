@@ -13,10 +13,8 @@ import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-
-import { getTemplate, getBlockName, getIcon } from '@/lib/templates/blocks';
+import { getTemplate, getBlockName, getBlockIcon } from '@/lib/templates/blocks';
 import { canHaveChildren } from '@/lib/layer-utils';
-
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
@@ -27,11 +25,13 @@ interface ElementLibraryProps {
 }
 
 // Category definitions
-const structureElements = ['section', 'container', 'div', 'hr', 'columns', 'rows', 'grid', 'collection'];
-const contentElements = ['heading', 'p', 'richtext'];
-const actionElements = ['button', 'link'];
-const mediaElements = ['image', 'icon', 'video', 'audio'];
-const formElements = ['form', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label'];
+const elementCategories: Record<string, string[]> = {
+  Structure: ['section', 'container', 'div', 'hr', 'columns', 'rows', 'grid', 'collection'],
+  Content: ['heading', 'p', 'richtext'],
+  Actions: ['button', 'link'],
+  Media: ['image', 'icon', 'video', 'audio', 'youtube', 'iframe'],
+  Form: ['form', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label', 'submit'],
+};
 
 export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps) {
   const { addLayerFromTemplate, updateLayer, setDraftLayers, draftsByPageId } = usePagesStore();
@@ -201,13 +201,7 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
       newLayers = [...draft.layers, componentInstanceLayer];
     } else {
       // Check if parent can have children
-      const canHaveChildrenUtil = (layer: any) => {
-        const nonContainerElements = ['img', 'input', 'hr', 'br'];
-        const tag = layer.name || layer.type || 'div';
-        return !nonContainerElements.includes(tag);
-      };
-
-      if (canHaveChildrenUtil(result.layer)) {
+      if (canHaveChildren(result.layer)) {
         // Add as child
         const updateLayerInTree = (tree: any[], layerId: string, updater: (l: any) => any): any[] => {
           return tree.map((node) => {
@@ -278,133 +272,53 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
   if (!isOpen) return null;
 
   return (
-    <div className="fixed left-64 top-14 h-full w-64 bg-background border-r z-50 overflow-y-auto p-4 flex flex-col">
+    <div className="fixed left-64 top-14 bottom-0 w-64 bg-background border-r z-50 flex flex-col">
         {/* Tabs */}
-        <Tabs defaultValue="elements" className="flex-1 gap-0">
-          <TabsList className="w-full">
-            <TabsTrigger value="elements">Elements</TabsTrigger>
-            <TabsTrigger value="layouts">Layouts</TabsTrigger>
-            <TabsTrigger value="components">Components</TabsTrigger>
-          </TabsList>
-
-          <hr className="mt-4" />
-
-          <TabsContent value="elements" className="flex flex-col divide-y">
-            {/* Structure Category */}
-            <div className="flex flex-col pb-5">
-              <div className="py-5 h-14">
-                <Label>Structure</Label>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {structureElements.map((el) => (
-                  <Button
-                    key={el}
-                    onClick={() => handleAddElement(el)}
-                    size="sm"
-                    variant="secondary"
-                    className="justify-start"
-                  >
-                    <Icon name={getIcon(el) || 'box'} />
-                    {getBlockName(el)}
-                  </Button>
-                ))}
-              </div>
+        <Tabs defaultValue="elements" className="flex flex-col h-full overflow-hidden gap-0">
+          <div className="flex flex-col flex-shrink-0 gap-2">
+            <div className="p-4 pb-0">
+              <TabsList className="w-full">
+                <TabsTrigger value="elements">Elements</TabsTrigger>
+                <TabsTrigger value="layouts">Layouts</TabsTrigger>
+                <TabsTrigger value="components">Components</TabsTrigger>
+              </TabsList>
             </div>
 
-            {/* Content Category */}
-            <div className="flex flex-col pb-5">
-              <div className="py-5 h-14">
-                <Label>Content</Label>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {contentElements.map((el) => (
-                  <Button
-                    key={el}
-                    onClick={() => handleAddElement(el)}
-                    size="sm"
-                    variant="secondary"
-                    className="justify-start"
-                  >
-                    <Icon name={getIcon(el) || 'box'} />
-                    {getBlockName(el)}
-                  </Button>
-                ))}
-              </div>
-            </div>
+            <hr className="mt-2 mb-0 mx-4 flex-shrink-0" />
+          </div>
 
-            {/* Actions Category */}
-            <div className="flex flex-col pb-5">
-              <div className="py-5 h-14">
-                <Label>Actions</Label>
+          <TabsContent value="elements" className="flex flex-col divide-y overflow-y-auto flex-1 px-4 pb-4 no-scrollbar">
+            {Object.entries(elementCategories).map(([categoryName, elements]) => (
+              <div key={categoryName} className="flex flex-col pb-5">
+                <div className="py-4">
+                  <Label>{categoryName}</Label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {elements.map((el) => (
+                    <Button
+                      key={el}
+                      onClick={() => handleAddElement(el)}
+                      size="sm"
+                      variant="secondary"
+                      className="justify-start"
+                    >
+                      <Icon name={getBlockIcon(el)} />
+                      {getBlockName(el)}
+                    </Button>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {actionElements.map((el) => (
-                  <Button
-                    key={el}
-                    onClick={() => handleAddElement(el)}
-                    size="sm"
-                    variant="secondary"
-                    className="justify-start"
-                  >
-                    <Icon name={getIcon(el) || 'box'} />
-                    {getBlockName(el)}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {/* Media Category */}
-            <div className="flex flex-col pb-5">
-              <div className="py-5 h-14">
-                <Label>Media</Label>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {mediaElements.map((el) => (
-                  <Button
-                    key={el}
-                    onClick={() => handleAddElement(el)}
-                    size="sm"
-                    variant="secondary"
-                    className="justify-start"
-                  >
-                    <Icon name={getIcon(el) || 'box'} />
-                    {getBlockName(el)}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {/* Forms Category */}
-            <div className="flex flex-col pb-5">
-              <div className="py-5 h-14">
-                <Label>Form</Label>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {formElements.map((el) => (
-                  <Button
-                    key={el}
-                    onClick={() => handleAddElement(el)}
-                    size="sm"
-                    variant="secondary"
-                    className="justify-start"
-                  >
-                    <Icon name={getIcon(el) || 'box'} />
-                    {getBlockName(el)}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
+            ))}
           </TabsContent>
 
-          <TabsContent value="layouts" className="flex flex-col">
+          <TabsContent value="layouts" className="flex flex-col overflow-y-auto flex-1 px-4 pb-4 no-scrollbar">
             <Empty>
               <EmptyTitle>Coming soon</EmptyTitle>
               <EmptyDescription>Pre-built page layouts are coming soon</EmptyDescription>
             </Empty>
           </TabsContent>
 
-          <TabsContent value="components" className="flex flex-col">
+          <TabsContent value="components" className="flex flex-col overflow-y-auto flex-1 px-4 pb-4 no-scrollbar">
             {components.length === 0 ? (
               <Empty>
                 <EmptyTitle>No components yet</EmptyTitle>

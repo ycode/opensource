@@ -52,7 +52,6 @@ interface PagesActions {
   saveDraft: (pageId: string) => Promise<void>;
 
   // Layer Operations
-  addLayer: (pageId: string, parentLayerId: string | null, layerType: Layer['type']) => void;
   addLayerFromTemplate: (pageId: string, parentLayerId: string | null, templateId: string) => { newLayerId: string; parentToExpand: string | null } | null;
   deleteLayer: (pageId: string, layerId: string) => void;
   deleteLayers: (pageId: string, layerIds: string[]) => void; // New batch delete
@@ -421,57 +420,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
   setError: (error) => set({ error }),
 
-  addLayer: (pageId, parentLayerId, layerType) => {
-    const { draftsByPageId, pages } = get();
-    let draft = draftsByPageId[pageId];
-
-    // Initialize draft if it doesn't exist
-    if (!draft) {
-      const page = pages.find(p => p.id === pageId);
-      if (!page) return;
-
-      draft = {
-        id: `draft-${pageId}`,
-        page_id: pageId,
-        layers: [],
-        is_published: false,
-        created_at: new Date().toISOString(),
-        deleted_at: null,
-      };
-    }
-
-    const newLayer: Layer = {
-      id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      type: layerType,
-      classes: '',
-      content: getDefaultContent(layerType),
-      children: layerType === 'container' ? [] : undefined,
-    };
-
-    // Set classes after ID is assigned
-    newLayer.classes = getDefaultClasses(layerType, newLayer.id);
-
-    let newLayers: Layer[];
-
-    if (! parentLayerId) {
-      // Add to root
-      newLayers = [...draft.layers, newLayer];
-    } else {
-      // Add as child to parent
-      newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
-        ...parent,
-        children: [...(parent.children || []), newLayer],
-      }));
-    }
-
-    set({
-      draftsByPageId: {
-        ...draftsByPageId,
-        [pageId]: { ...draft, layers: newLayers }
-      }
-    });
-  },
-
   addLayerFromTemplate: (pageId, parentLayerId, templateId) => {
     const { draftsByPageId, pages } = get();
     let draft = draftsByPageId[pageId];
@@ -777,11 +725,11 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       return false;
     }
 
-    // Validation: Target parent must be a container (if not null)
+    // Validation: Target parent must be able to have children (if not null)
     if (targetParentId) {
       const targetParent = findLayer(draft.layers, targetParentId);
-      if (!targetParent || targetParent.type !== 'container') {
-        console.warn('Can only drop into container layers');
+      if (!targetParent || !canHaveChildren(targetParent)) {
+        console.warn('Can only drop into layers that can have children');
         return false;
       }
     }
@@ -1198,7 +1146,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       page_id: tempId,
       layers: [{
         id: 'body',
-        type: 'container' as const,
+        name: 'body',
         classes: '',
         children: [],
         locked: true,
@@ -2644,32 +2592,3 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     }
   },
 }));
-
-// Helper functions for default layer values
-function getDefaultClasses(type: Layer['type'], id?: string): string {
-  if (id === 'body') return '';
-
-  switch (type) {
-    case 'container':
-      return 'flex flex-col gap-4 p-8';
-    case 'text':
-      return 'text-base text-gray-700';
-    case 'heading':
-      return 'text-3xl font-bold text-gray-900';
-    case 'image':
-      return 'w-full h-auto';
-    default:
-      return '';
-  }
-}
-
-function getDefaultContent(type: Layer['type']): string | undefined {
-  switch (type) {
-    case 'text':
-      return 'Edit this text...';
-    case 'heading':
-      return 'Heading';
-    default:
-      return undefined;
-  }
-}

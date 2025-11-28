@@ -23,7 +23,7 @@ export default async function RootLayout({
   // Get the current pathname to determine if we're in the editor
   const headersList = await headers();
   const pathname = headersList.get('x-pathname') || '';
-  const isPreviewRoute = pathname.startsWith('/ycode/preview/');
+  const isPreviewRoute = pathname.startsWith('/ycode/preview');
 
   // Apply dark mode for editor and welcome routes (/ycode, /welcome)
   const isDarkMode = !isPreviewRoute && (pathname.startsWith('/ycode') || pathname.startsWith('/welcome'));

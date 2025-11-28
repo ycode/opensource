@@ -462,6 +462,10 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   ),
 };
 
+export const iconExists = (name: string): boolean => {
+  return name in ICONS;
+};
+
 /**
  * Generic SVG Icon component. Forwards all SVG props (className, style, event handlers, etc.).
  */

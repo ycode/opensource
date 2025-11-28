@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
     // Create initial draft with Body container
     const bodyLayer = {
       id: 'body',
-      type: 'container' as const,
+      name: 'body',
       classes: '',
       children: [],
       locked: true,

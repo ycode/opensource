@@ -15,9 +15,13 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     icon: 'heading',
     name: 'Heading',
     template: {
-      name: 'h1',
+      name: 'heading',
+      settings: {
+        tag: 'h1',
+      },
       classes: ['text-[48px]', 'font-[700]'],
       text: 'Heading',
+      formattable: true,
       children: [], // Can contain inline elements
       design: {
         typography: {
@@ -31,13 +35,13 @@ export const contentTemplates: Record<string, BlockTemplate> = {
 
   p: {
     icon: 'text',
-    name: 'Text',
+    name: 'Paragraph',
     template: {
       name: 'p',
       classes: ['text-[16px]'],
       text: 'Text',
-      children: [], // Can contain inline elements
       formattable: true,
+      children: [], // Can contain inline elements
       design: {
         typography: {
           isActive: true,
@@ -54,8 +58,8 @@ export const contentTemplates: Record<string, BlockTemplate> = {
       name: 'span',
       classes: ['text-[16px]'],
       text: 'Text',
-      children: [], // Can contain inline elements
       formattable: true,
+      children: [], // Can contain inline elements
       design: {
         typography: {
           isActive: true,
@@ -72,8 +76,8 @@ export const contentTemplates: Record<string, BlockTemplate> = {
       name: 'div',
       classes: ['prose', 'max-w-none'],
       text: '<p>This is rich text content. You can format it with <strong>bold</strong>, <em>italic</em>, and more.</p>',
-      children: [], // Can contain any elements
       formattable: true,
+      children: [], // Can contain any elements
       design: {
         typography: {
           isActive: true
