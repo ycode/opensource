@@ -203,8 +203,12 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     previousIsEditingRef.current = currentIsEditing;
   }
 
-  // Calculate autofit zoom on initial load and when viewport mode changes
+  // Calculate autofit zoom on initial load only
+  const hasInitializedZoom = useRef(false);
   useEffect(() => {
+    // Only calculate autofit on initial load, not when viewport mode changes
+    if (hasInitializedZoom.current) return;
+    
     const calculateAutofit = () => {
       const canvasContainer = document.querySelector('[data-canvas-container]');
       if (canvasContainer) {
@@ -217,13 +221,14 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         const viewportWidth = parseInt(viewportSizes[viewportMode].width);
         const fitZoom = Math.floor((containerWidth / viewportWidth) * 100);
         setZoom(Math.max(25, Math.min(fitZoom, 200)));
+        hasInitializedZoom.current = true;
       }
     };
 
     // Wait for DOM to be ready
     const timeoutId = setTimeout(calculateAutofit, 100);
     return () => clearTimeout(timeoutId);
-  }, [viewportMode]); // Recalculate when viewport mode changes
+  }, [viewportMode, setZoom]);
 
   // Sync viewport changes to URL (skip when in page settings mode or during edit mode transition)
   useEffect(() => {
