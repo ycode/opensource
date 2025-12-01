@@ -434,11 +434,6 @@ const RightSidebar = React.memo(function RightSidebar({
       return layer.text;
     }
 
-    // Priority 3: Check layer.content (legacy)
-    if (layer.content && typeof layer.content === 'string') {
-      return layer.content;
-    }
-
     return '';
   }, []);
 
@@ -1090,8 +1085,8 @@ const RightSidebar = React.memo(function RightSidebar({
 
           <header className="py-5 flex justify-between -mt-2">
             <span className="font-medium">Trigger</span>
-            <div className="-my-1">
 
+            <div className="-my-1">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="xs" variant="secondary">
@@ -1107,16 +1102,14 @@ const RightSidebar = React.memo(function RightSidebar({
                   <DropdownMenuItem>Page load</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-
             </div>
           </header>
 
           <div className="flex flex-col gap-2">
-
-            <button
+            <div
               onClick={() => setSelectedInteraction('click')}
               className={cn(
-                'flex items-center gap-2 p-2 rounded-lg transition-colors text-left w-full',
+                'flex items-center gap-2 p-2 rounded-lg transition-colors text-left w-full cursor-pointer',
                 selectedInteraction === 'click'
                   ? 'bg-teal-500/50 text-primary-foreground'
                   : 'bg-secondary/50 hover:bg-secondary/100'
@@ -1143,12 +1136,12 @@ const RightSidebar = React.memo(function RightSidebar({
                   <Icon name="x" />
                 </Button>
               </div>
-            </button>
+            </div>
 
-            <button
+            <div
               onClick={() => setSelectedInteraction('hover')}
               className={cn(
-                'flex items-center gap-2 p-2 rounded-lg transition-colors text-left w-full',
+                'flex items-center gap-2 p-2 rounded-lg transition-colors text-left w-full cursor-pointer',
                 selectedInteraction === 'hover'
                   ? 'bg-teal-500/50 text-primary-foreground'
                   : 'bg-secondary/50 hover:bg-secondary/100'
@@ -1175,8 +1168,7 @@ const RightSidebar = React.memo(function RightSidebar({
                   <Icon name="x" />
                 </Button>
               </div>
-            </button>
-
+            </div>
           </div>
 
           {/* Interaction Content */}
@@ -1184,11 +1176,8 @@ const RightSidebar = React.memo(function RightSidebar({
             <div className="mt-4 border-t">
 
               {selectedInteraction === 'click' && (
-
                 <div>
-
                   <div className="py-5 border-b flex flex-col gap-2">
-
                     <div className="grid grid-cols-3">
                       <Label variant="muted">Loop</Label>
                       <div className="col-span-2 *:w-full">
@@ -1275,13 +1264,12 @@ const RightSidebar = React.memo(function RightSidebar({
                         </Select>
                       </div>
                     </div>
-
                   </div>
 
                   <header className="py-5 flex justify-between">
                     <span className="font-medium">Properties</span>
-                    <div className="-my-1">
 
+                    <div className="-my-1">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button size="xs" variant="secondary">
@@ -1300,14 +1288,11 @@ const RightSidebar = React.memo(function RightSidebar({
                           <DropdownMenuItem>Visibility</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-
                     </div>
                   </header>
 
                   <div className="space-y-4">
-
                     <div className="px-4 bg-secondary/50 rounded-lg">
-
                       <header className="flex items-center gap-2 py-4">
                         <div
                           className={cn(
@@ -1325,9 +1310,7 @@ const RightSidebar = React.memo(function RightSidebar({
                       <hr />
 
                       <ul className="divide-y">
-
                         <li>
-
                           <header
                             onClick={() => setIsMoveExpanded(!isMoveExpanded)}
                             className="px-4 flex items-center gap-1.5 cursor-pointer hover:bg-secondary/25 rounded-lg -mx-4 py-3 transition-colors"
@@ -1356,9 +1339,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
                           {isMoveExpanded && (
                             <div className="-mt-4">
-
                               <div className="py-4 flex flex-col gap-4">
-
                                 <div className="flex flex-col gap-2">
                                   <Label variant="muted">Horizontally</Label>
                                   <div className="flex items-center gap-2">
@@ -1376,13 +1357,11 @@ const RightSidebar = React.memo(function RightSidebar({
                                     <Input />
                                   </div>
                                 </div>
-
                               </div>
 
                               <hr />
 
                               <div className="flex flex-col gap-2 py-4">
-
                                 <div className="grid grid-cols-3">
                                   <Label variant="muted">Delay</Label>
                                   <div className="col-span-2 *:w-full">
@@ -1403,16 +1382,12 @@ const RightSidebar = React.memo(function RightSidebar({
                                     <Input />
                                   </div>
                                 </div>
-
                               </div>
-
                             </div>
                           )}
-
                         </li>
 
                         <li>
-
                           <header
                             onClick={() => setIsRotateExpanded(!isRotateExpanded)}
                             className="px-4 flex items-center gap-1.5 cursor-pointer hover:bg-secondary/25 rounded-lg -mx-4 py-3 transition-colors"
@@ -1441,21 +1416,17 @@ const RightSidebar = React.memo(function RightSidebar({
 
                           {isRotateExpanded && (
                             <div className="-mt-4">
-
                               <div className="py-4 flex flex-col gap-4">
-
                                 <div className="flex items-center gap-2">
                                   <Input />
                                   <Icon name="chevronRight" className="size-3 opacity-50 shrink-0" />
                                   <Input />
                                 </div>
-
                               </div>
 
                               <hr />
 
                               <div className="flex flex-col gap-2 py-4">
-
                                 <div className="grid grid-cols-3">
                                   <Label variant="muted">Delay</Label>
                                   <div className="col-span-2 *:w-full">
@@ -1476,29 +1447,18 @@ const RightSidebar = React.memo(function RightSidebar({
                                     <Input />
                                   </div>
                                 </div>
-
                               </div>
-
                             </div>
                           )}
-
                         </li>
-
                       </ul>
-
                     </div>
-
                   </div>
-
                 </div>
-
               )}
-
             </div>
           )}
-
         </TabsContent>
-
       </Tabs>
     </div>
   );
