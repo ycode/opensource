@@ -4,9 +4,6 @@
  * Core types for pages, layers, and editor functionality
  */
 
-// Layer Types
-export type LayerType = 'container' | 'text' | 'image' | 'heading';
-
 // UI State Types (for state-specific styling: hover, focus, etc.)
 export type UIState = 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current';
 
@@ -158,12 +155,11 @@ export interface Component {
 
 export interface Layer {
   id: string;
-  name?: string; // Element type name: 'div', 'h1', 'button', 'section', etc.
+  name: string; // Element type name: 'div', 'section', 'heading', 'youtube', etc.
   customName?: string; // User-defined name
-  type?: LayerType; // For compatibility
 
   // Content
-  text?: string; // Text content
+  text?: string | FieldVariable; // Text content (can be static or bound to a field)
   classes: string | string[]; // Tailwind CSS classes (support both formats)
 
   // Children
@@ -197,10 +193,18 @@ export interface Layer {
   icon?: { name: string; svg_code: string }; // For icon elements
 
   // Image-specific
-  url?: string; // Image URL
+  url?: string | FieldVariable; // Image URL (can be static or bound to a field)
   alt?: string;
 
-  // Legacy properties
+  // Collection binding (for collection layers)
+  collection?: {
+    id: string; // Collection ID
+  };
+
+  // Layer variables (new structured approach)
+  variables?: LayerVariables;
+
+  // Legacy properties (deprecated)
   style?: string; // Style preset name (legacy)
   content?: string; // For text/heading layers (use text instead)
   src?: string;     // For image layers (use url instead)
@@ -544,3 +548,21 @@ export interface FieldVariable {
 }
 
 export type InlineVariable = FieldVariable;
+
+// Layer Variable Types
+export interface CollectionVariable {
+  id: string; // Collection ID
+  sort_by?: 'none' | 'manual' | 'random' | string; // 'none', 'manual', 'random', or field ID
+  sort_order?: 'asc' | 'desc'; // Only used when sort_by is a field ID
+}
+
+export interface InlineVariableContent {
+  data: string; // Text with placeholders like "Hello <ycode-inline-variable id=\"uuid\"></ycode-inline-variable>"
+  variables: Record<string, FieldVariable>; // Map of variable ID to FieldVariable object for O(1) lookup
+}
+
+export interface LayerVariables {
+  collection?: CollectionVariable;
+  text?: InlineVariableContent;
+  // Future: image, link, etc.
+}

@@ -1,6 +1,6 @@
 /**
  * Block Templates System
- * 
+ *
  * Provides template definitions and helper functions for creating new layers
  */
 
@@ -67,35 +67,38 @@ export function getTemplate(
 ): Layer | null {
   const block = blocks[index as keyof typeof blocks];
   if (!block) return null;
-  
+
   const template = cloneDeep(block.template);
-  
+
   // Recursively assign IDs to all nested children
   const assignIds = (layer: Omit<Layer, 'id'>): Layer => {
     const layerWithId = { ...layer, id: generateId() } as Layer;
-    
+
     if (layerWithId.children && Array.isArray(layerWithId.children)) {
       layerWithId.children = layerWithId.children.map((child) => assignIds(child as Omit<Layer, 'id'>)) as Layer[];
     }
-    
+
     return layerWithId;
   };
-  
+
   const templateWithIds = assignIds(template);
-  
+
   if (overrides && Object.keys(overrides).length > 0) {
     return { ...templateWithIds, ...overrides };
   }
-  
+
   return templateWithIds;
 }
 
 /**
  * Get icon name for a block type
  */
-export function getIcon(index: string): IconProps['name'] | null {
-  const block = blocks[index as keyof typeof blocks];
-  return (block?.icon as IconProps['name']) || null;
+export function getBlockIcon(
+  key: string,
+  defaultIcon: IconProps['name'] = 'box'
+): IconProps['name'] {
+  const block = blocks[key as keyof typeof blocks];
+  return (block?.icon as IconProps['name']) || defaultIcon;
 }
 
 /**

@@ -107,7 +107,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   // Optimize store subscriptions - use selective selectors
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
-  const addLayer = usePagesStore((state) => state.addLayer);
+  const addLayerFromTemplate = usePagesStore((state) => state.addLayerFromTemplate);
   const updateLayer = usePagesStore((state) => state.updateLayer);
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
@@ -121,6 +121,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const setCurrentPageCollectionItemId = useEditorStore((state) => state.setCurrentPageCollectionItemId);
 
   const getDropdownItems = useCollectionsStore((state) => state.getDropdownItems);
+  const collectionItemsFromStore = useCollectionsStore((state) => state.items);
+  const collectionsFromStore = useCollectionsStore((state) => state.collections);
+  const collectionFieldsFromStore = useCollectionsStore((state) => state.fields);
 
   const { routeType, urlState, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorUrl();
   const components = useComponentsStore((state) => state.components);
@@ -411,9 +414,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
         selectedLayerId,
         componentMap,
         editingComponentId: editingComponentId || null,
+        collectionItems: collectionItemsFromStore,
+        collectionFields: collectionFieldsFromStore,
       },
     });
-  }, [layers, selectedLayerId, iframeReady, components, editingComponentId]);
+  }, [layers, selectedLayerId, iframeReady, components, editingComponentId, collectionItemsFromStore, collectionFieldsFromStore]);
 
   // Send breakpoint updates to iframe
   useEffect(() => {
@@ -1029,7 +1034,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         <Button
                           onClick={() => {
                             // Always add inside Body container
-                            addLayer(currentPageId, 'body', 'container');
+                            addLayerFromTemplate(currentPageId, 'body', 'div');
                             setShowAddBlockPanel(false);
                           }}
                           variant="ghost"
@@ -1047,7 +1052,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         <Button
                           onClick={() => {
                             // Always add inside Body container
-                            addLayer(currentPageId, 'body', 'heading');
+                            addLayerFromTemplate(currentPageId, 'body', 'heading');
                             setShowAddBlockPanel(false);
                           }}
                           variant="ghost"
@@ -1065,7 +1070,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         <Button
                           onClick={() => {
                             // Always add inside Body container
-                            addLayer(currentPageId, 'body', 'text');
+                            addLayerFromTemplate(currentPageId, 'body', 'p');
                             setShowAddBlockPanel(false);
                           }}
                           variant="ghost"

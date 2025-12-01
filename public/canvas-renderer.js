@@ -5,7 +5,7 @@
 
 (function() {
   'use strict';
-  
+
   // State
   let layers = [];
   let selectedLayerId = null;
@@ -16,10 +16,12 @@
   let currentUIState = 'neutral'; // Active UI state for visual preview
   let componentMap = {}; // Maps layer IDs to their root component layer ID
   let editingComponentId = null; // ID of component being edited
-  
+  let collectionItems = {}; // Collection items by collection ID
+  let collectionFields = {}; // Collection fields by collection ID
+
   // Root element
   const root = document.getElementById('canvas-root');
-  
+
   /**
    * Send message to parent window
    */
@@ -28,84 +30,83 @@
       window.parent.postMessage({ type, payload }, '*');
     }
   }
-  
+
   /**
    * Listen for messages from parent
    */
   window.addEventListener('message', function(event) {
     const message = event.data;
-    
+
     if (!message || !message.type) return;
-    
+
     switch (message.type) {
       case 'UPDATE_LAYERS':
         layers = message.payload.layers || [];
         selectedLayerId = message.payload.selectedLayerId;
         componentMap = message.payload.componentMap || {};
         editingComponentId = message.payload.editingComponentId;
+        collectionItems = message.payload.collectionItems || {};
+        collectionFields = message.payload.collectionFields || {};
+        console.log('[Canvas] Received UPDATE_LAYERS', {
+          layersCount: layers.length,
+          collectionItemsKeys: Object.keys(collectionItems),
+          collectionItems,
+          collectionFieldsKeys: Object.keys(collectionFields)
+        });
         render();
         break;
-        
+
       case 'UPDATE_SELECTION':
         selectedLayerId = message.payload.layerId;
         updateSelection();
         break;
-        
+
       case 'UPDATE_BREAKPOINT':
         currentBreakpoint = message.payload.breakpoint;
         updateBreakpoint();
         break;
-        
+
       case 'UPDATE_UI_STATE':
         currentUIState = message.payload.uiState;
         updateUIState();
         break;
-        
+
       case 'ENABLE_EDIT_MODE':
         editMode = message.payload.enabled;
         render();
         break;
-        
+
       case 'HIGHLIGHT_DROP_ZONE':
         highlightDropZone(message.payload.layerId);
         break;
     }
   });
-  
+
   /**
    * Get HTML tag for layer
    */
-  function getHtmlTag(layer) {
+  function getLayerHtmlTag(layer) {
     // Check for custom tag in settings
     if (layer.settings && layer.settings.tag) {
       return layer.settings.tag;
     }
-    
+
     // Map layer type to HTML tag
     if (layer.name) {
       return layer.name;
     }
-    
-    switch (layer.type) {
-      case 'heading':
-        return 'h2';
-      case 'text':
-        return 'p';
-      case 'image':
-        return 'img';
-      case 'container':
-      default:
-        return 'div';
-    }
+
+    // Default fallback
+    return 'div';
   }
-  
+
   /**
    * Get classes string from layer with UI state applied
    * For hover/focus/active states, we need to make Tailwind's state classes apply
    */
   function getClassesString(layer) {
     let classes = Array.isArray(layer.classes) ? layer.classes.join(' ') : (layer.classes || '');
-    
+
     if (currentUIState === 'neutral') {
       // In neutral state, keep only non-state classes
       classes = filterNeutralClasses(classes);
@@ -113,26 +114,26 @@
       // In a specific state, activate that state's classes
       classes = activateStateClasses(classes, currentUIState);
     }
-    
+
     return classes;
   }
-  
+
   /**
    * Filter out state-specific classes, keeping only neutral/base classes
    * Used when currentUIState is 'neutral'
    */
   function filterNeutralClasses(classesString) {
     if (!classesString) return classesString;
-    
+
     const classArray = classesString.split(' ').filter(Boolean);
     const neutralClasses = [];
-    
+
     const stateModifiers = ['hover:', 'focus:', 'active:', 'disabled:', 'visited:'];
-    
+
     classArray.forEach(cls => {
       // Check if this class has a state modifier
       let hasStateModifier = false;
-      
+
       // Check for direct state modifiers (hover:, focus:, etc.)
       for (const modifier of stateModifiers) {
         if (cls.startsWith(modifier)) {
@@ -140,7 +141,7 @@
           break;
         }
       }
-      
+
       // Check for breakpoint + state modifiers (max-md:hover:, max-lg:focus:, etc.)
       if (!hasStateModifier) {
         const afterBreakpoint = cls.replace(/^(max-lg:|max-md:|lg:|md:)/, '');
@@ -154,16 +155,16 @@
           }
         }
       }
-      
+
       // Only keep classes without state modifiers
       if (!hasStateModifier) {
         neutralClasses.push(cls);
       }
     });
-    
+
     return neutralClasses.join(' ');
   }
-  
+
   /**
    * Activate state-specific classes by converting them to active classes
    * e.g., "hover:bg-blue-500" becomes "bg-blue-500" when currentUIState is 'hover'
@@ -172,16 +173,16 @@
    */
   function activateStateClasses(classesString, state) {
     if (!classesString) return classesString;
-    
+
     const classArray = classesString.split(' ').filter(Boolean);
     const statePrefix = state === 'current' ? 'visited:' : `${state}:`;
     const activatedClasses = [];
     const activatedBaseClasses = new Set(); // Track which base classes we've activated
-    
+
     // List of all state modifiers to filter out others
     const stateModifiers = ['hover:', 'focus:', 'active:', 'disabled:', 'visited:'];
     const otherStates = stateModifiers.filter(m => m !== statePrefix);
-    
+
     // First pass: collect all activated state classes and track their base classes
     classArray.forEach(cls => {
       // Check if this class is for the current active state
@@ -208,16 +209,16 @@
         activatedBaseClasses.add('max-md:' + getClassPrefix(baseClass));
       }
     });
-    
+
     // Second pass: add neutral classes only if they don't conflict with activated classes
     classArray.forEach(cls => {
       // Skip state-specific classes (already processed)
-      if (cls.startsWith(statePrefix) || 
-          cls.startsWith('max-lg:' + statePrefix) || 
+      if (cls.startsWith(statePrefix) ||
+          cls.startsWith('max-lg:' + statePrefix) ||
           cls.startsWith('max-md:' + statePrefix)) {
         return;
       }
-      
+
       // Check if this is a different state's class - if so, skip it
       let isOtherState = false;
       for (const otherState of otherStates) {
@@ -231,11 +232,11 @@
           break;
         }
       }
-      
+
       if (isOtherState) {
         return; // Skip other state classes
       }
-      
+
       // Check if this neutral class conflicts with an activated state class
       const classPrefix = getClassPrefix(cls);
       if (activatedBaseClasses.has(classPrefix)) {
@@ -243,14 +244,14 @@
         // Example: hover:m-[100px] activated to m-[100px], so skip neutral m-[50px]
         return;
       }
-      
+
       // No conflict - keep this neutral class
       activatedClasses.push(cls);
     });
-    
+
     return activatedClasses.join(' ');
   }
-  
+
   /**
    * Get the property prefix from a Tailwind class for conflict detection
    * Examples:
@@ -272,35 +273,35 @@
       prefix = 'max-md:';
       cls = cls.substring(7);
     }
-    
+
     // Special cases: display values without dashes should all conflict with each other
     const displayValues = ['flex', 'inline-flex', 'block', 'inline-block', 'inline', 'grid', 'inline-grid', 'hidden', 'table', 'table-row', 'table-cell'];
     if (displayValues.includes(cls)) {
       return prefix + 'display';
     }
-    
+
     // Special cases: flex/grid direction values
     const flexDirectionValues = ['flex-row', 'flex-row-reverse', 'flex-col', 'flex-col-reverse'];
     if (flexDirectionValues.includes(cls)) {
       return prefix + 'flex-direction';
     }
-    
+
     // Special cases: flex wrap values
     const flexWrapValues = ['flex-wrap', 'flex-wrap-reverse', 'flex-nowrap'];
     if (flexWrapValues.includes(cls)) {
       return prefix + 'flex-wrap';
     }
-    
+
     // Special cases: justify-content values
     if (cls.startsWith('justify-')) {
       return prefix + 'justify-';
     }
-    
+
     // Special cases: align-items values
     if (cls.startsWith('items-')) {
       return prefix + 'items-';
     }
-    
+
     // Special cases: text/bg/border colors with named values (text-red-500, bg-blue-300)
     // These should conflict with arbitrary colors (text-[#ff0000], bg-[#00ff00])
     if (cls.match(/^text-[a-z]+-\d+$/)) {
@@ -312,42 +313,172 @@
     if (cls.match(/^border-[a-z]+-\d+$/)) {
       return prefix + 'border-';
     }
-    
+
     // Extract the property part before the value
     // Match patterns like: m-, mt-, bg-, text-, etc.
     const match = cls.match(/^([a-z-]+)-/);
     if (match) {
       return prefix + match[1] + '-';
     }
-    
+
     // For classes without dash (shouldn't reach here after special cases above)
     return prefix + cls;
   }
-  
+
   /**
-   * Get text content from layer
-   */
-  function getText(layer) {
-    return layer.text || layer.content || '';
-  }
-  
-  /**
-   * Check if layer can be text-edited
+   * Check if a layer is text-editable
    */
   function isTextEditable(layer) {
-    // Check if explicitly marked as formattable
-    if (layer.formattable) return true;
-    
-    // Check layer type (legacy)
-    if (layer.type === 'text' || layer.type === 'heading') return true;
-    
-    // Check HTML tag name (new templates use 'name' property)
-    const tag = layer.name || layer.type || '';
-    const editableTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'button', 'label'];
-    
-    return editableTags.includes(tag);
+    return layer.formattable ?? false;
   }
-  
+
+  /**
+   * Get text content from layer
+   * If collectionItemData is provided, use it for field variable resolution
+   * If collectionId is provided, validates that referenced fields still exist
+   */
+  function getText(layer, collectionItemData, collectionId) {
+    const text = layer.text || layer.content || '';
+
+    console.log('[getText]', {
+      layerId: layer.id,
+      hasVariables: !!layer.variables?.text,
+      variablesText: layer.variables?.text,
+      text,
+      collectionItemData
+    });
+
+    // Check if text is a field variable
+    if (text && typeof text === 'object' && text.type === 'field' && text.data && text.data.field_id) {
+      // Resolve field variable from collection item data
+      if (collectionItemData) {
+        const fieldId = text.data.field_id;
+        const value = collectionItemData[fieldId];
+        if (value !== undefined && value !== null) {
+          return value;
+        }
+      }
+      return ''; // No data to resolve
+    }
+
+    // Check if it's inline variable content (variables.text structure)
+    if (layer.variables && layer.variables.text) {
+      const inlineContent = layer.variables.text;
+      let resolvedText = inlineContent.data || '';
+
+      console.log('[getText] Processing inline variables', {
+        data: resolvedText,
+        variables: inlineContent.variables,
+        hasCollectionData: !!collectionItemData
+      });
+
+      // Replace ID-based placeholders: <ycode-inline-variable id="uuid"></ycode-inline-variable>
+      const regex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
+
+      if (collectionItemData && inlineContent.variables) {
+        // Get fields for this collection to validate existence
+        const fieldsForCollection = collectionId && collectionFields[collectionId] ? collectionFields[collectionId] : [];
+
+        // Resolve with actual field values
+        resolvedText = resolvedText.replace(regex, function(match, variableId) {
+          const variable = inlineContent.variables[variableId];
+          console.log('[getText] Resolving variable', { variableId, variable, match, collectionId, fieldsCount: fieldsForCollection.length });
+          if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
+            const fieldId = variable.data.field_id;
+
+            // Check if field still exists in collection schema
+            const fieldExists = fieldsForCollection.some(f => f.id === fieldId);
+            console.log('[getText] Field validation', { fieldId, fieldExists, fields: fieldsForCollection.map(f => ({ id: f.id, name: f.name })) });
+
+            if (!fieldExists) {
+              console.log('[getText] Field deleted, showing empty string');
+              return ''; // Field was deleted, show nothing
+            }
+
+            const value = collectionItemData[fieldId];
+            if (value !== undefined && value !== null) {
+              console.log('[getText] Resolved to value:', value);
+              return value;
+            }
+          }
+          return ''; // Empty string for deleted/missing fields
+        });
+      } else {
+        // No collection data - just remove the tags completely
+        resolvedText = resolvedText.replace(regex, '');
+      }
+
+      console.log('[getText] Final resolved text:', resolvedText);
+      return resolvedText;
+    }
+
+    // Check if text is a string but contains variable tags (shouldn't happen, but handle it)
+    if (typeof text === 'string' && text.includes('<ycode-inline-variable')) {
+      // Strip out variable tags completely for display
+      return text.replace(/<ycode-inline-variable[^>]*>.*?<\/ycode-inline-variable>/g, '');
+    }
+
+    return text;
+  }
+
+  /**
+   * Sort collection items based on layer sorting settings
+   * @param {Array} items - Array of collection items to sort
+   * @param {Object} collectionVariable - Collection variable containing sorting preferences
+   * @param {Array} fields - Array of collection fields for field-based sorting
+   * @returns {Array} Sorted array of collection items
+   */
+  function sortCollectionItems(items, collectionVariable, fields) {
+    // If no collection variable or no items, return as-is
+    if (!collectionVariable || items.length === 0) {
+      return items;
+    }
+
+    const sortBy = collectionVariable.sort_by;
+    const sortOrder = collectionVariable.sort_order || 'asc';
+
+    // Create a copy to avoid mutating the original array
+    const sortedItems = [...items];
+
+    // No sorting - return database order (as-is)
+    if (!sortBy || sortBy === 'none') {
+      return sortedItems;
+    }
+
+    // Manual sorting - sort by manual_order field
+    if (sortBy === 'manual') {
+      return sortedItems.sort((a, b) => a.manual_order - b.manual_order);
+    }
+
+    // Random sorting - shuffle the array
+    if (sortBy === 'random') {
+      for (let i = sortedItems.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [sortedItems[i], sortedItems[j]] = [sortedItems[j], sortedItems[i]];
+      }
+      return sortedItems;
+    }
+
+    // Field-based sorting - sortBy is a field ID
+    return sortedItems.sort((a, b) => {
+      const aValue = a.values[sortBy] || '';
+      const bValue = b.values[sortBy] || '';
+
+      // Try to parse as numbers if possible
+      const aNum = parseFloat(String(aValue));
+      const bNum = parseFloat(String(bValue));
+
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        // Numeric comparison
+        return sortOrder === 'asc' ? aNum - bNum : bNum - aNum;
+      }
+
+      // String comparison
+      const comparison = String(aValue).localeCompare(String(bValue));
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }
+
   /**
    * Send content height to parent
    */
@@ -371,14 +502,14 @@
    */
   function render() {
     root.innerHTML = '';
-    
+
     if (layers.length === 0) {
       root.innerHTML = '<div style="padding: 40px; text-align: center; color: #9ca3af;">No layers to display</div>';
       // Send height after a short delay to ensure DOM is updated
       setTimeout(sendContentHeight, 0);
       return;
     }
-    
+
     layers.forEach(layer => {
       const element = renderLayer(layer);
       if (element) {
@@ -389,46 +520,76 @@
     // Send height after a short delay to ensure DOM is updated
     setTimeout(sendContentHeight, 0);
   }
-  
+
   /**
    * Render a single layer and its children
    */
-  function renderLayer(layer) {
+  function renderLayer(layer, collectionItemData, parentCollectionId) {
     // Skip hidden layers
     if (layer.settings && layer.settings.hidden) {
       return null;
     }
-    
-    const tag = getHtmlTag(layer);
+
+    // Check if this layer has a collection binding (not based on name or type)
+    const collectionVariable = layer.variables?.collection || layer.collection || null;
+    const isCollectionLayer = !!collectionVariable;
+    const collectionId = collectionVariable?.id;
+
+    // Use parent collection ID if not a collection layer itself
+    const activeCollectionId = collectionId || parentCollectionId;
+
+    // Debug logging for all layers with variables
+    if (layer.variables) {
+      console.log('[Canvas Layer with Variables]', {
+        layerId: layer.id,
+        layerName: layer.name,
+        hasVariablesText: !!layer.variables.text,
+        variablesText: layer.variables.text,
+        collectionItemData
+      });
+    }
+
+    // Debug logging for collection layers
+    if (isCollectionLayer) {
+      console.log('[Canvas Collection Layer]', {
+        layerId: layer.id,
+        collectionVariable,
+        collectionId,
+        hasChildren: !!(layer.children && layer.children.length > 0),
+        childrenCount: layer.children?.length || 0
+      });
+    }
+
+    const tag = getLayerHtmlTag(layer);
     const element = document.createElement(tag);
-    
+
     // Set ID
     element.setAttribute('data-layer-id', layer.id);
     element.setAttribute('data-layer-type', tag);
-    
+
     // Apply classes
     const classes = getClassesString(layer);
     if (classes) {
       element.className = classes;
     }
-    
+
     // Add editor class in edit mode
     if (editMode) {
       element.classList.add('ycode-layer');
     }
-    
+
     // Apply custom ID from settings
     if (layer.settings && layer.settings.id) {
       element.id = layer.settings.id;
     }
-    
+
     // Apply custom attributes
     if (layer.settings && layer.settings.customAttributes) {
       Object.entries(layer.settings.customAttributes).forEach(([name, value]) => {
         element.setAttribute(name, value);
       });
     }
-    
+
     // Handle special elements
     if (tag === 'img') {
       element.src = layer.url || '';
@@ -442,40 +603,84 @@
         element.rel = layer.settings.linkSettings.rel;
       }
     }
-    
+
     // Add text content
-    const textContent = getText(layer);
+    const textContent = getText(layer, collectionItemData, activeCollectionId);
     const hasChildren = layer.children && layer.children.length > 0;
-    
+
     if (textContent && !hasChildren) {
       element.textContent = textContent;
     }
-    
-    // Render children
+
+    // Render children - handle collection layers specially
     if (hasChildren) {
-      layer.children.forEach(child => {
-        const childElement = renderLayer(child);
-        if (childElement) {
-          element.appendChild(childElement);
+      if (isCollectionLayer && collectionId) {
+        // Collection layer: render children once for each collection item
+        const rawItems = collectionItems[collectionId] || [];
+        const fields = collectionFields[collectionId] || [];
+
+        // Apply sorting to collection items
+        const items = sortCollectionItems(rawItems, collectionVariable, fields);
+
+        console.log('[Canvas] Rendering collection children', {
+          collectionId,
+          itemsCount: items.length,
+          items,
+          allCollectionIds: Object.keys(collectionItems),
+          hasItemsForThisCollection: !!collectionItems[collectionId],
+          sorting: {
+            sort_by: collectionVariable?.sort_by,
+            sort_order: collectionVariable?.sort_order
+          }
+        });
+
+        if (items.length > 0) {
+          items.forEach((item, index) => {
+            console.log('[Canvas] Rendering item', index, item);
+            const itemWrapper = document.createElement('div');
+            itemWrapper.setAttribute('data-collection-item-id', item.id);
+
+            layer.children.forEach(child => {
+              console.log('[Canvas] Rendering child for item', { childId: child.id, childType: child.type, childName: child.name, itemValues: item.values });
+              const childElement = renderLayer(child, item.values, activeCollectionId);
+              console.log('[Canvas] Child element result:', childElement);
+              if (childElement) {
+                itemWrapper.appendChild(childElement);
+              }
+            });
+
+            console.log('[Canvas] Item wrapper children count:', itemWrapper.children.length);
+            element.appendChild(itemWrapper);
+          });
+        } else {
+          console.warn('[Canvas] Collection has no items!', { collectionId });
         }
-      });
+      } else {
+        // Regular rendering: just render children normally
+        layer.children.forEach(child => {
+          const childElement = renderLayer(child, collectionItemData, activeCollectionId);
+          if (childElement) {
+            element.appendChild(childElement);
+          }
+        });
+      }
     }
-    
+
     // Add event listeners in edit mode
     if (editMode) {
       addEventListeners(element, layer);
     }
-    
+
     // Apply selection state
     if (selectedLayerId === layer.id) {
       const selectionClass = editingComponentId ? 'ycode-selected-purple' : 'ycode-selected';
       element.classList.add(selectionClass);
       // addSelectionBadge(element, tag, !!editingComponentId);
     }
-    
+
     return element;
   }
-  
+
   /**
    * Add event listeners to layer element
    */
@@ -483,24 +688,24 @@
     // Click to select
     element.addEventListener('click', function(e) {
       e.stopPropagation();
-      
+
       // If this layer is part of a component (and we're NOT editing it), select the component root instead
       const componentRootId = componentMap[layer.id];
       const isPartOfComponent = !!componentRootId;
       const isEditingThisComponent = editingComponentId && componentRootId === editingComponentId;
-      
+
       let targetLayerId = layer.id;
       if (isPartOfComponent && !isEditingThisComponent) {
         targetLayerId = componentRootId;
       }
-      
+
       sendToParent('LAYER_CLICK', {
         layerId: targetLayerId,
         metaKey: e.metaKey || e.ctrlKey,
         shiftKey: e.shiftKey
       });
     });
-    
+
     // Double-click to edit text
     if (isTextEditable(layer)) {
       element.addEventListener('dblclick', function(e) {
@@ -508,7 +713,7 @@
         startTextEditing(layer.id, layer, element);
       });
     }
-    
+
     // Right-click for context menu
     element.addEventListener('contextmenu', function(e) {
       e.preventDefault();
@@ -519,7 +724,7 @@
         y: e.clientY
       });
     });
-    
+
     // Hover effects
     element.addEventListener('mouseenter', function(e) {
       if (editingLayerId !== layer.id) {
@@ -527,7 +732,7 @@
         const componentRootId = componentMap[layer.id];
         const isPartOfComponent = !!componentRootId;
         const isEditingThisComponent = editingComponentId && componentRootId === editingComponentId;
-        
+
         if (isPartOfComponent && !isEditingThisComponent) {
           // Find the root component element and apply pink hover to it
           const rootElement = document.querySelector('[data-layer-id="' + componentRootId + '"]');
@@ -539,16 +744,16 @@
           const hoverClass = editingComponentId ? 'ycode-hover-purple' : 'ycode-hover';
           element.classList.add(hoverClass);
         }
-        
+
         hoveredLayerId = layer.id;
       }
     });
-    
+
     element.addEventListener('mouseleave', function(e) {
       // Remove both types of hover classes
       element.classList.remove('ycode-hover');
       element.classList.remove('ycode-hover-purple');
-      
+
       // Remove component hover from root if applicable
       const componentRootId = componentMap[layer.id];
       if (componentRootId) {
@@ -557,58 +762,58 @@
           rootElement.classList.remove('ycode-component-hover');
         }
       }
-      
+
       hoveredLayerId = null;
     });
   }
-  
+
   /**
    * Start text editing mode
    */
   function startTextEditing(layerId, layer, element) {
     if (editingLayerId) return;
-    
+
     editingLayerId = layerId;
-    
+
     // Remove selection badge if present
     const badge = element.querySelector('.ycode-selection-badge');
     if (badge) {
       badge.remove();
     }
-    
+
     // Get current text from layer data, not from DOM (to avoid badge text)
-    const currentText = getText(layer);
-    
+    const currentText = getText(layer, collectionItemData, activeCollectionId);
+
     // Create input element
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'ycode-text-editor';
     input.value = currentText;
-    
+
     // Replace element content with input
     element.textContent = '';
     element.appendChild(input);
     element.classList.add('ycode-editing');
-    
+
     // Focus and select
     input.focus();
     input.select();
-    
+
     // Notify parent
     sendToParent('TEXT_CHANGE_START', { layerId });
-    
+
     // Handle finish editing
     const finishEditing = () => {
       const newText = input.value;
       editingLayerId = null;
-      
+
       // Notify parent of change
       sendToParent('TEXT_CHANGE_END', {
         layerId,
         text: newText
       });
     };
-    
+
     input.addEventListener('blur', finishEditing);
     input.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
@@ -619,7 +824,7 @@
       }
     });
   }
-  
+
   /**
    * Update selection state without full re-render
    */
@@ -632,7 +837,7 @@
       const badge = el.querySelector('.ycode-selection-badge, .ycode-selection-badge-purple');
       if (badge) badge.remove();
     });
-    
+
     // Add new selection
     if (selectedLayerId) {
       const element = document.querySelector(`[data-layer-id="${selectedLayerId}"]`);
@@ -644,7 +849,7 @@
       }
     }
   }
-  
+
   /**
    * Add selection badge to element
    */
@@ -652,16 +857,16 @@
     // Remove existing badge (both types)
     const existingBadge = element.querySelector('.ycode-selection-badge, .ycode-selection-badge-purple');
     if (existingBadge) existingBadge.remove();
-    
+
     const badge = document.createElement('span');
     badge.className = isPurple ? 'ycode-selection-badge-purple' : 'ycode-selection-badge';
     badge.textContent = tag.charAt(0).toUpperCase() + tag.slice(1) + ' Selected';
-    
+
     // Position badge
     element.style.position = element.style.position || 'relative';
     element.appendChild(badge);
   }
-  
+
   /**
    * Update viewport based on breakpoint
    */
@@ -672,12 +877,12 @@
     // Re-render to apply state classes
     render();
   }
-  
+
   function updateBreakpoint() {
     // Breakpoint is handled by parent (iframe width)
     // Could add visual indicators here if needed
   }
-  
+
   /**
    * Highlight drop zone
    */
@@ -686,7 +891,7 @@
     document.querySelectorAll('.ycode-drop-target').forEach(el => {
       el.classList.remove('ycode-drop-target');
     });
-    
+
     // Add new highlight
     if (layerId) {
       const element = document.querySelector(`[data-layer-id="${layerId}"]`);
@@ -695,7 +900,7 @@
       }
     }
   }
-  
+
   /**
    * Find layer by ID in tree
    */
@@ -732,5 +937,5 @@
   
   // Initialize - notify parent that iframe is ready
   sendToParent('READY', null);
-  
+
 })();

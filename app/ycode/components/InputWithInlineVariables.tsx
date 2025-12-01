@@ -269,8 +269,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
           if (node.type === 'dynamicVariable' && node.attrs?.variable) {
             const variable = node.attrs.variable;
             if (variable.type === 'field' && variable.data?.field_id) {
-              const field = fields.find(f => f.id === variable.data.field_id);
-              const newLabel = field?.name || variable.data.field_id;
+              const newLabel = getVariableLabel(variable, fields);
               if (node.attrs.label !== newLabel) {
                 updated = true;
                 return {

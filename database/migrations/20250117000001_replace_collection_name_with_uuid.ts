@@ -80,4 +80,3 @@ export async function down(knex: Knex): Promise<void> {
   
   console.log('✅ Rollback complete: replace_collection_name_with_uuid');
 }
-

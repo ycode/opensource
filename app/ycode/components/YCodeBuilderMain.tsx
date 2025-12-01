@@ -939,7 +939,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
       // Layer-specific shortcuts (only work on layers tab)
       if (activeTab === 'layers') {
-        // A - Toggle Element Library (when on layers tab)
+        // A - Toggle Element Library (when on layers tab and not typing)
         if (e.key === 'a' && !isInputFocused) {
           e.preventDefault();
           // Dispatch custom event to toggle ElementLibrary

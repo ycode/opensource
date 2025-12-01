@@ -54,25 +54,24 @@ const LeftSidebar = React.memo(function LeftSidebar({
   const [renameValue, setRenameValue] = useState('');
   const [hoveredCollectionId, setHoveredCollectionId] = useState<string | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  
+
   // Optimize store subscriptions - use selective selectors
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const loadFolders = usePagesStore((state) => state.loadFolders);
   const loadDraft = usePagesStore((state) => state.loadDraft);
   const deletePage = usePagesStore((state) => state.deletePage);
-  const addLayer = usePagesStore((state) => state.addLayer);
   const updateLayer = usePagesStore((state) => state.updateLayer);
   const setDraftLayers = usePagesStore((state) => state.setDraftLayers);
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
-  
+
   const setCurrentPageId = useEditorStore((state) => state.setCurrentPageId);
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
-  
+
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const updateComponentDraft = useComponentsStore((state) => state.updateComponentDraft);
-  
+
   const collections = useCollectionsStore((state) => state.collections);
   const selectedCollectionId = useCollectionsStore((state) => state.selectedCollectionId);
   const setSelectedCollectionId = useCollectionsStore((state) => state.setSelectedCollectionId);
@@ -245,7 +244,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
     }
 
     // Check if it's an image layer
-    if (selectedItem.layer.type !== 'image') {
+    if (selectedItem.layer.name !== 'image') {
       setAssetMessage('❌ Please select an image layer (not a container, text, or heading)');
       setTimeout(() => setAssetMessage(null), 3000);
       return;

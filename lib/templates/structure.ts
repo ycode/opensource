@@ -168,5 +168,23 @@ export const structureTemplates: Record<string, BlockTemplate> = {
         layout: { isActive: true, display: 'Grid', gap: '1px' }
       }
     }
+  },
+
+  collection: {
+    icon: 'database',
+    name: 'Collection',
+    template: {
+      name: 'div',
+      classes: ['flex', 'flex-col', 'gap-[1rem]'],
+      children: [],
+      design: {
+        layout: { isActive: true, display: 'Flex', flexDirection: 'column', gap: '1rem' }
+      },
+      variables: {
+        collection: {
+          id: '' // To be set by user
+        }
+      }
+    }
   }
 };

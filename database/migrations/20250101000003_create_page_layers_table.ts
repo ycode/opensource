@@ -68,7 +68,7 @@ export async function up(knex: Knex): Promise<void> {
   // Create default homepage with initial draft layers
   const homepageLayers = [{
     id: 'body',
-    type: 'container',
+    name: 'body',
     classes: '',
     children: [],
     locked: true,

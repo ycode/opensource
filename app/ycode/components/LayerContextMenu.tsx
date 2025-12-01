@@ -29,6 +29,7 @@ interface LayerContextMenuProps {
   children: React.ReactNode;
   isLocked?: boolean;
   onLayerSelect?: (layerId: string) => void;
+  selectedLayerId?: string | null;
 }
 
 export default function LayerContextMenu({
@@ -37,6 +38,7 @@ export default function LayerContextMenu({
   children,
   isLocked = false,
   onLayerSelect,
+  selectedLayerId,
 }: LayerContextMenuProps) {
   const [isComponentDialogOpen, setIsComponentDialogOpen] = useState(false);
   const [layerName, setLayerName] = useState('');
@@ -67,6 +69,12 @@ export default function LayerContextMenu({
   // Check if this layer is a component instance
   const draft = draftsByPageId[pageId];
   const layer = draft ? findLayerById(draft.layers, layerId) : null;
+  
+  // Debug logging for development
+  if (process.env.NODE_ENV === 'development' && !layer) {
+    console.warn(`[LayerContextMenu] Could not find layer ${layerId} in page ${pageId}. Draft exists:`, !!draft, 'Layers count:', draft?.layers?.length);
+  }
+  
   const isComponentInstance = !!(layer && layer.componentId);
   const componentName = isComponentInstance && layer?.componentId
     ? getComponentById(layer.componentId)?.name
@@ -252,12 +260,27 @@ export default function LayerContextMenu({
     }
   };
 
+  const handleShowJSON = () => {
+    if (!layer) return;
+    console.log('Layer JSON:', JSON.stringify(layer, null, 2));
+    console.log('Layer Object:', layer);
+  };
+
   const handleOpenChange = (open: boolean) => {
     // When context menu opens, select this layer for visual feedback
-    if (open && onLayerSelect) {
+    // Only select if the layer exists and is not already selected (prevent unnecessary re-renders)
+    if (open && onLayerSelect && layer && selectedLayerId !== layerId) {
       onLayerSelect(layerId);
     }
   };
+
+  const handleLogLayer = () => {
+    if (!layer) return;
+    console.log('Layer:', layer);
+  };
+
+  // Check if we're on localhost
+  const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
 
   return (
     <ContextMenu onOpenChange={handleOpenChange}>
@@ -332,6 +355,17 @@ export default function LayerContextMenu({
           <ContextMenuItem onClick={handleCreateComponent} disabled={isLocked}>
             Create component
           </ContextMenuItem>
+        )}
+
+        {/* Development only: Show JSON */}
+        {process.env.NODE_ENV === 'development' && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={handleShowJSON}>
+              Show JSON
+              <ContextMenuShortcut>🔍</ContextMenuShortcut>
+            </ContextMenuItem>
+          </>
         )}
       </ContextMenuContent>
 

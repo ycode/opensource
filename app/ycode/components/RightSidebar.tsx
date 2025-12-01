@@ -21,7 +21,7 @@ import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectLabel, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 // 4. Internal components
@@ -29,6 +29,7 @@ import AddAttributeModal from './AddAttributeModal';
 import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
+import InputWithInlineVariables from './InputWithInlineVariables';
 import LayoutControls from './LayoutControls';
 import LayerStylesPanel from './LayerStylesPanel';
 import PositionControls from './PositionControls';
@@ -43,14 +44,17 @@ import UIStateSelector from './UIStateSelector';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
 
 // 6. Utils, APIs, lib
 import { classesToDesign, mergeDesign, removeConflictsForClass } from '@/lib/tailwind-class-mapper';
 import { cn } from '@/lib/utils';
+import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTextEditable } from '@/lib/layer-utils';
+import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
 
 // 7. Types
-import type { Layer } from '@/types';
+import type { Layer, FieldVariable } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
 interface RightSidebarProps {
@@ -78,6 +82,9 @@ const RightSidebar = React.memo(function RightSidebar({
   const [newAttributeName, setNewAttributeName] = useState('');
   const [newAttributeValue, setNewAttributeValue] = useState('');
   const [classesOpen, setClassesOpen] = useState(true);
+  const [collectionBindingOpen, setCollectionBindingOpen] = useState(true);
+  const [fieldBindingOpen, setFieldBindingOpen] = useState(true);
+  const [contentOpen, setContentOpen] = useState(true);
 
   // Optimize store subscriptions - use selective selectors
   const currentPageId = useEditorStore((state) => state.currentPageId);
@@ -88,6 +95,10 @@ const RightSidebar = React.memo(function RightSidebar({
 
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
+
+  const collections = useCollectionsStore((state) => state.collections);
+  const fields = useCollectionsStore((state) => state.fields);
+
   const previousIsEditingRef = useRef<boolean | undefined>(undefined);
 
   // Track edit mode transitions synchronously
@@ -147,8 +158,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const isHeadingLayer = (layer: Layer | null): boolean => {
     if (!layer) return false;
     const headingTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'heading'];
-    return headingTags.includes(layer.type || '') ||
-           headingTags.includes(layer.name || '') ||
+    return headingTags.includes(layer.name || '') ||
            headingTags.includes(layer.settings?.tag || '');
   };
 
@@ -160,8 +170,7 @@ const RightSidebar = React.memo(function RightSidebar({
       'header', 'footer', 'article', 'figure', 'figcaption',
       'details', 'summary'
     ];
-    return containerTags.includes(layer.type || '') ||
-           containerTags.includes(layer.name || '') ||
+    return containerTags.includes(layer.name || '') ||
            containerTags.includes(layer.settings?.tag || '');
   };
 
@@ -187,8 +196,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
     // Map element types to their default tags:
     // Section = section, Container = div, Block = div
-    if (String(layer.type) === 'section' || layer.name === 'section') return 'section';
-    if (String(layer.type) === 'container' || layer.name === 'container') return 'div';
+    if (layer.name === 'section') return 'section';
 
     return 'div'; // Default fallback
   };
@@ -336,6 +344,230 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   };
 
+  // Handle content change (with inline variables)
+  const handleContentChange = useCallback((value: string) => {
+    if (!selectedLayerId) return;
+
+    // Parse the value from InputWithInlineVariables
+    // The component returns embedded JSON format: <ycode-inline-variable>{...}</ycode-inline-variable>
+    // We need to transform it to ID-based format: <ycode-inline-variable id="uuid"></ycode-inline-variable>
+
+    const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+    const matches = [...value.matchAll(regex)];
+
+    let transformedData = value;
+    const variablesMap: Record<string, FieldVariable> = {};
+
+    // Process each variable tag
+    matches.forEach((match) => {
+      const fullMatch = match[0];
+      const jsonContent = match[1].trim();
+
+      try {
+        const variable = JSON.parse(jsonContent) as FieldVariable;
+
+        // Generate unique ID for this variable
+        const variableId = `var-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // Replace embedded JSON with ID-only format
+        const idBasedTag = `<ycode-inline-variable id="${variableId}"></ycode-inline-variable>`;
+        transformedData = transformedData.replace(fullMatch, idBasedTag);
+
+        // Store variable in map
+        variablesMap[variableId] = variable;
+      } catch (error) {
+        // Invalid JSON, skip this variable
+        console.warn('Failed to parse variable JSON:', jsonContent, error);
+      }
+    });
+
+    // Store in layer.variables.text with proper format
+    onLayerUpdate(selectedLayerId, {
+      variables: {
+        ...selectedLayer?.variables,
+        text: {
+          data: transformedData,
+          variables: variablesMap,
+        },
+      },
+    });
+  }, [selectedLayerId, selectedLayer, onLayerUpdate]);
+
+  // Get content value for display
+  const getContentValue = useCallback((layer: Layer | null): string => {
+    if (!layer) return '';
+
+    // Priority 1: Check layer.variables.text (new structure)
+    if (layer.variables?.text) {
+      // Need to convert from ID-based format back to embedded JSON for InputWithInlineVariables
+      // The component expects: <ycode-inline-variable>JSON</ycode-inline-variable>
+      let data = layer.variables.text.data;
+      const variables = layer.variables.text.variables;
+
+      // Replace ID-based placeholders with embedded JSON
+      const regex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
+      data = data.replace(regex, (match, id) => {
+        const variable = variables[id];
+        if (variable) {
+          return `<ycode-inline-variable>${JSON.stringify(variable)}</ycode-inline-variable>`;
+        }
+        return match; // Keep original if variable not found
+      });
+
+      return data;
+    }
+
+    // Priority 2: Check layer.text (legacy)
+    if (layer.text && typeof layer.text === 'string') {
+      return layer.text;
+    }
+
+    // Priority 3: Check layer.content (legacy)
+    if (layer.content && typeof layer.content === 'string') {
+      return layer.content;
+    }
+
+    return '';
+  }, []);
+
+  // Handle collection binding change
+  const handleCollectionChange = (collectionId: string) => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      onLayerUpdate(selectedLayerId, {
+        variables: {
+          ...selectedLayer?.variables,
+          collection: collectionId ? {
+            id: collectionId,
+            // Preserve existing sort settings when changing collection
+            sort_by: currentCollectionVariable?.sort_by,
+            sort_order: currentCollectionVariable?.sort_order,
+          } : undefined
+        }
+      });
+    }
+  };
+
+  // Handle sort by change
+  const handleSortByChange = (sortBy: string) => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      if (currentCollectionVariable) {
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              sort_by: sortBy,
+              // Reset sort_order to 'asc' when changing sort_by
+              sort_order: (sortBy !== 'none' && sortBy !== 'manual' && sortBy !== 'random') ? 'asc' : currentCollectionVariable.sort_order,
+            }
+          }
+        });
+      }
+    }
+  };
+
+  // Handle sort order change
+  const handleSortOrderChange = (sortOrder: 'asc' | 'desc') => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      if (currentCollectionVariable) {
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              sort_order: sortOrder,
+            }
+          }
+        });
+      }
+    }
+  };
+
+  // Handle field binding change
+  const handleFieldBindingChange = (fieldId: string) => {
+    if (selectedLayerId) {
+      if (fieldId && fieldId !== 'none') {
+        onLayerUpdate(selectedLayerId, {
+          text: {
+            type: 'field',
+            data: {
+              field_id: fieldId,
+              relationships: [],
+            }
+          } as any
+        });
+      } else {
+        // Clear field binding
+        onLayerUpdate(selectedLayerId, {
+          text: undefined
+        });
+      }
+    }
+  };
+
+  // Handle image field binding change
+  const handleImageFieldBindingChange = (fieldId: string) => {
+    if (selectedLayerId) {
+      if (fieldId && fieldId !== 'none') {
+        onLayerUpdate(selectedLayerId, {
+          url: {
+            type: 'field',
+            data: {
+              field_id: fieldId,
+              relationships: [],
+            }
+          } as any
+        });
+      } else {
+        // Clear field binding
+        onLayerUpdate(selectedLayerId, {
+          url: undefined
+        });
+      }
+    }
+  };
+
+  // Get parent collection layer for the selected layer
+  const parentCollectionLayer = useMemo(() => {
+    if (!selectedLayerId || !currentPageId) return null;
+
+    // Get layers from either component draft or page draft
+    let layers: Layer[] = [];
+    if (editingComponentId) {
+      layers = componentDrafts[editingComponentId] || [];
+    } else {
+      const draft = draftsByPageId[currentPageId];
+      layers = draft ? draft.layers : [];
+    }
+
+    if (!layers.length) return null;
+
+    // Use the utility function from layer-utils
+    return findParentCollectionLayer(layers, selectedLayerId);
+  }, [selectedLayerId, editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
+
+  // Get collection fields if parent collection layer exists
+  const parentCollectionFields = useMemo(() => {
+    const collectionVariable = parentCollectionLayer ? getCollectionVariable(parentCollectionLayer) : null;
+    const collectionId = collectionVariable?.id;
+    if (!collectionId) return [];
+    return fields[collectionId] || [];
+  }, [parentCollectionLayer, fields]);
+
+  // Get collection fields for the currently selected collection layer (for Sort By dropdown)
+  const selectedCollectionFields = useMemo(() => {
+    if (!selectedLayer) return [];
+    const collectionVariable = getCollectionVariable(selectedLayer);
+    if (!collectionVariable) return [];
+
+    const collectionId = collectionVariable?.id;
+    if (!collectionId) return [];
+    return fields[collectionId] || [];
+  }, [selectedLayer, fields]);
+
   // Handle adding custom attribute
   const handleAddAttribute = () => {
     if (selectedLayerId && newAttributeName.trim()) {
@@ -450,6 +682,60 @@ const RightSidebar = React.memo(function RightSidebar({
             onLayerUpdate={onLayerUpdate}
           />
 
+          {/* Content Panel - show for text-editable layers */}
+          {selectedLayer && isTextEditable(selectedLayer) && (
+            <SettingsPanel
+              title="Content"
+              isOpen={contentOpen}
+              onToggle={() => setContentOpen(!contentOpen)}
+            >
+              <div className="flex flex-col gap-2">
+                <InputWithInlineVariables
+                  value={getContentValue(selectedLayer)}
+                  onChange={handleContentChange}
+                  placeholder="Enter text..."
+                  fields={parentCollectionFields}
+                />
+              </div>
+            </SettingsPanel>
+          )}
+
+          {/* Field Binding Panel - show for text/image layers inside a collection */}
+          {selectedLayer && parentCollectionLayer && parentCollectionFields.length > 0 && selectedLayer.name === 'image' && (
+            <SettingsPanel
+              title="Field Binding"
+              isOpen={fieldBindingOpen}
+              onToggle={() => setFieldBindingOpen(!fieldBindingOpen)}
+            >
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2">
+                  <Label>Image Field</Label>
+                  <Select
+                    value={isFieldVariable(selectedLayer.url) ? selectedLayer.url.data.field_id : 'none'}
+                    onValueChange={handleImageFieldBindingChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a field" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="none">None (Static image)</SelectItem>
+                        {parentCollectionFields.filter(f => f.type === 'image').map((field) => (
+                          <SelectItem key={field.id} value={field.id}>
+                            {field.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Bind this image to a collection image field
+                  </p>
+                </div>
+              </div>
+            </SettingsPanel>
+          )}
+
           {activeTab === 'design' && (
             <>
               <UIStateSelector selectedLayer={selectedLayer} />
@@ -511,6 +797,102 @@ const RightSidebar = React.memo(function RightSidebar({
 
         <TabsContent value="settings" className="flex-1 overflow-y-auto no-scrollbar mt-0 data-[state=inactive]:hidden">
           <div className="flex flex-col divide-y">
+            {/* Collection Binding Panel - only show for collection layers */}
+            {selectedLayer && getCollectionVariable(selectedLayer) && (
+              <SettingsPanel
+                title="CMS"
+                isOpen={collectionBindingOpen}
+                onToggle={() => setCollectionBindingOpen(!collectionBindingOpen)}
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-3">
+                    <Label variant="muted">Source</Label>
+                    <div className="col-span-2 *:w-full">
+                      <Select
+                        value={getCollectionVariable(selectedLayer)?.id || ''}
+                        onValueChange={handleCollectionChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a collection" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {collections.length > 0 ? (
+                              collections.map((collection) => (
+                                <SelectItem key={collection.id} value={collection.id}>
+                                  {collection.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                No collections available
+                              </div>
+                            )}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Sort By - only show if collection is selected */}
+                  {getCollectionVariable(selectedLayer)?.id && (
+                    <>
+                      <div className="grid grid-cols-3">
+                        <Label variant="muted">Sort by</Label>
+                        <div className="col-span-2 *:w-full">
+                          <Select
+                            value={getCollectionVariable(selectedLayer)?.sort_by || 'none'}
+                            onValueChange={handleSortByChange}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select sorting" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              <SelectItem value="manual">Manual</SelectItem>
+                              <SelectItem value="random">Random</SelectItem>
+                              {selectedCollectionFields.length > 0 &&
+                                selectedCollectionFields.map((field) => (
+                                  <SelectItem key={field.id} value={field.id}>
+                                    {field.name}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Sort Order - only show when a field is selected */}
+                      {getCollectionVariable(selectedLayer)?.sort_by &&
+                       getCollectionVariable(selectedLayer)?.sort_by !== 'none' &&
+                       getCollectionVariable(selectedLayer)?.sort_by !== 'manual' &&
+                       getCollectionVariable(selectedLayer)?.sort_by !== 'random' && (
+                        <div className="grid grid-cols-3">
+                          <Label variant="muted">Sort order</Label>
+                          <div className="col-span-2 *:w-full">
+                            <Select
+                              value={getCollectionVariable(selectedLayer)?.sort_order || 'asc'}
+                              onValueChange={handleSortOrderChange}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectGroup>
+                                  <SelectItem value="asc">Ascending</SelectItem>
+                                  <SelectItem value="desc">Descending</SelectItem>
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </SettingsPanel>
+            )}
+
             {/* Attributes Panel */}
             <SettingsPanel
               title="Attributes"
