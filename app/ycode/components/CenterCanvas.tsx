@@ -965,6 +965,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
             minHeight: zoom <= 100 ? '100%' : undefined,
             width: scaledWidth ? `${scaledWidth}px` : undefined,
             minWidth: zoom > 100 ? '100%' : undefined,
+            transition: 'width 0.2s ease-out',
           }}
         >
           {zoom <= 100 && (
@@ -981,6 +982,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               width: viewportSizes[viewportMode].width,
               minHeight: zoom > 100 ? '100%' : undefined,
               height: zoom > 100 ? '100%' : (iframeHeight ? `${iframeHeight * zoom / 100}px` : 'auto'),
+              transition: 'transform 0.2s ease-out, height 0.2s ease-out',
               willChange: 'transform',
             }}
           >
