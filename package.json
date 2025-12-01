@@ -3,10 +3,10 @@
   "version": "0.1.6",
   "private": true,
   "scripts": {
-    "dev": "NEXT_DISABLE_TURBOPACK=1 next dev",
-    "prod": "next build && next start",
+    "dev": "NEXT_DISABLE_TURBOPACK=1 next dev -p 3002",
+    "prod": "npm run build && npm run start",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3002",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
     "type-check": "tsc --noEmit",

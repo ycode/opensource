@@ -56,6 +56,11 @@ import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-
 // 7. Types
 import type { Layer, FieldVariable } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import {
+  DropdownMenu,
+  DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
@@ -656,6 +661,7 @@ const RightSidebar = React.memo(function RightSidebar({
           <TabsList className="w-full">
             <TabsTrigger value="design">Design</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
+            <TabsTrigger value="interactions">Interactions</TabsTrigger>
           </TabsList>
         </div>
 
@@ -1094,6 +1100,56 @@ const RightSidebar = React.memo(function RightSidebar({
             </SettingsPanel>
           </div>
         </TabsContent>
+
+        <TabsContent value="interactions" className="flex-1 overflow-y-auto no-scrollbar mt-0 data-[state=inactive]:hidden">
+
+          <header className="py-5 flex justify-between -mt-2">
+            <span className="font-medium">Trigger</span>
+            <div className="-my-1">
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="xs" variant="secondary">
+                    <Icon name="plus" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="mr-4">
+                  <DropdownMenuItem>Click</DropdownMenuItem>
+                  <DropdownMenuItem>Hover</DropdownMenuItem>
+                  <DropdownMenuItem>Scroll into view</DropdownMenuItem>
+                  <DropdownMenuItem>While scrolling</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>Page load</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+            </div>
+          </header>
+
+          <div className="flex flex-col gap-2">
+
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-secondary/50 hover:bg-secondary/100">
+
+              <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary">
+                <Icon name="zap" className="size-2.5" />
+              </div>
+              <Label variant="muted">Click</Label>
+
+            </div>
+
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-secondary/50 hover:bg-secondary/100">
+
+              <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary">
+                <Icon name="zap" className="size-2.5" />
+              </div>
+              <Label variant="muted">Hover</Label>
+
+            </div>
+
+          </div>
+
+        </TabsContent>
+
       </Tabs>
     </div>
   );

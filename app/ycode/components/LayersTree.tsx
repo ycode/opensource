@@ -297,7 +297,13 @@ function LayerRow({
           {isComponentInstance ? (
             <Icon name="component" className="size-3 mx-1.5" />
           ) : layerIcon ? (
-            <Icon name={layerIcon} className="size-3 mx-1.5" />
+            <Icon
+              name={layerIcon}
+              className={cn(
+                'size-3 mx-1.5 opacity-50',
+                isSelected && 'opacity-100',
+              )}
+            />
           ) : (
             <div
               className={cn(
@@ -330,7 +336,13 @@ function LayerRow({
 
           {/* Hidden indicator */}
           {node.layer.settings?.hidden && (
-            <EyeOff className="w-3 h-3 flex-shrink-0 text-zinc-500 mr-2" />
+            <Icon
+              name="eye-off"
+              className={cn(
+                'size-3 mr-3 opacity-50',
+                isSelected && 'opacity-100',
+              )}
+            />
           )}
         </div>
       </div>
@@ -877,13 +889,20 @@ export default function LayersTree({
             {(() => {
               const draggedComponent = activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId) : null;
               const layerIcon = getLayerIcon(activeNode.layer);
+              const isActiveNodeSelected = selectedLayerIds.includes(activeNode.id) || selectedLayerId === activeNode.id;
 
               return (
                 <>
                   {draggedComponent ? (
                     <ComponentIcon className="w-3 h-3 flex-shrink-0 mx-1.5 opacity-75" />
                   ) : layerIcon ? (
-                    <Icon name={layerIcon} className="size-3 mx-1.5 opacity-75" />
+                    <Icon
+                      name={layerIcon}
+                      className={cn(
+                        'size-3 mx-1.5 opacity-50',
+                        isActiveNodeSelected && 'opacity-100',
+                      )}
+                    />
                   ) : (
                     <div className="size-3 bg-white/10 rounded mx-1.5" />
                   )}

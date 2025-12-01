@@ -333,7 +333,7 @@ export function getLayerIcon(
   defaultIcon: IconProps['name'] = 'box'
 ): IconProps['name'] {
   // Body layers
-  if (layer.id === 'body') return 'page';
+  if (layer.id === 'body') return 'layout';
 
   // Component layers
   if (layer.componentId) return 'component';
@@ -374,8 +374,8 @@ export function getLayerName(
   }
 
   // Use component name if this is a component instance
-  if (layer.componentId && context?.component_name) {
-    return context.component_name || 'Component';
+  if (layer.componentId) {
+    return context?.component_name || 'Component';
   }
 
   // Use collection name with formatting
