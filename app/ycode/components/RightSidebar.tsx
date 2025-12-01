@@ -677,24 +677,6 @@ const RightSidebar = React.memo(function RightSidebar({
             onLayerUpdate={onLayerUpdate}
           />
 
-          {/* Content Panel - show for text-editable layers */}
-          {selectedLayer && isTextEditable(selectedLayer) && (
-            <SettingsPanel
-              title="Content"
-              isOpen={contentOpen}
-              onToggle={() => setContentOpen(!contentOpen)}
-            >
-              <div className="flex flex-col gap-2">
-                <InputWithInlineVariables
-                  value={getContentValue(selectedLayer)}
-                  onChange={handleContentChange}
-                  placeholder="Enter text..."
-                  fields={parentCollectionFields}
-                />
-              </div>
-            </SettingsPanel>
-          )}
-
           {/* Field Binding Panel - show for text/image layers inside a collection */}
           {selectedLayer && parentCollectionLayer && parentCollectionFields.length > 0 && selectedLayer.name === 'image' && (
             <SettingsPanel
@@ -880,6 +862,24 @@ const RightSidebar = React.memo(function RightSidebar({
               )}
 
             </SettingsPanel>
+
+            {/* Content Panel - show for text-editable layers */}
+            {selectedLayer && isTextEditable(selectedLayer) && (
+              <SettingsPanel
+                title="Content"
+                isOpen={contentOpen}
+                onToggle={() => setContentOpen(!contentOpen)}
+              >
+                <div className="flex flex-col gap-2">
+                  <InputWithInlineVariables
+                    value={getContentValue(selectedLayer)}
+                    onChange={handleContentChange}
+                    placeholder="Enter text..."
+                    fields={parentCollectionFields}
+                  />
+                </div>
+              </SettingsPanel>
+            )}
 
             {/* Collection Binding Panel - only show for collection layers */}
             {selectedLayer && getCollectionVariable(selectedLayer) && (

@@ -125,25 +125,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizeFolderId = (value: string | null) => {
+      if (value === null || value === undefined) {
+        return null;
+      }
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed || trimmed === 'null' || trimmed === 'undefined') {
+          return null;
+        }
+        return trimmed;
+      }
+      return value;
+    };
+
+    const normalizedPageFolderId = normalizeFolderId(page_folder_id);
+
     console.log('[POST /api/pages] Creating page:', {
       name,
       slug: finalSlug,
       is_published,
-      page_folder_id,
+      page_folder_id: normalizedPageFolderId,
       order,
       depth,
     });
 
     // Increment sibling orders if inserting (safe to call when appending - only updates order >= startOrder)
     const { incrementSiblingOrders } = await import('@/lib/services/pageService');
-    await incrementSiblingOrders(order, depth, page_folder_id);
+    await incrementSiblingOrders(order, depth, normalizedPageFolderId);
 
     // Create page
     const page = await createPage({
       name,
       slug: finalSlug,
       is_published,
-      page_folder_id,
+      page_folder_id: normalizedPageFolderId,
       order,
       depth,
       is_index,

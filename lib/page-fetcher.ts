@@ -419,7 +419,13 @@ function injectCollectionData(layer: Layer, itemValues: Record<string, string>):
       is_published: true,
       values: itemValues,
     };
-    updates.text = resolveInlineVariables(textContent, mockItem);
+    const resolved = resolveInlineVariables(textContent, mockItem);
+
+    updates.text = resolved;
+    updates.variables = {
+      ...layer.variables,
+      text: undefined,
+    };
   }
   // Direct field binding (non-inline)
   else if (layer.text && isFieldVariable(layer.text)) {

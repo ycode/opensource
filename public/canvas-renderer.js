@@ -369,51 +369,81 @@
     // Check if it's inline variable content (variables.text structure)
     if (layer.variables && layer.variables.text) {
       const inlineContent = layer.variables.text;
-      let resolvedText = inlineContent.data || '';
 
-      console.log('[getText] Processing inline variables', {
+      // New format: simple string with embedded JSON variables
+      if (typeof inlineContent === 'string') {
+        let resolvedText = inlineContent;
+
+        console.log('[getText] Processing inline variables (string format)', {
+          text: resolvedText,
+          hasInlineVariables: resolvedText.includes('<ycode-inline-variable>'),
+          hasCollectionData: !!collectionItemData
+        });
+
+        const jsonRegex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+
+        if (resolvedText.includes('<ycode-inline-variable>')) {
+          if (collectionItemData) {
+            resolvedText = resolvedText.replace(jsonRegex, function(match, jsonContent) {
+              try {
+                const variable = JSON.parse(jsonContent.trim());
+                if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
+                  const fieldId = variable.data.field_id;
+                  const value = collectionItemData[fieldId];
+                  if (value !== undefined && value !== null) {
+                    return value;
+                  }
+                }
+              } catch (error) {
+                console.warn('[getText] Failed to parse inline variable JSON:', jsonContent, error);
+              }
+              return '';
+            });
+          } else {
+            resolvedText = resolvedText.replace(jsonRegex, '');
+          }
+        }
+
+        console.log('[getText] Final resolved text (string format):', resolvedText);
+        return resolvedText;
+      }
+
+      // Legacy format: { data, variables } map
+      const inlineData = inlineContent.data || '';
+      let resolvedText = inlineData;
+
+      console.log('[getText] Processing inline variables (legacy format)', {
         data: resolvedText,
         variables: inlineContent.variables,
         hasCollectionData: !!collectionItemData
       });
 
-      // Replace ID-based placeholders: <ycode-inline-variable id="uuid"></ycode-inline-variable>
-      const regex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
+      const idRegex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
 
       if (collectionItemData && inlineContent.variables) {
-        // Get fields for this collection to validate existence
         const fieldsForCollection = collectionId && collectionFields[collectionId] ? collectionFields[collectionId] : [];
 
-        // Resolve with actual field values
-        resolvedText = resolvedText.replace(regex, function(match, variableId) {
+        resolvedText = resolvedText.replace(idRegex, function(match, variableId) {
           const variable = inlineContent.variables[variableId];
-          console.log('[getText] Resolving variable', { variableId, variable, match, collectionId, fieldsCount: fieldsForCollection.length });
           if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
             const fieldId = variable.data.field_id;
-
-            // Check if field still exists in collection schema
             const fieldExists = fieldsForCollection.some(f => f.id === fieldId);
-            console.log('[getText] Field validation', { fieldId, fieldExists, fields: fieldsForCollection.map(f => ({ id: f.id, name: f.name })) });
-
             if (!fieldExists) {
-              console.log('[getText] Field deleted, showing empty string');
-              return ''; // Field was deleted, show nothing
+              return '';
             }
 
             const value = collectionItemData[fieldId];
             if (value !== undefined && value !== null) {
-              console.log('[getText] Resolved to value:', value);
               return value;
             }
           }
-          return ''; // Empty string for deleted/missing fields
+          return '';
         });
       } else {
-        // No collection data - just remove the tags completely
-        resolvedText = resolvedText.replace(regex, '');
+        resolvedText = resolvedText.replace(idRegex, '');
       }
 
-      console.log('[getText] Final resolved text:', resolvedText);
+      console.log('[getText] Final resolved text (legacy format):', resolvedText);
       return resolvedText;
     }
 

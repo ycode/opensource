@@ -19,6 +19,30 @@ interface PageRendererProps {
  * Note: This is a Server Component. Script/style tags are automatically
  * hoisted to <head> by Next.js during SSR, eliminating FOUC.
  */
+function normalizeRootLayers(layerTree: Layer[]): Layer[] {
+  if (!layerTree || layerTree.length === 0) {
+    return layerTree;
+  }
+
+  const [firstLayer, ...rest] = layerTree;
+
+  if (firstLayer?.id !== 'body') {
+    return layerTree;
+  }
+
+  return [
+    {
+      ...firstLayer,
+      name: 'div',
+      settings: {
+        ...firstLayer.settings,
+        tag: 'div',
+      },
+    },
+    ...rest,
+  ];
+}
+
 export default function PageRenderer({
   page,
   layers,
@@ -42,6 +66,9 @@ export default function PageRenderer({
     ? resolveCustomCodePlaceholders(rawCustomCodeBody, collectionItem, collectionFields)
     : rawCustomCodeBody;
 
+  const normalizedLayers = normalizeRootLayers(resolvedLayers);
+  const hasLayers = normalizedLayers.length > 0;
+
   return (
     <>
       {/* Inject CSS directly - Next.js hoists this to <head> during SSR */}
@@ -57,9 +84,15 @@ export default function PageRenderer({
         <div dangerouslySetInnerHTML={{ __html: customCodeHead }} />
       )}
 
-      <div className="min-h-screen bg-white">
+      <div
+        id="ybody"
+        className="min-h-screen bg-white"
+        data-layer-id="body"
+        data-layer-type="div"
+        data-is-empty={hasLayers ? 'false' : 'true'}
+      >
         <LayerRenderer
-          layers={resolvedLayers}
+          layers={normalizedLayers}
           isEditMode={false}
           isPublished={page.is_published}
         />
