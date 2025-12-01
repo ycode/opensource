@@ -11,7 +11,6 @@ import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 
 // 2. External libraries
 import debounce from 'lodash.debounce';
-import { X } from 'lucide-react';
 
 // 3. ShadCN UI
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +30,7 @@ import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
 import InputWithInlineVariables from './InputWithInlineVariables';
+import InteractionsPanel from './InteractionsPanel';
 import LayoutControls from './LayoutControls';
 import LayerStylesPanel from './LayerStylesPanel';
 import PositionControls from './PositionControls';
@@ -74,7 +74,7 @@ const RightSidebar = React.memo(function RightSidebar({
 }: RightSidebarProps) {
   const { openComponent, urlState, updateQueryParams } = useEditorActions();
   const { routeType } = useEditorUrl();
-  const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'content'>(
+  const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'interactions'>(
     urlState.rightTab || 'design'
   );
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
@@ -91,17 +91,16 @@ const RightSidebar = React.memo(function RightSidebar({
   const [collectionBindingOpen, setCollectionBindingOpen] = useState(true);
   const [fieldBindingOpen, setFieldBindingOpen] = useState(true);
   const [contentOpen, setContentOpen] = useState(true);
-  const [selectedInteraction, setSelectedInteraction] = useState<string | null>(null);
-  const [selectedDevices, setSelectedDevices] = useState<Set<string>>(new Set(['phone', 'tablet', 'desktop']));
-  const [isMoveExpanded, setIsMoveExpanded] = useState(true);
-  const [isRotateExpanded, setIsRotateExpanded] = useState(true);
-  const [loopValue, setLoopValue] = useState<string>('1');
-  const [toggleValue, setToggleValue] = useState<string>('1');
+  const [isSelectingInteractionTarget, setIsSelectingInteractionTarget] = useState(false);
+  const [interactionOwnerLayerId, setInteractionOwnerLayerId] = useState<string | null>(null);
+  const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
+  const [interactionResetKey, setInteractionResetKey] = useState(0);
 
   // Optimize store subscriptions - use selective selectors
   const currentPageId = useEditorStore((state) => state.currentPageId);
   const activeBreakpoint = useEditorStore((state) => state.activeBreakpoint);
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
+  const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
 
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
 
@@ -122,29 +121,38 @@ const RightSidebar = React.memo(function RightSidebar({
     previousIsEditingRef.current = currentIsEditing;
   }
 
-  const selectedLayer: Layer | null = useMemo(() => {
-    if (!selectedLayerId) return null;
-
-    // Get layers from either component draft or page draft
-    let layers: Layer[] = [];
+  // Get all layers (for interactions target selection)
+  const allLayers: Layer[] = useMemo(() => {
     if (editingComponentId) {
-      layers = componentDrafts[editingComponentId] || [];
+      return componentDrafts[editingComponentId] || [];
     } else if (currentPageId) {
       const draft = draftsByPageId[currentPageId];
-      layers = draft ? draft.layers : [];
+      return draft ? draft.layers : [];
     }
+    return [];
+  }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
-    if (!layers.length) return null;
+  // Helper to find layer by ID
+  const findLayerById = useCallback((layerId: string | null): Layer | null => {
+    if (!layerId || !allLayers.length) return null;
 
-    // Find the selected layer in the tree
-    const stack: Layer[] = [...layers];
+    const stack: Layer[] = [...allLayers];
     while (stack.length) {
       const node = stack.shift()!;
-      if (node.id === selectedLayerId) return node;
+      if (node.id === layerId) return node;
       if (node.children) stack.push(...node.children);
     }
     return null;
-  }, [editingComponentId, componentDrafts, currentPageId, selectedLayerId, draftsByPageId]);
+  }, [allLayers]);
+
+  const selectedLayer: Layer | null = useMemo(() => {
+    return findLayerById(selectedLayerId);
+  }, [selectedLayerId, findLayerById]);
+
+  // Get the layer whose interactions we're editing (different from selected layer during target selection)
+  const interactionOwnerLayer: Layer | null = useMemo(() => {
+    return findLayerById(interactionOwnerLayerId);
+  }, [interactionOwnerLayerId, findLayerById]);
 
   // Sync right sidebar tab to URL (skip when in page settings mode or during edit mode transition)
   useEffect(() => {
@@ -158,6 +166,51 @@ const RightSidebar = React.memo(function RightSidebar({
       updateQueryParams({ tab: activeTab });
     }
   }, [activeTab, updateQueryParams, urlState.rightTab, urlState.isEditing, justExitedEditMode, routeType]);
+
+  // Set interaction owner when interactions tab becomes active
+  useEffect(() => {
+    if (activeTab === 'interactions' && selectedLayerId && !interactionOwnerLayerId && !isSelectingInteractionTarget) {
+      setInteractionOwnerLayerId(selectedLayerId);
+    }
+  }, [activeTab, selectedLayerId, interactionOwnerLayerId, isSelectingInteractionTarget]);
+
+  // Update interaction owner layer when selected layer changes (only if no trigger is selected)
+  useEffect(() => {
+    if (activeTab === 'interactions' && selectedLayerId && !selectedTriggerId && !isSelectingInteractionTarget) {
+      setInteractionOwnerLayerId(selectedLayerId);
+    }
+  }, [activeTab, selectedLayerId, selectedTriggerId, isSelectingInteractionTarget]);
+
+  // Clear interaction owner when tab changes away from interactions
+  useEffect(() => {
+    if (activeTab !== 'interactions' && interactionOwnerLayerId) {
+      setInteractionOwnerLayerId(null);
+    }
+  }, [activeTab, interactionOwnerLayerId]);
+
+  // Handle all interaction state changes from InteractionsPanel
+  const handleInteractionStateChange = useCallback((state: {
+    isSelectingTarget?: boolean;
+    selectedTriggerId?: string | null;
+    shouldRefresh?: boolean;
+  }) => {
+    // Handle target selection mode
+    if (state.isSelectingTarget !== undefined) {
+      setIsSelectingInteractionTarget(state.isSelectingTarget);
+    }
+
+    // Handle trigger selection
+    if (state.selectedTriggerId !== undefined) {
+      setSelectedTriggerId(state.selectedTriggerId);
+    }
+
+    // Handle refresh request
+    if (state.shouldRefresh && selectedLayerId) {
+      setInteractionOwnerLayerId(selectedLayerId);
+      setSelectedTriggerId(null);
+      setInteractionResetKey(prev => prev + 1);
+    }
+  }, [selectedLayerId]);
 
   // Sync URL tab changes to local state
   useEffect(() => {
@@ -665,10 +718,27 @@ const RightSidebar = React.memo(function RightSidebar({
 
   return (
     <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
+      {/* Target Selection Mode Indicator */}
+      {isSelectingInteractionTarget && (
+        <div className="mb-4 p-3 bg-teal-500/20 border border-teal-500/30 rounded-lg">
+          <div className="flex items-start gap-2">
+            <Icon name="zap" className="size-4 text-teal-400 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-teal-100">
+                Target Selection Mode
+              </p>
+              <p className="text-xs text-teal-200/70 mt-1">
+                Click on a layer to add it as an animation target
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <Tabs
-        value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')}
-        className="flex flex-col flex-1 min-h-0 min-h-0"
+        value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'interactions')}
+        className="flex flex-col flex-1 min-h-0"
       >
         <div className="">
           <TabsList className="w-full">
@@ -682,7 +752,6 @@ const RightSidebar = React.memo(function RightSidebar({
 
         {/* Content */}
         <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden mt-0">
-
           {/* Layer Styles Panel */}
           <LayerStylesPanel
             layer={selectedLayer}
@@ -800,7 +869,6 @@ const RightSidebar = React.memo(function RightSidebar({
               </div>
             </div>
           </SettingsPanel>
-
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-y-auto no-scrollbar mt-0 data-[state=inactive]:hidden">
@@ -907,7 +975,6 @@ const RightSidebar = React.memo(function RightSidebar({
               isOpen={attributesOpen}
               onToggle={() => setAttributesOpen(!attributesOpen)}
             >
-
               <div className="grid grid-cols-3">
                 <Label variant="muted">ID</Label>
                 <div className="col-span-2 *:w-full">
@@ -987,7 +1054,6 @@ const RightSidebar = React.memo(function RightSidebar({
                   </div>
                 </div>
               )}
-
             </SettingsPanel>
 
             {/* Custom Attributes Panel */}
@@ -1082,381 +1148,23 @@ const RightSidebar = React.memo(function RightSidebar({
         </TabsContent>
 
         <TabsContent value="interactions" className="flex-1 overflow-y-auto no-scrollbar mt-0 data-[state=inactive]:hidden">
-
-          <header className="py-5 flex justify-between -mt-2">
-            <span className="font-medium">Trigger</span>
-
-            <div className="-my-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="xs" variant="secondary">
-                    <Icon name="plus" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="mr-4">
-                  <DropdownMenuItem>Click</DropdownMenuItem>
-                  <DropdownMenuItem>Hover</DropdownMenuItem>
-                  <DropdownMenuItem>Scroll into view</DropdownMenuItem>
-                  <DropdownMenuItem>While scrolling</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>Page load</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </header>
-
-          <div className="flex flex-col gap-2">
-            <div
-              onClick={() => setSelectedInteraction('click')}
-              className={cn(
-                'flex items-center gap-2 p-2 rounded-lg transition-colors text-left w-full cursor-pointer',
-                selectedInteraction === 'click'
-                  ? 'bg-teal-500/50 text-primary-foreground'
-                  : 'bg-secondary/50 hover:bg-secondary/100'
-              )}
-            >
-              <div
-                className={cn(
-                  'size-5 flex items-center justify-center rounded-[6px]',
-                  selectedInteraction === 'click' ? 'bg-primary-foreground/20' : 'bg-secondary'
-                )}
-              >
-                <Icon name="zap" className="size-2.5" />
-              </div>
-              <Label variant={selectedInteraction === 'click' ? 'default' : 'muted'}>Click</Label>
-              <div className="ml-auto -my-1 -mr-0.5">
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Handle delete action here
-                  }}
-                >
-                  <Icon name="x" />
-                </Button>
-              </div>
-            </div>
-
-            <div
-              onClick={() => setSelectedInteraction('hover')}
-              className={cn(
-                'flex items-center gap-2 p-2 rounded-lg transition-colors text-left w-full cursor-pointer',
-                selectedInteraction === 'hover'
-                  ? 'bg-teal-500/50 text-primary-foreground'
-                  : 'bg-secondary/50 hover:bg-secondary/100'
-              )}
-            >
-              <div
-                className={cn(
-                  'size-5 flex items-center justify-center rounded-[6px]',
-                  selectedInteraction === 'hover' ? 'bg-primary-foreground/20' : 'bg-secondary'
-                )}
-              >
-                <Icon name="zap" className="size-2.5" />
-              </div>
-              <Label variant={selectedInteraction === 'hover' ? 'default' : 'muted'}>Hover</Label>
-              <div className="ml-auto -my-1 -mr-0.5">
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Handle delete action here
-                  }}
-                >
-                  <Icon name="x" />
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Interaction Content */}
-          {selectedInteraction && (
-            <div className="mt-4 border-t">
-
-              {selectedInteraction === 'click' && (
-                <div>
-                  <div className="py-5 border-b flex flex-col gap-2">
-                    <div className="grid grid-cols-3">
-                      <Label variant="muted">Loop</Label>
-                      <div className="col-span-2 *:w-full">
-                        <ToggleGroup
-                          options={[
-                            { label: 'None', value: '1' },
-                            { icon: 'loopAlternate', value: '2' },
-                            { icon: 'loopRepeat', value: '3' },
-                          ]}
-                          value={loopValue}
-                          onChange={(value) => setLoopValue(String(value))}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3">
-                      <Label variant="muted">Toggle</Label>
-                      <div className="col-span-2 *:w-full">
-                        <ToggleGroup
-                          options={[
-                            { label: 'Yes', value: '1' },
-                            { label: 'No', value: '2' },
-                          ]}
-                          value={toggleValue}
-                          onChange={(value) => setToggleValue(String(value))}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3">
-                      <Label variant="muted">Run on</Label>
-                      <div className="col-span-2 *:w-full">
-                        <Select
-                          value=""
-                          onValueChange={() => {}}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue>
-                              <span className="text-xs">
-                                {selectedDevices.size === 3
-                                  ? 'All devices'
-                                  : selectedDevices.size === 0
-                                    ? 'No devices'
-                                    : `${selectedDevices.size} device${selectedDevices.size > 1 ? 's' : ''}`}
-                              </span>
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              {[
-                                { value: 'phone', label: 'Phone' },
-                                { value: 'tablet', label: 'Tablet' },
-                                { value: 'desktop', label: 'Desktop' },
-                              ].map((device) => (
-                                <SelectItem
-                                  key={device.value}
-                                  value={device.value}
-                                  onSelect={(e) => {
-                                    e.preventDefault();
-                                    setSelectedDevices((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(device.value)) {
-                                        next.delete(device.value);
-                                      } else {
-                                        next.add(device.value);
-                                      }
-                                      return next;
-                                    });
-                                  }}
-                                  className="cursor-pointer"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <Checkbox
-                                      checked={selectedDevices.has(device.value)}
-                                      onCheckedChange={() => {}}
-                                      className="pointer-events-none"
-                                    />
-                                    <span>{device.label}</span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <header className="py-5 flex justify-between">
-                    <span className="font-medium">Properties</span>
-
-                    <div className="-my-1">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="xs" variant="secondary">
-                            <Icon name="plus" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="mr-4">
-                          <DropdownMenuItem>Move</DropdownMenuItem>
-                          <DropdownMenuItem>Scale</DropdownMenuItem>
-                          <DropdownMenuItem>Rotate</DropdownMenuItem>
-                          <DropdownMenuItem>Skew</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem>Opacity</DropdownMenuItem>
-                          <DropdownMenuItem>Filters</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem>Visibility</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </header>
-
-                  <div className="space-y-4">
-                    <div className="px-4 bg-secondary/50 rounded-lg">
-                      <header className="flex items-center gap-2 py-4">
-                        <div
-                          className={cn(
-                            'flex items-center justify-center',
-                          )}
-                        >
-                          <Icon name="image" className="size-3 opacity-60" />
-                        </div>
-                        <Label variant="muted">Image</Label>
-                        <div className="size-5 flex items-center justify-center bg-teal-500/20 text-teal-400 rounded-[6px] ml-auto">
-                          <Icon name="zap" className="size-2.5" />
-                        </div>
-                      </header>
-
-                      <hr />
-
-                      <ul className="divide-y">
-                        <li>
-                          <header
-                            onClick={() => setIsMoveExpanded(!isMoveExpanded)}
-                            className="px-4 flex items-center gap-1.5 cursor-pointer hover:bg-secondary/25 rounded-lg -mx-4 py-3 transition-colors"
-                          >
-                            <Icon
-                              name="chevronRight"
-                              className={cn(
-                                'size-3 opacity-50 transition-transform',
-                                isMoveExpanded && 'rotate-90'
-                              )}
-                            />
-                            <Label>Move</Label>
-                            <div className="ml-auto">
-                              <Button
-                                size="xs"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  // Handle delete action here
-                                }}
-                              >
-                                <Icon name="x" />
-                              </Button>
-                            </div>
-                          </header>
-
-                          {isMoveExpanded && (
-                            <div className="-mt-4">
-                              <div className="py-4 flex flex-col gap-4">
-                                <div className="flex flex-col gap-2">
-                                  <Label variant="muted">Horizontally</Label>
-                                  <div className="flex items-center gap-2">
-                                    <Input />
-                                    <Icon name="chevronRight" className="size-3 opacity-50 shrink-0" />
-                                    <Input />
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-col gap-2">
-                                  <Label variant="muted">Vertically</Label>
-                                  <div className="flex items-center gap-2">
-                                    <Input />
-                                    <Icon name="chevronRight" className="size-3 opacity-50 shrink-0" />
-                                    <Input />
-                                  </div>
-                                </div>
-                              </div>
-
-                              <hr />
-
-                              <div className="flex flex-col gap-2 py-4">
-                                <div className="grid grid-cols-3">
-                                  <Label variant="muted">Delay</Label>
-                                  <div className="col-span-2 *:w-full">
-                                    <Input />
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-3">
-                                  <Label variant="muted">Duration</Label>
-                                  <div className="col-span-2 *:w-full">
-                                    <Input />
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-3">
-                                  <Label variant="muted">Easing</Label>
-                                  <div className="col-span-2 *:w-full">
-                                    <Input />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </li>
-
-                        <li>
-                          <header
-                            onClick={() => setIsRotateExpanded(!isRotateExpanded)}
-                            className="px-4 flex items-center gap-1.5 cursor-pointer hover:bg-secondary/25 rounded-lg -mx-4 py-3 transition-colors"
-                          >
-                            <Icon
-                              name="chevronRight"
-                              className={cn(
-                                'size-3 opacity-50 transition-transform',
-                                isRotateExpanded && 'rotate-90'
-                              )}
-                            />
-                            <Label>Rotate</Label>
-                            <div className="ml-auto">
-                              <Button
-                                size="xs"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  // Handle delete action here
-                                }}
-                              >
-                                <Icon name="x" />
-                              </Button>
-                            </div>
-                          </header>
-
-                          {isRotateExpanded && (
-                            <div className="-mt-4">
-                              <div className="py-4 flex flex-col gap-4">
-                                <div className="flex items-center gap-2">
-                                  <Input />
-                                  <Icon name="chevronRight" className="size-3 opacity-50 shrink-0" />
-                                  <Input />
-                                </div>
-                              </div>
-
-                              <hr />
-
-                              <div className="flex flex-col gap-2 py-4">
-                                <div className="grid grid-cols-3">
-                                  <Label variant="muted">Delay</Label>
-                                  <div className="col-span-2 *:w-full">
-                                    <Input />
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-3">
-                                  <Label variant="muted">Duration</Label>
-                                  <div className="col-span-2 *:w-full">
-                                    <Input />
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-3">
-                                  <Label variant="muted">Easing</Label>
-                                  <div className="col-span-2 *:w-full">
-                                    <Input />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+          {interactionOwnerLayer ? (
+            <InteractionsPanel
+              triggerLayer={interactionOwnerLayer}
+              allLayers={allLayers}
+              onLayerUpdate={onLayerUpdate}
+              selectedLayerId={selectedLayerId}
+              resetKey={interactionResetKey}
+              onStateChange={handleInteractionStateChange}
+              onSelectLayer={setSelectedLayerId}
+            />
+          ) : (
+            <Empty>
+              <EmptyTitle>No Layer Selected</EmptyTitle>
+              <EmptyDescription>
+                Select a layer to edit its interactions
+              </EmptyDescription>
+            </Empty>
           )}
         </TabsContent>
       </Tabs>

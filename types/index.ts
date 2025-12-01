@@ -157,7 +157,7 @@ export interface InteractionTransition {
 }
 
 export interface InteractionProperty {
-  property: '';
+  property: string;
   value: string;
   unit: string;
 }
