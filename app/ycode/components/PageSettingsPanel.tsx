@@ -1536,7 +1536,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                     {!isErrorPage && (
                       <>
                         <Field>
-                          <FieldLabel>Social Preview</FieldLabel>
+                          <FieldLabel>Social preview</FieldLabel>
                           <FieldDescription>Recommended image size is at least 1,200 x 630 pixels.</FieldDescription>
                           <div>
                             <input
