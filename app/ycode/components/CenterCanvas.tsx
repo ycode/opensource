@@ -553,32 +553,58 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const previousZoomRef = useRef(zoom);
   useEffect(() => {
     const container = canvasContainerRef.current;
-    if (!container || zoom <= 100) {
+    if (!container) {
       previousZoomRef.current = zoom;
       return;
     }
 
-    // Only adjust scroll if zoom actually changed
-    if (previousZoomRef.current !== zoom && previousZoomRef.current > 100) {
-      // Store current scroll position
-      const oldScrollLeft = container.scrollLeft;
-      const oldScrollTop = container.scrollTop;
+    const previousZoom = previousZoomRef.current;
+    const wasZoomedOut = previousZoom <= 100;
+    const isZoomedIn = zoom > 100;
+    const isZoomedOut = zoom <= 100;
 
-      // Calculate zoom ratio
-      const zoomRatio = zoom / previousZoomRef.current;
-
-      // Wait for layout to update, then adjust scroll proportionally
+    // Case 1: Transitioning from zoom <= 100 to zoom > 100
+    // Center the canvas by scrolling to the middle of the spacers
+    if (wasZoomedOut && isZoomedIn) {
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          // Scale scroll position by zoom ratio to maintain relative position
-          container.scrollLeft = oldScrollLeft * zoomRatio;
-          container.scrollTop = oldScrollTop * zoomRatio;
-        });
+        // Get the container and canvas dimensions
+        const containerWidth = container.clientWidth;
+        const canvasWidth = parseInt(viewportSizes[viewportMode].width);
+        const scaledCanvasWidth = canvasWidth * (zoom / 100);
+        
+        // Calculate scroll position to center the canvas
+        // The spacer width is 50vw on each side
+        const spacerWidth = window.innerWidth * 0.5;
+        const totalWidth = spacerWidth + scaledCanvasWidth + spacerWidth;
+        
+        // Center horizontally by scrolling to show the canvas in the middle
+        container.scrollLeft = spacerWidth + (scaledCanvasWidth / 2) - (containerWidth / 2);
       });
     }
 
+    // Case 2: Already zoomed in, just adjusting zoom level
+    // Scale scroll position proportionally to maintain the same visual center
+    if (!wasZoomedOut && isZoomedIn && previousZoom !== zoom) {
+      const oldScrollLeft = container.scrollLeft;
+      const oldScrollTop = container.scrollTop;
+      const zoomRatio = zoom / previousZoom;
+
+      requestAnimationFrame(() => {
+        // Scale scroll position by zoom ratio to maintain relative position
+        container.scrollLeft = oldScrollLeft * zoomRatio;
+        container.scrollTop = oldScrollTop * zoomRatio;
+      });
+    }
+
+    // Case 3: Zooming out to <= 100%
+    // Reset scroll to 0 since we'll be using flexbox centering
+    if (isZoomedOut && !wasZoomedOut) {
+      container.scrollLeft = 0;
+      container.scrollTop = 0;
+    }
+
     previousZoomRef.current = zoom;
-  }, [zoom]);
+  }, [zoom, viewportMode]);
 
   // Pan/drag handlers for zoomed canvas
   // Enable panning when zoomed in using middle mouse button or spacebar + drag
@@ -970,7 +996,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
             minHeight: zoom <= 100 ? '100%' : undefined,
             width: scaledWidth ? `${scaledWidth}px` : undefined,
             minWidth: zoom > 100 ? '100%' : undefined,
-            transition: 'width 0.2s ease-out',
           }}
         >
           {zoom <= 100 && (
