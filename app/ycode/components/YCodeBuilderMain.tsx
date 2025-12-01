@@ -224,7 +224,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         const containerWidth = canvasContainer.clientWidth - 128; // More margin (same as autofit)
         const viewportWidth = parseInt(viewportSizes[viewportMode].width);
         const fitZoom = Math.floor((containerWidth / viewportWidth) * 100);
-        setZoom(Math.max(25, Math.min(fitZoom, 200)));
+        setZoom(Math.max(10, Math.min(fitZoom, 1000)));
         hasInitializedZoom.current = true;
         lastPageIdForZoom.current = currentPageId;
       }
@@ -856,7 +856,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
-          setZoom(prev => Math.min(prev + 10, 200));
+          setZoom(prev => Math.min(prev + 10, 1000));
           return;
         }
 
@@ -865,7 +865,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
-          setZoom(prev => Math.max(prev - 10, 25));
+          setZoom(prev => Math.max(prev - 10, 10));
           return;
         }
 
@@ -888,7 +888,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             const containerWidth = canvasContainer.clientWidth - 64;
             const viewportWidth = viewportMode === 'desktop' ? 1366 : viewportMode === 'tablet' ? 768 : 375;
             const fitZoom = Math.floor((containerWidth / viewportWidth) * 100);
-            setZoom(Math.max(25, Math.min(fitZoom, 200)));
+            setZoom(Math.max(10, Math.min(fitZoom, 1000)));
           }
           return;
         }
@@ -903,7 +903,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             const containerWidth = canvasContainer.clientWidth - 128;
             const viewportWidth = viewportMode === 'desktop' ? 1366 : viewportMode === 'tablet' ? 768 : 375;
             const fitZoom = Math.floor((containerWidth / viewportWidth) * 100);
-            setZoom(Math.max(25, Math.min(fitZoom, 200)));
+            setZoom(Math.max(10, Math.min(fitZoom, 1000)));
           }
           return;
         }

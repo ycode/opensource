@@ -516,11 +516,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   // Zoom handlers
   const handleZoomIn = useCallback(() => {
-    setZoom(Math.min(zoom + 10, 200)); // Max 200%
+    setZoom(Math.min(zoom + 10, 1000)); // Max 1000%
   }, [zoom, setZoom]);
 
   const handleZoomOut = useCallback(() => {
-    setZoom(Math.max(zoom - 10, 25)); // Min 25%
+    setZoom(Math.max(zoom - 10, 10)); // Min 10%
   }, [zoom, setZoom]);
 
   const handleZoomTo100 = useCallback(() => {
@@ -534,7 +534,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
       const containerWidth = canvasContainer.clientWidth - 64; // Account for padding
       const viewportWidth = parseInt(viewportSizes[viewportMode].width);
       const fitZoom = Math.floor((containerWidth / viewportWidth) * 100);
-      setZoom(Math.max(25, Math.min(fitZoom, 200)));
+      setZoom(Math.max(10, Math.min(fitZoom, 1000)));
     }
   }, [viewportMode, setZoom]);
 
@@ -545,7 +545,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
       const containerWidth = canvasContainer.clientWidth - 128; // More margin
       const viewportWidth = parseInt(viewportSizes[viewportMode].width);
       const fitZoom = Math.floor((containerWidth / viewportWidth) * 100);
-      setZoom(Math.max(25, Math.min(fitZoom, 200)));
+      setZoom(Math.max(10, Math.min(fitZoom, 1000)));
     }
   }, [viewportMode, setZoom]);
 
@@ -806,7 +806,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
       // Calculate zoom delta - negative multiplier so scroll up zooms in
       const zoomDelta = deltaY * -1;
-      const newZoom = Math.max(25, Math.min(200, zoom + zoomDelta));
+      const newZoom = Math.max(10, Math.min(1000, zoom + zoomDelta));
       setZoom(Math.round(newZoom));
     };
 
