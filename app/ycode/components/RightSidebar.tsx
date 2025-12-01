@@ -16,6 +16,7 @@ import { X } from 'lucide-react';
 // 3. ShadCN UI
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -90,6 +91,12 @@ const RightSidebar = React.memo(function RightSidebar({
   const [collectionBindingOpen, setCollectionBindingOpen] = useState(true);
   const [fieldBindingOpen, setFieldBindingOpen] = useState(true);
   const [contentOpen, setContentOpen] = useState(true);
+  const [selectedInteraction, setSelectedInteraction] = useState<string | null>(null);
+  const [selectedDevices, setSelectedDevices] = useState<Set<string>>(new Set(['phone', 'tablet', 'desktop']));
+  const [isMoveExpanded, setIsMoveExpanded] = useState(true);
+  const [isRotateExpanded, setIsRotateExpanded] = useState(true);
+  const [loopValue, setLoopValue] = useState<string>('1');
+  const [toggleValue, setToggleValue] = useState<string>('1');
 
   // Optimize store subscriptions - use selective selectors
   const currentPageId = useEditorStore((state) => state.currentPageId);
@@ -1106,25 +1113,389 @@ const RightSidebar = React.memo(function RightSidebar({
 
           <div className="flex flex-col gap-2">
 
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-secondary/50 hover:bg-secondary/100">
-
-              <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary">
+            <button
+              onClick={() => setSelectedInteraction('click')}
+              className={cn(
+                'flex items-center gap-2 p-2 rounded-lg transition-colors text-left w-full',
+                selectedInteraction === 'click'
+                  ? 'bg-teal-500/50 text-primary-foreground'
+                  : 'bg-secondary/50 hover:bg-secondary/100'
+              )}
+            >
+              <div
+                className={cn(
+                  'size-5 flex items-center justify-center rounded-[6px]',
+                  selectedInteraction === 'click' ? 'bg-primary-foreground/20' : 'bg-secondary'
+                )}
+              >
                 <Icon name="zap" className="size-2.5" />
               </div>
-              <Label variant="muted">Click</Label>
+              <Label variant={selectedInteraction === 'click' ? 'default' : 'muted'}>Click</Label>
+              <div className="ml-auto -my-1 -mr-0.5">
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Handle delete action here
+                  }}
+                >
+                  <Icon name="x" />
+                </Button>
+              </div>
+            </button>
 
-            </div>
-
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-secondary/50 hover:bg-secondary/100">
-
-              <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary">
+            <button
+              onClick={() => setSelectedInteraction('hover')}
+              className={cn(
+                'flex items-center gap-2 p-2 rounded-lg transition-colors text-left w-full',
+                selectedInteraction === 'hover'
+                  ? 'bg-teal-500/50 text-primary-foreground'
+                  : 'bg-secondary/50 hover:bg-secondary/100'
+              )}
+            >
+              <div
+                className={cn(
+                  'size-5 flex items-center justify-center rounded-[6px]',
+                  selectedInteraction === 'hover' ? 'bg-primary-foreground/20' : 'bg-secondary'
+                )}
+              >
                 <Icon name="zap" className="size-2.5" />
               </div>
-              <Label variant="muted">Hover</Label>
-
-            </div>
+              <Label variant={selectedInteraction === 'hover' ? 'default' : 'muted'}>Hover</Label>
+              <div className="ml-auto -my-1 -mr-0.5">
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Handle delete action here
+                  }}
+                >
+                  <Icon name="x" />
+                </Button>
+              </div>
+            </button>
 
           </div>
+
+          {/* Interaction Content */}
+          {selectedInteraction && (
+            <div className="mt-4 border-t">
+
+              {selectedInteraction === 'click' && (
+
+                <div>
+
+                  <div className="py-5 border-b flex flex-col gap-2">
+
+                    <div className="grid grid-cols-3">
+                      <Label variant="muted">Loop</Label>
+                      <div className="col-span-2 *:w-full">
+                        <ToggleGroup
+                          options={[
+                            { label: 'None', value: '1' },
+                            { icon: 'loopAlternate', value: '2' },
+                            { icon: 'loopRepeat', value: '3' },
+                          ]}
+                          value={loopValue}
+                          onChange={(value) => setLoopValue(String(value))}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3">
+                      <Label variant="muted">Toggle</Label>
+                      <div className="col-span-2 *:w-full">
+                        <ToggleGroup
+                          options={[
+                            { label: 'Yes', value: '1' },
+                            { label: 'No', value: '2' },
+                          ]}
+                          value={toggleValue}
+                          onChange={(value) => setToggleValue(String(value))}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3">
+                      <Label variant="muted">Run on</Label>
+                      <div className="col-span-2 *:w-full">
+                        <Select
+                          value=""
+                          onValueChange={() => {}}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue>
+                              <span className="text-xs">
+                                {selectedDevices.size === 3
+                                  ? 'All devices'
+                                  : selectedDevices.size === 0
+                                    ? 'No devices'
+                                    : `${selectedDevices.size} device${selectedDevices.size > 1 ? 's' : ''}`}
+                              </span>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {[
+                                { value: 'phone', label: 'Phone' },
+                                { value: 'tablet', label: 'Tablet' },
+                                { value: 'desktop', label: 'Desktop' },
+                              ].map((device) => (
+                                <SelectItem
+                                  key={device.value}
+                                  value={device.value}
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    setSelectedDevices((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(device.value)) {
+                                        next.delete(device.value);
+                                      } else {
+                                        next.add(device.value);
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      checked={selectedDevices.has(device.value)}
+                                      onCheckedChange={() => {}}
+                                      className="pointer-events-none"
+                                    />
+                                    <span>{device.label}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <header className="py-5 flex justify-between">
+                    <span className="font-medium">Properties</span>
+                    <div className="-my-1">
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="xs" variant="secondary">
+                            <Icon name="plus" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="mr-4">
+                          <DropdownMenuItem>Move</DropdownMenuItem>
+                          <DropdownMenuItem>Scale</DropdownMenuItem>
+                          <DropdownMenuItem>Rotate</DropdownMenuItem>
+                          <DropdownMenuItem>Skew</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem>Opacity</DropdownMenuItem>
+                          <DropdownMenuItem>Filters</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem>Visibility</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                    </div>
+                  </header>
+
+                  <div className="space-y-4">
+
+                    <div className="px-4 bg-secondary/50 rounded-lg">
+
+                      <header className="flex items-center gap-2 py-4">
+                        <div
+                          className={cn(
+                            'flex items-center justify-center',
+                          )}
+                        >
+                          <Icon name="image" className="size-3 opacity-60" />
+                        </div>
+                        <Label variant="muted">Image</Label>
+                        <div className="size-5 flex items-center justify-center bg-teal-500/20 text-teal-400 rounded-[6px] ml-auto">
+                          <Icon name="zap" className="size-2.5" />
+                        </div>
+                      </header>
+
+                      <hr />
+
+                      <ul className="divide-y">
+
+                        <li>
+
+                          <header
+                            onClick={() => setIsMoveExpanded(!isMoveExpanded)}
+                            className="px-4 flex items-center gap-1.5 cursor-pointer hover:bg-secondary/25 rounded-lg -mx-4 py-3 transition-colors"
+                          >
+                            <Icon
+                              name="chevronRight"
+                              className={cn(
+                                'size-3 opacity-50 transition-transform',
+                                isMoveExpanded && 'rotate-90'
+                              )}
+                            />
+                            <Label>Move</Label>
+                            <div className="ml-auto">
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Handle delete action here
+                                }}
+                              >
+                                <Icon name="x" />
+                              </Button>
+                            </div>
+                          </header>
+
+                          {isMoveExpanded && (
+                            <div className="-mt-4">
+
+                              <div className="py-4 flex flex-col gap-4">
+
+                                <div className="flex flex-col gap-2">
+                                  <Label variant="muted">Horizontally</Label>
+                                  <div className="flex items-center gap-2">
+                                    <Input />
+                                    <Icon name="chevronRight" className="size-3 opacity-50 shrink-0" />
+                                    <Input />
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                  <Label variant="muted">Vertically</Label>
+                                  <div className="flex items-center gap-2">
+                                    <Input />
+                                    <Icon name="chevronRight" className="size-3 opacity-50 shrink-0" />
+                                    <Input />
+                                  </div>
+                                </div>
+
+                              </div>
+
+                              <hr />
+
+                              <div className="flex flex-col gap-2 py-4">
+
+                                <div className="grid grid-cols-3">
+                                  <Label variant="muted">Delay</Label>
+                                  <div className="col-span-2 *:w-full">
+                                    <Input />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-3">
+                                  <Label variant="muted">Duration</Label>
+                                  <div className="col-span-2 *:w-full">
+                                    <Input />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-3">
+                                  <Label variant="muted">Easing</Label>
+                                  <div className="col-span-2 *:w-full">
+                                    <Input />
+                                  </div>
+                                </div>
+
+                              </div>
+
+                            </div>
+                          )}
+
+                        </li>
+
+                        <li>
+
+                          <header
+                            onClick={() => setIsRotateExpanded(!isRotateExpanded)}
+                            className="px-4 flex items-center gap-1.5 cursor-pointer hover:bg-secondary/25 rounded-lg -mx-4 py-3 transition-colors"
+                          >
+                            <Icon
+                              name="chevronRight"
+                              className={cn(
+                                'size-3 opacity-50 transition-transform',
+                                isRotateExpanded && 'rotate-90'
+                              )}
+                            />
+                            <Label>Rotate</Label>
+                            <div className="ml-auto">
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Handle delete action here
+                                }}
+                              >
+                                <Icon name="x" />
+                              </Button>
+                            </div>
+                          </header>
+
+                          {isRotateExpanded && (
+                            <div className="-mt-4">
+
+                              <div className="py-4 flex flex-col gap-4">
+
+                                <div className="flex items-center gap-2">
+                                  <Input />
+                                  <Icon name="chevronRight" className="size-3 opacity-50 shrink-0" />
+                                  <Input />
+                                </div>
+
+                              </div>
+
+                              <hr />
+
+                              <div className="flex flex-col gap-2 py-4">
+
+                                <div className="grid grid-cols-3">
+                                  <Label variant="muted">Delay</Label>
+                                  <div className="col-span-2 *:w-full">
+                                    <Input />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-3">
+                                  <Label variant="muted">Duration</Label>
+                                  <div className="col-span-2 *:w-full">
+                                    <Input />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-3">
+                                  <Label variant="muted">Easing</Label>
+                                  <div className="col-span-2 *:w-full">
+                                    <Input />
+                                  </div>
+                                </div>
+
+                              </div>
+
+                            </div>
+                          )}
+
+                        </li>
+
+                      </ul>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              )}
+
+            </div>
+          )}
 
         </TabsContent>
 

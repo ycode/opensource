@@ -9,9 +9,12 @@
 
 import React from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import Icon, { type IconProps } from '@/components/ui/icon';
+import { cn } from '@/lib/utils';
 
 export interface ToggleOption {
-  label: string;
+  label?: string;
+  icon?: IconProps['name'];
   value: string | boolean;
 }
 
@@ -52,8 +55,15 @@ export default function ToggleGroup({
           <TabsTrigger 
             key={String(option.value)} 
             value={String(option.value)}
+            className={cn(
+              'flex items-center gap-1.5',
+              !option.label && 'justify-center'
+            )}
           >
-            {option.label}
+            {option.icon && (
+              <Icon name={option.icon} className="size-3" />
+            )}
+            {option.label && <span>{option.label}</span>}
           </TabsTrigger>
         ))}
       </TabsList>
