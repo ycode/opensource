@@ -15,15 +15,13 @@ export default function UIStateSelector({ selectedLayer }: UIStateSelectorProps)
   const isDisabledApplicable = () => {
     if (!selectedLayer) return false;
     const applicableTypes = ['button', 'input', 'textarea', 'select'];
-    return applicableTypes.includes(selectedLayer.type || '') ||
-           applicableTypes.includes(selectedLayer.name || '');
+    return applicableTypes.includes(selectedLayer.name || '');
   };
 
   const isCurrentApplicable = () => {
     if (!selectedLayer) return false;
     const applicableTypes = ['link', 'a', 'navigation'];
-    return applicableTypes.includes(selectedLayer.type || '') ||
-           applicableTypes.includes(selectedLayer.name || '');
+    return applicableTypes.includes(selectedLayer.name || '');
   };
 
   return (

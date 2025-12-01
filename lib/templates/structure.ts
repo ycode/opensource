@@ -175,7 +175,6 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Collection',
     template: {
       name: 'div',
-      type: 'collection',
       classes: ['flex', 'flex-col', 'gap-[1rem]'],
       children: [],
       design: {

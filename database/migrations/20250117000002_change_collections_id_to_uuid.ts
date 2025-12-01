@@ -200,4 +200,3 @@ export async function down(knex: Knex): Promise<void> {
   
   console.log('✅ Rollback complete: change_collections_id_to_uuid');
 }
-

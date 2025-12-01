@@ -274,6 +274,14 @@ export default function LayerContextMenu({
     }
   };
 
+  const handleLogLayer = () => {
+    if (!layer) return;
+    console.log('Layer:', layer);
+  };
+
+  // Check if we're on localhost
+  const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+
   return (
     <ContextMenu onOpenChange={handleOpenChange}>
       <ContextMenuTrigger asChild>

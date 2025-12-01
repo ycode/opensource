@@ -4,9 +4,6 @@
  * Core types for pages, layers, and editor functionality
  */
 
-// Layer Types
-export type LayerType = 'container' | 'text' | 'image' | 'heading' | 'collection';
-
 // UI State Types (for state-specific styling: hover, focus, etc.)
 export type UIState = 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current';
 
@@ -158,9 +155,8 @@ export interface Component {
 
 export interface Layer {
   id: string;
-  name?: string; // Element type name: 'div', 'h1', 'button', 'section', etc.
+  name: string; // Element type name: 'div', 'section', 'heading', 'youtube', etc.
   customName?: string; // User-defined name
-  type?: LayerType; // For compatibility
 
   // Content
   text?: string | FieldVariable; // Text content (can be static or bound to a field)
@@ -208,7 +204,7 @@ export interface Layer {
   // Layer variables (new structured approach)
   variables?: LayerVariables;
 
-  // Legacy properties
+  // Legacy properties (deprecated)
   style?: string; // Style preset name (legacy)
   content?: string; // For text/heading layers (use text instead)
   src?: string;     // For image layers (use url instead)

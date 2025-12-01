@@ -361,7 +361,7 @@ export async function resolveCollectionLayers(
 ): Promise<Layer[]> {
   const resolveLayer = async (layer: Layer): Promise<Layer> => {
     // Check if this is a collection layer
-    const isCollectionLayer = layer.type === 'collection' || layer.name === 'collection';
+    const isCollectionLayer = layer.name === 'collection';
     
     if (isCollectionLayer) {
       const collectionVariable = getCollectionVariable(layer);

@@ -52,8 +52,8 @@ export function flattenTree(
  * Unlimited nesting support - containers can nest infinitely
  */
 function getMaxDepth(layer: Layer): number {
-  // Non-containers cannot have children
-  if (layer.type !== 'container') {
+  // Elements that cannot have children
+  if (!canHaveChildren(layer)) {
     return 0;
   }
 
@@ -80,8 +80,8 @@ function getMinDepth(item: FlattenedItem, flattenedItems: FlattenedItem[]): numb
   // Can be at same level as previous
   let minDepth = previousItem.depth;
 
-  // Or one level deeper if previous is a container
-  if (previousItem.layer.type === 'container') {
+  // Or one level deeper if previous can have children
+  if (canHaveChildren(previousItem.layer)) {
     minDepth = previousItem.depth + 1;
   }
 
@@ -119,8 +119,8 @@ export function getProjection(
   // Calculate new depth based on drag offset
   let depth = overItem.depth + dragDepth;
 
-  // Special case: if dragging right (dragDepth > 0) over a container, drop INTO it
-  if (dragDepth > 0 && overItem.layer.type === 'container') {
+  // Special case: if dragging right (dragDepth > 0) over a layer that can have children, drop INTO it
+  if (dragDepth > 0 && canHaveChildren(overItem.layer)) {
     depth = overItem.depth + 1;
   }
 
@@ -131,15 +131,15 @@ export function getProjection(
   let parentId: string | null = null;
 
   if (depth > 0) {
-    // If dragging into the overItem itself (it's a container)
-    if (dragDepth > 0 && overItem.layer.type === 'container' && depth === overItem.depth + 1) {
+    // If dragging into the overItem itself (it can have children)
+    if (dragDepth > 0 && canHaveChildren(overItem.layer) && depth === overItem.depth + 1) {
       parentId = overItem.id;
     } else {
       // Look backwards to find parent at depth - 1
       for (let i = overItemIndex; i >= 0; i--) {
         if (items[i].depth === depth - 1) {
-          // Only allow container parents
-          if (items[i].layer.type === 'container') {
+          // Only allow parents that can have children
+          if (canHaveChildren(items[i].layer)) {
             parentId = items[i].id;
           }
           break;

@@ -17,7 +17,7 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 
 // 2. External libraries
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
-import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder, EyeOff, Layers as LayersIcon, Component as ComponentIcon } from 'lucide-react';
+import { Layers as LayersIcon, Component as ComponentIcon, EyeOff } from 'lucide-react';
 
 // 4. Internal components
 import LayerContextMenu from './LayerContextMenu';
@@ -31,7 +31,7 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 // 6. Utils/lib
 import { cn } from '@/lib/utils';
 import { flattenTree, type FlattenedItem } from '@/lib/tree-utilities';
-import { canHaveChildren, getCollectionVariable } from '@/lib/layer-utils';
+import { canHaveChildren, getLayerIcon, getLayerName, getCollectionVariable } from '@/lib/layer-utils';
 import { hasStyleOverrides } from '@/lib/layer-style-utils';
 
 // 7. Types
@@ -64,113 +64,6 @@ interface LayerRowProps {
   onToggle: (id: string) => void;
   pageId: string;
   selectedLayerId: string | null; // Added for context menu
-}
-
-// Element icon mapping - Now supports both old 'type' and new 'name' properties
-const elementIcons: Record<string, React.ElementType> = {
-  // Old system
-  container: Box,
-  text: Type,
-  image: ImageIcon,
-
-  // New system - Structure
-  div: Box,
-  section: Layout,
-  hr: Square,
-  columns: Layout,
-  rows: Layout,
-  grid: Layout,
-
-  // Content
-  heading: Heading, // New consolidated heading
-  h1: Heading,
-  h2: Heading,
-  h3: Heading,
-  h4: Heading,
-  h5: Heading,
-  h6: Heading,
-  p: Type,
-  span: Type,
-  richtext: FileText,
-
-  // Actions
-  button: Square,
-  a: Link,
-  link: Link,
-
-  // Media
-  img: ImageIcon,
-  icon: Square,
-  video: Video,
-  audio: Music,
-  youtube: Film,
-  iframe: Code,
-
-  // Forms
-  form: FileText,
-  input: Type,
-  textarea: FileText,
-  select: Square,
-  checkbox: CheckSquare,
-  radio: Circle,
-  label: Tag,
-  submit: Check,
-
-  // Pages & Folders
-  page: File,
-  folder: Folder,
-};
-
-// Helper function to get display name for layer
-function getLayerDisplayName(layer: Layer, component?: { name: string } | null, collectionName?: string): string {
-  // Special case for Body layer
-  if (layer.id === 'body') {
-    return 'Body';
-  }
-
-  // Use component name if this is a component instance
-  if (component) {
-    return component.name;
-  }
-
-  // Special case for collection layers
-  if (layer.type === 'collection' || layer.name === 'collection') {
-    if (collectionName) {
-      return `Collection (${collectionName})`;
-    }
-    return 'Collection';
-  }
-
-  // Use custom name if available
-  if (layer.customName) {
-    return layer.customName;
-  }
-
-  // Use name property (new system)
-  if (layer.name) {
-    const name = layer.name;
-    // Capitalize first letter
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  }
-
-  // Fallback to type property (old system)
-  if (layer.type) {
-    const typeLabel = layer.type.charAt(0).toUpperCase() + layer.type.slice(1);
-    return typeLabel;
-  }
-
-  return 'Element';
-}
-
-// Helper function to get icon key for a layer
-function getIconKey(layer: Layer): string {
-  // Special case for collection layers
-  if (layer.type === 'collection' || layer.name === 'collection') {
-    return 'database';
-  }
-  
-  // Use name property (new system) or fallback to type (old system)
-  return layer.name || layer.type || 'div';
 }
 
 // Helper to check if a node is a descendant of another
@@ -235,7 +128,7 @@ function LayerRow({
   const collectionName = node.layer.collection?.id
     ? collections.find(c => c.id === node.layer.collection?.id)?.name
     : undefined;
-  
+
   // Also check new variables structure
   const collectionVariable = getCollectionVariable(node.layer);
   const finalCollectionName = collectionVariable?.id
@@ -250,7 +143,8 @@ function LayerRow({
   // Use purple for component instances OR when editing a component
   const usePurpleStyle = isComponentInstance || !!editingComponentId;
 
-  const ElementIcon = elementIcons[getIconKey(node.layer)] || Square;
+  // Get icon name from blocks template system
+  const layerIcon = getLayerIcon(node.layer);
 
   // Check if this is the Body layer (locked)
   const isLocked = node.layer.id === 'body' || node.layer.locked === true;
@@ -402,6 +296,8 @@ function LayerRow({
           {/* Layer Icon */}
           {isComponentInstance ? (
             <Icon name="component" className="size-3 mx-1.5" />
+          ) : layerIcon ? (
+            <Icon name={layerIcon} className="size-3 mx-1.5" />
           ) : (
             <div
               className={cn(
@@ -413,7 +309,10 @@ function LayerRow({
 
           {/* Label */}
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
-            {getLayerDisplayName(node.layer, appliedComponent, finalCollectionName)}
+            {getLayerName(node.layer, {
+              component_name: appliedComponent?.name,
+              collection_name: finalCollectionName,
+            })}
           </span>
 
           {/* Style Indicator */}
@@ -461,6 +360,9 @@ export default function LayersTree({
   // Get component by ID function for drag overlay
   const { getComponentById } = useComponentsStore();
 
+  // Get collections from store
+  const { collections } = useCollectionsStore();
+
   // Use prop or store state (prop takes precedence for compatibility)
   const selectedLayerIds = propSelectedLayerIds ?? storeSelectedLayerIds;
 
@@ -490,6 +392,17 @@ export default function LayersTree({
     () => flattenedNodes.find((node) => node.id === activeId),
     [activeId, flattenedNodes]
   );
+
+  // Get collection name for active node (for drag overlay)
+  const activeNodeCollectionName = useMemo(() => {
+    if (!activeNode) return undefined;
+    const collectionVariable = getCollectionVariable(activeNode.layer);
+    return collectionVariable?.id
+      ? collections.find(c => c.id === collectionVariable.id)?.name
+      : activeNode.layer.collection?.id
+        ? collections.find(c => c.id === activeNode.layer.collection?.id)?.name
+        : undefined;
+  }, [activeNode, collections]);
 
   // Configure sensors for drag detection
   const sensors = useSensors(
@@ -606,12 +519,8 @@ export default function LayersTree({
     // Use pre-calculated canHaveChildren from the node
     const nodeCanHaveChildren = overNode.canHaveChildren;
 
-    // Container types strongly prefer "inside" drops
-    // Check both old type property and new name property
-    const isContainerType = overNode.layer.type === 'container' ||
-                           overNode.layer.name === 'div' ||
-                           overNode.layer.name === 'section' ||
-                           overNode.layer.name === 'form';
+    // Layers that can have children strongly prefer "inside" drops
+    const isContainerType = nodeCanHaveChildren;
 
     // Determine drop position based on pointer position
     let position: 'above' | 'below' | 'inside';
@@ -669,7 +578,7 @@ export default function LayersTree({
 
       // Check if hovering over a container that IS the current parent
       // This would place element outside its own container
-      if (overNode.id === currentParentId && overNode.layer.type === 'container') {
+      if (overNode.id === currentParentId && canHaveChildren(overNode.layer)) {
         // Dragging over the container that contains the dragged element
         // "above" or "below" would escape to the grandparent level
         setOverId(null);
@@ -820,22 +729,10 @@ export default function LayersTree({
         }
       }
 
-      // Helper function to get target parent name
-      const getTargetParentName = (): string => {
-        if (!newParentId) return 'ROOT';
-
-        const parentNode = flattenedNodes.find(n => n.id === newParentId);
-        if (parentNode) {
-          return getLayerDisplayName(parentNode.layer);
-        }
-
-        return 'NOT FOUND!';
-      };
-
       // Rebuild the tree structure
       const newLayers = rebuildTree(flattenedNodes, activeNode.id, newParentId, newOrder);
-      onReorder(newLayers);
 
+      onReorder(newLayers);
       setActiveId(null);
       setOverId(null);
       setDropPosition(null);
@@ -979,18 +876,26 @@ export default function LayersTree({
           >
             {(() => {
               const draggedComponent = activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId) : null;
-              const ElementIcon = elementIcons[getIconKey(activeNode.layer)] || Square;
+              const layerIcon = getLayerIcon(activeNode.layer);
+
               return (
                 <>
                   {draggedComponent ? (
                     <ComponentIcon className="w-3 h-3 flex-shrink-0 mx-1.5 opacity-75" />
+                  ) : layerIcon ? (
+                    <Icon name={layerIcon} className="size-3 mx-1.5 opacity-75" />
                   ) : (
                     <div className="size-3 bg-white/10 rounded mx-1.5" />
                   )}
                 </>
               );
             })()}
-            <span className="pointer-events-none">{getLayerDisplayName(activeNode.layer, activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId) : null)}</span>
+            <span className="pointer-events-none">
+              {getLayerName(activeNode.layer, {
+                component_name: activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId)?.name : null,
+                collection_name: activeNodeCollectionName,
+              })}
+            </span>
           </div>
         ) : null}
       </DragOverlay>

@@ -12,7 +12,7 @@ interface BlockTemplate {
 
 export const formTemplates: Record<string, BlockTemplate> = {
   form: {
-    icon: 'block',
+    icon: 'form',
     name: 'Form',
     template: {
       name: 'form',
@@ -31,7 +31,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
 
   input: {
-    icon: 'block',
+    icon: 'input',
     name: 'Input',
     template: {
       name: 'input',
@@ -63,7 +63,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
 
   textarea: {
-    icon: 'block',
+    icon: 'textarea',
     name: 'Textarea',
     template: {
       name: 'textarea',
@@ -95,7 +95,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
 
   select: {
-    icon: 'block',
+    icon: 'select',
     name: 'Select',
     template: {
       name: 'select',
@@ -135,7 +135,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
 
   checkbox: {
-    icon: 'block',
+    icon: 'checkbox',
     name: 'Checkbox',
     template: {
       name: 'div',
@@ -171,7 +171,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
 
   radio: {
-    icon: 'block',
+    icon: 'radio',
     name: 'Radio',
     template: {
       name: 'div',
@@ -208,7 +208,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
   },
 
   label: {
-    icon: 'block',
+    icon: 'text',
     name: 'Label',
     template: {
       name: 'label',
@@ -225,39 +225,4 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-
-  submit: {
-    icon: 'block',
-    name: 'Submit',
-    template: {
-      name: 'button',
-      classes: ['px-[1.5rem]', 'py-[0.5rem]', 'bg-[#2563eb]', 'text-[#ffffff]', 'rounded-[0.5rem]', 'hover:bg-[#1d4ed8]', 'transition-colors'],
-      text: 'Submit',
-      children: [], // Buttons can contain icons, text
-      attributes: {
-        type: 'submit'
-      },
-      design: {
-        typography: {
-          isActive: true,
-          color: '#ffffff'
-        },
-        spacing: {
-          isActive: true,
-          paddingLeft: '1.5rem',
-          paddingRight: '1.5rem',
-          paddingTop: '0.5rem',
-          paddingBottom: '0.5rem'
-        },
-        borders: {
-          isActive: true,
-          borderRadius: '0.5rem'
-        },
-        backgrounds: {
-          isActive: true,
-          backgroundColor: '#2563eb'
-        }
-      }
-    }
-  }
 };

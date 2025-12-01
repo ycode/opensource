@@ -82,14 +82,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const [pagePopoverOpen, setPagePopoverOpen] = useState(false);
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(new Set());
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  
+
   // Optimize store subscriptions - use selective selectors
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
-  const addLayer = usePagesStore((state) => state.addLayer);
+  const addLayerFromTemplate = usePagesStore((state) => state.addLayerFromTemplate);
   const updateLayer = usePagesStore((state) => state.updateLayer);
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
-  
+
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
   const activeUIState = useEditorStore((state) => state.activeUIState);
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
@@ -97,15 +97,15 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const returnToPageId = useEditorStore((state) => state.returnToPageId);
   const currentPageCollectionItemId = useEditorStore((state) => state.currentPageCollectionItemId);
   const setCurrentPageCollectionItemId = useEditorStore((state) => state.setCurrentPageCollectionItemId);
-  
+
   const getDropdownItems = useCollectionsStore((state) => state.getDropdownItems);
   const collectionItemsFromStore = useCollectionsStore((state) => state.items);
   const collectionsFromStore = useCollectionsStore((state) => state.collections);
   const collectionFieldsFromStore = useCollectionsStore((state) => state.fields);
-  
+
   // Collection layer store for independent layer data
   const collectionLayerData = useCollectionLayerStore((state) => state.layerData);
-  
+
   const { routeType, urlState, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorUrl();
   const components = useComponentsStore((state) => state.components);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
@@ -130,13 +130,13 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // Fetch collection data for all collection layers in the page
   const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Create a stable string representation of collection layer settings for dependency
   const collectionLayersKey = useMemo(() => {
     const extractCollectionSettings = (layerList: Layer[]): string[] => {
       const settings: string[] = [];
       layerList.forEach((layer) => {
-        const isCollectionLayer = layer.type === 'collection' || layer.name === 'collection';
+        const isCollectionLayer = layer.name === 'collection';
         if (isCollectionLayer && layer.variables?.collection?.id) {
           const cv = layer.variables.collection;
           settings.push(`${layer.id}:${cv.id}:${cv.sort_by}:${cv.sort_order}:${cv.limit}:${cv.offset}`);
@@ -147,23 +147,28 @@ const CenterCanvas = React.memo(function CenterCanvas({
       });
       return settings;
     };
-    
+
     return extractCollectionSettings(layers).join('|');
   }, [layers]);
-  
+
   // Debounce the fetch to prevent duplicate calls during rapid updates
   useEffect(() => {
+    console.log('[CenterCanvas] Effect triggered, collectionLayersKey:', collectionLayersKey);
+    
     // Clear any existing timeout
     if (fetchTimeoutRef.current) {
+      console.log('[CenterCanvas] Clearing existing timeout');
       clearTimeout(fetchTimeoutRef.current);
     }
-    
+
     // Set new timeout
     fetchTimeoutRef.current = setTimeout(() => {
+      console.log('[CenterCanvas] Timeout fired, fetching data');
+      
       // Recursively find all collection layers and fetch their data
       const findAndFetchCollectionLayers = (layerList: Layer[]) => {
         layerList.forEach((layer) => {
-          const isCollectionLayer = layer.type === 'collection' || layer.name === 'collection';
+          const isCollectionLayer = layer.name === 'collection';
           if (isCollectionLayer && layer.variables?.collection?.id) {
             const collectionVariable = layer.variables.collection;
             console.log('[CenterCanvas] Fetching data for collection layer:', layer.id, collectionVariable);
@@ -176,18 +181,18 @@ const CenterCanvas = React.memo(function CenterCanvas({
               collectionVariable.offset
             );
           }
-          
+
           // Recursively check children
           if (layer.children && layer.children.length > 0) {
             findAndFetchCollectionLayers(layer.children);
           }
         });
       };
-      
+
       if (layers.length > 0) {
         findAndFetchCollectionLayers(layers);
       }
-      
+
       fetchTimeoutRef.current = null;
     }, 100); // 100ms debounce - waits for rapid updates to settle
 
@@ -332,7 +337,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (targetPageId) {
       // Navigate to the target page
       navigateToLayers(targetPageId);
-      
+
       // Small delay to ensure navigation starts before clearing state
       await new Promise(resolve => setTimeout(resolve, 50));
     }
@@ -783,7 +788,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         <Button
                           onClick={() => {
                             // Always add inside Body container
-                            addLayer(currentPageId, 'body', 'container');
+                            addLayerFromTemplate(currentPageId, 'body', 'div');
                             setShowAddBlockPanel(false);
                           }}
                           variant="ghost"
@@ -801,7 +806,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         <Button
                           onClick={() => {
                             // Always add inside Body container
-                            addLayer(currentPageId, 'body', 'heading');
+                            addLayerFromTemplate(currentPageId, 'body', 'heading');
                             setShowAddBlockPanel(false);
                           }}
                           variant="ghost"
@@ -819,7 +824,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         <Button
                           onClick={() => {
                             // Always add inside Body container
-                            addLayer(currentPageId, 'body', 'text');
+                            addLayerFromTemplate(currentPageId, 'body', 'p');
                             setShowAddBlockPanel(false);
                           }}
                           variant="ghost"

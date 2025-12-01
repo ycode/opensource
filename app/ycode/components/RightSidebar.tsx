@@ -158,8 +158,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const isHeadingLayer = (layer: Layer | null): boolean => {
     if (!layer) return false;
     const headingTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'heading'];
-    return headingTags.includes(layer.type || '') ||
-           headingTags.includes(layer.name || '') ||
+    return headingTags.includes(layer.name || '') ||
            headingTags.includes(layer.settings?.tag || '');
   };
 
@@ -171,8 +170,7 @@ const RightSidebar = React.memo(function RightSidebar({
       'header', 'footer', 'article', 'figure', 'figcaption',
       'details', 'summary'
     ];
-    return containerTags.includes(layer.type || '') ||
-           containerTags.includes(layer.name || '') ||
+    return containerTags.includes(layer.name || '') ||
            containerTags.includes(layer.settings?.tag || '');
   };
 
@@ -198,8 +196,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
     // Map element types to their default tags:
     // Section = section, Container = div, Block = div
-    if (String(layer.type) === 'section' || layer.name === 'section') return 'section';
-    if (String(layer.type) === 'container' || layer.name === 'container') return 'div';
+    if (layer.name === 'section') return 'section';
 
     return 'div'; // Default fallback
   };
@@ -601,10 +598,9 @@ const RightSidebar = React.memo(function RightSidebar({
   // Get collection fields for the currently selected collection layer (for Sort By dropdown)
   const selectedCollectionFields = useMemo(() => {
     if (!selectedLayer) return [];
-    const isCollectionLayer = selectedLayer.type === 'collection' || selectedLayer.name === 'collection';
-    if (!isCollectionLayer) return [];
-
     const collectionVariable = getCollectionVariable(selectedLayer);
+    if (!collectionVariable) return [];
+
     const collectionId = collectionVariable?.id;
     if (!collectionId) return [];
     return fields[collectionId] || [];
@@ -743,7 +739,7 @@ const RightSidebar = React.memo(function RightSidebar({
           )}
 
           {/* Field Binding Panel - show for text/image layers inside a collection */}
-          {selectedLayer && parentCollectionLayer && parentCollectionFields.length > 0 && (selectedLayer.type === 'image' || selectedLayer.name === 'img') && (
+          {selectedLayer && parentCollectionLayer && parentCollectionFields.length > 0 && selectedLayer.name === 'image' && (
             <SettingsPanel
               title="Field Binding"
               isOpen={fieldBindingOpen}
@@ -929,7 +925,7 @@ const RightSidebar = React.memo(function RightSidebar({
             </SettingsPanel>
 
             {/* Collection Binding Panel - only show for collection layers */}
-            {selectedLayer && (selectedLayer.type === 'collection' || selectedLayer.name === 'collection') && (
+            {selectedLayer && getCollectionVariable(selectedLayer) && (
               <SettingsPanel
                 title="CMS"
                 isOpen={collectionBindingOpen}

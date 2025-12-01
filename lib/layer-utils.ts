@@ -2,8 +2,10 @@
  * Layer utilities for rendering and manipulation
  */
 
-import { Layer, FieldVariable, CollectionVariable, InlineVariableContent, CollectionItemWithValues, CollectionField } from '@/types';
+import { Collection, Component, Layer, FieldVariable, CollectionVariable, InlineVariableContent, CollectionItemWithValues, CollectionField } from '@/types';
 import { cn } from '@/lib/utils';
+import { iconExists, IconProps } from '@/components/ui/icon';
+import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
 
 /**
  * Check if a value is a FieldVariable
@@ -16,16 +18,10 @@ export function isFieldVariable(value: any): value is FieldVariable {
  * Get collection variable from layer (checks variables first, then fallback)
  */
 export function getCollectionVariable(layer: Layer): CollectionVariable | null {
-  // Priority 1: Check variables.collection (new structure)
   if (layer.variables?.collection) {
     return layer.variables.collection;
   }
-  
-  // Priority 2: Fallback to legacy layer.collection
-  if (layer.collection) {
-    return layer.collection;
-  }
-  
+
   return null;
 }
 
@@ -113,11 +109,10 @@ export function findParentCollectionLayer(layers: Layer[], layerId: string): Lay
   // Traverse up the parent chain looking for a collection layer
   let current = result.parent;
   while (current) {
-    // Check if this layer is a collection layer
-    const isCollectionLayer = current.type === 'collection' || current.name === 'collection';
+    // Check if this layer has a collection binding
     const hasCollectionVariable = !!getCollectionVariable(current);
-    
-    if (isCollectionLayer && hasCollectionVariable) {
+
+    if (hasCollectionVariable) {
       return current;
     }
 
@@ -135,17 +130,7 @@ export function findParentCollectionLayer(layers: Layer[], layerId: string): Lay
  * @returns True if the layer is text-editable
  */
 export function isTextEditable(layer: Layer): boolean {
-  // Check if explicitly marked as formattable
-  if (layer.formattable) return true;
-  
-  // Check layer type (legacy)
-  if (layer.type === 'text' || layer.type === 'heading') return true;
-  
-  // Check HTML tag name (new templates use 'name' property)
-  const tag = layer.name || layer.type || '';
-  const editableTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'button', 'label', 'li'];
-  
-  return editableTags.includes(tag);
+  return layer.formattable ?? false;
 }
 
 /**
@@ -156,17 +141,11 @@ export function getHtmlTag(layer: Layer): string {
   if (layer.settings?.tag) {
     return layer.settings.tag;
   }
-  
+
   // Priority 2: Use name property (new system)
   if (layer.name) {
     return layer.name;
   }
-
-  // Priority 3: Fall back to type-based mapping (old system)
-  if (layer.type === 'container') return 'div';
-  if (layer.type === 'heading') return 'h1';
-  if (layer.type === 'text') return 'p';
-  if (layer.type === 'image') return 'img';
 
   // Default
   return 'div';
@@ -202,41 +181,6 @@ export function getImageUrl(layer: Layer): string | undefined {
 }
 
 /**
- * Elements that cannot have children (void elements + text-only elements)
- */
-const ELEMENTS_WITHOUT_CHILDREN = [
-  // Void/self-closing elements
-  'img',
-  'input', 
-  'hr',
-  'br',
-  'icon',
-  'video',
-  'audio',
-  'image',    // Old system
-  
-  // Text-only elements that should be leaf nodes
-  'heading',  // Generic heading
-  'h1',
-  'h2', 
-  'h3',
-  'h4',
-  'h5',
-  'h6',
-  'p',        // Paragraph
-  'span',     // Inline text
-  'label',    // Form label
-  'button',   // Button (text content only in builder)
-  'text',     // Old system text type
-  
-  // Form inputs (technically not void but shouldn't have children in builder)
-  'textarea',
-  'select',
-  'checkbox',
-  'radio',
-];
-
-/**
  * Check if a layer can have children based on its name/type
  */
 export function canHaveChildren(layer: Layer): boolean {
@@ -245,9 +189,14 @@ export function canHaveChildren(layer: Layer): boolean {
   if (layer.componentId) {
     return false;
   }
-  
-  const elementName = (layer.name || layer.type) ?? '';
-  return !ELEMENTS_WITHOUT_CHILDREN.includes(elementName);
+
+  const blocksWithoutChildren = [
+    'icon', 'image', 'audio', 'video', 'youtube', 'iframe',
+    'heading', 'p', 'span', 'label', 'button', 'hr',
+    'input', 'textarea', 'select', 'checkbox', 'radio',
+  ];
+
+  return !blocksWithoutChildren.includes(layer.name ?? '');
 }
 
 /**
@@ -281,7 +230,7 @@ export function resolveFieldValue(
   if (!collectionItemData) {
     return undefined;
   }
-  
+
   const fieldId = fieldVariable.data.field_id;
   return collectionItemData[fieldId];
 }
@@ -309,7 +258,7 @@ export function getTextWithBinding(
       return resolved;
     }
   }
-  
+
   // Priority 3: Fall back to static text
   return typeof text === 'string' ? text : undefined;
 }
@@ -324,7 +273,7 @@ export function getImageUrlWithBinding(
   collectionItemData?: Record<string, string>
 ): string | undefined {
   const url = layer.url || layer.src;
-  
+
   // Check if url is a FieldVariable
   if (isFieldVariable(url)) {
     const resolved = resolveFieldValue(url, collectionItemData);
@@ -332,7 +281,7 @@ export function getImageUrlWithBinding(
       return resolved;
     }
   }
-  
+
   // Fall back to static URL
   return typeof url === 'string' ? url : undefined;
 }
@@ -400,6 +349,83 @@ export function sortCollectionItems(
 }
 
 /**
+ * Get the icon name (for `components/ui/Icon.tsx`) for a layer
+ */
+export function getLayerIcon(
+  layer: Layer,
+  defaultIcon: IconProps['name'] = 'box'
+): IconProps['name'] {
+  // Body layers
+  if (layer.id === 'body') return 'page';
+
+  // Component layers
+  if (layer.componentId) return 'component';
+
+  // Collection layers
+  if (getCollectionVariable(layer)) {
+    return 'database';
+  }
+
+  // Tag icons ('h1', 'h2', ...)
+  if (layer.settings?.tag && iconExists(layer.settings?.tag)) {
+    return layer.settings?.tag as IconProps['name'];
+  }
+
+  // Based on custom name
+  if (layer.customName === 'Container') return 'container';
+  if (layer.customName === 'Columns') return 'columns';
+  if (layer.customName === 'Rows') return 'rows';
+  if (layer.customName === 'Grid') return 'grid';
+
+  // Fallback to block icon (based on name)
+  return getBlockIcon(layer.name, defaultIcon);
+}
+
+/**
+ * Get the label for a layer (for display in the UI)
+ */
+export function getLayerName(
+  layer: Layer,
+  context?: {
+    component_name?: string | undefined | null,
+    collection_name?: string | undefined | null,
+  }
+): string {
+  // Special case for Body layer
+  if (layer.id === 'body') {
+    return 'Body';
+  }
+
+  // Use component name if this is a component instance
+  if (layer.componentId && context?.component_name) {
+    return context.component_name || 'Component';
+  }
+
+  // Use collection name with formatting
+  if (getCollectionVariable(layer)) {
+    return `Collection${context?.collection_name ? ` (${context.collection_name})` : ''}`;
+  }
+
+  // Use custom name if available
+  if (layer.customName) {
+    return layer.customName;
+  }
+
+  return getBlockName(layer.name) || 'Layer';
+}
+
+/**
+ * Get the HTML tag name for a layer
+ */
+export function getLayerHtmlTag(layer: Layer): string {
+  if (layer.settings?.tag) {
+    return layer.settings.tag;
+  }
+
+  return layer.name || 'div';
+}
+
+/**
  * Apply limit and offset to collection items (after sorting)
  * @param items - Array of collection items
  * @param limit - Maximum number of items to show
@@ -412,16 +438,16 @@ export function applyLimitOffset(
   offset?: number
 ): CollectionItemWithValues[] {
   let result = [...items];
-  
+
   // Apply offset first (skip items)
   if (offset && offset > 0) {
     result = result.slice(offset);
   }
-  
+
   // Apply limit (take first N items)
   if (limit && limit > 0) {
     result = result.slice(0, limit);
   }
-  
+
   return result;
 }

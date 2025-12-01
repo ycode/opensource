@@ -957,7 +957,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
     layers: JSON.stringify([
       {
         id: 'body',
-        type: 'container',
+        name: 'body',
         locked: true,
         classes: '',
         children: [
@@ -1055,7 +1055,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
     layers: JSON.stringify([
       {
         id: 'body',
-        type: 'container',
+        name: 'body',
         locked: true,
         classes: '',
         children: [
@@ -1153,7 +1153,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
     layers: JSON.stringify([
       {
         id: 'body',
-        type: 'container',
+        name: 'body',
         locked: true,
         classes: '',
         children: [
