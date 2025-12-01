@@ -3,7 +3,8 @@ import { buildSlugPath } from '@/lib/page-utils';
 import { getItemWithValues, getItemsWithValues } from '@/lib/repositories/collectionItemRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer } from '@/types';
-import { getCollectionVariable } from '@/lib/layer-utils';
+import { getCollectionVariable, resolveFieldValue, isFieldVariable } from '@/lib/layer-utils';
+import { resolveInlineVariables } from '@/lib/inline-variables';
 
 export interface PageData {
   page: Page;
@@ -188,9 +189,18 @@ export async function fetchPageByPath(
               isPublished
             );
 
+            // Resolve collection layers server-side (for both draft and published)
+            // The isPublished parameter controls which collection items to fetch
+            const resolvedLayers = pageLayers?.layers
+              ? await resolveCollectionLayers(pageLayers.layers, isPublished)
+              : [];
+
             return {
               page: matchingPage,
-              pageLayers,
+              pageLayers: {
+                ...pageLayers,
+                layers: resolvedLayers,
+              },
               components: components || [],
               collectionItem, // Include collection item for dynamic pages
               collectionFields, // Include collection fields for resolving placeholders
@@ -225,9 +235,27 @@ export async function fetchPageByPath(
       .from('components')
       .select('*');
 
+    console.log('[fetchPageByPath] Raw pageLayers from database:', {
+      pageId: matchingPage.id,
+      pageName: matchingPage.name,
+      isPublished,
+      layersCount: pageLayers?.layers?.length,
+      // Recursively find layers with variables
+      allLayerIds: JSON.stringify(pageLayers?.layers, null, 2).substring(0, 2000),
+    });
+
+    // Resolve collection layers server-side (for both draft and published)
+    // The isPublished parameter controls which collection items to fetch
+    const resolvedLayers = pageLayers?.layers
+      ? await resolveCollectionLayers(pageLayers.layers, isPublished)
+      : [];
+
     return {
       page: matchingPage,
-      pageLayers,
+      pageLayers: {
+        ...pageLayers,
+        layers: resolvedLayers,
+      },
       components: components || [],
     };
   } catch (error) {
@@ -286,9 +314,18 @@ export async function fetchErrorPage(
       .from('components')
       .select('*');
 
+    // Resolve collection layers server-side (for both draft and published)
+    // The isPublished parameter controls which collection items to fetch
+    const resolvedLayers = pageLayers?.layers
+      ? await resolveCollectionLayers(pageLayers.layers, isPublished)
+      : [];
+
     return {
       page: errorPage,
-      pageLayers,
+      pageLayers: {
+        ...pageLayers,
+        layers: resolvedLayers,
+      },
       components: components || [],
     };
   } catch (error) {
@@ -339,13 +376,73 @@ export async function fetchHomepage(isPublished: boolean): Promise<Pick<PageData
       return null;
     }
 
+    console.log('[fetchHomepage] Fetching homepage with isPublished:', isPublished);
+    console.log('[fetchHomepage] Raw layers from database:', JSON.stringify(pageLayers?.layers, null, 2).substring(0, 3000));
+
+    // Resolve collection layers server-side (for both draft and published)
+    const resolvedLayers = pageLayers?.layers
+      ? await resolveCollectionLayers(pageLayers.layers, isPublished)
+      : [];
+
     return {
       page: homepage,
-      pageLayers,
+      pageLayers: {
+        ...pageLayers,
+        layers: resolvedLayers,
+      },
     };
   } catch (error) {
     return null;
   }
+}
+
+/**
+ * Inject collection field values into a layer and its children
+ * Recursively resolves field variables in text, images, etc.
+ * @param layer - Layer to inject data into
+ * @param itemValues - Collection item field values (field_id -> value)
+ * @returns Layer with resolved field values
+ */
+function injectCollectionData(layer: Layer, itemValues: Record<string, string>): Layer {
+  const updates: Partial<Layer> = {};
+  
+  // Resolve inline variables (embedded JSON format)
+  const textContent = layer.variables?.text || layer.text;
+  if (textContent && typeof textContent === 'string' && textContent.includes('<ycode-inline-variable>')) {
+    const mockItem: CollectionItemWithValues = {
+      id: 'temp',
+      collection_id: 'temp',
+      created_at: '',
+      updated_at: '',
+      deleted_at: null,
+      manual_order: 0,
+      is_published: true,
+      values: itemValues,
+    };
+    updates.text = resolveInlineVariables(textContent, mockItem);
+  }
+  // Direct field binding (non-inline)
+  else if (layer.text && isFieldVariable(layer.text)) {
+    const resolvedValue = resolveFieldValue(layer.text, itemValues);
+    updates.text = resolvedValue || layer.text;
+  }
+  
+  // Image URL field binding
+  if (layer.url && isFieldVariable(layer.url)) {
+    const resolvedUrl = resolveFieldValue(layer.url, itemValues);
+    updates.url = resolvedUrl;
+  }
+  
+  // Recursively process children
+  const resolvedChildren = layer.children?.map(child => injectCollectionData(child, itemValues));
+  if (resolvedChildren) {
+    updates.children = resolvedChildren;
+  }
+  
+  return {
+    ...layer,
+    ...updates,
+  };
 }
 
 /**
@@ -359,9 +456,24 @@ export async function resolveCollectionLayers(
   layers: Layer[],
   isPublished: boolean
 ): Promise<Layer[]> {
+  console.log('[resolveCollectionLayers] ===== START =====');
+  console.log('[resolveCollectionLayers] Processing layers:', {
+    layerCount: layers.length,
+    isPublished,
+    topLevelLayerIds: layers.map(l => l.id),
+  });
+  
   const resolveLayer = async (layer: Layer): Promise<Layer> => {
+    console.log('[resolveCollectionLayers] Processing layer:', {
+      layerId: layer.id,
+      layerName: layer.name,
+      hasVariables: !!layer.variables,
+      hasCollectionVariable: !!layer.variables?.collection,
+      collectionId: layer.variables?.collection?.id,
+    });
+    
     // Check if this is a collection layer
-    const isCollectionLayer = layer.name === 'collection';
+    const isCollectionLayer = !!layer.variables?.collection?.id;
     
     if (isCollectionLayer) {
       const collectionVariable = getCollectionVariable(layer);
@@ -385,6 +497,15 @@ export async function resolveCollectionLayers(
             isPublished,
             filters
           );
+          
+          console.log(`[resolveCollectionLayers] Fetched items for layer ${layer.id}:`, {
+            collectionId: collectionVariable.id,
+            itemsCount: items.length,
+            sortBy,
+            sortOrder,
+            limit,
+            offset,
+          });
           
           // Apply sorting if specified (since API doesn't handle sortBy yet)
           let sortedItems = items;
@@ -411,12 +532,40 @@ export async function resolveCollectionLayers(
             }
           }
           
-          // Store items in a way the renderer can access
-          // For SSR, we'll inject it as a special property
+          // Flatten collection items by duplicating children for each item
+          const resolvedChildren = layer.children 
+            ? await Promise.all(layer.children.map(resolveLayer)) 
+            : [];
+
+          console.log(`[resolveCollectionLayers] Resolved children for layer ${layer.id}:`, {
+            childrenCount: resolvedChildren.length,
+            sortedItemsCount: sortedItems.length,
+          });
+
+          // Create a wrapper div for each collection item with resolved children
+          const flattenedChildren: Layer[] = sortedItems.map((item, index) => ({
+            id: `${layer.id}-item-${item.id}`,
+            name: 'div',
+            classes: [] as string[],
+            attributes: {
+              'data-collection-item-id': item.id,
+            } as Record<string, any>,
+            children: resolvedChildren.map(child => 
+              injectCollectionData(child, item.values)
+            ),
+          }));
+
+          console.log(`[resolveCollectionLayers] Created ${flattenedChildren.length} wrapper divs for ${sortedItems.length} items`);
+
           return {
             ...layer,
-            _collectionItems: sortedItems, // Temporary property for SSR
-            children: layer.children ? await Promise.all(layer.children.map(resolveLayer)) : undefined,
+            // Replace children with flattened collection items
+            children: flattenedChildren,
+            // Remove collection variable so LayerRenderer treats it as normal div
+            variables: {
+              ...layer.variables,
+              collection: undefined,
+            },
           };
         } catch (error) {
           console.error(`Failed to resolve collection layer ${layer.id}:`, error);
@@ -439,5 +588,9 @@ export async function resolveCollectionLayers(
     return layer;
   };
   
-  return Promise.all(layers.map(resolveLayer));
+  const result = await Promise.all(layers.map(resolveLayer));
+  console.log('[resolveCollectionLayers] ===== END =====');
+  console.log('[resolveCollectionLayers] Processed layers count:', result.length);
+  
+  return result;
 }

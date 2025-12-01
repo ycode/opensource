@@ -2,10 +2,11 @@
  * Layer utilities for rendering and manipulation
  */
 
-import { Collection, Component, Layer, FieldVariable, CollectionVariable, InlineVariableContent, CollectionItemWithValues, CollectionField } from '@/types';
+import { Collection, Component, Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, CollectionField } from '@/types';
 import { cn } from '@/lib/utils';
 import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
+import { resolveInlineVariables } from '@/lib/inline-variables';
 
 /**
  * Check if a value is a FieldVariable
@@ -23,47 +24,6 @@ export function getCollectionVariable(layer: Layer): CollectionVariable | null {
   }
 
   return null;
-}
-
-/**
- * Get inline variable content from layer
- */
-export function getInlineVariableContent(layer: Layer): InlineVariableContent | null {
-  return layer.variables?.text || null;
-}
-
-/**
- * Resolve inline variables in text by replacing ID-based placeholders
- * @param content - InlineVariableContent with data and variables map
- * @param collectionItemData - Collection item values (field_id -> value)
- * @returns Resolved text with placeholders replaced
- */
-export function resolveInlineVariables(
-  content: InlineVariableContent,
-  collectionItemData?: Record<string, string>
-): string {
-  if (!collectionItemData) {
-    // Return data with placeholders removed if no collection data
-    return content.data.replace(/<ycode-inline-variable id="[^"]+"><\/ycode-inline-variable>/g, '');
-  }
-
-  let resolvedText = content.data;
-
-  // Replace each <ycode-inline-variable id="uuid"></ycode-inline-variable> with actual value
-  const regex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
-  resolvedText = resolvedText.replace(regex, (match, variableId) => {
-    const variable = content.variables[variableId];
-    if (variable && variable.type === 'field' && variable.data?.field_id) {
-      const fieldId = variable.data.field_id;
-      const value = collectionItemData[fieldId];
-      if (value !== undefined && value !== null) {
-        return value;
-      }
-    }
-    return ''; // Empty string for deleted/missing fields
-  });
-
-  return resolvedText;
 }
 
 /**
@@ -244,10 +204,27 @@ export function getTextWithBinding(
   layer: Layer,
   collectionItemData?: Record<string, string>
 ): string | undefined {
-  // Priority 1: Check variables.text (new structure with inline variables)
-  const inlineVariableContent = getInlineVariableContent(layer);
-  if (inlineVariableContent) {
-    return resolveInlineVariables(inlineVariableContent, collectionItemData);
+  // Priority 1: Check variables.text (embedded JSON inline variables)
+  const textWithVariables = layer.variables?.text;
+  if (textWithVariables && typeof textWithVariables === 'string') {
+    if (textWithVariables.includes('<ycode-inline-variable>')) {
+      if (collectionItemData) {
+        const mockItem: any = {
+          id: 'temp',
+          collection_id: 'temp',
+          created_at: '',
+          updated_at: '',
+          deleted_at: null,
+          manual_order: 0,
+          is_published: true,
+          values: collectionItemData,
+        };
+        return resolveInlineVariables(textWithVariables, mockItem);
+      }
+      // No collection data - remove variables
+      return textWithVariables.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+    }
+    return textWithVariables;
   }
 
   // Priority 2: Check if text is a FieldVariable (existing structure)

@@ -561,13 +561,8 @@ export interface CollectionVariable {
   offset?: number; // Number of items to skip
 }
 
-export interface InlineVariableContent {
-  data: string; // Text with placeholders like "Hello <ycode-inline-variable id=\"uuid\"></ycode-inline-variable>"
-  variables: Record<string, FieldVariable>; // Map of variable ID to FieldVariable object for O(1) lookup
-}
-
 export interface LayerVariables {
   collection?: CollectionVariable;
-  text?: InlineVariableContent;
+  text?: string; // Text with embedded JSON inline variables: "Hello <ycode-inline-variable>{JSON}</ycode-inline-variable>"
   // Future: image, link, etc.
 }

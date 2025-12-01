@@ -136,8 +136,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
     const extractCollectionSettings = (layerList: Layer[]): string[] => {
       const settings: string[] = [];
       layerList.forEach((layer) => {
-        const isCollectionLayer = layer.name === 'collection';
-        if (isCollectionLayer && layer.variables?.collection?.id) {
+        const isCollectionLayer = !!layer.variables?.collection?.id;
+        if (isCollectionLayer && layer.variables?.collection) {
           const cv = layer.variables.collection;
           settings.push(`${layer.id}:${cv.id}:${cv.sort_by}:${cv.sort_order}:${cv.limit}:${cv.offset}`);
         }
@@ -168,8 +168,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
       // Recursively find all collection layers and fetch their data
       const findAndFetchCollectionLayers = (layerList: Layer[]) => {
         layerList.forEach((layer) => {
-          const isCollectionLayer = layer.name === 'collection';
-          if (isCollectionLayer && layer.variables?.collection?.id) {
+          const isCollectionLayer = !!layer.variables?.collection?.id;
+          if (isCollectionLayer && layer.variables?.collection) {
             const collectionVariable = layer.variables.collection;
             console.log('[CenterCanvas] Fetching data for collection layer:', layer.id, collectionVariable);
             fetchLayerData(

@@ -4,12 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
-import { getLayerHtmlTag, getClassesString, getText, getImageUrl, getCollectionVariable, sortCollectionItems, resolveFieldValue, resolveInlineVariables, getInlineVariableContent, isTextEditable } from '../../lib/layer-utils';
+import { getLayerHtmlTag, getClassesString, getText, getImageUrl, resolveFieldValue, isTextEditable } from '../../lib/layer-utils';
+import { resolveInlineVariables } from '@/lib/inline-variables';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 import { useComponentsStore } from '../../stores/useComponentsStore';
-import { useCollectionLayerStore } from '../../stores/useCollectionLayerStore';
-import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
-import { useCollectionsStore } from '../../stores/useCollectionsStore';
 import { cn } from '@/lib/utils';
 
 interface LayerRendererProps {
@@ -111,9 +109,29 @@ const LayerItem: React.FC<{
 
   // Resolve text and image URLs with field binding support
   const textContent = (() => {
-    const inlineContent = getInlineVariableContent(layer);
-    if (inlineContent) {
-      return resolveInlineVariables(inlineContent, collectionItemData);
+    // Check for inline variables in embedded JSON format
+    const textWithVariables = layer.variables?.text || layer.text;
+    if (textWithVariables && typeof textWithVariables === 'string') {
+      if (textWithVariables.includes('<ycode-inline-variable>')) {
+      // Use the embedded JSON resolver (client-safe)
+        if (collectionItemData) {
+          const mockItem: any = {
+            id: 'temp',
+            collection_id: 'temp',
+            created_at: '',
+            updated_at: '',
+            deleted_at: null,
+            manual_order: 0,
+            is_published: true,
+            values: collectionItemData,
+          };
+          return resolveInlineVariables(textWithVariables, mockItem);
+        }
+        // No collection data - remove variables
+        return textWithVariables.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+      }
+      // No inline variables, treat as plain text stored in variables
+      return textWithVariables;
     }
     const text = getText(layer);
     if (text) return text;
@@ -136,39 +154,6 @@ const LayerItem: React.FC<{
   // In published pages, components are pre-resolved server-side via resolveComponents()
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const component = (isEditMode && layer.componentId) ? getComponentById(layer.componentId) : null;
-
-  // Get collection items if this is a collection layer
-  const collectionVariable = getCollectionVariable(layer);
-
-  const isCollectionLayer = !!collectionVariable;
-
-  // Debug: Always log to verify execution
-  console.log('[LayerRenderer]', {
-    layerId: layer.id,
-    layerName: layer.name,
-    isCollectionLayer,
-    collectionVariable,
-    NODE_ENV: process.env.NODE_ENV
-  });
-  const collectionId = collectionVariable?.id;
-
-  // Use collection layer store for independent data fetching
-  const layerData = useCollectionLayerStore((state) => state.layerData[layer.id]);
-  const isLoadingLayerData = useCollectionLayerStore((state) => state.loading[layer.id]);
-
-  // Collection items from layer-specific store
-  const collectionItems = layerData || [];
-
-  // Debug: Log collection layer state
-  if (isCollectionLayer) {
-    console.log('[LayerRenderer] Collection Layer', {
-      layerId: layer.id,
-      collectionId,
-      itemsCount: collectionItems.length,
-      isLoading: isLoadingLayerData,
-      collectionVariable
-    });
-  }
 
   // For component instances in edit mode, use the component's layers as children
   // For published pages, children are already resolved server-side
@@ -388,63 +373,21 @@ const LayerItem: React.FC<{
 
         {textContent && textContent}
 
-        {/* Collection layer repeater logic
-            When a collection layer is bound to a collection with items:
-            - Shows shimmer skeleton while loading
-            - Renders children once for each collection item
-            - Since LayerRenderer is recursive, this automatically repeats ALL descendants
-              (children, grandchildren, great-grandchildren, etc.) for each item
-            - Each repeated instance is wrapped in a div with data-collection-item-id
-            - Passes the item's field values as collectionItemData for field binding resolution
-        */}
-        {isCollectionLayer && collectionId ? (
-          // Show loading skeleton while fetching
-          isLoadingLayerData && isEditMode ? (
-            <div className="w-full p-4">
-              <ShimmerSkeleton
-                count={3} height="60px"
-                gap="1rem"
-              />
-            </div>
-          ) : collectionItems.length > 0 ? (
-            // Render children once for each collection item
-            children && children.length > 0 ? (
-              collectionItems.map((item) => (
-                <div key={item.id} data-collection-item-id={item.id}>
-                  <LayerRenderer
-                    layers={children}
-                    onLayerClick={onLayerClick}
-                    onLayerUpdate={onLayerUpdate}
-                    selectedLayerId={selectedLayerId}
-                    isEditMode={isEditMode}
-                    isPublished={isPublished}
-                    enableDragDrop={enableDragDrop}
-                    activeLayerId={activeLayerId}
-                    projected={projected}
-                    pageId={pageId}
-                    collectionItemData={item.values}
-                  />
-                </div>
-              ))
-            ) : null
-          ) : null
-        ) : (
-          // Regular rendering for non-collection layers
-          children && children.length > 0 && (
-            <LayerRenderer
-              layers={children}
-              onLayerClick={onLayerClick}
-              onLayerUpdate={onLayerUpdate}
-              selectedLayerId={selectedLayerId}
-              isEditMode={isEditMode}
-              isPublished={isPublished}
-              enableDragDrop={enableDragDrop}
-              activeLayerId={activeLayerId}
-              projected={projected}
-              pageId={pageId}
-              collectionItemData={collectionItemData}
-            />
-          )
+        {/* Render children - collections are pre-flattened server-side */}
+        {children && children.length > 0 && (
+          <LayerRenderer
+            layers={children}
+            onLayerClick={onLayerClick}
+            onLayerUpdate={onLayerUpdate}
+            selectedLayerId={selectedLayerId}
+            isEditMode={isEditMode}
+            isPublished={isPublished}
+            enableDragDrop={enableDragDrop}
+            activeLayerId={activeLayerId}
+            projected={projected}
+            pageId={pageId}
+            collectionItemData={collectionItemData}
+          />
         )}
       </Tag>
     );

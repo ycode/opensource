@@ -4,47 +4,15 @@
  * Utilities for resolving CMS field variables to actual values from collection items.
  *
  * This file contains both client-safe and server-only functions:
- * - Client-safe: resolveInlineVariables (pure string manipulation)
+ * - Client-safe: resolveInlineVariables (re-exported from inline-variables.ts)
  * - Server-only: Asset resolution functions (require database access)
  */
 
 import type { FieldVariable, CollectionItemWithValues, CollectionField } from '@/types';
 import { isValidUUID } from '@/lib/utils';
 
-/**
- * Resolve inline variables in a text string
- * Replaces <ycode-inline-variable>{"type":"field","data":{"field_id":"..."}}</ycode-inline-variable>
- * with actual field values from the collection item
- *
- * CLIENT-SAFE: This function is pure and doesn't require server access.
- */
-export function resolveInlineVariables(
-  text: string,
-  collectionItem: CollectionItemWithValues | null | undefined
-): string {
-  if (!collectionItem || !collectionItem.values) {
-    return text;
-  }
-
-  const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
-  return text.replace(regex, (match, variableContent) => {
-    try {
-      const parsed = JSON.parse(variableContent.trim());
-
-      if (parsed.type === 'field' && parsed.data?.field_id) {
-        const fieldId = parsed.data.field_id;
-        const fieldValue = collectionItem.values[fieldId];
-
-        // Replace the variable with the actual value (or empty string if not found)
-        return fieldValue || '';
-      }
-    } catch {
-      // Invalid JSON or not a field variable, leave as is
-    }
-
-    return match;
-  });
-}
+// Re-export client-safe inline variable resolver
+export { resolveInlineVariables } from '@/lib/inline-variables';
 
 /**
  * Resolve {{FieldName}} placeholders in custom code

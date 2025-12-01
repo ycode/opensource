@@ -348,47 +348,13 @@ const RightSidebar = React.memo(function RightSidebar({
   const handleContentChange = useCallback((value: string) => {
     if (!selectedLayerId) return;
 
-    // Parse the value from InputWithInlineVariables
-    // The component returns embedded JSON format: <ycode-inline-variable>{...}</ycode-inline-variable>
-    // We need to transform it to ID-based format: <ycode-inline-variable id="uuid"></ycode-inline-variable>
+    const hasInlineVariables = value.includes('<ycode-inline-variable>');
 
-    const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
-    const matches = [...value.matchAll(regex)];
-
-    let transformedData = value;
-    const variablesMap: Record<string, FieldVariable> = {};
-
-    // Process each variable tag
-    matches.forEach((match) => {
-      const fullMatch = match[0];
-      const jsonContent = match[1].trim();
-
-      try {
-        const variable = JSON.parse(jsonContent) as FieldVariable;
-
-        // Generate unique ID for this variable
-        const variableId = `var-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-        // Replace embedded JSON with ID-only format
-        const idBasedTag = `<ycode-inline-variable id="${variableId}"></ycode-inline-variable>`;
-        transformedData = transformedData.replace(fullMatch, idBasedTag);
-
-        // Store variable in map
-        variablesMap[variableId] = variable;
-      } catch (error) {
-        // Invalid JSON, skip this variable
-        console.warn('Failed to parse variable JSON:', jsonContent, error);
-      }
-    });
-
-    // Store in layer.variables.text with proper format
     onLayerUpdate(selectedLayerId, {
+      text: hasInlineVariables ? undefined : value,
       variables: {
         ...selectedLayer?.variables,
-        text: {
-          data: transformedData,
-          variables: variablesMap,
-        },
+        text: hasInlineVariables ? value : undefined,
       },
     });
   }, [selectedLayerId, selectedLayer, onLayerUpdate]);
@@ -397,24 +363,9 @@ const RightSidebar = React.memo(function RightSidebar({
   const getContentValue = useCallback((layer: Layer | null): string => {
     if (!layer) return '';
 
-    // Priority 1: Check layer.variables.text (new structure)
+    // Priority 1: Check layer.variables.text (now a simple string with embedded JSON)
     if (layer.variables?.text) {
-      // Need to convert from ID-based format back to embedded JSON for InputWithInlineVariables
-      // The component expects: <ycode-inline-variable>JSON</ycode-inline-variable>
-      let data = layer.variables.text.data;
-      const variables = layer.variables.text.variables;
-
-      // Replace ID-based placeholders with embedded JSON
-      const regex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
-      data = data.replace(regex, (match, id) => {
-        const variable = variables[id];
-        if (variable) {
-          return `<ycode-inline-variable>${JSON.stringify(variable)}</ycode-inline-variable>`;
-        }
-        return match; // Keep original if variable not found
-      });
-
-      return data;
+      return layer.variables.text;
     }
 
     // Priority 2: Check layer.text (legacy)
