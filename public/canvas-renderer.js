@@ -19,6 +19,8 @@
   let collectionItems = {}; // Collection items by collection ID (for CMS view)
   let collectionFields = {}; // Collection fields by collection ID
   let collectionLayerData = {}; // Collection items by layer ID (for collection layers)
+  let pageCollectionItem = null; // Collection item for dynamic page preview
+  let pageCollectionFields = [];
 
   // Root element
   const root = document.getElementById('canvas-root');
@@ -48,6 +50,8 @@
         editingComponentId = message.payload.editingComponentId;
         collectionItems = message.payload.collectionItems || {};
         collectionFields = message.payload.collectionFields || {};
+        pageCollectionItem = message.payload.pageCollectionItem || null;
+        pageCollectionFields = message.payload.pageCollectionFields || [];
         render();
         break;
 
@@ -421,7 +425,12 @@
       const idRegex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
 
       if (collectionItemData && inlineContent.variables) {
-        const fieldsForCollection = collectionId && collectionFields[collectionId] ? collectionFields[collectionId] : [];
+        let fieldsForCollection = [];
+        if (collectionId && collectionFields[collectionId]) {
+          fieldsForCollection = collectionFields[collectionId];
+        } else if (pageCollectionFields && pageCollectionFields.length > 0) {
+          fieldsForCollection = pageCollectionFields;
+        }
 
         resolvedText = resolvedText.replace(idRegex, function(match, variableId) {
           const variable = inlineContent.variables[variableId];
@@ -584,6 +593,7 @@
     }
 
     const tag = getLayerHtmlTag(layer);
+    const inheritedCollectionItemData = collectionItemData || (pageCollectionItem ? pageCollectionItem.values : undefined);
     const element = document.createElement(tag);
 
     // Set ID
@@ -628,7 +638,7 @@
     }
 
     // Add text content
-    const textContent = getText(layer, collectionItemData, activeCollectionId);
+    const textContent = getText(layer, inheritedCollectionItemData, activeCollectionId);
     const hasChildren = layer.children && layer.children.length > 0;
 
     if (textContent && !hasChildren) {
@@ -682,7 +692,7 @@
       } else {
         // Regular rendering: just render children normally
         layer.children.forEach(child => {
-          const childElement = renderLayer(child, collectionItemData, activeCollectionId);
+          const childElement = renderLayer(child, inheritedCollectionItemData, activeCollectionId);
           if (childElement) {
             element.appendChild(childElement);
           }

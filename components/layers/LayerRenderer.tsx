@@ -4,10 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
-import { getLayerHtmlTag, getClassesString, getText, getImageUrl, resolveFieldValue, isTextEditable } from '../../lib/layer-utils';
+import { getLayerHtmlTag, getClassesString, getText, getImageUrl, resolveFieldValue, isTextEditable, getCollectionVariable } from '../../lib/layer-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 import { useComponentsStore } from '../../stores/useComponentsStore';
+import { useCollectionLayerStore } from '../../stores/useCollectionLayerStore';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { cn } from '@/lib/utils';
 
 interface LayerRendererProps {
@@ -22,6 +24,7 @@ interface LayerRendererProps {
   projected?: { depth: number; parentId: string | null } | null;
   pageId?: string;
   collectionItemData?: Record<string, string>; // Collection item field values (field_id -> value)
+  pageCollectionItemData?: Record<string, string> | null;
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -36,6 +39,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   projected = null,
   pageId = '',
   collectionItemData,
+  pageCollectionItemData,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -60,6 +64,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
           setEditingContent={setEditingContent}
           pageId={pageId}
           collectionItemData={collectionItemData}
+          pageCollectionItemData={pageCollectionItemData}
         />
       ))}
     </>
@@ -83,6 +88,7 @@ const LayerItem: React.FC<{
   setEditingContent: (content: string) => void;
   pageId: string;
   collectionItemData?: Record<string, string>;
+  pageCollectionItemData?: Record<string, string> | null;
 }> = ({
   layer,
   isEditMode,
@@ -99,6 +105,7 @@ const LayerItem: React.FC<{
   setEditingContent,
   pageId,
   collectionItemData,
+  pageCollectionItemData,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isEditing = editingLayerId === layer.id;
@@ -106,6 +113,7 @@ const LayerItem: React.FC<{
   const textEditable = isTextEditable(layer);
   const htmlTag = getLayerHtmlTag(layer);
   const classesString = getClassesString(layer);
+  const effectiveCollectionItemData = collectionItemData || pageCollectionItemData || undefined;
 
   // Resolve text and image URLs with field binding support
   const textContent = (() => {
@@ -114,7 +122,7 @@ const LayerItem: React.FC<{
     if (textWithVariables && typeof textWithVariables === 'string') {
       if (textWithVariables.includes('<ycode-inline-variable>')) {
       // Use the embedded JSON resolver (client-safe)
-        if (collectionItemData) {
+        if (effectiveCollectionItemData) {
           const mockItem: any = {
             id: 'temp',
             collection_id: 'temp',
@@ -123,7 +131,7 @@ const LayerItem: React.FC<{
             deleted_at: null,
             manual_order: 0,
             is_published: true,
-            values: collectionItemData,
+            values: effectiveCollectionItemData,
           };
           return resolveInlineVariables(textWithVariables, mockItem);
         }
@@ -136,7 +144,7 @@ const LayerItem: React.FC<{
     const text = getText(layer);
     if (text) return text;
     if (typeof layer.text === 'object') {
-      return resolveFieldValue(layer.text, collectionItemData);
+      return resolveFieldValue(layer.text, effectiveCollectionItemData);
     }
     return undefined;
   })();
@@ -145,7 +153,7 @@ const LayerItem: React.FC<{
     const url = getImageUrl(layer);
     if (url) return url;
     if (typeof layer.url === 'object') {
-      return resolveFieldValue(layer.url, collectionItemData);
+      return resolveFieldValue(layer.url, effectiveCollectionItemData);
     }
     return undefined;
   })();
@@ -154,6 +162,38 @@ const LayerItem: React.FC<{
   // In published pages, components are pre-resolved server-side via resolveComponents()
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const component = (isEditMode && layer.componentId) ? getComponentById(layer.componentId) : null;
+  const collectionVariable = getCollectionVariable(layer);
+  const isCollectionLayer = !!collectionVariable;
+  const collectionId = collectionVariable?.id;
+  const layerData = useCollectionLayerStore((state) => state.layerData[layer.id]);
+  const isLoadingLayerData = useCollectionLayerStore((state) => state.loading[layer.id]);
+  const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
+  const collectionItems = layerData || [];
+  useEffect(() => {
+    if (!isEditMode) return;
+    if (!collectionVariable?.id) return;
+    if (collectionItems.length > 0 || isLoadingLayerData) return;
+
+    fetchLayerData(
+      layer.id,
+      collectionVariable.id,
+      collectionVariable.sort_by,
+      collectionVariable.sort_order,
+      collectionVariable.limit,
+      collectionVariable.offset
+    );
+  }, [
+    isEditMode,
+    collectionVariable?.id,
+    collectionVariable?.sort_by,
+    collectionVariable?.sort_order,
+    collectionVariable?.limit,
+    collectionVariable?.offset,
+    collectionItems.length,
+    isLoadingLayerData,
+    fetchLayerData,
+    layer.id,
+  ]);
 
   // For component instances in edit mode, use the component's layers as children
   // For published pages, children are already resolved server-side
@@ -322,7 +362,8 @@ const LayerItem: React.FC<{
               activeLayerId={activeLayerId}
               projected={projected}
               pageId={pageId}
-              collectionItemData={collectionItemData}
+              collectionItemData={effectiveCollectionItemData}
+              pageCollectionItemData={pageCollectionItemData}
             />
           )}
         </Tag>
@@ -373,21 +414,52 @@ const LayerItem: React.FC<{
 
         {textContent && textContent}
 
-        {/* Render children - collections are pre-flattened server-side */}
+        {/* Render children */}
         {children && children.length > 0 && (
-          <LayerRenderer
-            layers={children}
-            onLayerClick={onLayerClick}
-            onLayerUpdate={onLayerUpdate}
-            selectedLayerId={selectedLayerId}
-            isEditMode={isEditMode}
-            isPublished={isPublished}
-            enableDragDrop={enableDragDrop}
-            activeLayerId={activeLayerId}
-            projected={projected}
-            pageId={pageId}
-            collectionItemData={collectionItemData}
-          />
+          isCollectionLayer && isEditMode ? (
+            isLoadingLayerData ? (
+              <div className="w-full p-4">
+                <ShimmerSkeleton
+                  count={3} height="60px"
+                  gap="1rem"
+                />
+              </div>
+            ) : (
+              collectionItems.map((item) => (
+                <div key={item.id} data-collection-item-id={item.id}>
+                  <LayerRenderer
+                    layers={children}
+                    onLayerClick={onLayerClick}
+                    onLayerUpdate={onLayerUpdate}
+                    selectedLayerId={selectedLayerId}
+                    isEditMode={isEditMode}
+                    isPublished={isPublished}
+                    enableDragDrop={enableDragDrop}
+                    activeLayerId={activeLayerId}
+                    projected={projected}
+                    pageId={pageId}
+                    collectionItemData={item.values}
+                    pageCollectionItemData={pageCollectionItemData}
+                  />
+                </div>
+              ))
+            )
+          ) : (
+            <LayerRenderer
+              layers={children}
+              onLayerClick={onLayerClick}
+              onLayerUpdate={onLayerUpdate}
+              selectedLayerId={selectedLayerId}
+              isEditMode={isEditMode}
+              isPublished={isPublished}
+              enableDragDrop={enableDragDrop}
+              activeLayerId={activeLayerId}
+              projected={projected}
+              pageId={pageId}
+              collectionItemData={effectiveCollectionItemData}
+              pageCollectionItemData={pageCollectionItemData}
+            />
+          )
         )}
       </Tag>
     );

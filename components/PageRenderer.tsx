@@ -95,6 +95,7 @@ export default function PageRenderer({
           layers={normalizedLayers}
           isEditMode={false}
           isPublished={page.is_published}
+          pageCollectionItemData={collectionItem?.values || undefined}
         />
       </div>
 

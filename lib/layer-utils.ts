@@ -23,6 +23,12 @@ export function getCollectionVariable(layer: Layer): CollectionVariable | null {
     return layer.variables.collection;
   }
 
+  if (layer.collection?.id) {
+    return {
+      id: layer.collection.id,
+    };
+  }
+
   return null;
 }
 

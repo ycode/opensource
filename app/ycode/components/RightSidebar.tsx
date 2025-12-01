@@ -97,6 +97,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
 
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
+  const pages = usePagesStore((state) => state.pages);
 
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
@@ -544,12 +545,24 @@ const RightSidebar = React.memo(function RightSidebar({
   }, [selectedLayerId, editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
   // Get collection fields if parent collection layer exists
+  const currentPage = useMemo(() => {
+    if (!currentPageId) {
+      return null;
+    }
+    return pages.find((page) => page.id === currentPageId) || null;
+  }, [pages, currentPageId]);
+
   const parentCollectionFields = useMemo(() => {
     const collectionVariable = parentCollectionLayer ? getCollectionVariable(parentCollectionLayer) : null;
-    const collectionId = collectionVariable?.id;
+    let collectionId = collectionVariable?.id;
+
+    if (!collectionId && currentPage?.is_dynamic) {
+      collectionId = currentPage.settings?.cms?.collection_id || undefined;
+    }
+
     if (!collectionId) return [];
     return fields[collectionId] || [];
-  }, [parentCollectionLayer, fields]);
+  }, [parentCollectionLayer, fields, currentPage]);
 
   // Get collection fields for the currently selected collection layer (for Sort By dropdown)
   const selectedCollectionFields = useMemo(() => {

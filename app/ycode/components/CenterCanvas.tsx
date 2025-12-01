@@ -32,6 +32,7 @@ import type { IframeToParentMessage } from '@/lib/iframe-bridge';
 import { buildPageTree, getNodeIcon, findHomepage } from '@/lib/page-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
+import { getCollectionVariable } from '@/lib/layer-utils';
 
 // 7. Types
 import type { Layer, Page, PageFolder } from '@/types';
@@ -136,10 +137,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
     const extractCollectionSettings = (layerList: Layer[]): string[] => {
       const settings: string[] = [];
       layerList.forEach((layer) => {
-        const isCollectionLayer = !!layer.variables?.collection?.id;
-        if (isCollectionLayer && layer.variables?.collection) {
-          const cv = layer.variables.collection;
-          settings.push(`${layer.id}:${cv.id}:${cv.sort_by}:${cv.sort_order}:${cv.limit}:${cv.offset}`);
+        const collectionVariable = getCollectionVariable(layer);
+        if (collectionVariable?.id) {
+          settings.push(`${layer.id}:${collectionVariable.id}:${collectionVariable.sort_by ?? ''}:${collectionVariable.sort_order ?? ''}:${collectionVariable.limit ?? ''}:${collectionVariable.offset ?? ''}`);
         }
         if (layer.children && layer.children.length > 0) {
           settings.push(...extractCollectionSettings(layer.children));
@@ -168,9 +168,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
       // Recursively find all collection layers and fetch their data
       const findAndFetchCollectionLayers = (layerList: Layer[]) => {
         layerList.forEach((layer) => {
-          const isCollectionLayer = !!layer.variables?.collection?.id;
-          if (isCollectionLayer && layer.variables?.collection) {
-            const collectionVariable = layer.variables.collection;
+          const collectionVariable = getCollectionVariable(layer);
+          if (collectionVariable?.id) {
             console.log('[CenterCanvas] Fetching data for collection layer:', layer.id, collectionVariable);
             fetchLayerData(
               layer.id,
@@ -269,6 +268,29 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (!currentPage?.is_dynamic) return null;
     return currentPage.settings?.cms?.collection_id || null;
   }, [currentPage]);
+
+  const pageCollectionItem = useMemo(() => {
+    if (!currentPage?.is_dynamic) {
+      return null;
+    }
+    const collectionId = currentPage.settings?.cms?.collection_id;
+    if (!collectionId || !currentPageCollectionItemId) {
+      return null;
+    }
+    const itemsForCollection = collectionItemsFromStore[collectionId] || [];
+    return itemsForCollection.find((item) => item.id === currentPageCollectionItemId) || null;
+  }, [currentPage, currentPageCollectionItemId, collectionItemsFromStore]);
+
+  const pageCollectionFields = useMemo(() => {
+    if (!currentPage?.is_dynamic) {
+      return [];
+    }
+    const collectionId = currentPage.settings?.cms?.collection_id;
+    if (!collectionId) {
+      return [];
+    }
+    return collectionFieldsFromStore[collectionId] || [];
+  }, [currentPage, collectionFieldsFromStore]);
 
   // Load collection items when dynamic page is selected
   useEffect(() => {
@@ -475,9 +497,21 @@ const CenterCanvas = React.memo(function CenterCanvas({
         editingComponentId: editingComponentId || null,
         collectionItems: collectionItemsFromStore,
         collectionFields: collectionFieldsFromStore,
+        pageCollectionItem,
+        pageCollectionFields,
       },
     });
-  }, [layers, selectedLayerId, iframeReady, components, editingComponentId, collectionItemsFromStore, collectionFieldsFromStore]);
+  }, [
+    layers,
+    selectedLayerId,
+    iframeReady,
+    components,
+    editingComponentId,
+    collectionItemsFromStore,
+    collectionFieldsFromStore,
+    pageCollectionItem,
+    pageCollectionFields,
+  ]);
 
   // Send collection layer data to iframe whenever it changes
   useEffect(() => {
