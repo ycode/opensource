@@ -153,24 +153,18 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   // Debounce the fetch to prevent duplicate calls during rapid updates
   useEffect(() => {
-    console.log('[CenterCanvas] Effect triggered, collectionLayersKey:', collectionLayersKey);
-    
     // Clear any existing timeout
     if (fetchTimeoutRef.current) {
-      console.log('[CenterCanvas] Clearing existing timeout');
       clearTimeout(fetchTimeoutRef.current);
     }
 
     // Set new timeout
     fetchTimeoutRef.current = setTimeout(() => {
-      console.log('[CenterCanvas] Timeout fired, fetching data');
-      
       // Recursively find all collection layers and fetch their data
       const findAndFetchCollectionLayers = (layerList: Layer[]) => {
         layerList.forEach((layer) => {
           const collectionVariable = getCollectionVariable(layer);
           if (collectionVariable?.id) {
-            console.log('[CenterCanvas] Fetching data for collection layer:', layer.id, collectionVariable);
             fetchLayerData(
               layer.id,
               collectionVariable.id,
@@ -273,13 +267,23 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (!currentPage?.is_dynamic) {
       return null;
     }
+    
+    // First, check if we have an optimistically updated item in the draft
+    if (currentPageId) {
+      const draft = draftsByPageId[currentPageId];
+      if (draft && (draft as any).collectionItem) {
+        return (draft as any).collectionItem;
+      }
+    }
+    
+    // Fall back to fetching from collections store
     const collectionId = currentPage.settings?.cms?.collection_id;
     if (!collectionId || !currentPageCollectionItemId) {
       return null;
     }
     const itemsForCollection = collectionItemsFromStore[collectionId] || [];
     return itemsForCollection.find((item) => item.id === currentPageCollectionItemId) || null;
-  }, [currentPage, currentPageCollectionItemId, collectionItemsFromStore]);
+  }, [currentPage, currentPageId, currentPageCollectionItemId, collectionItemsFromStore, draftsByPageId]);
 
   const pageCollectionFields = useMemo(() => {
     if (!currentPage?.is_dynamic) {
@@ -517,11 +521,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
   useEffect(() => {
     if (!iframeReady || !iframeRef.current) return;
 
-    console.log('[CenterCanvas] Sending collection layer data to iframe:', collectionLayerData);
-
     // Send each layer's data separately
     Object.entries(collectionLayerData).forEach(([layerId, items]) => {
-      console.log(`[CenterCanvas] Sending data for layer ${layerId}:`, items);
       sendToIframe(iframeRef.current!, {
         type: 'COLLECTION_LAYER_DATA',
         payload: { layerId, items },
@@ -599,6 +600,15 @@ const CenterCanvas = React.memo(function CenterCanvas({
               text: message.payload.text,
             });
           }
+          break;
+
+        case 'OPEN_COLLECTION_ITEM_SHEET':
+          const { openCollectionItemSheet } = useEditorStore.getState();
+
+          openCollectionItemSheet(
+            message.payload.collectionId,
+            message.payload.itemId
+          );
           break;
 
         case 'CONTEXT_MENU':

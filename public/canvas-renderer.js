@@ -349,14 +349,6 @@
   function getText(layer, collectionItemData, collectionId) {
     const text = layer.text || '';
 
-    console.log('[getText]', {
-      layerId: layer.id,
-      hasVariables: !!layer.variables?.text,
-      variablesText: layer.variables?.text,
-      text,
-      collectionItemData
-    });
-
     // Check if text is a field variable
     if (text && typeof text === 'object' && text.type === 'field' && text.data && text.data.field_id) {
       // Resolve field variable from collection item data
@@ -378,12 +370,6 @@
       if (typeof inlineContent === 'string') {
         let resolvedText = inlineContent;
 
-        console.log('[getText] Processing inline variables (string format)', {
-          text: resolvedText,
-          hasInlineVariables: resolvedText.includes('<ycode-inline-variable>'),
-          hasCollectionData: !!collectionItemData
-        });
-
         const jsonRegex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
 
         if (resolvedText.includes('<ycode-inline-variable>')) {
@@ -393,7 +379,8 @@
                 const variable = JSON.parse(jsonContent.trim());
                 if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
                   const fieldId = variable.data.field_id;
-                  const value = collectionItemData[fieldId];
+                  // Collection item data has values in a nested object
+                  const value = collectionItemData.values?.[fieldId] ?? collectionItemData[fieldId];
                   if (value !== undefined && value !== null) {
                     return value;
                   }
@@ -408,19 +395,12 @@
           }
         }
 
-        console.log('[getText] Final resolved text (string format):', resolvedText);
         return resolvedText;
       }
 
       // Legacy format: { data, variables } map
       const inlineData = inlineContent.data || '';
       let resolvedText = inlineData;
-
-      console.log('[getText] Processing inline variables (legacy format)', {
-        data: resolvedText,
-        variables: inlineContent.variables,
-        hasCollectionData: !!collectionItemData
-      });
 
       const idRegex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
 
@@ -452,7 +432,6 @@
         resolvedText = resolvedText.replace(idRegex, '');
       }
 
-      console.log('[getText] Final resolved text (legacy format):', resolvedText);
       return resolvedText;
     }
 
@@ -742,10 +721,31 @@
 
     // Double-click to edit text
     if (isTextEditable(layer)) {
+      console.log('[addEventListeners] Attaching double-click handler to layer:', layer.id, layer.name);
       element.addEventListener('dblclick', function(e) {
         e.stopPropagation();
-        startTextEditing(layer.id, layer, element);
+
+        // Get collection item data for this specific element
+        const itemWrapper = element.closest('[data-collection-item-id]');
+        const collectionItemId = itemWrapper?.getAttribute('data-collection-item-id');
+        let itemData = null;
+        let collectionId = null;
+
+        if (collectionItemId) {
+          const parentCollectionLayer = findParentCollectionLayerInTree(layer.id);
+          collectionId = parentCollectionLayer?.variables?.collection?.id;
+
+          if (collectionId && collectionLayerData[parentCollectionLayer.id]) {
+            itemData = collectionLayerData[parentCollectionLayer.id].find(
+              item => item.id === collectionItemId
+            );
+          }
+        }
+
+        startTextEditing(layer.id, layer, element, itemData, collectionId);
       });
+    } else {
+      console.log('[addEventListeners] Layer not text-editable:', layer.id, 'formattable:', layer.formattable);
     }
 
     // Right-click for context menu
@@ -802,10 +802,117 @@
   }
 
   /**
+   * Check if layer has single inline variable
+   */
+  function hasSingleInlineVariable(layer) {
+    const text = layer.variables?.text;
+
+    if (!text || typeof text !== 'string') {
+      return false;
+    }
+
+    const regex = /<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g;
+    const matches = text.match(regex);
+
+    if (!matches || matches.length !== 1) {
+      return false;
+    }
+
+    const withoutVariable = text.replace(regex, '').trim();
+
+    const result = withoutVariable === '';
+
+    return result;
+  }
+
+  /**
+   * Find parent collection layer by traversing up the tree
+   */
+  function findParentCollectionLayerInTree(layerId) {
+    // Traverse layers tree to find parent collection layer
+    function traverse(layerList, targetId) {
+      for (const layer of layerList) {
+        // Check if this layer is a collection layer containing the target
+        if (layer.variables?.collection?.id) {
+          if (containsLayerId(layer.children, targetId)) {
+            return layer;
+          }
+        }
+
+        // Recursively check children
+        if (layer.children) {
+          const found = traverse(layer.children, targetId);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+
+    function containsLayerId(layerList, targetId) {
+      if (!layerList) return false;
+      for (const layer of layerList) {
+        if (layer.id === targetId) return true;
+        if (layer.children && containsLayerId(layer.children, targetId)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    return traverse(layers, layerId);
+  }
+
+  /**
    * Start text editing mode
    */
-  function startTextEditing(layerId, layer, element) {
+  function startTextEditing(layerId, layer, element, collectionItemData = null, activeCollectionId = null) {
     if (editingLayerId) return;
+
+    // If layer has variables.text (inline variables), don't allow inline editing
+    // This content should only be edited via the Content panel or collection sheet
+    if (layer.variables?.text) {
+      // Exception: if it's a single variable, open the collection item sheet
+      const hasSingle = hasSingleInlineVariable(layer);
+
+      if (hasSingle) {
+        // Find the collection item ID from parent wrapper
+        const itemWrapper = element.closest('[data-collection-item-id]');
+        const collectionItemId = itemWrapper?.getAttribute('data-collection-item-id');
+
+        if (collectionItemId) {
+          // Inside a collection layer - use collection layer context
+          const parentCollectionLayer = findParentCollectionLayerInTree(layerId);
+          const collectionId = parentCollectionLayer?.variables?.collection?.id;
+
+          if (collectionId) {
+            // Notify parent to open collection item sheet
+            sendToParent('OPEN_COLLECTION_ITEM_SHEET', {
+              collectionId,
+              itemId: collectionItemId,
+            });
+            return; // Don't start inline editing
+          }
+        }
+          
+        // Not in collection layer - check if on dynamic page
+        if (pageCollectionItem && pageCollectionFields && pageCollectionFields.length > 0) {
+          const pageCollectionId = pageCollectionItem.collection_id;
+          const pageItemId = pageCollectionItem.id;
+            
+          if (pageCollectionId && pageItemId) {
+            // Notify parent to open collection item sheet for page item
+            sendToParent('OPEN_COLLECTION_ITEM_SHEET', {
+              collectionId: pageCollectionId,
+              itemId: pageItemId,
+            });
+            return; // Don't start inline editing
+          }
+        }
+      }
+
+      // For non-single variables or if no collection context, don't allow inline editing
+      return;
+    }
 
     editingLayerId = layerId;
 
@@ -816,6 +923,7 @@
     }
 
     // Get current text from layer data, not from DOM (to avoid badge text)
+    // Pass actual collection data to resolve variables correctly
     const currentText = getText(layer, collectionItemData, activeCollectionId);
 
     // Create input element

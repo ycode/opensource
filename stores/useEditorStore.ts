@@ -33,6 +33,8 @@ interface EditorActions {
   setInteractionHighlights: (triggerIds: string[], targetIds: string[]) => void;
   setActiveInteraction: (triggerId: string | null, targetIds: string[]) => void;
   clearActiveInteraction: () => void;
+  openCollectionItemSheet: (collectionId: string, itemId: string) => void;
+  closeCollectionItemSheet: () => void;
 }
 
 interface EditorStoreWithHistory extends EditorState {
@@ -47,6 +49,11 @@ interface EditorStoreWithHistory extends EditorState {
   interactionTargetLayerIds: string[];
   activeInteractionTriggerLayerId: string | null;
   activeInteractionTargetLayerIds: string[];
+  collectionItemSheet: {
+    open: boolean;
+    collectionId: string;
+    itemId: string;
+  } | null;
 }
 
 type EditorStore = EditorStoreWithHistory & EditorActions;
@@ -72,6 +79,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   interactionTargetLayerIds: [],
   activeInteractionTriggerLayerId: null,
   activeInteractionTargetLayerIds: [],
+  collectionItemSheet: null,
 
   setSelectedLayerId: (id) => {
     // Legacy support - also update selectedLayerIds
@@ -233,5 +241,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   clearActiveInteraction: () => set({
     activeInteractionTriggerLayerId: null,
     activeInteractionTargetLayerIds: [],
+  }),
+
+  openCollectionItemSheet: (collectionId, itemId) => set({
+    collectionItemSheet: {
+      open: true,
+      collectionId,
+      itemId,
+    },
+  }),
+
+  closeCollectionItemSheet: () => set({
+    collectionItemSheet: null,
   }),
 }));

@@ -6,30 +6,13 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetActions,
-} from '@/components/ui/sheet';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue, SelectGroup } from '@/components/ui/select';
-import { TiptapEditor } from '@/components/ui/tiptap-editor';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -42,6 +25,7 @@ import { useEditorUrl } from '@/hooks/use-editor-url';
 import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
 import FieldFormPopover from './FieldFormPopover';
+import CollectionItemSheet from './CollectionItemSheet';
 import type { CollectionItemWithValues, CollectionField } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -142,11 +126,6 @@ const CMS = React.memo(function CMS() {
     [selectedCollectionId, items]
   );
   const totalItems = selectedCollectionId ? (itemsTotalCount[selectedCollectionId] || 0) : 0;
-
-  // Form for Sheet
-  const form = useForm({
-    defaultValues: {} as Record<string, any>,
-  });
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -327,33 +306,6 @@ const CMS = React.memo(function CMS() {
     }
     prevPageSizeRef.current = pageSize;
   }, [pageSize]);
-
-  // Update form when editing item or collection fields change
-  useEffect(() => {
-    if (editingItem) {
-      form.reset(editingItem.values);
-    } else {
-      // Reset with default values from fields
-      const defaults: Record<string, any> = {};
-      collectionFields.forEach(field => {
-        // Always set a value (use default or empty string) to avoid undefined
-        defaults[field.id] = field.default || '';
-      });
-      form.reset(defaults);
-    }
-  }, [editingItem, collectionFields, form]);
-
-  // Auto-populate slug from name only when creating new items
-  useEffect(() => {
-    if (!editingItem) {
-      const subscription = form.watch((value, { name: fieldName }) => {
-        if (fieldName === 'name' && value.name && typeof value.name === 'string') {
-          form.setValue('slug', slugify(value.name), { shouldValidate: false });
-        }
-      });
-      return () => subscription.unsubscribe();
-    }
-  }, [form, editingItem]);
 
   // Sync URL with item editing state (URL is source of truth for persistence, not immediate UI)
   useEffect(() => {
@@ -721,33 +673,6 @@ const CMS = React.memo(function CMS() {
     }
   };
 
-  const handleSheetSubmit = async (values: Record<string, any>) => {
-    if (!selectedCollectionId) return;
-
-    try {
-      if (editingItem) {
-        // Update existing item (store updates local state optimistically)
-        await updateItem(selectedCollectionId, editingItem.id, values);
-      } else {
-        // Create new item (store adds to local state optimistically)
-        await createItem(selectedCollectionId, values);
-      }
-
-      // No reload needed - store already updated local state optimistically
-
-      // Close sheet and reset
-      setShowItemSheet(false);
-      setEditingItem(null);
-      form.reset();
-
-      // Navigate back to collection list
-      navigateToCollection(selectedCollectionId);
-    } catch (error) {
-      console.error('Failed to save item:', error);
-      alert('Failed to save item. Please try again.');
-    }
-  };
-
   // Memoize table to prevent unnecessary re-renders during navigation
   const tableContent = React.useMemo(() => {
     return (
@@ -1065,7 +990,7 @@ const CMS = React.memo(function CMS() {
                 )}
 
                 {/* Sheet for Create/Edit Item */}
-                <Sheet
+                <CollectionItemSheet
                   open={showItemSheet}
                   onOpenChange={(open) => {
                     if (!open) {
@@ -1078,64 +1003,16 @@ const CMS = React.memo(function CMS() {
                       }
                     }
                   }}
-                >
-                  <SheetContent>
-                    <SheetHeader>
-                      <SheetTitle>
-                        {editingItem ? 'Edit' : 'Create'} {selectedCollection?.name} Item
-                      </SheetTitle>
-                      <SheetActions>
-                        <Button
-                          size="sm"
-                          type="submit"
-                          form="collection-item-form"
-                        >
-                          {editingItem ? 'Save' : 'Create'}
-                        </Button>
-                      </SheetActions>
-                    </SheetHeader>
-
-                    <Form {...form}>
-                      <form
-                        id="collection-item-form"
-                        onSubmit={form.handleSubmit(handleSheetSubmit)}
-                        className="flex flex-col gap-4 flex-1 mt-6"
-                      >
-                        <div className="flex-1 flex flex-col gap-6">
-                          {collectionFields
-                            .filter(f => f.fillable && !f.hidden)
-                            .map((field) => (
-                              <FormField
-                                key={field.id}
-                                control={form.control}
-                                name={field.id}
-                                render={({ field: formField }) => (
-                                  <FormItem>
-                                    <FormLabel>{field.name}</FormLabel>
-                                    <FormControl>
-                                      {field.type === 'rich_text' ? (
-                                        <TiptapEditor
-                                          value={formField.value || ''}
-                                          onChange={formField.onChange}
-                                          placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
-                                        />
-                                      ) : (
-                                        <Input
-                                          placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
-                                          {...formField}
-                                        />
-                                      )}
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            ))}
-                        </div>
-                      </form>
-                    </Form>
-                  </SheetContent>
-                </Sheet>
+                  collectionId={selectedCollectionId!}
+                  itemId={editingItem?.id || null}
+                  onSuccess={() => {
+                    setShowItemSheet(false);
+                    setEditingItem(null);
+                    if (selectedCollectionId) {
+                      navigateToCollection(selectedCollectionId);
+                    }
+                  }}
+                />
               </div>
             </div>
 

@@ -14,6 +14,7 @@ interface CollectionLayerState {
   layerData: Record<string, CollectionItemWithValues[]>; // keyed by layerId
   loading: Record<string, boolean>; // loading state per layer
   error: Record<string, string | null>; // error state per layer
+  layerConfig: Record<string, { collectionId: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; limit?: number; offset?: number }>; // Track config per layer
 }
 
 interface CollectionLayerActions {
@@ -27,6 +28,8 @@ interface CollectionLayerActions {
   ) => Promise<void>;
   clearLayerData: (layerId: string) => void;
   clearAllLayerData: () => void;
+  updateItemInLayerData: (itemId: string, values: Record<string, string>) => void;
+  refetchLayersForCollection: (collectionId: string) => Promise<void>;
 }
 
 type CollectionLayerStore = CollectionLayerState & CollectionLayerActions;
@@ -36,6 +39,7 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
   layerData: {},
   loading: {},
   error: {},
+  layerConfig: {},
 
   // Fetch data for a specific layer
   fetchLayerData: async (
@@ -81,6 +85,10 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
       set((state) => ({
         layerData: { ...state.layerData, [layerId]: items },
         loading: { ...state.loading, [layerId]: false },
+        layerConfig: { 
+          ...state.layerConfig, 
+          [layerId]: { collectionId, sortBy, sortOrder, limit, offset } 
+        },
       }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch layer data';
@@ -114,5 +122,62 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
       loading: {},
       error: {},
     });
+  },
+
+  // Optimistically update an item across all layer data
+  updateItemInLayerData: (itemId, values) => {
+    set((state) => {
+      const newLayerData = { ...state.layerData };
+      
+      // Update the item in all layers that have it
+      Object.keys(newLayerData).forEach(layerId => {
+        newLayerData[layerId] = newLayerData[layerId].map(item => {
+          if (item.id === itemId) {
+            return { ...item, values };
+          }
+          return item;
+        });
+      });
+      
+      return { layerData: newLayerData };
+    });
+  },
+
+  // Refetch all layers that use a specific collection
+  refetchLayersForCollection: async (collectionId) => {
+    const { layerData, layerConfig } = get();
+    
+    console.log('[CollectionLayerStore] Refetching layers for collection:', collectionId);
+    
+    // Find all layers that use this collection
+    const layersToRefetch = Object.entries(layerConfig)
+      .filter(([_, config]) => config.collectionId === collectionId)
+      .map(([layerId]) => layerId);
+    
+    console.log('[CollectionLayerStore] Layers to refetch:', layersToRefetch);
+    
+    // Refetch each layer without showing loading state
+    for (const layerId of layersToRefetch) {
+      const config = layerConfig[layerId];
+      if (config) {
+        try {
+          const response = await collectionsApi.getItems(config.collectionId, {
+            sortBy: config.sortBy,
+            sortOrder: config.sortOrder,
+            limit: config.limit,
+            offset: config.offset,
+          });
+
+          if (!response.error && response.data?.items) {
+            // Update data silently (no loading state change)
+            set((state) => ({
+              layerData: { ...state.layerData, [layerId]: response.data!.items },
+            }));
+          }
+        } catch (error) {
+          console.error(`[CollectionLayerStore] Error refetching layer ${layerId}:`, error);
+        }
+      }
+    }
   },
 }));

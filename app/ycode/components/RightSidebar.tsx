@@ -474,8 +474,12 @@ const RightSidebar = React.memo(function RightSidebar({
 
     const hasInlineVariables = value.includes('<ycode-inline-variable>');
 
+    // Check if content is ONLY variables (no plain text after removing variable tags)
+    const onlyVariables = hasInlineVariables && 
+      value.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '').trim() === '';
+
     onLayerUpdate(selectedLayerId, {
-      text: hasInlineVariables ? undefined : value,
+      text: hasInlineVariables ? (onlyVariables ? undefined : value) : value,
       variables: {
         ...selectedLayer?.variables,
         text: hasInlineVariables ? value : undefined,

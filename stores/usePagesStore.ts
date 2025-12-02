@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Layer, Page, PageLayers, PageFolder, PageItemDuplicateResult } from '../types';
+import type { Layer, Page, PageLayers, PageFolder, PageItemDuplicateResult, CollectionItemWithValues } from '../types';
 import { pagesApi, pageLayersApi, foldersApi } from '../lib/api';
 import { getTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
@@ -76,6 +76,10 @@ interface PagesActions {
 
   // Publish actions
   publishPages: (pageIds: string[]) => Promise<{ success: boolean; count?: number; error?: string }>;
+
+  // Page collection item actions (for dynamic pages)
+  updatePageCollectionItem: (pageId: string, updatedItem: CollectionItemWithValues) => void;
+  refetchPageCollectionItem: (pageId: string) => Promise<void>;
 }
 
 type PagesStore = PagesState & PagesActions;
@@ -2589,6 +2593,52 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       const errorMsg = error instanceof Error ? error.message : 'Failed to publish pages';
       set({ error: errorMsg, isLoading: false });
       return { success: false, error: errorMsg };
+    }
+  },
+
+  updatePageCollectionItem: (pageId, updatedItem) => {
+    set((state) => {
+      const draft = state.draftsByPageId[pageId];
+      if (!draft) return state;
+      
+      return {
+        draftsByPageId: {
+          ...state.draftsByPageId,
+          [pageId]: {
+            ...draft,
+            collectionItem: updatedItem,
+          },
+        },
+      };
+    });
+  },
+
+  refetchPageCollectionItem: async (pageId) => {
+    const state = get();
+    const page = state.pages.find(p => p.id === pageId);
+    
+    if (!page?.is_dynamic || !page.settings?.cms?.collection_id) {
+      return;
+    }
+    
+    // Get the current collection item from the draft
+    const draft = state.draftsByPageId[pageId];
+    const currentItem = (draft as any)?.collectionItem as CollectionItemWithValues | undefined;
+    
+    if (!currentItem) {
+      return; // No item to refetch
+    }
+    
+    try {
+      // Fetch fresh collection item data
+      const response = await fetch(`/api/pages/${pageId}/collection-item?itemId=${currentItem.id}`);
+      const result = await response.json();
+      
+      if (result.data) {
+        state.updatePageCollectionItem(pageId, result.data);
+      }
+    } catch (error) {
+      console.error('[usePagesStore.refetchPageCollectionItem] Error:', error);
     }
   },
 }));

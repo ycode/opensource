@@ -434,3 +434,29 @@ export function applyLimitOffset(
 
   return result;
 }
+
+/**
+ * Check if layer has only a single inline variable (and optional whitespace)
+ * Used to determine if double-click should open collection item editor
+ * @param layer - Layer to check
+ * @returns True if layer has exactly one inline variable and no other text
+ */
+export function hasSingleInlineVariable(layer: Layer): boolean {
+  const text = layer.variables?.text;
+  
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  
+  // Match all inline variable tags
+  const regex = /<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g;
+  const matches = text.match(regex);
+  
+  if (!matches || matches.length !== 1) {
+    return false; // Not exactly one variable
+  }
+  
+  // Remove the variable tag and check if only whitespace remains
+  const withoutVariable = text.replace(regex, '').trim();
+  return withoutVariable === '';
+}
