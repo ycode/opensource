@@ -40,6 +40,7 @@ import type { User } from '@supabase/supabase-js';
 import { Empty, EmptyContent, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
+import { Separator } from '@/components/ui/separator';
 
 interface HeaderBarProps {
   user: User | null;
@@ -105,6 +106,13 @@ export default function HeaderBar({
     return 'dark';
   });
   const [baseUrl, setBaseUrl] = useState<string>('');
+  const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'fr'>(() => {
+    if (typeof window !== 'undefined') {
+      const savedLanguage = localStorage.getItem('language') as 'en' | 'fr' | null;
+      return savedLanguage || 'en';
+    }
+    return 'en';
+  });
 
   // Get current host after mount
   useEffect(() => {
@@ -195,6 +203,11 @@ export default function HeaderBar({
 
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Save language preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('language', selectedLanguage);
+  }, [selectedLanguage]);
 
   // Close page dropdown when clicking outside
   useEffect(() => {
@@ -464,15 +477,55 @@ export default function HeaderBar({
 
       </div>
 
-      <div className="flex gap-2.5 items-center justify-center">
-        <a
-          href={baseUrl + publishedUrl}
-          target="_blank"
-          className="text-xs text-current/50 hover:text-current transition ease-in-out duration-100"
+      <div className="flex gap-1.5 items-center justify-center">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="xs" variant="ghost">
+              <Icon name="globe" />
+              {selectedLanguage === 'en' ? 'EN' : 'FR'}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuRadioGroup
+              value={selectedLanguage}
+              onValueChange={(value) => setSelectedLanguage(value as 'en' | 'fr')}
+            >
+              <DropdownMenuRadioItem value="en">
+                English
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="fr">
+                French
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => router.push('/ycode/localization/languages')}
+            >
+              Language settings
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <div className="h-5">
+          <Separator orientation="vertical" />
+        </div>
+        <Button
+          size="xs"
+          variant="ghost"
+          asChild
         >
-          {baseUrl}
-        </a>
-        <Badge variant="secondary">Free</Badge>
+          <a
+            href={baseUrl + publishedUrl} target="_blank"
+            rel="noopener noreferrer"
+          >
+            {baseUrl}
+          </a>
+        </Button>
+        <div className="h-5">
+          <Separator orientation="vertical" />
+        </div>
+        <Button size="xs" variant="ghost">
+          Free
+        </Button>
       </div>
 
       {/* Right: User & Actions */}

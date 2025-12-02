@@ -198,8 +198,8 @@ const LayerItem: React.FC<{
 
   const finishEditing = () => {
     if (editingLayerId === layer.id && onLayerUpdate) {
-      // Update both text and content for compatibility
-      onLayerUpdate(layer.id, { text: editingContent, content: editingContent });
+      // Update text content
+      onLayerUpdate(layer.id, { text: editingContent });
       setEditingLayerId(null);
     }
   };

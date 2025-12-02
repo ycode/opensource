@@ -528,7 +528,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
             const updatedLayers = updateLayerInTree(currentDraft, message.payload.layerId, {
               text: message.payload.text,
-              content: message.payload.text,
             });
 
             updateComponentDraft(editingComponentId, updatedLayers);
@@ -536,7 +535,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
             // Update layer in page draft
             updateLayer(currentPageId, message.payload.layerId, {
               text: message.payload.text,
-              content: message.payload.text,
             });
           }
           break;

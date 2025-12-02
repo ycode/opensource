@@ -19,6 +19,7 @@ import { useEditorUrl } from '@/hooks/use-editor-url';
  * - /ycode/collections/[id] - Collection management
  * - /ycode/components/[id] - Component editing
  * - /ycode/settings - Settings pages
+ * - /ycode/localization - Localization pages
  *
  * Excluded routes:
  * - /ycode/preview - Preview routes are excluded and render independently
@@ -36,8 +37,8 @@ export default function YCodeLayout({ children }: { children: React.ReactNode })
     return <>{children}</>;
   }
 
-  // For settings routes, pass children to YCodeBuilder so it can render them
-  if (routeType === 'settings') {
+  // For settings and localization routes, pass children to YCodeBuilder so it can render them
+  if (routeType === 'settings' || routeType === 'localization') {
     return <YCodeBuilder>{children}</YCodeBuilder>;
   }
 

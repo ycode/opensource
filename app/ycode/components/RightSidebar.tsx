@@ -11,11 +11,11 @@ import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 
 // 2. External libraries
 import debounce from 'lodash.debounce';
-import { X } from 'lucide-react';
 
 // 3. ShadCN UI
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -30,6 +30,7 @@ import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
 import InputWithInlineVariables from './InputWithInlineVariables';
+import InteractionsPanel from './InteractionsPanel';
 import LayoutControls from './LayoutControls';
 import LayerStylesPanel from './LayerStylesPanel';
 import PositionControls from './PositionControls';
@@ -56,6 +57,11 @@ import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-
 // 7. Types
 import type { Layer, FieldVariable } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import {
+  DropdownMenu,
+  DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
@@ -68,9 +74,44 @@ const RightSidebar = React.memo(function RightSidebar({
 }: RightSidebarProps) {
   const { openComponent, urlState, updateQueryParams } = useEditorActions();
   const { routeType } = useEditorUrl();
-  const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'content'>(
+
+  // Local state for immediate UI feedback
+  const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'interactions'>(
     urlState.rightTab || 'design'
   );
+
+  // Track last user-initiated change to prevent URL→state sync loops
+  const lastUserChangeRef = useRef<number>(0);
+
+  // Handle tab change: optimistic UI update + background URL sync
+  const handleTabChange = useCallback((value: string) => {
+    const newTab = value as 'design' | 'settings' | 'interactions';
+
+    // Immediate UI update
+    setActiveTab(newTab);
+
+    // Mark as user-initiated (prevents URL→state sync for 100ms)
+    lastUserChangeRef.current = Date.now();
+
+    // Background URL update
+    if (routeType === 'page' || routeType === 'layers' || routeType === 'component') {
+      updateQueryParams({ tab: newTab });
+    }
+  }, [routeType, updateQueryParams]);
+
+  // Sync URL→state only for external navigation (back/forward, direct URL)
+  useEffect(() => {
+    // Skip if this was a recent user-initiated change (within 100ms)
+    if (Date.now() - lastUserChangeRef.current < 100) {
+      return;
+    }
+
+    const urlTab = urlState.rightTab || 'design';
+    if (urlTab !== activeTab) {
+      setActiveTab(urlTab);
+    }
+  }, [urlState.rightTab]);
+
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
   const [attributesOpen, setAttributesOpen] = useState(true);
   const [customId, setCustomId] = useState<string>('');
@@ -85,11 +126,18 @@ const RightSidebar = React.memo(function RightSidebar({
   const [collectionBindingOpen, setCollectionBindingOpen] = useState(true);
   const [fieldBindingOpen, setFieldBindingOpen] = useState(true);
   const [contentOpen, setContentOpen] = useState(true);
+  const [interactionOwnerLayerId, setInteractionOwnerLayerId] = useState<string | null>(null);
+  const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
+  const [interactionResetKey, setInteractionResetKey] = useState(0);
 
   // Optimize store subscriptions - use selective selectors
   const currentPageId = useEditorStore((state) => state.currentPageId);
   const activeBreakpoint = useEditorStore((state) => state.activeBreakpoint);
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
+  const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
+  const setInteractionHighlights = useEditorStore((state) => state.setInteractionHighlights);
+  const setActiveInteraction = useEditorStore((state) => state.setActiveInteraction);
+  const clearActiveInteraction = useEditorStore((state) => state.clearActiveInteraction);
 
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
 
@@ -99,60 +147,128 @@ const RightSidebar = React.memo(function RightSidebar({
   const collections = useCollectionsStore((state) => state.collections);
   const fields = useCollectionsStore((state) => state.fields);
 
-  const previousIsEditingRef = useRef<boolean | undefined>(undefined);
-
-  // Track edit mode transitions synchronously
-  const currentIsEditing = urlState.isEditing;
-  const justExitedEditMode = previousIsEditingRef.current === true && currentIsEditing === false;
-
-  // Update ref synchronously before effects run
-  if (previousIsEditingRef.current !== currentIsEditing) {
-    previousIsEditingRef.current = currentIsEditing;
-  }
-
-  const selectedLayer: Layer | null = useMemo(() => {
-    if (!selectedLayerId) return null;
-
-    // Get layers from either component draft or page draft
-    let layers: Layer[] = [];
+  // Get all layers (for interactions target selection)
+  const allLayers: Layer[] = useMemo(() => {
     if (editingComponentId) {
-      layers = componentDrafts[editingComponentId] || [];
+      return componentDrafts[editingComponentId] || [];
     } else if (currentPageId) {
       const draft = draftsByPageId[currentPageId];
-      layers = draft ? draft.layers : [];
+      return draft ? draft.layers : [];
     }
+    return [];
+  }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
-    if (!layers.length) return null;
+  // Helper to find layer by ID
+  const findLayerById = useCallback((layerId: string | null): Layer | null => {
+    if (!layerId || !allLayers.length) return null;
 
-    // Find the selected layer in the tree
-    const stack: Layer[] = [...layers];
+    const stack: Layer[] = [...allLayers];
     while (stack.length) {
       const node = stack.shift()!;
-      if (node.id === selectedLayerId) return node;
+      if (node.id === layerId) return node;
       if (node.children) stack.push(...node.children);
     }
     return null;
-  }, [editingComponentId, componentDrafts, currentPageId, selectedLayerId, draftsByPageId]);
+  }, [allLayers]);
 
-  // Sync right sidebar tab to URL (skip when in page settings mode or during edit mode transition)
+  const selectedLayer: Layer | null = useMemo(() => {
+    return findLayerById(selectedLayerId);
+  }, [selectedLayerId, findLayerById]);
+
+  // Get the layer whose interactions we're editing (different from selected layer during target selection)
+  const interactionOwnerLayer: Layer | null = useMemo(() => {
+    return findLayerById(interactionOwnerLayerId);
+  }, [interactionOwnerLayerId, findLayerById]);
+
+  // Set interaction owner when interactions tab becomes active
   useEffect(() => {
-    // Skip if we just transitioned away from edit mode - navigation already includes all params
-    if (justExitedEditMode) {
-      return;
+    if (activeTab === 'interactions' && selectedLayerId && !interactionOwnerLayerId) {
+      setInteractionOwnerLayerId(selectedLayerId);
     }
+  }, [activeTab, selectedLayerId, interactionOwnerLayerId]);
 
-    // Only update query params when on a valid route (page or layers)
-    if ((routeType === 'page' || routeType === 'layers') && (activeTab === 'design' || activeTab === 'settings') && !urlState.isEditing && urlState.rightTab !== activeTab) {
-      updateQueryParams({ tab: activeTab });
-    }
-  }, [activeTab, updateQueryParams, urlState.rightTab, urlState.isEditing, justExitedEditMode, routeType]);
-
-  // Sync URL tab changes to local state
+  // Update interaction owner layer when selected layer changes (only if no trigger is selected)
   useEffect(() => {
-    if (urlState.rightTab && urlState.rightTab !== activeTab) {
-      setActiveTab(urlState.rightTab);
+    if (activeTab === 'interactions' && selectedLayerId && !selectedTriggerId) {
+      setInteractionOwnerLayerId(selectedLayerId);
     }
-  }, [urlState.rightTab]);
+  }, [activeTab, selectedLayerId, selectedTriggerId]);
+
+  // Clear interaction owner when tab changes away from interactions
+  useEffect(() => {
+    if (activeTab !== 'interactions' && interactionOwnerLayerId) {
+      setInteractionOwnerLayerId(null);
+    }
+  }, [activeTab, interactionOwnerLayerId]);
+
+  // Update active interaction (current trigger and its targets)
+  useEffect(() => {
+    if (activeTab === 'interactions' && interactionOwnerLayer) {
+      const interactions = interactionOwnerLayer.interactions || [];
+      const targetIds = new Set<string>();
+
+      interactions.forEach(interaction => {
+        interaction.targets.forEach(target => {
+          targetIds.add(target.layer_id);
+        });
+      });
+
+      if (targetIds.size > 0) {
+        setActiveInteraction(interactionOwnerLayer.id, Array.from(targetIds));
+      } else {
+        clearActiveInteraction();
+      }
+    } else {
+      clearActiveInteraction();
+    }
+  }, [activeTab, interactionOwnerLayer, setActiveInteraction, clearActiveInteraction]);
+
+  // Compute interaction highlights from all layers (always shown, styling varies by tab)
+  useEffect(() => {
+    const triggerIds = new Set<string>();
+    const targetIds = new Set<string>();
+
+    const collectInteractions = (layers: Layer[]) => {
+      layers.forEach(layer => {
+        const interactions = layer.interactions || [];
+        const hasTargets = interactions.some(i => i.targets.length > 0);
+
+        if (hasTargets) {
+          triggerIds.add(layer.id);
+          interactions.forEach(interaction => {
+            interaction.targets.forEach(target => {
+              targetIds.add(target.layer_id);
+            });
+          });
+        }
+
+        if (layer.children) {
+          collectInteractions(layer.children);
+        }
+      });
+    };
+
+    collectInteractions(allLayers);
+    setInteractionHighlights(Array.from(triggerIds), Array.from(targetIds));
+  }, [allLayers, setInteractionHighlights]);
+
+  // Handle all interaction state changes from InteractionsPanel
+  const handleInteractionStateChange = useCallback((state: {
+    selectedTriggerId?: string | null;
+    shouldRefresh?: boolean;
+  }) => {
+    // Handle trigger selection
+    if (state.selectedTriggerId !== undefined) {
+      setSelectedTriggerId(state.selectedTriggerId);
+    }
+
+    // Handle refresh request
+    if (state.shouldRefresh && selectedLayerId) {
+      setInteractionOwnerLayerId(selectedLayerId);
+      setSelectedTriggerId(null);
+      setInteractionResetKey(prev => prev + 1);
+    }
+  }, [selectedLayerId]);
 
   // Helper function to check if layer is a heading
   const isHeadingLayer = (layer: Layer | null): boolean => {
@@ -422,11 +538,6 @@ const RightSidebar = React.memo(function RightSidebar({
       return layer.text;
     }
 
-    // Priority 3: Check layer.content (legacy)
-    if (layer.content && typeof layer.content === 'string') {
-      return layer.content;
-    }
-
     return '';
   }, []);
 
@@ -658,15 +769,18 @@ const RightSidebar = React.memo(function RightSidebar({
 
   return (
     <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
+
       {/* Tabs */}
       <Tabs
-        value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'content')}
-        className="flex flex-col flex-1 min-h-0 min-h-0"
+        value={activeTab}
+        onValueChange={handleTabChange}
+        className="flex flex-col flex-1 min-h-0"
       >
         <div className="">
           <TabsList className="w-full">
             <TabsTrigger value="design">Design</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
+            <TabsTrigger value="interactions">Interactions</TabsTrigger>
           </TabsList>
         </div>
 
@@ -674,7 +788,6 @@ const RightSidebar = React.memo(function RightSidebar({
 
         {/* Content */}
         <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden mt-0">
-
           {/* Layer Styles Panel */}
           <LayerStylesPanel
             layer={selectedLayer}
@@ -792,7 +905,6 @@ const RightSidebar = React.memo(function RightSidebar({
               </div>
             </div>
           </SettingsPanel>
-
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-y-auto no-scrollbar mt-0 data-[state=inactive]:hidden">
@@ -899,7 +1011,6 @@ const RightSidebar = React.memo(function RightSidebar({
               isOpen={attributesOpen}
               onToggle={() => setAttributesOpen(!attributesOpen)}
             >
-
               <div className="grid grid-cols-3">
                 <Label variant="muted">ID</Label>
                 <div className="col-span-2 *:w-full">
@@ -979,7 +1090,6 @@ const RightSidebar = React.memo(function RightSidebar({
                   </div>
                 </div>
               )}
-
             </SettingsPanel>
 
             {/* Custom Attributes Panel */}
@@ -1071,6 +1181,27 @@ const RightSidebar = React.memo(function RightSidebar({
                 )}
             </SettingsPanel>
           </div>
+        </TabsContent>
+
+        <TabsContent value="interactions" className="flex-1 overflow-y-auto no-scrollbar mt-0 data-[state=inactive]:hidden">
+          {interactionOwnerLayer ? (
+            <InteractionsPanel
+              triggerLayer={interactionOwnerLayer}
+              allLayers={allLayers}
+              onLayerUpdate={onLayerUpdate}
+              selectedLayerId={selectedLayerId}
+              resetKey={interactionResetKey}
+              onStateChange={handleInteractionStateChange}
+              onSelectLayer={setSelectedLayerId}
+            />
+          ) : (
+            <Empty>
+              <EmptyTitle>No Layer Selected</EmptyTitle>
+              <EmptyDescription>
+                Select a layer to edit its interactions
+              </EmptyDescription>
+            </Empty>
+          )}
         </TabsContent>
       </Tabs>
     </div>

@@ -30,6 +30,9 @@ interface EditorActions {
   redo: () => HistoryEntry | null;
   canUndo: () => boolean;
   canRedo: () => boolean;
+  setInteractionHighlights: (triggerIds: string[], targetIds: string[]) => void;
+  setActiveInteraction: (triggerId: string | null, targetIds: string[]) => void;
+  clearActiveInteraction: () => void;
 }
 
 interface EditorStoreWithHistory extends EditorState {
@@ -40,6 +43,10 @@ interface EditorStoreWithHistory extends EditorState {
   returnToPageId: string | null;
   currentPageCollectionItemId: string | null;
   builderDataPreloaded: boolean;
+  interactionTriggerLayerIds: string[];
+  interactionTargetLayerIds: string[];
+  activeInteractionTriggerLayerId: string | null;
+  activeInteractionTargetLayerIds: string[];
 }
 
 type EditorStore = EditorStoreWithHistory & EditorActions;
@@ -61,6 +68,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   returnToPageId: null,
   currentPageCollectionItemId: null,
   builderDataPreloaded: false,
+  interactionTriggerLayerIds: [],
+  interactionTargetLayerIds: [],
+  activeInteractionTriggerLayerId: null,
+  activeInteractionTargetLayerIds: [],
 
   setSelectedLayerId: (id) => {
     // Legacy support - also update selectedLayerIds
@@ -208,4 +219,19 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { history, historyIndex } = get();
     return historyIndex < history.length - 1;
   },
+
+  setInteractionHighlights: (triggerIds, targetIds) => set({
+    interactionTriggerLayerIds: triggerIds,
+    interactionTargetLayerIds: targetIds,
+  }),
+
+  setActiveInteraction: (triggerId, targetIds) => set({
+    activeInteractionTriggerLayerId: triggerId,
+    activeInteractionTargetLayerIds: targetIds,
+  }),
+
+  clearActiveInteraction: () => set({
+    activeInteractionTriggerLayerId: null,
+    activeInteractionTargetLayerIds: [],
+  }),
 }));
