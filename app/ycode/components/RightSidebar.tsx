@@ -74,9 +74,44 @@ const RightSidebar = React.memo(function RightSidebar({
 }: RightSidebarProps) {
   const { openComponent, urlState, updateQueryParams } = useEditorActions();
   const { routeType } = useEditorUrl();
+  
+  // Local state for immediate UI feedback
   const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'interactions'>(
     urlState.rightTab || 'design'
   );
+  
+  // Track last user-initiated change to prevent URL→state sync loops
+  const lastUserChangeRef = useRef<number>(0);
+  
+  // Handle tab change: optimistic UI update + background URL sync
+  const handleTabChange = useCallback((value: string) => {
+    const newTab = value as 'design' | 'settings' | 'interactions';
+    
+    // Immediate UI update
+    setActiveTab(newTab);
+    
+    // Mark as user-initiated (prevents URL→state sync for 100ms)
+    lastUserChangeRef.current = Date.now();
+    
+    // Background URL update
+    if (routeType === 'page' || routeType === 'layers' || routeType === 'component') {
+      updateQueryParams({ tab: newTab });
+    }
+  }, [routeType, updateQueryParams]);
+  
+  // Sync URL→state only for external navigation (back/forward, direct URL)
+  useEffect(() => {
+    // Skip if this was a recent user-initiated change (within 100ms)
+    if (Date.now() - lastUserChangeRef.current < 100) {
+      return;
+    }
+    
+    const urlTab = urlState.rightTab || 'design';
+    if (urlTab !== activeTab) {
+      setActiveTab(urlTab);
+    }
+  }, [urlState.rightTab]);
+  
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
   const [attributesOpen, setAttributesOpen] = useState(true);
   const [customId, setCustomId] = useState<string>('');
@@ -113,17 +148,6 @@ const RightSidebar = React.memo(function RightSidebar({
   const collections = useCollectionsStore((state) => state.collections);
   const fields = useCollectionsStore((state) => state.fields);
 
-  const previousIsEditingRef = useRef<boolean | undefined>(undefined);
-
-  // Track edit mode transitions synchronously
-  const currentIsEditing = urlState.isEditing;
-  const justExitedEditMode = previousIsEditingRef.current === true && currentIsEditing === false;
-
-  // Update ref synchronously before effects run
-  if (previousIsEditingRef.current !== currentIsEditing) {
-    previousIsEditingRef.current = currentIsEditing;
-  }
-
   // Get all layers (for interactions target selection)
   const allLayers: Layer[] = useMemo(() => {
     if (editingComponentId) {
@@ -156,19 +180,6 @@ const RightSidebar = React.memo(function RightSidebar({
   const interactionOwnerLayer: Layer | null = useMemo(() => {
     return findLayerById(interactionOwnerLayerId);
   }, [interactionOwnerLayerId, findLayerById]);
-
-  // Sync right sidebar tab to URL (skip when in page settings mode or during edit mode transition)
-  useEffect(() => {
-    // Skip if we just transitioned away from edit mode - navigation already includes all params
-    if (justExitedEditMode) {
-      return;
-    }
-
-    // Only update query params when on a valid route (page or layers)
-    if ((routeType === 'page' || routeType === 'layers') && (activeTab === 'design' || activeTab === 'settings') && !urlState.isEditing && urlState.rightTab !== activeTab) {
-      updateQueryParams({ tab: activeTab });
-    }
-  }, [activeTab, updateQueryParams, urlState.rightTab, urlState.isEditing, justExitedEditMode, routeType]);
 
   // Set interaction owner when interactions tab becomes active
   useEffect(() => {
@@ -265,13 +276,6 @@ const RightSidebar = React.memo(function RightSidebar({
       setInteractionResetKey(prev => prev + 1);
     }
   }, [selectedLayerId]);
-
-  // Sync URL tab changes to local state
-  useEffect(() => {
-    if (urlState.rightTab && urlState.rightTab !== activeTab) {
-      setActiveTab(urlState.rightTab);
-    }
-  }, [urlState.rightTab]);
 
   // Helper function to check if layer is a heading
   const isHeadingLayer = (layer: Layer | null): boolean => {
@@ -791,7 +795,8 @@ const RightSidebar = React.memo(function RightSidebar({
 
       {/* Tabs */}
       <Tabs
-        value={activeTab} onValueChange={(value) => setActiveTab(value as 'design' | 'settings' | 'interactions')}
+        value={activeTab}
+        onValueChange={handleTabChange}
         className="flex flex-col flex-1 min-h-0"
       >
         <div className="">

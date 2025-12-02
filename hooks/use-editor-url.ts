@@ -25,7 +25,7 @@ interface EditorUrlState {
   search?: string | null; // For collection search
   sidebarTab: EditorTab; // Inferred from route type
   view?: 'desktop' | 'tablet' | 'mobile' | null; // Viewport mode
-  rightTab?: 'design' | 'settings' | null; // Right sidebar tab
+  rightTab?: 'design' | 'settings' | 'interactions' | null; // Right sidebar tab
   layerId?: string | null; // Selected layer ID
 }
 
@@ -63,7 +63,7 @@ export function useEditorUrl() {
         page: null,
         sidebarTab: 'layers', // Inferred: layers route shows layers sidebar
         view: viewParam as 'desktop' | 'tablet' | 'mobile' | null,
-        rightTab: rightTabParam as 'design' | 'settings' | null,
+        rightTab: rightTabParam as 'design' | 'settings' | 'interactions' | null,
         layerId: layerParam,
       };
     }
@@ -87,7 +87,7 @@ export function useEditorUrl() {
         page: null,
         sidebarTab: 'pages', // Inferred: pages route shows pages sidebar
         view: viewParam as 'desktop' | 'tablet' | 'mobile' | null,
-        rightTab: rightTabParam as 'design' | 'settings' | null,
+        rightTab: rightTabParam as 'design' | 'settings' | 'interactions' | null,
         layerId: layerParam,
       };
     }
@@ -151,7 +151,7 @@ export function useEditorUrl() {
         tab: null,
         page: null,
         sidebarTab: 'layers', // Inferred: components show layers sidebar
-        rightTab: rightTabParam as 'design' | 'settings' | null,
+        rightTab: rightTabParam as 'design' | 'settings' | 'interactions' | null,
         layerId: layerParam,
       };
     }
