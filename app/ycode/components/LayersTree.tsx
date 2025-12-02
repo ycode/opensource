@@ -102,7 +102,13 @@ function LayerRow({
   const { getStyleById } = useLayerStylesStore();
   const { getComponentById } = useComponentsStore();
   const { collections } = useCollectionsStore();
-  const { editingComponentId } = useEditorStore();
+  const {
+    editingComponentId,
+    interactionTriggerLayerIds,
+    interactionTargetLayerIds,
+    activeInteractionTriggerLayerId,
+    activeInteractionTargetLayerIds,
+  } = useEditorStore();
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
   });
@@ -332,6 +338,28 @@ function LayerRow({
                 );
               })()}
             </div>
+          )}
+
+          {/* Interaction trigger indicator */}
+          {interactionTriggerLayerIds.includes(node.id) && (
+            <Icon
+              name="zap"
+              className={cn(
+                'size-3 mr-2 flex-shrink-0',
+                activeInteractionTriggerLayerId === node.id ? 'text-white/80' : 'text-white/40'
+              )}
+            />
+          )}
+
+          {/* Interaction target indicator */}
+          {interactionTargetLayerIds.includes(node.id) && !interactionTriggerLayerIds.includes(node.id) && (
+            <Icon
+              name="zap-outline"
+              className={cn(
+                'size-3 mr-2 flex-shrink-0',
+                activeInteractionTargetLayerIds.includes(node.id) ? 'text-white/70' : 'text-white/40'
+              )}
+            />
           )}
 
           {/* Hidden indicator */}

@@ -347,7 +347,7 @@
    * If collectionId is provided, validates that referenced fields still exist
    */
   function getText(layer, collectionItemData, collectionId) {
-    const text = layer.text || layer.content || '';
+    const text = layer.text || '';
 
     console.log('[getText]', {
       layerId: layer.id,

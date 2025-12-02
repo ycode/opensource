@@ -129,19 +129,19 @@ export function getClassesString(layer: Layer): string {
 }
 
 /**
- * Get text content (support both text and content properties)
+ * Get text content from layer
  */
 export function getText(layer: Layer): string | undefined {
-  const text = layer.text || layer.content;
+  const text = layer.text;
   // Return only if it's a string (not a FieldVariable)
   return typeof text === 'string' ? text : undefined;
 }
 
 /**
- * Get image URL (support both url and src properties)
+ * Get image URL from layer
  */
 export function getImageUrl(layer: Layer): string | undefined {
-  const url = layer.url || layer.src;
+  const url = layer.url;
   // Return only if it's a string (not a FieldVariable)
   return typeof url === 'string' ? url : undefined;
 }
@@ -234,7 +234,7 @@ export function getTextWithBinding(
   }
 
   // Priority 2: Check if text is a FieldVariable (existing structure)
-  const text = layer.text || layer.content;
+  const text = layer.text;
   if (isFieldVariable(text)) {
     const resolved = resolveFieldValue(text, collectionItemData);
     if (resolved !== undefined) {
@@ -255,7 +255,7 @@ export function getImageUrlWithBinding(
   layer: Layer,
   collectionItemData?: Record<string, string>
 ): string | undefined {
-  const url = layer.url || layer.src;
+  const url = layer.url;
 
   // Check if url is a FieldVariable
   if (isFieldVariable(url)) {

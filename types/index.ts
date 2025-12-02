@@ -107,11 +107,11 @@ export interface DesignProperties {
 }
 
 export interface LayerSettings {
-  id?: string;           // Custom HTML ID attribute
-  hidden?: boolean;      // Element visibility in canvas
-  tag?: string;          // HTML tag override (e.g., 'h1', 'h2', etc.)
+  id?: string; // Custom HTML ID attribute
+  hidden?: boolean; // Element visibility in canvas
+  tag?: string; // HTML tag override (e.g., 'h1', 'h2', etc.)
   customAttributes?: Record<string, string>; // Custom HTML attributes { attributeName: attributeValue }
-  linkSettings?: {       // For link/button elements
+  linkSettings?: { // For link/button elements
     href?: string;
     target?: '_self' | '_blank' | '_parent' | '_top';
     rel?: string;
@@ -137,20 +137,29 @@ export interface LayerStyle {
   updated_at: string;
 }
 
-// Component Types (Reusable Layer Trees)
-export interface Component {
+export interface LayerInteraction {
   id: string;
-  name: string;
+  trigger: 'click' | 'hover' | 'scroll-into-view' | 'while-scrolling' | 'load';
+  targets: InteractionTarget[];
+}
 
-  // Component data - complete layer tree
-  layers: Layer[];
+export interface InteractionTarget {
+  layer_id: string;
+  transitions: InteractionTransition[];
+}
 
-  // Versioning fields
-  content_hash?: string; // SHA-256 hash for change detection
-  is_published: boolean;
+export interface InteractionTransition {
+  id: string;
+  delay: number;
+  duration: number;
+  from: InteractionProperty;
+  to: InteractionProperty;
+}
 
-  created_at: string;
-  updated_at: string;
+export interface InteractionProperty {
+  property: string;
+  value: string;
+  unit: string;
 }
 
 export interface Layer {
@@ -211,6 +220,24 @@ export interface Layer {
 
   // SSR-only property for resolved collection items
   _collectionItems?: CollectionItemWithValues[];
+  // Interactions / Animations (new structured approach)
+  interactions?: LayerInteraction[];
+}
+
+// Component Types (Reusable Layer Trees)
+export interface Component {
+  id: string;
+  name: string;
+
+  // Component data - complete layer tree
+  layers: Layer[];
+
+  // Versioning fields
+  content_hash?: string; // SHA-256 hash for change detection
+  is_published: boolean;
+
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Page {

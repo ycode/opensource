@@ -10,7 +10,7 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
  * Handles routing for pages, collections, and components with semantic routes
  */
 
-export type EditorRouteType = 'page' | 'layers' | 'collection' | 'collections-base' | 'component' | 'settings' | null;
+export type EditorRouteType = 'page' | 'layers' | 'collection' | 'collections-base' | 'component' | 'settings' | 'localization' | null;
 export type PageSettingsTab = 'general' | 'seo' | 'custom-code';
 export type EditorTab = 'layers' | 'pages' | 'cms';
 
@@ -25,7 +25,7 @@ interface EditorUrlState {
   search?: string | null; // For collection search
   sidebarTab: EditorTab; // Inferred from route type
   view?: 'desktop' | 'tablet' | 'mobile' | null; // Viewport mode
-  rightTab?: 'design' | 'settings' | null; // Right sidebar tab
+  rightTab?: 'design' | 'settings' | 'interactions' | null; // Right sidebar tab
   layerId?: string | null; // Selected layer ID
 }
 
@@ -49,6 +49,7 @@ export function useEditorUrl() {
     const collectionMatch = pathname?.match(/^\/ycode\/collections\/([^/]+)$/);
     const componentMatch = pathname?.match(/^\/ycode\/components\/([^/]+)$/);
     const settingsMatch = pathname?.match(/^\/ycode\/settings(?:\/([^/]+))?$/);
+    const localizationMatch = pathname?.match(/^\/ycode\/localization(?:\/([^/]+))?$/);
 
     if (layersMatch) {
       const viewParam = searchParams?.get('view');
@@ -62,7 +63,7 @@ export function useEditorUrl() {
         page: null,
         sidebarTab: 'layers', // Inferred: layers route shows layers sidebar
         view: viewParam as 'desktop' | 'tablet' | 'mobile' | null,
-        rightTab: rightTabParam as 'design' | 'settings' | null,
+        rightTab: rightTabParam as 'design' | 'settings' | 'interactions' | null,
         layerId: layerParam,
       };
     }
@@ -86,7 +87,7 @@ export function useEditorUrl() {
         page: null,
         sidebarTab: 'pages', // Inferred: pages route shows pages sidebar
         view: viewParam as 'desktop' | 'tablet' | 'mobile' | null,
-        rightTab: rightTabParam as 'design' | 'settings' | null,
+        rightTab: rightTabParam as 'design' | 'settings' | 'interactions' | null,
         layerId: layerParam,
       };
     }
@@ -130,6 +131,16 @@ export function useEditorUrl() {
       };
     }
 
+    if (localizationMatch) {
+      return {
+        type: 'localization',
+        resourceId: localizationMatch[1] || null, // e.g., 'languages', or null for base
+        tab: null,
+        page: null,
+        sidebarTab: 'pages', // Localization uses pages sidebar
+      };
+    }
+
     if (componentMatch) {
       const rightTabParam = searchParams?.get('tab');
       const layerParam = searchParams?.get('layer');
@@ -140,7 +151,7 @@ export function useEditorUrl() {
         tab: null,
         page: null,
         sidebarTab: 'layers', // Inferred: components show layers sidebar
-        rightTab: rightTabParam as 'design' | 'settings' | null,
+        rightTab: rightTabParam as 'design' | 'settings' | 'interactions' | null,
         layerId: layerParam,
       };
     }
