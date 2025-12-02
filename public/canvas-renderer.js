@@ -480,6 +480,30 @@
   }
 
   /**
+   * Measure and report content height to parent
+   */
+  function reportContentHeight() {
+    // Use requestAnimationFrame to ensure DOM is updated
+    requestAnimationFrame(() => {
+      // Get the actual height of the body content
+      const body = document.body;
+      const html = document.documentElement;
+      
+      // Get the maximum height from various measurements
+      const height = Math.max(
+        body.scrollHeight,
+        body.offsetHeight,
+        html.clientHeight,
+        html.scrollHeight,
+        html.offsetHeight
+      );
+      
+      // Send height to parent
+      sendToParent('CONTENT_HEIGHT', { height: height });
+    });
+  }
+
+  /**
    * Render layer tree
    */
   function render() {
@@ -487,6 +511,8 @@
 
     if (layers.length === 0) {
       root.innerHTML = '<div style="padding: 40px; text-align: center; color: #9ca3af;">No layers to display</div>';
+      // Report height even for empty state
+      reportContentHeight();
       return;
     }
 
@@ -496,6 +522,9 @@
         root.appendChild(element);
       }
     });
+    
+    // Report content height after render
+    reportContentHeight();
   }
 
   /**
@@ -892,7 +921,140 @@
     return null;
   }
 
+  /**
+   * Setup zoom gesture listeners
+   * Captures Ctrl/Cmd + wheel and trackpad pinch gestures and forwards to parent
+   */
+  function setupZoomListeners() {
+    // Keyboard shortcuts for zoom - capture and forward to parent
+    document.addEventListener('keydown', function(e) {
+      // Check if Ctrl (Windows/Linux) or Cmd (Mac) is pressed
+      const isCmdOrCtrl = e.ctrlKey || e.metaKey;
+      
+      if (!isCmdOrCtrl) return;
+
+      // Check for zoom shortcuts
+      const isZoomShortcut = 
+        e.key === '+' || 
+        e.key === '=' || 
+        e.key === '-' || 
+        e.key === '_' || 
+        e.key === '0' ||
+        e.key === '1' ||
+        e.key === '2';
+
+      if (!isZoomShortcut) return;
+
+      // ALWAYS prevent default to stop browser zoom
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Send zoom command to parent based on key
+      let delta = 0;
+      switch (e.key) {
+        case '+':
+        case '=':
+          delta = 100; // Zoom in
+          break;
+        case '-':
+        case '_':
+          delta = -100; // Zoom out
+          break;
+        case '0':
+          delta = 0; // This will be handled specially
+          sendToParent('ZOOM_GESTURE', { delta: 0, reset: true });
+          return;
+        case '1':
+          sendToParent('ZOOM_GESTURE', { delta: 0, zoomToFit: true });
+          return;
+        case '2':
+          sendToParent('ZOOM_GESTURE', { delta: 0, autofit: true });
+          return;
+      }
+
+      if (delta !== 0) {
+        sendToParent('ZOOM_GESTURE', { delta: delta });
+      }
+    }, true); // Use capture phase to intercept before other handlers
+
+    // Wheel event for Ctrl/Cmd + wheel zoom (includes trackpad pinch)
+    // MUST prevent native browser zoom
+    document.addEventListener('wheel', function(e) {
+      // Check if Ctrl (Windows/Linux) or Cmd (Mac) is pressed
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        // Send zoom delta to parent
+        // Positive deltaY means zoom out, negative means zoom in
+        // We'll send a normalized delta that the parent can interpret
+        const delta = -e.deltaY; // Invert so positive = zoom in
+        sendToParent('ZOOM_GESTURE', { delta });
+        
+        return false; // Extra prevention
+      }
+    }, { passive: false, capture: true }); // passive: false allows preventDefault, capture: true for early interception
+
+    // Safari gesture events - prevent native zoom
+    document.addEventListener('gesturestart', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }, { passive: false, capture: true });
+    
+    document.addEventListener('gesturechange', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }, { passive: false, capture: true });
+
+    // Track pinch gesture state
+    let lastTouchDistance = null;
+    
+    // Touch start - track initial distance
+    document.addEventListener('touchstart', function(e) {
+      if (e.touches.length === 2) {
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        lastTouchDistance = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        );
+      }
+    }, { passive: true });
+    
+    // Touch move - detect pinch
+    document.addEventListener('touchmove', function(e) {
+      if (e.touches.length === 2 && lastTouchDistance !== null) {
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const currentDistance = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        );
+        
+        // Calculate delta
+        const delta = (currentDistance - lastTouchDistance) * 2; // Scale for responsiveness
+        
+        // Send to parent
+        sendToParent('ZOOM_GESTURE', { delta });
+        
+        // Update for next frame
+        lastTouchDistance = currentDistance;
+      }
+    }, { passive: true });
+    
+    // Touch end - reset
+    document.addEventListener('touchend', function(e) {
+      if (e.touches.length < 2) {
+        lastTouchDistance = null;
+      }
+    }, { passive: true });
+  }
+
   // Initialize - notify parent that iframe is ready
   sendToParent('READY', null);
+  
+  // Setup zoom listeners
+  setupZoomListeners();
 
 })();

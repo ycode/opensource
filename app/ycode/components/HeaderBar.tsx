@@ -50,8 +50,6 @@ interface HeaderBarProps {
   currentPageId: string | null;
   pages: Page[];
   setCurrentPageId: (id: string) => void;
-  zoom: number;
-  setZoom: (zoom: number) => void;
   isSaving: boolean;
   hasUnsavedChanges: boolean;
   lastSaved: Date | null;
@@ -74,8 +72,6 @@ export default function HeaderBar({
   currentPageId,
   pages,
   setCurrentPageId,
-  zoom,
-  setZoom,
   isSaving,
   hasUnsavedChanges,
   lastSaved,
