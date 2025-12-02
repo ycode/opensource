@@ -145,21 +145,29 @@ export interface LayerInteraction {
 
 export interface InteractionTarget {
   layer_id: string;
-  transitions: InteractionTransition[];
+  animations: InteractionAnimation[];
 }
 
-export interface InteractionTransition {
+export interface InteractionAnimation {
   id: string;
   delay: number;
   duration: number;
+  repeat: boolean;
+  yoyo: boolean;
+  ease: string;
   from: InteractionProperty;
   to: InteractionProperty;
 }
 
 export interface InteractionProperty {
-  property: string;
-  value: string;
-  unit: string;
+  x?: string | null;
+  y?: string | null;
+  rotation?: string | null;
+  scale?: string | null;
+  skewX?: string | null;
+  skewY?: string | null;
+  opacity?: string | null;
+  visibility?: 'visible' | 'hidden' | null;
 }
 
 export interface Layer {

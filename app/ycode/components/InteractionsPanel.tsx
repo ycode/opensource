@@ -39,7 +39,6 @@ interface InteractionsPanelProps {
   selectedLayerId?: string | null; // Currently selected layer in editor
   resetKey?: number; // When this changes, reset all selections
   onStateChange?: (state: {
-    isSelectingTarget?: boolean;
     selectedTriggerId?: string | null;
     shouldRefresh?: boolean;
   }) => void;
@@ -115,18 +114,17 @@ export default function InteractionsPanel({
 }: InteractionsPanelProps) {
   const [selectedInteractionId, setSelectedInteractionId] = useState<string | null>(null);
   const [expandedTransitions, setExpandedTransitions] = useState<Set<string>>(new Set());
-  const [isSelectingTarget, setIsSelectingTarget] = useState(false);
 
   // Reset selections when trigger layer changes or reset is triggered
   useEffect(() => {
     setSelectedInteractionId(null);
     setExpandedTransitions(new Set());
-    setIsSelectingTarget(false);
   }, [triggerLayer.id, resetKey]);
 
   // Memoize interactions to prevent unnecessary re-renders
   const interactions = useMemo(() => triggerLayer.interactions || [], [triggerLayer.interactions]);
   const selectedInteraction = interactions.find((i) => i.id === selectedInteractionId);
+  const usedTriggers = useMemo(() => new Set(interactions.map(i => i.trigger)), [interactions]);
   // Find target that matches the currently selected layer
   const selectedTarget =
     selectedInteraction && selectedLayerId
@@ -202,42 +200,9 @@ export default function InteractionsPanel({
   // Notify parent about state changes
   useEffect(() => {
     onStateChange?.({
-      isSelectingTarget,
       selectedTriggerId: selectedInteractionId,
     });
-  }, [isSelectingTarget, selectedInteractionId, onStateChange]);
-
-  // Handle layer selection when in target selection mode
-  useEffect(() => {
-    // Only capture target if a trigger is selected and we're in selection mode
-    if (isSelectingTarget && selectedLayerId && selectedInteraction && selectedInteractionId) {
-      // Check if layer is already a target
-      const isAlreadyTarget = selectedInteraction.targets.some(
-        (t) => t.layer_id === selectedLayerId
-      );
-
-      if (!isAlreadyTarget) {
-        // Add target directly without using handleAddTarget to avoid circular dependency
-        const newTarget: InteractionTarget = {
-          layer_id: selectedLayerId,
-          transitions: [],
-        };
-
-        const updatedInteractions = interactions.map((interaction) => {
-          if (interaction.id !== selectedInteractionId) return interaction;
-          return {
-            ...interaction,
-            targets: [...interaction.targets, newTarget],
-          };
-        });
-
-        onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
-      }
-
-      // Exit selection mode
-      setIsSelectingTarget(false);
-    }
-  }, [isSelectingTarget, selectedLayerId, selectedInteraction, selectedInteractionId, interactions, triggerLayer.id, onLayerUpdate]);
+  }, [selectedInteractionId, onStateChange]);
 
   // Add new interaction
   const handleAddInteraction = useCallback(
@@ -467,28 +432,19 @@ export default function InteractionsPanel({
       {/* Trigger Layer */}
       <div className="flex items-center gap-2 my-2">
         {onStateChange && (
-          hasActiveTrigger ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => onStateChange({ shouldRefresh: true })}
-                >
-                  <Icon name="undo" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Switch to a different trigger element</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled
-            >
-              <Icon name="zap" />
-            </Button>
-          )
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!hasActiveTrigger}
+                onClick={() => onStateChange({ shouldRefresh: true })}
+              >
+                <Icon name="undo" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Switch to a different trigger element</TooltipContent>
+          </Tooltip>
         )}
 
         <div
@@ -515,12 +471,12 @@ export default function InteractionsPanel({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="mr-4">
-              <DropdownMenuItem onClick={() => handleAddInteraction('click')}>Click</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleAddInteraction('hover')}>Hover</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleAddInteraction('scroll-into-view')}>Scroll into view</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleAddInteraction('while-scrolling')}>While scrolling</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddInteraction('click')} disabled={usedTriggers.has('click')}>Click</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddInteraction('hover')} disabled={usedTriggers.has('hover')}>Hover</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddInteraction('scroll-into-view')} disabled={usedTriggers.has('scroll-into-view')}>Scroll into view</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddInteraction('while-scrolling')} disabled={usedTriggers.has('while-scrolling')}>While scrolling</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleAddInteraction('load')}>Page load</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddInteraction('load')} disabled={usedTriggers.has('load')}>Page load</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -621,51 +577,29 @@ export default function InteractionsPanel({
           <header className="py-5 flex justify-between">
             <span className="font-medium">Layers to animate</span>
             <div className="-my-1">
-              {isSelectingTarget ? (
-                <Button
-                  size="xs"
-                  variant="secondary"
-                  onClick={() => setIsSelectingTarget(false)}
-                >
-                  Cancel
-                </Button>
-              ) : (
-                <Button
-                  size="xs"
-                  variant="secondary"
-                  onClick={() => setIsSelectingTarget(true)}
-                >
-                  <Icon name="plus" />
-                </Button>
-              )}
+              <Button
+                size="xs"
+                variant="secondary"
+                onClick={() => {
+                  if (selectedLayerId) {
+                    handleAddTarget(selectedLayerId);
+                  }
+                }}
+                disabled={!selectedLayerId || selectedInteraction.targets.some(t => t.layer_id === selectedLayerId)}
+              >
+                <Icon name="plus" />
+              </Button>
             </div>
           </header>
 
-          {/* Target Selection Mode Message */}
-          {isSelectingTarget && (
-            <div className="mb-4 p-3 bg-teal-500/20 border border-teal-500/30 rounded-lg">
-              <div className="flex items-start gap-2">
-                <Icon name="zap" className="size-4 text-teal-400 mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-teal-100">
-                    Select a layer
-                  </p>
-                  <p className="text-xs text-teal-200/70 mt-1">
-                    Click on any layer in the tree or canvas to add it as a target
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Target List */}
-          {selectedInteraction.targets.length === 0 && !isSelectingTarget ? (
+          {selectedInteraction.targets.length === 0 ? (
             <Empty>
               <EmptyDescription>
                 Select a layer you want to animate and click on the plus button to add it.
               </EmptyDescription>
             </Empty>
-          ) : !isSelectingTarget ? (
+          ) : (
             <div className="flex flex-col gap-2 mb-4">
               {selectedInteraction.targets.map((target, index) => {
                 const targetLayer = flatLayers.find((fl) => fl.layer.id === target.layer_id)?.layer;
@@ -715,7 +649,7 @@ export default function InteractionsPanel({
                 );
               })}
             </div>
-          ) : null}
+          )}
         </div>
       )}
 
