@@ -101,6 +101,9 @@ const RightSidebar = React.memo(function RightSidebar({
   const activeBreakpoint = useEditorStore((state) => state.activeBreakpoint);
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
+  const setInteractionHighlights = useEditorStore((state) => state.setInteractionHighlights);
+  const setActiveInteraction = useEditorStore((state) => state.setActiveInteraction);
+  const clearActiveInteraction = useEditorStore((state) => state.clearActiveInteraction);
 
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
 
@@ -187,6 +190,57 @@ const RightSidebar = React.memo(function RightSidebar({
       setInteractionOwnerLayerId(null);
     }
   }, [activeTab, interactionOwnerLayerId]);
+
+  // Update active interaction (current trigger and its targets)
+  useEffect(() => {
+    if (activeTab === 'interactions' && interactionOwnerLayer) {
+      const interactions = interactionOwnerLayer.interactions || [];
+      const targetIds = new Set<string>();
+
+      interactions.forEach(interaction => {
+        interaction.targets.forEach(target => {
+          targetIds.add(target.layer_id);
+        });
+      });
+
+      if (targetIds.size > 0) {
+        setActiveInteraction(interactionOwnerLayer.id, Array.from(targetIds));
+      } else {
+        clearActiveInteraction();
+      }
+    } else {
+      clearActiveInteraction();
+    }
+  }, [activeTab, interactionOwnerLayer, setActiveInteraction, clearActiveInteraction]);
+
+  // Compute interaction highlights from all layers (always shown, styling varies by tab)
+  useEffect(() => {
+    const triggerIds = new Set<string>();
+    const targetIds = new Set<string>();
+
+    const collectInteractions = (layers: Layer[]) => {
+      layers.forEach(layer => {
+        const interactions = layer.interactions || [];
+        const hasTargets = interactions.some(i => i.targets.length > 0);
+
+        if (hasTargets) {
+          triggerIds.add(layer.id);
+          interactions.forEach(interaction => {
+            interaction.targets.forEach(target => {
+              targetIds.add(target.layer_id);
+            });
+          });
+        }
+
+        if (layer.children) {
+          collectInteractions(layer.children);
+        }
+      });
+    };
+
+    collectInteractions(allLayers);
+    setInteractionHighlights(Array.from(triggerIds), Array.from(targetIds));
+  }, [allLayers, setInteractionHighlights]);
 
   // Handle all interaction state changes from InteractionsPanel
   const handleInteractionStateChange = useCallback((state: {
