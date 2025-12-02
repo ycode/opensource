@@ -677,6 +677,25 @@ const RightSidebar = React.memo(function RightSidebar({
     return fields[collectionId] || [];
   }, [parentCollectionLayer, fields, currentPage]);
 
+  const fieldSourceLabel = useMemo(() => {
+    // Check if fields come from parent collection layer
+    if (parentCollectionLayer) {
+      const collectionVariable = getCollectionVariable(parentCollectionLayer);
+      const collectionId = collectionVariable?.id;
+      if (collectionId) {
+        const collection = collections.find(c => c.id === collectionId);
+        return collection?.name; // Returns collection name like "Blog Posts"
+      }
+    }
+    
+    // Check if fields come from dynamic page
+    if (currentPage?.is_dynamic && currentPage?.settings?.cms?.collection_id) {
+      return 'CMS page data';
+    }
+    
+    return undefined; // No label
+  }, [parentCollectionLayer, currentPage, collections]);
+
   // Get collection fields for the currently selected collection layer (for Sort By dropdown)
   const selectedCollectionFields = useMemo(() => {
     if (!selectedLayer) return [];
@@ -1016,6 +1035,7 @@ const RightSidebar = React.memo(function RightSidebar({
                     onChange={handleContentChange}
                     placeholder="Enter text..."
                     fields={parentCollectionFields}
+                    fieldSourceLabel={fieldSourceLabel}
                   />
                 </div>
               </SettingsPanel>

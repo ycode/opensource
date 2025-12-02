@@ -677,9 +677,9 @@
           const skeleton = document.createElement('div');
           skeleton.className = 'p-4';
           skeleton.innerHTML = `
-            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #27272a 0%, #3f3f46 50%, #27272a 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem; margin-bottom: 1rem;"></div>
-            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #27272a 0%, #3f3f46 50%, #27272a 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem; margin-bottom: 1rem;"></div>
-            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #27272a 0%, #3f3f46 50%, #27272a 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem;"></div>
+            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #f4f4f5 0%, #e4e4e7 50%, #f4f4f5 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem; margin-bottom: 1rem;"></div>
+            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #f4f4f5 0%, #e4e4e7 50%, #f4f4f5 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem; margin-bottom: 1rem;"></div>
+            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #f4f4f5 0%, #e4e4e7 50%, #f4f4f5 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem;"></div>
             <style>
               @keyframes shimmer {
                 0% { background-position: 200% 0; }

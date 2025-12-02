@@ -23,7 +23,7 @@ export function ShimmerSkeleton({
           <div
             key={index}
             className={cn(
-              'animate-pulse bg-gradient-to-r from-zinc-800 via-zinc-700 to-zinc-800 bg-[length:200%_100%] rounded',
+              'animate-pulse bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100 bg-[length:200%_100%] rounded',
               'shimmer-animation',
               className
             )}
@@ -41,7 +41,7 @@ export function ShimmerSkeleton({
   return (
     <div
       className={cn(
-        'animate-pulse bg-gradient-to-r from-zinc-800 via-zinc-700 to-zinc-800 bg-[length:200%_100%] rounded',
+        'animate-pulse bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-100 bg-[length:200%_100%] rounded',
         'shimmer-animation',
         className
       )}

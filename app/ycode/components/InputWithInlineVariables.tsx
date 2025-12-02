@@ -28,6 +28,8 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectGroup,
+  SelectLabel,
 } from '@/components/ui/select';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Button } from '@/components/ui/button';
@@ -40,6 +42,7 @@ interface InputWithInlineVariablesProps {
   placeholder?: string;
   className?: string;
   fields?: CollectionField[];
+  fieldSourceLabel?: string;
 }
 
 export interface InputWithInlineVariablesHandle {
@@ -176,6 +179,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   placeholder = '',
   className,
   fields,
+  fieldSourceLabel,
 }, ref) => {
   const [isFocused, setIsFocused] = useState(false);
 
@@ -440,11 +444,22 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
 
             <SelectContent>
               {fields.length > 0 ? (
-                fields.map((field) => (
-                  <SelectItem key={field.id} value={field.id}>
-                    {field.name}
-                  </SelectItem>
-                ))
+                fieldSourceLabel ? (
+                  <SelectGroup>
+                    <SelectLabel>{fieldSourceLabel}</SelectLabel>
+                    {fields.map((field) => (
+                      <SelectItem key={field.id} value={field.id}>
+                        {field.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ) : (
+                  fields.map((field) => (
+                    <SelectItem key={field.id} value={field.id}>
+                      {field.name}
+                    </SelectItem>
+                  ))
+                )
               ) : (
                 <div className="px-2 py-1.5 text-sm text-muted-foreground">
                   No fields available
