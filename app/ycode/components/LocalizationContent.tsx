@@ -9,6 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Icon from '@/components/ui/icon';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Badge } from '@/components/ui/badge';
+import FieldsDropdown from '@/app/ycode/components/FieldsDropdown';
+import { getLayerIcon } from '@/lib/layer-utils';
+import { TiptapEditor } from '@/components/ui/tiptap-editor';
+import {
+  DropdownMenu,
+  DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 
 const AVAILABLE_LANGUAGES = [
   { value: 'en', label: 'English' },
@@ -40,6 +50,8 @@ export default function LocalizationContent({ children }: LocalizationContentPro
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [localeName, setLocaleName] = useState<string>('');
+  const [selectedContentType, setSelectedContentType] = useState<string>('pages');
+  const [translationValues, setTranslationValues] = useState<Record<string, string>>({});
 
   // Auto-select first locale if none selected
   useEffect(() => {
@@ -123,20 +135,89 @@ export default function LocalizationContent({ children }: LocalizationContentPro
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         {selectedLocale ? (
-          <div className="p-8">
-            <div className="max-w-3xl mx-auto">
-              <header className="pt-8 pb-3">
-                <span className="text-base font-medium">
-                  {selectedLocale.name} ({AVAILABLE_LANGUAGES.find(l => l.value === selectedLocale.language)?.label || selectedLocale.language})
-                </span>
+          <div className="">
+
+            <div className="p-4 flex items-center gap-2 border-b">
+
+              <div>
+                <Select value={selectedContentType} onValueChange={setSelectedContentType}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pages">Pages</SelectItem>
+                    <SelectItem value="cms">CMS</SelectItem>
+                    <SelectItem value="components">Components</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="w-full max-w-72">
+                <InputGroup>
+                  <InputGroupInput
+                    placeholder="Search..."
+                  />
+                  <InputGroupAddon>
+                    <Icon name="search" className="size-3" />
+                  </InputGroupAddon>
+                </InputGroup>
+              </div>
+
+            </div>
+
+            <div>
+
+              <header className="p-4 flex items-center gap-1.5 border-b">
+                <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50 hover:bg-secondary/100">
+                  <Icon name="page" className="size-2.5 opacity-60" />
+                </div>
+                <Label variant="muted">Homepage</Label>
+                <div className="-my-1 ml-auto">
+                  <Button size="sm" variant="secondary">Auto-translate</Button>
+                </div>
               </header>
 
-              <div className="bg-secondary/20 p-8 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  Localization content for {selectedLocale.name} will be available here.
-                </p>
-              </div>
+              <ul className="divide-y pl-4">
+
+                <li className="flex items-start gap-2 pr-4">
+
+                  <div className="flex-1 grid grid-cols-2 items-center gap-4">
+
+                    <div className="py-5">
+                      <span className="opacity-50">Create stunning websites with ease</span>
+                    </div>
+                    <div className="flex flex-col py-3 h-full *:flex-1">
+                    <TiptapEditor
+                      value={translationValues['text-1'] || ''}
+                      onChange={(value) => setTranslationValues(prev => ({ ...prev, 'text-1': value }))}
+                      placeholder="Enter translation..."
+                      className="min-h-[28px] [&>*:first-child]:mb-0 py-1 px-2.5 !bg-transparent"
+                      hideControls
+                    />
+                  </div>
+
+                  </div>
+
+                  <div className="py-3">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger>
+                        <Button size="sm" variant="ghost">
+                          <Icon name="more" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>Done</DropdownMenuItem>
+                        <DropdownMenuItem>Reset</DropdownMenuItem>
+                        <DropdownMenuItem>Auto-translate</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                </li>
+
+              </ul>
             </div>
+
           </div>
         ) : (
           children
