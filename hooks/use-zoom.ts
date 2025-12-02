@@ -22,7 +22,6 @@ interface UseZoomResult {
   autofit: () => void;
   handleZoomGesture: (delta: number) => void;
   lockZoomMode: () => void; // Lock current zoom to custom mode
-  scrollPosition: { x: number; y: number };
 }
 
 export function useZoom({
@@ -35,22 +34,28 @@ export function useZoom({
 }: UseZoomOptions): UseZoomResult {
   const [zoom, setZoom] = useState(100);
   const [zoomMode, setZoomMode] = useState<ZoomMode>('autofit'); // Default to autofit
-  const [scrollPosition, setScrollPosition] = useState({ x: 0, y: 0 });
 
-  // Calculate zoom to fit vertically
+  // Calculate zoom to fit both width and height (entire iframe fits in canvas)
   const calculateZoomToFit = useCallback((): number => {
     if (!containerRef.current) return 100;
     
+    const containerWidth = containerRef.current.clientWidth;
     const containerHeight = containerRef.current.clientHeight;
     
-    // Calculate zoom that fits content vertically with padding
-    const padding = 64; // 32px top + 32px bottom
+    // Calculate zoom for both dimensions with padding
+    const padding = 64; // 32px on each side
+    const availableWidth = containerWidth - padding;
     const availableHeight = containerHeight - padding;
+    
+    const horizontalZoom = (availableWidth / contentWidth) * 100;
     const verticalZoom = (availableHeight / contentHeight) * 100;
     
-    // Clamp between min and max
-    return Math.min(Math.max(verticalZoom, minZoom), maxZoom);
-  }, [containerRef, contentHeight, minZoom, maxZoom]);
+    // Use the MINIMUM to ensure both dimensions fit
+    const fitZoom = Math.min(horizontalZoom, verticalZoom);
+    
+    // Clamp between min and 100% (never zoom in more than 100%)
+    return Math.min(Math.max(fitZoom, minZoom), 100);
+  }, [containerRef, contentWidth, contentHeight, minZoom]);
 
   // Calculate autofit (fits horizontally)
   const calculateAutofit = useCallback((): number => {
@@ -63,9 +68,9 @@ export function useZoom({
     const availableWidth = containerWidth - padding;
     const horizontalZoom = (availableWidth / contentWidth) * 100;
     
-    // Clamp between min and max
-    return Math.min(Math.max(horizontalZoom, minZoom), maxZoom);
-  }, [containerRef, contentWidth, minZoom, maxZoom]);
+    // Clamp between min and 100% (never zoom in more than 100%)
+    return Math.min(Math.max(horizontalZoom, minZoom), 100);
+  }, [containerRef, contentWidth, minZoom]);
 
   // Zoom in
   const zoomIn = useCallback(() => {
@@ -114,14 +119,15 @@ export function useZoom({
     }, 100);
     
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run on mount
 
   // Handle zoom gesture (from iframe or external source)
   const handleZoomGesture = useCallback((delta: number) => {
-    // Delta comes from iframe wheel events with variable values
-    // Scale appropriately for smooth zooming (same as parent wheel handler)
+    // Delta from iframe is already normalized: positive = zoom in, negative = zoom out
+    // Scale appropriately for smooth zooming
     const sensitivity = 0.5;
-    const zoomDelta = -delta * sensitivity; // Negative to match wheel direction
+    const zoomDelta = delta * sensitivity; // No negation - iframe already normalized
     
     setZoom((current) => {
       const newZoom = current + zoomDelta;
@@ -268,6 +274,5 @@ export function useZoom({
     autofit,
     handleZoomGesture,
     lockZoomMode,
-    scrollPosition,
   };
 }

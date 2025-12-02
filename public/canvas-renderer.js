@@ -483,23 +483,37 @@
    * Measure and report content height to parent
    */
   function reportContentHeight() {
-    // Use requestAnimationFrame to ensure DOM is updated
     requestAnimationFrame(() => {
-      // Get the actual height of the body content
-      const body = document.body;
-      const html = document.documentElement;
+      // Measure actual content inside the Body layer (ignoring Body's min-height)
+      let contentHeight = 0;
       
-      // Get the maximum height from various measurements
-      const height = Math.max(
-        body.scrollHeight,
-        body.offsetHeight,
-        html.clientHeight,
-        html.scrollHeight,
-        html.offsetHeight
-      );
+      function measureElement(el) {
+        // Skip the Body layer itself - measure its children instead
+        const isBody = el.getAttribute('data-layer-id') === 'body';
+        
+        if (!isBody) {
+          const rect = el.getBoundingClientRect();
+          const bottom = rect.bottom;
+          if (bottom > contentHeight) {
+            contentHeight = bottom;
+          }
+        }
+        
+        // Always measure children to find deepest content
+        for (let i = 0; i < el.children.length; i++) {
+          measureElement(el.children[i]);
+        }
+      }
       
-      // Send height to parent
-      sendToParent('CONTENT_HEIGHT', { height: height });
+      // Measure all children of root
+      for (let i = 0; i < root.children.length; i++) {
+        measureElement(root.children[i]);
+      }
+      
+      // Minimum height of 100 to avoid zero height
+      contentHeight = Math.max(contentHeight, 100);
+      
+      sendToParent('CONTENT_HEIGHT', { height: Math.ceil(contentHeight) });
     });
   }
 
@@ -582,6 +596,11 @@
     // Add editor class in edit mode
     if (editMode) {
       element.classList.add('ycode-layer');
+    }
+
+    // Body layer should fill the iframe (better UX)
+    if (layer.id === 'body') {
+      element.style.minHeight = '100%';
     }
 
     // Apply custom ID from settings
@@ -731,9 +750,9 @@
       });
     });
 
-    // Hover effects
+    // Hover effects (skip for Body layer - it fills entire iframe)
     element.addEventListener('mouseenter', function(e) {
-      if (editingLayerId !== layer.id) {
+      if (editingLayerId !== layer.id && layer.id !== 'body') {
         // Check if this layer is part of a component (and we're NOT editing that component)
         const componentRootId = componentMap[layer.id];
         const isPartOfComponent = !!componentRootId;
@@ -835,8 +854,8 @@
    * Update selection state without full re-render
    */
   function updateSelection() {
-    // Remove previous selection (both blue and purple)
-    document.querySelectorAll('.ycode-selected, .ycode-selected-purple').forEach(el => {
+    // Remove previous selection from ALL layers (both blue and purple)
+    document.querySelectorAll('.ycode-layer').forEach(el => {
       el.classList.remove('ycode-selected');
       el.classList.remove('ycode-selected-purple');
       // Remove badge (both types)

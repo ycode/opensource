@@ -85,11 +85,16 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
-  // Track iframe content height
-  const [iframeContentHeight, setIframeContentHeight] = useState(800);
+  // Track iframe content height from iframe reports
+  const [reportedContentHeight, setReportedContentHeight] = useState(0);
   
   // Track container height for dynamic alignment
   const [containerHeight, setContainerHeight] = useState(0);
+  
+  // Store initial canvas height and zoom on load - this sets the iframe height once
+  const initialCanvasHeightRef = useRef<number | null>(null);
+  const initialZoomRef = useRef<number | null>(null);
+  const [initialZoomSet, setInitialZoomSet] = useState(false);
 
   // Optimize store subscriptions - use selective selectors
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
@@ -122,6 +127,37 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return parseInt(viewportSizes[viewportMode].width);
   }, [viewportMode]);
 
+  // Calculate default iframe height to fill canvas (set once on load)
+  const defaultCanvasHeight = useMemo(() => {
+    if (!containerHeight) return 600;
+    const padding = 64; // 32px top + 32px bottom
+    const calculatedHeight = containerHeight - padding;
+    
+    // Store the initial height when first calculated
+    if (initialCanvasHeightRef.current === null) {
+      initialCanvasHeightRef.current = calculatedHeight;
+    }
+    
+    // Always use the initial height - don't change with zoom or container changes
+    return initialCanvasHeightRef.current;
+  }, [containerHeight]);
+
+  // Effective iframe height: max of reported content and canvas height
+  // This ensures Body fills canvas (min-height: 100%), but iframe shrinks when content is removed
+  const iframeContentHeight = useMemo(() => {
+    // Use max of reported content and canvas height
+    // When content is small: iframe = canvas height, Body fills it with min-height: 100%
+    // When content is large: iframe = content height, and shrinks when content is deleted
+    return Math.max(reportedContentHeight, defaultCanvasHeight);
+  }, [reportedContentHeight, defaultCanvasHeight]);
+
+  // Calculate "zoom to fit" level - where scaled height equals container height
+  const zoomToFitLevel = useMemo(() => {
+    if (!containerHeight || !iframeContentHeight) return 100;
+    const padding = 64; // 32px top + 32px bottom
+    return ((containerHeight - padding) / iframeContentHeight) * 100;
+  }, [containerHeight, iframeContentHeight]);
+
   // Initialize zoom hook
   const {
     zoom,
@@ -133,7 +169,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
     zoomToFit,
     autofit,
     handleZoomGesture,
-    lockZoomMode,
   } = useZoom({
     containerRef: canvasContainerRef,
     contentWidth: viewportWidth,
@@ -143,14 +178,43 @@ const CenterCanvas = React.memo(function CenterCanvas({
     zoomStep: 10,
   });
 
-  // Lock zoom mode when viewport changes (prevents zoom recalculation on breakpoint switch)
+  // Determine if we should center (zoomed out beyond "zoom to fit" level)
+  const shouldCenter = zoom < zoomToFitLevel;
+
+  // Set initial zoom once after autofit runs (when zoom changes from default 100)
+  useEffect(() => {
+    if (initialZoomRef.current === null && zoom > 0 && zoom !== 100) {
+      initialZoomRef.current = zoom;
+      setInitialZoomSet(true); // Trigger recalculation of finalIframeHeight
+    }
+  }, [zoom]);
+
+  // Calculate final iframe height - compensate for initial zoom if needed
+  const finalIframeHeight = useMemo(() => {
+    const initialZoom = initialZoomRef.current;
+    
+    // If initial zoom < 100%, calculate the compensated height
+    if (initialZoom && initialZoom < 100) {
+      const compensatedHeight = defaultCanvasHeight / (initialZoom / 100);
+      // Use the larger of: compensated height or content height
+      // This ensures iframe doesn't shrink when adding small content
+      return Math.max(compensatedHeight, iframeContentHeight);
+    }
+    
+    return iframeContentHeight;
+  }, [iframeContentHeight, defaultCanvasHeight, initialZoomSet]);
+
+  // Recalculate autofit when viewport/breakpoint changes
   const prevViewportMode = useRef(viewportMode);
   useEffect(() => {
     if (prevViewportMode.current !== viewportMode) {
-      lockZoomMode();
+      // Small delay to ensure container dimensions are updated
+      setTimeout(() => {
+        autofit();
+      }, 50);
       prevViewportMode.current = viewportMode;
     }
-  }, [viewportMode, lockZoomMode]);
+  }, [viewportMode, autofit]);
 
   // Track container height for dynamic alignment
   useEffect(() => {
@@ -167,16 +231,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
     return () => resizeObserver.disconnect();
   }, []);
-
-  // Calculate "zoom to fit" level - where scaled height equals container height
-  const zoomToFitLevel = useMemo(() => {
-    if (!containerHeight || !iframeContentHeight) return 100;
-    const padding = 64; // 32px top + 32px bottom
-    return ((containerHeight - padding) / iframeContentHeight) * 100;
-  }, [containerHeight, iframeContentHeight]);
-
-  // Determine if we should center (zoomed out beyond "zoom to fit" level)
-  const shouldCenter = zoom < zoomToFitLevel;
 
   const layers = useMemo(() => {
     // If editing a component, show component layers
@@ -557,8 +611,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
           break;
 
         case 'CONTENT_HEIGHT':
-          // Update iframe content height
-          setIframeContentHeight(message.payload.height);
+          // Update reported content height from iframe
+          setReportedContentHeight(message.payload.height);
           break;
 
         case 'DRAG_START':
@@ -765,14 +819,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 // Height: exact viewport height when centered, scaled size when top-aligned
                 height: shouldCenter 
                   ? `${containerHeight}px`  // Use actual viewport height
-                  : `${iframeContentHeight * (zoom / 100) + 64}px`,
+                  : `${finalIframeHeight * (zoom / 100) + 64}px`,
                 display: 'flex',
                 // Always use flex-start - we'll handle centering via padding
                 alignItems: 'flex-start',
                 justifyContent: 'center', // Center horizontally
                 // Calculate padding: center based on VISUAL (scaled) height, or fixed 32px when top-aligned
                 paddingTop: shouldCenter 
-                  ? `${Math.max(0, (containerHeight - iframeContentHeight * (zoom / 100)) / 2)}px`
+                  ? `${Math.max(0, (containerHeight - finalIframeHeight * (zoom / 100)) / 2)}px`
                   : '32px',
                 position: 'relative',
               }}
@@ -783,7 +837,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                   transform: `scale(${zoom / 100})`,
                   transformOrigin: 'top center', // Always scale from top
                   width: viewportSizes[viewportMode].width,
-                  height: `${iframeContentHeight}px`,
+                  height: `${finalIframeHeight}px`,
                   flexShrink: 0, // Prevent shrinking - maintain fixed size
                   // GPU optimization hints
                   willChange: 'transform',
@@ -798,7 +852,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                     ref={iframeRef}
                     src="/canvas.html"
                     className="w-full h-full border-0"
-                    style={{ height: `${iframeContentHeight}px` }}
+                    style={{ height: `${finalIframeHeight}px` }}
                     title="Canvas Preview"
                   />
                 ) : (

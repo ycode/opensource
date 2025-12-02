@@ -18,52 +18,45 @@
   </style>
 
   <style>
-    body {
-      min-height: 100vh;
+    html, body {
+      height: 100%;
       background: white;
       font-family: system-ui, -apple-system, sans-serif;
     }
 
-    /* Editor-specific styles */
+    /* Editor-specific styles - using inset box-shadow to prevent overflow outside iframe */
     .ycode-selected {
-      outline: 1px solid #0b7efd !important;
-      outline-offset: 0 !important;
+      box-shadow: inset 0 0 0 1px #0b7efd !important;
     }
 
     .ycode-selected-purple {
-      outline: 2px solid #a855f7 !important;
-      outline-offset: 0 !important;
+      box-shadow: inset 0 0 0 2px #a855f7 !important;
     }
 
     .ycode-hover {
-      outline: 1px solid #0b7efd !important;
-      outline-offset: 0 !important;
+      box-shadow: inset 0 0 0 1px #0b7efd !important;
     }
 
     .ycode-hover-purple {
-      outline: 1px solid rgba(168, 85, 247, 0.3) !important;
-      outline-offset: 0 !important;
+      box-shadow: inset 0 0 0 1px rgba(168, 85, 247, 0.3) !important;
     }
 
     .ycode-component-hover {
-      outline: 2px solid rgba(168, 85, 247, 0.5) !important;
-      outline-offset: 0 !important;
+      box-shadow: inset 0 0 0 2px rgba(168, 85, 247, 0.5) !important;
     }
 
     .ycode-editing {
-      outline: 1px solid #0b7efd !important;
-      outline-offset: 0 !important;
+      box-shadow: inset 0 0 0 1px #0b7efd !important;
     }
 
     .ycode-drop-target {
-      outline: 2px dashed #3b82f6 !important;
-      outline-offset: 2px !important;
+      box-shadow: inset 0 0 0 2px #3b82f6 !important;
       background-color: rgba(59, 130, 246, 0.05) !important;
     }
 
     .ycode-layer {
       position: relative;
-      /*transition: outline 100ms ease;*/
+      box-shadow: none;
     }
 
     .ycode-layer:hover {
@@ -108,8 +101,8 @@
       outline-offset: 0 !important;
     }
 
-    /* Empty element styling */
-    .ycode-layer:empty::before {
+    /* Empty element styling (exclude Body layer) */
+    .ycode-layer:empty:not([data-layer-id="body"])::before {
       content: ' ';
       display: block;
       background-color: rgb(191 219 254 / 0.1);
