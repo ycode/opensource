@@ -174,7 +174,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     contentWidth: viewportWidth,
     contentHeight: iframeContentHeight, // Use actual iframe content height
     minZoom: 10,
-    maxZoom: 200,
+    maxZoom: 1000,
     zoomStep: 10,
   });
 
