@@ -10,7 +10,7 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
  * Handles routing for pages, collections, and components with semantic routes
  */
 
-export type EditorRouteType = 'page' | 'layers' | 'collection' | 'collections-base' | 'component' | 'settings' | null;
+export type EditorRouteType = 'page' | 'layers' | 'collection' | 'collections-base' | 'component' | 'settings' | 'localization' | null;
 export type PageSettingsTab = 'general' | 'seo' | 'custom-code';
 export type EditorTab = 'layers' | 'pages' | 'cms';
 
@@ -49,6 +49,7 @@ export function useEditorUrl() {
     const collectionMatch = pathname?.match(/^\/ycode\/collections\/([^/]+)$/);
     const componentMatch = pathname?.match(/^\/ycode\/components\/([^/]+)$/);
     const settingsMatch = pathname?.match(/^\/ycode\/settings(?:\/([^/]+))?$/);
+    const localizationMatch = pathname?.match(/^\/ycode\/localization(?:\/([^/]+))?$/);
 
     if (layersMatch) {
       const viewParam = searchParams?.get('view');
@@ -127,6 +128,16 @@ export function useEditorUrl() {
         tab: null,
         page: null,
         sidebarTab: 'pages', // Settings uses pages sidebar
+      };
+    }
+
+    if (localizationMatch) {
+      return {
+        type: 'localization',
+        resourceId: localizationMatch[1] || null, // e.g., 'languages', or null for base
+        tab: null,
+        page: null,
+        sidebarTab: 'pages', // Localization uses pages sidebar
       };
     }
 
