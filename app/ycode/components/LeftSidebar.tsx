@@ -295,7 +295,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
           }}
           className="flex-1 gap-0"
         >
-          <TabsList className="w-full">
+          <TabsList className="w-full shrink-0">
             <TabsTrigger value="layers">Layers</TabsTrigger>
             <TabsTrigger value="pages">Pages</TabsTrigger>
             <TabsTrigger value="cms">CMS</TabsTrigger>
@@ -316,8 +316,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
                 </Button>
               </div>
             </header>
-
-            <div className="flex flex-col flex-1">
+            <div className="flex flex-col">
               {!currentPageId && !editingComponentId ? (
                 <Empty>
                   <EmptyTitle>No page selected</EmptyTitle>
@@ -339,7 +338,6 @@ const LeftSidebar = React.memo(function LeftSidebar({
                 />
               )}
             </div>
-
           </TabsContent>
 
           <TabsContent value="pages">
