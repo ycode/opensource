@@ -11,6 +11,7 @@ import { contentTemplates } from './content';
 import { actionTemplates } from './actions';
 import { mediaTemplates } from './media';
 import { formTemplates } from './forms';
+import { layoutTemplates } from './layouts';
 
 // Merge all template categories
 const blocks = {
@@ -134,4 +135,91 @@ export function getBlocksByCategory(category: 'structure' | 'content' | 'actions
  */
 export function getAllBlockTypes(): string[] {
   return Object.keys(blocks);
+}
+
+/**
+ * Get layout template by key
+ */
+export function getLayoutTemplate(key: string): Layer | null {
+  const layout = layoutTemplates[key as keyof typeof layoutTemplates];
+  if (!layout) return null;
+
+  const template = cloneDeep(layout.template);
+
+  // Recursively assign IDs to all nested children
+  const assignIds = (layer: Omit<Layer, 'id'>): Layer => {
+    const layerWithId = { ...layer, id: generateId() } as Layer;
+
+    if (layerWithId.children && Array.isArray(layerWithId.children)) {
+      layerWithId.children = layerWithId.children.map((child) => assignIds(child as Omit<Layer, 'id'>)) as Layer[];
+    }
+
+    return layerWithId;
+  };
+
+  return assignIds(template);
+}
+
+/**
+ * Get layout icon
+ * @deprecated Icons are no longer part of layout templates
+ */
+export function getLayoutIcon(key: string): IconProps['name'] {
+  return 'box';
+}
+
+/**
+ * Get layout name
+ * @deprecated Names are no longer part of layout templates
+ */
+export function getLayoutName(key: string): string | null {
+  return null;
+}
+
+/**
+ * Get layout description
+ * @deprecated Descriptions are no longer part of layout templates
+ */
+export function getLayoutDescription(key: string): string | undefined {
+  return undefined;
+}
+
+/**
+ * Get layout category
+ */
+export function getLayoutCategory(key: string): string | undefined {
+  const layout = layoutTemplates[key as keyof typeof layoutTemplates];
+  return layout?.category;
+}
+
+/**
+ * Get layout preview image
+ */
+export function getLayoutPreviewImage(key: string): string | undefined {
+  const layout = layoutTemplates[key as keyof typeof layoutTemplates];
+  return layout?.previewImage;
+}
+
+/**
+ * Get all layout keys
+ */
+export function getAllLayoutKeys(): string[] {
+  return Object.keys(layoutTemplates);
+}
+
+/**
+ * Get layouts grouped by category
+ */
+export function getLayoutsByCategory(): Record<string, string[]> {
+  const categories: Record<string, string[]> = {};
+  
+  Object.keys(layoutTemplates).forEach((key) => {
+    const category = layoutTemplates[key as keyof typeof layoutTemplates].category || 'Other';
+    if (!categories[category]) {
+      categories[category] = [];
+    }
+    categories[category].push(key);
+  });
+  
+  return categories;
 }

@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-import { getTemplate, getBlockName, getBlockIcon } from '@/lib/templates/blocks';
+import Image from 'next/image';
+import { getTemplate, getBlockName, getBlockIcon, getLayoutTemplate, getLayoutCategory, getLayoutPreviewImage, getLayoutsByCategory, getAllLayoutKeys } from '@/lib/templates/blocks';
 import { canHaveChildren } from '@/lib/layer-utils';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -149,6 +150,215 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
           detail: { layerId: result.parentToExpand }
         }));
       }
+    }
+
+    // Close the panel
+    onClose();
+  };
+
+  const handleAddLayout = (layoutKey: string) => {
+    // If editing component, use component draft instead
+    if (editingComponentId) {
+      const layers = componentDrafts[editingComponentId] || [];
+      const parentId = selectedLayerId || layers[0]?.id || 'body';
+
+      // Get layout template
+      const layoutTemplate = getLayoutTemplate(layoutKey);
+      if (!layoutTemplate) return;
+
+      const newLayer = {
+        ...layoutTemplate,
+      };
+
+      // Find parent layer and check if it can have children
+      const findLayerInTree = (tree: any[], targetId: string): any | null => {
+        for (const node of tree) {
+          if (node.id === targetId) return node;
+          if (node.children) {
+            const found = findLayerInTree(node.children, targetId);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const parentLayer = findLayerInTree(layers, parentId);
+
+      // Find parent and add layer
+      const addLayerToTree = (tree: any[], targetId: string, parentNode: any = null): { success: boolean; newLayers: any[]; newLayerId: string; parentToExpand: string | null } => {
+        for (let i = 0; i < tree.length; i++) {
+          const node = tree[i];
+          if (node.id === targetId) {
+            // Found target, check if it can have children
+            if (canHaveChildren(node)) {
+              // Add as child
+              const updatedNode = {
+                ...node,
+                children: [...(node.children || []), newLayer]
+              };
+              return {
+                success: true,
+                newLayers: [...tree.slice(0, i), updatedNode, ...tree.slice(i + 1)],
+                newLayerId: newLayer.id,
+                parentToExpand: targetId
+              };
+            } else {
+              // Cannot have children, add as sibling after this node
+              return {
+                success: true,
+                newLayers: [...tree.slice(0, i + 1), newLayer, ...tree.slice(i + 1)],
+                newLayerId: newLayer.id,
+                parentToExpand: parentNode ? parentNode.id : null
+              };
+            }
+          }
+          if (node.children) {
+            const result = addLayerToTree(node.children, targetId, node);
+            if (result.success) {
+              return {
+                success: true,
+                newLayers: [
+                  ...tree.slice(0, i),
+                  { ...node, children: result.newLayers },
+                  ...tree.slice(i + 1)
+                ],
+                newLayerId: result.newLayerId,
+                parentToExpand: result.parentToExpand
+              };
+            }
+          }
+        }
+        return { success: false, newLayers: tree, newLayerId: '', parentToExpand: null };
+      };
+
+      const result = addLayerToTree(layers, parentId);
+      if (result.success) {
+        updateComponentDraft(editingComponentId, result.newLayers);
+        setSelectedLayerId(result.newLayerId);
+        if (result.parentToExpand) {
+          window.dispatchEvent(new CustomEvent('expandLayer', {
+            detail: { layerId: result.parentToExpand }
+          }));
+        }
+      }
+
+      onClose();
+      return;
+    }
+
+    // Regular page mode
+    if (!currentPageId) return;
+
+    // Determine parent (selected container or Body)
+    const parentId = selectedLayerId || 'body';
+
+    // Get layout template
+    const layoutTemplate = getLayoutTemplate(layoutKey);
+    if (!layoutTemplate) return;
+
+    const newLayer = {
+      ...layoutTemplate,
+    };
+
+    // Use the internal addLayerFromTemplate logic but with our layout
+    const draft = usePagesStore.getState().draftsByPageId[currentPageId];
+    if (!draft) {
+      const page = usePagesStore.getState().pages.find(p => p.id === currentPageId);
+      if (!page) return;
+    }
+
+    // Find parent layer
+    const findLayerWithParent = (tree: any[], id: string, parent: any | null = null): { layer: any; parent: any | null } | null => {
+      for (const node of tree) {
+        if (node.id === id) return { layer: node, parent };
+        if (node.children) {
+          const found = findLayerWithParent(node.children, id, node);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const currentDraft = usePagesStore.getState().draftsByPageId[currentPageId] || {
+      id: `draft-${currentPageId}`,
+      page_id: currentPageId,
+      layers: [],
+      is_published: false,
+      created_at: new Date().toISOString(),
+      deleted_at: null,
+    };
+
+    const result = findLayerWithParent(currentDraft.layers, parentId);
+    let newLayers;
+    let parentToExpand: string | null = null;
+
+    if (!result) {
+      // Add to root
+      newLayers = [...currentDraft.layers, newLayer];
+    } else {
+      // Check if parent can have children
+      if (canHaveChildren(result.layer)) {
+        // Add as child
+        const updateLayerInTree = (tree: any[], layerId: string, updater: (l: any) => any): any[] => {
+          return tree.map((node) => {
+            if (node.id === layerId) {
+              return updater(node);
+            }
+            if (node.children && node.children.length > 0) {
+              return { ...node, children: updateLayerInTree(node.children, layerId, updater) };
+            }
+            return node;
+          });
+        };
+
+        newLayers = updateLayerInTree(currentDraft.layers, parentId, (parent) => ({
+          ...parent,
+          children: [...(parent.children || []), newLayer],
+        }));
+        parentToExpand = parentId;
+      } else {
+        // Insert after the selected layer
+        if (result.parent) {
+          const updateLayerInTree = (tree: any[], layerId: string, updater: (l: any) => any): any[] => {
+            return tree.map((node) => {
+              if (node.id === layerId) {
+                return updater(node);
+              }
+              if (node.children && node.children.length > 0) {
+                return { ...node, children: updateLayerInTree(node.children, layerId, updater) };
+              }
+              return node;
+            });
+          };
+
+          newLayers = updateLayerInTree(currentDraft.layers, result.parent.id, (grandparent) => {
+            const children = grandparent.children || [];
+            const selectedIndex = children.findIndex((c: any) => c.id === parentId);
+            const newChildren = [...children];
+            newChildren.splice(selectedIndex + 1, 0, newLayer);
+            return { ...grandparent, children: newChildren };
+          });
+          parentToExpand = result.parent.id;
+        } else {
+          // Selected layer is at root level, insert after it
+          const selectedIndex = currentDraft.layers.findIndex((l: any) => l.id === parentId);
+          newLayers = [...currentDraft.layers];
+          newLayers.splice(selectedIndex + 1, 0, newLayer);
+        }
+      }
+    }
+
+    // Update the draft with the new layers
+    usePagesStore.getState().setDraftLayers(currentPageId, newLayers);
+
+    // Select the root layer of the layout
+    setSelectedLayerId(newLayer.id);
+
+    // Expand parent if needed
+    if (parentToExpand) {
+      window.dispatchEvent(new CustomEvent('expandLayer', {
+        detail: { layerId: parentToExpand }
+      }));
     }
 
     // Close the panel
@@ -312,10 +522,45 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
           </TabsContent>
 
           <TabsContent value="layouts" className="flex flex-col overflow-y-auto flex-1 px-4 pb-4 no-scrollbar">
-            <Empty>
-              <EmptyTitle>Coming soon</EmptyTitle>
-              <EmptyDescription>Pre-built page layouts are coming soon</EmptyDescription>
-            </Empty>
+            {getAllLayoutKeys().length === 0 ? (
+              <Empty>
+                <EmptyTitle>No layouts available</EmptyTitle>
+                <EmptyDescription>Pre-built page layouts will appear here</EmptyDescription>
+              </Empty>
+            ) : (
+              <div className="flex flex-col pb-5">
+                {Object.entries(getLayoutsByCategory()).map(([category, layoutKeys]) => (
+                  <div key={category} className="flex flex-col pb-5">
+                    <div className="py-5">
+                      <Label>{category}</Label>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3">
+                      {layoutKeys.map((layoutKey) => {
+                        const previewImage = getLayoutPreviewImage(layoutKey);
+
+                        return (
+                          <Button
+                            key={layoutKey}
+                            onClick={() => handleAddLayout(layoutKey)}
+                            size="sm"
+                            variant="secondary"
+                            className="justify-start flex-col items-start p-1.5 overflow-hidden hover:opacity-90 transition-opacity rounded-[10px] !h-auto"
+                          >
+                            {previewImage && (
+                                <img
+                                  src={previewImage}
+                                  alt="Layout preview"
+                                  className="object-contain w-full h-full rounded"
+                                />
+                            )}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="components" className="flex flex-col overflow-y-auto flex-1 px-4 pb-4 no-scrollbar">
