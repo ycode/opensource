@@ -743,7 +743,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
+            <DropdownMenuContent 
+              align="end" 
+              side="bottom" 
+              sideOffset={4}
+              avoidCollisions={false}
+              collisionPadding={0}
+              className="!max-h-[300px]"
+            >
               <DropdownMenuItem onClick={zoomIn}>
                 Zoom in
                 <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
