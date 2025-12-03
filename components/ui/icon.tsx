@@ -12,7 +12,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'file-text' | 'edit' | 'box' | 'chevronRight' | 'minSize' | 'maxSize' | 'undo' | 'redo' | 'page' | 'dynamicPage' | 'homepage' | 'folder' | 'dotsHorizontal' | 'refresh'
     | 'more' | 'copy' | 'component' | 'arrowLeft' | 'bold' | 'italic' | 'strikethrough' | 'quote' | 'listOrdered' | 'listUnordered' | 'code' | 'pencil' | 'eye' | 'eye-off'
     | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'zap'
-    | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in' | 'ease-back-in-out' | 'ease-back-out'
+    | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in' | 'ease-back-in-out' | 'ease-back-out' | 'none'
   );
 }
 
@@ -115,6 +115,11 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
         transform="translate(5.976539, 5.492690) scale(-1, -1) translate(-5.976539, -5.492690)"
       />
       <path d="M11,3 C11.5522847,3 12,2.55228475 12,2 C12,1.44771525 11.5522847,1 11,1 C10.4477153,1 10,1.44771525 10,2 C10,2.55228475 10.4477153,3 11,3 Z M1,12 C1.55228475,12 2,11.5522847 2,11 C2,10.4477153 1.55228475,10 1,10 C0.44771525,10 0,10.4477153 0,11 C0,11.5522847 0.44771525,12 1,12 Z" />
+    </>
+  ),
+  none: (
+    <>
+      <path d="M6,0 C9.3137085,0 12,2.6862915 12,6 C12,9.3137085 9.3137085,12 6,12 C2.6862915,12 0,9.3137085 0,6 C0,2.6862915 2.6862915,0 6,0 Z M9.87143006,2.83558206 L2.83558206,9.87143006 C3.69752504,10.5768003 4.79934073,11 6,11 C8.76142375,11 11,8.76142375 11,6 C11,4.79934073 10.5768003,3.69752504 9.87143006,2.83558206 Z M6,1 C3.23857625,1 1,3.23857625 1,6 C1,7.20065927 1.42319969,8.30247496 2.12856994,9.16441794 L9.16441794,2.12856994 C8.30247496,1.42319969 7.20065927,1 6,1 Z" />
     </>
   ),
   search: (

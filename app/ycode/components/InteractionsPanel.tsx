@@ -59,7 +59,7 @@ interface InteractionsPanelProps {
 }
 
 type TriggerType = 'click' | 'hover' | 'scroll-into-view' | 'while-scrolling' | 'load';
-type PropertyType = 'position' | 'scale' | 'rotation' | 'skew' | 'opacity';
+type PropertyType = 'position-x' | 'position-y' | 'scale' | 'rotation' | 'skew-x' | 'skew-y' | 'opacity' | 'visibility';
 
 interface PropertyOption {
   type: PropertyType;
@@ -68,17 +68,20 @@ interface PropertyOption {
     key: keyof TweenProperties;
     label: string;
     unit: string;
+    options?: Array<{ value: string; label: string }>;
   }>;
 }
 
 const PROPERTY_OPTIONS: PropertyOption[] = [
   {
-    type: 'position',
-    label: 'Position',
-    properties: [
-      { key: 'x', label: 'X', unit: 'px' },
-      { key: 'y', label: 'Y', unit: 'px' },
-    ],
+    type: 'position-x',
+    label: 'Position X',
+    properties: [{ key: 'x', label: 'X', unit: 'px' }],
+  },
+  {
+    type: 'position-y',
+    label: 'Position Y',
+    properties: [{ key: 'y', label: 'Y', unit: 'px' }],
   },
   {
     type: 'scale',
@@ -91,17 +94,32 @@ const PROPERTY_OPTIONS: PropertyOption[] = [
     properties: [{ key: 'rotation', label: 'Angle', unit: 'deg' }],
   },
   {
-    type: 'skew',
-    label: 'Skew',
-    properties: [
-      { key: 'skewX', label: 'X', unit: 'deg' },
-      { key: 'skewY', label: 'Y', unit: 'deg' },
-    ],
+    type: 'skew-x',
+    label: 'Skew X',
+    properties: [{ key: 'skewX', label: 'X', unit: 'deg' }],
+  },
+  {
+    type: 'skew-y',
+    label: 'Skew Y',
+    properties: [{ key: 'skewY', label: 'Y', unit: 'deg' }],
   },
   {
     type: 'opacity',
     label: 'Opacity',
     properties: [{ key: 'opacity', label: 'Value', unit: '' }],
+  },
+  {
+    type: 'visibility',
+    label: 'Visibility',
+    properties: [{
+      key: 'visibility',
+      label: 'Value',
+      unit: '',
+      options: [
+        { value: 'visible', label: 'Visible' },
+        { value: 'hidden', label: 'Hidden' },
+      ],
+    }],
   },
 ];
 
@@ -509,9 +527,18 @@ export default function InteractionsPanel({
             const newTo = { ...tween.to };
             propertyOption.properties.forEach((prop) => {
               const key = prop.key;
-              if (key !== 'visibility') {
+              if (key === 'visibility') {
+                newFrom[key] = 'hidden';
+                newTo[key] = 'visible';
+              } else if (key === 'scale') {
                 newFrom[key] = '0';
-                newTo[key] = key === 'scale' ? '1' : '100';
+                newTo[key] = '1';
+              } else if (key === 'opacity') {
+                newFrom[key] = '0';
+                newTo[key] = '1';
+              } else {
+                newFrom[key] = '0';
+                newTo[key] = '100';
               }
             });
 
@@ -557,10 +584,14 @@ export default function InteractionsPanel({
     [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate]
   );
 
-  // Get all property options that are set in a tween
+  // Get all property options that are set in a tween (check both from and to)
   const getTweenProperties = (tween: InteractionTween): PropertyOption[] => {
     return PROPERTY_OPTIONS.filter((opt) =>
-      opt.properties.some((p) => tween.from[p.key] !== undefined && tween.from[p.key] !== null)
+      opt.properties.some((p) => {
+        const hasFrom = tween.from[p.key] !== undefined && tween.from[p.key] !== null;
+        const hasTo = tween.to[p.key] !== undefined && tween.to[p.key] !== null;
+        return hasFrom || hasTo;
+      })
     );
   };
 
@@ -568,9 +599,11 @@ export default function InteractionsPanel({
   const isPropertyInTween = (tween: InteractionTween, propertyType: PropertyType): boolean => {
     const propertyOption = PROPERTY_OPTIONS.find((p) => p.type === propertyType);
     if (!propertyOption) return false;
-    return propertyOption.properties.some(
-      (p) => tween.from[p.key] !== undefined && tween.from[p.key] !== null
-    );
+    return propertyOption.properties.some((p) => {
+      const hasFrom = tween.from[p.key] !== undefined && tween.from[p.key] !== null;
+      const hasTo = tween.to[p.key] !== undefined && tween.to[p.key] !== null;
+      return hasFrom || hasTo;
+    });
   };
 
   // Toggle breakpoint in timeline
@@ -1001,7 +1034,7 @@ export default function InteractionsPanel({
 
       {/* Properties Section - Only show when tween is selected */}
       {selectedInteraction && selectedTween && (
-        <div className="border-t">
+        <div className="border-t pb-6">
           <header className="py-5 flex justify-between">
             <span className="font-medium">Animated properties</span>
             <div className="-my-1">
@@ -1035,56 +1068,139 @@ export default function InteractionsPanel({
                 </EmptyDescription>
               </Empty>
             ) : (
-              <div className="flex flex-col gap-2 pb-4">
+              <div className="flex flex-col gap-2.5">
                 {tweenProperties.map((propertyOption) => (
-                  <div key={propertyOption.type}>
-                    {propertyOption.properties.map((prop) => (
-                      <div key={prop.key} className="flex items-center gap-1.5 py-1">
-                        <span className="text-xs text-muted-foreground w-16 shrink-0">
-                          {propertyOption.properties.length > 1
-                            ? `${propertyOption.label} ${prop.label}`
-                            : propertyOption.label}
-                        </span>
-                        <Input
-                          value={selectedTween.from[prop.key] ?? ''}
-                          onChange={(e) =>
-                            handleUpdateTween(selectedTween.id, {
-                              from: {
-                                ...selectedTween.from,
-                                [prop.key]: e.target.value,
-                              },
-                            })
-                          }
-                          placeholder="From"
-                          className="flex-1 h-7 text-xs"
-                        />
-                        <Icon
-                          name="chevronRight"
-                          className="size-2.5 opacity-40 shrink-0"
-                        />
-                        <Input
-                          value={selectedTween.to[prop.key] ?? ''}
-                          onChange={(e) =>
-                            handleUpdateTween(selectedTween.id, {
-                              to: {
-                                ...selectedTween.to,
-                                [prop.key]: e.target.value,
-                              },
-                            })
-                          }
-                          placeholder="To"
-                          className="flex-1 h-7 text-xs"
-                        />
-                        <Button
-                          size="xs"
-                          variant="ghost"
-                          className="size-6 p-0"
-                          onClick={() => handleRemovePropertyFromTween(selectedTween.id, propertyOption.type)}
-                        >
-                          <Icon name="x" className="size-2.5" />
-                        </Button>
-                      </div>
-                    ))}
+                  <div key={propertyOption.type} className="flex flex-col gap-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        {propertyOption.label}
+                      </span>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        className="size-5 p-0"
+                        onClick={() => handleRemovePropertyFromTween(selectedTween.id, propertyOption.type)}
+                      >
+                        <Icon name="x" className="size-2.5" />
+                      </Button>
+                    </div>
+
+                    {propertyOption.properties.map((prop) => {
+                      const fromValue = selectedTween.from[prop.key];
+                      const isFromCurrent = fromValue === null || fromValue === undefined;
+
+                      const setFromValue = (value: string | null) => {
+                        handleUpdateTween(selectedTween.id, {
+                          from: { ...selectedTween.from, [prop.key]: value },
+                        });
+                      };
+
+                      const getDefaultFromValue = () => {
+                        if (prop.key === 'visibility') return 'hidden';
+                        if (prop.key === 'scale' || prop.key === 'opacity') return '0';
+                        return '0';
+                      };
+
+                      return (
+                        <div key={prop.key} className="flex items-center gap-1.25">
+                          <div className="w-full flex items-center gap-1.5">
+                            {isFromCurrent ? (
+                              <Button
+                                size="xs"
+                                variant="secondary"
+                                className="h-7 transition-none w-28.5"
+                                onClick={() => setFromValue(getDefaultFromValue())}
+                              >
+                                Current
+                              </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  size="xs"
+                                  variant="secondary"
+                                  className="size-7 p-0 shrink-0 transition-none"
+                                  onClick={() => setFromValue(null)}
+                                  title="Use current value"
+                                >
+                                  <Icon name="none" />
+                                </Button>
+
+                                {prop.options ? (
+                                  <Select
+                                    value={fromValue as string}
+                                    onValueChange={setFromValue}
+                                  >
+                                    <SelectTrigger className="flex-1 h-7 text-xs w-20">
+                                      <SelectValue placeholder="From" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {prop.options.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value}>
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input
+                                    value={fromValue ?? ''}
+                                    onChange={(e) => setFromValue(e.target.value)}
+                                    placeholder="From"
+                                    className="flex-1 h-7 text-xs w-20"
+                                  />
+                                )}
+                              </>
+                            )}
+                          </div>
+
+                          <Icon
+                            name="chevronRight"
+                            className="size-2.5 opacity-60 shrink-0"
+                          />
+
+                          <div className="w-full">
+                            {prop.options ? (
+                              <Select
+                                value={(selectedTween.to[prop.key] as string) ?? ''}
+                                onValueChange={(value) =>
+                                  handleUpdateTween(selectedTween.id, {
+                                    to: {
+                                      ...selectedTween.to,
+                                      [prop.key]: value,
+                                    },
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="w-full h-7 text-xs">
+                                  <SelectValue placeholder="To" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {prop.options.map((opt) => (
+                                    <SelectItem key={opt.value} value={opt.value}>
+                                      {opt.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input
+                                value={selectedTween.to[prop.key] ?? ''}
+                                onChange={(e) =>
+                                  handleUpdateTween(selectedTween.id, {
+                                    to: {
+                                      ...selectedTween.to,
+                                      [prop.key]: e.target.value,
+                                    },
+                                  })
+                                }
+                                placeholder={propertyOption.properties.length > 1 ? `${prop.label} to` : 'To'}
+                                className="w-full h-7 text-xs"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
               </div>
