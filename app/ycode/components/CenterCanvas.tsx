@@ -268,7 +268,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (!currentPage?.is_dynamic) {
       return null;
     }
-    
+
     // First, check if we have an optimistically updated item in the draft
     if (currentPageId) {
       const draft = draftsByPageId[currentPageId];
@@ -276,7 +276,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         return (draft as any).collectionItem;
       }
     }
-    
+
     // Fall back to fetching from collections store
     const collectionId = currentPage.settings?.cms?.collection_id;
     if (!collectionId || !currentPageCollectionItemId) {
@@ -488,7 +488,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     );
   }, [collapsedFolderIds, currentPageId, toggleFolder, handlePageSelect]);
 
-  // Send layers to iframe whenever they change
+  // Send layers to iframe whenever they change (excludes selection to avoid re-renders)
   useEffect(() => {
     if (!iframeReady || !iframeRef.current) return;
 
@@ -506,9 +506,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
         pageCollectionFields,
       },
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     layers,
-    selectedLayerId,
     iframeReady,
     components,
     editingComponentId,
@@ -517,6 +517,16 @@ const CenterCanvas = React.memo(function CenterCanvas({
     pageCollectionItem,
     pageCollectionFields,
   ]);
+
+  // Send selection updates separately to avoid full re-renders
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    sendToIframe(iframeRef.current, {
+      type: 'UPDATE_SELECTION',
+      payload: { layerId: selectedLayerId },
+    });
+  }, [selectedLayerId, iframeReady]);
 
   // Send collection layer data to iframe whenever it changes
   useEffect(() => {

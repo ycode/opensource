@@ -7,6 +7,8 @@
 // UI State Types (for state-specific styling: hover, focus, etc.)
 export type UIState = 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current';
 
+export type Breakpoint = 'mobile' | 'tablet' | 'desktop';
+
 // Design Property Interfaces
 export interface LayoutDesign {
   isActive?: boolean;
@@ -140,26 +142,28 @@ export interface LayerStyle {
 export interface LayerInteraction {
   id: string;
   trigger: 'click' | 'hover' | 'scroll-into-view' | 'while-scrolling' | 'load';
-  targets: InteractionTarget[];
+  timeline: InteractionTimeline;
+  tweens: InteractionTween[];
 }
 
-export interface InteractionTarget {
-  layer_id: string;
-  animations: InteractionAnimation[];
+export interface InteractionTimeline {
+  breakpoints: Breakpoint[];
+  repeat: number; // -1 = infinite, 0 = none, n = repeat n times
+  yoyo: boolean; // reverse direction on each repeat
+  apply_styles: 'on-load' | 'on-trigger';
 }
 
-export interface InteractionAnimation {
+export interface InteractionTween {
   id: string;
-  delay: number;
-  duration: number;
-  repeat: boolean;
-  yoyo: boolean;
-  ease: string;
-  from: InteractionProperty;
-  to: InteractionProperty;
+  layer_id: string;
+  position: number | string; // GSAP position: number (seconds), ">" (after previous), "<" (with previous)
+  duration: number; // seconds
+  ease: string; // GSAP ease (e.g., 'power1.out', 'elastic.inOut')
+  from: TweenProperties;
+  to: TweenProperties;
 }
 
-export interface InteractionProperty {
+export interface TweenProperties {
   x?: string | null;
   y?: string | null;
   rotation?: string | null;
@@ -379,7 +383,7 @@ export interface EditorState {
   isDragging: boolean;
   isLoading: boolean;
   isSaving: boolean;
-  activeBreakpoint: 'mobile' | 'tablet' | 'desktop';
+  activeBreakpoint: Breakpoint;
   activeUIState: UIState; // Current UI state for editing (hover, focus, etc.)
 }
 

@@ -6,6 +6,7 @@
 
 import { Layer } from '@/types';
 import { IconProps } from '@/components/ui/icon';
+import { generateId } from '@/lib/utils';
 import { structureTemplates } from './structure';
 import { contentTemplates } from './content';
 import { actionTemplates } from './actions';
@@ -21,11 +22,6 @@ const blocks = {
   ...mediaTemplates,
   ...formTemplates,
 };
-
-// Generate unique ID
-export function generateId(): string {
-  return `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
 
 // Deep clone object
 function cloneDeep<T>(obj: T): T {
@@ -73,7 +69,7 @@ export function getTemplate(
 
   // Recursively assign IDs to all nested children
   const assignIds = (layer: Omit<Layer, 'id'>): Layer => {
-    const layerWithId = { ...layer, id: generateId() } as Layer;
+    const layerWithId = { ...layer, id: generateId('lyr') } as Layer;
 
     if (layerWithId.children && Array.isArray(layerWithId.children)) {
       layerWithId.children = layerWithId.children.map((child) => assignIds(child as Omit<Layer, 'id'>)) as Layer[];
@@ -148,7 +144,7 @@ export function getLayoutTemplate(key: string): Layer | null {
 
   // Recursively assign IDs to all nested children
   const assignIds = (layer: Omit<Layer, 'id'>): Layer => {
-    const layerWithId = { ...layer, id: generateId() } as Layer;
+    const layerWithId = { ...layer, id: generateId('lyr') } as Layer;
 
     if (layerWithId.children && Array.isArray(layerWithId.children)) {
       layerWithId.children = layerWithId.children.map((child) => assignIds(child as Omit<Layer, 'id'>)) as Layer[];
@@ -212,7 +208,7 @@ export function getAllLayoutKeys(): string[] {
  */
 export function getLayoutsByCategory(): Record<string, string[]> {
   const categories: Record<string, string[]> = {};
-  
+
   Object.keys(layoutTemplates).forEach((key) => {
     const category = layoutTemplates[key as keyof typeof layoutTemplates].category || 'Other';
     if (!categories[category]) {
@@ -220,6 +216,6 @@ export function getLayoutsByCategory(): Record<string, string[]> {
     }
     categories[category].push(key);
   });
-  
+
   return categories;
 }

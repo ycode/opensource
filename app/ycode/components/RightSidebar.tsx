@@ -202,15 +202,15 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   }, [activeTab, interactionOwnerLayerId]);
 
-  // Update active interaction (current trigger and its targets)
+  // Update active interaction (current trigger and its target layers from tweens)
   useEffect(() => {
     if (activeTab === 'interactions' && interactionOwnerLayer) {
       const interactions = interactionOwnerLayer.interactions || [];
       const targetIds = new Set<string>();
 
       interactions.forEach(interaction => {
-        interaction.targets.forEach(target => {
-          targetIds.add(target.layer_id);
+        (interaction.tweens || []).forEach(tween => {
+          targetIds.add(tween.layer_id);
         });
       });
 
@@ -232,13 +232,13 @@ const RightSidebar = React.memo(function RightSidebar({
     const collectInteractions = (layers: Layer[]) => {
       layers.forEach(layer => {
         const interactions = layer.interactions || [];
-        const hasTargets = interactions.some(i => i.targets.length > 0);
+        const hasTweens = interactions.some(i => (i.tweens || []).length > 0);
 
-        if (hasTargets) {
+        if (hasTweens) {
           triggerIds.add(layer.id);
           interactions.forEach(interaction => {
-            interaction.targets.forEach(target => {
-              targetIds.add(target.layer_id);
+            (interaction.tweens || []).forEach(tween => {
+              targetIds.add(tween.layer_id);
             });
           });
         }
@@ -1250,6 +1250,7 @@ const RightSidebar = React.memo(function RightSidebar({
               onLayerUpdate={onLayerUpdate}
               selectedLayerId={selectedLayerId}
               resetKey={interactionResetKey}
+              activeBreakpoint={activeBreakpoint}
               onStateChange={handleInteractionStateChange}
               onSelectLayer={setSelectedLayerId}
             />
