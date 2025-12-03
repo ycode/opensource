@@ -108,6 +108,7 @@ function LayerRow({
     interactionTargetLayerIds,
     activeInteractionTriggerLayerId,
     activeInteractionTargetLayerIds,
+    setHoveredLayerId,
   } = useEditorStore();
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
@@ -266,6 +267,14 @@ function LayerRow({
             !isDragActive && ''
           )}
           style={{ paddingLeft: `${node.depth * 14 + 8}px` }}
+          onMouseEnter={() => {
+            if (!isDragging) {
+              setHoveredLayerId(node.id);
+            }
+          }}
+          onMouseLeave={() => {
+            setHoveredLayerId(null);
+          }}
           onClick={(e) => {
             // Normal click: Select only this layer
             onSelect(node.id);
@@ -487,6 +496,9 @@ export default function LayersTree({
     return () => window.removeEventListener('expandLayer', handleExpandLayer as EventListener);
   }, [collapsedIds]);
 
+  // Pull hover state management from editor store
+  const { setHoveredLayerId: setHoveredLayerIdFromStore } = useEditorStore();
+
   // Handle drag start
   const handleDragStart = useCallback((event: DragStartEvent) => {
     // Prevent starting a new drag while processing the previous one
@@ -496,6 +508,9 @@ export default function LayersTree({
 
     const draggedId = event.active.id as string;
     const draggedNode = flattenedNodes.find(n => n.id === draggedId);
+
+    // Clear hover state when dragging starts
+    setHoveredLayerIdFromStore(null);
 
     // Calculate where user clicked within the element
     const activeRect = event.active.rect.current.initial;
@@ -510,7 +525,7 @@ export default function LayersTree({
 
     setActiveId(draggedId);
     onLayerSelect(draggedId);
-  }, [flattenedNodes, onLayerSelect, isProcessing]);
+  }, [flattenedNodes, onLayerSelect, isProcessing, setHoveredLayerIdFromStore]);
 
   // Handle drag over - standard 25/50/25 drop zone detection
   const handleDragOver = useCallback((event: DragOverEvent) => {

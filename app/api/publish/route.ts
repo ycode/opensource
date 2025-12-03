@@ -17,29 +17,15 @@ export const revalidate = 0;
  */
 export async function POST() {
   try {
-    console.log('[Publish] Starting publish all pages, folders, and collections cleanup...');
-
     // Publish all draft pages, folders, and their layers
     const result = await publishAllPages();
-    
+
     // Clean up any soft-deleted collections
-    console.log('[Publish] Cleaning up deleted collections...');
     await cleanupDeletedCollections();
-    console.log('[Publish] Deleted collections cleanup complete');
 
     // Count error pages vs regular pages
     const errorPages = result.published.filter(({ page }) => page.error_page !== null);
     const regularPages = result.published.filter(({ page }) => page.error_page === null);
-
-    console.log('[Publish] Published:', {
-      folders: result.publishedFolders.length,
-      pages: result.published.length,
-      regularPages: regularPages.length,
-      errorPages: errorPages.length,
-      created: result.created,
-      updated: result.updated,
-      unchanged: result.unchanged,
-    });
 
     // Log error pages separately
     if (errorPages.length > 0) {

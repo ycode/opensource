@@ -53,6 +53,22 @@ export interface UpdatePageData {
   content_hash?: string; // Auto-calculated, should not be set manually
 }
 
+function normalizePageFolderId(folderId?: string | null): string | null {
+  if (folderId === undefined || folderId === null) {
+    return null;
+  }
+
+  if (typeof folderId === 'string') {
+    const trimmed = folderId.trim();
+    if (!trimmed || trimmed === 'null' || trimmed === 'undefined') {
+      return null;
+    }
+    return trimmed;
+  }
+
+  return folderId;
+}
+
 /**
  * Retrieves all pages from the database
  *
@@ -366,22 +382,35 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
     throw new Error('Supabase not configured');
   }
 
+  const normalizedPageFolderId = normalizePageFolderId(pageData.page_folder_id);
+  const normalizedPageData: CreatePageData = {
+    ...pageData,
+    page_folder_id: normalizedPageFolderId,
+  };
+
   // Check if trying to create a dynamic page in a folder that already has one
-  if (pageData.is_dynamic) {
-    const { data: existingDynamicPages, error: checkError } = await client
+  if (normalizedPageData.is_dynamic) {
+    let dynamicQuery = client
       .from('pages')
       .select('id, name')
       .eq('is_dynamic', true)
-      .eq('page_folder_id', pageData.page_folder_id)
-      .eq('is_published', pageData.is_published || false)
+      .eq('is_published', normalizedPageData.is_published || false)
       .is('deleted_at', null);
+
+    if (normalizedPageFolderId === null) {
+      dynamicQuery = dynamicQuery.is('page_folder_id', null);
+    } else {
+      dynamicQuery = dynamicQuery.eq('page_folder_id', normalizedPageFolderId);
+    }
+
+    const { data: existingDynamicPages, error: checkError } = await dynamicQuery;
 
     if (checkError) {
       throw new Error(`Failed to check for existing dynamic pages: ${checkError.message}`);
     }
 
     if (existingDynamicPages && existingDynamicPages.length > 0) {
-      const folderName = pageData.page_folder_id ? 'this folder' : 'the root folder';
+      const folderName = normalizedPageFolderId ? 'this folder' : 'the root folder';
       throw new Error(`A dynamic page already exists in ${folderName}. Each folder can only contain one dynamic page.`);
     }
   }
@@ -390,11 +419,11 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
   await validateIndexPageConstraints(
     client,
     {
-      is_index: pageData.is_index || false,
-      slug: pageData.slug,
-      page_folder_id: pageData.page_folder_id,
-      error_page: pageData.error_page,
-      is_dynamic: pageData.is_dynamic || false,
+      is_index: normalizedPageData.is_index || false,
+      slug: normalizedPageData.slug,
+      page_folder_id: normalizedPageFolderId,
+      error_page: normalizedPageData.error_page,
+      is_dynamic: normalizedPageData.is_dynamic || false,
     },
     undefined,
     undefined
@@ -402,16 +431,16 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
 
   // Calculate content hash for page metadata
   const contentHash = generatePageMetadataHash({
-    name: pageData.name,
-    slug: pageData.slug,
-    settings: pageData.settings || {},
-    is_index: pageData.is_index || false,
-    is_dynamic: pageData.is_dynamic || false,
-    error_page: pageData.error_page || null,
+    name: normalizedPageData.name,
+    slug: normalizedPageData.slug,
+    settings: normalizedPageData.settings || {},
+    is_index: normalizedPageData.is_index || false,
+    is_dynamic: normalizedPageData.is_dynamic || false,
+    error_page: normalizedPageData.error_page || null,
   });
 
   // Remove any content_hash from pageData to prevent override
-  const { content_hash: _, ...pageDataWithoutHash } = pageData as any;
+  const { content_hash: _, ...pageDataWithoutHash } = normalizedPageData as any;
 
   // Merge page data with any additional fields and our calculated content hash
   const insertData = {
@@ -431,8 +460,8 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
   }
 
   // If setting as index page, transfer from existing index page
-  if (pageData.is_index) {
-    await transferIndexPage(client, data.id, pageData.page_folder_id || null, pageData.is_published || false);
+  if (normalizedPageData.is_index) {
+    await transferIndexPage(client, data.id, normalizedPageFolderId, normalizedPageData.is_published || false);
   }
 
   return data;
@@ -455,30 +484,45 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
     throw new Error('Page not found');
   }
 
+  const normalizedUpdates: UpdatePageData =
+    updates.page_folder_id !== undefined
+      ? {
+        ...updates,
+        page_folder_id: normalizePageFolderId(updates.page_folder_id),
+      }
+      : updates;
+
   // Merge current data with updates for validation
   const mergedData = {
-    is_index: updates.is_index !== undefined ? updates.is_index : currentPage.is_index,
-    slug: updates.slug !== undefined ? updates.slug : currentPage.slug,
-    page_folder_id: updates.page_folder_id !== undefined ? updates.page_folder_id : currentPage.page_folder_id,
-    error_page: updates.error_page !== undefined ? updates.error_page : currentPage.error_page,
-    is_dynamic: updates.is_dynamic !== undefined ? updates.is_dynamic : currentPage.is_dynamic,
+    is_index: normalizedUpdates.is_index !== undefined ? normalizedUpdates.is_index : currentPage.is_index,
+    slug: normalizedUpdates.slug !== undefined ? normalizedUpdates.slug : currentPage.slug,
+    page_folder_id: normalizedUpdates.page_folder_id !== undefined ? normalizedUpdates.page_folder_id : currentPage.page_folder_id,
+    error_page: normalizedUpdates.error_page !== undefined ? normalizedUpdates.error_page : currentPage.error_page,
+    is_dynamic: normalizedUpdates.is_dynamic !== undefined ? normalizedUpdates.is_dynamic : currentPage.is_dynamic,
   };
 
   // Check if trying to make a page dynamic or move a dynamic page to a folder that already has one
-  const targetFolderId = updates.page_folder_id !== undefined ? updates.page_folder_id : currentPage.page_folder_id;
-  const willBeDynamic = updates.is_dynamic !== undefined ? updates.is_dynamic : currentPage.is_dynamic;
-  const isBecomingDynamic = updates.is_dynamic === true && !currentPage.is_dynamic;
-  const isMovingDynamicPage = currentPage.is_dynamic && updates.page_folder_id !== undefined && updates.page_folder_id !== currentPage.page_folder_id;
+  const targetFolderId = normalizedUpdates.page_folder_id !== undefined ? normalizedUpdates.page_folder_id : currentPage.page_folder_id;
+  const willBeDynamic = normalizedUpdates.is_dynamic !== undefined ? normalizedUpdates.is_dynamic : currentPage.is_dynamic;
+  const isBecomingDynamic = normalizedUpdates.is_dynamic === true && !currentPage.is_dynamic;
+  const isMovingDynamicPage = currentPage.is_dynamic && normalizedUpdates.page_folder_id !== undefined && normalizedUpdates.page_folder_id !== currentPage.page_folder_id;
 
   if (willBeDynamic && (isBecomingDynamic || isMovingDynamicPage)) {
-    const { data: existingDynamicPages, error: checkError } = await client
+    let existingDynamicPagesQuery = client
       .from('pages')
       .select('id, name')
       .eq('is_dynamic', true)
-      .eq('page_folder_id', targetFolderId)
       .eq('is_published', currentPage.is_published)
       .neq('id', id) // Exclude current page
       .is('deleted_at', null);
+
+    if (targetFolderId === null) {
+      existingDynamicPagesQuery = existingDynamicPagesQuery.is('page_folder_id', null);
+    } else {
+      existingDynamicPagesQuery = existingDynamicPagesQuery.eq('page_folder_id', targetFolderId);
+    }
+
+    const { data: existingDynamicPages, error: checkError } = await existingDynamicPagesQuery;
 
     if (checkError) {
       throw new Error(`Failed to check for existing dynamic pages: ${checkError.message}`);
@@ -491,7 +535,7 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
   }
 
   // Validate index page constraints if is_index or slug is being updated
-  if (updates.is_index !== undefined || updates.slug !== undefined || updates.page_folder_id !== undefined) {
+  if (normalizedUpdates.is_index !== undefined || normalizedUpdates.slug !== undefined || normalizedUpdates.page_folder_id !== undefined) {
     await validateIndexPageConstraints(
       client,
       mergedData,
@@ -502,10 +546,10 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
 
   // If setting as index page (and wasn't before), transfer from existing index page
   // Use the TARGET page_folder_id (where the page will be) to find the existing index
-  const isBecomingIndex = updates.is_index === true && !currentPage.is_index;
+  const isBecomingIndex = normalizedUpdates.is_index === true && !currentPage.is_index;
 
   if (isBecomingIndex) {
-    const folderIdForTransfer = updates.page_folder_id !== undefined ? updates.page_folder_id : currentPage.page_folder_id;
+    const folderIdForTransfer = normalizedUpdates.page_folder_id !== undefined ? normalizedUpdates.page_folder_id : currentPage.page_folder_id;
 
     // FIRST: Clean up any orphaned pages with empty slugs that are NOT index pages
     // This can happen if a previous operation failed mid-way
@@ -526,18 +570,18 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
 
   // Calculate new content hash based on merged data
   const finalData = {
-    name: updates.name !== undefined ? updates.name : currentPage.name,
-    slug: updates.slug !== undefined ? updates.slug : currentPage.slug,
-    settings: updates.settings !== undefined ? updates.settings : currentPage.settings,
-    is_index: updates.is_index !== undefined ? updates.is_index : currentPage.is_index,
-    is_dynamic: updates.is_dynamic !== undefined ? updates.is_dynamic : currentPage.is_dynamic,
-    error_page: updates.error_page !== undefined ? updates.error_page : currentPage.error_page,
+    name: normalizedUpdates.name !== undefined ? normalizedUpdates.name : currentPage.name,
+    slug: normalizedUpdates.slug !== undefined ? normalizedUpdates.slug : currentPage.slug,
+    settings: normalizedUpdates.settings !== undefined ? normalizedUpdates.settings : currentPage.settings,
+    is_index: normalizedUpdates.is_index !== undefined ? normalizedUpdates.is_index : currentPage.is_index,
+    is_dynamic: normalizedUpdates.is_dynamic !== undefined ? normalizedUpdates.is_dynamic : currentPage.is_dynamic,
+    error_page: normalizedUpdates.error_page !== undefined ? normalizedUpdates.error_page : currentPage.error_page,
   };
 
   const contentHash = generatePageMetadataHash(finalData);
 
   // Remove any content_hash from updates to prevent override, then add our calculated one
-  const { content_hash: _, ...updatesWithoutHash } = updates;
+  const { content_hash: _, ...updatesWithoutHash } = normalizedUpdates as any;
 
   const updatesWithHash = {
     ...updatesWithoutHash,

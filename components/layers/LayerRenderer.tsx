@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
-import { getLayerHtmlTag, getClassesString, getText, getImageUrl, getCollectionVariable, sortCollectionItems, resolveFieldValue, resolveInlineVariables, getInlineVariableContent, isTextEditable } from '../../lib/layer-utils';
+import { getLayerHtmlTag, getClassesString, getText, getImageUrl, resolveFieldValue, isTextEditable, getCollectionVariable } from '../../lib/layer-utils';
+import { resolveInlineVariables } from '@/lib/inline-variables';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 import { useComponentsStore } from '../../stores/useComponentsStore';
-import { useCollectionsStore } from '../../stores/useCollectionsStore';
+import { useCollectionLayerStore } from '../../stores/useCollectionLayerStore';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { cn } from '@/lib/utils';
 
 interface LayerRendererProps {
@@ -22,6 +24,7 @@ interface LayerRendererProps {
   projected?: { depth: number; parentId: string | null } | null;
   pageId?: string;
   collectionItemData?: Record<string, string>; // Collection item field values (field_id -> value)
+  pageCollectionItemData?: Record<string, string> | null;
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -36,6 +39,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   projected = null,
   pageId = '',
   collectionItemData,
+  pageCollectionItemData,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -60,6 +64,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
           setEditingContent={setEditingContent}
           pageId={pageId}
           collectionItemData={collectionItemData}
+          pageCollectionItemData={pageCollectionItemData}
         />
       ))}
     </>
@@ -83,6 +88,7 @@ const LayerItem: React.FC<{
   setEditingContent: (content: string) => void;
   pageId: string;
   collectionItemData?: Record<string, string>;
+  pageCollectionItemData?: Record<string, string> | null;
 }> = ({
   layer,
   isEditMode,
@@ -99,6 +105,7 @@ const LayerItem: React.FC<{
   setEditingContent,
   pageId,
   collectionItemData,
+  pageCollectionItemData,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isEditing = editingLayerId === layer.id;
@@ -106,17 +113,38 @@ const LayerItem: React.FC<{
   const textEditable = isTextEditable(layer);
   const htmlTag = getLayerHtmlTag(layer);
   const classesString = getClassesString(layer);
+  const effectiveCollectionItemData = collectionItemData || pageCollectionItemData || undefined;
 
   // Resolve text and image URLs with field binding support
   const textContent = (() => {
-    const inlineContent = getInlineVariableContent(layer);
-    if (inlineContent) {
-      return resolveInlineVariables(inlineContent, collectionItemData);
+    // Check for inline variables in embedded JSON format
+    const textWithVariables = layer.variables?.text || layer.text;
+    if (textWithVariables && typeof textWithVariables === 'string') {
+      if (textWithVariables.includes('<ycode-inline-variable>')) {
+      // Use the embedded JSON resolver (client-safe)
+        if (effectiveCollectionItemData) {
+          const mockItem: any = {
+            id: 'temp',
+            collection_id: 'temp',
+            created_at: '',
+            updated_at: '',
+            deleted_at: null,
+            manual_order: 0,
+            is_published: true,
+            values: effectiveCollectionItemData,
+          };
+          return resolveInlineVariables(textWithVariables, mockItem);
+        }
+        // No collection data - remove variables
+        return textWithVariables.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+      }
+      // No inline variables, treat as plain text stored in variables
+      return textWithVariables;
     }
     const text = getText(layer);
     if (text) return text;
     if (typeof layer.text === 'object') {
-      return resolveFieldValue(layer.text, collectionItemData);
+      return resolveFieldValue(layer.text, effectiveCollectionItemData);
     }
     return undefined;
   })();
@@ -125,7 +153,7 @@ const LayerItem: React.FC<{
     const url = getImageUrl(layer);
     if (url) return url;
     if (typeof layer.url === 'object') {
-      return resolveFieldValue(layer.url, collectionItemData);
+      return resolveFieldValue(layer.url, effectiveCollectionItemData);
     }
     return undefined;
   })();
@@ -134,45 +162,43 @@ const LayerItem: React.FC<{
   // In published pages, components are pre-resolved server-side via resolveComponents()
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const component = (isEditMode && layer.componentId) ? getComponentById(layer.componentId) : null;
-
-  // Get collection items if this is a collection layer
-  const items = useCollectionsStore((state) => state.items);
-  const fields = useCollectionsStore((state) => state.fields);
   const collectionVariable = getCollectionVariable(layer);
   const isCollectionLayer = !!collectionVariable;
-
-  // Debug: Always log to verify execution
-  console.log('[LayerRenderer]', {
-    layerId: layer.id,
-    layerName: layer.name,
-    isCollectionLayer,
-    collectionVariable,
-    NODE_ENV: process.env.NODE_ENV
-  });
   const collectionId = collectionVariable?.id;
-  const rawCollectionItems = (isCollectionLayer && collectionId) ? (items[collectionId] || []) : [];
+  const layerData = useCollectionLayerStore((state) => state.layerData[layer.id]);
+  const isLoadingLayerData = useCollectionLayerStore((state) => state.loading[layer.id]);
+  const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
+  const collectionItems = layerData || [];
+  useEffect(() => {
+    if (!isEditMode) return;
+    if (!collectionVariable?.id) return;
+    if (collectionItems.length > 0 || isLoadingLayerData) return;
 
-  // Apply sorting to collection items
-  const collectionFields = collectionId ? (fields[collectionId] || []) : [];
-  const collectionItems = sortCollectionItems(rawCollectionItems, collectionVariable, collectionFields);
+    fetchLayerData(
+      layer.id,
+      collectionVariable.id,
+      collectionVariable.sort_by,
+      collectionVariable.sort_order,
+      collectionVariable.limit,
+      collectionVariable.offset
+    );
+  }, [
+    isEditMode,
+    collectionVariable?.id,
+    collectionVariable?.sort_by,
+    collectionVariable?.sort_order,
+    collectionVariable?.limit,
+    collectionVariable?.offset,
+    collectionItems.length,
+    isLoadingLayerData,
+    fetchLayerData,
+    layer.id,
+  ]);
 
   // For component instances in edit mode, use the component's layers as children
   // For published pages, children are already resolved server-side
   const children = (isEditMode && component && component.layers) ? component.layers : layer.children;
   const hasChildren = (children && children.length > 0) || false;
-
-  // Debug logging for collection rendering (always show for collection layers)
-  if (isCollectionLayer) {
-    console.log(`[Collection Layer ${layer.id}]`, {
-      collectionVariable,
-      collectionId,
-      collectionItemsCount: collectionItems.length,
-      collectionItems,
-      hasChildren: children && children.length > 0,
-      childrenCount: children?.length || 0,
-      allItemsInStore: Object.keys(items)
-    });
-  }
 
   // Use sortable for drag and drop
   const {
@@ -336,7 +362,8 @@ const LayerItem: React.FC<{
               activeLayerId={activeLayerId}
               projected={projected}
               pageId={pageId}
-              collectionItemData={collectionItemData}
+              collectionItemData={effectiveCollectionItemData}
+              pageCollectionItemData={pageCollectionItemData}
             />
           )}
         </Tag>
@@ -387,38 +414,37 @@ const LayerItem: React.FC<{
 
         {textContent && textContent}
 
-        {/* Collection layer repeater logic
-            When a collection layer is bound to a collection with items:
-            - Renders children once for each collection item
-            - Since LayerRenderer is recursive, this automatically repeats ALL descendants
-              (children, grandchildren, great-grandchildren, etc.) for each item
-            - Each repeated instance is wrapped in a div with data-collection-item-id
-            - Passes the item's field values as collectionItemData for field binding resolution
-        */}
-        {isCollectionLayer && collectionItems.length > 0 ? (
-          // Render children once for each collection item
-          children && children.length > 0 ? (
-            collectionItems.map((item) => (
-              <div key={item.id} data-collection-item-id={item.id}>
-                <LayerRenderer
-                  layers={children}
-                  onLayerClick={onLayerClick}
-                  onLayerUpdate={onLayerUpdate}
-                  selectedLayerId={selectedLayerId}
-                  isEditMode={isEditMode}
-                  isPublished={isPublished}
-                  enableDragDrop={enableDragDrop}
-                  activeLayerId={activeLayerId}
-                  projected={projected}
-                  pageId={pageId}
-                  collectionItemData={item.values}
+        {/* Render children */}
+        {children && children.length > 0 && (
+          isCollectionLayer && isEditMode ? (
+            isLoadingLayerData ? (
+              <div className="w-full p-4">
+                <ShimmerSkeleton
+                  count={3} height="60px"
+                  gap="1rem"
                 />
               </div>
-            ))
-          ) : null
-        ) : (
-          // Regular rendering for non-collection layers
-          children && children.length > 0 && (
+            ) : (
+              collectionItems.map((item) => (
+                <div key={item.id} data-collection-item-id={item.id}>
+                  <LayerRenderer
+                    layers={children}
+                    onLayerClick={onLayerClick}
+                    onLayerUpdate={onLayerUpdate}
+                    selectedLayerId={selectedLayerId}
+                    isEditMode={isEditMode}
+                    isPublished={isPublished}
+                    enableDragDrop={enableDragDrop}
+                    activeLayerId={activeLayerId}
+                    projected={projected}
+                    pageId={pageId}
+                    collectionItemData={item.values}
+                    pageCollectionItemData={pageCollectionItemData}
+                  />
+                </div>
+              ))
+            )
+          ) : (
             <LayerRenderer
               layers={children}
               onLayerClick={onLayerClick}
@@ -430,7 +456,8 @@ const LayerItem: React.FC<{
               activeLayerId={activeLayerId}
               projected={projected}
               pageId={pageId}
-              collectionItemData={collectionItemData}
+              collectionItemData={effectiveCollectionItemData}
+              pageCollectionItemData={pageCollectionItemData}
             />
           )
         )}

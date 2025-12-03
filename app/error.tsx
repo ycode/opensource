@@ -64,6 +64,7 @@ export default function Error({ error, reset }: ErrorProps) {
             layers={errorPageData.pageLayers.layers || []}
             isEditMode={false}
             isPublished={true}
+            pageCollectionItemData={errorPageData.collectionItem?.values || undefined}
           />
         </div>
         {customCodeBody && (

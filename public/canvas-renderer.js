@@ -16,8 +16,11 @@
   let currentUIState = 'neutral'; // Active UI state for visual preview
   let componentMap = {}; // Maps layer IDs to their root component layer ID
   let editingComponentId = null; // ID of component being edited
-  let collectionItems = {}; // Collection items by collection ID
+  let collectionItems = {}; // Collection items by collection ID (for CMS view)
   let collectionFields = {}; // Collection fields by collection ID
+  let collectionLayerData = {}; // Collection items by layer ID (for collection layers)
+  let pageCollectionItem = null; // Collection item for dynamic page preview
+  let pageCollectionFields = [];
 
   // Root element
   const root = document.getElementById('canvas-root');
@@ -47,12 +50,8 @@
         editingComponentId = message.payload.editingComponentId;
         collectionItems = message.payload.collectionItems || {};
         collectionFields = message.payload.collectionFields || {};
-        console.log('[Canvas] Received UPDATE_LAYERS', {
-          layersCount: layers.length,
-          collectionItemsKeys: Object.keys(collectionItems),
-          collectionItems,
-          collectionFieldsKeys: Object.keys(collectionFields)
-        });
+        pageCollectionItem = message.payload.pageCollectionItem || null;
+        pageCollectionFields = message.payload.pageCollectionFields || [];
         render();
         break;
 
@@ -76,8 +75,23 @@
         render();
         break;
 
+      case 'COLLECTION_LAYER_DATA':
+        // Store collection data specific to this layer
+        collectionLayerData[message.payload.layerId] = message.payload.items;
+        console.log('[Canvas] Received COLLECTION_LAYER_DATA', {
+          layerId: message.payload.layerId,
+          itemsCount: message.payload.items.length
+        });
+        render();
+        break;
+
       case 'HIGHLIGHT_DROP_ZONE':
         highlightDropZone(message.payload.layerId);
+        break;
+
+      case 'UPDATE_HOVER':
+        hoveredLayerId = message.payload.layerId;
+        updateHover();
         break;
     }
   });
@@ -340,14 +354,6 @@
   function getText(layer, collectionItemData, collectionId) {
     const text = layer.text || '';
 
-    console.log('[getText]', {
-      layerId: layer.id,
-      hasVariables: !!layer.variables?.text,
-      variablesText: layer.variables?.text,
-      text,
-      collectionItemData
-    });
-
     // Check if text is a field variable
     if (text && typeof text === 'object' && text.type === 'field' && text.data && text.data.field_id) {
       // Resolve field variable from collection item data
@@ -364,51 +370,73 @@
     // Check if it's inline variable content (variables.text structure)
     if (layer.variables && layer.variables.text) {
       const inlineContent = layer.variables.text;
-      let resolvedText = inlineContent.data || '';
 
-      console.log('[getText] Processing inline variables', {
-        data: resolvedText,
-        variables: inlineContent.variables,
-        hasCollectionData: !!collectionItemData
-      });
+      // New format: simple string with embedded JSON variables
+      if (typeof inlineContent === 'string') {
+        let resolvedText = inlineContent;
 
-      // Replace ID-based placeholders: <ycode-inline-variable id="uuid"></ycode-inline-variable>
-      const regex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
+        const jsonRegex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+
+        if (resolvedText.includes('<ycode-inline-variable>')) {
+          if (collectionItemData) {
+            resolvedText = resolvedText.replace(jsonRegex, function(match, jsonContent) {
+              try {
+                const variable = JSON.parse(jsonContent.trim());
+                if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
+                  const fieldId = variable.data.field_id;
+                  // Collection item data has values in a nested object
+                  const value = collectionItemData.values?.[fieldId] ?? collectionItemData[fieldId];
+                  if (value !== undefined && value !== null) {
+                    return value;
+                  }
+                }
+              } catch (error) {
+                console.warn('[getText] Failed to parse inline variable JSON:', jsonContent, error);
+              }
+              return '';
+            });
+          } else {
+            resolvedText = resolvedText.replace(jsonRegex, '');
+          }
+        }
+
+        return resolvedText;
+      }
+
+      // Legacy format: { data, variables } map
+      const inlineData = inlineContent.data || '';
+      let resolvedText = inlineData;
+
+      const idRegex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
 
       if (collectionItemData && inlineContent.variables) {
-        // Get fields for this collection to validate existence
-        const fieldsForCollection = collectionId && collectionFields[collectionId] ? collectionFields[collectionId] : [];
+        let fieldsForCollection = [];
+        if (collectionId && collectionFields[collectionId]) {
+          fieldsForCollection = collectionFields[collectionId];
+        } else if (pageCollectionFields && pageCollectionFields.length > 0) {
+          fieldsForCollection = pageCollectionFields;
+        }
 
-        // Resolve with actual field values
-        resolvedText = resolvedText.replace(regex, function(match, variableId) {
+        resolvedText = resolvedText.replace(idRegex, function(match, variableId) {
           const variable = inlineContent.variables[variableId];
-          console.log('[getText] Resolving variable', { variableId, variable, match, collectionId, fieldsCount: fieldsForCollection.length });
           if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
             const fieldId = variable.data.field_id;
-
-            // Check if field still exists in collection schema
             const fieldExists = fieldsForCollection.some(f => f.id === fieldId);
-            console.log('[getText] Field validation', { fieldId, fieldExists, fields: fieldsForCollection.map(f => ({ id: f.id, name: f.name })) });
-
             if (!fieldExists) {
-              console.log('[getText] Field deleted, showing empty string');
-              return ''; // Field was deleted, show nothing
+              return '';
             }
 
             const value = collectionItemData[fieldId];
             if (value !== undefined && value !== null) {
-              console.log('[getText] Resolved to value:', value);
               return value;
             }
           }
-          return ''; // Empty string for deleted/missing fields
+          return '';
         });
       } else {
-        // No collection data - just remove the tags completely
-        resolvedText = resolvedText.replace(regex, '');
+        resolvedText = resolvedText.replace(idRegex, '');
       }
 
-      console.log('[getText] Final resolved text:', resolvedText);
       return resolvedText;
     }
 
@@ -518,6 +546,29 @@
   }
 
   /**
+   * Apply limit and offset to collection items (after sorting)
+   * @param {Array} items - Array of collection items
+   * @param {number} limit - Maximum number of items to show
+   * @param {number} offset - Number of items to skip
+   * @returns {Array} Filtered array of collection items
+   */
+  function applyLimitOffset(items, limit, offset) {
+    let result = [...items];
+
+    // Apply offset first (skip items)
+    if (offset && offset > 0) {
+      result = result.slice(offset);
+    }
+
+    // Apply limit (take first N items)
+    if (limit && limit > 0) {
+      result = result.slice(0, limit);
+    }
+
+    return result;
+  }
+
+  /**
    * Render layer tree
    */
   function render() {
@@ -558,29 +609,18 @@
     // Use parent collection ID if not a collection layer itself
     const activeCollectionId = collectionId || parentCollectionId;
 
-    // Debug logging for all layers with variables
-    if (layer.variables) {
-      console.log('[Canvas Layer with Variables]', {
-        layerId: layer.id,
-        layerName: layer.name,
-        hasVariablesText: !!layer.variables.text,
-        variablesText: layer.variables.text,
-        collectionItemData
-      });
-    }
-
     // Debug logging for collection layers
     if (isCollectionLayer) {
-      console.log('[Canvas Collection Layer]', {
+      console.log('[Canvas] Collection Layer Detected', {
         layerId: layer.id,
-        collectionVariable,
         collectionId,
-        hasChildren: !!(layer.children && layer.children.length > 0),
-        childrenCount: layer.children?.length || 0
+        collectionVariable,
+        hasChildren: !!(layer.children && layer.children.length > 0)
       });
     }
 
     const tag = getLayerHtmlTag(layer);
+    const inheritedCollectionItemData = collectionItemData || (pageCollectionItem ? pageCollectionItem.values : undefined);
     const element = document.createElement(tag);
 
     // Set ID
@@ -630,7 +670,7 @@
     }
 
     // Add text content
-    const textContent = getText(layer, collectionItemData, activeCollectionId);
+    const textContent = getText(layer, inheritedCollectionItemData, activeCollectionId);
     const hasChildren = layer.children && layer.children.length > 0;
 
     if (textContent && !hasChildren) {
@@ -640,50 +680,51 @@
     // Render children - handle collection layers specially
     if (hasChildren) {
       if (isCollectionLayer && collectionId) {
-        // Collection layer: render children once for each collection item
-        const rawItems = collectionItems[collectionId] || [];
-        const fields = collectionFields[collectionId] || [];
+        // Collection layer: use layer-specific data instead of global collection items
+        const items = collectionLayerData[layer.id] || [];
 
-        // Apply sorting to collection items
-        const items = sortCollectionItems(rawItems, collectionVariable, fields);
-
-        console.log('[Canvas] Rendering collection children', {
+        console.log('[Canvas] Rendering collection layer', {
+          layerId: layer.id,
           collectionId,
           itemsCount: items.length,
-          items,
-          allCollectionIds: Object.keys(collectionItems),
-          hasItemsForThisCollection: !!collectionItems[collectionId],
-          sorting: {
-            sort_by: collectionVariable?.sort_by,
-            sort_order: collectionVariable?.sort_order
-          }
+          hasLayerData: !!collectionLayerData[layer.id]
         });
 
         if (items.length > 0) {
-          items.forEach((item, index) => {
-            console.log('[Canvas] Rendering item', index, item);
+          items.forEach((item) => {
             const itemWrapper = document.createElement('div');
             itemWrapper.setAttribute('data-collection-item-id', item.id);
 
             layer.children.forEach(child => {
-              console.log('[Canvas] Rendering child for item', { childId: child.id, childType: child.type, childName: child.name, itemValues: item.values });
               const childElement = renderLayer(child, item.values, activeCollectionId);
-              console.log('[Canvas] Child element result:', childElement);
               if (childElement) {
                 itemWrapper.appendChild(childElement);
               }
             });
 
-            console.log('[Canvas] Item wrapper children count:', itemWrapper.children.length);
             element.appendChild(itemWrapper);
           });
-        } else {
-          console.warn('[Canvas] Collection has no items!', { collectionId });
+        } else if (editMode) {
+          // Show skeleton placeholder in edit mode when no data yet
+          const skeleton = document.createElement('div');
+          skeleton.className = 'p-4';
+          skeleton.innerHTML = `
+            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #f4f4f5 0%, #e4e4e7 50%, #f4f4f5 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem; margin-bottom: 1rem;"></div>
+            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #f4f4f5 0%, #e4e4e7 50%, #f4f4f5 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem; margin-bottom: 1rem;"></div>
+            <div style="width: 100%; height: 60px; background: linear-gradient(90deg, #f4f4f5 0%, #e4e4e7 50%, #f4f4f5 100%); background-size: 200% 100%; animation: shimmer 2s infinite; border-radius: 0.5rem;"></div>
+            <style>
+              @keyframes shimmer {
+                0% { background-position: 200% 0; }
+                100% { background-position: -200% 0; }
+              }
+            </style>
+          `;
+          element.appendChild(skeleton);
         }
       } else {
         // Regular rendering: just render children normally
         layer.children.forEach(child => {
-          const childElement = renderLayer(child, collectionItemData, activeCollectionId);
+          const childElement = renderLayer(child, inheritedCollectionItemData, activeCollectionId);
           if (childElement) {
             element.appendChild(childElement);
           }
@@ -733,10 +774,31 @@
 
     // Double-click to edit text
     if (isTextEditable(layer)) {
+      console.log('[addEventListeners] Attaching double-click handler to layer:', layer.id, layer.name);
       element.addEventListener('dblclick', function(e) {
         e.stopPropagation();
-        startTextEditing(layer.id, layer, element);
+
+        // Get collection item data for this specific element
+        const itemWrapper = element.closest('[data-collection-item-id]');
+        const collectionItemId = itemWrapper?.getAttribute('data-collection-item-id');
+        let itemData = null;
+        let collectionId = null;
+
+        if (collectionItemId) {
+          const parentCollectionLayer = findParentCollectionLayerInTree(layer.id);
+          collectionId = parentCollectionLayer?.variables?.collection?.id;
+
+          if (collectionId && collectionLayerData[parentCollectionLayer.id]) {
+            itemData = collectionLayerData[parentCollectionLayer.id].find(
+              item => item.id === collectionItemId
+            );
+          }
+        }
+
+        startTextEditing(layer.id, layer, element, itemData, collectionId);
       });
+    } else {
+      console.log('[addEventListeners] Layer not text-editable:', layer.id, 'formattable:', layer.formattable);
     }
 
     // Right-click for context menu
@@ -793,10 +855,117 @@
   }
 
   /**
+   * Check if layer has single inline variable
+   */
+  function hasSingleInlineVariable(layer) {
+    const text = layer.variables?.text;
+
+    if (!text || typeof text !== 'string') {
+      return false;
+    }
+
+    const regex = /<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g;
+    const matches = text.match(regex);
+
+    if (!matches || matches.length !== 1) {
+      return false;
+    }
+
+    const withoutVariable = text.replace(regex, '').trim();
+
+    const result = withoutVariable === '';
+
+    return result;
+  }
+
+  /**
+   * Find parent collection layer by traversing up the tree
+   */
+  function findParentCollectionLayerInTree(layerId) {
+    // Traverse layers tree to find parent collection layer
+    function traverse(layerList, targetId) {
+      for (const layer of layerList) {
+        // Check if this layer is a collection layer containing the target
+        if (layer.variables?.collection?.id) {
+          if (containsLayerId(layer.children, targetId)) {
+            return layer;
+          }
+        }
+
+        // Recursively check children
+        if (layer.children) {
+          const found = traverse(layer.children, targetId);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+
+    function containsLayerId(layerList, targetId) {
+      if (!layerList) return false;
+      for (const layer of layerList) {
+        if (layer.id === targetId) return true;
+        if (layer.children && containsLayerId(layer.children, targetId)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    return traverse(layers, layerId);
+  }
+
+  /**
    * Start text editing mode
    */
-  function startTextEditing(layerId, layer, element) {
+  function startTextEditing(layerId, layer, element, collectionItemData = null, activeCollectionId = null) {
     if (editingLayerId) return;
+
+    // If layer has variables.text (inline variables), don't allow inline editing
+    // This content should only be edited via the Content panel or collection sheet
+    if (layer.variables?.text) {
+      // Exception: if it's a single variable, open the collection item sheet
+      const hasSingle = hasSingleInlineVariable(layer);
+
+      if (hasSingle) {
+        // Find the collection item ID from parent wrapper
+        const itemWrapper = element.closest('[data-collection-item-id]');
+        const collectionItemId = itemWrapper?.getAttribute('data-collection-item-id');
+
+        if (collectionItemId) {
+          // Inside a collection layer - use collection layer context
+          const parentCollectionLayer = findParentCollectionLayerInTree(layerId);
+          const collectionId = parentCollectionLayer?.variables?.collection?.id;
+
+          if (collectionId) {
+            // Notify parent to open collection item sheet
+            sendToParent('OPEN_COLLECTION_ITEM_SHEET', {
+              collectionId,
+              itemId: collectionItemId,
+            });
+            return; // Don't start inline editing
+          }
+        }
+          
+        // Not in collection layer - check if on dynamic page
+        if (pageCollectionItem && pageCollectionFields && pageCollectionFields.length > 0) {
+          const pageCollectionId = pageCollectionItem.collection_id;
+          const pageItemId = pageCollectionItem.id;
+            
+          if (pageCollectionId && pageItemId) {
+            // Notify parent to open collection item sheet for page item
+            sendToParent('OPEN_COLLECTION_ITEM_SHEET', {
+              collectionId: pageCollectionId,
+              itemId: pageItemId,
+            });
+            return; // Don't start inline editing
+          }
+        }
+      }
+
+      // For non-single variables or if no collection context, don't allow inline editing
+      return;
+    }
 
     editingLayerId = layerId;
 
@@ -807,6 +976,7 @@
     }
 
     // Get current text from layer data, not from DOM (to avoid badge text)
+    // Pass actual collection data to resolve variables correctly
     const currentText = getText(layer, collectionItemData, activeCollectionId);
 
     // Create input element
@@ -922,6 +1092,41 @@
       const element = document.querySelector(`[data-layer-id="${layerId}"]`);
       if (element) {
         element.classList.add('ycode-drop-target');
+      }
+    }
+  }
+
+  /**
+   * Update hover state without full re-render
+   */
+  function updateHover() {
+    // Remove previous hover classes (both types)
+    document.querySelectorAll('.ycode-hover, .ycode-hover-purple, .ycode-component-hover').forEach(el => {
+      el.classList.remove('ycode-hover');
+      el.classList.remove('ycode-hover-purple');
+      el.classList.remove('ycode-component-hover');
+    });
+
+    // Add new hover
+    if (hoveredLayerId && editingLayerId !== hoveredLayerId) {
+      const element = document.querySelector(`[data-layer-id="${hoveredLayerId}"]`);
+      if (element) {
+        // Check if this layer is part of a component (and we're NOT editing that component)
+        const componentRootId = componentMap[hoveredLayerId];
+        const isPartOfComponent = !!componentRootId;
+        const isEditingThisComponent = editingComponentId && componentRootId === editingComponentId;
+
+        if (isPartOfComponent && !isEditingThisComponent) {
+          // Find the root component element and apply pink hover to it
+          const rootElement = document.querySelector('[data-layer-id="' + componentRootId + '"]');
+          if (rootElement) {
+            rootElement.classList.add('ycode-component-hover');
+          }
+        } else {
+          // Normal hover - use purple in component edit mode, blue otherwise
+          const hoverClass = editingComponentId ? 'ycode-hover-purple' : 'ycode-hover';
+          element.classList.add(hoverClass);
+        }
       }
     }
   }

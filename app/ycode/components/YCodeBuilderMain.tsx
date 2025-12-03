@@ -34,6 +34,7 @@ import LocalizationContent from '../components/LocalizationContent';
 import UpdateNotification from '@/components/UpdateNotification';
 import MigrationChecker from '@/components/MigrationChecker';
 import BuilderLoading from '@/components/BuilderLoading';
+import CollectionItemSheet from '../components/CollectionItemSheet';
 
 // 3. Hooks
 // useCanvasCSS removed - now handled by iframe with Tailwind JIT CDN
@@ -93,6 +94,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
   const builderDataPreloaded = useEditorStore((state) => state.builderDataPreloaded);
   const setBuilderDataPreloaded = useEditorStore((state) => state.setBuilderDataPreloaded);
+  const collectionItemSheet = useEditorStore((state) => state.collectionItemSheet);
+  const closeCollectionItemSheet = useEditorStore((state) => state.closeCollectionItemSheet);
 
   const updateLayer = usePagesStore((state) => state.updateLayer);
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
@@ -1402,6 +1405,24 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         )}
       </div>
     </div>
+
+    {/* Collection Item Sheet - renders globally */}
+    {(() => {
+      return collectionItemSheet && (
+        <CollectionItemSheet
+          open={collectionItemSheet.open}
+          onOpenChange={(open) => {
+            if (!open) closeCollectionItemSheet();
+          }}
+          collectionId={collectionItemSheet.collectionId}
+          itemId={collectionItemSheet.itemId}
+          onSuccess={() => {
+            // Close sheet after successful save
+            closeCollectionItemSheet();
+          }}
+        />
+      );
+    })()}
     </>
   );
 }

@@ -9,27 +9,39 @@
 // 1. React/Next.js
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 
-// 2. ShadCN UI
-import Icon from '@/components/ui/icon';
+// 2. External libraries
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+
+// 3. ShadCN UI
+import Icon, { IconProps } from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 // 3. Utils
-import { cn } from '@/lib/utils';
-import { getLayerName, getLayerIcon } from '@/lib/layer-utils';
+import { cn, generateId } from '@/lib/utils';
+import { getLayerName, getLayerIcon, findLayerById } from '@/lib/layer-utils';
 
 // 4. Types
-import type { Layer, LayerInteraction, InteractionTarget, InteractionAnimation, InteractionProperty } from '@/types';
+import type { Layer, LayerInteraction, InteractionTimeline, InteractionTween, TweenProperties, Breakpoint } from '@/types';
 import { Badge } from '@/components/ui/badge';
 
 interface InteractionsPanelProps {
@@ -38,6 +50,7 @@ interface InteractionsPanelProps {
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
   selectedLayerId?: string | null; // Currently selected layer in editor
   resetKey?: number; // When this changes, reset all selections
+  activeBreakpoint?: Breakpoint;
   onStateChange?: (state: {
     selectedTriggerId?: string | null;
     shouldRefresh?: boolean;
@@ -52,7 +65,7 @@ interface PropertyOption {
   type: PropertyType;
   label: string;
   properties: Array<{
-    key: keyof InteractionProperty;
+    key: keyof TweenProperties;
     label: string;
     unit: string;
   }>;
@@ -100,50 +113,180 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
   'load': 'Page load',
 };
 
+const START_POSITION_OPTIONS: Record<string, { short: string; long: string }> = {
+  '>': { short: 'After previous', long: 'After previous animation ends' },
+  '<': { short: 'With previous', long: 'With the previous animation' },
+  'at': { short: 'At', long: 'At a specific time' },
+};
+
+const EASE_OPTIONS: { value: string; label: string; icon: IconProps['name'] }[] = [
+  { value: 'none', label: 'Linear', icon: 'ease-linear' },
+  { value: 'power1.in', label: 'Ease in', icon: 'ease-in' },
+  { value: 'power1.inOut', label: 'Ease in out', icon: 'ease-in-out' },
+  { value: 'power1.out', label: 'Ease out', icon: 'ease-out' },
+  { value: 'back.in', label: 'Back in', icon: 'ease-back-in' },
+  { value: 'back.inOut', label: 'Back in out', icon: 'ease-back-in-out' },
+  { value: 'back.out', label: 'Back out', icon: 'ease-back-out' },
+];
+
+// Sortable animation item component
+interface SortableAnimationItemProps {
+  tween: InteractionTween;
+  index: number;
+  tweens: InteractionTween[];
+  isSelected: boolean;
+  targetLayer: Layer | null;
+  onSelect: () => void;
+  onRemove: () => void;
+  onSelectLayer?: (layerId: string) => void;
+}
+
+/** Calculate the actual start time in seconds for a tween */
+function calculateTweenStartTime(tweens: InteractionTween[], index: number): number {
+  const tween = tweens[index];
+  if (typeof tween.position === 'number') {
+    return tween.position;
+  }
+  if (index === 0) {
+    return 0;
+  }
+  const prevStart = calculateTweenStartTime(tweens, index - 1);
+  const prevDuration = tweens[index - 1].duration;
+  if (tween.position === '>') {
+    return prevStart + prevDuration;
+  }
+  if (tween.position === '<') {
+    return prevStart;
+  }
+  return 0;
+}
+
+function SortableAnimationItem({
+  tween,
+  index,
+  tweens,
+  isSelected,
+  targetLayer,
+  onSelect,
+  onRemove,
+  onSelectLayer,
+}: SortableAnimationItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: tween.id });
+
+  const style: React.CSSProperties = {
+    transform: transform ? `translateY(${transform.y}px)` : undefined,
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    cursor: isDragging ? 'grabbing' : 'grab',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={() => {
+        onSelect();
+        onSelectLayer?.(tween.layer_id);
+      }}
+      className={cn(
+        'px-2 py-1.25 flex items-center gap-1.75 rounded-lg transition-colors',
+        isSelected
+          ? 'bg-teal-500/50 text-primary-foreground'
+          : 'bg-secondary/50 hover:bg-secondary/100'
+      )}
+    >
+      <div
+        className={cn(
+          'size-5 flex items-center justify-center rounded-[6px]',
+          isSelected ? 'bg-primary-foreground/20' : 'bg-secondary'
+        )}
+      >
+        <Icon
+          name={targetLayer ? getLayerIcon(targetLayer) : 'layers'}
+          className="size-2.5"
+        />
+      </div>
+
+      <Label className="flex-1 truncate !cursor-[inherit]">
+        {targetLayer ? getLayerName(targetLayer) : `Animation #${index + 1}`}
+      </Label>
+
+      <Badge variant="secondary" className="text-[11px]">
+        {(() => {
+          const startTime = calculateTweenStartTime(tweens, index);
+          const endTime = startTime + tween.duration;
+          return (
+            <>
+              {startTime}s
+              <Icon name="chevronRight" className="opacity-70 shrink-0" />
+              {endTime}s
+            </>
+          );
+        })()}
+      </Badge>
+
+      <Button
+        size="xs"
+        variant="ghost"
+        className="-mr-0.5 !cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+      >
+        <Icon name="x" />
+      </Button>
+    </div>
+  );
+}
+
 export default function InteractionsPanel({
   triggerLayer,
   allLayers,
   onLayerUpdate,
   selectedLayerId,
   resetKey,
+  activeBreakpoint = 'desktop',
   onStateChange,
   onSelectLayer,
 }: InteractionsPanelProps) {
   const [selectedInteractionId, setSelectedInteractionId] = useState<string | null>(null);
-  const [expandedAnimations, setExpandedAnimations] = useState<Set<string>>(new Set());
+  const [selectedTweenId, setSelectedTweenId] = useState<string | null>(null);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    })
+  );
 
   // Reset selections when trigger layer changes or reset is triggered
   useEffect(() => {
     setSelectedInteractionId(null);
-    setExpandedAnimations(new Set());
+    setSelectedTweenId(null);
   }, [triggerLayer.id, resetKey]);
 
   // Memoize interactions to prevent unnecessary re-renders
   const interactions = useMemo(() => triggerLayer.interactions || [], [triggerLayer.interactions]);
   const selectedInteraction = interactions.find((i) => i.id === selectedInteractionId);
   const usedTriggers = useMemo(() => new Set(interactions.map(i => i.trigger)), [interactions]);
-  // Find target that matches the currently selected layer
-  const selectedTarget =
-    selectedInteraction && selectedLayerId
-      ? selectedInteraction.targets.find((t) => t.layer_id === selectedLayerId) || null
+
+  // Find selected tween
+  const selectedTween =
+    selectedInteraction && selectedTweenId
+      ? (selectedInteraction.tweens || []).find((t) => t.id === selectedTweenId) || null
       : null;
 
-  // Flatten layers for selection
-  const flatLayers = useMemo(() => {
-    const flatten = (layers: Layer[], depth = 0): Array<{ layer: Layer; depth: number }> => {
-      const result: Array<{ layer: Layer; depth: number }> = [];
-      layers.forEach((l) => {
-        result.push({ layer: l, depth });
-        if (l.children) {
-          result.push(...flatten(l.children, depth + 1));
-        }
-      });
-      return result;
-    };
-    return flatten(allLayers);
-  }, [allLayers]);
-
-  // Find layers that animate the current trigger layer (where this layer is a target)
+  // Find layers that animate the current trigger layer (where this layer is a target in tweens)
   const animatedByLayers = useMemo(() => {
     const result: Array<{ layer: Layer; triggerType: TriggerType }> = [];
 
@@ -156,9 +299,9 @@ export default function InteractionsPanel({
         }
 
         const layerInteractions = layer.interactions || [];
-        // Find the first interaction that targets this layer
+        // Find the first interaction that has a tween targeting this layer
         const matchingInteraction = layerInteractions.find((interaction) =>
-          interaction.targets.some((target) => target.layer_id === triggerLayer.id)
+          (interaction.tweens || []).some((tween) => tween.layer_id === triggerLayer.id)
         );
 
         if (matchingInteraction) {
@@ -175,13 +318,13 @@ export default function InteractionsPanel({
     return result;
   }, [allLayers, triggerLayer.id]);
 
-  // Auto-select first target when a trigger event is selected (only on ID change)
+  // Auto-select first tween's target layer when a trigger event is selected (only on ID change)
   useEffect(() => {
     if (selectedInteractionId) {
       const interaction = interactions.find((i) => i.id === selectedInteractionId);
-      const firstTarget = interaction?.targets[0];
-      if (firstTarget && onSelectLayer) {
-        const targetLayer = flatLayers.find((fl) => fl.layer.id === firstTarget.layer_id)?.layer;
+      const firstTween = (interaction?.tweens || [])[0];
+      if (firstTween && onSelectLayer) {
+        const targetLayer = findLayerById(allLayers, firstTween.layer_id);
         if (targetLayer) {
           onSelectLayer(targetLayer.id);
         }
@@ -190,9 +333,6 @@ export default function InteractionsPanel({
     // Only run when selectedInteractionId changes, not when interaction content changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedInteractionId]);
-
-  // Generate unique ID
-  const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   // Notify parent about state changes
   useEffect(() => {
@@ -205,16 +345,22 @@ export default function InteractionsPanel({
   const handleAddInteraction = useCallback(
     (trigger: TriggerType) => {
       const newInteraction: LayerInteraction = {
-        id: generateId(),
+        id: generateId('int'),
         trigger,
-        targets: [], // Start with no targets - user will add them
+        timeline: {
+          breakpoints: [activeBreakpoint],
+          repeat: 0,
+          yoyo: false,
+          apply_styles: 'on-trigger',
+        },
+        tweens: [], // Start with no tweens - user will add them
       };
 
       const updatedInteractions = [...interactions, newInteraction];
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
       setSelectedInteractionId(newInteraction.id);
     },
-    [interactions, triggerLayer.id, onLayerUpdate]
+    [interactions, triggerLayer.id, onLayerUpdate, activeBreakpoint]
   );
 
   // Remove interaction
@@ -235,43 +381,16 @@ export default function InteractionsPanel({
     [interactions, triggerLayer.id, onLayerUpdate, selectedInteractionId, onSelectLayer]
   );
 
-  // Add target layer
-  const handleAddTarget = useCallback(
-    (layerId: string) => {
-      if (!selectedInteraction) return;
-
-      const newTarget: InteractionTarget = {
-        layer_id: layerId,
-        animations: [],
-      };
-
-      const updatedInteractions = interactions.map((interaction) => {
-        if (interaction.id !== selectedInteractionId) return interaction;
-        return {
-          ...interaction,
-          targets: [...interaction.targets, newTarget],
-        };
-      });
-
-      onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
-      // Select the newly added target in the editor
-      if (onSelectLayer) {
-        onSelectLayer(layerId);
-      }
-    },
-    [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate, onSelectLayer]
-  );
-
-  // Remove target layer
-  const handleRemoveTarget = useCallback(
-    (layerIdToRemove: string) => {
+  // Update Interaction settings (now at interaction level)
+  const handleUpdateTimeline = useCallback(
+    (updates: Partial<InteractionTimeline>) => {
       if (!selectedInteraction) return;
 
       const updatedInteractions = interactions.map((interaction) => {
         if (interaction.id !== selectedInteractionId) return interaction;
         return {
           ...interaction,
-          targets: interaction.targets.filter((t) => t.layer_id !== layerIdToRemove),
+          timeline: { ...interaction.timeline, ...updates },
         };
       });
 
@@ -280,152 +399,197 @@ export default function InteractionsPanel({
     [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate]
   );
 
-  // Add animation property
-  const handleAddProperty = useCallback(
-    (propertyType: PropertyType) => {
-      if (!selectedInteraction || !selectedLayerId) return;
+  // Add new tween for the currently selected layer
+  const handleAddTween = useCallback(() => {
+    if (!selectedInteraction || !selectedLayerId) return;
+
+    const newTween: InteractionTween = {
+      id: generateId('anm'),
+      layer_id: selectedLayerId,
+      position: '>',
+      duration: 0.3,
+      ease: 'power1.out',
+      from: {},
+      to: {},
+    };
+
+    const updatedInteractions = interactions.map((interaction) => {
+      if (interaction.id !== selectedInteractionId) return interaction;
+      return {
+        ...interaction,
+        tweens: [...interaction.tweens, newTween],
+      };
+    });
+
+    onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
+    setSelectedTweenId(newTween.id);
+  }, [selectedInteraction, selectedLayerId, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate]);
+
+  // Remove tween
+  const handleRemoveTween = useCallback(
+    (tweenId: string) => {
+      if (!selectedInteraction) return;
+
+      const updatedInteractions = interactions.map((interaction) => {
+        if (interaction.id !== selectedInteractionId) return interaction;
+        return {
+          ...interaction,
+          tweens: interaction.tweens.filter((t) => t.id !== tweenId),
+        };
+      });
+
+      onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
+      if (selectedTweenId === tweenId) {
+        setSelectedTweenId(null);
+      }
+    },
+    [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate, selectedTweenId]
+  );
+
+  // Reorder tweens via drag and drop
+  const handleReorderTweens = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id || !selectedInteraction) return;
+
+      const tweens = selectedInteraction.tweens || [];
+      const oldIndex = tweens.findIndex((t) => t.id === active.id);
+      const newIndex = tweens.findIndex((t) => t.id === over.id);
+
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      const reorderedTweens = arrayMove(tweens, oldIndex, newIndex);
+
+      const updatedInteractions = interactions.map((interaction) => {
+        if (interaction.id !== selectedInteractionId) return interaction;
+        return { ...interaction, tweens: reorderedTweens };
+      });
+
+      onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
+    },
+    [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate]
+  );
+
+  // Update tween
+  const handleUpdateTween = useCallback(
+    (tweenId: string, updates: Partial<InteractionTween>) => {
+      if (!selectedInteraction) return;
+
+      const updatedInteractions = interactions.map((interaction) => {
+        if (interaction.id !== selectedInteractionId) return interaction;
+        return {
+          ...interaction,
+          tweens: interaction.tweens.map((t) =>
+            t.id === tweenId ? { ...t, ...updates } : t
+          ),
+        };
+      });
+
+      onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
+    },
+    [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate]
+  );
+
+  // Add property to tween
+  const handleAddPropertyToTween = useCallback(
+    (tweenId: string, propertyType: PropertyType) => {
+      if (!selectedInteraction) return;
 
       const propertyOption = PROPERTY_OPTIONS.find((p) => p.type === propertyType);
       if (!propertyOption) return;
 
-      // Build from/to objects with default values for this property type
-      const from: InteractionProperty = {};
-      const to: InteractionProperty = {};
-      propertyOption.properties.forEach((prop) => {
-        const key = prop.key;
-        if (key !== 'visibility') {
-          from[key] = '0';
-          to[key] = key === 'scale' ? '1' : '100';
-        }
-      });
-
-      const newAnimation: InteractionAnimation = {
-        id: generateId(),
-        delay: 0,
-        duration: 300,
-        repeat: false,
-        yoyo: false,
-        ease: 'power1.out',
-        from,
-        to,
-      };
-
       const updatedInteractions = interactions.map((interaction) => {
         if (interaction.id !== selectedInteractionId) return interaction;
+        return {
+          ...interaction,
+          tweens: interaction.tweens.map((tween) => {
+            if (tween.id !== tweenId) return tween;
 
-        const updatedTargets = interaction.targets.map((target) => {
-          if (target.layer_id !== selectedLayerId) return target;
-          return {
-            ...target,
-            animations: [...target.animations, newAnimation],
-          };
-        });
+            const newFrom = { ...tween.from };
+            const newTo = { ...tween.to };
+            propertyOption.properties.forEach((prop) => {
+              const key = prop.key;
+              if (key !== 'visibility') {
+                newFrom[key] = '0';
+                newTo[key] = key === 'scale' ? '1' : '100';
+              }
+            });
 
-        return { ...interaction, targets: updatedTargets };
-      });
-
-      onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
-      setExpandedAnimations(new Set([...expandedAnimations, newAnimation.id]));
-    },
-    [
-      selectedInteraction,
-      selectedLayerId,
-      interactions,
-      selectedInteractionId,
-      triggerLayer.id,
-      onLayerUpdate,
-      expandedAnimations,
-    ]
-  );
-
-  // Remove animation
-  const handleRemoveAnimation = useCallback(
-    (animationId: string) => {
-      if (!selectedInteraction || !selectedLayerId) return;
-
-      const updatedInteractions = interactions.map((interaction) => {
-        if (interaction.id !== selectedInteractionId) return interaction;
-
-        const updatedTargets = interaction.targets.map((target) => {
-          if (target.layer_id !== selectedLayerId) return target;
-          return {
-            ...target,
-            animations: target.animations.filter((a) => a.id !== animationId),
-          };
-        });
-
-        return { ...interaction, targets: updatedTargets };
-      });
-
-      onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
-      setExpandedAnimations((prev) => {
-        const next = new Set(prev);
-        next.delete(animationId);
-        return next;
-      });
-    },
-    [
-      selectedInteraction,
-      selectedLayerId,
-      interactions,
-      selectedInteractionId,
-      triggerLayer.id,
-      onLayerUpdate,
-    ]
-  );
-
-  // Update animation
-  const handleUpdateAnimation = useCallback(
-    (animationId: string, updates: Partial<InteractionAnimation>) => {
-      if (!selectedInteraction || !selectedLayerId) return;
-
-      const updatedInteractions = interactions.map((interaction) => {
-        if (interaction.id !== selectedInteractionId) return interaction;
-
-        const updatedTargets = interaction.targets.map((target) => {
-          if (target.layer_id !== selectedLayerId) return target;
-          return {
-            ...target,
-            animations: target.animations.map((a) =>
-              a.id === animationId ? { ...a, ...updates } : a
-            ),
-          };
-        });
-
-        return { ...interaction, targets: updatedTargets };
+            return { ...tween, from: newFrom, to: newTo };
+          }),
+        };
       });
 
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
     },
-    [
-      selectedInteraction,
-      selectedLayerId,
-      interactions,
-      selectedInteractionId,
-      triggerLayer.id,
-      onLayerUpdate,
-    ]
+    [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate]
   );
 
-  // Toggle animation expansion
-  const toggleAnimation = useCallback((animationId: string) => {
-    setExpandedAnimations((prev) => {
-      const next = new Set(prev);
-      if (next.has(animationId)) {
-        next.delete(animationId);
-      } else {
-        next.add(animationId);
-      }
-      return next;
-    });
-  }, []);
+  // Remove property from tween
+  const handleRemovePropertyFromTween = useCallback(
+    (tweenId: string, propertyType: PropertyType) => {
+      if (!selectedInteraction) return;
 
-  // Get property option for animation based on which properties are set
-  const getAnimationPropertyOption = (animation: InteractionAnimation): PropertyOption | null => {
-    return PROPERTY_OPTIONS.find((opt) =>
-      opt.properties.some((p) => animation.from[p.key] !== undefined && animation.from[p.key] !== null)
-    ) || null;
+      const propertyOption = PROPERTY_OPTIONS.find((p) => p.type === propertyType);
+      if (!propertyOption) return;
+
+      const updatedInteractions = interactions.map((interaction) => {
+        if (interaction.id !== selectedInteractionId) return interaction;
+        return {
+          ...interaction,
+          tweens: interaction.tweens.map((tween) => {
+            if (tween.id !== tweenId) return tween;
+
+            const newFrom = { ...tween.from };
+            const newTo = { ...tween.to };
+            propertyOption.properties.forEach((prop) => {
+              delete newFrom[prop.key];
+              delete newTo[prop.key];
+            });
+
+            return { ...tween, from: newFrom, to: newTo };
+          }),
+        };
+      });
+
+      onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
+    },
+    [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate]
+  );
+
+  // Get all property options that are set in a tween
+  const getTweenProperties = (tween: InteractionTween): PropertyOption[] => {
+    return PROPERTY_OPTIONS.filter((opt) =>
+      opt.properties.some((p) => tween.from[p.key] !== undefined && tween.from[p.key] !== null)
+    );
   };
+
+  // Check if a property type is already added to a tween
+  const isPropertyInTween = (tween: InteractionTween, propertyType: PropertyType): boolean => {
+    const propertyOption = PROPERTY_OPTIONS.find((p) => p.type === propertyType);
+    if (!propertyOption) return false;
+    return propertyOption.properties.some(
+      (p) => tween.from[p.key] !== undefined && tween.from[p.key] !== null
+    );
+  };
+
+  // Toggle breakpoint in timeline
+  const handleToggleBreakpoint = useCallback(
+    (breakpoint: Breakpoint) => {
+      if (!selectedInteraction) return;
+
+      const currentBreakpoints = selectedInteraction.timeline.breakpoints;
+      const newBreakpoints = currentBreakpoints.includes(breakpoint)
+        ? currentBreakpoints.filter((b) => b !== breakpoint)
+        : [...currentBreakpoints, breakpoint];
+
+      // Ensure at least one breakpoint is selected
+      if (newBreakpoints.length === 0) return;
+
+      handleUpdateTimeline({ breakpoints: newBreakpoints });
+    },
+    [selectedInteraction, handleUpdateTimeline]
+  );
 
   // Check if there's an active trigger (different layer selected or target selected)
   const hasActiveTrigger = selectedInteractionId !== null;
@@ -573,95 +737,273 @@ export default function InteractionsPanel({
         </div>
       )}
 
-      {/* Interaction Details - Targets Section */}
+      {/* Interaction settings - Show when interaction is selected */}
       {selectedInteraction && (
-        <div className="mt-4 border-t">
-          {/* Targets Header */}
+        <div className="border-t">
           <header className="py-5 flex justify-between">
-            <span className="font-medium">Layers to animate</span>
+            <span className="font-medium">Interaction settings</span>
+          </header>
+
+          <div className="flex flex-col gap-2 pb-4">
+            {/* Breakpoints */}
+            <div className="grid grid-cols-3 items-center">
+              <Label variant="muted">Run on</Label>
+              <div className="col-span-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="w-full justify-between"
+                    >
+                      <span className="capitalize">
+                        {selectedInteraction.timeline.breakpoints.length === 3
+                          ? 'All breakpoints'
+                          : selectedInteraction.timeline.breakpoints.join(', ')}
+                      </span>
+                      <Icon name="chevronCombo" className="size-3 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    {(['mobile', 'tablet', 'desktop'] as Breakpoint[]).map((bp) => (
+                      <DropdownMenuCheckboxItem
+                        key={bp}
+                        checked={selectedInteraction.timeline.breakpoints.includes(bp)}
+                        onCheckedChange={() => handleToggleBreakpoint(bp)}
+                        className="capitalize"
+                      >
+                        {bp}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+
+            {/* Loop */}
+            <div className="grid grid-cols-3 items-center">
+              <Label variant="muted">Effect</Label>
+              <div className="col-span-2">
+                <Select
+                  value={
+                    selectedInteraction.timeline.repeat === 0
+                      ? selectedInteraction.timeline.yoyo ? 'reverse' : 'reset'
+                      : selectedInteraction.timeline.yoyo ? 'loop-reverse' : 'loop'
+                  }
+                  onValueChange={(value: 'reset' | 'reverse' | 'loop' | 'loop-reverse') => {
+                    if (value === 'reset') {
+                      handleUpdateTimeline({ repeat: 0, yoyo: false });
+                    } else if (value === 'reverse') {
+                      handleUpdateTimeline({ repeat: 0, yoyo: true });
+                    } else if (value === 'loop') {
+                      handleUpdateTimeline({ repeat: -1, yoyo: false });
+                    } else if (value === 'loop-reverse') {
+                      handleUpdateTimeline({ repeat: -1, yoyo: true });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="reset">Reset and run once</SelectItem>
+                    <SelectItem value="reverse">Toggle and run once</SelectItem>
+                    <SelectItem value="loop">Loop - Reset and restart</SelectItem>
+                    <SelectItem value="loop-reverse">Loop - Toggle and restart</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Apply Styles */}
+            <div className="grid grid-cols-3 items-center">
+              <Label variant="muted">Styles</Label>
+              <div className="col-span-2">
+                <Select
+                  value={selectedInteraction.timeline.apply_styles}
+                  onValueChange={(value: 'on-load' | 'on-trigger') =>
+                    handleUpdateTimeline({ apply_styles: value })
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="on-load">Apply on load</SelectItem>
+                    <SelectItem value="on-trigger">Apply on trigger</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tweens Section - Show when interaction is selected */}
+      {selectedInteraction && (
+        <div className="border-t">
+          <header className="py-5 flex justify-between">
+            <span className="font-medium">Animations</span>
             <div className="-my-1">
               <Button
                 size="xs"
                 variant="secondary"
-                onClick={() => {
-                  if (selectedLayerId) {
-                    handleAddTarget(selectedLayerId);
-                  }
-                }}
-                disabled={!selectedLayerId || selectedInteraction.targets.some(t => t.layer_id === selectedLayerId)}
+                onClick={handleAddTween}
+                disabled={!selectedLayerId}
               >
                 <Icon name="plus" />
               </Button>
             </div>
           </header>
 
-          {/* Target List */}
-          {selectedInteraction.targets.length === 0 ? (
+          {(selectedInteraction.tweens || []).length === 0 ? (
             <Empty>
               <EmptyDescription>
-                Select a layer you want to animate and click on the plus button to add it.
+                Select a layer and add an animation.
               </EmptyDescription>
             </Empty>
           ) : (
-            <div className="flex flex-col gap-2 mb-4">
-              {selectedInteraction.targets.map((target, index) => {
-                const targetLayer = flatLayers.find((fl) => fl.layer.id === target.layer_id)?.layer;
-                const isActive = selectedLayerId === target.layer_id;
-
-                return (
-                  <div
-                    key={index}
-                    onClick={() => {
-                      if (onSelectLayer && targetLayer) {
-                        onSelectLayer(targetLayer.id);
-                      }
-                    }}
-                    className={cn(
-                      'flex items-center gap-2 px-2 py-1.75 rounded-lg transition-colors text-left w-full cursor-pointer',
-                      isActive
-                        ? 'bg-teal-500/50 text-primary-foreground'
-                        : 'bg-secondary/50 hover:bg-secondary/100'
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        'size-5 flex items-center justify-center rounded-[6px]',
-                        isActive ? 'bg-primary-foreground/20' : 'bg-secondary'
-                      )}
-                    >
-                      <Icon name="layers" className="size-2.5" />
-                    </div>
-
-                    <Label variant={isActive ? 'default' : 'muted'} className="cursor-pointer">
-                      {targetLayer ? getLayerName(targetLayer) : 'Unknown Layer'}
-                    </Label>
-
-                    <div className="ml-auto -my-1 -mr-0.5">
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveTarget(target.layer_id);
-                        }}
-                      >
-                        <Icon name="x" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleReorderTweens}
+            >
+              <SortableContext
+                items={(selectedInteraction.tweens || []).map((t) => t.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="flex flex-col gap-2 pb-4">
+                  {(selectedInteraction.tweens || []).map((tween, index, tweens) => (
+                    <SortableAnimationItem
+                      key={tween.id}
+                      tween={tween}
+                      index={index}
+                      tweens={tweens}
+                      isSelected={selectedTweenId === tween.id}
+                      targetLayer={findLayerById(allLayers, tween.layer_id)}
+                      onSelect={() => setSelectedTweenId(tween.id)}
+                      onRemove={() => handleRemoveTween(tween.id)}
+                      onSelectLayer={onSelectLayer}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
         </div>
       )}
 
-      {/* Properties Section - Only show when target is selected */}
-      {selectedInteraction && selectedTarget && (
+      {/* Tween Settings - Only show when tween is selected */}
+      {selectedInteraction && selectedTween && (
         <div className="border-t">
-          {/* Properties Header */}
           <header className="py-5 flex justify-between">
-            <span className="font-medium">Properties to animate</span>
+            <span className="font-medium">Animation settings</span>
+          </header>
+
+          <div className="flex flex-col gap-2 pb-4">
+            {(() => {
+              const isAtMode = typeof selectedTween.position === 'number';
+              const selectValue = isAtMode ? 'at' : String(selectedTween.position);
+
+              return (
+                <div className="grid grid-cols-3 items-center">
+                  <Label variant="muted">Start</Label>
+
+                  <div className="col-span-2 flex gap-1.5">
+                    <Select
+                      value={selectValue}
+                      onValueChange={(value) => {
+                        if (value === 'at') {
+                          handleUpdateTween(selectedTween.id, { position: 0.0 });
+                        } else {
+                          handleUpdateTween(selectedTween.id, { position: value });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        {START_POSITION_OPTIONS[selectValue]?.short}
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(START_POSITION_OPTIONS).map(([value, labels]) => (
+                          <SelectItem key={value} value={value}>
+                            {labels.long}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {isAtMode && (
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        className="w-full"
+                        value={typeof selectedTween.position === 'number'
+                          ? selectedTween.position.toFixed(1)
+                          : selectedTween.position}
+                        onChange={(e) =>
+                          handleUpdateTween(selectedTween.id, {
+                            position: Number(e.target.value),
+                          })
+                        }
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="grid grid-cols-3">
+              <Label variant="muted">Duration</Label>
+              <div className="col-span-2 *:w-full">
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={selectedTween.duration}
+                  onChange={(e) =>
+                    handleUpdateTween(selectedTween.id, {
+                      duration: Number(e.target.value),
+                    })
+                  }
+                  placeholder="seconds"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3">
+              <Label variant="muted">Ease</Label>
+              <div className="col-span-2">
+                <Select
+                  value={selectedTween.ease}
+                  onValueChange={(value) =>
+                    handleUpdateTween(selectedTween.id, {
+                      ease: value,
+                    })
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EASE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <Icon name={opt.icon} />
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Properties Section - Only show when tween is selected */}
+      {selectedInteraction && selectedTween && (
+        <div className="border-t">
+          <header className="py-5 flex justify-between">
+            <span className="font-medium">Animated properties</span>
             <div className="-my-1">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -673,7 +1015,8 @@ export default function InteractionsPanel({
                   {PROPERTY_OPTIONS.map((opt) => (
                     <DropdownMenuItem
                       key={opt.type}
-                      onClick={() => handleAddProperty(opt.type)}
+                      onClick={() => handleAddPropertyToTween(selectedTween.id, opt.type)}
+                      disabled={isPropertyInTween(selectedTween, opt.type)}
                     >
                       {opt.label}
                     </DropdownMenuItem>
@@ -683,137 +1026,70 @@ export default function InteractionsPanel({
             </div>
           </header>
 
-          {/* Animations List */}
-          {selectedTarget.animations.length === 0 ? (
-            <Empty>
-              <EmptyDescription>
-                Add a property to animate to get started.
-              </EmptyDescription>
-            </Empty>
-          ) : (
-            <div className="space-y-4">
-              {selectedTarget.animations.map((animation) => {
-                const propertyOption = getAnimationPropertyOption(animation);
-                const isExpanded = expandedAnimations.has(animation.id);
-
-                return (
-                  <div key={animation.id} className="px-4 bg-secondary/50 rounded-lg">
-                    {/* Animation Header */}
-                    <header
-                      onClick={() => toggleAnimation(animation.id)}
-                      className="px-4 flex items-center gap-1.5 cursor-pointer hover:bg-secondary/25 rounded-lg -mx-4 py-3 transition-colors"
-                    >
-                      <Icon
-                        name="chevronRight"
-                        className={cn(
-                          'size-3 opacity-50 transition-transform',
-                          isExpanded && 'rotate-90'
-                        )}
-                      />
-
-                      <Label className="cursor-pointer">
-                        {propertyOption?.label || 'Property'}
-                      </Label>
-
-                      <div className="ml-auto">
+          {(() => {
+            const tweenProperties = getTweenProperties(selectedTween);
+            return tweenProperties.length === 0 ? (
+              <Empty>
+                <EmptyDescription>
+                  Add a property to animate.
+                </EmptyDescription>
+              </Empty>
+            ) : (
+              <div className="flex flex-col gap-2 pb-4">
+                {tweenProperties.map((propertyOption) => (
+                  <div key={propertyOption.type}>
+                    {propertyOption.properties.map((prop) => (
+                      <div key={prop.key} className="flex items-center gap-1.5 py-1">
+                        <span className="text-xs text-muted-foreground w-16 shrink-0">
+                          {propertyOption.properties.length > 1
+                            ? `${propertyOption.label} ${prop.label}`
+                            : propertyOption.label}
+                        </span>
+                        <Input
+                          value={selectedTween.from[prop.key] ?? ''}
+                          onChange={(e) =>
+                            handleUpdateTween(selectedTween.id, {
+                              from: {
+                                ...selectedTween.from,
+                                [prop.key]: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder="From"
+                          className="flex-1 h-7 text-xs"
+                        />
+                        <Icon
+                          name="chevronRight"
+                          className="size-2.5 opacity-40 shrink-0"
+                        />
+                        <Input
+                          value={selectedTween.to[prop.key] ?? ''}
+                          onChange={(e) =>
+                            handleUpdateTween(selectedTween.id, {
+                              to: {
+                                ...selectedTween.to,
+                                [prop.key]: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder="To"
+                          className="flex-1 h-7 text-xs"
+                        />
                         <Button
                           size="xs"
                           variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveAnimation(animation.id);
-                          }}
+                          className="size-6 p-0"
+                          onClick={() => handleRemovePropertyFromTween(selectedTween.id, propertyOption.type)}
                         >
-                          <Icon name="x" />
+                          <Icon name="x" className="size-2.5" />
                         </Button>
                       </div>
-                    </header>
-
-                    {/* Animation Details */}
-                    {isExpanded && (
-                      <div className="-mt-4">
-                        {/* Property Values */}
-                        <div className="py-4 flex flex-col gap-4">
-                          {propertyOption?.properties.map((prop) => (
-                            <div key={prop.key} className="flex flex-col gap-2">
-                              <Label variant="muted">{prop.label}</Label>
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  value={animation.from[prop.key] ?? ''}
-                                  onChange={(e) =>
-                                    handleUpdateAnimation(animation.id, {
-                                      from: {
-                                        ...animation.from,
-                                        [prop.key]: e.target.value,
-                                      },
-                                    })
-                                  }
-                                  placeholder="From"
-                                />
-                                <Icon
-                                  name="chevronRight"
-                                  className="size-3 opacity-50 shrink-0"
-                                />
-                                <Input
-                                  value={animation.to[prop.key] ?? ''}
-                                  onChange={(e) =>
-                                    handleUpdateAnimation(animation.id, {
-                                      to: {
-                                        ...animation.to,
-                                        [prop.key]: e.target.value,
-                                      },
-                                    })
-                                  }
-                                  placeholder="To"
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <hr />
-
-                        {/* Timing Controls */}
-                        <div className="flex flex-col gap-2 py-4">
-                          <div className="grid grid-cols-3">
-                            <Label variant="muted">Delay</Label>
-                            <div className="col-span-2 *:w-full">
-                              <Input
-                                type="number"
-                                value={animation.delay}
-                                onChange={(e) =>
-                                  handleUpdateAnimation(animation.id, {
-                                    delay: Number(e.target.value),
-                                  })
-                                }
-                                placeholder="ms"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-3">
-                            <Label variant="muted">Duration</Label>
-                            <div className="col-span-2 *:w-full">
-                              <Input
-                                type="number"
-                                value={animation.duration}
-                                onChange={(e) =>
-                                  handleUpdateAnimation(animation.id, {
-                                    duration: Number(e.target.value),
-                                  })
-                                }
-                                placeholder="ms"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

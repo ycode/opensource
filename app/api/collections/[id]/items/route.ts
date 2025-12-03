@@ -15,6 +15,9 @@ export const revalidate = 0;
  *  - search: string (optional) - Filter items by searching across all field values
  *  - page: number (optional, default: 1) - Page number
  *  - limit: number (optional, default: 25) - Items per page
+ *  - sortBy: string (optional) - Field ID to sort by, or 'manual', 'random', 'none'
+ *  - sortOrder: 'asc' | 'desc' (optional, default: 'asc') - Sort order
+ *  - offset: number (optional) - Number of items to skip
  */
 export async function GET(
   request: NextRequest,
@@ -28,9 +31,12 @@ export async function GET(
     const search = searchParams.get('search') || undefined;
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '25', 10);
+    const sortBy = searchParams.get('sortBy') || undefined;
+    const sortOrder = (searchParams.get('sortOrder') || 'asc') as 'asc' | 'desc';
+    const offsetParam = searchParams.get('offset');
 
-    // Calculate offset
-    const offset = (page - 1) * limit;
+    // Calculate offset (use explicit offset if provided, otherwise calculate from page)
+    const offset = offsetParam ? parseInt(offsetParam, 10) : (page - 1) * limit;
 
     // Build filters object
     const filters = {
@@ -42,9 +48,41 @@ export async function GET(
     // Always get draft items in the builder
     const { items, total } = await getItemsWithValues(id, false, filters);
 
+    // Apply sorting if specified (client-side for now since repository doesn't support it)
+    let sortedItems = items;
+    if (sortBy && sortBy !== 'none') {
+      if (sortBy === 'manual') {
+        // Sort by manual_order
+        sortedItems = [...items].sort((a, b) => {
+          return (a.manual_order || 0) - (b.manual_order || 0);
+        });
+      } else if (sortBy === 'random') {
+        // Randomize order
+        sortedItems = [...items].sort(() => Math.random() - 0.5);
+      } else {
+        // Sort by field value
+        sortedItems = [...items].sort((a, b) => {
+          const aValue = a.values[sortBy] || '';
+          const bValue = b.values[sortBy] || '';
+          
+          // Try numeric comparison
+          const aNum = parseFloat(String(aValue));
+          const bNum = parseFloat(String(bValue));
+          
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return sortOrder === 'asc' ? aNum - bNum : bNum - aNum;
+          }
+          
+          // String comparison
+          const comparison = String(aValue).localeCompare(String(bValue));
+          return sortOrder === 'asc' ? comparison : -comparison;
+        });
+      }
+    }
+
     return noCache({
       data: {
-        items,
+        items: sortedItems,
         total,
         page,
         limit,

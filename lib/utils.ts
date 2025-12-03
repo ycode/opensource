@@ -245,3 +245,15 @@ export function isValidUUID(str: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(str);
 }
+
+/**
+ * Generate a unique ID with optional prefix
+ * @param prefix - Optional 3 letter prefix to prepend (e.g., 'lyr' for 'layer')
+ * @returns Unique ID string (e.g., "lyr-mip1xm2qt9vvh")
+ */
+export function generateId(prefix?: string): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.floor(Math.random() * 36 ** 6).toString(36);
+  const id = `${timestamp}${random}`;
+  return prefix ? `${prefix}-${id}` : id;
+}

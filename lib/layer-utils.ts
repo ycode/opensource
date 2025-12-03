@@ -2,10 +2,11 @@
  * Layer utilities for rendering and manipulation
  */
 
-import { Collection, Component, Layer, FieldVariable, CollectionVariable, InlineVariableContent, CollectionItemWithValues, CollectionField } from '@/types';
+import { Collection, Component, Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, CollectionField } from '@/types';
 import { cn } from '@/lib/utils';
 import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
+import { resolveInlineVariables } from '@/lib/inline-variables';
 
 /**
  * Check if a value is a FieldVariable
@@ -22,48 +23,13 @@ export function getCollectionVariable(layer: Layer): CollectionVariable | null {
     return layer.variables.collection;
   }
 
-  return null;
-}
-
-/**
- * Get inline variable content from layer
- */
-export function getInlineVariableContent(layer: Layer): InlineVariableContent | null {
-  return layer.variables?.text || null;
-}
-
-/**
- * Resolve inline variables in text by replacing ID-based placeholders
- * @param content - InlineVariableContent with data and variables map
- * @param collectionItemData - Collection item values (field_id -> value)
- * @returns Resolved text with placeholders replaced
- */
-export function resolveInlineVariables(
-  content: InlineVariableContent,
-  collectionItemData?: Record<string, string>
-): string {
-  if (!collectionItemData) {
-    // Return data with placeholders removed if no collection data
-    return content.data.replace(/<ycode-inline-variable id="[^"]+"><\/ycode-inline-variable>/g, '');
+  if (layer.collection?.id) {
+    return {
+      id: layer.collection.id,
+    };
   }
 
-  let resolvedText = content.data;
-
-  // Replace each <ycode-inline-variable id="uuid"></ycode-inline-variable> with actual value
-  const regex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
-  resolvedText = resolvedText.replace(regex, (match, variableId) => {
-    const variable = content.variables[variableId];
-    if (variable && variable.type === 'field' && variable.data?.field_id) {
-      const fieldId = variable.data.field_id;
-      const value = collectionItemData[fieldId];
-      if (value !== undefined && value !== null) {
-        return value;
-      }
-    }
-    return ''; // Empty string for deleted/missing fields
-  });
-
-  return resolvedText;
+  return null;
 }
 
 /**
@@ -244,10 +210,27 @@ export function getTextWithBinding(
   layer: Layer,
   collectionItemData?: Record<string, string>
 ): string | undefined {
-  // Priority 1: Check variables.text (new structure with inline variables)
-  const inlineVariableContent = getInlineVariableContent(layer);
-  if (inlineVariableContent) {
-    return resolveInlineVariables(inlineVariableContent, collectionItemData);
+  // Priority 1: Check variables.text (embedded JSON inline variables)
+  const textWithVariables = layer.variables?.text;
+  if (textWithVariables && typeof textWithVariables === 'string') {
+    if (textWithVariables.includes('<ycode-inline-variable>')) {
+      if (collectionItemData) {
+        const mockItem: any = {
+          id: 'temp',
+          collection_id: 'temp',
+          created_at: '',
+          updated_at: '',
+          deleted_at: null,
+          manual_order: 0,
+          is_published: true,
+          values: collectionItemData,
+        };
+        return resolveInlineVariables(textWithVariables, mockItem);
+      }
+      // No collection data - remove variables
+      return textWithVariables.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+    }
+    return textWithVariables;
   }
 
   // Priority 2: Check if text is a FieldVariable (existing structure)
@@ -423,4 +406,57 @@ export function getLayerHtmlTag(layer: Layer): string {
   }
 
   return layer.name || 'div';
+}
+
+/**
+ * Apply limit and offset to collection items (after sorting)
+ * @param items - Array of collection items
+ * @param limit - Maximum number of items to show
+ * @param offset - Number of items to skip
+ * @returns Filtered array of collection items
+ */
+export function applyLimitOffset(
+  items: CollectionItemWithValues[],
+  limit?: number,
+  offset?: number
+): CollectionItemWithValues[] {
+  let result = [...items];
+
+  // Apply offset first (skip items)
+  if (offset && offset > 0) {
+    result = result.slice(offset);
+  }
+
+  // Apply limit (take first N items)
+  if (limit && limit > 0) {
+    result = result.slice(0, limit);
+  }
+
+  return result;
+}
+
+/**
+ * Check if layer has only a single inline variable (and optional whitespace)
+ * Used to determine if double-click should open collection item editor
+ * @param layer - Layer to check
+ * @returns True if layer has exactly one inline variable and no other text
+ */
+export function hasSingleInlineVariable(layer: Layer): boolean {
+  const text = layer.variables?.text;
+  
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  
+  // Match all inline variable tags
+  const regex = /<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g;
+  const matches = text.match(regex);
+  
+  if (!matches || matches.length !== 1) {
+    return false; // Not exactly one variable
+  }
+  
+  // Remove the variable tag and check if only whitespace remains
+  const withoutVariable = text.replace(regex, '').trim();
+  return withoutVariable === '';
 }

@@ -27,6 +27,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 
 // 6. Utils
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
@@ -34,6 +35,7 @@ import type { IframeToParentMessage } from '@/lib/iframe-bridge';
 import { buildPageTree, getNodeIcon, findHomepage } from '@/lib/page-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
+import { getCollectionVariable } from '@/lib/layer-utils';
 
 // 7. Types
 import type { Layer, Page, PageFolder } from '@/types';
@@ -110,11 +112,15 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const returnToPageId = useEditorStore((state) => state.returnToPageId);
   const currentPageCollectionItemId = useEditorStore((state) => state.currentPageCollectionItemId);
   const setCurrentPageCollectionItemId = useEditorStore((state) => state.setCurrentPageCollectionItemId);
+  const hoveredLayerId = useEditorStore((state) => state.hoveredLayerId);
 
   const getDropdownItems = useCollectionsStore((state) => state.getDropdownItems);
   const collectionItemsFromStore = useCollectionsStore((state) => state.items);
   const collectionsFromStore = useCollectionsStore((state) => state.collections);
   const collectionFieldsFromStore = useCollectionsStore((state) => state.fields);
+
+  // Collection layer store for independent layer data
+  const collectionLayerData = useCollectionLayerStore((state) => state.layerData);
 
   const { routeType, urlState, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorUrl();
   const components = useComponentsStore((state) => state.components);
@@ -247,6 +253,76 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return draft ? draft.layers : [];
   }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
+  // Fetch collection data for all collection layers in the page
+  const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Create a stable string representation of collection layer settings for dependency
+  const collectionLayersKey = useMemo(() => {
+    const extractCollectionSettings = (layerList: Layer[]): string[] => {
+      const settings: string[] = [];
+      layerList.forEach((layer) => {
+        const collectionVariable = getCollectionVariable(layer);
+        if (collectionVariable?.id) {
+          settings.push(`${layer.id}:${collectionVariable.id}:${collectionVariable.sort_by ?? ''}:${collectionVariable.sort_order ?? ''}:${collectionVariable.limit ?? ''}:${collectionVariable.offset ?? ''}`);
+        }
+        if (layer.children && layer.children.length > 0) {
+          settings.push(...extractCollectionSettings(layer.children));
+        }
+      });
+      return settings;
+    };
+
+    return extractCollectionSettings(layers).join('|');
+  }, [layers]);
+
+  // Debounce the fetch to prevent duplicate calls during rapid updates
+  useEffect(() => {
+    // Clear any existing timeout
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+
+    // Set new timeout
+    fetchTimeoutRef.current = setTimeout(() => {
+      // Recursively find all collection layers and fetch their data
+      const findAndFetchCollectionLayers = (layerList: Layer[]) => {
+        layerList.forEach((layer) => {
+          const collectionVariable = getCollectionVariable(layer);
+          if (collectionVariable?.id) {
+            fetchLayerData(
+              layer.id,
+              collectionVariable.id,
+              collectionVariable.sort_by,
+              collectionVariable.sort_order,
+              collectionVariable.limit,
+              collectionVariable.offset
+            );
+          }
+
+          // Recursively check children
+          if (layer.children && layer.children.length > 0) {
+            findAndFetchCollectionLayers(layer.children);
+          }
+        });
+      };
+
+      if (layers.length > 0) {
+        findAndFetchCollectionLayers(layers);
+      }
+
+      fetchTimeoutRef.current = null;
+    }, 100); // 100ms debounce - waits for rapid updates to settle
+
+    // Cleanup function
+    return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+        fetchTimeoutRef.current = null;
+      }
+    };
+  }, [collectionLayersKey, fetchLayerData, layers]);
+
   // Separate regular pages from error pages
   const { regularPages, errorPages } = useMemo(() => {
     const regular = pages.filter(page => page.error_page === null);
@@ -311,6 +387,39 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (!currentPage?.is_dynamic) return null;
     return currentPage.settings?.cms?.collection_id || null;
   }, [currentPage]);
+
+  const pageCollectionItem = useMemo(() => {
+    if (!currentPage?.is_dynamic) {
+      return null;
+    }
+
+    // First, check if we have an optimistically updated item in the draft
+    if (currentPageId) {
+      const draft = draftsByPageId[currentPageId];
+      if (draft && (draft as any).collectionItem) {
+        return (draft as any).collectionItem;
+      }
+    }
+
+    // Fall back to fetching from collections store
+    const collectionId = currentPage.settings?.cms?.collection_id;
+    if (!collectionId || !currentPageCollectionItemId) {
+      return null;
+    }
+    const itemsForCollection = collectionItemsFromStore[collectionId] || [];
+    return itemsForCollection.find((item) => item.id === currentPageCollectionItemId) || null;
+  }, [currentPage, currentPageId, currentPageCollectionItemId, collectionItemsFromStore, draftsByPageId]);
+
+  const pageCollectionFields = useMemo(() => {
+    if (!currentPage?.is_dynamic) {
+      return [];
+    }
+    const collectionId = currentPage.settings?.cms?.collection_id;
+    if (!collectionId) {
+      return [];
+    }
+    return collectionFieldsFromStore[collectionId] || [];
+  }, [currentPage, collectionFieldsFromStore]);
 
   // Load collection items when dynamic page is selected
   useEffect(() => {
@@ -503,7 +612,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     );
   }, [collapsedFolderIds, currentPageId, toggleFolder, handlePageSelect]);
 
-  // Send layers to iframe whenever they change
+  // Send layers to iframe whenever they change (excludes selection to avoid re-renders)
   useEffect(() => {
     if (!iframeReady || !iframeRef.current) return;
 
@@ -517,9 +626,44 @@ const CenterCanvas = React.memo(function CenterCanvas({
         editingComponentId: editingComponentId || null,
         collectionItems: collectionItemsFromStore,
         collectionFields: collectionFieldsFromStore,
+        pageCollectionItem,
+        pageCollectionFields,
       },
     });
-  }, [layers, selectedLayerId, iframeReady, components, editingComponentId, collectionItemsFromStore, collectionFieldsFromStore]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    layers,
+    iframeReady,
+    components,
+    editingComponentId,
+    collectionItemsFromStore,
+    collectionFieldsFromStore,
+    pageCollectionItem,
+    pageCollectionFields,
+  ]);
+
+  // Send selection updates separately to avoid full re-renders
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    sendToIframe(iframeRef.current, {
+      type: 'UPDATE_SELECTION',
+      payload: { layerId: selectedLayerId },
+    });
+  }, [selectedLayerId, iframeReady]);
+
+  // Send collection layer data to iframe whenever it changes
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    // Send each layer's data separately
+    Object.entries(collectionLayerData).forEach(([layerId, items]) => {
+      sendToIframe(iframeRef.current!, {
+        type: 'COLLECTION_LAYER_DATA',
+        payload: { layerId, items },
+      });
+    });
+  }, [collectionLayerData, iframeReady]);
 
   // Send breakpoint updates to iframe
   useEffect(() => {
@@ -540,6 +684,16 @@ const CenterCanvas = React.memo(function CenterCanvas({
       payload: { uiState: activeUIState },
     });
   }, [activeUIState, iframeReady]);
+
+  // Send hover updates to iframe
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    sendToIframe(iframeRef.current, {
+      type: 'UPDATE_HOVER',
+      payload: { layerId: hoveredLayerId },
+    });
+  }, [hoveredLayerId, iframeReady]);
 
   // Listen for messages from iframe
   useEffect(() => {
@@ -591,6 +745,15 @@ const CenterCanvas = React.memo(function CenterCanvas({
               text: message.payload.text,
             });
           }
+          break;
+
+        case 'OPEN_COLLECTION_ITEM_SHEET':
+          const { openCollectionItemSheet } = useEditorStore.getState();
+
+          openCollectionItemSheet(
+            message.payload.collectionId,
+            message.payload.itemId
+          );
           break;
 
         case 'CONTEXT_MENU':
