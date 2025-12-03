@@ -130,7 +130,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'mobile'>(
     urlState.view || 'desktop'
   );
-  const [zoom, setZoom] = useState(100);
   const [publishCount, setPublishCount] = useState(0);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersByPageRef = useRef<Map<string, string>>(new Map());
@@ -1323,8 +1322,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         currentPageId={routeType === 'settings' || routeType === 'localization' ? null : currentPageId}
         pages={routeType === 'settings' || routeType === 'localization' ? [] : pages}
         setCurrentPageId={routeType === 'settings' || routeType === 'localization' ? () => {} : setCurrentPageId}
-        zoom={routeType === 'settings' || routeType === 'localization' ? 100 : zoom}
-        setZoom={routeType === 'settings' || routeType === 'localization' ? () => {} : setZoom}
         isSaving={routeType === 'settings' || routeType === 'localization' ? false : isCurrentlySaving}
         hasUnsavedChanges={routeType === 'settings' || routeType === 'localization' ? false : hasUnsavedChanges}
         lastSaved={routeType === 'settings' || routeType === 'localization' ? null : lastSaved}
@@ -1370,7 +1367,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                   currentPageId={currentPageId}
                   viewportMode={viewportMode}
                   setViewportMode={setViewportMode}
-                  zoom={zoom}
                 />
 
                 {/* Right Sidebar - Properties */}
