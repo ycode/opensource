@@ -476,6 +476,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const newLayer = normalizeLayer(template, true);
     const newLayerId = newLayer.id;
 
+    // Detect if we're adding a Section layer
+    const isAddingSection = templateId === 'section' || newLayer.name === 'section';
+
     let newLayers: Layer[];
     let parentToExpand: string | null = null;
 
@@ -483,48 +486,67 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       // Add to root
       newLayers = [...draft.layers, newLayer];
     } else {
-      // Find the parent layer and its parent
-      const findLayerWithParent = (tree: Layer[], id: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null => {
-        for (const node of tree) {
-          if (node.id === id) return { layer: node, parent };
-          if (node.children) {
-            const found = findLayerWithParent(node.children, id, node);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
-
-      const result = findLayerWithParent(draft.layers, parentLayerId);
-
-      // Check if parent can have children
-      if (result && !canHaveChildren(result.layer)) {
-
-        // If parent exists (not root level), insert after the selected layer
-        if (result.parent) {
-          newLayers = updateLayerInTree(draft.layers, result.parent.id, (grandparent) => {
-            const children = grandparent.children || [];
-            const selectedIndex = children.findIndex(c => c.id === parentLayerId);
-            const newChildren = [...children];
-            newChildren.splice(selectedIndex + 1, 0, newLayer);
-            return { ...grandparent, children: newChildren };
-          });
-          // Expand the parent of the selected layer (grandparent)
-          parentToExpand = result.parent.id;
+      // Special handling for Section layers - they can only be at Body level
+      if (isAddingSection) {
+        // Sections can only be added at Body level
+        // Find the Body layer (root container)
+        const bodyLayer = draft.layers.find(l => l.id === 'body' || l.name === 'body');
+        
+        if (bodyLayer) {
+          // Add Section as a child of Body
+          newLayers = updateLayerInTree(draft.layers, bodyLayer.id, (body) => ({
+            ...body,
+            children: [...(body.children || []), newLayer],
+          }));
+          parentToExpand = bodyLayer.id;
         } else {
-          // Selected layer is at root level, insert after it
-          const selectedIndex = draft.layers.findIndex(l => l.id === parentLayerId);
-          newLayers = [...draft.layers];
-          newLayers.splice(selectedIndex + 1, 0, newLayer);
+          // Fallback: add to root if no Body layer found
+          newLayers = [...draft.layers, newLayer];
         }
       } else {
-        // Add as child to parent
-        newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
-          ...parent,
-          children: [...(parent.children || []), newLayer],
-        }));
-        // Expand the parent that we're adding into
-        parentToExpand = parentLayerId;
+        // Find the parent layer and its parent
+        const findLayerWithParent = (tree: Layer[], id: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null => {
+          for (const node of tree) {
+            if (node.id === id) return { layer: node, parent };
+            if (node.children) {
+              const found = findLayerWithParent(node.children, id, node);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+
+        const result = findLayerWithParent(draft.layers, parentLayerId);
+
+        // Check if parent can have children
+        if (result && !canHaveChildren(result.layer, newLayer.name)) {
+
+          // If parent exists (not root level), insert after the selected layer
+          if (result.parent) {
+            newLayers = updateLayerInTree(draft.layers, result.parent.id, (grandparent) => {
+              const children = grandparent.children || [];
+              const selectedIndex = children.findIndex(c => c.id === parentLayerId);
+              const newChildren = [...children];
+              newChildren.splice(selectedIndex + 1, 0, newLayer);
+              return { ...grandparent, children: newChildren };
+            });
+            // Expand the parent of the selected layer (grandparent)
+            parentToExpand = result.parent.id;
+          } else {
+            // Selected layer is at root level, insert after it
+            const selectedIndex = draft.layers.findIndex(l => l.id === parentLayerId);
+            newLayers = [...draft.layers];
+            newLayers.splice(selectedIndex + 1, 0, newLayer);
+          }
+        } else {
+          // Add as child to parent
+          newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
+            ...parent,
+            children: [...(parent.children || []), newLayer],
+          }));
+          // Expand the parent that we're adding into
+          parentToExpand = parentLayerId;
+        }
       }
     }
 
