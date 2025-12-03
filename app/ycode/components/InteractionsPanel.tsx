@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils';
 import { getLayerName, getLayerIcon } from '@/lib/layer-utils';
 
 // 4. Types
-import type { Layer, LayerInteraction, InteractionTarget, InteractionTransition } from '@/types';
+import type { Layer, LayerInteraction, InteractionTarget, InteractionAnimation, InteractionProperty } from '@/types';
 import { Badge } from '@/components/ui/badge';
 
 interface InteractionsPanelProps {
@@ -39,7 +39,6 @@ interface InteractionsPanelProps {
   selectedLayerId?: string | null; // Currently selected layer in editor
   resetKey?: number; // When this changes, reset all selections
   onStateChange?: (state: {
-    isSelectingTarget?: boolean;
     selectedTriggerId?: string | null;
     shouldRefresh?: boolean;
   }) => void;
@@ -47,13 +46,13 @@ interface InteractionsPanelProps {
 }
 
 type TriggerType = 'click' | 'hover' | 'scroll-into-view' | 'while-scrolling' | 'load';
-type PropertyType = 'position' | 'scale' | 'rotation' | 'skew' | 'opacity' | 'filter';
+type PropertyType = 'position' | 'scale' | 'rotation' | 'skew' | 'opacity';
 
 interface PropertyOption {
   type: PropertyType;
   label: string;
   properties: Array<{
-    key: string;
+    key: keyof InteractionProperty;
     label: string;
     unit: string;
   }>;
@@ -64,22 +63,19 @@ const PROPERTY_OPTIONS: PropertyOption[] = [
     type: 'position',
     label: 'Position',
     properties: [
-      { key: 'translateX', label: 'X', unit: 'px' },
-      { key: 'translateY', label: 'Y', unit: 'px' },
+      { key: 'x', label: 'X', unit: 'px' },
+      { key: 'y', label: 'Y', unit: 'px' },
     ],
   },
   {
     type: 'scale',
     label: 'Scale',
-    properties: [
-      { key: 'scaleX', label: 'X', unit: '' },
-      { key: 'scaleY', label: 'Y', unit: '' },
-    ],
+    properties: [{ key: 'scale', label: 'Scale', unit: '' }],
   },
   {
     type: 'rotation',
     label: 'Rotation',
-    properties: [{ key: 'rotate', label: 'Angle', unit: 'deg' }],
+    properties: [{ key: 'rotation', label: 'Angle', unit: 'deg' }],
   },
   {
     type: 'skew',
@@ -114,19 +110,18 @@ export default function InteractionsPanel({
   onSelectLayer,
 }: InteractionsPanelProps) {
   const [selectedInteractionId, setSelectedInteractionId] = useState<string | null>(null);
-  const [expandedTransitions, setExpandedTransitions] = useState<Set<string>>(new Set());
-  const [isSelectingTarget, setIsSelectingTarget] = useState(false);
+  const [expandedAnimations, setExpandedAnimations] = useState<Set<string>>(new Set());
 
   // Reset selections when trigger layer changes or reset is triggered
   useEffect(() => {
     setSelectedInteractionId(null);
-    setExpandedTransitions(new Set());
-    setIsSelectingTarget(false);
+    setExpandedAnimations(new Set());
   }, [triggerLayer.id, resetKey]);
 
   // Memoize interactions to prevent unnecessary re-renders
   const interactions = useMemo(() => triggerLayer.interactions || [], [triggerLayer.interactions]);
   const selectedInteraction = interactions.find((i) => i.id === selectedInteractionId);
+  const usedTriggers = useMemo(() => new Set(interactions.map(i => i.trigger)), [interactions]);
   // Find target that matches the currently selected layer
   const selectedTarget =
     selectedInteraction && selectedLayerId
@@ -202,42 +197,9 @@ export default function InteractionsPanel({
   // Notify parent about state changes
   useEffect(() => {
     onStateChange?.({
-      isSelectingTarget,
       selectedTriggerId: selectedInteractionId,
     });
-  }, [isSelectingTarget, selectedInteractionId, onStateChange]);
-
-  // Handle layer selection when in target selection mode
-  useEffect(() => {
-    // Only capture target if a trigger is selected and we're in selection mode
-    if (isSelectingTarget && selectedLayerId && selectedInteraction && selectedInteractionId) {
-      // Check if layer is already a target
-      const isAlreadyTarget = selectedInteraction.targets.some(
-        (t) => t.layer_id === selectedLayerId
-      );
-
-      if (!isAlreadyTarget) {
-        // Add target directly without using handleAddTarget to avoid circular dependency
-        const newTarget: InteractionTarget = {
-          layer_id: selectedLayerId,
-          transitions: [],
-        };
-
-        const updatedInteractions = interactions.map((interaction) => {
-          if (interaction.id !== selectedInteractionId) return interaction;
-          return {
-            ...interaction,
-            targets: [...interaction.targets, newTarget],
-          };
-        });
-
-        onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
-      }
-
-      // Exit selection mode
-      setIsSelectingTarget(false);
-    }
-  }, [isSelectingTarget, selectedLayerId, selectedInteraction, selectedInteractionId, interactions, triggerLayer.id, onLayerUpdate]);
+  }, [selectedInteractionId, onStateChange]);
 
   // Add new interaction
   const handleAddInteraction = useCallback(
@@ -280,7 +242,7 @@ export default function InteractionsPanel({
 
       const newTarget: InteractionTarget = {
         layer_id: layerId,
-        transitions: [],
+        animations: [],
       };
 
       const updatedInteractions = interactions.map((interaction) => {
@@ -318,7 +280,7 @@ export default function InteractionsPanel({
     [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate]
   );
 
-  // Add transition property
+  // Add animation property
   const handleAddProperty = useCallback(
     (propertyType: PropertyType) => {
       if (!selectedInteraction || !selectedLayerId) return;
@@ -326,20 +288,26 @@ export default function InteractionsPanel({
       const propertyOption = PROPERTY_OPTIONS.find((p) => p.type === propertyType);
       if (!propertyOption) return;
 
-      const newTransition: InteractionTransition = {
+      // Build from/to objects with default values for this property type
+      const from: InteractionProperty = {};
+      const to: InteractionProperty = {};
+      propertyOption.properties.forEach((prop) => {
+        const key = prop.key;
+        if (key !== 'visibility') {
+          from[key] = '0';
+          to[key] = key === 'scale' ? '1' : '100';
+        }
+      });
+
+      const newAnimation: InteractionAnimation = {
         id: generateId(),
         delay: 0,
         duration: 300,
-        from: {
-          property: propertyOption.properties[0].key,
-          value: '0',
-          unit: propertyOption.properties[0].unit,
-        },
-        to: {
-          property: propertyOption.properties[0].key,
-          value: '100',
-          unit: propertyOption.properties[0].unit,
-        },
+        repeat: false,
+        yoyo: false,
+        ease: 'power1.out',
+        from,
+        to,
       };
 
       const updatedInteractions = interactions.map((interaction) => {
@@ -349,7 +317,7 @@ export default function InteractionsPanel({
           if (target.layer_id !== selectedLayerId) return target;
           return {
             ...target,
-            transitions: [...target.transitions, newTransition],
+            animations: [...target.animations, newAnimation],
           };
         });
 
@@ -357,7 +325,7 @@ export default function InteractionsPanel({
       });
 
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
-      setExpandedTransitions(new Set([...expandedTransitions, newTransition.id]));
+      setExpandedAnimations(new Set([...expandedAnimations, newAnimation.id]));
     },
     [
       selectedInteraction,
@@ -366,13 +334,13 @@ export default function InteractionsPanel({
       selectedInteractionId,
       triggerLayer.id,
       onLayerUpdate,
-      expandedTransitions,
+      expandedAnimations,
     ]
   );
 
-  // Remove transition
-  const handleRemoveTransition = useCallback(
-    (transitionId: string) => {
+  // Remove animation
+  const handleRemoveAnimation = useCallback(
+    (animationId: string) => {
       if (!selectedInteraction || !selectedLayerId) return;
 
       const updatedInteractions = interactions.map((interaction) => {
@@ -382,7 +350,7 @@ export default function InteractionsPanel({
           if (target.layer_id !== selectedLayerId) return target;
           return {
             ...target,
-            transitions: target.transitions.filter((t) => t.id !== transitionId),
+            animations: target.animations.filter((a) => a.id !== animationId),
           };
         });
 
@@ -390,9 +358,9 @@ export default function InteractionsPanel({
       });
 
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
-      setExpandedTransitions((prev) => {
+      setExpandedAnimations((prev) => {
         const next = new Set(prev);
-        next.delete(transitionId);
+        next.delete(animationId);
         return next;
       });
     },
@@ -406,9 +374,9 @@ export default function InteractionsPanel({
     ]
   );
 
-  // Update transition property
-  const handleUpdateTransition = useCallback(
-    (transitionId: string, updates: Partial<InteractionTransition>) => {
+  // Update animation
+  const handleUpdateAnimation = useCallback(
+    (animationId: string, updates: Partial<InteractionAnimation>) => {
       if (!selectedInteraction || !selectedLayerId) return;
 
       const updatedInteractions = interactions.map((interaction) => {
@@ -418,8 +386,8 @@ export default function InteractionsPanel({
           if (target.layer_id !== selectedLayerId) return target;
           return {
             ...target,
-            transitions: target.transitions.map((t) =>
-              t.id === transitionId ? { ...t, ...updates } : t
+            animations: target.animations.map((a) =>
+              a.id === animationId ? { ...a, ...updates } : a
             ),
           };
         });
@@ -439,23 +407,23 @@ export default function InteractionsPanel({
     ]
   );
 
-  // Toggle transition expansion
-  const toggleTransition = useCallback((transitionId: string) => {
-    setExpandedTransitions((prev) => {
+  // Toggle animation expansion
+  const toggleAnimation = useCallback((animationId: string) => {
+    setExpandedAnimations((prev) => {
       const next = new Set(prev);
-      if (next.has(transitionId)) {
-        next.delete(transitionId);
+      if (next.has(animationId)) {
+        next.delete(animationId);
       } else {
-        next.add(transitionId);
+        next.add(animationId);
       }
       return next;
     });
   }, []);
 
-  // Get property option for transition
-  const getPropertyOption = (transition: InteractionTransition): PropertyOption | null => {
+  // Get property option for animation based on which properties are set
+  const getAnimationPropertyOption = (animation: InteractionAnimation): PropertyOption | null => {
     return PROPERTY_OPTIONS.find((opt) =>
-      opt.properties.some((p) => p.key === transition.from.property)
+      opt.properties.some((p) => animation.from[p.key] !== undefined && animation.from[p.key] !== null)
     ) || null;
   };
 
@@ -467,28 +435,19 @@ export default function InteractionsPanel({
       {/* Trigger Layer */}
       <div className="flex items-center gap-2 my-2">
         {onStateChange && (
-          hasActiveTrigger ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => onStateChange({ shouldRefresh: true })}
-                >
-                  <Icon name="undo" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Switch to a different trigger element</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled
-            >
-              <Icon name="zap" />
-            </Button>
-          )
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!hasActiveTrigger}
+                onClick={() => onStateChange({ shouldRefresh: true })}
+              >
+                <Icon name="undo" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Switch to a different trigger element</TooltipContent>
+          </Tooltip>
         )}
 
         <div
@@ -515,12 +474,12 @@ export default function InteractionsPanel({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="mr-4">
-              <DropdownMenuItem onClick={() => handleAddInteraction('click')}>Click</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleAddInteraction('hover')}>Hover</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleAddInteraction('scroll-into-view')}>Scroll into view</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleAddInteraction('while-scrolling')}>While scrolling</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddInteraction('click')} disabled={usedTriggers.has('click')}>Click</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddInteraction('hover')} disabled={usedTriggers.has('hover')}>Hover</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddInteraction('scroll-into-view')} disabled={usedTriggers.has('scroll-into-view')}>Scroll into view</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddInteraction('while-scrolling')} disabled={usedTriggers.has('while-scrolling')}>While scrolling</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleAddInteraction('load')}>Page load</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleAddInteraction('load')} disabled={usedTriggers.has('load')}>Page load</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -621,51 +580,29 @@ export default function InteractionsPanel({
           <header className="py-5 flex justify-between">
             <span className="font-medium">Layers to animate</span>
             <div className="-my-1">
-              {isSelectingTarget ? (
-                <Button
-                  size="xs"
-                  variant="secondary"
-                  onClick={() => setIsSelectingTarget(false)}
-                >
-                  Cancel
-                </Button>
-              ) : (
-                <Button
-                  size="xs"
-                  variant="secondary"
-                  onClick={() => setIsSelectingTarget(true)}
-                >
-                  <Icon name="plus" />
-                </Button>
-              )}
+              <Button
+                size="xs"
+                variant="secondary"
+                onClick={() => {
+                  if (selectedLayerId) {
+                    handleAddTarget(selectedLayerId);
+                  }
+                }}
+                disabled={!selectedLayerId || selectedInteraction.targets.some(t => t.layer_id === selectedLayerId)}
+              >
+                <Icon name="plus" />
+              </Button>
             </div>
           </header>
 
-          {/* Target Selection Mode Message */}
-          {isSelectingTarget && (
-            <div className="mb-4 p-3 bg-teal-500/20 border border-teal-500/30 rounded-lg">
-              <div className="flex items-start gap-2">
-                <Icon name="zap" className="size-4 text-teal-400 mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-teal-100">
-                    Select a layer
-                  </p>
-                  <p className="text-xs text-teal-200/70 mt-1">
-                    Click on any layer in the tree or canvas to add it as a target
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Target List */}
-          {selectedInteraction.targets.length === 0 && !isSelectingTarget ? (
+          {selectedInteraction.targets.length === 0 ? (
             <Empty>
               <EmptyDescription>
                 Select a layer you want to animate and click on the plus button to add it.
               </EmptyDescription>
             </Empty>
-          ) : !isSelectingTarget ? (
+          ) : (
             <div className="flex flex-col gap-2 mb-4">
               {selectedInteraction.targets.map((target, index) => {
                 const targetLayer = flatLayers.find((fl) => fl.layer.id === target.layer_id)?.layer;
@@ -715,7 +652,7 @@ export default function InteractionsPanel({
                 );
               })}
             </div>
-          ) : null}
+          )}
         </div>
       )}
 
@@ -746,8 +683,8 @@ export default function InteractionsPanel({
             </div>
           </header>
 
-          {/* Transitions List */}
-          {selectedTarget.transitions.length === 0 ? (
+          {/* Animations List */}
+          {selectedTarget.animations.length === 0 ? (
             <Empty>
               <EmptyDescription>
                 Add a property to animate to get started.
@@ -755,15 +692,15 @@ export default function InteractionsPanel({
             </Empty>
           ) : (
             <div className="space-y-4">
-              {selectedTarget.transitions.map((transition) => {
-                const propertyOption = getPropertyOption(transition);
-                const isExpanded = expandedTransitions.has(transition.id);
+              {selectedTarget.animations.map((animation) => {
+                const propertyOption = getAnimationPropertyOption(animation);
+                const isExpanded = expandedAnimations.has(animation.id);
 
                 return (
-                  <div key={transition.id} className="px-4 bg-secondary/50 rounded-lg">
-                    {/* Transition Header */}
+                  <div key={animation.id} className="px-4 bg-secondary/50 rounded-lg">
+                    {/* Animation Header */}
                     <header
-                      onClick={() => toggleTransition(transition.id)}
+                      onClick={() => toggleAnimation(animation.id)}
                       className="px-4 flex items-center gap-1.5 cursor-pointer hover:bg-secondary/25 rounded-lg -mx-4 py-3 transition-colors"
                     >
                       <Icon
@@ -784,7 +721,7 @@ export default function InteractionsPanel({
                           variant="ghost"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleRemoveTransition(transition.id);
+                            handleRemoveAnimation(animation.id);
                           }}
                         >
                           <Icon name="x" />
@@ -792,7 +729,7 @@ export default function InteractionsPanel({
                       </div>
                     </header>
 
-                    {/* Transition Details */}
+                    {/* Animation Details */}
                     {isExpanded && (
                       <div className="-mt-4">
                         {/* Property Values */}
@@ -802,12 +739,12 @@ export default function InteractionsPanel({
                               <Label variant="muted">{prop.label}</Label>
                               <div className="flex items-center gap-2">
                                 <Input
-                                  value={transition.from.value}
+                                  value={animation.from[prop.key] ?? ''}
                                   onChange={(e) =>
-                                    handleUpdateTransition(transition.id, {
+                                    handleUpdateAnimation(animation.id, {
                                       from: {
-                                        ...transition.from,
-                                        value: e.target.value,
+                                        ...animation.from,
+                                        [prop.key]: e.target.value,
                                       },
                                     })
                                   }
@@ -818,12 +755,12 @@ export default function InteractionsPanel({
                                   className="size-3 opacity-50 shrink-0"
                                 />
                                 <Input
-                                  value={transition.to.value}
+                                  value={animation.to[prop.key] ?? ''}
                                   onChange={(e) =>
-                                    handleUpdateTransition(transition.id, {
+                                    handleUpdateAnimation(animation.id, {
                                       to: {
-                                        ...transition.to,
-                                        value: e.target.value,
+                                        ...animation.to,
+                                        [prop.key]: e.target.value,
                                       },
                                     })
                                   }
@@ -843,9 +780,9 @@ export default function InteractionsPanel({
                             <div className="col-span-2 *:w-full">
                               <Input
                                 type="number"
-                                value={transition.delay}
+                                value={animation.delay}
                                 onChange={(e) =>
-                                  handleUpdateTransition(transition.id, {
+                                  handleUpdateAnimation(animation.id, {
                                     delay: Number(e.target.value),
                                   })
                                 }
@@ -859,9 +796,9 @@ export default function InteractionsPanel({
                             <div className="col-span-2 *:w-full">
                               <Input
                                 type="number"
-                                value={transition.duration}
+                                value={animation.duration}
                                 onChange={(e) =>
-                                  handleUpdateTransition(transition.id, {
+                                  handleUpdateAnimation(animation.id, {
                                     duration: Number(e.target.value),
                                   })
                                 }

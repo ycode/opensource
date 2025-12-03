@@ -261,7 +261,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
 
   return (
     <>
-      <div className="w-64 shrink-0 bg-background border-r flex overflow-hidden p-4">
+      <div className="w-64 shrink-0 bg-background border-r flex overflow-hidden p-4 pb-0">
         {/* Tabs */}
         <Tabs
           value={activeTab}
@@ -295,7 +295,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
           }}
           className="flex-1 gap-0"
         >
-          <TabsList className="w-full">
+          <TabsList className="w-full shrink-0">
             <TabsTrigger value="layers">Layers</TabsTrigger>
             <TabsTrigger value="pages">Pages</TabsTrigger>
             <TabsTrigger value="cms">CMS</TabsTrigger>
@@ -304,8 +304,8 @@ const LeftSidebar = React.memo(function LeftSidebar({
           <hr className="mt-4" />
 
           {/* Content */}
-          <TabsContent value="layers">
-            <header className="py-5 flex justify-between">
+          <TabsContent value="layers" className="flex flex-col min-h-0">
+            <header className="py-5 flex justify-between shrink-0">
               <span className="font-medium">Layers</span>
               <div className="-my-1">
                 <Button
@@ -316,8 +316,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
                 </Button>
               </div>
             </header>
-
-            <div className="flex flex-col flex-1">
+            <div className="flex flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar pb-4">
               {!currentPageId && !editingComponentId ? (
                 <Empty>
                   <EmptyTitle>No page selected</EmptyTitle>
@@ -339,7 +338,6 @@ const LeftSidebar = React.memo(function LeftSidebar({
                 />
               )}
             </div>
-
           </TabsContent>
 
           <TabsContent value="pages">

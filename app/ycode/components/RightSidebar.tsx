@@ -74,44 +74,44 @@ const RightSidebar = React.memo(function RightSidebar({
 }: RightSidebarProps) {
   const { openComponent, urlState, updateQueryParams } = useEditorActions();
   const { routeType } = useEditorUrl();
-  
+
   // Local state for immediate UI feedback
   const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'interactions'>(
     urlState.rightTab || 'design'
   );
-  
+
   // Track last user-initiated change to prevent URL→state sync loops
   const lastUserChangeRef = useRef<number>(0);
-  
+
   // Handle tab change: optimistic UI update + background URL sync
   const handleTabChange = useCallback((value: string) => {
     const newTab = value as 'design' | 'settings' | 'interactions';
-    
+
     // Immediate UI update
     setActiveTab(newTab);
-    
+
     // Mark as user-initiated (prevents URL→state sync for 100ms)
     lastUserChangeRef.current = Date.now();
-    
+
     // Background URL update
     if (routeType === 'page' || routeType === 'layers' || routeType === 'component') {
       updateQueryParams({ tab: newTab });
     }
   }, [routeType, updateQueryParams]);
-  
+
   // Sync URL→state only for external navigation (back/forward, direct URL)
   useEffect(() => {
     // Skip if this was a recent user-initiated change (within 100ms)
     if (Date.now() - lastUserChangeRef.current < 100) {
       return;
     }
-    
+
     const urlTab = urlState.rightTab || 'design';
     if (urlTab !== activeTab) {
       setActiveTab(urlTab);
     }
   }, [urlState.rightTab]);
-  
+
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
   const [attributesOpen, setAttributesOpen] = useState(true);
   const [customId, setCustomId] = useState<string>('');
@@ -126,7 +126,6 @@ const RightSidebar = React.memo(function RightSidebar({
   const [collectionBindingOpen, setCollectionBindingOpen] = useState(true);
   const [fieldBindingOpen, setFieldBindingOpen] = useState(true);
   const [contentOpen, setContentOpen] = useState(true);
-  const [isSelectingInteractionTarget, setIsSelectingInteractionTarget] = useState(false);
   const [interactionOwnerLayerId, setInteractionOwnerLayerId] = useState<string | null>(null);
   const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
   const [interactionResetKey, setInteractionResetKey] = useState(0);
@@ -184,17 +183,17 @@ const RightSidebar = React.memo(function RightSidebar({
 
   // Set interaction owner when interactions tab becomes active
   useEffect(() => {
-    if (activeTab === 'interactions' && selectedLayerId && !interactionOwnerLayerId && !isSelectingInteractionTarget) {
+    if (activeTab === 'interactions' && selectedLayerId && !interactionOwnerLayerId) {
       setInteractionOwnerLayerId(selectedLayerId);
     }
-  }, [activeTab, selectedLayerId, interactionOwnerLayerId, isSelectingInteractionTarget]);
+  }, [activeTab, selectedLayerId, interactionOwnerLayerId]);
 
   // Update interaction owner layer when selected layer changes (only if no trigger is selected)
   useEffect(() => {
-    if (activeTab === 'interactions' && selectedLayerId && !selectedTriggerId && !isSelectingInteractionTarget) {
+    if (activeTab === 'interactions' && selectedLayerId && !selectedTriggerId) {
       setInteractionOwnerLayerId(selectedLayerId);
     }
-  }, [activeTab, selectedLayerId, selectedTriggerId, isSelectingInteractionTarget]);
+  }, [activeTab, selectedLayerId, selectedTriggerId]);
 
   // Clear interaction owner when tab changes away from interactions
   useEffect(() => {
@@ -256,15 +255,9 @@ const RightSidebar = React.memo(function RightSidebar({
 
   // Handle all interaction state changes from InteractionsPanel
   const handleInteractionStateChange = useCallback((state: {
-    isSelectingTarget?: boolean;
     selectedTriggerId?: string | null;
     shouldRefresh?: boolean;
   }) => {
-    // Handle target selection mode
-    if (state.isSelectingTarget !== undefined) {
-      setIsSelectingInteractionTarget(state.isSelectingTarget);
-    }
-
     // Handle trigger selection
     if (state.selectedTriggerId !== undefined) {
       setSelectedTriggerId(state.selectedTriggerId);
@@ -801,22 +794,6 @@ const RightSidebar = React.memo(function RightSidebar({
 
   return (
     <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
-      {/* Target Selection Mode Indicator */}
-      {isSelectingInteractionTarget && (
-        <div className="mb-4 p-3 bg-teal-500/20 border border-teal-500/30 rounded-lg">
-          <div className="flex items-start gap-2">
-            <Icon name="zap" className="size-4 text-teal-400 mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-teal-100">
-                Target Selection Mode
-              </p>
-              <p className="text-xs text-teal-200/70 mt-1">
-                Click on a layer to add it as an animation target
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Tabs */}
       <Tabs
