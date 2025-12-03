@@ -54,6 +54,9 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
         customName: displayName || undefined, // Set display name
       };
 
+      // Detect if we're adding a Section layer
+      const isAddingSection = elementType === 'section' || newLayer.name === 'section';
+
       // Find parent layer and check if it can have children
       const findLayerInTree = (tree: any[], targetId: string): any | null => {
         for (const node of tree) {
@@ -70,11 +73,31 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
 
       // Find parent and add layer
       const addLayerToTree = (tree: any[], targetId: string, parentNode: any = null): { success: boolean; newLayers: any[]; newLayerId: string; parentToExpand: string | null } => {
+        // Special handling for Section layers - add to Body level
+        if (isAddingSection) {
+          // Find the Body/root container
+          const bodyLayer = tree.find(l => l.id === 'body' || l.name === 'body');
+          if (bodyLayer) {
+            const bodyIndex = tree.findIndex(l => l.id === bodyLayer.id);
+            const updatedBody = {
+              ...bodyLayer,
+              children: [...(bodyLayer.children || []), newLayer]
+            };
+            return {
+              success: true,
+              newLayers: [...tree.slice(0, bodyIndex), updatedBody, ...tree.slice(bodyIndex + 1)],
+              newLayerId: newLayer.id,
+              parentToExpand: bodyLayer.id
+            };
+          }
+        }
+
+        // Regular logic for non-Section layers
         for (let i = 0; i < tree.length; i++) {
           const node = tree[i];
           if (node.id === targetId) {
             // Found target, check if it can have children
-            if (canHaveChildren(node)) {
+            if (canHaveChildren(node, newLayer.name)) {
               // Add as child
               const updatedNode = {
                 ...node,
@@ -134,7 +157,13 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
     if (!currentPageId) return;
 
     // Determine parent (selected container or Body)
-    const parentId = selectedLayerId || 'body';
+    let parentId = selectedLayerId || 'body';
+
+    // Special handling for Section layers - always add to Body
+    const isAddingSection = elementType === 'section';
+    if (isAddingSection) {
+      parentId = 'body';
+    }
 
     // Add the layer using the template
     const result = addLayerFromTemplate(currentPageId, parentId, elementType);

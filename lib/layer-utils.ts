@@ -149,7 +149,7 @@ export function getImageUrl(layer: Layer): string | undefined {
 /**
  * Check if a layer can have children based on its name/type
  */
-export function canHaveChildren(layer: Layer): boolean {
+export function canHaveChildren(layer: Layer, childLayerType?: string): boolean {
   // Component instances cannot have children added to them
   // Children can only be edited in the master component
   if (layer.componentId) {
@@ -161,6 +161,11 @@ export function canHaveChildren(layer: Layer): boolean {
     'heading', 'p', 'span', 'label', 'button', 'hr',
     'input', 'textarea', 'select', 'checkbox', 'radio',
   ];
+
+  // Sections cannot contain other sections
+  if (layer.name === 'section' && childLayerType === 'section') {
+    return false;
+  }
 
   return !blocksWithoutChildren.includes(layer.name ?? '');
 }

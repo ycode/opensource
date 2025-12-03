@@ -387,6 +387,46 @@ function LayerRow({
   );
 }
 
+// EndDropZone Component - Drop target for adding layers at the end (bottom of Body)
+function EndDropZone({
+  isDragActive,
+  isOver,
+  editingComponentId,
+}: {
+  isDragActive: boolean;
+  isOver: boolean;
+  editingComponentId: string | null;
+}) {
+  const { setNodeRef } = useDroppable({
+    id: 'end-drop-zone',
+  });
+
+  if (!isDragActive) return null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="relative h-8 flex items-center"
+    >
+      {isOver && (
+        <div
+          className={cn(
+            'absolute top-0 left-0 right-0 h-[1.5px] z-50 ml-2',
+            editingComponentId ? 'bg-purple-500' : 'bg-primary'
+          )}
+        >
+          <div
+            className={cn(
+              'absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950',
+              editingComponentId ? 'border-purple-500' : 'border-primary'
+            )}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Main LayersTree Component
 export default function LayersTree({
   layers,
@@ -404,7 +444,7 @@ export default function LayersTree({
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Pull multi-select state from editor store
-  const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange } = useEditorStore();
+  const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange, editingComponentId } = useEditorStore();
 
   // Get component by ID function for drag overlay
   const { getComponentById } = useComponentsStore();
@@ -537,6 +577,17 @@ export default function LayersTree({
       return;
     }
 
+    // Handle drop at the end of the list (after all layers)
+    if (overId === 'end-drop-zone') {
+      const activeNode = activeId ? flattenedNodes.find((n) => n.id === activeId) : null;
+      
+      // For Sections, allow dropping at end (will be placed as last child of Body)
+      // For other layers, also allow (will be placed as last child of Body)
+      setOverId(overId);
+      setDropPosition('below'); // Will be treated as "after last item"
+      return;
+    }
+
     const overNode = flattenedNodes.find((n) => n.id === overId);
     const activeNode = activeId ? flattenedNodes.find((n) => n.id === activeId) : null;
 
@@ -574,8 +625,14 @@ export default function LayersTree({
     // Use pre-calculated canHaveChildren from the node
     const nodeCanHaveChildren = overNode.canHaveChildren;
 
+    // Special case: When dragging Section, disable "inside" drop for all containers except Body
+    // Sections can only be at Body level, never nested inside other containers
+    const isDraggingSection = activeNode && activeNode.layer.name === 'section';
+    const isOverBody = overNode.id === 'body' || overNode.layer.name === 'body';
+    const shouldDisableInsideDrop = isDraggingSection && !isOverBody;
+
     // Layers that can have children strongly prefer "inside" drops
-    const isContainerType = nodeCanHaveChildren;
+    const isContainerType = nodeCanHaveChildren && !shouldDisableInsideDrop;
 
     // Determine drop position based on pointer position
     let position: 'above' | 'below' | 'inside';
@@ -586,7 +643,7 @@ export default function LayersTree({
                                 !collapsedIds.has(overNode.id);
 
     // Clearer, more predictable drop zones
-    if (nodeCanHaveChildren) {
+    if (nodeCanHaveChildren && !shouldDisableInsideDrop) {
       // Elements that can have children use generous inside zone
       if (isContainerType) {
         // Containers (Block, Section, Container, Form)
@@ -622,6 +679,25 @@ export default function LayersTree({
     } else {
       // Leaf nodes: simple 50/50 split
       position = relativeY < 0.5 ? 'above' : 'below';
+    }
+
+    // CRITICAL: When dragging a Section, prevent it from being dropped inside ANY container except Body
+    // Check if the target node's parent is NOT Body (Section can only be at Body level)
+    if (isDraggingSection && (position === 'above' || position === 'below')) {
+      const targetParentId = overNode.parentId;
+      
+      // If the parent is not Body, don't allow Section to be dropped here
+      if (targetParentId && targetParentId !== 'body') {
+        const parentNode = flattenedNodes.find(n => n.id === targetParentId);
+        const parentIsBody = parentNode?.id === 'body' || parentNode?.layer.name === 'body';
+        
+        if (!parentIsBody) {
+          // Hovering over a child of a non-Body container - don't show drop indicator
+          setOverId(null);
+          setDropPosition(null);
+          return;
+        }
+      }
     }
 
     // CRITICAL: Prevent reordering within same parent from moving outside parent
@@ -707,6 +783,47 @@ export default function LayersTree({
       setIsProcessing(true);
 
       const activeNode = flattenedNodes.find((n) => n.id === active.id);
+
+      // Handle drop at the end of the list
+      if (over.id === 'end-drop-zone') {
+        if (!activeNode) {
+          setActiveId(null);
+          setOverId(null);
+          setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
+          return;
+        }
+
+        // Find the Body layer to add as its last child
+        const bodyLayer = flattenedNodes.find(n => n.id === 'body' || n.layer.name === 'body');
+        
+        if (bodyLayer) {
+          // Get all current children of Body
+          const bodyChildren = flattenedNodes.filter(n => n.parentId === bodyLayer.id);
+          const maxIndex = bodyChildren.length > 0
+            ? Math.max(...bodyChildren.map(n => n.index))
+            : -1;
+
+          // Place as last child of Body
+          const newLayers = rebuildTree(
+            flattenedNodes,
+            activeNode.id,
+            bodyLayer.id,
+            maxIndex + 1
+          );
+
+          onReorder(newLayers);
+        }
+
+        setActiveId(null);
+        setOverId(null);
+        setDropPosition(null);
+        setCursorOffsetY(0);
+        setTimeout(() => setIsProcessing(false), 0);
+        return;
+      }
+
       const overNode = flattenedNodes.find((n) => n.id === over.id);
 
       if (!activeNode || !overNode) {
@@ -747,10 +864,46 @@ export default function LayersTree({
           setIsProcessing(false);
           return;
         }
+
+        // Prevent Section from being placed outside Body
+        // BUT allow reordering Sections when both are already at Body level
+        if (activeNode.layer.name === 'section') {
+          const parentNode = flattenedNodes.find(n => n.id === newParentId);
+          const isParentBody = parentNode?.layer.name === 'body' || parentNode?.id === 'body';
+          
+          if (!isParentBody) {
+            setActiveId(null);
+            setOverId(null);
+            setDropPosition(null);
+            setCursorOffsetY(0);
+            setIsProcessing(false);
+            return;
+          }
+        }
       } else if (dropPosition === 'inside') {
         // Drop inside the target - target becomes parent
         // Validate that target can accept children
         if (!overNode.canHaveChildren) {
+          setActiveId(null);
+          setOverId(null);
+          setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
+          return;
+        }
+
+        // Prevent dropping Section inside another Section
+        if (activeNode.layer.name === 'section' && overNode.layer.name === 'section') {
+          setActiveId(null);
+          setOverId(null);
+          setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
+          return;
+        }
+
+        // Prevent dropping Section inside any layer that's not Body
+        if (activeNode.layer.name === 'section' && overNode.layer.name !== 'body') {
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
@@ -781,6 +934,22 @@ export default function LayersTree({
           setCursorOffsetY(0);
           setIsProcessing(false);
           return;
+        }
+
+        // Prevent Section from being placed outside Body
+        // BUT allow reordering Sections when both are already at Body level
+        if (activeNode.layer.name === 'section') {
+          const parentNode = flattenedNodes.find(n => n.id === newParentId);
+          const isParentBody = parentNode?.layer.name === 'body' || parentNode?.id === 'body';
+          
+          if (!isParentBody) {
+            setActiveId(null);
+            setOverId(null);
+            setDropPosition(null);
+            setCursorOffsetY(0);
+            setIsProcessing(false);
+            return;
+          }
         }
       }
 
@@ -920,6 +1089,13 @@ export default function LayersTree({
             />
           );
         })}
+
+        {/* Drop zone at the end for dropping layers at the bottom */}
+        <EndDropZone
+          isDragActive={!!activeId}
+          isOver={overId === 'end-drop-zone'}
+          editingComponentId={editingComponentId}
+        />
       </div>
 
       {/* Drag Overlay - custom ghost element with 40px offset */}
