@@ -98,6 +98,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const returnToPageId = useEditorStore((state) => state.returnToPageId);
   const currentPageCollectionItemId = useEditorStore((state) => state.currentPageCollectionItemId);
   const setCurrentPageCollectionItemId = useEditorStore((state) => state.setCurrentPageCollectionItemId);
+  const hoveredLayerId = useEditorStore((state) => state.hoveredLayerId);
 
   const getDropdownItems = useCollectionsStore((state) => state.getDropdownItems);
   const collectionItemsFromStore = useCollectionsStore((state) => state.items);
@@ -549,6 +550,16 @@ const CenterCanvas = React.memo(function CenterCanvas({
       payload: { uiState: activeUIState },
     });
   }, [activeUIState, iframeReady]);
+
+  // Send hover updates to iframe
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    sendToIframe(iframeRef.current, {
+      type: 'UPDATE_HOVER',
+      payload: { layerId: hoveredLayerId },
+    });
+  }, [hoveredLayerId, iframeReady]);
 
   // Listen for messages from iframe
   useEffect(() => {

@@ -88,6 +88,11 @@
       case 'HIGHLIGHT_DROP_ZONE':
         highlightDropZone(message.payload.layerId);
         break;
+
+      case 'UPDATE_HOVER':
+        hoveredLayerId = message.payload.layerId;
+        updateHover();
+        break;
     }
   });
 
@@ -1039,6 +1044,41 @@
       const element = document.querySelector(`[data-layer-id="${layerId}"]`);
       if (element) {
         element.classList.add('ycode-drop-target');
+      }
+    }
+  }
+
+  /**
+   * Update hover state without full re-render
+   */
+  function updateHover() {
+    // Remove previous hover classes (both types)
+    document.querySelectorAll('.ycode-hover, .ycode-hover-purple, .ycode-component-hover').forEach(el => {
+      el.classList.remove('ycode-hover');
+      el.classList.remove('ycode-hover-purple');
+      el.classList.remove('ycode-component-hover');
+    });
+
+    // Add new hover
+    if (hoveredLayerId && editingLayerId !== hoveredLayerId) {
+      const element = document.querySelector(`[data-layer-id="${hoveredLayerId}"]`);
+      if (element) {
+        // Check if this layer is part of a component (and we're NOT editing that component)
+        const componentRootId = componentMap[hoveredLayerId];
+        const isPartOfComponent = !!componentRootId;
+        const isEditingThisComponent = editingComponentId && componentRootId === editingComponentId;
+
+        if (isPartOfComponent && !isEditingThisComponent) {
+          // Find the root component element and apply pink hover to it
+          const rootElement = document.querySelector('[data-layer-id="' + componentRootId + '"]');
+          if (rootElement) {
+            rootElement.classList.add('ycode-component-hover');
+          }
+        } else {
+          // Normal hover - use purple in component edit mode, blue otherwise
+          const hoverClass = editingComponentId ? 'ycode-hover-purple' : 'ycode-hover';
+          element.classList.add(hoverClass);
+        }
       }
     }
   }

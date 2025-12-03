@@ -35,6 +35,7 @@ interface EditorActions {
   clearActiveInteraction: () => void;
   openCollectionItemSheet: (collectionId: string, itemId: string) => void;
   closeCollectionItemSheet: () => void;
+  setHoveredLayerId: (id: string | null) => void;
 }
 
 interface EditorStoreWithHistory extends EditorState {
@@ -54,6 +55,7 @@ interface EditorStoreWithHistory extends EditorState {
     collectionId: string;
     itemId: string;
   } | null;
+  hoveredLayerId: string | null;
 }
 
 type EditorStore = EditorStoreWithHistory & EditorActions;
@@ -80,6 +82,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   activeInteractionTriggerLayerId: null,
   activeInteractionTargetLayerIds: [],
   collectionItemSheet: null,
+  hoveredLayerId: null,
 
   setSelectedLayerId: (id) => {
     // Legacy support - also update selectedLayerIds
@@ -254,4 +257,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   closeCollectionItemSheet: () => set({
     collectionItemSheet: null,
   }),
+
+  setHoveredLayerId: (id) => set({ hoveredLayerId: id }),
 }));

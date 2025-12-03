@@ -12,7 +12,8 @@ export type ParentToIframeMessage =
   | { type: 'UPDATE_UI_STATE'; payload: { uiState: 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current' } }
   | { type: 'ENABLE_EDIT_MODE'; payload: { enabled: boolean } }
   | { type: 'HIGHLIGHT_DROP_ZONE'; payload: { layerId: string | null } }
-  | { type: 'COLLECTION_LAYER_DATA'; payload: { layerId: string; items: CollectionItemWithValues[] } };
+  | { type: 'COLLECTION_LAYER_DATA'; payload: { layerId: string; items: CollectionItemWithValues[] } }
+  | { type: 'UPDATE_HOVER'; payload: { layerId: string | null } };
 
 // Message types sent FROM iframe TO parent
 export type IframeToParentMessage =
