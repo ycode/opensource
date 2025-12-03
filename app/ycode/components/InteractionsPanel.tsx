@@ -11,6 +11,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 
 // 2. External libraries
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { restrictToParentElement } from '@dnd-kit/modifiers';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 
 // 3. ShadCN UI
@@ -896,32 +897,35 @@ export default function InteractionsPanel({
               </EmptyDescription>
             </Empty>
           ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleReorderTweens}
-            >
-              <SortableContext
-                items={(selectedInteraction.tweens || []).map((t) => t.id)}
-                strategy={verticalListSortingStrategy}
+            <div className="pb-4">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                modifiers={[restrictToParentElement]}
+                onDragEnd={handleReorderTweens}
               >
-                <div className="flex flex-col gap-2 pb-4">
-                  {(selectedInteraction.tweens || []).map((tween, index, tweens) => (
-                    <SortableAnimationItem
-                      key={tween.id}
-                      tween={tween}
-                      index={index}
-                      tweens={tweens}
-                      isSelected={selectedTweenId === tween.id}
-                      targetLayer={findLayerById(allLayers, tween.layer_id)}
-                      onSelect={() => setSelectedTweenId(tween.id)}
-                      onRemove={() => handleRemoveTween(tween.id)}
-                      onSelectLayer={onSelectLayer}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
+                <SortableContext
+                  items={(selectedInteraction.tweens || []).map((t) => t.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="flex flex-col gap-2">
+                    {(selectedInteraction.tweens || []).map((tween, index, tweens) => (
+                      <SortableAnimationItem
+                        key={tween.id}
+                        tween={tween}
+                        index={index}
+                        tweens={tweens}
+                        isSelected={selectedTweenId === tween.id}
+                        targetLayer={findLayerById(allLayers, tween.layer_id)}
+                        onSelect={() => setSelectedTweenId(tween.id)}
+                        onRemove={() => handleRemoveTween(tween.id)}
+                        onSelectLayer={onSelectLayer}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </div>
           )}
         </div>
       )}
