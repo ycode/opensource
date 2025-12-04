@@ -170,8 +170,8 @@ export interface TweenProperties {
   scale?: string | null;
   skewX?: string | null;
   skewY?: string | null;
-  opacity?: string | null;
-  visibility?: 'visible' | 'hidden' | null;
+  autoAlpha?: string | null; // Opacity + Visibility
+  display?: string | null;
 }
 
 export interface Layer {

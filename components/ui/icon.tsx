@@ -12,7 +12,8 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'file-text' | 'edit' | 'box' | 'chevronRight' | 'minSize' | 'maxSize' | 'undo' | 'redo' | 'page' | 'dynamicPage' | 'homepage' | 'folder' | 'dotsHorizontal' | 'refresh'
     | 'more' | 'copy' | 'component' | 'arrowLeft' | 'bold' | 'italic' | 'strikethrough' | 'quote' | 'listOrdered' | 'listUnordered' | 'code' | 'pencil' | 'eye' | 'eye-off'
     | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'zap'
-    | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in' | 'ease-back-in-out' | 'ease-back-out' | 'none'
+    | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in' | 'ease-back-in-out' | 'ease-back-out'
+    | 'none' | 'play' | 'stop'
   );
 }
 
@@ -120,6 +121,20 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   none: (
     <>
       <path d="M6,0 C9.3137085,0 12,2.6862915 12,6 C12,9.3137085 9.3137085,12 6,12 C2.6862915,12 0,9.3137085 0,6 C0,2.6862915 2.6862915,0 6,0 Z M9.87143006,2.83558206 L2.83558206,9.87143006 C3.69752504,10.5768003 4.79934073,11 6,11 C8.76142375,11 11,8.76142375 11,6 C11,4.79934073 10.5768003,3.69752504 9.87143006,2.83558206 Z M6,1 C3.23857625,1 1,3.23857625 1,6 C1,7.20065927 1.42319969,8.30247496 2.12856994,9.16441794 L9.16441794,2.12856994 C8.30247496,1.42319969 7.20065927,1 6,1 Z" />
+    </>
+  ),
+  play: (
+    <>
+      <path d="M3,1.5 Q3,0.5 4,1 L11,5.5 Q12,6 11,6.5 L4,11 Q3,11.5 3,10.5 Z" />
+    </>
+  ),
+  stop: (
+    <>
+      <rect
+        x="1.5" y="1.5"
+        width="9" height="9"
+        rx="1.5" ry="1.5"
+      />
     </>
   ),
   search: (

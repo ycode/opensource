@@ -13,11 +13,13 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { restrictToParentElement } from '@dnd-kit/modifiers';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import gsap from 'gsap';
 
 // 3. ShadCN UI
 import Icon, { IconProps } from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
 import {
   DropdownMenu,
@@ -40,6 +42,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 // 3. Utils
 import { cn, generateId } from '@/lib/utils';
 import { getLayerName, getLayerIcon, findLayerById } from '@/lib/layer-utils';
+import {
+  PROPERTY_OPTIONS,
+  TRIGGER_LABELS,
+  START_POSITION_OPTIONS,
+  EASE_OPTIONS,
+  calculateTweenStartTime,
+  toGsapValue,
+  getTweenProperties,
+  isPropertyInTween,
+  buildGsapProps,
+} from '@/lib/animation-utils';
+import type { TriggerType, PropertyType } from '@/lib/animation-utils';
 
 // 4. Types
 import type { Layer, LayerInteraction, InteractionTimeline, InteractionTween, TweenProperties, Breakpoint } from '@/types';
@@ -59,95 +73,6 @@ interface InteractionsPanelProps {
   onSelectLayer?: (layerId: string) => void; // Callback to select a layer in the editor
 }
 
-type TriggerType = 'click' | 'hover' | 'scroll-into-view' | 'while-scrolling' | 'load';
-type PropertyType = 'position-x' | 'position-y' | 'scale' | 'rotation' | 'skew-x' | 'skew-y' | 'opacity' | 'visibility';
-
-interface PropertyOption {
-  type: PropertyType;
-  label: string;
-  properties: Array<{
-    key: keyof TweenProperties;
-    label: string;
-    unit: string;
-    options?: Array<{ value: string; label: string }>;
-  }>;
-}
-
-const PROPERTY_OPTIONS: PropertyOption[] = [
-  {
-    type: 'position-x',
-    label: 'Position X',
-    properties: [{ key: 'x', label: 'X', unit: 'px' }],
-  },
-  {
-    type: 'position-y',
-    label: 'Position Y',
-    properties: [{ key: 'y', label: 'Y', unit: 'px' }],
-  },
-  {
-    type: 'scale',
-    label: 'Scale',
-    properties: [{ key: 'scale', label: 'Scale', unit: '' }],
-  },
-  {
-    type: 'rotation',
-    label: 'Rotation',
-    properties: [{ key: 'rotation', label: 'Angle', unit: 'deg' }],
-  },
-  {
-    type: 'skew-x',
-    label: 'Skew X',
-    properties: [{ key: 'skewX', label: 'X', unit: 'deg' }],
-  },
-  {
-    type: 'skew-y',
-    label: 'Skew Y',
-    properties: [{ key: 'skewY', label: 'Y', unit: 'deg' }],
-  },
-  {
-    type: 'opacity',
-    label: 'Opacity',
-    properties: [{ key: 'opacity', label: 'Value', unit: '' }],
-  },
-  {
-    type: 'visibility',
-    label: 'Visibility',
-    properties: [{
-      key: 'visibility',
-      label: 'Value',
-      unit: '',
-      options: [
-        { value: 'visible', label: 'Visible' },
-        { value: 'hidden', label: 'Hidden' },
-      ],
-    }],
-  },
-];
-
-const TRIGGER_LABELS: Record<TriggerType, string> = {
-  'click': 'Click',
-  'hover': 'Hover',
-  'scroll-into-view': 'Scroll into view',
-  'while-scrolling': 'While scrolling',
-  'load': 'Page load',
-};
-
-const START_POSITION_OPTIONS: Record<string, { short: string; long: string }> = {
-  '>': { short: 'After previous', long: 'After previous animation ends' },
-  '<': { short: 'With previous', long: 'With the previous animation' },
-  'at': { short: 'At', long: 'At a specific time' },
-};
-
-const EASE_OPTIONS: { value: string; label: string; icon: IconProps['name'] }[] = [
-  { value: 'none', label: 'Linear', icon: 'ease-linear' },
-  { value: 'power1.in', label: 'Ease in', icon: 'ease-in' },
-  { value: 'power1.inOut', label: 'Ease in out', icon: 'ease-in-out' },
-  { value: 'power1.out', label: 'Ease out', icon: 'ease-out' },
-  { value: 'back.in', label: 'Back in', icon: 'ease-back-in' },
-  { value: 'back.inOut', label: 'Back in out', icon: 'ease-back-in-out' },
-  { value: 'back.out', label: 'Back out', icon: 'ease-back-out' },
-];
-
 // Sortable animation item component
 interface SortableAnimationItemProps {
   tween: InteractionTween;
@@ -158,26 +83,6 @@ interface SortableAnimationItemProps {
   onSelect: () => void;
   onRemove: () => void;
   onSelectLayer?: (layerId: string) => void;
-}
-
-/** Calculate the actual start time in seconds for a tween */
-function calculateTweenStartTime(tweens: InteractionTween[], index: number): number {
-  const tween = tweens[index];
-  if (typeof tween.position === 'number') {
-    return tween.position;
-  }
-  if (index === 0) {
-    return 0;
-  }
-  const prevStart = calculateTweenStartTime(tweens, index - 1);
-  const prevDuration = tweens[index - 1].duration;
-  if (tween.position === '>') {
-    return prevStart + prevDuration;
-  }
-  if (tween.position === '<') {
-    return prevStart;
-  }
-  return 0;
 }
 
 function SortableAnimationItem({
@@ -280,6 +185,122 @@ export default function InteractionsPanel({
 }: InteractionsPanelProps) {
   const [selectedInteractionId, setSelectedInteractionId] = useState<string | null>(null);
   const [selectedTweenId, setSelectedTweenId] = useState<string | null>(null);
+  const previewedElementRef = React.useRef<{ layerId: string; element: HTMLElement; originalStyle: string } | null>(null);
+  const previewTweenRef = React.useRef<gsap.core.Tween | null>(null);
+  const previewTimelineRef = React.useRef<gsap.core.Timeline | null>(null);
+  const previewedElementsRef = React.useRef<Map<string, { element: HTMLElement; originalStyle: string }>>(new Map());
+  const isChangingPropertyRef = React.useRef(false);
+
+  /** Get element from iframe by layer ID */
+  const getIframeElement = useCallback((layerId: string): HTMLElement | null => {
+    const iframe = document.querySelector('iframe') as HTMLIFrameElement;
+    const iframeDoc = iframe?.contentDocument || iframe?.contentWindow?.document;
+    if (!iframeDoc) return null;
+    return iframeDoc.querySelector(`[data-layer-id="${layerId}"]`) as HTMLElement;
+  }, []);
+
+  /** Clear preview styles and restore original */
+  const clearPreviewStyles = useCallback((force = false) => {
+    // Skip if a property change is in progress (prevents blur during re-render)
+    if (!force && isChangingPropertyRef.current) return;
+
+    // Kill any running preview animation
+    if (previewTweenRef.current) {
+      previewTweenRef.current.kill();
+      previewTweenRef.current = null;
+    }
+
+    if (previewedElementRef.current) {
+      const { element, originalStyle } = previewedElementRef.current;
+      // Use GSAP to clear transforms
+      gsap.set(element, { clearProps: 'all' });
+      element.setAttribute('style', originalStyle);
+      previewedElementRef.current = null;
+    }
+  }, []);
+
+  /** Apply preview styles to a layer element using GSAP */
+  const applyPreviewStyles = useCallback((layerId: string, properties: gsap.TweenVars) => {
+    const element = getIframeElement(layerId);
+    if (!element) return;
+
+    // Only store original style if this is a new preview or different layer
+    if (!previewedElementRef.current || previewedElementRef.current.layerId !== layerId) {
+      // Clear any existing preview for different element
+      clearPreviewStyles();
+
+      // Store original style for the new element
+      previewedElementRef.current = {
+        layerId,
+        element,
+        originalStyle: element.getAttribute('style') || '',
+      };
+    }
+
+    // Use GSAP to set the preview state instantly
+    gsap.set(element, properties);
+  }, [clearPreviewStyles, getIframeElement]);
+
+  /** Clear all preview styles from timeline playback */
+  const clearAllPreviewStyles = useCallback(() => {
+    // Kill any running timeline
+    if (previewTimelineRef.current) {
+      previewTimelineRef.current.kill();
+      previewTimelineRef.current = null;
+    }
+
+    // Restore all previewed elements
+    previewedElementsRef.current.forEach(({ element, originalStyle }) => {
+      gsap.set(element, { clearProps: 'all' });
+      element.setAttribute('style', originalStyle);
+    });
+    previewedElementsRef.current.clear();
+
+    // Also clear single element preview
+    clearPreviewStyles(true);
+  }, [clearPreviewStyles]);
+
+  /** Play a tween animation preview */
+  const playTweenPreview = useCallback((
+    layerId: string,
+    from: gsap.TweenVars,
+    to: gsap.TweenVars,
+    duration: number,
+    ease: string,
+    displayStart: string | null,
+    displayEnd: string | null
+  ) => {
+    // Clear any existing preview first (force clear)
+    clearAllPreviewStyles();
+
+    const element = getIframeElement(layerId);
+    if (!element) return;
+
+    // Store original style
+    previewedElementRef.current = {
+      layerId,
+      element,
+      originalStyle: element.getAttribute('style') || '',
+    };
+
+    // Apply display at START if showing
+    if (displayStart) {
+      gsap.set(element, { display: displayStart });
+    }
+
+    // Play the animation using GSAP
+    previewTweenRef.current = gsap.fromTo(element, from, {
+      ...to,
+      duration,
+      ease,
+      onComplete: () => {
+        if (displayEnd) {
+          // Apply display at END if hiding
+          gsap.set(element, { display: displayEnd });
+        }
+      },
+    });
+  }, [clearAllPreviewStyles, getIframeElement]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -288,11 +309,47 @@ export default function InteractionsPanel({
     })
   );
 
-  // Reset selections when trigger layer changes or reset is triggered
+  // Reset selections and clear GSAP previews when trigger layer changes or reset is triggered
   useEffect(() => {
     setSelectedInteractionId(null);
     setSelectedTweenId(null);
-  }, [triggerLayer.id, resetKey]);
+    clearAllPreviewStyles();
+  }, [triggerLayer.id, resetKey, clearAllPreviewStyles]);
+
+  // Cleanup GSAP animations on unmount (when exiting interaction tab)
+  useEffect(() => {
+    // Capture refs for cleanup
+    const tweenRef = previewTweenRef;
+    const timelineRef = previewTimelineRef;
+    const elementRef = previewedElementRef;
+    const elementsRef = previewedElementsRef;
+
+    return () => {
+      // Kill any running preview animation
+      if (tweenRef.current) {
+        tweenRef.current.kill();
+        tweenRef.current = null;
+      }
+      // Kill any running timeline
+      if (timelineRef.current) {
+        timelineRef.current.kill();
+        timelineRef.current = null;
+      }
+      // Restore original styles (single element)
+      if (elementRef.current) {
+        const { element, originalStyle } = elementRef.current;
+        gsap.set(element, { clearProps: 'all' });
+        element.setAttribute('style', originalStyle);
+        elementRef.current = null;
+      }
+      // Restore all previewed elements (from timeline)
+      elementsRef.current.forEach(({ element, originalStyle }) => {
+        gsap.set(element, { clearProps: 'all' });
+        element.setAttribute('style', originalStyle);
+      });
+      elementsRef.current.clear();
+    };
+  }, []);
 
   // Memoize interactions to prevent unnecessary re-renders
   const interactions = useMemo(() => triggerLayer.interactions || [], [triggerLayer.interactions]);
@@ -304,6 +361,74 @@ export default function InteractionsPanel({
     selectedInteraction && selectedTweenId
       ? (selectedInteraction.tweens || []).find((t) => t.id === selectedTweenId) || null
       : null;
+
+  /** Play all animations in the selected interaction as a timeline */
+  const playAllAnimations = useCallback(() => {
+    if (!selectedInteraction) return;
+
+    const tweens = selectedInteraction.tweens || [];
+    if (tweens.length === 0) return;
+
+    // Clear any existing previews first
+    clearAllPreviewStyles();
+
+    // Create a new timeline
+    const timeline = gsap.timeline({
+      // onComplete: () => {
+      //   clearAllPreviewStyles();
+      // },
+    });
+
+    // Store original styles and add tweens to timeline
+    tweens.forEach((tween, index) => {
+      const element = getIframeElement(tween.layer_id);
+      if (!element) return;
+
+      // Store original style if not already stored
+      if (!previewedElementsRef.current.has(tween.layer_id)) {
+        previewedElementsRef.current.set(tween.layer_id, {
+          element,
+          originalStyle: element.getAttribute('style') || '',
+        });
+      }
+
+      // Build from/to props
+      const { from: fromProps, to: toProps, displayStart, displayEnd } = buildGsapProps(tween);
+
+      // Calculate position for timeline
+      let position: string | number = 0;
+      if (typeof tween.position === 'number') {
+        position = tween.position;
+      } else if (tween.position === '>' && index > 0) {
+        position = '>'; // After previous
+      } else if (tween.position === '<' && index > 0) {
+        position = '<'; // With previous
+      }
+
+      // Apply display at START if showing (e.g., display: auto)
+      if (displayStart) {
+        timeline.set(element, { display: displayStart }, position);
+      }
+
+      // Add tween to timeline
+      timeline.fromTo(
+        element,
+        fromProps,
+        {
+          ...toProps,
+          duration: tween.duration,
+          ease: tween.ease,
+          // Apply display at END if hiding (e.g., display: none)
+          onComplete: displayEnd ? () => {
+            gsap.set(element, { display: displayEnd });
+          } : undefined,
+        },
+        position
+      );
+    });
+
+    previewTimelineRef.current = timeline;
+  }, [selectedInteraction, getIframeElement, clearAllPreviewStyles]);
 
   // Find layers that animate the current trigger layer (where this layer is a target in tweens)
   const animatedByLayers = useMemo(() => {
@@ -524,23 +649,11 @@ export default function InteractionsPanel({
           tweens: interaction.tweens.map((tween) => {
             if (tween.id !== tweenId) return tween;
 
-            const newFrom = { ...tween.from };
-            const newTo = { ...tween.to };
+            const newFrom: TweenProperties = { ...tween.from };
+            const newTo: TweenProperties = { ...tween.to };
             propertyOption.properties.forEach((prop) => {
-              const key = prop.key;
-              if (key === 'visibility') {
-                newFrom[key] = 'hidden';
-                newTo[key] = 'visible';
-              } else if (key === 'scale') {
-                newFrom[key] = '0';
-                newTo[key] = '1';
-              } else if (key === 'opacity') {
-                newFrom[key] = '0';
-                newTo[key] = '1';
-              } else {
-                newFrom[key] = '0';
-                newTo[key] = '100';
-              }
+              (newFrom[prop.key] as string | null) = prop.defaultFrom;
+              (newTo[prop.key] as string | null) = prop.defaultTo;
             });
 
             return { ...tween, from: newFrom, to: newTo };
@@ -584,28 +697,6 @@ export default function InteractionsPanel({
     },
     [selectedInteraction, interactions, selectedInteractionId, triggerLayer.id, onLayerUpdate]
   );
-
-  // Get all property options that are set in a tween (check both from and to)
-  const getTweenProperties = (tween: InteractionTween): PropertyOption[] => {
-    return PROPERTY_OPTIONS.filter((opt) =>
-      opt.properties.some((p) => {
-        const hasFrom = tween.from[p.key] !== undefined && tween.from[p.key] !== null;
-        const hasTo = tween.to[p.key] !== undefined && tween.to[p.key] !== null;
-        return hasFrom || hasTo;
-      })
-    );
-  };
-
-  // Check if a property type is already added to a tween
-  const isPropertyInTween = (tween: InteractionTween, propertyType: PropertyType): boolean => {
-    const propertyOption = PROPERTY_OPTIONS.find((p) => p.type === propertyType);
-    if (!propertyOption) return false;
-    return propertyOption.properties.some((p) => {
-      const hasFrom = tween.from[p.key] !== undefined && tween.from[p.key] !== null;
-      const hasTo = tween.to[p.key] !== undefined && tween.to[p.key] !== null;
-      return hasFrom || hasTo;
-    });
-  };
 
   // Toggle breakpoint in timeline
   const handleToggleBreakpoint = useCallback(
@@ -878,7 +969,44 @@ export default function InteractionsPanel({
         <div className="border-t">
           <header className="py-5 flex justify-between">
             <span className="font-medium">Animations</span>
-            <div className="-my-1">
+            <div className="-my-1 flex gap-1">
+              {(() => {
+                const hasAnimationsWithProperties = (selectedInteraction.tweens || []).some(
+                  (tween) => getTweenProperties(tween).length > 0
+                );
+                return (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          className="size-6 p-0"
+                          onClick={playAllAnimations}
+                          disabled={!hasAnimationsWithProperties}
+                        >
+                          <Icon name="play" className="size-2.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Play all animations</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          className="size-6 p-0"
+                          onClick={clearAllPreviewStyles}
+                          disabled={!hasAnimationsWithProperties}
+                        >
+                          <Icon name="stop" className="size-2.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Reset all animations</TooltipContent>
+                    </Tooltip>
+                  </>
+                );
+              })()}
               <Button
                 size="xs"
                 variant="secondary"
@@ -935,6 +1063,52 @@ export default function InteractionsPanel({
         <div className="border-t">
           <header className="py-5 flex justify-between">
             <span className="font-medium">Animation settings</span>
+            {(() => {
+              const hasProperties = getTweenProperties(selectedTween).length > 0;
+              return (
+                <div className="-my-1 flex gap-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        className="size-6 p-0"
+                        disabled={!hasProperties}
+                        onClick={() => {
+                          const { from, to, displayStart, displayEnd } = buildGsapProps(selectedTween);
+                          playTweenPreview(
+                            selectedTween.layer_id,
+                            from,
+                            to,
+                            selectedTween.duration,
+                            selectedTween.ease,
+                            displayStart,
+                            displayEnd
+                          );
+                        }}
+                      >
+                        <Icon name="play" className="size-2.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Play animation</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        className="size-6 p-0"
+                        disabled={!hasProperties}
+                        onClick={clearAllPreviewStyles}
+                      >
+                        <Icon name="stop" className="size-2.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Reset animation</TooltipContent>
+                  </Tooltip>
+                </div>
+              );
+            })()}
           </header>
 
           <div className="flex flex-col gap-2 pb-4">
@@ -1099,81 +1273,172 @@ export default function InteractionsPanel({
                         });
                       };
 
-                      const getDefaultFromValue = () => {
-                        if (prop.key === 'visibility') return 'hidden';
-                        if (prop.key === 'scale' || prop.key === 'opacity') return '0';
-                        return '0';
+                      const getDefaultFromAfterCurrent = () => prop.defaultFromAfterCurrent;
+
+                      const applyFromPreview = (value: string | null) => {
+                        // Skip display
+                        if (prop.key === 'display') return;
+
+                        if (value === null || value === undefined) return;
+                        const gsapValue = toGsapValue(value, prop);
+                        if (gsapValue !== undefined) {
+                          applyPreviewStyles(selectedTween.layer_id, { [prop.key]: gsapValue });
+                        }
+                      };
+
+                      const applyToPreview = (value: string | null) => {
+                        // Skip display
+                        if (prop.key === 'display') return;
+
+                        if (value === null || value === undefined) return;
+                        const gsapValue = toGsapValue(value, prop);
+                        if (gsapValue !== undefined) {
+                          applyPreviewStyles(selectedTween.layer_id, { [prop.key]: gsapValue });
+                        }
+                      };
+
+                      const handlePreviewFrom = () => {
+                        if (isFromCurrent) return;
+                        // Clear any existing preview (e.g., from played animation) before applying
+                        clearAllPreviewStyles();
+                        applyFromPreview(fromValue as string);
+                      };
+
+                      const handlePreviewTo = () => {
+                        // Clear any existing preview (e.g., from played animation) before applying
+                        clearAllPreviewStyles();
+                        const toValue = selectedTween.to[prop.key];
+                        applyToPreview(toValue as string);
+                      };
+
+                      const handleFromChange = (value: string) => {
+                        isChangingPropertyRef.current = true;
+                        setFromValue(value);
+                        // Apply preview after iframe re-renders (double RAF to ensure DOM is updated)
+                        requestAnimationFrame(() => {
+                          requestAnimationFrame(() => {
+                            // Update originalStyle after iframe re-renders (element may have been recreated)
+                            const element = getIframeElement(selectedTween.layer_id);
+                            if (element && previewedElementRef.current?.layerId === selectedTween.layer_id) {
+                              previewedElementRef.current = {
+                                ...previewedElementRef.current,
+                                element,
+                                originalStyle: element.getAttribute('style') || '',
+                              };
+                            }
+                            applyFromPreview(value);
+                            isChangingPropertyRef.current = false;
+                          });
+                        });
+                      };
+
+                      const handleToChange = (value: string) => {
+                        isChangingPropertyRef.current = true;
+                        handleUpdateTween(selectedTween.id, {
+                          to: { ...selectedTween.to, [prop.key]: value },
+                        });
+                        // Apply preview after iframe re-renders (double RAF to ensure DOM is updated)
+                        requestAnimationFrame(() => {
+                          requestAnimationFrame(() => {
+                            // Update originalStyle after iframe re-renders (element may have been recreated)
+                            const element = getIframeElement(selectedTween.layer_id);
+                            if (element && previewedElementRef.current?.layerId === selectedTween.layer_id) {
+                              previewedElementRef.current = {
+                                ...previewedElementRef.current,
+                                element,
+                                originalStyle: element.getAttribute('style') || '',
+                              };
+                            }
+                            applyToPreview(value);
+                            isChangingPropertyRef.current = false;
+                          });
+                        });
                       };
 
                       return (
                         <div key={prop.key} className="flex items-center gap-1.25">
-                          <div className="w-full flex items-center gap-1.5">
-                            {isFromCurrent ? (
-                              <Button
-                                size="xs"
-                                variant="secondary"
-                                className="h-7 transition-none w-28.5"
-                                onClick={() => setFromValue(getDefaultFromValue())}
-                              >
-                                Current
-                              </Button>
-                            ) : (
-                              <>
-                                <Button
-                                  size="xs"
-                                  variant="secondary"
-                                  className="size-7 p-0 shrink-0 transition-none"
-                                  onClick={() => setFromValue(null)}
-                                  title="Use current value"
-                                >
-                                  <Icon name="none" />
-                                </Button>
-
-                                {prop.options ? (
-                                  <Select
-                                    value={fromValue as string}
-                                    onValueChange={setFromValue}
+                          {!prop.toOnly && (
+                            <>
+                              <div className="w-full flex items-center gap-1.5">
+                                {isFromCurrent ? (
+                                  <Button
+                                    size="xs"
+                                    variant="secondary"
+                                    className="h-7 transition-none w-28.5"
+                                    onClick={() => setFromValue(getDefaultFromAfterCurrent())}
                                   >
-                                    <SelectTrigger className="flex-1 h-7 text-xs w-20">
-                                      <SelectValue placeholder="From" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {prop.options.map((opt) => (
-                                        <SelectItem key={opt.value} value={opt.value}>
-                                          {opt.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                                    Current
+                                  </Button>
                                 ) : (
-                                  <Input
-                                    value={fromValue ?? ''}
-                                    onChange={(e) => setFromValue(e.target.value)}
-                                    placeholder="From"
-                                    className="flex-1 h-7 text-xs w-20"
-                                  />
-                                )}
-                              </>
-                            )}
-                          </div>
+                                  <>
+                                    <Button
+                                      size="xs"
+                                      variant="secondary"
+                                      className="size-7 p-0 shrink-0 transition-none"
+                                      onClick={() => setFromValue(null)}
+                                      title="Use current value"
+                                    >
+                                      <Icon name="none" />
+                                    </Button>
 
-                          <Icon
-                            name="chevronRight"
-                            className="size-2.5 opacity-60 shrink-0"
-                          />
+                                    {prop.options ? (
+                                      <Select
+                                        value={fromValue as string}
+                                        onValueChange={handleFromChange}
+                                        onOpenChange={(open) => open ? handlePreviewFrom() : clearPreviewStyles()}
+                                      >
+                                        <SelectTrigger className="flex-1 h-7 text-xs w-20">
+                                          <SelectValue placeholder="From" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {prop.options.map((opt) => (
+                                            <SelectItem key={opt.value} value={opt.value}>
+                                              {opt.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    ) : prop.unit ? (
+                                      <InputGroup className="flex-1 h-7 w-20">
+                                        <InputGroupInput
+                                          value={fromValue ?? ''}
+                                          onChange={(e) => handleFromChange(e.target.value)}
+                                          onFocus={handlePreviewFrom}
+                                          onBlur={() => clearPreviewStyles()}
+                                          placeholder="0"
+                                          className="text-xs"
+                                        />
+                                        <InputGroupAddon align="inline-end" className="text-xs text-muted-foreground">
+                                          {prop.unit}
+                                        </InputGroupAddon>
+                                      </InputGroup>
+                                    ) : (
+                                      <Input
+                                        value={fromValue ?? ''}
+                                        onChange={(e) => handleFromChange(e.target.value)}
+                                        onFocus={handlePreviewFrom}
+                                        onBlur={() => clearPreviewStyles()}
+                                        placeholder="0"
+                                        className="flex-1 h-7 text-xs w-20"
+                                      />
+                                    )}
+                                  </>
+                                )}
+                              </div>
+
+                              <Icon
+                                name="chevronRight"
+                                className="size-2.5 opacity-60 shrink-0"
+                              />
+                            </>
+                          )}
 
                           <div className="w-full">
                             {prop.options ? (
                               <Select
                                 value={(selectedTween.to[prop.key] as string) ?? ''}
-                                onValueChange={(value) =>
-                                  handleUpdateTween(selectedTween.id, {
-                                    to: {
-                                      ...selectedTween.to,
-                                      [prop.key]: value,
-                                    },
-                                  })
-                                }
+                                onValueChange={handleToChange}
+                                onOpenChange={(open) => open ? handlePreviewTo() : clearPreviewStyles()}
                               >
                                 <SelectTrigger className="w-full h-7 text-xs">
                                   <SelectValue placeholder="To" />
@@ -1186,18 +1451,27 @@ export default function InteractionsPanel({
                                   ))}
                                 </SelectContent>
                               </Select>
+                            ) : prop.unit ? (
+                              <InputGroup className="w-full h-7">
+                                <InputGroupInput
+                                  value={selectedTween.to[prop.key] ?? ''}
+                                  onChange={(e) => handleToChange(e.target.value)}
+                                  onFocus={handlePreviewTo}
+                                  onBlur={() => clearPreviewStyles()}
+                                  placeholder="0"
+                                  className="text-xs"
+                                />
+                                <InputGroupAddon align="inline-end" className="text-xs text-muted-foreground">
+                                  {prop.unit}
+                                </InputGroupAddon>
+                              </InputGroup>
                             ) : (
                               <Input
                                 value={selectedTween.to[prop.key] ?? ''}
-                                onChange={(e) =>
-                                  handleUpdateTween(selectedTween.id, {
-                                    to: {
-                                      ...selectedTween.to,
-                                      [prop.key]: e.target.value,
-                                    },
-                                  })
-                                }
-                                placeholder={propertyOption.properties.length > 1 ? `${prop.label} to` : 'To'}
+                                onChange={(e) => handleToChange(e.target.value)}
+                                onFocus={handlePreviewTo}
+                                onBlur={() => clearPreviewStyles()}
+                                placeholder="0"
                                 className="w-full h-7 text-xs"
                               />
                             )}
