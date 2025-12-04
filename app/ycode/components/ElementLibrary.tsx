@@ -23,6 +23,7 @@ import { useComponentsStore } from '@/stores/useComponentsStore';
 interface ElementLibraryProps {
   isOpen: boolean;
   onClose: () => void;
+  defaultTab?: 'elements' | 'layouts' | 'components';
 }
 
 // Category definitions
@@ -34,10 +35,18 @@ const elementCategories: Record<string, string[]> = {
   Form: ['form', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label'],
 };
 
-export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps) {
+export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements' }: ElementLibraryProps) {
   const { addLayerFromTemplate, updateLayer, setDraftLayers, draftsByPageId } = usePagesStore();
   const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId } = useEditorStore();
   const { components, componentDrafts, updateComponentDraft } = useComponentsStore();
+  const [activeTab, setActiveTab] = React.useState<'elements' | 'layouts' | 'components'>(defaultTab);
+
+  // Update active tab when defaultTab changes (e.g., when opening with a specific tab)
+  React.useEffect(() => {
+    if (isOpen && defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [isOpen, defaultTab]);
 
   const handleAddElement = (elementType: string) => {
     // If editing component, use component draft instead
@@ -513,7 +522,10 @@ export default function ElementLibrary({ isOpen, onClose }: ElementLibraryProps)
   return (
     <div className="fixed left-64 top-14 bottom-0 w-64 bg-background border-r z-50 flex flex-col">
         {/* Tabs */}
-        <Tabs defaultValue="elements" className="flex flex-col h-full overflow-hidden gap-0">
+        <Tabs
+          value={activeTab} onValueChange={(value) => setActiveTab(value as 'elements' | 'layouts' | 'components')}
+          className="flex flex-col h-full overflow-hidden gap-0"
+        >
           <div className="flex flex-col flex-shrink-0 gap-2">
             <div className="p-4 pb-0">
               <TabsList className="w-full">

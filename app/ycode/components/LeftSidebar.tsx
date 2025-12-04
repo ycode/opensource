@@ -49,6 +49,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
   const { sidebarTab, urlState } = useEditorUrl();
   const { openCollection, navigateToLayers, navigateToPage, navigateToCollections } = useEditorActions();
   const [showElementLibrary, setShowElementLibrary] = useState(false);
+  const [elementLibraryTab, setElementLibraryTab] = useState<'elements' | 'layouts' | 'components'>('elements');
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
   const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -87,8 +88,16 @@ const LeftSidebar = React.memo(function LeftSidebar({
 
   // Listen for keyboard shortcut to toggle ElementLibrary
   useEffect(() => {
-    const handleToggleElementLibrary = () => {
-      setShowElementLibrary((prev) => !prev);
+    const handleToggleElementLibrary = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tab?: 'elements' | 'layouts' | 'components' }>;
+      const tab = customEvent.detail?.tab;
+        
+      if (tab) {
+        setElementLibraryTab(tab);
+        setShowElementLibrary(true);
+      } else {
+        setShowElementLibrary((prev) => !prev);
+      }
     };
 
     window.addEventListener('toggleElementLibrary', handleToggleElementLibrary);
@@ -483,6 +492,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
         <ElementLibrary
           isOpen={showElementLibrary}
           onClose={() => setShowElementLibrary(false)}
+          defaultTab={elementLibraryTab}
         />
       )}
     </>

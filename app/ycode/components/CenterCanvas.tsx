@@ -17,6 +17,14 @@ import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 
 // 4. Hooks
 import { useEditorUrl } from '@/hooks/use-editor-url';
@@ -252,6 +260,22 @@ const CenterCanvas = React.memo(function CenterCanvas({
     const draft = draftsByPageId[currentPageId];
     return draft ? draft.layers : [];
   }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
+
+  // Check if canvas is empty (only Body layer with no children)
+  const isCanvasEmpty = useMemo(() => {
+    if (layers.length === 0) return false; // No layers at all - handled separately
+    
+    // Find Body layer
+    const bodyLayer = layers.find(layer => layer.id === 'body' || layer.name === 'body');
+    
+    if (!bodyLayer) return false;
+    
+    // Check if Body has no children or empty children array
+    const hasNoChildren = !bodyLayer.children || bodyLayer.children.length === 0;
+    
+    // Canvas is empty if we only have Body with no children
+    return layers.length === 1 && hasNoChildren;
+  }, [layers]);
 
   // Fetch collection data for all collection layers in the page
   const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
@@ -1002,7 +1026,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               }}
             >
               <div
-                className="bg-white shadow-3xl"
+                className="bg-white shadow-3xl relative"
                 style={{
                   transform: `scale(${zoom / 100})`,
                   transformOrigin: 'top center', // Always scale from top
@@ -1018,13 +1042,49 @@ const CenterCanvas = React.memo(function CenterCanvas({
               >
                 {/* Iframe Canvas */}
                 {layers.length > 0 ? (
-                  <iframe
-                    ref={iframeRef}
-                    src="/canvas.html"
-                    className="w-full h-full border-0"
-                    style={{ height: `${finalIframeHeight}px` }}
-                    title="Canvas Preview"
-                  />
+                  <>
+                    <iframe
+                      ref={iframeRef}
+                      src="/canvas.html"
+                      className="w-full h-full border-0"
+                      style={{ height: `${finalIframeHeight}px` }}
+                      title="Canvas Preview"
+                    />
+                    {/* Empty overlay when only Body with no children */}
+                    {isCanvasEmpty && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                        <div className="pointer-events-auto">
+                          <Empty className="bg-transparent border-0 text-neutral-900">
+                            <EmptyContent>
+                              <EmptyMedia variant="icon" className="size-9 mb-0 bg-neutral-900/5">
+                                <Icon name="layout" className="size-3.5 text-neutral-900" />
+                              </EmptyMedia>
+                              <EmptyHeader>
+                                <EmptyTitle className="text-sm">Start building</EmptyTitle>
+                                <EmptyDescription>
+                                  Add your first block to begin creating your page.
+                                </EmptyDescription>
+                              </EmptyHeader>
+                              <Button
+                                onClick={() => {
+                                  // Open ElementLibrary with layouts tab active
+                                  window.dispatchEvent(new CustomEvent('toggleElementLibrary', {
+                                    detail: { tab: 'layouts' }
+                                  }));
+                                }}
+                                size="sm"
+                                variant="secondary"
+                                className="bg-neutral-900/5 hover:bg-neutral-900/10 text-neutral-900"
+                              >
+                                <Icon name="plus" />
+                                Add layout
+                              </Button>
+                            </EmptyContent>
+                          </Empty>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center p-12">
                     <div className="text-center max-w-md relative">
