@@ -29,6 +29,7 @@ import AddAttributeModal from './AddAttributeModal';
 import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
+import ImageSettings from './ImageSettings';
 import InputWithInlineVariables from './InputWithInlineVariables';
 import InteractionsPanel from './InteractionsPanel';
 import LayoutControls from './LayoutControls';
@@ -468,7 +469,7 @@ const RightSidebar = React.memo(function RightSidebar({
     const hasInlineVariables = value.includes('<ycode-inline-variable>');
 
     // Check if content is ONLY variables (no plain text after removing variable tags)
-    const onlyVariables = hasInlineVariables && 
+    const onlyVariables = hasInlineVariables &&
       value.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '').trim() === '';
 
     onLayerUpdate(selectedLayerId, {
@@ -684,12 +685,12 @@ const RightSidebar = React.memo(function RightSidebar({
         return collection?.name; // Returns collection name like "Blog Posts"
       }
     }
-    
+
     // Check if fields come from dynamic page
     if (currentPage?.is_dynamic && currentPage?.settings?.cms?.collection_id) {
       return 'CMS page data';
     }
-    
+
     return undefined; // No label
   }, [parentCollectionLayer, currentPage, collections]);
 
@@ -1239,6 +1240,14 @@ const RightSidebar = React.memo(function RightSidebar({
                 </Empty>
                 )}
             </SettingsPanel>
+
+            <ImageSettings
+              layer={selectedLayer}
+              onLayerUpdate={onLayerUpdate}
+              fields={parentCollectionFields}
+              fieldSourceLabel={fieldSourceLabel}
+            />
+
           </div>
         </TabsContent>
 
