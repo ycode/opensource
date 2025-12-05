@@ -238,9 +238,11 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
         }
 
         case 'scroll-into-view': {
+          const scrollStart = interaction.timeline?.scrollStart || 'top 80%';
+
           const scrollTrigger = ScrollTrigger.create({
             trigger: triggerElement,
-            start: 'top 80%',
+            start: scrollStart,
             onEnter: () => getTimeline()?.play(),
             onLeaveBack: () => {
               if (interaction.timeline?.yoyo) {
@@ -258,11 +260,15 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
           const timeline = getTimeline();
           if (!timeline) break;
 
+          const scrollStart = interaction.timeline?.scrollStart || 'top bottom';
+          const scrollEnd = interaction.timeline?.scrollEnd || 'bottom top';
+          const scrub = interaction.timeline?.scrub ?? 1;
+
           const scrollTrigger = ScrollTrigger.create({
             trigger: triggerElement,
-            start: 'top bottom',
-            end: 'bottom top',
-            scrub: true,
+            start: scrollStart,
+            end: scrollEnd,
+            scrub,
             animation: timeline,
           });
 

@@ -13,7 +13,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'more' | 'copy' | 'component' | 'arrowLeft' | 'bold' | 'italic' | 'strikethrough' | 'quote' | 'listOrdered' | 'listUnordered' | 'code' | 'pencil' | 'eye' | 'eye-off'
     | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'zap'
     | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in' | 'ease-back-in-out' | 'ease-back-out'
-    | 'none' | 'play' | 'stop'
+    | 'none' | 'play' | 'stop' | 'info'
   );
 }
 
@@ -566,6 +566,11 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
         cy="6" r="5"
       ></circle>
       <path d="M6 0a6 6 0 110 12A6 6 0 016 0zm0 1a5 5 0 100 10A5 5 0 006 1zm0 3a2 2 0 110 4 2 2 0 010-4z"></path>
+    </>
+  ),
+  info: (
+    <>
+      <path d="M6 11C3.2385 11 1 8.7615 1 6S3.2385 1 6 1s5 2.2385 5 5-2.2385 5-5 5Zm0-1a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5.5 3.5h1v1h-1V3.5Zm0 2h1v3h-1v-3Z" />
     </>
   ),
 };

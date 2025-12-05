@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/select';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Slider } from '@/components/ui/slider';
 
 // 3. Utils
 import { cn, generateId } from '@/lib/utils';
@@ -516,6 +517,15 @@ export default function InteractionsPanel({
           breakpoints: [activeBreakpoint],
           repeat: 0,
           yoyo: false,
+          // Add scroll-specific defaults
+          ...(trigger === 'scroll-into-view' && {
+            scrollStart: 'top 80%',
+          }),
+          ...(trigger === 'while-scrolling' && {
+            scrollStart: 'top bottom',
+            scrollEnd: 'bottom top',
+            scrub: 1,
+          }),
         },
         tweens: [], // Start with no tweens - user will add them
       };
@@ -935,40 +945,207 @@ export default function InteractionsPanel({
               </div>
             </div>
 
-            {/* Loop */}
-            <div className="grid grid-cols-3 items-center">
-              <Label variant="muted">Effect</Label>
-              <div className="col-span-2">
-                <Select
-                  value={
-                    (selectedInteraction.timeline?.repeat ?? 0) === 0
-                      ? selectedInteraction.timeline?.yoyo ? 'reverse' : 'reset'
-                      : selectedInteraction.timeline?.yoyo ? 'loop-reverse' : 'loop'
-                  }
-                  onValueChange={(value: 'reset' | 'reverse' | 'loop' | 'loop-reverse') => {
-                    if (value === 'reset') {
-                      handleUpdateTimeline({ repeat: 0, yoyo: false });
-                    } else if (value === 'reverse') {
-                      handleUpdateTimeline({ repeat: 0, yoyo: true });
-                    } else if (value === 'loop') {
-                      handleUpdateTimeline({ repeat: -1, yoyo: false });
-                    } else if (value === 'loop-reverse') {
-                      handleUpdateTimeline({ repeat: -1, yoyo: true });
+            {/* Loop - only show for non-scroll triggers */}
+            {selectedInteraction.trigger !== 'while-scrolling' && (
+              <div className="grid grid-cols-3 items-center">
+                <Label variant="muted">Effect</Label>
+                <div className="col-span-2">
+                  <Select
+                    value={
+                      (selectedInteraction.timeline?.repeat ?? 0) === 0
+                        ? selectedInteraction.timeline?.yoyo ? 'reverse' : 'reset'
+                        : selectedInteraction.timeline?.yoyo ? 'loop-reverse' : 'loop'
                     }
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="reset">Reset and run once</SelectItem>
-                    <SelectItem value="reverse">Toggle and run once</SelectItem>
-                    <SelectItem value="loop">Loop - Reset and restart</SelectItem>
-                    <SelectItem value="loop-reverse">Loop - Toggle and restart</SelectItem>
-                  </SelectContent>
-                </Select>
+                    onValueChange={(value: 'reset' | 'reverse' | 'loop' | 'loop-reverse') => {
+                      if (value === 'reset') {
+                        handleUpdateTimeline({ repeat: 0, yoyo: false });
+                      } else if (value === 'reverse') {
+                        handleUpdateTimeline({ repeat: 0, yoyo: true });
+                      } else if (value === 'loop') {
+                        handleUpdateTimeline({ repeat: -1, yoyo: false });
+                      } else if (value === 'loop-reverse') {
+                        handleUpdateTimeline({ repeat: -1, yoyo: true });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="reset">Reset and run once</SelectItem>
+                      <SelectItem value="reverse">Toggle and run once</SelectItem>
+                      <SelectItem value="loop">Loop - Reset and restart</SelectItem>
+                      <SelectItem value="loop-reverse">Loop - Toggle and restart</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Scroll Settings - show for scroll-into-view and while-scrolling */}
+            {(selectedInteraction.trigger === 'scroll-into-view' || selectedInteraction.trigger === 'while-scrolling') && (
+              <>
+                {/* Start Position - values read directly from layer data */}
+                <div className="grid grid-cols-3 items-center">
+                  <div className="flex items-center gap-1.5">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Icon name="info" className="size-3 opacity-70" />
+                      </TooltipTrigger>
+                      <TooltipContent align="start">Position of: Trigger layer / Viewport</TooltipContent>
+                    </Tooltip>
+                    <Label variant="muted">Start</Label>
+                  </div>
+                  <div className="col-span-2 grid grid-cols-2 gap-1.5">
+                    <Select
+                      value={selectedInteraction.timeline?.scrollStart?.split(' ')[0] || 'top'}
+                      onValueChange={(elementPos) => {
+                        const currentStart = selectedInteraction.timeline?.scrollStart || 'top bottom';
+                        const viewportPos = currentStart.split(' ')[1] || 'bottom';
+                        handleUpdateTimeline({ scrollStart: `${elementPos} ${viewportPos}` });
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="end">
+                        <SelectItem value="top">Top</SelectItem>
+                        <SelectItem value="center">Center</SelectItem>
+                        <SelectItem value="bottom">Bottom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={selectedInteraction.timeline?.scrollStart?.split(' ')[1] || 'bottom'}
+                      onValueChange={(viewportPos) => {
+                        const currentStart = selectedInteraction.timeline?.scrollStart || 'top bottom';
+                        const elementPos = currentStart.split(' ')[0] || 'top';
+                        handleUpdateTimeline({ scrollStart: `${elementPos} ${viewportPos}` });
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="end">
+                        <SelectItem value="top">Top</SelectItem>
+                        <SelectItem value="5%">5%</SelectItem>
+                        <SelectItem value="10%">10%</SelectItem>
+                        <SelectItem value="15%">15%</SelectItem>
+                        <SelectItem value="20%">20%</SelectItem>
+                        <SelectItem value="25%">25%</SelectItem>
+                        <SelectItem value="30%">30%</SelectItem>
+                        <SelectItem value="35%">35%</SelectItem>
+                        <SelectItem value="40%">40%</SelectItem>
+                        <SelectItem value="45%">45%</SelectItem>
+                        <SelectItem value="center">Center</SelectItem>
+                        <SelectItem value="55%">55%</SelectItem>
+                        <SelectItem value="60%">60%</SelectItem>
+                        <SelectItem value="65%">65%</SelectItem>
+                        <SelectItem value="70%">70%</SelectItem>
+                        <SelectItem value="75%">75%</SelectItem>
+                        <SelectItem value="80%">80%</SelectItem>
+                        <SelectItem value="85%">85%</SelectItem>
+                        <SelectItem value="90%">90%</SelectItem>
+                        <SelectItem value="95%">95%</SelectItem>
+                        <SelectItem value="bottom">Bottom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {selectedInteraction.trigger === 'while-scrolling' && (
+                  <>
+                    {/* End Position - values read directly from layer data */}
+                    <div className="grid grid-cols-3 items-center">
+                      <div className="flex items-center gap-1.5">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Icon name="info" className="size-3 opacity-70" />
+                          </TooltipTrigger>
+                          <TooltipContent align="start">Position of: Trigger layer / Viewport</TooltipContent>
+                        </Tooltip>
+                        <Label variant="muted">End</Label>
+                      </div>
+                      <div className="col-span-2 grid grid-cols-2 gap-1.5">
+                        <Select
+                          value={selectedInteraction.timeline?.scrollEnd?.split(' ')[0] || 'bottom'}
+                          onValueChange={(elementPos) => {
+                            const currentEnd = selectedInteraction.timeline?.scrollEnd || 'bottom top';
+                            const viewportPos = currentEnd.split(' ')[1] || 'top';
+                            handleUpdateTimeline({ scrollEnd: `${elementPos} ${viewportPos}` });
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent align="end">
+                            <SelectItem value="top">Top</SelectItem>
+                            <SelectItem value="center">Center</SelectItem>
+                            <SelectItem value="bottom">Bottom</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={selectedInteraction.timeline?.scrollEnd?.split(' ')[1] || 'top'}
+                          onValueChange={(viewportPos) => {
+                            const currentEnd = selectedInteraction.timeline?.scrollEnd || 'bottom top';
+                            const elementPos = currentEnd.split(' ')[0] || 'bottom';
+                            handleUpdateTimeline({ scrollEnd: `${elementPos} ${viewportPos}` });
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent align="end">
+                            <SelectItem value="top">Top</SelectItem>
+                            <SelectItem value="5%">5%</SelectItem>
+                            <SelectItem value="10%">10%</SelectItem>
+                            <SelectItem value="15%">15%</SelectItem>
+                            <SelectItem value="20%">20%</SelectItem>
+                            <SelectItem value="25%">25%</SelectItem>
+                            <SelectItem value="30%">30%</SelectItem>
+                            <SelectItem value="35%">35%</SelectItem>
+                            <SelectItem value="40%">40%</SelectItem>
+                            <SelectItem value="45%">45%</SelectItem>
+                            <SelectItem value="center">Center</SelectItem>
+                            <SelectItem value="55%">55%</SelectItem>
+                            <SelectItem value="60%">60%</SelectItem>
+                            <SelectItem value="65%">65%</SelectItem>
+                            <SelectItem value="70%">70%</SelectItem>
+                            <SelectItem value="75%">75%</SelectItem>
+                            <SelectItem value="80%">80%</SelectItem>
+                            <SelectItem value="85%">85%</SelectItem>
+                            <SelectItem value="90%">90%</SelectItem>
+                            <SelectItem value="95%">95%</SelectItem>
+                            <SelectItem value="bottom">Bottom</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Smoothing Slider */}
+                    <div className="grid grid-cols-3 items-center">
+                      <Label variant="muted">Smoothing</Label>
+                      <div className="h-7 col-span-2 flex items-center">
+                        <Slider
+                          value={[typeof selectedInteraction.timeline?.scrub === 'number' ? selectedInteraction.timeline.scrub : (selectedInteraction.timeline?.scrub === true ? 0 : 1)]}
+                          min={0}
+                          max={2}
+                          step={0.1}
+                          onValueChange={([value]) => {
+                            handleUpdateTimeline({ scrub: value === 0 ? true : value });
+                          }}
+                          className="flex-1"
+                        />
+                        <span className="text-xs text-muted-foreground w-8 text-right">
+                          {typeof selectedInteraction.timeline?.scrub === 'number'
+                            ? `${selectedInteraction.timeline.scrub}s`
+                            : selectedInteraction.timeline?.scrub === true ? '0s' : '1s'}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
 
           </div>
         </div>

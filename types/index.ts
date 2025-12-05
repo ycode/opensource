@@ -150,6 +150,10 @@ export interface InteractionTimeline {
   breakpoints: Breakpoint[];
   repeat: number; // -1 = infinite, 0 = none, n = repeat n times
   yoyo: boolean; // reverse direction on each repeat
+  // Scroll trigger settings (for scroll-into-view and while-scrolling)
+  scrollStart?: string; // e.g., 'top 80%', 'top center' - when trigger enters viewport
+  scrollEnd?: string; // e.g., 'bottom top' - when trigger leaves viewport (while-scrolling only)
+  scrub?: boolean | number; // while-scrolling: true for direct link, number for smoothing (seconds)
 }
 
 export interface InteractionTween {
