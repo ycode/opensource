@@ -150,7 +150,6 @@ export interface InteractionTimeline {
   breakpoints: Breakpoint[];
   repeat: number; // -1 = infinite, 0 = none, n = repeat n times
   yoyo: boolean; // reverse direction on each repeat
-  apply_styles: 'on-load' | 'on-trigger';
 }
 
 export interface InteractionTween {
@@ -161,18 +160,18 @@ export interface InteractionTween {
   ease: string; // GSAP ease (e.g., 'power1.out', 'elastic.inOut')
   from: TweenProperties;
   to: TweenProperties;
+  apply_styles: InteractionApplyStyles;
 }
 
-export interface TweenProperties {
-  x?: string | null;
-  y?: string | null;
-  rotation?: string | null;
-  scale?: string | null;
-  skewX?: string | null;
-  skewY?: string | null;
-  autoAlpha?: string | null; // Opacity + Visibility
-  display?: string | null;
-}
+export type ApplyStyles = 'on-load' | 'on-trigger';
+
+export type TweenPropertyKey = 'x' | 'y' | 'rotation' | 'scale' | 'skewX' | 'skewY' | 'autoAlpha' | 'display';
+
+export type InteractionApplyStyles = Record<TweenPropertyKey, ApplyStyles>;
+
+export type TweenProperties = {
+  [K in TweenPropertyKey]?: string | null;
+};
 
 export interface Layer {
   id: string;

@@ -2,7 +2,7 @@
  * Animation utility functions and constants for GSAP interactions
  */
 
-import type { InteractionTween, TweenProperties } from '@/types';
+import type { InteractionTween, TweenProperties, Layer } from '@/types';
 
 // Types
 export type TriggerType = 'click' | 'hover' | 'scroll-into-view' | 'while-scrolling' | 'load';
@@ -111,12 +111,11 @@ export const PROPERTY_OPTIONS: PropertyOption[] = [
       key: 'display',
       unit: '',
       defaultFrom: null,
-      defaultFromAfterCurrent: 'auto',
-      defaultTo: 'none',
-      toOnly: true,
+      defaultFromAfterCurrent: 'visible',
+      defaultTo: 'hidden',
       options: [
-        { value: 'auto', label: 'Visible - Applies at the START' },
-        { value: 'none', label: 'Hidden - Applies at the END' },
+        { value: 'visible', label: 'Visible' },
+        { value: 'hidden', label: 'Hidden' },
       ],
     }],
   },
@@ -214,6 +213,93 @@ export interface GsapAnimationProps {
  * - At START when showing (going TO visible/auto) - so element is visible during animation
  * - At END when hiding (going TO none) - so element stays visible during animation
  */
+/**
+ * Result of generating initial animation CSS
+ */
+export interface InitialAnimationResult {
+  css: string;
+  hiddenLayerIds: string[];
+}
+
+/**
+ * Generate CSS for initial animation states (apply_styles: 'on-load')
+ * This prevents flickering by applying styles server-side before JS loads.
+ * Now checks per-property apply_styles on each tween.
+ */
+export function generateInitialAnimationCSS(layers: Layer[]): InitialAnimationResult {
+  const cssRules: string[] = [];
+  const hiddenLayerIds: string[] = [];
+
+  // CSS rule for hidden elements via data attribute
+  cssRules.push('[data-gsap-hidden] { display: none !important; }');
+
+  const collectStyles = (layerList: Layer[]) => {
+    layerList.forEach((layer) => {
+      if (layer.interactions) {
+        layer.interactions.forEach((interaction) => {
+          (interaction.tweens || []).forEach((tween) => {
+            const styles: string[] = [];
+            const transforms: string[] = [];
+
+            // Build CSS from 'from' properties that have apply_styles: 'on-load'
+            PROPERTY_OPTIONS.forEach((opt) => {
+              opt.properties.forEach((prop) => {
+                // Only apply styles for properties with apply_styles: 'on-load'
+                if (tween.apply_styles?.[prop.key] !== 'on-load') return;
+
+                const value = tween.from[prop.key];
+                if (value === null || value === undefined) return;
+
+                // Convert to CSS property - collect transforms separately to combine them
+                if (prop.key === 'x') {
+                  transforms.push(`translateX(${value}${prop.unit})`);
+                } else if (prop.key === 'y') {
+                  transforms.push(`translateY(${value}${prop.unit})`);
+                } else if (prop.key === 'rotation') {
+                  transforms.push(`rotate(${value}${prop.unit})`);
+                } else if (prop.key === 'scale') {
+                  transforms.push(`scale(${value})`);
+                } else if (prop.key === 'skewX') {
+                  transforms.push(`skewX(${value}${prop.unit})`);
+                } else if (prop.key === 'skewY') {
+                  transforms.push(`skewY(${value}${prop.unit})`);
+                } else if (prop.key === 'autoAlpha') {
+                  const opacity = Number(value) / 100;
+                  styles.push(`opacity: ${opacity}`);
+                  if (opacity === 0) {
+                    styles.push(`visibility: hidden`);
+                  }
+                } else if (prop.key === 'display') {
+                  // Track elements that should start hidden
+                  if (value === 'hidden') {
+                    hiddenLayerIds.push(tween.layer_id);
+                  }
+                }
+              });
+            });
+
+            // Combine all transforms into a single property
+            if (transforms.length > 0) {
+              styles.push(`transform: ${transforms.join(' ')}`);
+            }
+
+            if (styles.length > 0) {
+              cssRules.push(`[data-layer-id="${tween.layer_id}"] { ${styles.join('; ')}; }`);
+            }
+          });
+        });
+      }
+
+      if (layer.children) {
+        collectStyles(layer.children);
+      }
+    });
+  };
+
+  collectStyles(layers);
+  return { css: cssRules.join('\n'), hiddenLayerIds };
+}
+
 export function buildGsapProps(tween: InteractionTween): GsapAnimationProps {
   const fromProps: Record<string, string | number> = {};
   const toProps: Record<string, string | number> = {};
@@ -222,25 +308,20 @@ export function buildGsapProps(tween: InteractionTween): GsapAnimationProps {
 
   PROPERTY_OPTIONS.forEach((opt) => {
     opt.properties.forEach((prop) => {
-      // Handle display separately - it's discrete, not animated
+      // Handle display separately via data-gsap-hidden attribute
       if (prop.key === 'display') {
-        const toDisplay = tween.to.display;
-        if (toDisplay === 'none') {
-          // Hiding: apply display:none at END (element stays visible during animation)
-          displayEnd = 'none';
-        } else if (toDisplay) {
-          // Showing: apply display value at START (element becomes visible for animation)
-          displayStart = toDisplay;
-        }
+        displayStart = tween.from.display || 'visible';
+        displayEnd = tween.to.display || 'visible';
         return;
       }
 
       const fromVal = toGsapValue(tween.from[prop.key], prop);
       const toVal = toGsapValue(tween.to[prop.key], prop);
-      if (fromVal !== undefined) {
+
+      if (fromVal !== undefined && fromVal !== null) {
         fromProps[prop.key] = fromVal;
       }
-      if (toVal !== undefined) {
+      if (toVal !== undefined && toVal !== null) {
         toProps[prop.key] = toVal;
       }
     });

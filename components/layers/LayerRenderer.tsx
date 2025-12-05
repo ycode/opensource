@@ -25,6 +25,7 @@ interface LayerRendererProps {
   pageId?: string;
   collectionItemData?: Record<string, string>; // Collection item field values (field_id -> value)
   pageCollectionItemData?: Record<string, string> | null;
+  hiddenLayerIds?: string[]; // Layer IDs that should start hidden for animations
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -40,6 +41,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   pageId = '',
   collectionItemData,
   pageCollectionItemData,
+  hiddenLayerIds,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -65,6 +67,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
           pageId={pageId}
           collectionItemData={collectionItemData}
           pageCollectionItemData={pageCollectionItemData}
+          hiddenLayerIds={hiddenLayerIds}
         />
       ))}
     </>
@@ -89,6 +92,7 @@ const LayerItem: React.FC<{
   pageId: string;
   collectionItemData?: Record<string, string>;
   pageCollectionItemData?: Record<string, string> | null;
+  hiddenLayerIds?: string[];
 }> = ({
   layer,
   isEditMode,
@@ -106,6 +110,7 @@ const LayerItem: React.FC<{
   pageId,
   collectionItemData,
   pageCollectionItemData,
+  hiddenLayerIds,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isEditing = editingLayerId === layer.id;
@@ -280,6 +285,11 @@ const LayerItem: React.FC<{
       ...(enableDragDrop && !isEditing ? { ...attributes, ...listeners } : attributes),
     };
 
+    // Add data-gsap-hidden attribute for elements that should start hidden
+    if (hiddenLayerIds?.includes(layer.id)) {
+      elementProps['data-gsap-hidden'] = '';
+    }
+
     // Apply custom ID from settings
     if (layer.settings?.id) {
       elementProps.id = layer.settings.id;
@@ -364,6 +374,7 @@ const LayerItem: React.FC<{
               pageId={pageId}
               collectionItemData={effectiveCollectionItemData}
               pageCollectionItemData={pageCollectionItemData}
+              hiddenLayerIds={hiddenLayerIds}
             />
           )}
         </Tag>
@@ -440,6 +451,7 @@ const LayerItem: React.FC<{
                     pageId={pageId}
                     collectionItemData={item.values}
                     pageCollectionItemData={pageCollectionItemData}
+                    hiddenLayerIds={hiddenLayerIds}
                   />
                 </div>
               ))
@@ -458,6 +470,7 @@ const LayerItem: React.FC<{
               pageId={pageId}
               collectionItemData={effectiveCollectionItemData}
               pageCollectionItemData={pageCollectionItemData}
+              hiddenLayerIds={hiddenLayerIds}
             />
           )
         )}

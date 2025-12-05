@@ -1,6 +1,8 @@
+import AnimationInitializer from '@/components/AnimationInitializer';
 import LayerRenderer from '@/components/layers/LayerRenderer';
 import { resolveComponents } from '@/lib/resolve-components';
 import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
+import { generateInitialAnimationCSS } from '@/lib/animation-utils';
 import type { Layer, Component, Page, CollectionItemWithValues, CollectionField } from '@/types';
 
 interface PageRendererProps {
@@ -69,6 +71,9 @@ export default function PageRenderer({
   const normalizedLayers = normalizeRootLayers(resolvedLayers);
   const hasLayers = normalizedLayers.length > 0;
 
+  // Generate CSS for initial animation states to prevent flickering
+  const { css: initialAnimationCSS, hiddenLayerIds } = generateInitialAnimationCSS(resolvedLayers);
+
   return (
     <>
       {/* Inject CSS directly - Next.js hoists this to <head> during SSR */}
@@ -76,6 +81,14 @@ export default function PageRenderer({
         <style
           id="ycode-styles"
           dangerouslySetInnerHTML={{ __html: generatedCss }}
+        />
+      )}
+
+      {/* Inject initial animation styles to prevent flickering */}
+      {initialAnimationCSS && (
+        <style
+          id="ycode-gsap-initial-styles"
+          dangerouslySetInnerHTML={{ __html: initialAnimationCSS }}
         />
       )}
 
@@ -96,8 +109,12 @@ export default function PageRenderer({
           isEditMode={false}
           isPublished={page.is_published}
           pageCollectionItemData={collectionItem?.values || undefined}
+          hiddenLayerIds={hiddenLayerIds}
         />
       </div>
+
+      {/* Initialize GSAP animations based on layer interactions */}
+      <AnimationInitializer layers={resolvedLayers} />
 
       {/* Inject custom body code before closing body tag */}
       {customCodeBody && (

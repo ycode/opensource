@@ -185,10 +185,10 @@ export default function InteractionsPanel({
 }: InteractionsPanelProps) {
   const [selectedInteractionId, setSelectedInteractionId] = useState<string | null>(null);
   const [selectedTweenId, setSelectedTweenId] = useState<string | null>(null);
-  const previewedElementRef = React.useRef<{ layerId: string; element: HTMLElement; originalStyle: string } | null>(null);
+  const previewedElementRef = React.useRef<{ layerId: string; element: HTMLElement; originalStyle: string; wasHidden: boolean } | null>(null);
   const previewTweenRef = React.useRef<gsap.core.Tween | null>(null);
   const previewTimelineRef = React.useRef<gsap.core.Timeline | null>(null);
-  const previewedElementsRef = React.useRef<Map<string, { element: HTMLElement; originalStyle: string }>>(new Map());
+  const previewedElementsRef = React.useRef<Map<string, { element: HTMLElement; originalStyle: string; wasHidden: boolean }>>(new Map());
   const isChangingPropertyRef = React.useRef(false);
 
   /** Get element from iframe by layer ID */
@@ -211,10 +211,16 @@ export default function InteractionsPanel({
     }
 
     if (previewedElementRef.current) {
-      const { element, originalStyle } = previewedElementRef.current;
+      const { element, originalStyle, wasHidden } = previewedElementRef.current;
       // Use GSAP to clear transforms
       gsap.set(element, { clearProps: 'all' });
       element.setAttribute('style', originalStyle);
+      // Restore original hidden state
+      if (wasHidden) {
+        element.setAttribute('data-gsap-hidden', '');
+      } else {
+        element.removeAttribute('data-gsap-hidden');
+      }
       previewedElementRef.current = null;
     }
   }, []);
@@ -229,11 +235,12 @@ export default function InteractionsPanel({
       // Clear any existing preview for different element
       clearPreviewStyles();
 
-      // Store original style for the new element
+      // Store original style and hidden state for the new element
       previewedElementRef.current = {
         layerId,
         element,
         originalStyle: element.getAttribute('style') || '',
+        wasHidden: element.hasAttribute('data-gsap-hidden'),
       };
     }
 
@@ -250,9 +257,15 @@ export default function InteractionsPanel({
     }
 
     // Restore all previewed elements
-    previewedElementsRef.current.forEach(({ element, originalStyle }) => {
+    previewedElementsRef.current.forEach(({ element, originalStyle, wasHidden }) => {
       gsap.set(element, { clearProps: 'all' });
       element.setAttribute('style', originalStyle);
+      // Restore original hidden state
+      if (wasHidden) {
+        element.setAttribute('data-gsap-hidden', '');
+      } else {
+        element.removeAttribute('data-gsap-hidden');
+      }
     });
     previewedElementsRef.current.clear();
 
@@ -276,16 +289,18 @@ export default function InteractionsPanel({
     const element = getIframeElement(layerId);
     if (!element) return;
 
-    // Store original style
+    // Store original style and hidden state
     previewedElementRef.current = {
       layerId,
       element,
       originalStyle: element.getAttribute('style') || '',
+      wasHidden: element.hasAttribute('data-gsap-hidden'),
     };
 
-    // Apply display at START if showing
-    if (displayStart) {
-      gsap.set(element, { display: displayStart });
+    // Handle display via data-gsap-hidden attribute (same as AnimationInitializer)
+    // 'visible' = remove attribute, 'hidden' = add attribute
+    if (displayStart === 'visible') {
+      element.removeAttribute('data-gsap-hidden');
     }
 
     // Play the animation using GSAP
@@ -294,9 +309,8 @@ export default function InteractionsPanel({
       duration,
       ease,
       onComplete: () => {
-        if (displayEnd) {
-          // Apply display at END if hiding
-          gsap.set(element, { display: displayEnd });
+        if (displayEnd === 'hidden') {
+          element.setAttribute('data-gsap-hidden', '');
         }
       },
     });
@@ -384,11 +398,12 @@ export default function InteractionsPanel({
       const element = getIframeElement(tween.layer_id);
       if (!element) return;
 
-      // Store original style if not already stored
+      // Store original style and hidden state if not already stored
       if (!previewedElementsRef.current.has(tween.layer_id)) {
         previewedElementsRef.current.set(tween.layer_id, {
           element,
           originalStyle: element.getAttribute('style') || '',
+          wasHidden: element.hasAttribute('data-gsap-hidden'),
         });
       }
 
@@ -405,9 +420,9 @@ export default function InteractionsPanel({
         position = '<'; // With previous
       }
 
-      // Apply display at START if showing (e.g., display: auto)
-      if (displayStart) {
-        timeline.set(element, { display: displayStart }, position);
+      // Handle display via data-gsap-hidden attribute (same as AnimationInitializer)
+      if (displayStart === 'visible') {
+        timeline.call(() => element.removeAttribute('data-gsap-hidden'), undefined, position);
       }
 
       // Add tween to timeline
@@ -418,9 +433,9 @@ export default function InteractionsPanel({
           ...toProps,
           duration: tween.duration,
           ease: tween.ease,
-          // Apply display at END if hiding (e.g., display: none)
-          onComplete: displayEnd ? () => {
-            gsap.set(element, { display: displayEnd });
+          // Apply display at END if hiding
+          onComplete: displayEnd === 'hidden' ? () => {
+            element.setAttribute('data-gsap-hidden', '');
           } : undefined,
         },
         position
@@ -495,7 +510,6 @@ export default function InteractionsPanel({
           breakpoints: [activeBreakpoint],
           repeat: 0,
           yoyo: false,
-          apply_styles: 'on-trigger',
         },
         tweens: [], // Start with no tweens - user will add them
       };
@@ -555,6 +569,16 @@ export default function InteractionsPanel({
       ease: 'power1.out',
       from: {},
       to: {},
+      apply_styles: {
+        x: 'on-trigger',
+        y: 'on-trigger',
+        rotation: 'on-trigger',
+        scale: 'on-trigger',
+        skewX: 'on-trigger',
+        skewY: 'on-trigger',
+        autoAlpha: 'on-trigger',
+        display: 'on-trigger',
+      },
     };
 
     const updatedInteractions = interactions.map((interaction) => {
@@ -703,7 +727,7 @@ export default function InteractionsPanel({
     (breakpoint: Breakpoint) => {
       if (!selectedInteraction) return;
 
-      const currentBreakpoints = selectedInteraction.timeline.breakpoints;
+      const currentBreakpoints = selectedInteraction.timeline?.breakpoints || [];
       const newBreakpoints = currentBreakpoints.includes(breakpoint)
         ? currentBreakpoints.filter((b) => b !== breakpoint)
         : [...currentBreakpoints, breakpoint];
@@ -882,9 +906,9 @@ export default function InteractionsPanel({
                       className="w-full justify-between"
                     >
                       <span className="capitalize">
-                        {selectedInteraction.timeline.breakpoints.length === 3
+                        {(selectedInteraction.timeline?.breakpoints?.length ?? 0) === 3
                           ? 'All breakpoints'
-                          : selectedInteraction.timeline.breakpoints.join(', ')}
+                          : selectedInteraction.timeline?.breakpoints?.join(', ') || 'No breakpoints'}
                       </span>
                       <Icon name="chevronCombo" className="size-3 opacity-50" />
                     </Button>
@@ -893,7 +917,7 @@ export default function InteractionsPanel({
                     {(['mobile', 'tablet', 'desktop'] as Breakpoint[]).map((bp) => (
                       <DropdownMenuCheckboxItem
                         key={bp}
-                        checked={selectedInteraction.timeline.breakpoints.includes(bp)}
+                        checked={selectedInteraction.timeline?.breakpoints?.includes(bp) ?? false}
                         onCheckedChange={() => handleToggleBreakpoint(bp)}
                         className="capitalize"
                       >
@@ -911,9 +935,9 @@ export default function InteractionsPanel({
               <div className="col-span-2">
                 <Select
                   value={
-                    selectedInteraction.timeline.repeat === 0
-                      ? selectedInteraction.timeline.yoyo ? 'reverse' : 'reset'
-                      : selectedInteraction.timeline.yoyo ? 'loop-reverse' : 'loop'
+                    (selectedInteraction.timeline?.repeat ?? 0) === 0
+                      ? selectedInteraction.timeline?.yoyo ? 'reverse' : 'reset'
+                      : selectedInteraction.timeline?.yoyo ? 'loop-reverse' : 'loop'
                   }
                   onValueChange={(value: 'reset' | 'reverse' | 'loop' | 'loop-reverse') => {
                     if (value === 'reset') {
@@ -940,26 +964,6 @@ export default function InteractionsPanel({
               </div>
             </div>
 
-            {/* Apply Styles */}
-            <div className="grid grid-cols-3 items-center">
-              <Label variant="muted">Styles</Label>
-              <div className="col-span-2">
-                <Select
-                  value={selectedInteraction.timeline.apply_styles}
-                  onValueChange={(value: 'on-load' | 'on-trigger') =>
-                    handleUpdateTimeline({ apply_styles: value })
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="on-load">Apply on load</SelectItem>
-                    <SelectItem value="on-trigger">Apply on trigger</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -1265,7 +1269,9 @@ export default function InteractionsPanel({
 
                     {propertyOption.properties.map((prop) => {
                       const fromValue = selectedTween.from[prop.key];
+                      const toValue = selectedTween.to[prop.key];
                       const isFromCurrent = fromValue === null || fromValue === undefined;
+                      const isToCurrent = toValue === null || toValue === undefined;
 
                       const setFromValue = (value: string | null) => {
                         handleUpdateTween(selectedTween.id, {
@@ -1273,7 +1279,43 @@ export default function InteractionsPanel({
                         });
                       };
 
+                      const setToValue = (value: string | null) => {
+                        handleUpdateTween(selectedTween.id, {
+                          to: { ...selectedTween.to, [prop.key]: value },
+                        });
+                      };
+
                       const getDefaultFromAfterCurrent = () => prop.defaultFromAfterCurrent;
+                      const getDefaultToAfterCurrent = () => prop.defaultTo ?? '0';
+
+                      // Determine animation mode based on from/to values
+                      type AnimationMode = 'current-to-custom' | 'custom-to-current' | 'custom-to-custom';
+                      const animationMode: AnimationMode = isFromCurrent
+                        ? 'current-to-custom'
+                        : isToCurrent
+                          ? 'custom-to-current'
+                          : 'custom-to-custom';
+
+                      const handleModeChange = (mode: AnimationMode) => {
+                        // Update both from and to in a single call to avoid state race conditions
+                        const newFrom = mode === 'current-to-custom'
+                          ? null
+                          : (isFromCurrent ? getDefaultFromAfterCurrent() : fromValue);
+                        const newTo = mode === 'custom-to-current'
+                          ? null
+                          : (isToCurrent ? getDefaultToAfterCurrent() : toValue);
+
+                        // When from is current/null, apply_styles must be on-trigger
+                        const newApplyStyles = mode === 'current-to-custom'
+                          ? 'on-trigger'
+                          : selectedTween.apply_styles?.[prop.key] || 'on-trigger';
+
+                        handleUpdateTween(selectedTween.id, {
+                          from: { ...selectedTween.from, [prop.key]: newFrom },
+                          to: { ...selectedTween.to, [prop.key]: newTo },
+                          apply_styles: { ...selectedTween.apply_styles, [prop.key]: newApplyStyles },
+                        });
+                      };
 
                       const applyFromPreview = (value: string | null) => {
                         // Skip display
@@ -1359,88 +1401,137 @@ export default function InteractionsPanel({
                         <div key={prop.key} className="flex items-center gap-1.25">
                           {!prop.toOnly && (
                             <>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="xs"
+                                    variant="secondary"
+                                    className="size-7 p-0 shrink-0 transition-none"
+                                    disabled={isFromCurrent}
+                                    onClick={() => {
+                                      const currentValue = selectedTween.apply_styles?.[prop.key] || 'on-trigger';
+                                      handleUpdateTween(selectedTween.id, {
+                                        apply_styles: {
+                                          ...selectedTween.apply_styles,
+                                          [prop.key]: currentValue === 'on-load' ? 'on-trigger' : 'on-load',
+                                        },
+                                      });
+                                    }}
+                                  >
+                                    <Icon name={selectedTween.apply_styles?.[prop.key] === 'on-load' ? 'page' : 'cursor-default'} />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  {selectedTween.apply_styles?.[prop.key] === 'on-load'
+                                    ? 'Apply styles on page load'
+                                    : 'Apply styles on event trigger'}
+                                </TooltipContent>
+                              </Tooltip>
+
                               <div className="w-full flex items-center gap-1.5">
                                 {isFromCurrent ? (
                                   <Button
                                     size="xs"
                                     variant="secondary"
-                                    className="h-7 transition-none w-28.5"
-                                    onClick={() => setFromValue(getDefaultFromAfterCurrent())}
+                                    className="h-7 transition-none flex-1"
+                                    disabled
                                   >
                                     Current
                                   </Button>
+                                ) : prop.options ? (
+                                  <Select
+                                    value={fromValue as string}
+                                    onValueChange={handleFromChange}
+                                    onOpenChange={(open) => open ? handlePreviewFrom() : clearPreviewStyles()}
+                                  >
+                                    <SelectTrigger className="flex-1 h-7 text-xs">
+                                      <SelectValue placeholder="From" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {prop.options.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value}>
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : prop.unit ? (
+                                  <InputGroup className="flex-1 h-7">
+                                    <InputGroupInput
+                                      value={fromValue ?? ''}
+                                      onChange={(e) => handleFromChange(e.target.value)}
+                                      onFocus={handlePreviewFrom}
+                                      onBlur={() => clearPreviewStyles()}
+                                      placeholder="0"
+                                      className="text-xs"
+                                    />
+                                    <InputGroupAddon align="inline-end" className="text-xs text-muted-foreground">
+                                      {prop.unit}
+                                    </InputGroupAddon>
+                                  </InputGroup>
                                 ) : (
-                                  <>
-                                    <Button
-                                      size="xs"
-                                      variant="secondary"
-                                      className="size-7 p-0 shrink-0 transition-none"
-                                      onClick={() => setFromValue(null)}
-                                      title="Use current value"
-                                    >
-                                      <Icon name="none" />
-                                    </Button>
-
-                                    {prop.options ? (
-                                      <Select
-                                        value={fromValue as string}
-                                        onValueChange={handleFromChange}
-                                        onOpenChange={(open) => open ? handlePreviewFrom() : clearPreviewStyles()}
-                                      >
-                                        <SelectTrigger className="flex-1 h-7 text-xs w-20">
-                                          <SelectValue placeholder="From" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {prop.options.map((opt) => (
-                                            <SelectItem key={opt.value} value={opt.value}>
-                                              {opt.label}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    ) : prop.unit ? (
-                                      <InputGroup className="flex-1 h-7 w-20">
-                                        <InputGroupInput
-                                          value={fromValue ?? ''}
-                                          onChange={(e) => handleFromChange(e.target.value)}
-                                          onFocus={handlePreviewFrom}
-                                          onBlur={() => clearPreviewStyles()}
-                                          placeholder="0"
-                                          className="text-xs"
-                                        />
-                                        <InputGroupAddon align="inline-end" className="text-xs text-muted-foreground">
-                                          {prop.unit}
-                                        </InputGroupAddon>
-                                      </InputGroup>
-                                    ) : (
-                                      <Input
-                                        value={fromValue ?? ''}
-                                        onChange={(e) => handleFromChange(e.target.value)}
-                                        onFocus={handlePreviewFrom}
-                                        onBlur={() => clearPreviewStyles()}
-                                        placeholder="0"
-                                        className="flex-1 h-7 text-xs w-20"
-                                      />
-                                    )}
-                                  </>
+                                  <Input
+                                    value={fromValue ?? ''}
+                                    onChange={(e) => handleFromChange(e.target.value)}
+                                    onFocus={handlePreviewFrom}
+                                    onBlur={() => clearPreviewStyles()}
+                                    placeholder="0"
+                                    className="flex-1 h-7 text-xs"
+                                  />
                                 )}
                               </div>
 
-                              <Icon
-                                name="chevronRight"
-                                className="size-2.5 opacity-60 shrink-0"
-                              />
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    size="xs"
+                                    variant="ghost"
+                                    className="size-7 p-0 shrink-0"
+                                  >
+                                    <Icon name="chevronRight" className="size-2.5 opacity-60" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="center" side="bottom">
+                                  <DropdownMenuCheckboxItem
+                                    checked={animationMode === 'current-to-custom'}
+                                    onCheckedChange={() => handleModeChange('current-to-custom')}
+                                  >
+                                    Current value <Icon name="chevronRight" className="size-2.5 opacity-60" /> Set value
+                                  </DropdownMenuCheckboxItem>
+                                  <DropdownMenuCheckboxItem
+                                    checked={animationMode === 'custom-to-current'}
+                                    onCheckedChange={() => handleModeChange('custom-to-current')}
+                                  >
+                                    Set value <Icon name="chevronRight" className="size-2.5 opacity-60" /> Current value
+                                  </DropdownMenuCheckboxItem>
+                                  <DropdownMenuCheckboxItem
+                                    checked={animationMode === 'custom-to-custom'}
+                                    onCheckedChange={() => handleModeChange('custom-to-custom')}
+                                  >
+                                    Set value <Icon name="chevronRight" className="size-2.5 opacity-60" /> Set value
+                                  </DropdownMenuCheckboxItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </>
                           )}
 
-                          <div className="w-full">
-                            {prop.options ? (
+                          <div className="w-full flex items-center gap-1.5">
+                            {isToCurrent ? (
+                              <Button
+                                size="xs"
+                                variant="secondary"
+                                className="h-7 transition-none flex-1"
+                                disabled
+                              >
+                                Current
+                              </Button>
+                            ) : prop.options ? (
                               <Select
-                                value={(selectedTween.to[prop.key] as string) ?? ''}
+                                value={toValue as string}
                                 onValueChange={handleToChange}
                                 onOpenChange={(open) => open ? handlePreviewTo() : clearPreviewStyles()}
                               >
-                                <SelectTrigger className="w-full h-7 text-xs">
+                                <SelectTrigger className="flex-1 h-7 text-xs">
                                   <SelectValue placeholder="To" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1452,9 +1543,9 @@ export default function InteractionsPanel({
                                 </SelectContent>
                               </Select>
                             ) : prop.unit ? (
-                              <InputGroup className="w-full h-7">
+                              <InputGroup className="flex-1 h-7">
                                 <InputGroupInput
-                                  value={selectedTween.to[prop.key] ?? ''}
+                                  value={toValue ?? ''}
                                   onChange={(e) => handleToChange(e.target.value)}
                                   onFocus={handlePreviewTo}
                                   onBlur={() => clearPreviewStyles()}
@@ -1467,12 +1558,12 @@ export default function InteractionsPanel({
                               </InputGroup>
                             ) : (
                               <Input
-                                value={selectedTween.to[prop.key] ?? ''}
+                                value={toValue ?? ''}
                                 onChange={(e) => handleToChange(e.target.value)}
                                 onFocus={handlePreviewTo}
                                 onBlur={() => clearPreviewStyles()}
                                 placeholder="0"
-                                className="w-full h-7 text-xs"
+                                className="flex-1 h-7 text-xs"
                               />
                             )}
                           </div>
