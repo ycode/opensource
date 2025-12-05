@@ -79,7 +79,7 @@ export const PROPERTY_OPTIONS: PropertyOption[] = [
       unit: 'deg',
       defaultFrom: '0',
       defaultFromAfterCurrent: '0',
-      defaultTo: '45',
+      defaultTo: '30',
     }],
   },
   {
@@ -90,7 +90,7 @@ export const PROPERTY_OPTIONS: PropertyOption[] = [
       unit: 'deg',
       defaultFrom: '0',
       defaultFromAfterCurrent: '0',
-      defaultTo: '45',
+      defaultTo: '30',
     }],
   },
   {

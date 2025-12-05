@@ -304,16 +304,61 @@ export default function InteractionsPanel({
     }
 
     // Play the animation using GSAP
-    previewTweenRef.current = gsap.fromTo(element, from, {
-      ...to,
-      duration,
-      ease,
-      onComplete: () => {
-        if (displayEnd === 'hidden') {
-          element.setAttribute('data-gsap-hidden', '');
-        }
-      },
+    // Use minimum duration of 0.001s as GSAP has issues with 0-duration tweens
+    const safeDuration = Math.max(duration, 0.001);
+
+    const onComplete = () => {
+      if (displayEnd === 'hidden') {
+        element.setAttribute('data-gsap-hidden', '');
+      }
+    };
+
+    // Separate properties into: fromTo (both), fromOnly (to current), toOnly (from current)
+    const fromToProps: gsap.TweenVars = {};
+    const fromOnlyProps: gsap.TweenVars = {};
+    const toOnlyProps: gsap.TweenVars = {};
+
+    const fromKeys = new Set(Object.keys(from));
+    const toKeys = new Set(Object.keys(to));
+
+    fromKeys.forEach((key) => {
+      if (toKeys.has(key)) {
+        fromToProps[key] = from[key];
+      } else {
+        fromOnlyProps[key] = from[key];
+      }
     });
+
+    toKeys.forEach((key) => {
+      if (!fromKeys.has(key)) {
+        toOnlyProps[key] = to[key];
+      }
+    });
+
+    const hasFromTo = Object.keys(fromToProps).length > 0;
+    const hasFromOnly = Object.keys(fromOnlyProps).length > 0;
+    const hasToOnly = Object.keys(toOnlyProps).length > 0;
+
+    // Create a timeline for mixed property animations
+    const tl = gsap.timeline({ onComplete });
+
+    if (hasFromTo) {
+      const toVars: gsap.TweenVars = {};
+      Object.keys(fromToProps).forEach((key) => {
+        toVars[key] = to[key];
+      });
+      tl.fromTo(element, fromToProps, { ...toVars, duration: safeDuration, ease }, 0);
+    }
+
+    if (hasFromOnly) {
+      tl.from(element, { ...fromOnlyProps, duration: safeDuration, ease }, 0);
+    }
+
+    if (hasToOnly) {
+      tl.to(element, { ...toOnlyProps, duration: safeDuration, ease }, 0);
+    }
+
+    previewTweenRef.current = tl as unknown as gsap.core.Tween;
   }, [clearAllPreviewStyles, getIframeElement]);
 
   // Drag and drop sensors
@@ -426,20 +471,55 @@ export default function InteractionsPanel({
       }
 
       // Add tween to timeline
-      timeline.fromTo(
-        element,
-        fromProps,
-        {
-          ...toProps,
-          duration: tween.duration,
-          ease: tween.ease,
-          // Apply display at END if hiding
-          onComplete: displayEnd === 'hidden' ? () => {
-            element.setAttribute('data-gsap-hidden', '');
-          } : undefined,
-        },
-        position
-      );
+      // Use minimum duration of 0.001s as GSAP has issues with 0-duration tweens
+      const duration = Math.max(tween.duration, 0.001);
+
+      const onComplete = displayEnd === 'hidden'
+        ? () => element.setAttribute('data-gsap-hidden', '')
+        : undefined;
+
+      // Separate properties into: fromTo (both), fromOnly (to current), toOnly (from current)
+      const fromToAnimProps: Record<string, unknown> = {};
+      const fromOnlyAnimProps: Record<string, unknown> = {};
+      const toOnlyAnimProps: Record<string, unknown> = {};
+
+      const fromKeys = new Set(Object.keys(fromProps));
+      const toKeys = new Set(Object.keys(toProps));
+
+      fromKeys.forEach((key) => {
+        if (toKeys.has(key)) {
+          fromToAnimProps[key] = fromProps[key];
+        } else {
+          fromOnlyAnimProps[key] = fromProps[key];
+        }
+      });
+
+      toKeys.forEach((key) => {
+        if (!fromKeys.has(key)) {
+          toOnlyAnimProps[key] = toProps[key];
+        }
+      });
+
+      const hasFromTo = Object.keys(fromToAnimProps).length > 0;
+      const hasFromOnly = Object.keys(fromOnlyAnimProps).length > 0;
+      const hasToOnly = Object.keys(toOnlyAnimProps).length > 0;
+
+      // Add tweens - use '<' to run simultaneously with the first one
+      if (hasFromTo) {
+        const toVars: Record<string, unknown> = {};
+        Object.keys(fromToAnimProps).forEach((key) => {
+          toVars[key] = toProps[key];
+        });
+        timeline.fromTo(element, fromToAnimProps, { ...toVars, duration, ease: tween.ease, onComplete: !hasFromOnly && !hasToOnly ? onComplete : undefined }, position);
+      }
+
+      if (hasFromOnly) {
+        timeline.from(element, { ...fromOnlyAnimProps, duration, ease: tween.ease, onComplete: !hasToOnly ? onComplete : undefined }, hasFromTo ? '<' : position);
+      }
+
+      if (hasToOnly) {
+        timeline.to(element, { ...toOnlyAnimProps, duration, ease: tween.ease, onComplete }, hasFromTo || hasFromOnly ? '<' : position);
+      }
     });
 
     previewTimelineRef.current = timeline;
@@ -1171,17 +1251,22 @@ export default function InteractionsPanel({
             <div className="grid grid-cols-3">
               <Label variant="muted">Duration</Label>
               <div className="col-span-2 *:w-full">
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={selectedTween.duration}
-                  onChange={(e) =>
-                    handleUpdateTween(selectedTween.id, {
-                      duration: Number(e.target.value),
-                    })
-                  }
-                  placeholder="seconds"
-                />
+                <InputGroup>
+                  <InputGroupInput
+                    type="number"
+                    step="0.1"
+                    value={selectedTween.duration}
+                    onChange={(e) =>
+                      handleUpdateTween(selectedTween.id, {
+                        duration: Number(e.target.value),
+                      })
+                    }
+                    placeholder="0"
+                  />
+                  <InputGroupAddon align="inline-end" className="text-xs text-muted-foreground">
+                    sec
+                  </InputGroupAddon>
+                </InputGroup>
               </div>
             </div>
 
@@ -1276,12 +1361,6 @@ export default function InteractionsPanel({
                       const setFromValue = (value: string | null) => {
                         handleUpdateTween(selectedTween.id, {
                           from: { ...selectedTween.from, [prop.key]: value },
-                        });
-                      };
-
-                      const setToValue = (value: string | null) => {
-                        handleUpdateTween(selectedTween.id, {
-                          to: { ...selectedTween.to, [prop.key]: value },
                         });
                       };
 
@@ -1421,10 +1500,10 @@ export default function InteractionsPanel({
                                     <Icon name={selectedTween.apply_styles?.[prop.key] === 'on-load' ? 'page' : 'cursor-default'} />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent side="top">
+                                <TooltipContent side="top" align="start">
                                   {selectedTween.apply_styles?.[prop.key] === 'on-load'
-                                    ? 'Apply styles on page load'
-                                    : 'Apply styles on event trigger'}
+                                    ? 'Apply property style on page load'
+                                    : 'Apply property style on trigger'}
                                 </TooltipContent>
                               </Tooltip>
 

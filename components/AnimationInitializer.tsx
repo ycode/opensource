@@ -109,20 +109,56 @@ function buildTimeline(interaction: LayerInteraction): gsap.core.Timeline | null
     }
 
     // Add tween to timeline
-    const toVars: gsap.TweenVars = {
-      ...to,
-      duration: tween.duration,
-      ease: tween.ease,
-    };
+    // Use minimum duration of 0.001s as GSAP has issues with 0-duration tweens
+    const duration = Math.max(tween.duration, 0.001);
 
-    if (displayEnd === 'hidden') {
-      // Add hidden attribute at END (element becomes hidden)
-      toVars.onComplete = () => {
-        element.setAttribute('data-gsap-hidden', '');
-      };
+    const onComplete = displayEnd === 'hidden'
+      ? () => element.setAttribute('data-gsap-hidden', '')
+      : undefined;
+
+    // Separate properties into: fromTo (both), fromOnly (to current), toOnly (from current)
+    const fromToProps: Record<string, string | number> = {};
+    const fromOnlyProps: Record<string, string | number> = {};
+    const toOnlyProps: Record<string, string | number> = {};
+
+    const fromKeys = new Set(Object.keys(from));
+    const toKeys = new Set(Object.keys(to));
+
+    fromKeys.forEach((key) => {
+      if (toKeys.has(key)) {
+        fromToProps[key] = from[key];
+      } else {
+        fromOnlyProps[key] = from[key];
+      }
+    });
+
+    toKeys.forEach((key) => {
+      if (!fromKeys.has(key)) {
+        toOnlyProps[key] = to[key];
+      }
+    });
+
+    // Add tweens based on what properties we have
+    const hasFromTo = Object.keys(fromToProps).length > 0;
+    const hasFromOnly = Object.keys(fromOnlyProps).length > 0;
+    const hasToOnly = Object.keys(toOnlyProps).length > 0;
+
+    // Use the same position for all parts of this tween (they should animate together)
+    if (hasFromTo) {
+      const toVars: Record<string, string | number> = {};
+      Object.keys(fromToProps).forEach((key) => {
+        toVars[key] = to[key];
+      });
+      timeline.fromTo(element, fromToProps, { ...toVars, duration, ease: tween.ease, onComplete: !hasFromOnly && !hasToOnly ? onComplete : undefined }, position);
     }
 
-    timeline.fromTo(element, from, toVars, position);
+    if (hasFromOnly) {
+      timeline.from(element, { ...fromOnlyProps, duration, ease: tween.ease, onComplete: !hasToOnly ? onComplete : undefined }, hasFromTo ? '<' : position);
+    }
+
+    if (hasToOnly) {
+      timeline.to(element, { ...toOnlyProps, duration, ease: tween.ease, onComplete }, hasFromTo || hasFromOnly ? '<' : position);
+    }
   });
 
   // Handle display state changes based on timeline direction
