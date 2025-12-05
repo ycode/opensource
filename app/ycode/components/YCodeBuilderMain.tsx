@@ -892,7 +892,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         }
 
         // Arrow Up/Down - Reorder layer within siblings
-        if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (currentPageId || editingComponentId) && selectedLayerId) {
+        if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (currentPageId || editingComponentId) && selectedLayerId && !isInputFocused) {
           e.preventDefault();
 
           const layers = getCurrentLayers();
