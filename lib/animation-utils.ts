@@ -329,3 +329,101 @@ export function buildGsapProps(tween: InteractionTween): GsapAnimationProps {
 
   return { from: fromProps, to: toProps, displayStart, displayEnd };
 }
+
+/** Minimum duration for GSAP tweens (0-duration causes issues) */
+export function safeDuration(duration: number): number {
+  return Math.max(duration, 0.001);
+}
+
+export interface SeparatedAnimationProps {
+  fromTo: { from: Record<string, unknown>; to: Record<string, unknown> };
+  fromOnly: Record<string, unknown>;
+  toOnly: Record<string, unknown>;
+  hasFromTo: boolean;
+  hasFromOnly: boolean;
+  hasToOnly: boolean;
+}
+
+/** Separates animation properties into fromTo, fromOnly, and toOnly groups */
+export function separateAnimationProps(
+  from: Record<string, unknown>,
+  to: Record<string, unknown>
+): SeparatedAnimationProps {
+  const fromToFrom: Record<string, unknown> = {};
+  const fromToTo: Record<string, unknown> = {};
+  const fromOnly: Record<string, unknown> = {};
+  const toOnly: Record<string, unknown> = {};
+
+  const fromKeys = new Set(Object.keys(from));
+  const toKeys = new Set(Object.keys(to));
+
+  fromKeys.forEach((key) => {
+    if (toKeys.has(key)) {
+      fromToFrom[key] = from[key];
+      fromToTo[key] = to[key];
+    } else {
+      fromOnly[key] = from[key];
+    }
+  });
+
+  toKeys.forEach((key) => {
+    if (!fromKeys.has(key)) {
+      toOnly[key] = to[key];
+    }
+  });
+
+  return {
+    fromTo: { from: fromToFrom, to: fromToTo },
+    fromOnly,
+    toOnly,
+    hasFromTo: Object.keys(fromToFrom).length > 0,
+    hasFromOnly: Object.keys(fromOnly).length > 0,
+    hasToOnly: Object.keys(toOnly).length > 0,
+  };
+}
+
+export interface AddTweenOptions {
+  element: HTMLElement;
+  from: Record<string, unknown>;
+  to: Record<string, unknown>;
+  duration: number;
+  ease: string;
+  position: number | string;
+  onComplete?: () => void;
+}
+
+/** Adds a tween to a GSAP timeline, handling mixed from/to/fromTo properties */
+export function addTweenToTimeline(
+  timeline: gsap.core.Timeline,
+  options: AddTweenOptions
+): void {
+  const { element, from, to, duration, ease, position, onComplete } = options;
+  const safeDur = safeDuration(duration);
+  const { fromTo, fromOnly, toOnly, hasFromTo, hasFromOnly, hasToOnly } = separateAnimationProps(from, to);
+
+  // Add tweens - use '<' to run simultaneously with the first one
+  if (hasFromTo) {
+    timeline.fromTo(
+      element,
+      fromTo.from,
+      { ...fromTo.to, duration: safeDur, ease, onComplete: !hasFromOnly && !hasToOnly ? onComplete : undefined },
+      position
+    );
+  }
+
+  if (hasFromOnly) {
+    timeline.from(
+      element,
+      { ...fromOnly, duration: safeDur, ease, onComplete: !hasToOnly ? onComplete : undefined },
+      hasFromTo ? '<' : position
+    );
+  }
+
+  if (hasToOnly) {
+    timeline.to(
+      element,
+      { ...toOnly, duration: safeDur, ease, onComplete },
+      hasFromTo || hasFromOnly ? '<' : position
+    );
+  }
+}

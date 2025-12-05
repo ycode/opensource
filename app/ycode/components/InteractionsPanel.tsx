@@ -52,6 +52,7 @@ import {
   getTweenProperties,
   isPropertyInTween,
   buildGsapProps,
+  addTweenToTimeline,
 } from '@/lib/animation-utils';
 import type { TriggerType, PropertyType } from '@/lib/animation-utils';
 
@@ -303,60 +304,23 @@ export default function InteractionsPanel({
       element.removeAttribute('data-gsap-hidden');
     }
 
-    // Play the animation using GSAP
-    // Use minimum duration of 0.001s as GSAP has issues with 0-duration tweens
-    const safeDuration = Math.max(duration, 0.001);
-
-    const onComplete = () => {
-      if (displayEnd === 'hidden') {
-        element.setAttribute('data-gsap-hidden', '');
-      }
-    };
-
-    // Separate properties into: fromTo (both), fromOnly (to current), toOnly (from current)
-    const fromToProps: gsap.TweenVars = {};
-    const fromOnlyProps: gsap.TweenVars = {};
-    const toOnlyProps: gsap.TweenVars = {};
-
-    const fromKeys = new Set(Object.keys(from));
-    const toKeys = new Set(Object.keys(to));
-
-    fromKeys.forEach((key) => {
-      if (toKeys.has(key)) {
-        fromToProps[key] = from[key];
-      } else {
-        fromOnlyProps[key] = from[key];
-      }
+    // Play the animation using GSAP with shared utility
+    const tl = gsap.timeline({
+      onComplete: () => {
+        if (displayEnd === 'hidden') {
+          element.setAttribute('data-gsap-hidden', '');
+        }
+      },
     });
 
-    toKeys.forEach((key) => {
-      if (!fromKeys.has(key)) {
-        toOnlyProps[key] = to[key];
-      }
+    addTweenToTimeline(tl, {
+      element,
+      from,
+      to,
+      duration,
+      ease,
+      position: 0,
     });
-
-    const hasFromTo = Object.keys(fromToProps).length > 0;
-    const hasFromOnly = Object.keys(fromOnlyProps).length > 0;
-    const hasToOnly = Object.keys(toOnlyProps).length > 0;
-
-    // Create a timeline for mixed property animations
-    const tl = gsap.timeline({ onComplete });
-
-    if (hasFromTo) {
-      const toVars: gsap.TweenVars = {};
-      Object.keys(fromToProps).forEach((key) => {
-        toVars[key] = to[key];
-      });
-      tl.fromTo(element, fromToProps, { ...toVars, duration: safeDuration, ease }, 0);
-    }
-
-    if (hasFromOnly) {
-      tl.from(element, { ...fromOnlyProps, duration: safeDuration, ease }, 0);
-    }
-
-    if (hasToOnly) {
-      tl.to(element, { ...toOnlyProps, duration: safeDuration, ease }, 0);
-    }
 
     previewTweenRef.current = tl as unknown as gsap.core.Tween;
   }, [clearAllPreviewStyles, getIframeElement]);
@@ -470,56 +434,18 @@ export default function InteractionsPanel({
         timeline.call(() => element.removeAttribute('data-gsap-hidden'), undefined, position);
       }
 
-      // Add tween to timeline
-      // Use minimum duration of 0.001s as GSAP has issues with 0-duration tweens
-      const duration = Math.max(tween.duration, 0.001);
-
-      const onComplete = displayEnd === 'hidden'
-        ? () => element.setAttribute('data-gsap-hidden', '')
-        : undefined;
-
-      // Separate properties into: fromTo (both), fromOnly (to current), toOnly (from current)
-      const fromToAnimProps: Record<string, unknown> = {};
-      const fromOnlyAnimProps: Record<string, unknown> = {};
-      const toOnlyAnimProps: Record<string, unknown> = {};
-
-      const fromKeys = new Set(Object.keys(fromProps));
-      const toKeys = new Set(Object.keys(toProps));
-
-      fromKeys.forEach((key) => {
-        if (toKeys.has(key)) {
-          fromToAnimProps[key] = fromProps[key];
-        } else {
-          fromOnlyAnimProps[key] = fromProps[key];
-        }
+      // Add tween to timeline using shared utility
+      addTweenToTimeline(timeline, {
+        element,
+        from: fromProps,
+        to: toProps,
+        duration: tween.duration,
+        ease: tween.ease,
+        position,
+        onComplete: displayEnd === 'hidden'
+          ? () => element.setAttribute('data-gsap-hidden', '')
+          : undefined,
       });
-
-      toKeys.forEach((key) => {
-        if (!fromKeys.has(key)) {
-          toOnlyAnimProps[key] = toProps[key];
-        }
-      });
-
-      const hasFromTo = Object.keys(fromToAnimProps).length > 0;
-      const hasFromOnly = Object.keys(fromOnlyAnimProps).length > 0;
-      const hasToOnly = Object.keys(toOnlyAnimProps).length > 0;
-
-      // Add tweens - use '<' to run simultaneously with the first one
-      if (hasFromTo) {
-        const toVars: Record<string, unknown> = {};
-        Object.keys(fromToAnimProps).forEach((key) => {
-          toVars[key] = toProps[key];
-        });
-        timeline.fromTo(element, fromToAnimProps, { ...toVars, duration, ease: tween.ease, onComplete: !hasFromOnly && !hasToOnly ? onComplete : undefined }, position);
-      }
-
-      if (hasFromOnly) {
-        timeline.from(element, { ...fromOnlyAnimProps, duration, ease: tween.ease, onComplete: !hasToOnly ? onComplete : undefined }, hasFromTo ? '<' : position);
-      }
-
-      if (hasToOnly) {
-        timeline.to(element, { ...toOnlyAnimProps, duration, ease: tween.ease, onComplete }, hasFromTo || hasFromOnly ? '<' : position);
-      }
     });
 
     previewTimelineRef.current = timeline;

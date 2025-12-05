@@ -12,7 +12,7 @@ import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
-import { buildGsapProps } from '@/lib/animation-utils';
+import { buildGsapProps, addTweenToTimeline } from '@/lib/animation-utils';
 import type { Layer, LayerInteraction, Breakpoint } from '@/types';
 
 // Register GSAP plugins
@@ -108,57 +108,18 @@ function buildTimeline(interaction: LayerInteraction): gsap.core.Timeline | null
       displayTransitions.push({ element, displayStart, displayEnd });
     }
 
-    // Add tween to timeline
-    // Use minimum duration of 0.001s as GSAP has issues with 0-duration tweens
-    const duration = Math.max(tween.duration, 0.001);
-
-    const onComplete = displayEnd === 'hidden'
-      ? () => element.setAttribute('data-gsap-hidden', '')
-      : undefined;
-
-    // Separate properties into: fromTo (both), fromOnly (to current), toOnly (from current)
-    const fromToProps: Record<string, string | number> = {};
-    const fromOnlyProps: Record<string, string | number> = {};
-    const toOnlyProps: Record<string, string | number> = {};
-
-    const fromKeys = new Set(Object.keys(from));
-    const toKeys = new Set(Object.keys(to));
-
-    fromKeys.forEach((key) => {
-      if (toKeys.has(key)) {
-        fromToProps[key] = from[key];
-      } else {
-        fromOnlyProps[key] = from[key];
-      }
+    // Add tween to timeline using shared utility
+    addTweenToTimeline(timeline, {
+      element,
+      from,
+      to,
+      duration: tween.duration,
+      ease: tween.ease,
+      position,
+      onComplete: displayEnd === 'hidden'
+        ? () => element.setAttribute('data-gsap-hidden', '')
+        : undefined,
     });
-
-    toKeys.forEach((key) => {
-      if (!fromKeys.has(key)) {
-        toOnlyProps[key] = to[key];
-      }
-    });
-
-    // Add tweens based on what properties we have
-    const hasFromTo = Object.keys(fromToProps).length > 0;
-    const hasFromOnly = Object.keys(fromOnlyProps).length > 0;
-    const hasToOnly = Object.keys(toOnlyProps).length > 0;
-
-    // Use the same position for all parts of this tween (they should animate together)
-    if (hasFromTo) {
-      const toVars: Record<string, string | number> = {};
-      Object.keys(fromToProps).forEach((key) => {
-        toVars[key] = to[key];
-      });
-      timeline.fromTo(element, fromToProps, { ...toVars, duration, ease: tween.ease, onComplete: !hasFromOnly && !hasToOnly ? onComplete : undefined }, position);
-    }
-
-    if (hasFromOnly) {
-      timeline.from(element, { ...fromOnlyProps, duration, ease: tween.ease, onComplete: !hasToOnly ? onComplete : undefined }, hasFromTo ? '<' : position);
-    }
-
-    if (hasToOnly) {
-      timeline.to(element, { ...toOnlyProps, duration, ease: tween.ease, onComplete }, hasFromTo || hasFromOnly ? '<' : position);
-    }
   });
 
   // Handle display state changes based on timeline direction
