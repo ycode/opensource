@@ -8,7 +8,6 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { RgbaColorPicker } from 'react-colorful';
 import debounce from 'lodash.debounce';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -81,6 +80,317 @@ function generateGradientCSS(stops: ColorStop[], type: 'linear' | 'radial', angl
     return `linear-gradient(${angle || 0}deg, ${stopsStr})`;
   }
   return `radial-gradient(circle, ${stopsStr})`;
+}
+
+// Helper to generate HUE gradient CSS (0-360 degrees)
+function generateHueGradientCSS(): string {
+  return 'linear-gradient(90deg, hsl(0,100%,50%), hsl(60,100%,50%), hsl(120,100%,50%), hsl(180,100%,50%), hsl(240,100%,50%), hsl(300,100%,50%), hsl(360,100%,50%))';
+}
+
+// Helper to convert HSL to RGB
+function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
+  h /= 360;
+  s /= 100;
+  l /= 100;
+
+  let r, g, b;
+
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p: number, q: number, t: number) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+
+  return {
+    r: Math.round(r * 255),
+    g: Math.round(g * 255),
+    b: Math.round(b * 255),
+  };
+}
+
+// Helper to convert RGB to HSL
+function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100),
+  };
+}
+
+// SaturationLightnessPicker Component
+interface SaturationLightnessPickerProps {
+  hue: number; // 0-360
+  saturation: number; // 0-100
+  lightness: number; // 0-100
+  onChange: (saturation: number, lightness: number) => void;
+}
+
+function SaturationLightnessPicker({ hue, saturation, lightness, onChange }: SaturationLightnessPickerProps) {
+  const pickerRef = React.useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  const bgColor = `hsl(${hue}, 100%, 50%)`;
+  const x = saturation; // 0-100
+  const y = 100 - lightness; // Invert Y axis (0 at top = 100% lightness)
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+    updatePosition(e);
+  };
+
+  const updatePosition = (e: MouseEvent | React.MouseEvent) => {
+    if (!pickerRef.current) return;
+    const rect = pickerRef.current.getBoundingClientRect();
+    const xPos = e.clientX - rect.left;
+    const yPos = e.clientY - rect.top;
+    const newSaturation = Math.max(0, Math.min(100, (xPos / rect.width) * 100));
+    const newLightness = Math.max(0, Math.min(100, 100 - (yPos / rect.height) * 100));
+    onChange(newSaturation, newLightness);
+  };
+
+  const handleMouseMove = React.useCallback((e: MouseEvent) => {
+    if (isDragging) {
+      updatePosition(e);
+    }
+  }, [isDragging]);
+
+  const handleMouseUp = React.useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
+  return (
+    <div
+      ref={pickerRef}
+      className="relative w-full h-full rounded-md"
+      style={{
+        background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${bgColor})`,
+      }}
+      onMouseDown={handleMouseDown}
+    >
+      <div
+        className={cn(
+          'absolute -translate-x-1/2 -translate-y-1/2 select-none z-10',
+          isDragging && 'z-20'
+        )}
+        style={{
+          left: `${x}%`,
+          top: `${y}%`,
+        }}
+      >
+        <div className="size-3 rounded-full border-2 border-white shadow-md pointer-events-none" />
+      </div>
+    </div>
+  );
+}
+
+// HueBar Component - matches GradientBar design
+interface HueBarProps {
+  hue: number; // 0-360
+  onChange: (hue: number) => void;
+}
+
+function HueBar({ hue, onChange }: HueBarProps) {
+  const barRef = React.useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  const hueCSS = generateHueGradientCSS();
+  const position = (hue / 360) * 100;
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+    updateHue(e);
+  };
+
+  const updateHue = (e: MouseEvent | React.MouseEvent) => {
+    if (!barRef.current) return;
+    const rect = barRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const newPosition = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    const newHue = Math.round((newPosition / 100) * 360);
+    onChange(newHue);
+  };
+
+  const handleMouseMove = React.useCallback((e: MouseEvent) => {
+    if (isDragging) {
+      updateHue(e);
+    }
+  }, [isDragging]);
+
+  const handleMouseUp = React.useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div
+        ref={barRef}
+        className="relative h-3 w-full rounded-full outline outline-white/10 outline-offset-[-1px] cursor-pointer"
+        style={{ background: hueCSS }}
+        onMouseDown={handleMouseDown}
+      >
+        <div
+          className={cn(
+            'absolute top-0 -translate-x-1/2 cursor-pointer select-none z-10',
+            'transition-transform hover:scale-110',
+            isDragging && 'scale-110 z-20'
+          )}
+          style={{ left: `${position}%` }}
+        >
+          <div className="size-3 rounded-full border-[1.5px] border-white flex items-center justify-center shadow-md pointer-events-none shadow-sm">
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// OpacityBar Component - matches HueBar design
+interface OpacityBarProps {
+  opacity: number; // 0-1
+  color: { r: number; g: number; b: number }; // RGB color for the gradient
+  onChange: (opacity: number) => void;
+}
+
+function OpacityBar({ opacity, color, onChange }: OpacityBarProps) {
+  const barRef = React.useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  const position = opacity * 100;
+  const colorStr = `rgb(${color.r}, ${color.g}, ${color.b})`;
+  const opacityCSS = `linear-gradient(90deg, transparent, ${colorStr})`;
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+    updateOpacity(e);
+  };
+
+  const updateOpacity = (e: MouseEvent | React.MouseEvent) => {
+    if (!barRef.current) return;
+    const rect = barRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const newPosition = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    const newOpacity = newPosition / 100;
+    onChange(newOpacity);
+  };
+
+  const handleMouseMove = React.useCallback((e: MouseEvent) => {
+    if (isDragging) {
+      updateOpacity(e);
+    }
+  }, [isDragging]);
+
+  const handleMouseUp = React.useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div
+        ref={barRef}
+        className="relative h-3 w-full rounded-full outline outline-white/10 outline-offset-[-1px] cursor-pointer"
+        onMouseDown={handleMouseDown}
+      >
+        {/* Checkerboard pattern for transparency */}
+        <div
+          className="absolute inset-0 opacity-30 rounded-full"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), repeating-linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)',
+            backgroundPosition: '0 0, 4px 4px',
+            backgroundSize: '8px 8px',
+          }}
+        />
+        {/* Opacity gradient */}
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{ background: opacityCSS }}
+        />
+        <div
+          className={cn(
+            'absolute top-0 -translate-x-1/2 cursor-pointer select-none z-10',
+            'transition-transform hover:scale-110',
+            isDragging && 'scale-110 z-20'
+          )}
+          style={{ left: `${position}%` }}
+        >
+          <div className="size-3 rounded-full border-[1.5px] border-white flex items-center justify-center shadow-md pointer-events-none shadow-sm">
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // GradientBar Component
@@ -206,7 +516,7 @@ function GradientBar({
             >
               <div
                 className={cn(
-                  'size-3 rounded-full border flex items-center justify-center shadow-md pointer-events-none shadow-sm',
+                  'size-3 rounded-full border-[1.5px] flex items-center justify-center shadow-md pointer-events-none shadow-sm',
                   isSelected
                     ? 'border-white'
                     : 'border-white'
@@ -594,13 +904,39 @@ export default function ColorPicker({
 
           <TabsContent value="solid" className="mt-3">
             <div className="flex flex-col gap-3">
-              <div className="w-full" style={{ height: '200px' }}>
-                <RgbaColorPicker
-                  color={rgbaColor}
-                  onChange={handleRgbaChange}
-                  style={{ width: '100%', height: '100%' }}
+              {/* Saturation/Lightness Picker */}
+              <div className="w-full relative" style={{ height: '200px' }}>
+                <SaturationLightnessPicker
+                  hue={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).h}
+                  saturation={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).s}
+                  lightness={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).l}
+                  onChange={(s, l) => {
+                    const hsl = rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b);
+                    const rgb = hslToRgb(hsl.h, s, l);
+                    handleRgbaChange({ ...rgb, a: rgbaColor.a });
+                  }}
                 />
               </div>
+
+              {/* HUE Bar */}
+              <HueBar
+                hue={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).h}
+                onChange={(hue) => {
+                  const hsl = rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b);
+                  const rgb = hslToRgb(hue, hsl.s, hsl.l);
+                  handleRgbaChange({ ...rgb, a: rgbaColor.a });
+                }}
+              />
+
+              {/* Opacity Bar */}
+              <OpacityBar
+                opacity={rgbaColor.a}
+                color={{ r: rgbaColor.r, g: rgbaColor.g, b: rgbaColor.b }}
+                onChange={(a) => {
+                  handleRgbaChange({ ...rgbaColor, a });
+                }}
+              />
+
               <div className="flex items-center gap-2">
                 <Input
                   type="text"
@@ -674,17 +1010,40 @@ export default function ColorPicker({
                 const selectedStop = linearStops.find(s => s.id === selectedStopId);
                 if (!selectedStop) return null;
                 const stopRgba = parseColor(selectedStop.color);
+                const hsl = rgbToHsl(stopRgba.r, stopRgba.g, stopRgba.b);
                 return (
                   <div className="flex flex-col gap-3">
-                    <div className="w-full" style={{ height: '200px' }}>
-                      <RgbaColorPicker
-                        color={stopRgba}
-                        onChange={(color) => {
-                          updateColorStop('linear', selectedStopId, { color: rgbaToHex(color) });
+                    {/* Saturation/Lightness Picker */}
+                    <div className="w-full relative" style={{ height: '200px' }}>
+                      <SaturationLightnessPicker
+                        hue={hsl.h}
+                        saturation={hsl.s}
+                        lightness={hsl.l}
+                        onChange={(s, l) => {
+                          const rgb = hslToRgb(hsl.h, s, l);
+                          updateColorStop('linear', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
                         }}
-                        style={{ width: '100%', height: '100%' }}
                       />
                     </div>
+
+                    {/* HUE Bar */}
+                    <HueBar
+                      hue={hsl.h}
+                      onChange={(hue) => {
+                        const rgb = hslToRgb(hue, hsl.s, hsl.l);
+                        updateColorStop('linear', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
+                      }}
+                    />
+
+                    {/* Opacity Bar */}
+                    <OpacityBar
+                      opacity={stopRgba.a}
+                      color={{ r: stopRgba.r, g: stopRgba.g, b: stopRgba.b }}
+                      onChange={(a) => {
+                        updateColorStop('linear', selectedStopId, { color: rgbaToHex({ ...stopRgba, a }) });
+                      }}
+                    />
+
                     <div className="flex items-center gap-2">
                       <Input
                         type="text"
@@ -735,17 +1094,40 @@ export default function ColorPicker({
                 const selectedStop = radialStops.find(s => s.id === selectedStopId);
                 if (!selectedStop) return null;
                 const stopRgba = parseColor(selectedStop.color);
+                const hsl = rgbToHsl(stopRgba.r, stopRgba.g, stopRgba.b);
                 return (
                   <div className="flex flex-col gap-3">
-                    <div className="w-full" style={{ height: '200px' }}>
-                      <RgbaColorPicker
-                        color={stopRgba}
-                        onChange={(color) => {
-                          updateColorStop('radial', selectedStopId, { color: rgbaToHex(color) });
+                    {/* Saturation/Lightness Picker */}
+                    <div className="w-full relative" style={{ height: '200px' }}>
+                      <SaturationLightnessPicker
+                        hue={hsl.h}
+                        saturation={hsl.s}
+                        lightness={hsl.l}
+                        onChange={(s, l) => {
+                          const rgb = hslToRgb(hsl.h, s, l);
+                          updateColorStop('radial', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
                         }}
-                        style={{ width: '100%', height: '100%' }}
                       />
                     </div>
+
+                    {/* HUE Bar */}
+                    <HueBar
+                      hue={hsl.h}
+                      onChange={(hue) => {
+                        const rgb = hslToRgb(hue, hsl.s, hsl.l);
+                        updateColorStop('radial', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
+                      }}
+                    />
+
+                    {/* Opacity Bar */}
+                    <OpacityBar
+                      opacity={stopRgba.a}
+                      color={{ r: stopRgba.r, g: stopRgba.g, b: stopRgba.b }}
+                      onChange={(a) => {
+                        updateColorStop('radial', selectedStopId, { color: rgbaToHex({ ...stopRgba, a }) });
+                      }}
+                    />
+
                     <div className="flex items-center gap-2">
                       <Input
                         type="text"
