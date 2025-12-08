@@ -13,6 +13,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
 import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
+import ColorPicker from './ColorPicker';
 
 interface TypographyControlsProps {
   layer: Layer | null;
@@ -109,6 +110,12 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
     const sanitized = removeSpaces(value);
     updateDesignProperty('typography', 'lineHeight', sanitized || null);
   };
+
+  // Handle color change
+  const handleColorChange = (value: string) => {
+    const sanitized = removeSpaces(value);
+    updateDesignProperty('typography', 'color', sanitized || null);
+  };
   
   return (
     <div className="py-5">
@@ -170,6 +177,17 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
                 placeholder="16"
               />
             </InputGroup>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3">
+          <Label variant="muted">Color</Label>
+          <div className="col-span-2 *:w-full">
+            <ColorPicker
+              value={color}
+              onChange={handleColorChange}
+              defaultValue="#000000"
+            />
           </div>
         </div>
 
