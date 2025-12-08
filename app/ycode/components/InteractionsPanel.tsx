@@ -1175,7 +1175,7 @@ export default function InteractionsPanel({
                               <TooltipTrigger asChild>
                                 <Icon name="info" className="size-3 opacity-70" />
                               </TooltipTrigger>
-                              <TooltipContent align="start">When triggered (from bottom to top)</TooltipContent>
+                              <TooltipContent align="start">When triggered by scrolling down</TooltipContent>
                             </Tooltip>
                             <Label variant="muted">On trigger</Label>
                           </div>
@@ -1202,9 +1202,9 @@ export default function InteractionsPanel({
                               <TooltipTrigger asChild>
                                 <Icon name="info" className="size-3 opacity-70" />
                               </TooltipTrigger>
-                              <TooltipContent align="start">When triggered from top to bottom</TooltipContent>
+                              <TooltipContent align="start">When triggered by scrolling up</TooltipContent>
                             </Tooltip>
-                            <Label variant="muted">On trigger back</Label>
+                            <Label variant="muted">On re-trigger</Label>
                           </div>
                           <Select
                             value={onLeaveBack}
@@ -1232,9 +1232,9 @@ export default function InteractionsPanel({
                               <TooltipTrigger asChild>
                                 <Icon name="info" className="size-3 opacity-70" />
                               </TooltipTrigger>
-                              <TooltipContent align="start">Triggers leaves the Viewport from the top</TooltipContent>
+                              <TooltipContent align="start">Trigger leaves the ViewPort (top side)</TooltipContent>
                             </Tooltip>
-                            <Label variant="muted">On leave</Label>
+                            <Label variant="muted">On VP leave</Label>
                           </div>
                           <Select
                             value={onLeave}
@@ -1259,9 +1259,9 @@ export default function InteractionsPanel({
                               <TooltipTrigger asChild>
                                 <Icon name="info" className="size-3 opacity-70" />
                               </TooltipTrigger>
-                              <TooltipContent align="start">Triggers re-enters the Viewport from the top</TooltipContent>
+                              <TooltipContent align="start">Trigger re-enters the ViewPort (top side)</TooltipContent>
                             </Tooltip>
-                            <Label variant="muted">On enter back</Label>
+                            <Label variant="muted">On VP re-enter</Label>
                           </div>
                           <Select
                             value={onEnterBack}

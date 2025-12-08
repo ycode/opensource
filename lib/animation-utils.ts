@@ -143,7 +143,7 @@ export const TOGGLE_ACTION_OPTIONS = [
   { value: 'restart', label: 'Restart' },
   { value: 'reset', label: 'Reset' },
   { value: 'complete', label: 'Complete' },
-  { value: 'none', label: 'None' },
+  { value: 'none', label: 'Ignore' },
 ];
 
 export const EASE_OPTIONS = [
