@@ -44,6 +44,7 @@ import { buildPageTree, getNodeIcon, findHomepage, buildSlugPath, buildDynamicPa
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
 import { getCollectionVariable } from '@/lib/layer-utils';
+import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
 
 // 7. Types
 import type { Layer, Page, PageFolder } from '@/types';
@@ -100,6 +101,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   // Track container height for dynamic alignment
   const [containerHeight, setContainerHeight] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
 
   // Store initial canvas height and zoom on load - this sets the iframe height once
   const initialCanvasHeightRef = useRef<number | null>(null);
@@ -158,8 +160,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // Calculate default iframe height to fill canvas (set once on load)
   const defaultCanvasHeight = useMemo(() => {
     if (!containerHeight) return 600;
-    const padding = 64; // 32px top + 32px bottom
-    const calculatedHeight = containerHeight - padding;
+    const calculatedHeight = containerHeight - CANVAS_PADDING;
 
     // Store the initial height when first calculated
     if (initialCanvasHeightRef.current === null) {
@@ -182,9 +183,13 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // Calculate "zoom to fit" level - where scaled height equals container height
   const zoomToFitLevel = useMemo(() => {
     if (!containerHeight || !iframeContentHeight) return 100;
-    const padding = 64; // 32px top + 32px bottom
-    return ((containerHeight - padding) / iframeContentHeight) * 100;
+    return ((containerHeight - CANVAS_PADDING) / iframeContentHeight) * 100;
   }, [containerHeight, iframeContentHeight]);
+
+  // Calculate content height for zoom calculations
+  // Use actual iframe content height for both modes
+  // This allows "Fit height" to zoom based on document content, not viewport
+  const zoomContentHeight = iframeContentHeight;
 
   // Initialize zoom hook
   const {
@@ -200,7 +205,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   } = useZoom({
     containerRef: canvasContainerRef,
     contentWidth: viewportWidth,
-    contentHeight: iframeContentHeight, // Use actual iframe content height
+    contentHeight: zoomContentHeight,
     minZoom: 10,
     maxZoom: 1000,
     zoomStep: 10,
@@ -244,17 +249,40 @@ const CenterCanvas = React.memo(function CenterCanvas({
     }
   }, [viewportMode, autofit]);
 
-  // Track container height for dynamic alignment
+  // Recalculate zoom when content height becomes ready in preview mode
+  const hasRecalculatedForContent = useRef(false);
+  useEffect(() => {
+    // In preview mode, wait for meaningful content height then recalculate once
+    if (isPreviewMode && !hasRecalculatedForContent.current && iframeContentHeight > 600) {
+      hasRecalculatedForContent.current = true;
+      // Delay to ensure everything is ready
+      setTimeout(() => {
+        if (zoomMode === 'autofit') {
+          autofit();
+        } else if (zoomMode === 'fit') {
+          zoomToFit();
+        }
+      }, 150);
+    }
+  }, [isPreviewMode, iframeContentHeight, zoomMode, autofit, zoomToFit]);
+
+  // Reset flag when preview mode changes
+  useEffect(() => {
+    hasRecalculatedForContent.current = false;
+  }, [isPreviewMode]);
+
+  // Track container dimensions for dynamic alignment
   useEffect(() => {
     const container = canvasContainerRef.current;
     if (!container) return;
 
-    const updateContainerHeight = () => {
+    const updateContainerDimensions = () => {
       setContainerHeight(container.clientHeight);
+      setContainerWidth(container.clientWidth);
     };
 
-    updateContainerHeight();
-    const resizeObserver = new ResizeObserver(updateContainerHeight);
+    updateContainerDimensions();
+    const resizeObserver = new ResizeObserver(updateContainerDimensions);
     resizeObserver.observe(container);
 
     return () => resizeObserver.disconnect();
@@ -1111,7 +1139,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               sideOffset={4}
               avoidCollisions={false}
               collisionPadding={0}
-              className="!max-h-[300px]"
+              className="!max-h-[300px] w-38"
             >
               <DropdownMenuItem onClick={zoomIn}>
                 Zoom in
@@ -1127,11 +1155,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 <DropdownMenuShortcut>⌘0</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={zoomToFit}>
-                Zoom to Fit
+                Fit height
                 <DropdownMenuShortcut>⌘1</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={autofit}>
-                Autofit
+                Fit width
                 <DropdownMenuShortcut>⌘2</DropdownMenuShortcut>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -1159,201 +1187,256 @@ const CenterCanvas = React.memo(function CenterCanvas({
         {/* Scrollable container with hidden scrollbars */}
         <div
           ref={scrollContainerRef}
-          className="absolute inset-0 overflow-auto"
+          className={cn(
+            'absolute inset-0',
+            isPreviewMode ? 'overflow-hidden' : 'overflow-auto'
+          )}
           style={{
-            // Hide scrollbars but keep scrolling functionality
-            scrollbarWidth: 'none', // Firefox
-            msOverflowStyle: 'none', // IE/Edge
-            WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
+            // Hide scrollbars but keep scrolling functionality (editor mode only)
+            scrollbarWidth: isPreviewMode ? undefined : 'none', // Firefox
+            msOverflowStyle: isPreviewMode ? undefined : 'none', // IE/Edge
+            WebkitOverflowScrolling: isPreviewMode ? undefined : 'touch', // Smooth scrolling on iOS
           }}
         >
-          {/* Hide scrollbars for Webkit browsers */}
-          <style jsx>{`
-            div::-webkit-scrollbar {
-              display: none;
-            }
-          `}</style>
+          {/* Hide scrollbars for Webkit browsers (editor mode only) */}
+          {!isPreviewMode && (
+            <style jsx>{`
+              div::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
+          )}
 
-          {/* Content wrapper - optimized for smooth zoom without shifts */}
-          <div
-            style={{
-              position: 'relative',
-              minWidth: '100%',
-              minHeight: '100%',
-            }}
-          >
+          {/* Preview mode: Scaled iframe with internal scrolling */}
+          {isPreviewMode ? (
             <div
+              className="w-full h-full flex items-start justify-center"
               style={{
-                // Width: exact scaled size, min 100% to fill viewport horizontally
-                width: `${viewportWidth * (zoom / 100) + 64}px`,
-                minWidth: '100%',
-                // Height: exact viewport height when centered, scaled size when top-aligned
-                height: shouldCenter
-                  ? `${containerHeight}px`  // Use actual viewport height
-                  : `${finalIframeHeight * (zoom / 100) + 64}px`,
-                display: 'flex',
-                // Always use flex-start - we'll handle centering via padding
-                alignItems: 'flex-start',
-                justifyContent: 'center', // Center horizontally
-                // Calculate padding: center based on VISUAL (scaled) height, or fixed 32px when top-aligned
-                paddingTop: shouldCenter
-                  ? `${Math.max(0, (containerHeight - finalIframeHeight * (zoom / 100)) / 2)}px`
-                  : '32px',
-                position: 'relative',
+                padding: `${CANVAS_BORDER}px`,
               }}
             >
               <div
                 className="bg-white shadow-3xl relative"
                 style={{
-                  transform: `scale(${zoom / 100})`,
-                  transformOrigin: 'top center', // Always scale from top
                   width: viewportSizes[viewportMode].width,
-                  height: `${finalIframeHeight}px`,
-                  flexShrink: 0, // Prevent shrinking - maintain fixed size
-                  // GPU optimization hints
+                  // Compensate height for zoom so visual size = 100% after scaling
+                  height: `${((containerHeight - CANVAS_PADDING) / (zoom / 100))}px`,
+                  transform: `scale(${zoom / 100})`,
+                  transformOrigin: 'top center',
                   willChange: 'transform',
                   backfaceVisibility: 'hidden',
-                  // No transition to prevent shifts
                   transition: 'none',
                 }}
               >
-                {/* Iframe Canvas - either editor or preview */}
                 {layers.length > 0 ? (
-                  <>
-                    <iframe
-                      key={isPreviewMode ? `preview-${currentPageId}` : `editor-${currentPageId}`}
-                      ref={iframeRef}
-                      src={isPreviewMode ? previewUrl : '/canvas.html'}
-                      className="w-full h-full border-0"
-                      style={{ height: `${finalIframeHeight}px` }}
-                      title={isPreviewMode ? 'Preview' : 'Canvas Preview'}
-                    />
-                    {/* Empty overlay when only Body with no children (only in editor mode) */}
-                    {!isPreviewMode && isCanvasEmpty && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                        <div className="pointer-events-auto">
-                          <Empty className="bg-transparent border-0 text-neutral-900">
-                            <EmptyContent>
-                              <EmptyMedia variant="icon" className="size-9 mb-0 bg-neutral-900/5">
-                                <Icon name="layout" className="size-3.5 text-neutral-900" />
-                              </EmptyMedia>
-                              <EmptyHeader>
-                                <EmptyTitle className="text-sm">Start building</EmptyTitle>
-                                <EmptyDescription>
-                                  Add your first block to begin creating your page.
-                                </EmptyDescription>
-                              </EmptyHeader>
-                              <Button
-                                onClick={() => {
-                                  // Open ElementLibrary with layouts tab active
-                                  window.dispatchEvent(new CustomEvent('toggleElementLibrary', {
-                                    detail: { tab: 'layouts' }
-                                  }));
-                                }}
-                                size="sm"
-                                variant="secondary"
-                                className="bg-neutral-900/5 hover:bg-neutral-900/10 text-neutral-900"
-                              >
-                                <Icon name="plus" />
-                                Add layout
-                              </Button>
-                            </EmptyContent>
-                          </Empty>
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  <iframe
+                    key={`preview-${currentPageId}`}
+                    ref={iframeRef}
+                    src={previewUrl}
+                    className="w-full h-full border-0"
+                    title="Preview"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center p-12">
-                    <div className="text-center max-w-md relative">
+                    <div className="text-center max-w-md">
                       <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
                         <Icon name="layout" className="w-10 h-10 text-blue-500" />
                       </div>
                       <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                        Start building
+                        No content
                       </h2>
-                      <p className="text-gray-600 mb-8">
-                        Add your first block to begin creating your page.
+                      <p className="text-gray-600">
+                        This page has no content to preview.
                       </p>
-                      <div className="relative inline-block">
-                        <Button
-                          onClick={() => setShowAddBlockPanel(!showAddBlockPanel)}
-                          size="lg"
-                          className="gap-2"
-                        >
-                          <Icon name="plus" className="w-5 h-5" />
-                          Add Block
-                        </Button>
-
-                        {/* Add Block Panel */}
-                        {showAddBlockPanel && currentPageId && (
-                          <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 bg-white border border-gray-200 rounded-lg shadow-2xl min-w-[240px]">
-                            <div className="p-2">
-                              <div className="text-xs text-gray-500 px-3 py-2 mb-1 font-medium">Choose a block</div>
-
-                              <Button
-                                onClick={() => {
-                                  // Always add inside Body container
-                                  addLayerFromTemplate(currentPageId, 'body', 'div');
-                                  setShowAddBlockPanel(false);
-                                }}
-                                variant="ghost"
-                                className="w-full justify-start gap-3 px-3 py-3 h-auto"
-                              >
-                                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
-                                  <Icon name="container" className="w-5 h-5 text-gray-700" />
-                                </div>
-                                <div className="text-left">
-                                  <div className="text-sm font-semibold text-gray-900">Div</div>
-                                  <div className="text-xs text-gray-500">Container element</div>
-                                </div>
-                              </Button>
-
-                              <Button
-                                onClick={() => {
-                                  // Always add inside Body container
-                                  addLayerFromTemplate(currentPageId, 'body', 'heading');
-                                  setShowAddBlockPanel(false);
-                                }}
-                                variant="ghost"
-                                className="w-full justify-start gap-3 px-3 py-3 h-auto"
-                              >
-                                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
-                                  <Icon name="heading" className="w-5 h-5 text-gray-700" />
-                                </div>
-                                <div className="text-left">
-                                  <div className="text-sm font-semibold text-gray-900">Heading</div>
-                                  <div className="text-xs text-gray-500">Title text</div>
-                                </div>
-                              </Button>
-
-                              <Button
-                                onClick={() => {
-                                  // Always add inside Body container
-                                  addLayerFromTemplate(currentPageId, 'body', 'p');
-                                  setShowAddBlockPanel(false);
-                                }}
-                                variant="ghost"
-                                className="w-full justify-start gap-3 px-3 py-3 h-auto"
-                              >
-                                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
-                                  <Icon name="type" className="w-5 h-5 text-gray-700" />
-                                </div>
-                                <div className="text-left">
-                                  <div className="text-sm font-semibold text-gray-900">Paragraph</div>
-                                  <div className="text-xs text-gray-500">Body text</div>
-                                </div>
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
                 )}
               </div>
             </div>
-          </div>
+          ) : (
+            /* Editor mode: Scaled canvas with zoom controls */
+            <div
+              style={{
+                position: 'relative',
+                minWidth: '100%',
+                minHeight: '100%',
+              }}
+            >
+              <div
+                style={{
+                  // Width: exact scaled size, min 100% to fill viewport horizontally
+                  width: `${viewportWidth * (zoom / 100) + CANVAS_PADDING}px`,
+                  minWidth: '100%',
+                  // Height: exact viewport height when centered, scaled size when top-aligned
+                  height: shouldCenter
+                    ? `${containerHeight}px`  // Use actual viewport height
+                    : `${finalIframeHeight * (zoom / 100) + CANVAS_PADDING}px`,
+                  display: 'flex',
+                  // Always use flex-start - we'll handle centering via padding
+                  alignItems: 'flex-start',
+                  justifyContent: 'center', // Center horizontally
+                  // Calculate padding: center based on VISUAL (scaled) height, or fixed border when top-aligned
+                  paddingTop: shouldCenter
+                    ? `${Math.max(0, (containerHeight - finalIframeHeight * (zoom / 100)) / 2)}px`
+                    : `${CANVAS_BORDER}px`,
+                  position: 'relative',
+                }}
+              >
+                <div
+                  className="bg-white shadow-3xl relative"
+                  style={{
+                    transform: `scale(${zoom / 100})`,
+                    transformOrigin: 'top center', // Always scale from top
+                    width: viewportSizes[viewportMode].width,
+                    height: `${finalIframeHeight}px`,
+                    flexShrink: 0, // Prevent shrinking - maintain fixed size
+                    // GPU optimization hints
+                    willChange: 'transform',
+                    backfaceVisibility: 'hidden',
+                    // No transition to prevent shifts
+                    transition: 'none',
+                  }}
+                >
+                  {/* Iframe Canvas - either editor or preview */}
+                  {layers.length > 0 ? (
+                    <>
+                      <iframe
+                        key={`editor-${currentPageId}`}
+                        ref={iframeRef}
+                        src="/canvas.html"
+                        className="w-full h-full border-0"
+                        style={{
+                          height: `${finalIframeHeight}px`,
+                        }}
+                        title="Canvas Preview"
+                      />
+                      {/* Empty overlay when only Body with no children */}
+                      {isCanvasEmpty && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                          <div className="pointer-events-auto">
+                            <Empty className="bg-transparent border-0 text-neutral-900">
+                              <EmptyContent>
+                                <EmptyMedia variant="icon" className="size-9 mb-0 bg-neutral-900/5">
+                                  <Icon name="layout" className="size-3.5 text-neutral-900" />
+                                </EmptyMedia>
+                                <EmptyHeader>
+                                  <EmptyTitle className="text-sm">Start building</EmptyTitle>
+                                  <EmptyDescription>
+                                    Add your first block to begin creating your page.
+                                  </EmptyDescription>
+                                </EmptyHeader>
+                                <Button
+                                  onClick={() => {
+                                    // Open ElementLibrary with layouts tab active
+                                    window.dispatchEvent(new CustomEvent('toggleElementLibrary', {
+                                      detail: { tab: 'layouts' }
+                                    }));
+                                  }}
+                                  size="sm"
+                                  variant="secondary"
+                                  className="bg-neutral-900/5 hover:bg-neutral-900/10 text-neutral-900"
+                                >
+                                  <Icon name="plus" />
+                                  Add layout
+                                </Button>
+                              </EmptyContent>
+                            </Empty>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center p-12">
+                      <div className="text-center max-w-md relative">
+                        <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
+                          <Icon name="layout" className="w-10 h-10 text-blue-500" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-3">
+                          Start building
+                        </h2>
+                        <p className="text-gray-600 mb-8">
+                          Add your first block to begin creating your page.
+                        </p>
+                        <div className="relative inline-block">
+                          <Button
+                            onClick={() => setShowAddBlockPanel(!showAddBlockPanel)}
+                            size="lg"
+                            className="gap-2"
+                          >
+                            <Icon name="plus" className="w-5 h-5" />
+                            Add Block
+                          </Button>
+
+                          {/* Add Block Panel */}
+                          {showAddBlockPanel && currentPageId && (
+                            <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 bg-white border border-gray-200 rounded-lg shadow-2xl min-w-[240px]">
+                              <div className="p-2">
+                                <div className="text-xs text-gray-500 px-3 py-2 mb-1 font-medium">Choose a block</div>
+
+                                <Button
+                                  onClick={() => {
+                                    // Always add inside Body container
+                                    addLayerFromTemplate(currentPageId, 'body', 'div');
+                                    setShowAddBlockPanel(false);
+                                  }}
+                                  variant="ghost"
+                                  className="w-full justify-start gap-3 px-3 py-3 h-auto"
+                                >
+                                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                                    <Icon name="container" className="w-5 h-5 text-gray-700" />
+                                  </div>
+                                  <div className="text-left">
+                                    <div className="text-sm font-semibold text-gray-900">Div</div>
+                                    <div className="text-xs text-gray-500">Container element</div>
+                                  </div>
+                                </Button>
+
+                                <Button
+                                  onClick={() => {
+                                    // Always add inside Body container
+                                    addLayerFromTemplate(currentPageId, 'body', 'heading');
+                                    setShowAddBlockPanel(false);
+                                  }}
+                                  variant="ghost"
+                                  className="w-full justify-start gap-3 px-3 py-3 h-auto"
+                                >
+                                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                                    <Icon name="heading" className="w-5 h-5 text-gray-700" />
+                                  </div>
+                                  <div className="text-left">
+                                    <div className="text-sm font-semibold text-gray-900">Heading</div>
+                                    <div className="text-xs text-gray-500">Title text</div>
+                                  </div>
+                                </Button>
+
+                                <Button
+                                  onClick={() => {
+                                    // Always add inside Body container
+                                    addLayerFromTemplate(currentPageId, 'body', 'p');
+                                    setShowAddBlockPanel(false);
+                                  }}
+                                  variant="ghost"
+                                  className="w-full justify-start gap-3 px-3 py-3 h-auto"
+                                >
+                                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                                    <Icon name="type" className="w-5 h-5 text-gray-700" />
+                                  </div>
+                                  <div className="text-left">
+                                    <div className="text-sm font-semibold text-gray-900">Paragraph</div>
+                                    <div className="text-xs text-gray-500">Body text</div>
+                                  </div>
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
