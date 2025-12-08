@@ -71,21 +71,22 @@ export default function ConditionalVisibilitySettings({
 
         <div className="flex flex-col bg-muted rounded-lg">
 
-          <header className="p-2 flex items-center gap-1.5">
-            <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50 hover:bg-secondary/100">
-              <Icon name="text" className="size-2.5 opacity-60" />
-            </div>
-            <Label variant="muted">Homepage</Label>
+          <ul className="p-2 flex flex-col gap-2">
 
-            <div className="ml-auto -my-1 -mr-0.5">
-              <Button size="xs" variant="ghost">
-                <Icon name="x" />
-              </Button>
-            </div>
-          </header>
-
-          <ul className="px-2 pb-2 flex flex-col gap-2">
             <li className="*:w-full flex flex-col gap-2">
+
+              <header className="flex items-center gap-1.5">
+                <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50 hover:bg-secondary/100">
+                  <Icon name="text" className="size-2.5 opacity-60" />
+                </div>
+                <Label variant="muted">Homepage</Label>
+
+                <div className="ml-auto -my-1 -mr-0.5">
+                  <Button size="xs" variant="ghost">
+                    <Icon name="x" />
+                  </Button>
+                </div>
+              </header>
 
               <Select>
                 <SelectTrigger className="w-[180px]">
@@ -106,20 +107,26 @@ export default function ConditionalVisibilitySettings({
               <Input placeholder="Enter value..." />
 
             </li>
-            <li className="flex items-center gap-2">
-            <Label variant="muted" className="text-[10px]">Or</Label>
-            <hr className="flex-1" />
-            <Button
-              variant="ghost"
-              size="xs"
-              className="size-5"
-            >
-              <div>
-                <Icon name="plus" className="!size-2.5" />
-              </div>
-            </Button>
-          </li>
+
+            <li className="flex items-center gap-2 h-6">
+              <Label variant="muted" className="text-[10px]">Or</Label>
+              <hr className="flex-1" />
+            </li>
+
             <li className="*:w-full flex flex-col gap-2">
+
+              <header className="flex items-center gap-1.5">
+                <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50 hover:bg-secondary/100">
+                  <Icon name="text" className="size-2.5 opacity-60" />
+                </div>
+                <Label variant="muted">Homepage</Label>
+
+                <div className="ml-auto -my-1 -mr-0.5">
+                  <Button size="xs" variant="ghost">
+                    <Icon name="x" />
+                  </Button>
+                </div>
+              </header>
 
               <Select>
                 <SelectTrigger className="w-[180px]">
@@ -140,6 +147,32 @@ export default function ConditionalVisibilitySettings({
               <Input placeholder="Enter value..." />
 
             </li>
+
+            <li className="flex items-center gap-2 h-6">
+              <Label variant="muted" className="text-[10px]">Or</Label>
+              <hr className="flex-1" />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="size-5"
+                  >
+                    <div>
+                      <Icon name="plus" className="!size-2.5" />
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="!max-h-[300px]"
+                >
+                  <DropdownMenuItem>Name</DropdownMenuItem>
+                  <DropdownMenuItem>Slug</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </li>
+
           </ul>
 
         </div>
