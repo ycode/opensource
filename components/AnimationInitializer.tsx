@@ -239,36 +239,20 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
 
         case 'scroll-into-view': {
           const scrollStart = interaction.timeline?.scrollStart || 'top 80%';
-          const toggleActions = interaction.timeline?.toggleActions;
+          const toggleActions = interaction.timeline?.toggleActions || 'play none none none';
 
-          // Use toggleActions if provided, otherwise use legacy onEnter/onLeaveBack
-          if (toggleActions) {
-            // toggleActions requires timeline upfront
-            const timeline = getTimeline();
-            if (!timeline) break;
+          // toggleActions requires timeline upfront
+          const timeline = getTimeline();
+          if (!timeline) break;
 
-            const scrollTrigger = ScrollTrigger.create({
-              trigger: triggerElement,
-              start: scrollStart,
-              toggleActions,
-              animation: timeline as any, // Type assertion for GSAP animation property
-            });
-            cleanupRef.current.push(() => scrollTrigger.kill());
-          } else {
-            // Legacy callback approach
-            const scrollTrigger = ScrollTrigger.create({
-              trigger: triggerElement,
-              start: scrollStart,
-              onEnter: () => getTimeline()?.play(),
-              onLeaveBack: () => {
-                if (interaction.timeline?.yoyo) {
-                  timelinesRef.current.get(interaction.id)?.reverse();
-                }
-              },
-            });
-            cleanupRef.current.push(() => scrollTrigger.kill());
-          }
+          const scrollTrigger = ScrollTrigger.create({
+            trigger: triggerElement,
+            start: scrollStart,
+            toggleActions,
+            animation: timeline as any,
+          });
 
+          cleanupRef.current.push(() => scrollTrigger.kill());
           break;
         }
 
