@@ -514,11 +514,11 @@
     requestAnimationFrame(() => {
       // Measure actual content inside the Body layer (ignoring Body's min-height)
       let contentHeight = 0;
-      
+
       function measureElement(el) {
         // Skip the Body layer itself - measure its children instead
         const isBody = el.getAttribute('data-layer-id') === 'body';
-        
+
         if (!isBody) {
           const rect = el.getBoundingClientRect();
           const bottom = rect.bottom;
@@ -526,21 +526,21 @@
             contentHeight = bottom;
           }
         }
-        
+
         // Always measure children to find deepest content
         for (let i = 0; i < el.children.length; i++) {
           measureElement(el.children[i]);
         }
       }
-      
+
       // Measure all children of root
       for (let i = 0; i < root.children.length; i++) {
         measureElement(root.children[i]);
       }
-      
+
       // Minimum height of 100 to avoid zero height
       contentHeight = Math.max(contentHeight, 100);
-      
+
       sendToParent('CONTENT_HEIGHT', { height: Math.ceil(contentHeight) });
     });
   }
@@ -587,7 +587,7 @@
         root.appendChild(element);
       }
     });
-    
+
     // Report content height after render
     reportContentHeight();
   }
@@ -754,6 +754,11 @@
     // Click to select
     element.addEventListener('click', function(e) {
       e.stopPropagation();
+
+      // Ensure iframe can receive keyboard events by focusing the body
+      if (document.body && document.body !== document.activeElement) {
+        document.body.focus();
+      }
 
       // If this layer is part of a component (and we're NOT editing it), select the component root instead
       const componentRootId = componentMap[layer.id];
@@ -946,12 +951,12 @@
             return; // Don't start inline editing
           }
         }
-          
+
         // Not in collection layer - check if on dynamic page
         if (pageCollectionItem && pageCollectionFields && pageCollectionFields.length > 0) {
           const pageCollectionId = pageCollectionItem.collection_id;
           const pageItemId = pageCollectionItem.id;
-            
+
           if (pageCollectionId && pageItemId) {
             // Notify parent to open collection item sheet for page item
             sendToParent('OPEN_COLLECTION_ITEM_SHEET', {
@@ -1152,17 +1157,33 @@
   function setupZoomListeners() {
     // Keyboard shortcuts for zoom - capture and forward to parent
     document.addEventListener('keydown', function(e) {
+      // Delete/Backspace - delete selected layer
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Check if user is typing in an input/textarea
+        const target = e.target;
+        const isInputFocused = target.tagName === 'INPUT' ||
+                               target.tagName === 'TEXTAREA' ||
+                               target.isContentEditable;
+
+        // Only delete if not typing and there's a selected layer
+        if (!isInputFocused && selectedLayerId) {
+          e.preventDefault();
+          sendToParent('DELETE_LAYER', null);
+          return;
+        }
+      }
+
       // Check if Ctrl (Windows/Linux) or Cmd (Mac) is pressed
       const isCmdOrCtrl = e.ctrlKey || e.metaKey;
-      
+
       if (!isCmdOrCtrl) return;
 
       // Check for zoom shortcuts
-      const isZoomShortcut = 
-        e.key === '+' || 
-        e.key === '=' || 
-        e.key === '-' || 
-        e.key === '_' || 
+      const isZoomShortcut =
+        e.key === '+' ||
+        e.key === '=' ||
+        e.key === '-' ||
+        e.key === '_' ||
         e.key === '0' ||
         e.key === '1' ||
         e.key === '2';
@@ -1209,13 +1230,13 @@
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        
+
         // Send zoom delta to parent
         // Positive deltaY means zoom out, negative means zoom in
         // We'll send a normalized delta that the parent can interpret
         const delta = -e.deltaY; // Invert so positive = zoom in
         sendToParent('ZOOM_GESTURE', { delta });
-        
+
         return false; // Extra prevention
       }
     }, { passive: false, capture: true }); // passive: false allows preventDefault, capture: true for early interception
@@ -1225,7 +1246,7 @@
       e.preventDefault();
       e.stopPropagation();
     }, { passive: false, capture: true });
-    
+
     document.addEventListener('gesturechange', function(e) {
       e.preventDefault();
       e.stopPropagation();
@@ -1233,7 +1254,7 @@
 
     // Track pinch gesture state
     let lastTouchDistance = null;
-    
+
     // Touch start - track initial distance
     document.addEventListener('touchstart', function(e) {
       if (e.touches.length === 2) {
@@ -1245,7 +1266,7 @@
         );
       }
     }, { passive: true });
-    
+
     // Touch move - detect pinch
     document.addEventListener('touchmove', function(e) {
       if (e.touches.length === 2 && lastTouchDistance !== null) {
@@ -1255,18 +1276,18 @@
           touch2.clientX - touch1.clientX,
           touch2.clientY - touch1.clientY
         );
-        
+
         // Calculate delta
         const delta = (currentDistance - lastTouchDistance) * 2; // Scale for responsiveness
-        
+
         // Send to parent
         sendToParent('ZOOM_GESTURE', { delta });
-        
+
         // Update for next frame
         lastTouchDistance = currentDistance;
       }
     }, { passive: true });
-    
+
     // Touch end - reset
     document.addEventListener('touchend', function(e) {
       if (e.touches.length < 2) {
@@ -1277,7 +1298,14 @@
 
   // Initialize - notify parent that iframe is ready
   sendToParent('READY', null);
-  
+
+  // Make body focusable to receive keyboard events
+  if (document.body) {
+    document.body.setAttribute('tabindex', '-1');
+    // Focus the body initially so keyboard events work immediately
+    document.body.focus();
+  }
+
   // Setup zoom listeners
   setupZoomListeners();
 

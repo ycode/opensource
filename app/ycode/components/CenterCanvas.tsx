@@ -112,10 +112,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const addLayerFromTemplate = usePagesStore((state) => state.addLayerFromTemplate);
   const updateLayer = usePagesStore((state) => state.updateLayer);
+  const deleteLayer = usePagesStore((state) => state.deleteLayer);
+  const deleteLayers = usePagesStore((state) => state.deleteLayers);
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
 
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
+  const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds);
+  const clearSelection = useEditorStore((state) => state.clearSelection);
   const activeUIState = useEditorStore((state) => state.activeUIState);
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
   const setCurrentPageId = useEditorStore((state) => state.setCurrentPageId);
@@ -813,6 +817,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
           // Disable layer selection in preview mode
           if (!isPreviewMode) {
             setSelectedLayerId(message.payload.layerId);
+            // Focus the iframe so it can receive keyboard events
+            if (iframeRef.current) {
+              iframeRef.current.focus();
+            }
           }
           break;
 
@@ -886,6 +894,66 @@ const CenterCanvas = React.memo(function CenterCanvas({
           setReportedContentHeight(message.payload.height);
           break;
 
+        case 'DELETE_LAYER':
+          // Handle layer deletion from iframe (Delete/Backspace key)
+          if (selectedLayerId && currentPageId) {
+            // Check if multi-select
+            if (selectedLayerIds.length > 1) {
+              // Delete all selected layers
+              deleteLayers(currentPageId, selectedLayerIds);
+              clearSelection();
+            } else {
+              // Single layer deletion
+              const draft = draftsByPageId[currentPageId];
+              if (draft) {
+                // Helper to find next layer to select
+                const findNextLayerToSelect = (layers: Layer[], layerIdToDelete: string): string | null => {
+                  const findLayerContext = (
+                    tree: Layer[],
+                    targetId: string,
+                    parent: Layer | null = null
+                  ): { layer: Layer; parent: Layer | null; siblings: Layer[] } | null => {
+                    for (let i = 0; i < tree.length; i++) {
+                      const node = tree[i];
+                      if (node.id === targetId) {
+                        return { layer: node, parent, siblings: tree };
+                      }
+                      if (node.children) {
+                        const found = findLayerContext(node.children, targetId, node);
+                        if (found) return found;
+                      }
+                    }
+                    return null;
+                  };
+
+                  const context = findLayerContext(layers, layerIdToDelete);
+                  if (!context) return null;
+
+                  const { parent, siblings } = context;
+                  const currentIndex = siblings.findIndex(s => s.id === layerIdToDelete);
+
+                  // Try next sibling
+                  if (currentIndex < siblings.length - 1) {
+                    return siblings[currentIndex + 1].id;
+                  }
+
+                  // Try previous sibling
+                  if (currentIndex > 0) {
+                    return siblings[currentIndex - 1].id;
+                  }
+
+                  // Select parent (or null if no parent)
+                  return parent ? parent.id : null;
+                };
+
+                const nextLayerId = findNextLayerToSelect(draft.layers, selectedLayerId);
+                deleteLayer(currentPageId, selectedLayerId);
+                setSelectedLayerId(nextLayerId);
+              }
+            }
+          }
+          break;
+
         case 'DRAG_START':
         case 'DRAG_OVER':
         case 'DROP':
@@ -897,7 +965,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     const cleanup = listenToIframe(handleIframeMessage);
     return cleanup;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPageId, editingComponentId, componentDrafts, setSelectedLayerId, updateLayer, handleZoomGesture, resetZoom, zoomToFit, autofit]);
+  }, [currentPageId, editingComponentId, componentDrafts, setSelectedLayerId, selectedLayerIds, updateLayer, deleteLayer, deleteLayers, clearSelection, draftsByPageId, handleZoomGesture, resetZoom, zoomToFit, autofit]);
 
   // Add zoom gesture handlers for preview mode (when iframe doesn't have them)
   useEffect(() => {
@@ -1235,6 +1303,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                     src={previewUrl}
                     className="w-full h-full border-0"
                     title="Preview"
+                    tabIndex={-1}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center p-12">
@@ -1309,6 +1378,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                           height: `${finalIframeHeight}px`,
                         }}
                         title="Canvas Preview"
+                        tabIndex={-1}
                       />
                       {/* Empty overlay when only Body with no children */}
                       {isCanvasEmpty && (
