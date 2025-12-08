@@ -135,6 +135,17 @@ export const START_POSITION_OPTIONS: Record<string, { short: string; long: strin
   'at': { short: 'At', long: 'At a specific time' },
 };
 
+export const TOGGLE_ACTION_OPTIONS = [
+  { value: 'play', label: 'Play' },
+  { value: 'pause', label: 'Pause' },
+  { value: 'resume', label: 'Resume' },
+  { value: 'reverse', label: 'Reverse' },
+  { value: 'restart', label: 'Restart' },
+  { value: 'reset', label: 'Reset' },
+  { value: 'complete', label: 'Complete' },
+  { value: 'none', label: 'None' },
+];
+
 export const EASE_OPTIONS = [
   { value: 'none', label: 'Linear', icon: 'ease-linear' },
   { value: 'power1.in', label: 'Ease in', icon: 'ease-in' },

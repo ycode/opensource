@@ -39,6 +39,7 @@ import {
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Slider } from '@/components/ui/slider';
+import { Separator } from '@/components/ui/separator';
 
 // 3. Utils
 import { cn, generateId } from '@/lib/utils';
@@ -48,6 +49,7 @@ import {
   TRIGGER_LABELS,
   START_POSITION_OPTIONS,
   EASE_OPTIONS,
+  TOGGLE_ACTION_OPTIONS,
   calculateTweenStartTime,
   toGsapValue,
   getTweenProperties,
@@ -520,6 +522,7 @@ export default function InteractionsPanel({
           // Add scroll-specific defaults
           ...(trigger === 'scroll-into-view' && {
             scrollStart: 'top 80%',
+            toggleActions: 'play none none none',
           }),
           ...(trigger === 'while-scrolling' && {
             scrollStart: 'top bottom',
@@ -946,7 +949,7 @@ export default function InteractionsPanel({
             </div>
 
             {/* Loop - only show for non-scroll triggers */}
-            {selectedInteraction.trigger !== 'while-scrolling' && (
+            {['click', 'hover'].includes(selectedInteraction.trigger) && (
               <div className="grid grid-cols-3 items-center">
                 <Label variant="muted">Effect</Label>
                 <div className="col-span-2">
@@ -1147,6 +1150,141 @@ export default function InteractionsPanel({
               </>
             )}
 
+            {/* Toggle Actions - only show for scroll-into-view */}
+            {selectedInteraction.trigger === 'scroll-into-view' && (
+              <>
+                {(() => {
+                  const toggleActions = selectedInteraction.timeline?.toggleActions || 'play none none none';
+                  const [onEnter, onLeave, onEnterBack, onLeaveBack] = toggleActions.split(' ');
+
+                  const updateToggleAction = (index: number, value: string) => {
+                    const actions = toggleActions.split(' ');
+                    actions[index] = value;
+                    handleUpdateTimeline({ toggleActions: actions.join(' ') });
+                  };
+
+                  return (
+                    <>
+                      <Separator className="my-1.5" />
+
+                      {/* Row 1: On trigger + On trigger back */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Icon name="info" className="size-3 opacity-70" />
+                              </TooltipTrigger>
+                              <TooltipContent align="start">When triggered (from bottom to top)</TooltipContent>
+                            </Tooltip>
+                            <Label variant="muted">On trigger</Label>
+                          </div>
+                          <Select
+                            value={onEnter}
+                            onValueChange={(value) => updateToggleAction(0, value)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TOGGLE_ACTION_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Icon name="info" className="size-3 opacity-70" />
+                              </TooltipTrigger>
+                              <TooltipContent align="start">When triggered from top to bottom</TooltipContent>
+                            </Tooltip>
+                            <Label variant="muted">On trigger back</Label>
+                          </div>
+                          <Select
+                            value={onLeaveBack}
+                            onValueChange={(value) => updateToggleAction(3, value)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TOGGLE_ACTION_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Row 2: On leave + On enter back */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Icon name="info" className="size-3 opacity-70" />
+                              </TooltipTrigger>
+                              <TooltipContent align="start">Triggers leaves the Viewport from the top</TooltipContent>
+                            </Tooltip>
+                            <Label variant="muted">On leave</Label>
+                          </div>
+                          <Select
+                            value={onLeave}
+                            onValueChange={(value) => updateToggleAction(1, value)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TOGGLE_ACTION_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Icon name="info" className="size-3 opacity-70" />
+                              </TooltipTrigger>
+                              <TooltipContent align="start">Triggers re-enters the Viewport from the top</TooltipContent>
+                            </Tooltip>
+                            <Label variant="muted">On enter back</Label>
+                          </div>
+                          <Select
+                            value={onEnterBack}
+                            onValueChange={(value) => updateToggleAction(2, value)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TOGGLE_ACTION_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </>
+            )}
           </div>
         </div>
       )}
