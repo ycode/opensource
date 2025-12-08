@@ -88,11 +88,11 @@ export default function HeaderBar({
   const router = useRouter();
   const pathname = usePathname();
   const pageDropdownRef = useRef<HTMLDivElement>(null);
-  const { editingComponentId, returnToPageId, currentPageCollectionItemId, currentPageId: storeCurrentPageId } = useEditorStore();
+  const { editingComponentId, returnToPageId, currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode } = useEditorStore();
   const { getComponentById } = useComponentsStore();
   const { folders, pages: storePages } = usePagesStore();
   const { items } = useCollectionsStore();
-  const { navigateToLayers } = useEditorUrl();
+  const { navigateToLayers, updateQueryParams } = useEditorUrl();
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [showPublishPopover, setShowPublishPopover] = useState(false);
   const [changesCount, setChangesCount] = useState(0);
@@ -556,13 +556,20 @@ export default function HeaderBar({
           size="sm"
           variant="secondary"
           onClick={() => {
-            if (currentPage && previewUrl) {
-              window.open(previewUrl, '_blank');
+            if (isPreviewMode) {
+              // Exit preview mode
+              setPreviewMode(false);
+              updateQueryParams({ preview: undefined });
+            } else {
+              // Enter preview mode
+              setPreviewMode(true);
+              updateQueryParams({ preview: 'true' });
             }
           }}
           disabled={!currentPage || isSaving}
+          className={isPreviewMode ? 'bg-black text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90' : ''}
         >
-          Preview
+          <Icon name="preview" />
         </Button>
 
         <Popover open={showPublishPopover} onOpenChange={setShowPublishPopover}>
