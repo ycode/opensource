@@ -7,6 +7,7 @@ import { useDesignSync } from '@/hooks/use-design-sync';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
+import ColorPicker from './ColorPicker';
 
 interface BackgroundsControlsProps {
   layer: Layer | null;
@@ -80,10 +81,10 @@ export default function BackgroundsControls({ layer, onLayerUpdate }: Background
         <div className="grid grid-cols-3">
           <Label variant="muted">Color</Label>
           <div className="col-span-2 *:w-full">
-            <Input
-              type="color"
-              value={backgroundColor || '#ffffff'}
-              onChange={(e) => handleBackgroundColorChange(e.target.value)}
+            <ColorPicker
+              value={backgroundColor}
+              onChange={handleBackgroundColorChange}
+              defaultValue="#ffffff"
             />
           </div>
         </div>
