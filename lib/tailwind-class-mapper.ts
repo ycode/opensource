@@ -152,7 +152,7 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   color: /^text-(?!(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl|left|center|right|justify|start|end)(?:\s|$)).+$/,
   
   // Backgrounds
-  backgroundColor: /^bg-(?!(?:auto|cover|contain|bottom|center|left|left-bottom|left-top|right|right-bottom|right-top|top|repeat|no-repeat|repeat-x|repeat-y|repeat-round|repeat-space|none|gradient-to-t|gradient-to-tr|gradient-to-r|gradient-to-br|gradient-to-b|gradient-to-bl|gradient-to-l|gradient-to-tl)$)((\w+)(-\d+)?|\[.+\])$/,
+  backgroundColor: /^bg-(?!(?:auto|cover|contain|bottom|center|left|left-bottom|left-top|right|right-bottom|right-top|top|repeat|no-repeat|repeat-x|repeat-y|repeat-round|repeat-space|none|gradient-to-t|gradient-to-tr|gradient-to-r|gradient-to-br|gradient-to-b|gradient-to-bl|gradient-to-l|gradient-to-tl)$)((\w+)(-\d+)?|\[.+\](?:\/\d+)?)$/,
   backgroundSize: /^bg-(auto|cover|contain|\[.+\])$/,
   backgroundPosition: /^bg-(bottom|center|left|left-bottom|left-top|right|right-bottom|right-top|top|\[.+\])$/,
   backgroundRepeat: /^bg-(repeat|no-repeat|repeat-x|repeat-y|repeat-round|repeat-space)$/,
@@ -436,6 +436,11 @@ export function propertyToClass(
   if (category === 'backgrounds') {
     switch (property) {
       case 'backgroundColor':
+        // Handle hex with opacity: #hex/opacity -> bg-[#hex]/opacity
+        const hexWithOpacityMatch = value.match(/^(#[0-9a-fA-F]{6})\/(\d+)$/);
+        if (hexWithOpacityMatch) {
+          return `bg-[${hexWithOpacityMatch[1]}]/${hexWithOpacityMatch[2]}`;
+        }
         // Gradients and hex/rgb colors need brackets for arbitrary values
         if (value.match(/^#|^rgb|gradient\(/)) {
           return `bg-[${value}]`;

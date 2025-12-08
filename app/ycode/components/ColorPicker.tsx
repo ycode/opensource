@@ -26,15 +26,30 @@ interface ColorPickerProps {
 }
 
 // Helper to convert hex/rgba to RgbaColor object
+// Supports formats: #hex, #hex/opacity, #hexhex (8-char with alpha), rgba(...)
 function parseColor(colorString: string): { r: number; g: number; b: number; a: number } {
   if (!colorString) return { r: 255, g: 255, b: 255, a: 1 };
 
-  // Hex color
+  // Hex color with opacity suffix: #hex/opacity
+  const hexWithOpacityMatch = colorString.match(/^#([0-9a-fA-F]{6})\/(\d+)$/);
+  if (hexWithOpacityMatch) {
+    const hex = hexWithOpacityMatch[1];
+    const opacity = parseInt(hexWithOpacityMatch[2]) / 100;
+    return {
+      r: parseInt(hex.slice(0, 2), 16),
+      g: parseInt(hex.slice(2, 4), 16),
+      b: parseInt(hex.slice(4, 6), 16),
+      a: opacity,
+    };
+  }
+
+  // Hex color (6 or 8 chars)
   if (colorString.startsWith('#')) {
     const hex = colorString.slice(1);
     const r = parseInt(hex.slice(0, 2), 16);
     const g = parseInt(hex.slice(2, 4), 16);
     const b = parseInt(hex.slice(4, 6), 16);
+    // Support old 8-char format for backward compatibility
     const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
     return { r, g, b, a };
   }
@@ -53,16 +68,44 @@ function parseColor(colorString: string): { r: number; g: number; b: number; a: 
   return { r: 255, g: 255, b: 255, a: 1 };
 }
 
-// Helper to convert RgbaColor to hex string
+// Helper to convert RgbaColor to hex string (always 6 chars, no alpha)
+// Opacity is handled separately via Tailwind opacity syntax: bg-[#hex]/opacity
 function rgbaToHex(rgba: { r: number; g: number; b: number; a: number }): string {
   const r = Math.round(rgba.r).toString(16).padStart(2, '0');
   const g = Math.round(rgba.g).toString(16).padStart(2, '0');
   const b = Math.round(rgba.b).toString(16).padStart(2, '0');
+  const hex = `#${r}${g}${b}`;
+  
+  // If opacity is less than 1, append it as /opacity (0-100)
   if (rgba.a < 1) {
-    const a = Math.round(rgba.a * 255).toString(16).padStart(2, '0');
-    return `#${r}${g}${b}${a}`;
+    const opacityPercent = Math.round(rgba.a * 100);
+    return `${hex}/${opacityPercent}`;
   }
-  return `#${r}${g}${b}`;
+  
+  return hex;
+}
+
+// Helper to get just the hex part (6 chars) from a color value
+function getHexOnly(colorValue: string): string {
+  if (!colorValue) return '#000000';
+  
+  // Extract hex from #hex/opacity format
+  const hexWithOpacityMatch = colorValue.match(/^(#[0-9a-fA-F]{6})(?:\/\d+)?$/);
+  if (hexWithOpacityMatch) {
+    return hexWithOpacityMatch[1];
+  }
+  
+  // Extract hex from 8-char format
+  if (colorValue.length === 9 && colorValue.startsWith('#')) {
+    return colorValue.slice(0, 7);
+  }
+  
+  // Extract hex from 6-char format
+  if (colorValue.length === 7 && colorValue.startsWith('#')) {
+    return colorValue;
+  }
+  
+  return '#000000';
 }
 
 // Helper to convert color string (hex or rgba) to rgba string format
@@ -610,9 +653,12 @@ export default function ColorPicker({
 
   const handleHexInputChange = (hex: string) => {
     if (hex.startsWith('#')) {
+      // Parse the hex input (user might type just #hex or #hex/opacity)
       const parsed = parseColor(hex);
-      setRgbaColor(parsed);
-      immediateOnChange(hex);
+      // Preserve current opacity if user only typed hex without opacity
+      const finalRgba = hex.includes('/') ? parsed : { ...parsed, a: rgbaColor.a };
+      setRgbaColor(finalRgba);
+      immediateOnChange(rgbaToHex(finalRgba));
     }
   };
 
@@ -940,10 +986,10 @@ export default function ColorPicker({
               <div className="flex items-center gap-2">
                 <Input
                   type="text"
-                  value={rgbaToHex(rgbaColor)}
+                  value={getHexOnly(rgbaToHex(rgbaColor))}
                   onChange={(e) => handleHexInputChange(e.target.value)}
                   placeholder={placeholder}
-                  className="font-mono text-sm flex-1"
+                  className="flex-1"
                 />
                 <Input
                   type="number"
@@ -1047,13 +1093,15 @@ export default function ColorPicker({
                     <div className="flex items-center gap-2">
                       <Input
                         type="text"
-                        value={rgbaToHex(stopRgba)}
+                        value={getHexOnly(rgbaToHex(stopRgba))}
                         onChange={(e) => {
                           const parsed = parseColor(e.target.value);
-                          updateColorStop('linear', selectedStopId, { color: rgbaToHex(parsed) });
+                          // Preserve current opacity if user only typed hex without opacity
+                          const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
+                          updateColorStop('linear', selectedStopId, { color: rgbaToHex(finalRgba) });
                         }}
                         placeholder="#000000"
-                        className="font-mono text-sm flex-1"
+                        className="font-mono flex-1"
                       />
                       <Input
                         type="number"
@@ -1131,13 +1179,15 @@ export default function ColorPicker({
                     <div className="flex items-center gap-2">
                       <Input
                         type="text"
-                        value={rgbaToHex(stopRgba)}
+                        value={getHexOnly(rgbaToHex(stopRgba))}
                         onChange={(e) => {
                           const parsed = parseColor(e.target.value);
-                          updateColorStop('radial', selectedStopId, { color: rgbaToHex(parsed) });
+                          // Preserve current opacity if user only typed hex without opacity
+                          const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
+                          updateColorStop('radial', selectedStopId, { color: rgbaToHex(finalRgba) });
                         }}
                         placeholder="#000000"
-                        className="font-mono text-sm flex-1"
+                        className="font-mono flex-1"
                       />
                       <Input
                         type="number"
