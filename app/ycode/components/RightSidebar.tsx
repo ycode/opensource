@@ -29,6 +29,7 @@ import AddAttributeModal from './AddAttributeModal';
 import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
+import ConditionalVisibilitySettings from './ConditionalVisibilitySettings';
 import ImageSettings from './ImageSettings';
 import InputWithInlineVariables from './InputWithInlineVariables';
 import InteractionsPanel from './InteractionsPanel';
@@ -1242,6 +1243,13 @@ const RightSidebar = React.memo(function RightSidebar({
             </SettingsPanel>
 
             <ImageSettings
+              layer={selectedLayer}
+              onLayerUpdate={onLayerUpdate}
+              fields={parentCollectionFields}
+              fieldSourceLabel={fieldSourceLabel}
+            />
+
+            <ConditionalVisibilitySettings
               layer={selectedLayer}
               onLayerUpdate={onLayerUpdate}
               fields={parentCollectionFields}
