@@ -75,36 +75,36 @@ function rgbaToHex(rgba: { r: number; g: number; b: number; a: number }): string
   const g = Math.round(rgba.g).toString(16).padStart(2, '0');
   const b = Math.round(rgba.b).toString(16).padStart(2, '0');
   const hex = `#${r}${g}${b}`;
-  
+
   // If opacity is less than 1, append it as /opacity (0-100)
   if (rgba.a < 1) {
     const opacityPercent = Math.round(rgba.a * 100);
     return `${hex}/${opacityPercent}`;
   }
-  
+
   return hex;
 }
 
 // Helper to get just the hex part (6 chars) from a color value
 function getHexOnly(colorValue: string): string {
   if (!colorValue) return '#000000';
-  
+
   // Extract hex from #hex/opacity format
   const hexWithOpacityMatch = colorValue.match(/^(#[0-9a-fA-F]{6})(?:\/\d+)?$/);
   if (hexWithOpacityMatch) {
     return hexWithOpacityMatch[1];
   }
-  
+
   // Extract hex from 8-char format
   if (colorValue.length === 9 && colorValue.startsWith('#')) {
     return colorValue.slice(0, 7);
   }
-  
+
   // Extract hex from 6-char format
   if (colorValue.length === 7 && colorValue.startsWith('#')) {
     return colorValue;
   }
-  
+
   return '#000000';
 }
 
@@ -205,36 +205,63 @@ interface SaturationLightnessPickerProps {
 function SaturationLightnessPicker({ hue, saturation, lightness, onChange }: SaturationLightnessPickerProps) {
   const pickerRef = React.useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = React.useState(false);
+  const dragRectRef = React.useRef<DOMRect | null>(null);
 
-  const bgColor = `hsl(${hue}, 100%, 50%)`;
+  // Background gradient:
+  // - Vertical: white (top, lightness 100%) to black (bottom, lightness 0%)
+  // - Horizontal: grayscale (left, saturation 0%) to full hue color (right, saturation 100%)
+  // The right side should show the hue at varying lightness levels
+  const bgColorFull = `hsl(${hue}, 100%, 50%)`; // Full saturation, 50% lightness (brightest)
   const x = saturation; // 0-100
   const y = 100 - lightness; // Invert Y axis (0 at top = 100% lightness)
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (pickerRef.current) {
+      // Store the rect at drag start to prevent it from changing during drag
+      dragRectRef.current = pickerRef.current.getBoundingClientRect();
+    }
     setIsDragging(true);
     updatePosition(e);
   };
 
-  const updatePosition = (e: MouseEvent | React.MouseEvent) => {
-    if (!pickerRef.current) return;
-    const rect = pickerRef.current.getBoundingClientRect();
-    const xPos = e.clientX - rect.left;
-    const yPos = e.clientY - rect.top;
-    const newSaturation = Math.max(0, Math.min(100, (xPos / rect.width) * 100));
-    const newLightness = Math.max(0, Math.min(100, 100 - (yPos / rect.height) * 100));
+  const updatePosition = React.useCallback((e: MouseEvent | React.MouseEvent) => {
+    // Use stored rect from drag start, or get current rect if not dragging
+    const rect = dragRectRef.current || (pickerRef.current?.getBoundingClientRect() ?? null);
+    if (!rect) return;
+
+    // Get mouse position - handle both MouseEvent (from document) and React.MouseEvent
+    const clientX = 'clientX' in e ? e.clientX : (e as MouseEvent).clientX;
+    const clientY = 'clientY' in e ? e.clientY : (e as MouseEvent).clientY;
+
+    // Calculate position relative to the picker element
+    let xPos = clientX - rect.left;
+    let yPos = clientY - rect.top;
+
+    // Clamp to exact bounds (0 to width/height) - this ensures edge cases work correctly
+    xPos = Math.max(0, Math.min(rect.width, xPos));
+    yPos = Math.max(0, Math.min(rect.height, yPos));
+
+    // Calculate saturation: 0% (left) to 100% (right)
+    // Use Math.min to ensure we never exceed 100% due to floating point precision
+    const newSaturation = rect.width > 0 ? Math.min(100, (xPos / rect.width) * 100) : 0;
+
+    // Calculate lightness: 100% (top) to 0% (bottom) - invert Y axis
+    const newLightness = rect.height > 0 ? Math.max(0, 100 - ((yPos / rect.height) * 100)) : 0;
+
+    // Call onChange with clamped values
     onChange(newSaturation, newLightness);
-  };
+  }, [onChange]);
 
   const handleMouseMove = React.useCallback((e: MouseEvent) => {
-    if (isDragging) {
-      updatePosition(e);
-    }
-  }, [isDragging]);
+    if (!isDragging || !pickerRef.current) return;
+    updatePosition(e);
+  }, [isDragging, updatePosition]);
 
   const handleMouseUp = React.useCallback(() => {
     setIsDragging(false);
+    dragRectRef.current = null; // Clear stored rect when drag ends
   }, []);
 
   React.useEffect(() => {
@@ -248,18 +275,33 @@ function SaturationLightnessPicker({ hue, saturation, lightness, onChange }: Sat
     }
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
+  // Create accurate background gradient using standard color picker approach
+  // This creates a proper saturation/lightness picker where:
+  // - Top = white (lightness 100%)
+  // - Bottom = black (lightness 0%)
+  // - Left = grayscale (saturation 0%)
+  // - Right = full hue color (saturation 100%)
+  // The multiply blend mode combines them to show accurate colors at each position
+  const backgroundGradient = React.useMemo(() => {
+    return `
+      linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(0,0,0,1) 100%),
+      linear-gradient(to right, rgba(255,255,255,1) 0%, hsl(${hue}, 100%, 50%) 100%)
+    `;
+  }, [hue]);
+
   return (
     <div
       ref={pickerRef}
-      className="relative w-full h-full rounded-md"
+      className="relative w-full h-full rounded-md overflow-hidden touch-none"
       style={{
-        background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, ${bgColor})`,
+        background: backgroundGradient,
+        backgroundBlendMode: 'multiply',
       }}
       onMouseDown={handleMouseDown}
     >
       <div
         className={cn(
-          'absolute -translate-x-1/2 -translate-y-1/2 select-none z-10',
+          'absolute -translate-x-1/2 -translate-y-1/2 select-none z-10 pointer-events-none',
           isDragging && 'z-20'
         )}
         style={{
@@ -267,7 +309,7 @@ function SaturationLightnessPicker({ hue, saturation, lightness, onChange }: Sat
           top: `${y}%`,
         }}
       >
-        <div className="size-3 rounded-full border-2 border-white shadow-md pointer-events-none" />
+        <div className="size-3 rounded-full border-2 border-white shadow-md" />
       </div>
     </div>
   );
@@ -284,7 +326,12 @@ function HueBar({ hue, onChange }: HueBarProps) {
   const [isDragging, setIsDragging] = React.useState(false);
 
   const hueCSS = generateHueGradientCSS();
-  const position = (hue / 360) * 100;
+  
+  // Calculate position accounting for dot's half-width
+  // Clamp visual position to ~2.5% and 97.5% to keep the 12px dot (6px half-width) within bounds
+  // This works for typical bar widths (200px+): 2.5% of 200px = 5px margin, 97.5% = 195px
+  const rawPosition = (hue / 360) * 100;
+  const position = Math.max(2.5, Math.min(97.5, rawPosition));
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -297,8 +344,11 @@ function HueBar({ hue, onChange }: HueBarProps) {
     if (!barRef.current) return;
     const rect = barRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const newPosition = Math.max(0, Math.min(100, (x / rect.width) * 100));
-    const newHue = Math.round((newPosition / 100) * 360);
+    // Clamp mouse position to account for dot's half-width
+    const dotHalfWidth = 6; // size-3 = 12px, half = 6px
+    const clampedX = Math.max(dotHalfWidth, Math.min(rect.width - dotHalfWidth, x));
+    const newPosition = ((clampedX - dotHalfWidth) / (rect.width - dotHalfWidth * 2)) * 100;
+    const newHue = Math.round(Math.max(0, Math.min(360, (newPosition / 100) * 360)));
     onChange(newHue);
   };
 
@@ -358,7 +408,11 @@ function OpacityBar({ opacity, color, onChange }: OpacityBarProps) {
   const barRef = React.useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = React.useState(false);
 
-  const position = opacity * 100;
+  // Calculate position accounting for dot's half-width
+  // Clamp visual position to ~2.5% and 97.5% to keep the 12px dot within bounds
+  const rawPosition = opacity * 100;
+  const position = Math.max(2.5, Math.min(97.5, rawPosition));
+  
   const colorStr = `rgb(${color.r}, ${color.g}, ${color.b})`;
   const opacityCSS = `linear-gradient(90deg, transparent, ${colorStr})`;
 
@@ -373,8 +427,11 @@ function OpacityBar({ opacity, color, onChange }: OpacityBarProps) {
     if (!barRef.current) return;
     const rect = barRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const newPosition = Math.max(0, Math.min(100, (x / rect.width) * 100));
-    const newOpacity = newPosition / 100;
+    // Clamp mouse position to account for dot's half-width
+    const dotHalfWidth = 6; // size-3 = 12px, half = 6px
+    const clampedX = Math.max(dotHalfWidth, Math.min(rect.width - dotHalfWidth, x));
+    const newPosition = ((clampedX - dotHalfWidth) / (rect.width - dotHalfWidth * 2)) * 100;
+    const newOpacity = Math.max(0, Math.min(1, newPosition / 100));
     onChange(newOpacity);
   };
 
@@ -505,7 +562,10 @@ function GradientBar({
 
     const rect = barRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const position = Math.max(0, Math.min(100, (x / rect.width) * 100));
+    // Clamp mouse position to account for dot's half-width
+    const dotHalfWidth = 6; // size-3 = 12px, half = 6px
+    const clampedX = Math.max(dotHalfWidth, Math.min(rect.width - dotHalfWidth, x));
+    const position = ((clampedX - dotHalfWidth) / (rect.width - dotHalfWidth * 2)) * 100;
 
     // Find closest stop
     if (sortedStops.length > 0) {
@@ -537,16 +597,22 @@ function GradientBar({
         {sortedStops.map((stop) => {
           const isSelected = selectedStopId === stop.id;
           const isDragging = draggingStopId === stop.id;
+          
+          // Calculate clamped position for visual display to keep dot within bounds
+          // Use CSS calc with clamp to keep dot within bounds without JavaScript calculations
+          // The dot is 12px (size-3), so we need to offset by 6px on each side
+          // We'll use CSS calc to clamp between ~3% and 97% (approximate, but works for most bar widths)
+          const clampedPosition = Math.max(2.5, Math.min(97.5, stop.position));
+          
           return (
             <div
               key={stop.id}
               data-stop-handle
               className={cn(
                 'absolute top-0 -translate-x-1/2 cursor-pointer select-none z-10',
-                'transition-transform hover:scale-110',
-                isDragging && 'scale-110 z-20'
+                isDragging && 'z-20'
               )}
-              style={{ left: `${stop.position}%` }}
+              style={{ left: `${clampedPosition}%` }}
               onMouseDown={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
@@ -565,7 +631,7 @@ function GradientBar({
                     : 'border-white'
                 )}
               >
-                <div className="size-1 rounded-full bg-white" />
+                {isSelected && <div className="size-1 rounded-full bg-white" />}
               </div>
             </div>
           );
@@ -948,10 +1014,10 @@ export default function ColorPicker({
             <TabsTrigger value="radial">Radial</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="solid" className="mt-3">
+          <TabsContent value="solid" className="gap-3">
             <div className="flex flex-col gap-3">
               {/* Saturation/Lightness Picker */}
-              <div className="w-full relative" style={{ height: '200px' }}>
+              <div className="w-full relative aspect-square">
                 <SaturationLightnessPicker
                   hue={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).h}
                   saturation={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).s}
@@ -1007,7 +1073,7 @@ export default function ColorPicker({
             </div>
           </TabsContent>
 
-          <TabsContent value="linear" className="mt-3">
+          <TabsContent value="linear" className="gap-3">
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-2">
                 <Label variant="muted" className="text-xs">Angle</Label>
@@ -1123,7 +1189,7 @@ export default function ColorPicker({
             </div>
           </TabsContent>
 
-          <TabsContent value="radial" className="mt-3">
+          <TabsContent value="radial" className="gap-3">
             <div className="flex flex-col gap-3">
               {/* Gradient Bar with Draggable Handles */}
               <GradientBar
