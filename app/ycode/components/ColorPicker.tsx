@@ -385,8 +385,7 @@ function HueBar({ hue, onChange }: HueBarProps) {
         <div
           className={cn(
             'absolute top-0 -translate-x-1/2 cursor-pointer select-none z-10',
-            'transition-transform hover:scale-110',
-            isDragging && 'scale-110 z-20'
+            isDragging && 'z-20'
           )}
           style={{ left: `${position}%` }}
         >
@@ -979,7 +978,7 @@ export default function ColorPicker({
       {hasValue ? (
         <div className="flex items-center justify-start h-8 rounded-lg bg-input hover:bg-input/60 px-2.5 flex items-center gap-2 cursor-pointer">
           <div
-            className="size-4 rounded border border-border"
+            className="size-4 rounded shrink-0"
             style={{
               background: isGradient ? displayValue : displayValue,
             }}
