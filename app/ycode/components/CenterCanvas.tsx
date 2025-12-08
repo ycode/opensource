@@ -40,7 +40,7 @@ import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 // 6. Utils
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
 import type { IframeToParentMessage } from '@/lib/iframe-bridge';
-import { buildPageTree, getNodeIcon, findHomepage } from '@/lib/page-utils';
+import { buildPageTree, getNodeIcon, findHomepage, buildSlugPath, buildDynamicPageUrl } from '@/lib/page-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
 import { getCollectionVariable } from '@/lib/layer-utils';
@@ -94,13 +94,13 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  
+
   // Track iframe content height from iframe reports
   const [reportedContentHeight, setReportedContentHeight] = useState(0);
-  
+
   // Track container height for dynamic alignment
   const [containerHeight, setContainerHeight] = useState(0);
-  
+
   // Store initial canvas height and zoom on load - this sets the iframe height once
   const initialCanvasHeightRef = useRef<number | null>(null);
   const initialZoomRef = useRef<number | null>(null);
@@ -121,6 +121,20 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const currentPageCollectionItemId = useEditorStore((state) => state.currentPageCollectionItemId);
   const setCurrentPageCollectionItemId = useEditorStore((state) => state.setCurrentPageCollectionItemId);
   const hoveredLayerId = useEditorStore((state) => state.hoveredLayerId);
+  const isPreviewMode = useEditorStore((state) => state.isPreviewMode);
+
+  // Reset iframe ready state when switching between preview/editor mode or changing pages
+  useEffect(() => {
+    setIframeReady(false);
+  }, [isPreviewMode, currentPageId]);
+
+  // Load draft when page changes (ensure draft exists before rendering)
+  const loadDraft = usePagesStore((state) => state.loadDraft);
+  useEffect(() => {
+    if (currentPageId && !draftsByPageId[currentPageId]) {
+      loadDraft(currentPageId);
+    }
+  }, [currentPageId, loadDraft, draftsByPageId]);
 
   const getDropdownItems = useCollectionsStore((state) => state.getDropdownItems);
   const collectionItemsFromStore = useCollectionsStore((state) => state.items);
@@ -130,7 +144,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // Collection layer store for independent layer data
   const collectionLayerData = useCollectionLayerStore((state) => state.layerData);
 
-  const { routeType, urlState, navigateToLayers, navigateToPage, navigateToPageEdit } = useEditorUrl();
+  const { routeType, urlState, navigateToLayers, navigateToPage, navigateToPageEdit, updateQueryParams } = useEditorUrl();
   const components = useComponentsStore((state) => state.components);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
   const [collectionItems, setCollectionItems] = useState<Array<{ id: string; label: string }>>([]);
@@ -146,12 +160,12 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (!containerHeight) return 600;
     const padding = 64; // 32px top + 32px bottom
     const calculatedHeight = containerHeight - padding;
-    
+
     // Store the initial height when first calculated
     if (initialCanvasHeightRef.current === null) {
       initialCanvasHeightRef.current = calculatedHeight;
     }
-    
+
     // Always use the initial height - don't change with zoom or container changes
     return initialCanvasHeightRef.current;
   }, [containerHeight]);
@@ -206,7 +220,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // Calculate final iframe height - compensate for initial zoom if needed
   const finalIframeHeight = useMemo(() => {
     const initialZoom = initialZoomRef.current;
-    
+
     // If initial zoom < 100%, calculate the compensated height
     if (initialZoom && initialZoom < 100) {
       const compensatedHeight = defaultCanvasHeight / (initialZoom / 100);
@@ -214,9 +228,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
       // This ensures iframe doesn't shrink when adding small content
       return Math.max(compensatedHeight, iframeContentHeight);
     }
-    
+
     return iframeContentHeight;
-  }, [iframeContentHeight, defaultCanvasHeight, initialZoomSet]);
+  }, [iframeContentHeight, defaultCanvasHeight]);
 
   // Recalculate autofit when viewport/breakpoint changes
   const prevViewportMode = useRef(viewportMode);
@@ -264,15 +278,15 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // Check if canvas is empty (only Body layer with no children)
   const isCanvasEmpty = useMemo(() => {
     if (layers.length === 0) return false; // No layers at all - handled separately
-    
+
     // Find Body layer
     const bodyLayer = layers.find(layer => layer.id === 'body' || layer.name === 'body');
-    
+
     if (!bodyLayer) return false;
-    
+
     // Check if Body has no children or empty children array
     const hasNoChildren = !bodyLayer.children || bodyLayer.children.length === 0;
-    
+
     // Canvas is empty if we only have Body with no children
     return layers.length === 1 && hasNoChildren;
   }, [layers]);
@@ -445,6 +459,43 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return collectionFieldsFromStore[collectionId] || [];
   }, [currentPage, collectionFieldsFromStore]);
 
+  // Build preview URL for preview mode
+  const previewUrl = useMemo(() => {
+    if (!currentPage) return '';
+
+    // Error pages use special preview route
+    if (currentPage.error_page !== null) {
+      return `/ycode/preview/error-pages/${currentPage.error_page}`;
+    }
+
+    // Build full page path including folders
+    const fullPagePath = buildSlugPath(currentPage, folders, 'page');
+
+    // Get collection item slug value for dynamic pages
+    const collectionItemSlug = currentPage.is_dynamic && currentPageCollectionItemId
+      ? (() => {
+        const collectionId = currentPage.settings?.cms?.collection_id;
+        const slugFieldId = currentPage.settings?.cms?.slug_field_id;
+
+        if (!collectionId || !slugFieldId) return null;
+
+        const collectionItems = collectionItemsFromStore[collectionId] || [];
+        const selectedItem = collectionItems.find(item => item.id === currentPageCollectionItemId);
+
+        if (!selectedItem || !selectedItem.values) return null;
+
+        return selectedItem.values[slugFieldId] || null;
+      })()
+      : null;
+
+    // For dynamic pages, use buildDynamicPageUrl to ensure slug value is always current
+    const path = currentPage.is_dynamic
+      ? buildDynamicPageUrl(currentPage, folders, collectionItemSlug)
+      : fullPagePath;
+
+    return `/ycode/preview${path === '/' ? '' : path}`;
+  }, [currentPage, folders, currentPageCollectionItemId, collectionItemsFromStore]);
+
   // Load collection items when dynamic page is selected
   useEffect(() => {
     if (!collectionId || !currentPage?.is_dynamic) {
@@ -470,6 +521,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     };
 
     loadItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collectionId, currentPage?.is_dynamic, getDropdownItems]);
 
   // Get return page for component edit mode
@@ -551,6 +603,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     setPagePopoverOpen(false);
 
     // Navigate to the same route type but with the new page ID
+    // Query params (including preview) are now preserved automatically by the navigation functions
     if (routeType === 'layers') {
       navigateToLayers(pageId);
     } else if (routeType === 'page' && urlState.isEditing) {
@@ -729,7 +782,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
           break;
 
         case 'LAYER_CLICK':
-          setSelectedLayerId(message.payload.layerId);
+          // Disable layer selection in preview mode
+          if (!isPreviewMode) {
+            setSelectedLayerId(message.payload.layerId);
+          }
           break;
 
         case 'LAYER_DOUBLE_CLICK':
@@ -812,7 +868,126 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
     const cleanup = listenToIframe(handleIframeMessage);
     return cleanup;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPageId, editingComponentId, componentDrafts, setSelectedLayerId, updateLayer, handleZoomGesture, resetZoom, zoomToFit, autofit]);
+
+  // Add zoom gesture handlers for preview mode (when iframe doesn't have them)
+  useEffect(() => {
+    if (!isPreviewMode) return; // Editor iframe handles its own zoom gestures
+
+    const container = canvasContainerRef.current;
+    const iframe = iframeRef.current;
+    if (!container) return;
+
+    // Get iframe's window and document for event listening
+    let iframeWindow: Window | null = null;
+    let iframeDocument: Document | null = null;
+
+    // Wait for iframe to load before attaching listeners
+    const setupIframeListeners = () => {
+      try {
+        iframeWindow = iframe?.contentWindow || null;
+        iframeDocument = iframe?.contentDocument || null;
+
+        if (!iframeWindow || !iframeDocument) return;
+
+        // Attach listeners to iframe's document
+        iframeDocument.addEventListener('wheel', handleWheel, { passive: false, capture: true });
+        iframeDocument.addEventListener('touchstart', handleTouchStart, { passive: true });
+        iframeDocument.addEventListener('touchmove', handleTouchMove, { passive: true });
+        iframeDocument.addEventListener('touchend', handleTouchEnd, { passive: true });
+      } catch (e) {
+        // Cross-origin iframe - fall back to container listeners only
+        console.warn('Cannot access iframe document for zoom gestures:', e);
+      }
+    };
+
+    // Wheel event for Ctrl/Cmd + wheel zoom (includes trackpad pinch on Mac)
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Positive deltaY means zoom out, negative means zoom in
+        const delta = -e.deltaY;
+        handleZoomGesture(delta);
+
+        return false;
+      }
+    };
+
+    // Touch events for pinch zoom on mobile/tablet
+    let lastTouchDistance: number | null = null;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const dx = touch2.clientX - touch1.clientX;
+        const dy = touch2.clientY - touch1.clientY;
+        lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && lastTouchDistance !== null) {
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const dx = touch2.clientX - touch1.clientX;
+        const dy = touch2.clientY - touch1.clientY;
+        const currentDistance = Math.sqrt(dx * dx + dy * dy);
+
+        // Calculate delta and send zoom gesture
+        const delta = (currentDistance - lastTouchDistance) * 2;
+        handleZoomGesture(delta);
+
+        lastTouchDistance = currentDistance;
+      }
+    };
+
+    const handleTouchEnd = () => {
+      lastTouchDistance = null;
+    };
+
+    // Add event listeners to container (fallback for when cursor is outside iframe)
+    container.addEventListener('wheel', handleWheel, { passive: false, capture: true });
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: true });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    // Setup iframe listeners when iframe loads
+    if (iframe) {
+      iframe.addEventListener('load', setupIframeListeners);
+      // Try to set up immediately in case iframe is already loaded
+      if (iframe.contentDocument?.readyState === 'complete') {
+        setupIframeListeners();
+      }
+    }
+
+    return () => {
+      // Remove container listeners
+      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+
+      // Remove iframe listeners if they were added
+      if (iframeDocument) {
+        try {
+          iframeDocument.removeEventListener('wheel', handleWheel);
+          iframeDocument.removeEventListener('touchstart', handleTouchStart);
+          iframeDocument.removeEventListener('touchmove', handleTouchMove);
+          iframeDocument.removeEventListener('touchend', handleTouchEnd);
+        } catch (e) {
+          // Ignore errors when removing listeners
+        }
+      }
+
+      if (iframe) {
+        iframe.removeEventListener('load', setupIframeListeners);
+      }
+    };
+  }, [isPreviewMode, handleZoomGesture, iframeReady]);
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">
@@ -930,9 +1105,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent 
-              align="end" 
-              side="bottom" 
+            <DropdownMenuContent
+              align="end"
+              side="bottom"
               sideOffset={4}
               avoidCollisions={false}
               collisionPadding={0}
@@ -960,22 +1135,24 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 <DropdownMenuShortcut>⌘2</DropdownMenuShortcut>
               </DropdownMenuItem>
             </DropdownMenuContent>
-        </DropdownMenu>
+          </DropdownMenu>
         </div>
 
-        {/* Undo/Redo Buttons */}
-        <div className="flex justify-end gap-0">
-          <Button size="sm" variant="ghost">
-            <Icon name="undo" />
-          </Button>
-          <Button size="sm" variant="ghost">
-            <Icon name="redo" />
-          </Button>
-        </div>
+        {/* Undo/Redo Buttons (hidden in preview mode) */}
+        {!isPreviewMode && (
+          <div className="flex justify-end gap-0">
+            <Button size="sm" variant="ghost">
+              <Icon name="undo" />
+            </Button>
+            <Button size="sm" variant="ghost">
+              <Icon name="redo" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Canvas Area */}
-      <div 
+      <div
         ref={canvasContainerRef}
         className="flex-1 relative overflow-hidden bg-neutral-50 dark:bg-neutral-950/80"
       >
@@ -998,7 +1175,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
           `}</style>
 
           {/* Content wrapper - optimized for smooth zoom without shifts */}
-          <div 
+          <div
             style={{
               position: 'relative',
               minWidth: '100%',
@@ -1011,7 +1188,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 width: `${viewportWidth * (zoom / 100) + 64}px`,
                 minWidth: '100%',
                 // Height: exact viewport height when centered, scaled size when top-aligned
-                height: shouldCenter 
+                height: shouldCenter
                   ? `${containerHeight}px`  // Use actual viewport height
                   : `${finalIframeHeight * (zoom / 100) + 64}px`,
                 display: 'flex',
@@ -1019,7 +1196,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 alignItems: 'flex-start',
                 justifyContent: 'center', // Center horizontally
                 // Calculate padding: center based on VISUAL (scaled) height, or fixed 32px when top-aligned
-                paddingTop: shouldCenter 
+                paddingTop: shouldCenter
                   ? `${Math.max(0, (containerHeight - finalIframeHeight * (zoom / 100)) / 2)}px`
                   : '32px',
                 position: 'relative',
@@ -1040,18 +1217,19 @@ const CenterCanvas = React.memo(function CenterCanvas({
                   transition: 'none',
                 }}
               >
-                {/* Iframe Canvas */}
+                {/* Iframe Canvas - either editor or preview */}
                 {layers.length > 0 ? (
                   <>
                     <iframe
+                      key={isPreviewMode ? `preview-${currentPageId}` : `editor-${currentPageId}`}
                       ref={iframeRef}
-                      src="/canvas.html"
+                      src={isPreviewMode ? previewUrl : '/canvas.html'}
                       className="w-full h-full border-0"
                       style={{ height: `${finalIframeHeight}px` }}
-                      title="Canvas Preview"
+                      title={isPreviewMode ? 'Preview' : 'Canvas Preview'}
                     />
-                    {/* Empty overlay when only Body with no children */}
-                    {isCanvasEmpty && (
+                    {/* Empty overlay when only Body with no children (only in editor mode) */}
+                    {!isPreviewMode && isCanvasEmpty && (
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                         <div className="pointer-events-auto">
                           <Empty className="bg-transparent border-0 text-neutral-900">

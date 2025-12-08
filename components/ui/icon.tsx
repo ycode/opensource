@@ -13,7 +13,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'more' | 'copy' | 'component' | 'arrowLeft' | 'bold' | 'italic' | 'strikethrough' | 'quote' | 'listOrdered' | 'listUnordered' | 'code' | 'pencil' | 'eye' | 'eye-off'
     | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'zap'
     | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in' | 'ease-back-in-out' | 'ease-back-out'
-    | 'none' | 'play' | 'stop' | 'info'
+    | 'none' | 'play' | 'stop' | 'info' | 'preview'
   );
 }
 
@@ -571,6 +571,11 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   info: (
     <>
       <path d="M6 11C3.2385 11 1 8.7615 1 6S3.2385 1 6 1s5 2.2385 5 5-2.2385 5-5 5Zm0-1a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5.5 3.5h1v1h-1V3.5Zm0 2h1v3h-1v-3Z" />
+    </>
+  ),
+  preview: (
+    <>
+      <path d="M7.87415728,3.0734831 L11.1746428,9.01435707 C11.442856,9.4971408 11.2689122,10.1059441 10.7861285,10.3741573 C10.6375705,10.4566895 10.4704298,10.5 10.3004855,10.5 L3.69951446,10.5 C3.14722971,10.5 2.69951446,10.0522847 2.69951446,9.5 C2.69951446,9.33005575 2.74282496,9.16291507 2.82535718,9.01435707 L6.12584272,3.0734831 C6.39405591,2.59069936 7.0028592,2.41675557 7.48564293,2.68496875 C7.648883,2.77565768 7.78346835,2.91024303 7.87415728,3.0734831 Z" transform="translate(7.000000, 6.000000) rotate(90.000000) translate(-7.000000, -6.000000)"></path>
     </>
   ),
 };

@@ -198,6 +198,22 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     setActiveBreakpoint(viewportMode);
   }, [viewportMode, setActiveBreakpoint]);
 
+  // Sync preview mode from URL parameter
+  const isPreviewMode = useEditorStore((state) => state.isPreviewMode);
+  const setPreviewMode = useEditorStore((state) => state.setPreviewMode);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const previewParam = searchParams.get('preview');
+    const shouldBeInPreview = previewParam === 'true';
+
+    // Only update if there's an actual change to prevent unnecessary re-renders
+    if (shouldBeInPreview !== isPreviewMode) {
+      setPreviewMode(shouldBeInPreview);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlState, setPreviewMode]); // Remove isPreviewMode from deps to prevent loop
+
   // Track edit mode transitions to prevent effects from running during navigation
   const currentIsEditing = urlState.isEditing;
   const justExitedEditMode = previousIsEditingRef.current === true && currentIsEditing === false;
@@ -1347,14 +1363,16 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           <LocalizationContent>{children}</LocalizationContent>
         ) : (
           <>
-            {/* Left Sidebar - Pages & Layers */}
-            <LeftSidebar
-              selectedLayerId={selectedLayerId}
-              selectedLayerIds={selectedLayerIds}
-              onLayerSelect={setSelectedLayerId}
-              currentPageId={currentPageId}
-              onPageSelect={setCurrentPageId}
-            />
+            {/* Left Sidebar - Pages & Layers (hidden in preview mode) */}
+            {!isPreviewMode && (
+              <LeftSidebar
+                selectedLayerId={selectedLayerId}
+                selectedLayerIds={selectedLayerIds}
+                onLayerSelect={setSelectedLayerId}
+                currentPageId={currentPageId}
+                onPageSelect={setCurrentPageId}
+              />
+            )}
 
             {/* Conditional Content Based on Active Tab */}
             {activeTab === 'cms' ? (
@@ -1369,36 +1387,38 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                   setViewportMode={setViewportMode}
                 />
 
-                {/* Right Sidebar - Properties */}
-                <RightSidebar
-                  selectedLayerId={selectedLayerId}
-                  onLayerUpdate={(layerId, updates) => {
-                    // If editing component, update component draft
-                    if (editingComponentId) {
-                      const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
-                      const layers = componentDrafts[editingComponentId] || [];
+                {/* Right Sidebar - Properties (hidden in preview mode) */}
+                {!isPreviewMode && (
+                  <RightSidebar
+                    selectedLayerId={selectedLayerId}
+                    onLayerUpdate={(layerId, updates) => {
+                      // If editing component, update component draft
+                      if (editingComponentId) {
+                        const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
+                        const layers = componentDrafts[editingComponentId] || [];
 
-                      // Find and update layer in tree
-                      const updateLayerInTree = (tree: Layer[]): Layer[] => {
-                        return tree.map(layer => {
-                          if (layer.id === layerId) {
-                            return { ...layer, ...updates };
-                          }
-                          if (layer.children) {
-                            return { ...layer, children: updateLayerInTree(layer.children) };
-                          }
-                          return layer;
-                        });
-                      };
+                        // Find and update layer in tree
+                        const updateLayerInTree = (tree: Layer[]): Layer[] => {
+                          return tree.map(layer => {
+                            if (layer.id === layerId) {
+                              return { ...layer, ...updates };
+                            }
+                            if (layer.children) {
+                              return { ...layer, children: updateLayerInTree(layer.children) };
+                            }
+                            return layer;
+                          });
+                        };
 
-                      const updatedLayers = updateLayerInTree(layers);
-                      updateComponentDraft(editingComponentId, updatedLayers);
-                    } else if (currentPageId) {
-                      // Regular page mode
-                      updateLayer(currentPageId, layerId, updates);
-                    }
-                  }}
-                />
+                        const updatedLayers = updateLayerInTree(layers);
+                        updateComponentDraft(editingComponentId, updatedLayers);
+                      } else if (currentPageId) {
+                        // Regular page mode
+                        updateLayer(currentPageId, layerId, updates);
+                      }
+                    }}
+                  />
+                )}
               </>
             )}
           </>
