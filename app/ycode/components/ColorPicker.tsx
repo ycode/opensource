@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 
 interface ColorPickerProps {
   value?: string;
@@ -117,12 +118,12 @@ function colorToRgbaString(color: string): string {
 }
 
 // Helper to generate gradient CSS string
+// For visual display in the gradient bar, always use linear-gradient at 90deg for consistency
 function generateGradientCSS(stops: ColorStop[], type: 'linear' | 'radial', angle?: number): string {
   const stopsStr = stops.map(s => `${s.color} ${s.position}%`).join(', ');
-  if (type === 'linear') {
-    return `linear-gradient(${angle || 0}deg, ${stopsStr})`;
-  }
-  return `radial-gradient(circle, ${stopsStr})`;
+  // Always display as linear gradient at 90deg in the bar for visual consistency
+  // This applies to both linear and radial gradients when shown in the bar
+  return `linear-gradient(90deg, ${stopsStr})`;
 }
 
 // Helper to generate HUE gradient CSS (0-360 degrees)
@@ -326,7 +327,7 @@ function HueBar({ hue, onChange }: HueBarProps) {
   const [isDragging, setIsDragging] = React.useState(false);
 
   const hueCSS = generateHueGradientCSS();
-  
+
   // Calculate position accounting for dot's half-width
   // Clamp visual position to ~2.5% and 97.5% to keep the 12px dot (6px half-width) within bounds
   // This works for typical bar widths (200px+): 2.5% of 200px = 5px margin, 97.5% = 195px
@@ -412,7 +413,7 @@ function OpacityBar({ opacity, color, onChange }: OpacityBarProps) {
   // Clamp visual position to ~2.5% and 97.5% to keep the 12px dot within bounds
   const rawPosition = opacity * 100;
   const position = Math.max(2.5, Math.min(97.5, rawPosition));
-  
+
   const colorStr = `rgb(${color.r}, ${color.g}, ${color.b})`;
   const opacityCSS = `linear-gradient(90deg, transparent, ${colorStr})`;
 
@@ -597,13 +598,13 @@ function GradientBar({
         {sortedStops.map((stop) => {
           const isSelected = selectedStopId === stop.id;
           const isDragging = draggingStopId === stop.id;
-          
+
           // Calculate clamped position for visual display to keep dot within bounds
           // Use CSS calc with clamp to keep dot within bounds without JavaScript calculations
           // The dot is 12px (size-3), so we need to offset by 6px on each side
           // We'll use CSS calc to clamp between ~3% and 97% (approximate, but works for most bar widths)
           const clampedPosition = Math.max(2.5, Math.min(97.5, stop.position));
-          
+
           return (
             <div
               key={stop.id}
@@ -1007,7 +1008,10 @@ export default function ColorPicker({
         className="w-56 p-2" align="end"
         onKeyDown={handleKeyDown}
       >
-        <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <Tabs
+          value={activeTab} onValueChange={handleTabChange}
+          className="!gap-3"
+        >
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="solid">Solid</TabsTrigger>
             <TabsTrigger value="linear">Linear</TabsTrigger>
@@ -1057,65 +1061,55 @@ export default function ColorPicker({
                   placeholder={placeholder}
                   className="flex-1"
                 />
-                <Input
-                  type="number"
-                  value={Math.round(rgbaColor.a * 100)}
-                  onChange={(e) => {
-                    const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
-                    handleRgbaChange({ ...rgbaColor, a });
-                  }}
-                  className="w-16 text-xs"
-                  min={0}
-                  max={100}
-                />
-                <span className="text-xs text-muted-foreground">%</span>
+                <InputGroup className="w-16">
+                  <InputGroupInput
+                    value={Math.round(rgbaColor.a * 100)}
+                    onChange={(e) => {
+                      const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
+                      handleRgbaChange({ ...rgbaColor, a });
+                    }}
+                    className="w-16 text-xs"
+                    min={0}
+                    max={100}
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <Label variant="muted" className="text-xs">%</Label>
+                  </InputGroupAddon>
+                </InputGroup>
               </div>
             </div>
           </TabsContent>
 
           <TabsContent value="linear" className="gap-3">
             <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                <Label variant="muted" className="text-xs">Angle</Label>
-                <div className="flex items-center gap-2">
-                  <Slider
-                    value={[linearAngle]}
-                    onValueChange={([angle]) => {
-                      setLinearAngle(angle);
-                      handleLinearGradientChange(angle, linearStops);
+              {/* Gradient Bar with Draggable Handles */}
+              <div className="flex items-center gap-2 -my-1.5">
+                <div className="flex-1">
+                  <GradientBar
+                    stops={linearStops}
+                    selectedStopId={selectedStopId}
+                    onStopSelect={setSelectedStopId}
+                    onStopMove={(stopId, position) => {
+                      updateColorStop('linear', stopId, { position });
                     }}
-                    min={0}
-                    max={360}
-                    step={1}
-                    className="flex-1"
-                  />
-                  <Input
-                    type="number"
-                    value={linearAngle}
-                    onChange={(e) => {
-                      const angle = parseInt(e.target.value) || 0;
-                      setLinearAngle(angle);
-                      handleLinearGradientChange(angle, linearStops);
-                    }}
-                    className="w-16 text-xs"
-                    min={0}
-                    max={360}
+                    onAddStop={(position) => addColorStop('linear', position)}
+                    gradientType="linear"
+                    angle={linearAngle}
                   />
                 </div>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => {
+                    const newAngle = (linearAngle + 90) % 360;
+                    setLinearAngle(newAngle);
+                    handleLinearGradientChange(newAngle, linearStops);
+                  }}
+                  title={`Rotate angle (${linearAngle}°)`}
+                >
+                  <Icon name="refresh" />
+                </Button>
               </div>
-
-              {/* Gradient Bar with Draggable Handles */}
-              <GradientBar
-                stops={linearStops}
-                selectedStopId={selectedStopId}
-                onStopSelect={setSelectedStopId}
-                onStopMove={(stopId, position) => {
-                  updateColorStop('linear', stopId, { position });
-                }}
-                onAddStop={(position) => addColorStop('linear', position)}
-                gradientType="linear"
-                angle={linearAngle}
-              />
 
               {/* Color Picker for Selected Stop */}
               {selectedStopId && (() => {
@@ -1126,7 +1120,7 @@ export default function ColorPicker({
                 return (
                   <div className="flex flex-col gap-3">
                     {/* Saturation/Lightness Picker */}
-                    <div className="w-full relative" style={{ height: '200px' }}>
+                    <div className="w-full relative aspect-square">
                       <SaturationLightnessPicker
                         hue={hsl.h}
                         saturation={hsl.s}
@@ -1169,19 +1163,21 @@ export default function ColorPicker({
                         placeholder="#000000"
                         className="font-mono flex-1"
                       />
-                      <Input
-                        type="number"
-                        value={Math.round(stopRgba.a * 100)}
-                        onChange={(e) => {
-                          const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
-                          const newRgba = { ...stopRgba, a };
-                          updateColorStop('linear', selectedStopId, { color: rgbaToHex(newRgba) });
-                        }}
-                        className="w-16 text-xs"
-                        min={0}
-                        max={100}
-                      />
-                      <span className="text-xs text-muted-foreground">%</span>
+                      <InputGroup className="w-16">
+                        <InputGroupInput
+                          value={Math.round(stopRgba.a * 100)}
+                          onChange={(e) => {
+                            const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
+                            const newRgba = { ...stopRgba, a };
+                            updateColorStop('linear', selectedStopId, { color: rgbaToHex(newRgba) });
+                          }}
+                          min={0}
+                          max={100}
+                        />
+                        <InputGroupAddon align="inline-end">
+                          <Label variant="muted" className="text-xs">%</Label>
+                        </InputGroupAddon>
+                      </InputGroup>
                     </div>
                   </div>
                 );
@@ -1212,7 +1208,7 @@ export default function ColorPicker({
                 return (
                   <div className="flex flex-col gap-3">
                     {/* Saturation/Lightness Picker */}
-                    <div className="w-full relative" style={{ height: '200px' }}>
+                    <div className="w-full relative aspect-square">
                       <SaturationLightnessPicker
                         hue={hsl.h}
                         saturation={hsl.s}
@@ -1255,19 +1251,22 @@ export default function ColorPicker({
                         placeholder="#000000"
                         className="font-mono flex-1"
                       />
-                      <Input
-                        type="number"
-                        value={Math.round(stopRgba.a * 100)}
-                        onChange={(e) => {
-                          const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
-                          const newRgba = { ...stopRgba, a };
-                          updateColorStop('radial', selectedStopId, { color: rgbaToHex(newRgba) });
-                        }}
-                        className="w-16 text-xs"
-                        min={0}
-                        max={100}
-                      />
-                      <span className="text-xs text-muted-foreground">%</span>
+                      <InputGroup className="w-16">
+                        <InputGroupInput
+                          value={Math.round(stopRgba.a * 100)}
+                          onChange={(e) => {
+                            const a = Math.max(0, Math.min(100, parseInt(e.target.value) || 0)) / 100;
+                            const newRgba = { ...stopRgba, a };
+                            updateColorStop('radial', selectedStopId, { color: rgbaToHex(newRgba) });
+                          }}
+                          className="w-16 text-xs"
+                          min={0}
+                          max={100}
+                        />
+                        <InputGroupAddon align="inline-end">
+                          <Label variant="muted" className="text-xs">%</Label>
+                        </InputGroupAddon>
+                      </InputGroup>
                     </div>
                   </div>
                 );
