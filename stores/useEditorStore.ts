@@ -36,6 +36,7 @@ interface EditorActions {
   openCollectionItemSheet: (collectionId: string, itemId: string) => void;
   closeCollectionItemSheet: () => void;
   setHoveredLayerId: (id: string | null) => void;
+  setPreviewMode: (enabled: boolean) => void;
 }
 
 interface EditorStoreWithHistory extends EditorState {
@@ -56,6 +57,7 @@ interface EditorStoreWithHistory extends EditorState {
     itemId: string;
   } | null;
   hoveredLayerId: string | null;
+  isPreviewMode: boolean;
 }
 
 type EditorStore = EditorStoreWithHistory & EditorActions;
@@ -83,6 +85,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   activeInteractionTargetLayerIds: [],
   collectionItemSheet: null,
   hoveredLayerId: null,
+  isPreviewMode: false,
 
   setSelectedLayerId: (id) => {
     // Legacy support - also update selectedLayerIds
@@ -259,4 +262,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   }),
 
   setHoveredLayerId: (id) => set({ hoveredLayerId: id }),
+
+  setPreviewMode: (enabled) => set({ isPreviewMode: enabled }),
 }));

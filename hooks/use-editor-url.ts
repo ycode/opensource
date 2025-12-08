@@ -72,8 +72,8 @@ export function useEditorUrl() {
       const editParam = searchParams?.get('edit');
       const isEditing = searchParams?.has('edit');
       // Parse tab: 'general' or empty means 'general', otherwise use the param value
-      const editTab = editParam && editParam !== '' && editParam !== 'general' 
-        ? (editParam as PageSettingsTab) 
+      const editTab = editParam && editParam !== '' && editParam !== 'general'
+        ? (editParam as PageSettingsTab)
         : null;
       const viewParam = searchParams?.get('view');
       const rightTabParam = searchParams?.get('tab');
@@ -169,12 +169,15 @@ export function useEditorUrl() {
   // Navigation helpers
   const navigateToLayers = useCallback(
     (pageId: string, view?: string, rightTab?: string, layerId?: string) => {
-      const params = new URLSearchParams();
-      // Always include view, tab, and layer params (with defaults if not provided)
-      params.set('view', view || 'desktop');
-      params.set('tab', rightTab || 'design');
-      params.set('layer', layerId || 'body');
-      const query = params.toString();
+      // Preserve existing query params (e.g., preview mode)
+      const currentParams = new URLSearchParams(window.location.search);
+
+      // Update/set specific params (use provided values or current values or defaults)
+      currentParams.set('view', view || currentParams.get('view') || 'desktop');
+      currentParams.set('tab', rightTab || currentParams.get('tab') || 'design');
+      currentParams.set('layer', layerId || currentParams.get('layer') || 'body');
+
+      const query = currentParams.toString();
       router.push(`/ycode/layers/${pageId}?${query}`);
     },
     [router]
@@ -182,13 +185,15 @@ export function useEditorUrl() {
 
   const navigateToPage = useCallback(
     (pageId: string, view?: string, rightTab?: string, layerId?: string) => {
-      const params = new URLSearchParams();
-      // Always include view, tab, and layer params (with defaults if not provided)
-      params.set('view', view || 'desktop');
-      params.set('tab', rightTab || 'design');
-      // For pages route, use provided layerId or 'body' as default
-      params.set('layer', layerId || 'body');
-      const query = params.toString();
+      // Preserve existing query params (e.g., preview mode)
+      const currentParams = new URLSearchParams(window.location.search);
+
+      // Update/set specific params (use provided values or current values or defaults)
+      currentParams.set('view', view || currentParams.get('view') || 'desktop');
+      currentParams.set('tab', rightTab || currentParams.get('tab') || 'design');
+      currentParams.set('layer', layerId || currentParams.get('layer') || 'body');
+
+      const query = currentParams.toString();
       router.push(`/ycode/pages/${pageId}?${query}`);
     },
     [router]
@@ -198,7 +203,7 @@ export function useEditorUrl() {
     (pageId: string, tab?: PageSettingsTab) => {
       // Preserve current query params and add edit param with tab value
       const currentParams = new URLSearchParams(searchParams?.toString() || '');
-      
+
       // Determine which tab to use:
       // 1. Use provided tab if given
       // 2. Otherwise, preserve current tab from URL if it exists
@@ -207,15 +212,15 @@ export function useEditorUrl() {
       const currentTab = currentEditParam && currentEditParam !== '' && currentEditParam !== 'general'
         ? (currentEditParam as PageSettingsTab)
         : null;
-      
+
       const tabToUse = tab || currentTab;
-      
+
       if (tabToUse && tabToUse !== 'general') {
         currentParams.set('edit', tabToUse);
       } else {
         currentParams.set('edit', 'general'); // Use 'general' for 'general' tab
       }
-      
+
       const query = currentParams.toString();
       router.push(`/ycode/pages/${pageId}${query ? `?${query}` : ''}`);
     },
@@ -283,12 +288,12 @@ export function useEditorUrl() {
   }, [router]);
 
   const updateQueryParams = useCallback(
-    (params: { view?: string; tab?: string; layer?: string }) => {
+    (params: { view?: string; tab?: string; layer?: string; preview?: string | undefined }) => {
       const currentSearchParams = new URLSearchParams(window.location.search);
       const newSearchParams = new URLSearchParams(currentSearchParams);
       let hasChanges = false;
 
-      if (params.view !== undefined) {
+      if ('view' in params) {
         const currentView = currentSearchParams.get('view');
         if (params.view !== currentView) {
           hasChanges = true;
@@ -296,7 +301,7 @@ export function useEditorUrl() {
           else newSearchParams.delete('view');
         }
       }
-      if (params.tab !== undefined) {
+      if ('tab' in params) {
         const currentTab = currentSearchParams.get('tab');
         if (params.tab !== currentTab) {
           hasChanges = true;
@@ -304,12 +309,20 @@ export function useEditorUrl() {
           else newSearchParams.delete('tab');
         }
       }
-      if (params.layer !== undefined) {
+      if ('layer' in params) {
         const currentLayer = currentSearchParams.get('layer');
         if (params.layer !== currentLayer) {
           hasChanges = true;
           if (params.layer) newSearchParams.set('layer', params.layer);
           else newSearchParams.delete('layer');
+        }
+      }
+      if ('preview' in params) {
+        const currentPreview = currentSearchParams.get('preview');
+        if (params.preview !== currentPreview) {
+          hasChanges = true;
+          if (params.preview) newSearchParams.set('preview', params.preview);
+          else newSearchParams.delete('preview');
         }
       }
 
