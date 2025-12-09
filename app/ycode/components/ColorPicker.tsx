@@ -734,10 +734,10 @@ export default function ColorPicker({
   // Format display value for user-friendly gradient names
   const getDisplayText = (val: string): string => {
     if (val.startsWith('linear-gradient')) {
-      return 'Linear gradient';
+      return 'Linear';
     }
     if (val.startsWith('radial-gradient')) {
-      return 'Radial gradient';
+      return 'Radial';
     }
     return val.length > 20 ? val.substring(0, 20) + '...' : val;
   };
@@ -809,6 +809,14 @@ export default function ColorPicker({
 
   // Track dragging state for gradient bar handles
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
+
+  // HSV state for selected gradient stop (similar to solid picker)
+  const [stopHue, setStopHue] = useState(0);
+  const [stopSaturation, setStopSaturation] = useState(0);
+  const [stopHsvValue, setStopHsvValue] = useState(0);
+
+  // Ref to track if gradient stop color change is internal (to prevent HSV recalculation)
+  const isStopInternalUpdate = useRef(false);
 
   // Sync rgba color when value changes externally (for solid colors)
   useEffect(() => {
@@ -1202,6 +1210,41 @@ export default function ColorPicker({
     }
   }, [displayValue, selectedStopId]);
 
+  // Sync HSV state when stop is selected or stop color changes externally
+  useEffect(() => {
+    if (!selectedStopId) return;
+
+    const allStops = activeTab === 'linear' ? linearStops : radialStops;
+    const selectedStop = allStops.find(s => s.id === selectedStopId);
+    if (!selectedStop) return;
+
+    // Only update HSV values when color changes externally (not from internal updates)
+    // Reset flag first to ensure clean state for next update
+    const wasInternalUpdate = isStopInternalUpdate.current;
+    isStopInternalUpdate.current = false;
+
+    if (!wasInternalUpdate) {
+      const rgba = parseColor(selectedStop.color);
+      const hsv = rgbToHsv(rgba.r, rgba.g, rgba.b);
+      // Preserve hue and saturation when value is 0 (black)
+      // This prevents hue/saturation from jumping when dragging to black
+      // When value is 0, saturation is meaningless (all blacks look the same)
+      if (hsv.v === 0) {
+        // Keep current hue and saturation, only update value
+        setStopHsvValue(hsv.v);
+      } else if (hsv.s === 0) {
+        // Preserve hue when saturation is 0 (white/gray), update saturation and value
+        setStopSaturation(hsv.s);
+        setStopHsvValue(hsv.v);
+      } else {
+        // Update all HSV values when there's actual color information
+        setStopHue(hsv.h);
+        setStopSaturation(hsv.s);
+        setStopHsvValue(hsv.v);
+      }
+    }
+  }, [selectedStopId, linearStops, radialStops, activeTab]);
+
   // Ensure at least one stop is always selected when in gradient mode
   useEffect(() => {
     if (activeTab === 'linear' && linearStops.length > 0) {
@@ -1381,17 +1424,22 @@ export default function ColorPicker({
                 const selectedStop = linearStops.find(s => s.id === selectedStopId);
                 if (!selectedStop) return null;
                 const stopRgba = parseColor(selectedStop.color);
-                const hsv = rgbToHsv(stopRgba.r, stopRgba.g, stopRgba.b);
                 return (
                   <div className="flex flex-col gap-3">
                     {/* Saturation/Value Picker (HSV) */}
                     <div className="w-full relative aspect-[4/3]">
                       <SaturationLightnessPicker
-                        hue={hsv.h}
-                        saturation={hsv.s}
-                        value={hsv.v}
+                        hue={stopHue}
+                        saturation={stopSaturation}
+                        value={stopHsvValue}
                         onChange={(s, v) => {
-                          const rgb = hsvToRgb(hsv.h, s, v);
+                          // Update stored saturation and value
+                          setStopSaturation(s);
+                          setStopHsvValue(v);
+                          // Mark as internal update to prevent HSV recalculation in useEffect
+                          isStopInternalUpdate.current = true;
+                          // Convert HSV to RGB using stored hue
+                          const rgb = hsvToRgb(stopHue, s, v);
                           updateColorStop('linear', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
                         }}
                       />
@@ -1399,9 +1447,14 @@ export default function ColorPicker({
 
                     {/* HUE Bar */}
                     <HueBar
-                      hue={hsv.h}
-                      onChange={(hue) => {
-                        const rgb = hsvToRgb(hue, hsv.s, hsv.v);
+                      hue={stopHue}
+                      onChange={(newHue) => {
+                        // Update stored hue
+                        setStopHue(newHue);
+                        // Mark as internal update to prevent HSV recalculation in useEffect
+                        isStopInternalUpdate.current = true;
+                        // Convert HSV to RGB using stored saturation and value
+                        const rgb = hsvToRgb(newHue, stopSaturation, stopHsvValue);
                         updateColorStop('linear', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
                       }}
                     />
@@ -1423,6 +1476,13 @@ export default function ColorPicker({
                           const parsed = parseColor(e.target.value);
                           // Preserve current opacity if user only typed hex without opacity
                           const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
+                          // Mark as internal update (HSV values are explicitly set below)
+                          isStopInternalUpdate.current = true;
+                          // Update HSV values when hex input changes
+                          const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
+                          setStopHue(hsv.h);
+                          setStopSaturation(hsv.s);
+                          setStopHsvValue(hsv.v);
                           updateColorStop('linear', selectedStopId, { color: rgbaToHex(finalRgba) });
                         }}
                         placeholder="#000000"
@@ -1469,17 +1529,22 @@ export default function ColorPicker({
                 const selectedStop = radialStops.find(s => s.id === selectedStopId);
                 if (!selectedStop) return null;
                 const stopRgba = parseColor(selectedStop.color);
-                const hsv = rgbToHsv(stopRgba.r, stopRgba.g, stopRgba.b);
                 return (
                   <div className="flex flex-col gap-3">
                     {/* Saturation/Value Picker (HSV) */}
                     <div className="w-full relative aspect-[4/3]">
                       <SaturationLightnessPicker
-                        hue={hsv.h}
-                        saturation={hsv.s}
-                        value={hsv.v}
+                        hue={stopHue}
+                        saturation={stopSaturation}
+                        value={stopHsvValue}
                         onChange={(s, v) => {
-                          const rgb = hsvToRgb(hsv.h, s, v);
+                          // Update stored saturation and value
+                          setStopSaturation(s);
+                          setStopHsvValue(v);
+                          // Mark as internal update to prevent HSV recalculation in useEffect
+                          isStopInternalUpdate.current = true;
+                          // Convert HSV to RGB using stored hue
+                          const rgb = hsvToRgb(stopHue, s, v);
                           updateColorStop('radial', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
                         }}
                       />
@@ -1487,9 +1552,14 @@ export default function ColorPicker({
 
                     {/* HUE Bar */}
                     <HueBar
-                      hue={hsv.h}
-                      onChange={(hue) => {
-                        const rgb = hsvToRgb(hue, hsv.s, hsv.v);
+                      hue={stopHue}
+                      onChange={(newHue) => {
+                        // Update stored hue
+                        setStopHue(newHue);
+                        // Mark as internal update to prevent HSV recalculation in useEffect
+                        isStopInternalUpdate.current = true;
+                        // Convert HSV to RGB using stored saturation and value
+                        const rgb = hsvToRgb(newHue, stopSaturation, stopHsvValue);
                         updateColorStop('radial', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
                       }}
                     />
@@ -1511,6 +1581,13 @@ export default function ColorPicker({
                           const parsed = parseColor(e.target.value);
                           // Preserve current opacity if user only typed hex without opacity
                           const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
+                          // Mark as internal update (HSV values are explicitly set below)
+                          isStopInternalUpdate.current = true;
+                          // Update HSV values when hex input changes
+                          const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
+                          setStopHue(hsv.h);
+                          setStopSaturation(hsv.s);
+                          setStopHsvValue(hsv.v);
                           updateColorStop('radial', selectedStopId, { color: rgbaToHex(finalRgba) });
                         }}
                         placeholder="#000000"
