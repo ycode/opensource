@@ -429,7 +429,7 @@ function HueBar({ hue, onChange }: HueBarProps) {
     if (isDragging) {
       updateHue(e);
     }
-  }, [isDragging]);
+  }, [isDragging, updateHue]);
 
   const handleMouseUp = React.useCallback(() => {
     setIsDragging(false);
@@ -511,7 +511,7 @@ function OpacityBar({ opacity, color, onChange }: OpacityBarProps) {
     if (isDragging) {
       updateOpacity(e);
     }
-  }, [isDragging]);
+  }, [isDragging, updateOpacity]);
 
   const handleMouseUp = React.useCallback(() => {
     setIsDragging(false);
@@ -788,7 +788,7 @@ export default function ColorPicker({
     }
     // Reset flag after sync
     isHexInputUpdating.current = false;
-  }, [rgbaColor.r, rgbaColor.g, rgbaColor.b, isGradient, activeTab]);
+  }, [rgbaColor, isGradient, activeTab]);
 
   // Gradient state
   const [linearStops, setLinearStops] = useState<ColorStop[]>([
@@ -817,7 +817,7 @@ export default function ColorPicker({
 
   // Ref to track if gradient stop color change is internal (to prevent HSV recalculation)
   const isStopInternalUpdate = useRef(false);
-  
+
   // Ref to track if gradient value change is internal (to prevent re-parsing)
   const isInternalGradientChange = useRef(false);
 
@@ -866,6 +866,83 @@ export default function ColorPicker({
     isInternalUpdate.current = true;
     // Use immediate onChange for solid colors to avoid delays
     immediateOnChange(rgbaToHex(color));
+  };
+
+  // EyeDropper handler for solid colors
+  const handleEyeDropper = async () => {
+    // Check if EyeDropper API is supported
+    if (!('EyeDropper' in window)) {
+      alert('EyeDropper API is not supported in your browser. Try using Chrome, Edge, or Opera.');
+      return;
+    }
+
+    try {
+      // @ts-expect-error - EyeDropper is not in TypeScript types yet
+      const eyeDropper = new window.EyeDropper();
+      const result = await eyeDropper.open();
+
+      // result.sRGBHex is in format "#rrggbb"
+      const pickedColor = result.sRGBHex;
+
+      // Parse the picked color and update
+      const parsed = parseColor(pickedColor);
+      setRgbaColor(parsed);
+
+      // Update HSV values
+      const hsv = rgbToHsv(parsed.r, parsed.g, parsed.b);
+      setHue(hsv.h);
+      setSaturation(hsv.s);
+      setHsvValue(hsv.v);
+
+      // Mark as internal update
+      isInternalUpdate.current = true;
+      immediateOnChange(rgbaToHex(parsed));
+    } catch (error) {
+      // User cancelled or error occurred
+      console.log('EyeDropper cancelled or failed:', error);
+    }
+  };
+
+  // EyeDropper handler for gradient stops
+  const handleGradientStopEyeDropper = async (type: 'linear' | 'radial') => {
+    if (!selectedStopId) return;
+
+    // Check if EyeDropper API is supported
+    if (!('EyeDropper' in window)) {
+      alert('EyeDropper API is not supported in your browser. Try using Chrome, Edge, or Opera.');
+      return;
+    }
+
+    try {
+      // @ts-expect-error - EyeDropper is not in TypeScript types yet
+      const eyeDropper = new window.EyeDropper();
+      const result = await eyeDropper.open();
+
+      // result.sRGBHex is in format "#rrggbb"
+      const pickedColor = result.sRGBHex;
+
+      // Parse the picked color
+      const parsed = parseColor(pickedColor);
+
+      // Update HSV values for the stop
+      const hsv = rgbToHsv(parsed.r, parsed.g, parsed.b);
+      setStopHue(hsv.h);
+      setStopSaturation(hsv.s);
+      setStopHsvValue(hsv.v);
+
+      // Mark as internal update
+      isStopInternalUpdate.current = true;
+
+      // Update the selected stop's color (preserve current opacity)
+      const currentStop = (type === 'linear' ? linearStops : radialStops).find(s => s.id === selectedStopId);
+      if (currentStop) {
+        const currentRgba = parseColor(currentStop.color);
+        updateColorStop(type, selectedStopId, { color: rgbaToHex({ ...parsed, a: currentRgba.a }) });
+      }
+    } catch (error) {
+      // User cancelled or error occurred
+      console.log('EyeDropper cancelled or failed:', error);
+    }
   };
 
   const handleHexInputChange = (value: string) => {
@@ -1023,21 +1100,21 @@ export default function ColorPicker({
   const interpolateColorAtPosition = (stops: ColorStop[], position: number): string => {
     // Sort stops by position
     const sortedStops = [...stops].sort((a, b) => a.position - b.position);
-    
+
     // If position is before first stop, use first stop's color
     if (position <= sortedStops[0].position) {
       return sortedStops[0].color;
     }
-    
+
     // If position is after last stop, use last stop's color
     if (position >= sortedStops[sortedStops.length - 1].position) {
       return sortedStops[sortedStops.length - 1].color;
     }
-    
+
     // Find the two stops that surround the target position
     let leftStop = sortedStops[0];
     let rightStop = sortedStops[sortedStops.length - 1];
-    
+
     for (let i = 0; i < sortedStops.length - 1; i++) {
       if (sortedStops[i].position <= position && sortedStops[i + 1].position >= position) {
         leftStop = sortedStops[i];
@@ -1045,20 +1122,20 @@ export default function ColorPicker({
         break;
       }
     }
-    
+
     // Calculate interpolation factor (0 to 1)
     const factor = (position - leftStop.position) / (rightStop.position - leftStop.position);
-    
+
     // Parse colors to RGBA
     const leftRgba = parseColor(leftStop.color);
     const rightRgba = parseColor(rightStop.color);
-    
+
     // Interpolate each channel
     const r = Math.round(leftRgba.r + (rightRgba.r - leftRgba.r) * factor);
     const g = Math.round(leftRgba.g + (rightRgba.g - leftRgba.g) * factor);
     const b = Math.round(leftRgba.b + (rightRgba.b - leftRgba.b) * factor);
     const a = leftRgba.a + (rightRgba.a - leftRgba.a) * factor;
-    
+
     // Return as hex with opacity
     return rgbaToHex({ r, g, b, a });
   };
@@ -1083,17 +1160,17 @@ export default function ColorPicker({
       color: interpolatedColor,
       position: targetPosition,
     };
-    
+
     // Initialize HSV state for the new stop immediately
     const rgba = parseColor(newStop.color);
     const hsv = rgbToHsv(rgba.r, rgba.g, rgba.b);
     setStopHue(hsv.h);
     setStopSaturation(hsv.s);
     setStopHsvValue(hsv.v);
-    
+
     // Mark as internal update to prevent HSV recalculation
     isStopInternalUpdate.current = true;
-    
+
     if (type === 'linear') {
       const newStops = [...linearStops, newStop].sort((a, b) => a.position - b.position);
       setLinearStops(newStops);
@@ -1224,7 +1301,7 @@ export default function ColorPicker({
       isInternalGradientChange.current = false;
       return;
     }
-    
+
     if (displayValue.startsWith('linear-gradient')) {
       // Match: linear-gradient(angle deg,color1position1%,color2position2%,...)
       // Allow optional spaces for compatibility but prefer no spaces
@@ -1429,20 +1506,31 @@ export default function ColorPicker({
               />
 
               <div className="flex items-center gap-2">
-                <Input
-                  type="text"
-                  value={hexInputValue}
-                  onChange={(e) => handleHexInputChange(e.target.value)}
-                  onBlur={handleHexInputBlur}
-                  onKeyDown={(e) => {
-                    // On Enter, blur to normalize the value
-                    if (e.key === 'Enter') {
-                      e.currentTarget.blur();
-                    }
-                  }}
-                  placeholder={placeholder}
-                  className="flex-1 font-mono"
-                />
+                <InputGroup className="flex-1">
+                  <InputGroupInput
+                    type="text"
+                    value={hexInputValue}
+                    onChange={(e) => handleHexInputChange(e.target.value)}
+                    onBlur={handleHexInputBlur}
+                    onKeyDown={(e) => {
+                      // On Enter, blur to normalize the value
+                      if (e.key === 'Enter') {
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    placeholder={placeholder}
+                  />
+                  <InputGroupAddon align="inline-end" className="pr-1">
+                    <Button
+                      variant="input"
+                      size="xs"
+                      onClick={handleEyeDropper}
+                      type="button"
+                    >
+                      <Icon name="eyedrop" />
+                    </Button>
+                  </InputGroupAddon>
+                </InputGroup>
                 <InputGroup className="w-16">
                   <InputGroupInput
                     value={Math.round(rgbaColor.a * 100)}
@@ -1543,25 +1631,36 @@ export default function ColorPicker({
                     />
 
                     <div className="flex items-center gap-2">
-                      <Input
-                        type="text"
-                        value={getHexOnly(rgbaToHex(stopRgba))}
-                        onChange={(e) => {
-                          const parsed = parseColor(e.target.value);
-                          // Preserve current opacity if user only typed hex without opacity
-                          const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
-                          // Mark as internal update (HSV values are explicitly set below)
-                          isStopInternalUpdate.current = true;
-                          // Update HSV values when hex input changes
-                          const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
-                          setStopHue(hsv.h);
-                          setStopSaturation(hsv.s);
-                          setStopHsvValue(hsv.v);
-                          updateColorStop('linear', selectedStopId, { color: rgbaToHex(finalRgba) });
-                        }}
-                        placeholder="#000000"
-                        className="font-mono flex-1"
-                      />
+                      <InputGroup className="flex-1">
+                        <InputGroupInput
+                          type="text"
+                          value={getHexOnly(rgbaToHex(stopRgba))}
+                          onChange={(e) => {
+                            const parsed = parseColor(e.target.value);
+                            // Preserve current opacity if user only typed hex without opacity
+                            const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
+                            // Mark as internal update (HSV values are explicitly set below)
+                            isStopInternalUpdate.current = true;
+                            // Update HSV values when hex input changes
+                            const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
+                            setStopHue(hsv.h);
+                            setStopSaturation(hsv.s);
+                            setStopHsvValue(hsv.v);
+                            updateColorStop('linear', selectedStopId, { color: rgbaToHex(finalRgba) });
+                          }}
+                          placeholder="#000000"
+                        />
+                        <InputGroupAddon align="inline-end" className="pr-1">
+                          <Button
+                            variant="input"
+                            size="xs"
+                            onClick={() => handleGradientStopEyeDropper('linear')}
+                            type="button"
+                          >
+                            <Icon name="eyedrop" />
+                          </Button>
+                        </InputGroupAddon>
+                      </InputGroup>
                       <InputGroup className="w-16">
                         <InputGroupInput
                           value={Math.round(stopRgba.a * 100)}
@@ -1648,25 +1747,36 @@ export default function ColorPicker({
                     />
 
                     <div className="flex items-center gap-2">
-                      <Input
-                        type="text"
-                        value={getHexOnly(rgbaToHex(stopRgba))}
-                        onChange={(e) => {
-                          const parsed = parseColor(e.target.value);
-                          // Preserve current opacity if user only typed hex without opacity
-                          const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
-                          // Mark as internal update (HSV values are explicitly set below)
-                          isStopInternalUpdate.current = true;
-                          // Update HSV values when hex input changes
-                          const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
-                          setStopHue(hsv.h);
-                          setStopSaturation(hsv.s);
-                          setStopHsvValue(hsv.v);
-                          updateColorStop('radial', selectedStopId, { color: rgbaToHex(finalRgba) });
-                        }}
-                        placeholder="#000000"
-                        className="font-mono flex-1"
-                      />
+                      <InputGroup className="flex-1">
+                        <InputGroupInput
+                          type="text"
+                          value={getHexOnly(rgbaToHex(stopRgba))}
+                          onChange={(e) => {
+                            const parsed = parseColor(e.target.value);
+                            // Preserve current opacity if user only typed hex without opacity
+                            const finalRgba = e.target.value.includes('/') ? parsed : { ...parsed, a: stopRgba.a };
+                            // Mark as internal update (HSV values are explicitly set below)
+                            isStopInternalUpdate.current = true;
+                            // Update HSV values when hex input changes
+                            const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
+                            setStopHue(hsv.h);
+                            setStopSaturation(hsv.s);
+                            setStopHsvValue(hsv.v);
+                            updateColorStop('radial', selectedStopId, { color: rgbaToHex(finalRgba) });
+                          }}
+                          placeholder="#000000"
+                        />
+                        <InputGroupAddon align="inline-end" className="pr-1">
+                          <Button
+                            variant="input"
+                            size="xs"
+                            onClick={() => handleGradientStopEyeDropper('radial')}
+                            type="button"
+                          >
+                            <Icon name="eyedrop" />
+                          </Button>
+                        </InputGroupAddon>
+                      </InputGroup>
                       <InputGroup className="w-16">
                         <InputGroupInput
                           value={Math.round(stopRgba.a * 100)}
