@@ -1520,7 +1520,7 @@ export default function ColorPicker({
                     }}
                     placeholder={placeholder}
                   />
-                  <InputGroupAddon align="inline-end" className="pr-1">
+                  <InputGroupAddon align="inline-end">
                     <Button
                       variant="input"
                       size="xs"
@@ -1650,7 +1650,7 @@ export default function ColorPicker({
                           }}
                           placeholder="#000000"
                         />
-                        <InputGroupAddon align="inline-end" className="pr-1">
+                        <InputGroupAddon align="inline-end">
                           <Button
                             variant="input"
                             size="xs"
@@ -1766,7 +1766,7 @@ export default function ColorPicker({
                           }}
                           placeholder="#000000"
                         />
-                        <InputGroupAddon align="inline-end" className="pr-1">
+                        <InputGroupAddon align="inline-end">
                           <Button
                             variant="input"
                             size="xs"
