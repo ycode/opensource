@@ -18,6 +18,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import {
+  Select,
+  SelectContent,
+  SelectGroup, SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 interface ColorPickerProps {
   value?: string;
@@ -659,7 +667,7 @@ export default function ColorPicker({
   placeholder = '#ffffff',
 }: ColorPickerProps) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'solid' | 'linear' | 'radial'>('solid');
+  const [activeTab, setActiveTab] = useState<'solid' | 'linear' | 'radial' | 'image'>('solid');
 
   const displayValue = value || '';
   const isGradient = displayValue.startsWith('linear') || displayValue.startsWith('radial');
@@ -957,8 +965,17 @@ export default function ColorPicker({
   };
 
   const handleTabChange = (value: string) => {
-    setActiveTab(value as 'solid' | 'linear' | 'radial');
+    setActiveTab(value as 'solid' | 'linear' | 'radial' | 'image');
     setSelectedStopId(null); // Reset selected stop when switching tabs
+
+    // When switching to image tab, clear any existing color/gradient classes
+    if (value === 'image') {
+      if (displayValue) {
+        onChange('');
+      }
+      return;
+    }
+
     if (value === 'linear' && !displayValue.startsWith('linear')) {
       handleLinearGradientChange(0, linearStops);
       // Always ensure at least one stop is selected
@@ -1406,7 +1423,62 @@ export default function ColorPicker({
 
           <TabsContent value="image">
 
-            Hello
+            <div className="aspect-[4/3] bg-input rounded-md flex items-center justify-center">
+              <Button size="sm" variant="secondary">Choose image...</Button>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+
+              <div className="grid grid-cols-3">
+                <Label variant="muted">Type</Label>
+                <div className="col-span-2 *:w-full">
+                  <Select>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="1">Auto</SelectItem>
+                        <SelectItem value="2">Fill</SelectItem>
+                        <SelectItem value="3">Fit</SelectItem>
+                        <SelectItem value="4">Tile</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3">
+                <Label variant="muted">Position</Label>
+                <div className="col-span-2 *:w-full">
+                  <Select>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="1">Top left</SelectItem>
+                        <SelectItem value="2">Top</SelectItem>
+                        <SelectItem value="3">Top right</SelectItem>
+                      </SelectGroup>
+                      <DropdownMenuSeparator />
+                      <SelectGroup>
+                        <SelectItem value="4">Left</SelectItem>
+                        <SelectItem value="5">Center</SelectItem>
+                        <SelectItem value="6">Right</SelectItem>
+                      </SelectGroup>
+                      <DropdownMenuSeparator />
+                      <SelectGroup>
+                        <SelectItem value="7">Bottom left</SelectItem>
+                        <SelectItem value="8">Bottom</SelectItem>
+                        <SelectItem value="9">Bottom right</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+            </div>
 
           </TabsContent>
 
