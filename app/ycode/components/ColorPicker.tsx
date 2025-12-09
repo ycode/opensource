@@ -288,7 +288,7 @@ function SaturationLightnessPicker({ hue, saturation, lightness, onChange }: Sat
     // Get the full saturation color at 50% lightness for the right edge
     const fullColor = hslToRgb(hue, 100, 50);
     const fullColorStr = `rgb(${fullColor.r}, ${fullColor.g}, ${fullColor.b})`;
-    
+
     return `
       linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(0,0,0,1) 100%),
       linear-gradient(to right, rgba(255,255,255,1) 0%, ${fullColorStr} 100%)
@@ -663,7 +663,7 @@ export default function ColorPicker({
 
   const displayValue = value || '';
   const isGradient = displayValue.startsWith('linear') || displayValue.startsWith('radial');
-  
+
   // Format display value for user-friendly gradient names
   const getDisplayText = (val: string): string => {
     if (val.startsWith('linear-gradient')) {
@@ -756,21 +756,21 @@ export default function ColorPicker({
   const handleHexInputChange = (value: string) => {
     // Update local input state immediately for smooth typing
     setHexInputValue(value);
-    
+
     // Normalize input: remove spaces, ensure # prefix
     let normalized = value.trim().replace(/\s/g, '');
-    
+
     // If user typed without #, add it
     if (normalized && !normalized.startsWith('#')) {
       normalized = '#' + normalized;
       setHexInputValue(normalized);
     }
-    
+
     // If it's just # or empty, allow it (user is still typing)
     if (!normalized || normalized === '#') {
       return;
     }
-    
+
     // Parse the hex input (supports #hex, #hex/opacity, or partial #hexhex)
     // Allow partial values like #ff or #ff00 (user might be typing)
     if (normalized.startsWith('#') && normalized.length > 1) {
@@ -779,13 +779,13 @@ export default function ColorPicker({
       if (hexMatch) {
         const hexDigits = hexMatch[1];
         const opacityStr = hexMatch[2];
-        
+
         // Only update color when we have exactly 6 hex digits (complete hex value)
         // Don't prefill or update with partial values - let user type freely
         if (hexDigits.length === 6 && /^[0-9a-fA-F]+$/.test(hexDigits)) {
           // Mark that we're updating from hex input to prevent sync loop
           isHexInputUpdating.current = true;
-          
+
           const parsed = parseColor(normalized);
           // Preserve current opacity if user only typed hex without opacity
           const finalRgba = opacityStr ? parsed : { ...parsed, a: rgbaColor.a };
@@ -799,21 +799,21 @@ export default function ColorPicker({
   const handleHexInputBlur = () => {
     // Mark that we're updating from hex input to prevent sync loop
     isHexInputUpdating.current = true;
-    
+
     // On blur, normalize the value - ensure it's a valid 6-digit hex
     const current = hexInputValue.trim();
     let normalized = current;
-    
+
     // Add # if missing
     if (normalized && !normalized.startsWith('#')) {
       normalized = '#' + normalized;
     }
-    
+
     // Extract hex digits
     const hexMatch = normalized.match(/^#([0-9a-fA-F]*)$/);
     if (hexMatch) {
       const hexDigits = hexMatch[1];
-      
+
       if (hexDigits.length === 0) {
         // Empty - reset to current color
         setHexInputValue(getHexOnly(rgbaToHex(rgbaColor)));
@@ -1127,9 +1127,15 @@ export default function ColorPicker({
           className="!gap-3"
         >
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="solid">Solid</TabsTrigger>
-            <TabsTrigger value="linear">Linear</TabsTrigger>
-            <TabsTrigger value="radial">Radial</TabsTrigger>
+            <TabsTrigger value="solid">
+              <Icon name="color" />
+            </TabsTrigger>
+            <TabsTrigger value="linear">
+              <Icon name="linear" />
+            </TabsTrigger>
+            <TabsTrigger value="radial">
+              <Icon name="radial" />
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="solid" className="gap-3">
