@@ -1,4 +1,5 @@
 import AnimationInitializer from '@/components/AnimationInitializer';
+import ContentHeightReporter from '@/components/ContentHeightReporter';
 import LayerRenderer from '@/components/layers/LayerRenderer';
 import { resolveComponents } from '@/lib/resolve-components';
 import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
@@ -115,6 +116,9 @@ export default function PageRenderer({
 
       {/* Initialize GSAP animations based on layer interactions */}
       <AnimationInitializer layers={resolvedLayers} />
+
+      {/* Report content height to parent for zoom calculations (preview only) */}
+      {!page.is_published && <ContentHeightReporter />}
 
       {/* Inject custom body code before closing body tag */}
       {customCodeBody && (

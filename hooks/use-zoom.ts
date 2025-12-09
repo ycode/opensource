@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { CANVAS_PADDING } from '@/lib/canvas-utils';
 
 export type ZoomMode = 'custom' | 'fit' | 'autofit';
 
@@ -35,39 +36,30 @@ export function useZoom({
   const [zoom, setZoom] = useState(100);
   const [zoomMode, setZoomMode] = useState<ZoomMode>('autofit'); // Default to autofit
 
-  // Calculate zoom to fit both width and height (entire iframe fits in canvas)
+  // Calculate zoom to fit height (prioritizes vertical fit, width follows)
   const calculateZoomToFit = useCallback((): number => {
     if (!containerRef.current) return 100;
-    
-    const containerWidth = containerRef.current.clientWidth;
+
     const containerHeight = containerRef.current.clientHeight;
-    
-    // Calculate zoom for both dimensions with padding
-    const padding = 64; // 32px on each side
-    const availableWidth = containerWidth - padding;
-    const availableHeight = containerHeight - padding;
-    
-    const horizontalZoom = (availableWidth / contentWidth) * 100;
+
+    // Calculate zoom based on height with padding
+    const availableHeight = containerHeight - CANVAS_PADDING;
     const verticalZoom = (availableHeight / contentHeight) * 100;
-    
-    // Use the MINIMUM to ensure both dimensions fit
-    const fitZoom = Math.min(horizontalZoom, verticalZoom);
-    
+
     // Clamp between min and 100% (never zoom in more than 100%)
-    return Math.min(Math.max(fitZoom, minZoom), 100);
-  }, [containerRef, contentWidth, contentHeight, minZoom]);
+    return Math.min(Math.max(verticalZoom, minZoom), 100);
+  }, [containerRef, contentHeight, minZoom]);
 
   // Calculate autofit (fits horizontally)
   const calculateAutofit = useCallback((): number => {
     if (!containerRef.current) return 100;
-    
+
     const containerWidth = containerRef.current.clientWidth;
-    
+
     // Calculate zoom that fits content horizontally with padding
-    const padding = 64; // 32px left + 32px right
-    const availableWidth = containerWidth - padding;
+    const availableWidth = containerWidth - CANVAS_PADDING;
     const horizontalZoom = (availableWidth / contentWidth) * 100;
-    
+
     // Clamp between min and 100% (never zoom in more than 100%)
     return Math.min(Math.max(horizontalZoom, minZoom), 100);
   }, [containerRef, contentWidth, minZoom]);
@@ -110,25 +102,13 @@ export function useZoom({
     setZoomMode('autofit');
   }, [calculateAutofit]);
 
-  // Initialize with autofit on mount
-  useEffect(() => {
-    // Small delay to ensure container is mounted and has dimensions
-    const timer = setTimeout(() => {
-      const initialZoom = calculateAutofit();
-      setZoom(initialZoom);
-    }, 100);
-    
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps - only run on mount
-
   // Handle zoom gesture (from iframe or external source)
   const handleZoomGesture = useCallback((delta: number) => {
     // Delta from iframe is already normalized: positive = zoom in, negative = zoom out
     // Scale appropriately for smooth zooming
     const sensitivity = 0.5;
     const zoomDelta = delta * sensitivity; // No negation - iframe already normalized
-    
+
     setZoom((current) => {
       const newZoom = current + zoomDelta;
       return Math.min(Math.max(newZoom, minZoom), maxZoom);
@@ -141,11 +121,14 @@ export function useZoom({
     setZoomMode('custom');
   }, []);
 
-  // Recalculate zoom when mode is fit/autofit and container resizes
+  // Recalculate zoom when mode is fit/autofit and container resizes or content dimensions change
   useEffect(() => {
     if (!containerRef.current || zoomMode === 'custom') return;
 
     const handleResize = () => {
+      // Don't calculate if content dimensions aren't ready yet
+      if (contentWidth === 0 || contentHeight === 0) return;
+
       if (zoomMode === 'fit') {
         const newZoom = calculateZoomToFit();
         setZoom(newZoom);
@@ -155,28 +138,31 @@ export function useZoom({
       }
     };
 
+    // Recalculate immediately when content dimensions change
+    handleResize();
+
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(containerRef.current);
 
     return () => {
       resizeObserver.disconnect();
     };
-  }, [containerRef, zoomMode, calculateZoomToFit, calculateAutofit]);
+  }, [containerRef, zoomMode, calculateZoomToFit, calculateAutofit, contentWidth, contentHeight]);
 
   // Keyboard shortcuts - capture at window level with high priority
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Check for Cmd (Mac) or Ctrl (Windows/Linux)
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
-      
+
       if (!isCmdOrCtrl) return;
 
       // Check for zoom shortcuts and prevent default browser behavior
-      const isZoomShortcut = 
-        e.key === '+' || 
-        e.key === '=' || 
-        e.key === '-' || 
-        e.key === '_' || 
+      const isZoomShortcut =
+        e.key === '+' ||
+        e.key === '=' ||
+        e.key === '-' ||
+        e.key === '_' ||
         e.key === '0' ||
         e.key === '1' ||
         e.key === '2';
@@ -222,18 +208,18 @@ export function useZoom({
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        
+
         // Trackpad pinch sends much smaller deltaY values than mouse wheel
         // Scale the delta appropriately for smooth zooming
         const sensitivity = 0.5; // Adjust sensitivity for trackpad pinch
         const zoomDelta = -e.deltaY * sensitivity; // Negative because deltaY is inverted
-        
+
         setZoom((current) => {
           const newZoom = current + zoomDelta;
           return Math.min(Math.max(newZoom, minZoom), maxZoom);
         });
         setZoomMode('custom');
-        
+
         return false; // Extra prevention
       }
     };
@@ -243,7 +229,7 @@ export function useZoom({
       e.preventDefault();
       e.stopPropagation();
     };
-    
+
     const handleGestureChange = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
@@ -251,11 +237,11 @@ export function useZoom({
 
     // Attach to document for maximum coverage - works everywhere
     document.addEventListener('wheel', handleWheel, { passive: false, capture: true });
-    
+
     // Safari gesture events
     document.addEventListener('gesturestart', handleGestureStart, { passive: false, capture: true });
     document.addEventListener('gesturechange', handleGestureChange, { passive: false, capture: true });
-    
+
     return () => {
       document.removeEventListener('wheel', handleWheel, { capture: true } as EventListenerOptions);
       document.removeEventListener('gesturestart', handleGestureStart, { capture: true } as EventListenerOptions);

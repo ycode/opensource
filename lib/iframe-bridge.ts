@@ -28,7 +28,8 @@ export type IframeToParentMessage =
   | { type: 'CONTEXT_MENU'; payload: { layerId: string; x: number; y: number } }
   | { type: 'ZOOM_GESTURE'; payload: { delta: number; reset?: boolean; zoomToFit?: boolean; autofit?: boolean } }
   | { type: 'CONTENT_HEIGHT'; payload: { height: number } }
-  | { type: 'OPEN_COLLECTION_ITEM_SHEET'; payload: { collectionId: string; itemId: string } };
+  | { type: 'OPEN_COLLECTION_ITEM_SHEET'; payload: { collectionId: string; itemId: string } }
+  | { type: 'DELETE_LAYER'; payload: null };
 
 export type IframeMessage = ParentToIframeMessage | IframeToParentMessage;
 
@@ -57,7 +58,7 @@ export function listenToIframe(
   const handleMessage = (event: MessageEvent) => {
     // Validate message origin if needed (for production, check event.origin)
     const message = event.data as IframeMessage;
-    
+
     // Only process messages from iframe (those sent TO parent)
     if (isIframeToParentMessage(message)) {
       callback(message);
@@ -93,6 +94,7 @@ function isIframeToParentMessage(message: any): message is IframeToParentMessage
     'ZOOM_GESTURE',
     'CONTENT_HEIGHT',
     'OPEN_COLLECTION_ITEM_SHEET',
+    'DELETE_LAYER',
   ];
 
   return validTypes.includes(message.type);
@@ -106,18 +108,18 @@ function buildComponentMap(layers: Layer[], componentMap: Record<string, string>
   layers.forEach(layer => {
     // If this is a component instance root, track it
     const rootId = layer.componentId ? layer.id : currentComponentRootId;
-    
+
     // Map all descendants to this component root
     if (rootId) {
       componentMap[layer.id] = rootId;
     }
-    
+
     // Recursively process children
     if (layer.children && layer.children.length > 0) {
       buildComponentMap(layer.children, componentMap, rootId);
     }
   });
-  
+
   return componentMap;
 }
 
@@ -130,16 +132,16 @@ function resolveComponentsInLayers(layers: Layer[], components: Component[]): La
     // If this layer is a component instance, populate its children from the component
     if (layer.componentId) {
       const component = components.find(c => c.id === layer.componentId);
-      
+
       if (component && component.layers && component.layers.length > 0) {
         // The component's first layer is the actual content (Section, etc.)
         const componentContent = component.layers[0];
-        
+
         // Recursively resolve any nested components within the component's content
-        const resolvedChildren = componentContent.children 
+        const resolvedChildren = componentContent.children
           ? resolveComponentsInLayers(componentContent.children, components)
           : [];
-        
+
         // Return the wrapper with the component's content merged in
         const resolved = {
           ...layer,
@@ -149,14 +151,14 @@ function resolveComponentsInLayers(layers: Layer[], components: Component[]): La
           componentId: undefined,
           children: resolvedChildren,
         };
-        
+
         // Clean up undefined properties
         delete resolved.componentId;
-        
+
         return resolved;
       }
     }
-    
+
     // Recursively process children
     if (layer.children && layer.children.length > 0) {
       return {
@@ -164,7 +166,7 @@ function resolveComponentsInLayers(layers: Layer[], components: Component[]): La
         children: resolveComponentsInLayers(layer.children, components),
       };
     }
-    
+
     return layer;
   });
 }
@@ -176,10 +178,10 @@ function resolveComponentsInLayers(layers: Layer[], components: Component[]): La
 export function serializeLayers(layers: Layer[], components: Component[] = []): { layers: Layer[]; componentMap: Record<string, string> } {
   // First build the component map (before resolving)
   const componentMap = buildComponentMap(layers);
-  
+
   // Then resolve component instances
   const resolvedLayers = resolveComponentsInLayers(layers, components);
-  
+
   // Deep clone to avoid mutations
   return {
     layers: JSON.parse(JSON.stringify(resolvedLayers)),

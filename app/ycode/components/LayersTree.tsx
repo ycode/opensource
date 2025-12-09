@@ -457,7 +457,58 @@ export default function LayersTree({
 
   // Flatten the tree for rendering
   const flattenedNodes = useMemo(
-    () => flattenTree(layers, null, 0, collapsedIds),
+    () => {
+      const flattened = flattenTree(layers, null, 0, collapsedIds);
+
+      // Validate no duplicate IDs in flattened array
+      if (process.env.NODE_ENV === 'development') {
+        const seenIds = new Map<string, { parentId: string | null; depth: number; index: number }>();
+        const duplicates: Array<{ id: string; locations: Array<{ parentId: string | null; depth: number; index: number }> }> = [];
+
+        flattened.forEach((node, idx) => {
+          if (seenIds.has(node.id)) {
+            // Find existing duplicate entry or create new one
+            let dupEntry = duplicates.find(d => d.id === node.id);
+            if (!dupEntry) {
+              dupEntry = {
+                id: node.id,
+                locations: [seenIds.get(node.id)!]
+              };
+              duplicates.push(dupEntry);
+            }
+            dupEntry.locations.push({ parentId: node.parentId, depth: node.depth, index: node.index });
+          }
+          seenIds.set(node.id, { parentId: node.parentId, depth: node.depth, index: node.index });
+        });
+
+        if (duplicates.length > 0) {
+          console.error('❌ DUPLICATE IDs IN FLATTENED NODES:');
+          duplicates.forEach(dup => {
+            console.error(`  ID: ${dup.id}`);
+            console.error(`  Found at:`, dup.locations);
+          });
+          console.error('Full layers structure:', JSON.stringify(layers, null, 2));
+
+          // Also check the source layers structure for duplicates
+          const layerIds = new Set<string>();
+          function checkLayerDuplicates(layerList: Layer[], path: string = 'root'): void {
+            layerList.forEach((layer, idx) => {
+              const currentPath = `${path}[${idx}]`;
+              if (layerIds.has(layer.id)) {
+                console.error(`  Also found in source at: ${currentPath}`);
+              }
+              layerIds.add(layer.id);
+              if (layer.children) {
+                checkLayerDuplicates(layer.children, `${currentPath}.children`);
+              }
+            });
+          }
+          checkLayerDuplicates(layers);
+        }
+      }
+
+      return flattened;
+    },
     [layers, collapsedIds]
   );
 
@@ -580,7 +631,7 @@ export default function LayersTree({
     // Handle drop at the end of the list (after all layers)
     if (overId === 'end-drop-zone') {
       const activeNode = activeId ? flattenedNodes.find((n) => n.id === activeId) : null;
-      
+
       // For Sections, allow dropping at end (will be placed as last child of Body)
       // For other layers, also allow (will be placed as last child of Body)
       setOverId(overId);
@@ -685,12 +736,12 @@ export default function LayersTree({
     // Check if the target node's parent is NOT Body (Section can only be at Body level)
     if (isDraggingSection && (position === 'above' || position === 'below')) {
       const targetParentId = overNode.parentId;
-      
+
       // If the parent is not Body, don't allow Section to be dropped here
       if (targetParentId && targetParentId !== 'body') {
         const parentNode = flattenedNodes.find(n => n.id === targetParentId);
         const parentIsBody = parentNode?.id === 'body' || parentNode?.layer.name === 'body';
-        
+
         if (!parentIsBody) {
           // Hovering over a child of a non-Body container - don't show drop indicator
           setOverId(null);
@@ -797,7 +848,7 @@ export default function LayersTree({
 
         // Find the Body layer to add as its last child
         const bodyLayer = flattenedNodes.find(n => n.id === 'body' || n.layer.name === 'body');
-        
+
         if (bodyLayer) {
           // Get all current children of Body
           const bodyChildren = flattenedNodes.filter(n => n.parentId === bodyLayer.id);
@@ -870,7 +921,7 @@ export default function LayersTree({
         if (activeNode.layer.name === 'section') {
           const parentNode = flattenedNodes.find(n => n.id === newParentId);
           const isParentBody = parentNode?.layer.name === 'body' || parentNode?.id === 'body';
-          
+
           if (!isParentBody) {
             setActiveId(null);
             setOverId(null);
@@ -941,7 +992,7 @@ export default function LayersTree({
         if (activeNode.layer.name === 'section') {
           const parentNode = flattenedNodes.find(n => n.id === newParentId);
           const isParentBody = parentNode?.layer.name === 'body' || parentNode?.id === 'body';
-          
+
           if (!isParentBody) {
             setActiveId(null);
             setOverId(null);
@@ -1148,15 +1199,24 @@ function rebuildTree(
   newParentId: string | null,
   newOrder: number
 ): Layer[] {
-  // Create a copy of all nodes
-  const nodeCopy = flattenedNodes.map(n => ({ ...n, layer: { ...n.layer } }));
+  // Create a copy of all nodes - deep copy layer but clear children references
+  // since we'll rebuild them from scratch
+  const nodeCopy = flattenedNodes.map(n => ({
+    ...n,
+    layer: {
+      ...n.layer,
+      children: undefined // Clear children - we'll rebuild from byParent map
+    }
+  }));
 
-  // Find and update the moved node
+  // Find the moved node and store its original parent
   const movedNode = nodeCopy.find(n => n.id === movedId);
   if (!movedNode) {
     console.error('❌ REBUILD ERROR: Moved node not found!');
     return [];
   }
+
+  const originalParentId = movedNode.parentId;
 
   // Update moved node's parent and index
   movedNode.parentId = newParentId;
@@ -1211,8 +1271,13 @@ function rebuildTree(
 
     const result: Layer = { ...node.layer };
 
+    // Always set children based on byParent map, even if empty
+    // This ensures old children references are removed
     if (childNodes.length > 0) {
       result.children = childNodes.map(child => buildNode(child.id));
+    } else {
+      // Explicitly remove children property if no children
+      delete result.children;
     }
 
     return result;
@@ -1221,6 +1286,42 @@ function rebuildTree(
   // Build root level
   const rootNodes = byParent.get(null) || [];
   const result = rootNodes.map(node => buildNode(node.id));
+
+  // Validate no duplicate IDs in the rebuilt tree
+  if (process.env.NODE_ENV === 'development') {
+    const allIds = new Set<string>();
+    const duplicateInfo: Array<{ id: string; paths: string[] }> = [];
+
+    function validateNoDuplicates(layers: Layer[], path: string = 'root'): void {
+      layers.forEach((layer, idx) => {
+        const currentPath = `${path}[${idx}]`;
+        if (allIds.has(layer.id)) {
+          let dupEntry = duplicateInfo.find(d => d.id === layer.id);
+          if (!dupEntry) {
+            dupEntry = { id: layer.id, paths: [] };
+            duplicateInfo.push(dupEntry);
+          }
+          dupEntry.paths.push(currentPath);
+        }
+        allIds.add(layer.id);
+        if (layer.children) {
+          validateNoDuplicates(layer.children, `${currentPath}.children`);
+        }
+      });
+    }
+
+    validateNoDuplicates(result);
+
+    if (duplicateInfo.length > 0) {
+      console.error('❌ DUPLICATE IDs IN REBUILT TREE:');
+      duplicateInfo.forEach(dup => {
+        console.error(`  ID: ${dup.id} found at paths:`, dup.paths);
+      });
+      console.error('  movedId:', movedId);
+      console.error('  newParentId:', newParentId);
+      console.error('  originalParentId:', originalParentId);
+    }
+  }
 
   return result;
 }

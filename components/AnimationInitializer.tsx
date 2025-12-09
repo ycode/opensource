@@ -239,16 +239,17 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
 
         case 'scroll-into-view': {
           const scrollStart = interaction.timeline?.scrollStart || 'top 80%';
+          const toggleActions = interaction.timeline?.toggleActions || 'play none none none';
+
+          // toggleActions requires timeline upfront
+          const timeline = getTimeline();
+          if (!timeline) break;
 
           const scrollTrigger = ScrollTrigger.create({
             trigger: triggerElement,
             start: scrollStart,
-            onEnter: () => getTimeline()?.play(),
-            onLeaveBack: () => {
-              if (interaction.timeline?.yoyo) {
-                timelinesRef.current.get(interaction.id)?.reverse();
-              }
-            },
+            toggleActions,
+            animation: timeline as any,
           });
 
           cleanupRef.current.push(() => scrollTrigger.kill());

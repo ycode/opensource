@@ -154,6 +154,7 @@ export interface InteractionTimeline {
   scrollStart?: string; // e.g., 'top 80%', 'top center' - when trigger enters viewport
   scrollEnd?: string; // e.g., 'bottom top' - when trigger leaves viewport (while-scrolling only)
   scrub?: boolean | number; // while-scrolling: true for direct link, number for smoothing (seconds)
+  toggleActions?: string; // scroll-into-view: GSAP toggleActions (e.g., 'play none none none')
 }
 
 export interface InteractionTween {
