@@ -293,7 +293,7 @@ function SaturationLightnessPicker({ hue, saturation, lightness, onChange }: Sat
   return (
     <div
       ref={pickerRef}
-      className="relative w-full h-full rounded-md overflow-hidden touch-none"
+      className="relative w-full h-full rounded-md overflow-hidden touch-none outline outline-white/15 outline-offset-[-1px]"
       style={{
         background: backgroundGradient,
         backgroundBlendMode: 'multiply',
@@ -658,6 +658,17 @@ export default function ColorPicker({
 
   const displayValue = value || '';
   const isGradient = displayValue.startsWith('linear') || displayValue.startsWith('radial');
+  
+  // Format display value for user-friendly gradient names
+  const getDisplayText = (val: string): string => {
+    if (val.startsWith('linear-gradient')) {
+      return 'Linear gradient';
+    }
+    if (val.startsWith('radial-gradient')) {
+      return 'Radial gradient';
+    }
+    return val.length > 20 ? val.substring(0, 20) + '...' : val;
+  };
 
   // Solid color state
   const [rgbaColor, setRgbaColor] = useState(() => {
@@ -984,7 +995,7 @@ export default function ColorPicker({
             }}
           />
           <Label variant="muted" className="truncate max-w-[120px]">
-            {displayValue.length > 20 ? displayValue.substring(0, 20) + '...' : displayValue}
+            {getDisplayText(displayValue)}
           </Label>
           <div className="ml-auto -mr-1.5">
               <Button
@@ -1020,7 +1031,7 @@ export default function ColorPicker({
           <TabsContent value="solid" className="gap-3">
             <div className="flex flex-col gap-3">
               {/* Saturation/Lightness Picker */}
-              <div className="w-full relative aspect-video">
+              <div className="w-full relative aspect-[4/3]">
                 <SaturationLightnessPicker
                   hue={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).h}
                   saturation={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).s}
@@ -1119,7 +1130,7 @@ export default function ColorPicker({
                 return (
                   <div className="flex flex-col gap-3">
                     {/* Saturation/Lightness Picker */}
-                    <div className="w-full relative aspect-video">
+                    <div className="w-full relative aspect-[4/3]">
                       <SaturationLightnessPicker
                         hue={hsl.h}
                         saturation={hsl.s}
@@ -1207,7 +1218,7 @@ export default function ColorPicker({
                 return (
                   <div className="flex flex-col gap-3">
                     {/* Saturation/Lightness Picker */}
-                    <div className="w-full relative aspect-video">
+                    <div className="w-full relative aspect-[4/3]">
                       <SaturationLightnessPicker
                         hue={hsl.h}
                         saturation={hsl.s}
