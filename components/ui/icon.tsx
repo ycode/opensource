@@ -41,11 +41,11 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
         y2="100%"
       >
         <stop
-          stop-color="#FFFFFF" stop-opacity="0.8"
+          stopColor="#FFFFFF" stopOpacity="0.8"
           offset="0%"
         />
         <stop
-          stop-color="#FFFFFF" stop-opacity="0"
+          stopColor="#FFFFFF" stopOpacity="0"
           offset="100%"
         />
       </linearGradient>
@@ -66,11 +66,11 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
         y2="100%"
       >
         <stop
-          stop-color="#FFFFFF" stop-opacity="0.8"
+          stopColor="#FFFFFF" stopOpacity="0.8"
           offset="0%"
         />
         <stop
-          stop-color="#FFFFFF" stop-opacity="0"
+          stopColor="#FFFFFF" stopOpacity="0"
           offset="100%"
         />
       </linearGradient>
@@ -82,11 +82,11 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
         y2="100%"
       >
         <stop
-          stop-color="#FFFFFF" stop-opacity="0.8"
+          stopColor="#FFFFFF" stopOpacity="0.8"
           offset="0%"
         />
         <stop
-          stop-color="#FFFFFF" stop-opacity="0"
+          stopColor="#FFFFFF" stopOpacity="0"
           offset="100%"
         />
       </linearGradient>
@@ -98,17 +98,17 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
         y2="100%"
       >
         <stop
-          stop-color="#FFFFFF" stop-opacity="0.8"
+          stopColor="#FFFFFF" stopOpacity="0.8"
           offset="0%"
         />
         <stop
-          stop-color="#FFFFFF" stop-opacity="0"
+          stopColor="#FFFFFF" stopOpacity="0"
           offset="100%"
         />
       </linearGradient>
       <path d="M6,0 C9.3137085,0 12,2.6862915 12,6 C12,9.3137085 9.3137085,12 6,12 C2.6862915,12 0,9.3137085 0,6 C0,2.6862915 2.6862915,0 6,0 Z M6,1 C3.23857625,1 1,3.23857625 1,6 C1,8.76142375 3.23857625,11 6,11 C8.76142375,11 11,8.76142375 11,6 C11,3.23857625 8.76142375,1 6,1 Z" fill="#FFFFFF" />
       <circle
-        fill-opacity="0.15"
+        fillOpacity="0.15"
         fill="#FFFFFF"
         cx="6"
         cy="6"
@@ -124,7 +124,7 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
       <path d="M6,0 C9.3137085,0 12,2.6862915 12,6 C12,9.3137085 9.3137085,12 6,12 C2.6862915,12 0,9.3137085 0,6 C0,2.6862915 2.6862915,0 6,0 Z M6,1 C3.23857625,1 1,3.23857625 1,6 C1,8.76142375 3.23857625,11 6,11 C8.76142375,11 11,8.76142375 11,6 C11,3.23857625 8.76142375,1 6,1 Z" fill="#FFFFFF" />
       <circle
         fill="#FFFFFF"
-        fill-opacity="0.5"
+        fillOpacity="0.5"
         cx="6"
         cy="6"
         r="5"
@@ -142,11 +142,11 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
         r="50%"
       >
         <stop
-          stop-color="#FFFFFF" stop-opacity="0"
+          stopColor="#FFFFFF" stopOpacity="0"
           offset="0%"
         />
         <stop
-          stop-color="#FFFFFF" stop-opacity="0.8"
+          stopColor="#FFFFFF" stopOpacity="0.8"
           offset="100%"
         />
       </radialGradient>

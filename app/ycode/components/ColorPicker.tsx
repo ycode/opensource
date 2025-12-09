@@ -203,26 +203,85 @@ function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: n
   };
 }
 
-// SaturationLightnessPicker Component
-interface SaturationLightnessPickerProps {
-  hue: number; // 0-360
-  saturation: number; // 0-100
-  lightness: number; // 0-100
-  onChange: (saturation: number, lightness: number) => void;
+// Helper to convert HSV to RGB
+function hsvToRgb(h: number, s: number, v: number): { r: number; g: number; b: number } {
+  h /= 360;
+  s /= 100;
+  v /= 100;
+
+  let r = 0, g = 0, b = 0;
+
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+
+  switch (i % 6) {
+    case 0: r = v; g = t; b = p; break;
+    case 1: r = q; g = v; b = p; break;
+    case 2: r = p; g = v; b = t; break;
+    case 3: r = p; g = q; b = v; break;
+    case 4: r = t; g = p; b = v; break;
+    case 5: r = v; g = p; b = q; break;
+  }
+
+  return {
+    r: Math.round(r * 255),
+    g: Math.round(g * 255),
+    b: Math.round(b * 255),
+  };
 }
 
-function SaturationLightnessPicker({ hue, saturation, lightness, onChange }: SaturationLightnessPickerProps) {
+// Helper to convert RGB to HSV
+function rgbToHsv(r: number, g: number, b: number): { h: number; s: number; v: number } {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  const s = max === 0 ? 0 : d / max;
+  const v = max;
+
+  if (max !== min) {
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    v: Math.round(v * 100),
+  };
+}
+
+// SaturationLightnessPicker Component
+// Note: Despite the name, this actually uses HSV color space internally
+// because the visual gradient represents HSV (top = bright colors, not white)
+interface SaturationLightnessPickerProps {
+  hue: number; // 0-360
+  saturation: number; // 0-100 (HSV saturation)
+  value: number; // 0-100 (HSV value/brightness)
+  onChange: (saturation: number, value: number) => void;
+}
+
+function SaturationLightnessPicker({ hue, saturation, value, onChange }: SaturationLightnessPickerProps) {
   const pickerRef = React.useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = React.useState(false);
   const dragRectRef = React.useRef<DOMRect | null>(null);
 
-  // Background gradient:
-  // - Vertical: white (top, lightness 100%) to black (bottom, lightness 0%)
-  // - Horizontal: grayscale (left, saturation 0%) to full hue color (right, saturation 100%)
-  // The right side should show the hue at varying lightness levels
-  const bgColorFull = `hsl(${hue}, 100%, 50%)`; // Full saturation, 50% lightness (brightest)
+  // Background gradient (HSV color space):
+  // - Vertical: bright colors (top, value 100%) to black (bottom, value 0%)
+  // - Horizontal: white/desaturated (left, saturation 0%) to pure hue (right, saturation 100%)
+  const bgColorFull = `hsl(${hue}, 100%, 50%)`; // Full saturation color
   const x = saturation; // 0-100
-  const y = 100 - lightness; // Invert Y axis (0 at top = 100% lightness)
+  const y = 100 - value; // Invert Y axis (0 at top = 100% value/brightness)
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -256,11 +315,11 @@ function SaturationLightnessPicker({ hue, saturation, lightness, onChange }: Sat
     // Use Math.min to ensure we never exceed 100% due to floating point precision
     const newSaturation = rect.width > 0 ? Math.min(100, (xPos / rect.width) * 100) : 0;
 
-    // Calculate lightness: 100% (top) to 0% (bottom) - invert Y axis
-    const newLightness = rect.height > 0 ? Math.max(0, 100 - ((yPos / rect.height) * 100)) : 0;
+    // Calculate value (brightness): 100% (top) to 0% (bottom) - invert Y axis
+    const newValue = rect.height > 0 ? Math.max(0, 100 - ((yPos / rect.height) * 100)) : 0;
 
-    // Call onChange with clamped values
-    onChange(newSaturation, newLightness);
+    // Call onChange with clamped values (HSV saturation and value)
+    onChange(newSaturation, newValue);
   }, [onChange]);
 
   const handleMouseMove = React.useCallback((e: MouseEvent) => {
@@ -691,6 +750,23 @@ export default function ColorPicker({
     return parseColor(defaultValue);
   });
 
+  // Store HSV values separately to prevent drift and instability when adjusting colors
+  // This prevents cursor jumping when RGB->HSV conversions are unstable (e.g., near black)
+  const [hue, setHue] = useState(() => {
+    const initialColor = (!isGradient && displayValue) ? parseColor(displayValue) : parseColor(defaultValue);
+    return rgbToHsv(initialColor.r, initialColor.g, initialColor.b).h;
+  });
+
+  const [saturation, setSaturation] = useState(() => {
+    const initialColor = (!isGradient && displayValue) ? parseColor(displayValue) : parseColor(defaultValue);
+    return rgbToHsv(initialColor.r, initialColor.g, initialColor.b).s;
+  });
+
+  const [hsvValue, setHsvValue] = useState(() => {
+    const initialColor = (!isGradient && displayValue) ? parseColor(displayValue) : parseColor(defaultValue);
+    return rgbToHsv(initialColor.r, initialColor.g, initialColor.b).v;
+  });
+
   // Local state for HEX input to allow free typing
   const [hexInputValue, setHexInputValue] = useState(() => {
     if (!isGradient && displayValue) {
@@ -701,6 +777,9 @@ export default function ColorPicker({
 
   // Ref to track if color change came from hex input (to prevent sync loop)
   const isHexInputUpdating = useRef(false);
+
+  // Ref to track if color change is internal (to prevent hue recalculation)
+  const isInternalUpdate = useRef(false);
 
   // Sync hex input when rgbaColor changes externally (but not from hex input itself)
   useEffect(() => {
@@ -734,8 +813,18 @@ export default function ColorPicker({
   // Sync rgba color when value changes externally (for solid colors)
   useEffect(() => {
     if (!isGradient && displayValue) {
-      setRgbaColor(parseColor(displayValue));
+      const newColor = parseColor(displayValue);
+      setRgbaColor(newColor);
+      // Only update HSV values when color changes externally (not from internal updates)
+      if (!isInternalUpdate.current) {
+        const hsv = rgbToHsv(newColor.r, newColor.g, newColor.b);
+        setHue(hsv.h);
+        setSaturation(hsv.s);
+        setHsvValue(hsv.v);
+      }
     }
+    // Reset flag after sync
+    isInternalUpdate.current = false;
   }, [displayValue, isGradient]);
 
   const handleClear = (e: React.MouseEvent) => {
@@ -750,13 +839,20 @@ export default function ColorPicker({
     // When opening and there's no value, set it to default
     if (newOpen && !hasValue) {
       onChange(defaultValue);
-      setRgbaColor(parseColor(defaultValue));
+      const defaultColor = parseColor(defaultValue);
+      setRgbaColor(defaultColor);
+      const hsv = rgbToHsv(defaultColor.r, defaultColor.g, defaultColor.b);
+      setHue(hsv.h);
+      setSaturation(hsv.s);
+      setHsvValue(hsv.v);
     }
   };
 
   // Solid color handlers
   const handleRgbaChange = (color: { r: number; g: number; b: number; a: number }) => {
     setRgbaColor(color);
+    // Mark as internal update to prevent hue recalculation in useEffect
+    isInternalUpdate.current = true;
     // Use immediate onChange for solid colors to avoid delays
     immediateOnChange(rgbaToHex(color));
   };
@@ -793,11 +889,18 @@ export default function ColorPicker({
         if (hexDigits.length === 6 && /^[0-9a-fA-F]+$/.test(hexDigits)) {
           // Mark that we're updating from hex input to prevent sync loop
           isHexInputUpdating.current = true;
+          // Mark as internal update (HSV values are explicitly set below)
+          isInternalUpdate.current = true;
 
           const parsed = parseColor(normalized);
           // Preserve current opacity if user only typed hex without opacity
           const finalRgba = opacityStr ? parsed : { ...parsed, a: rgbaColor.a };
           setRgbaColor(finalRgba);
+          // Update HSV values when hex input changes
+          const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
+          setHue(hsv.h);
+          setSaturation(hsv.s);
+          setHsvValue(hsv.v);
           immediateOnChange(rgbaToHex(finalRgba));
         }
       }
@@ -807,6 +910,8 @@ export default function ColorPicker({
   const handleHexInputBlur = () => {
     // Mark that we're updating from hex input to prevent sync loop
     isHexInputUpdating.current = true;
+    // Mark as internal update (hue is explicitly set below when needed)
+    isInternalUpdate.current = true;
 
     // On blur, normalize the value - ensure it's a valid 6-digit hex
     const current = hexInputValue.trim();
@@ -834,6 +939,10 @@ export default function ColorPicker({
         const parsed = parseColor(normalized);
         const finalRgba = { ...parsed, a: rgbaColor.a };
         setRgbaColor(finalRgba);
+        const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
+        setHue(hsv.h);
+        setSaturation(hsv.s);
+        setHsvValue(hsv.v);
         setHexInputValue(normalized);
         immediateOnChange(rgbaToHex(finalRgba));
       } else {
@@ -842,6 +951,10 @@ export default function ColorPicker({
         const parsed = parseColor(truncated);
         const finalRgba = { ...parsed, a: rgbaColor.a };
         setRgbaColor(finalRgba);
+        const hsv = rgbToHsv(finalRgba.r, finalRgba.g, finalRgba.b);
+        setHue(hsv.h);
+        setSaturation(hsv.s);
+        setHsvValue(hsv.v);
         setHexInputValue(truncated);
         immediateOnChange(rgbaToHex(finalRgba));
       }
@@ -1160,15 +1273,18 @@ export default function ColorPicker({
 
           <TabsContent value="solid" className="gap-3">
             <div className="flex flex-col gap-3">
-              {/* Saturation/Lightness Picker */}
+              {/* Saturation/Value Picker (HSV color space) */}
               <div className="w-full relative aspect-[4/3]">
                 <SaturationLightnessPicker
-                  hue={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).h}
-                  saturation={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).s}
-                  lightness={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).l}
-                  onChange={(s, l) => {
-                    const hsl = rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b);
-                    const rgb = hslToRgb(hsl.h, s, l);
+                  hue={hue}
+                  saturation={saturation}
+                  value={hsvValue}
+                  onChange={(s, v) => {
+                    // Update stored saturation and value
+                    setSaturation(s);
+                    setHsvValue(v);
+                    // Convert HSV to RGB using stored hue
+                    const rgb = hsvToRgb(hue, s, v);
                     handleRgbaChange({ ...rgb, a: rgbaColor.a });
                   }}
                 />
@@ -1176,10 +1292,12 @@ export default function ColorPicker({
 
               {/* HUE Bar */}
               <HueBar
-                hue={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).h}
-                onChange={(hue) => {
-                  const hsl = rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b);
-                  const rgb = hslToRgb(hue, hsl.s, hsl.l);
+                hue={hue}
+                onChange={(newHue) => {
+                  // Update stored hue
+                  setHue(newHue);
+                  // Use stored saturation and value
+                  const rgb = hsvToRgb(newHue, saturation, hsvValue);
                   handleRgbaChange({ ...rgb, a: rgbaColor.a });
                 }}
               />
@@ -1263,17 +1381,17 @@ export default function ColorPicker({
                 const selectedStop = linearStops.find(s => s.id === selectedStopId);
                 if (!selectedStop) return null;
                 const stopRgba = parseColor(selectedStop.color);
-                const hsl = rgbToHsl(stopRgba.r, stopRgba.g, stopRgba.b);
+                const hsv = rgbToHsv(stopRgba.r, stopRgba.g, stopRgba.b);
                 return (
                   <div className="flex flex-col gap-3">
-                    {/* Saturation/Lightness Picker */}
+                    {/* Saturation/Value Picker (HSV) */}
                     <div className="w-full relative aspect-[4/3]">
                       <SaturationLightnessPicker
-                        hue={hsl.h}
-                        saturation={hsl.s}
-                        lightness={hsl.l}
-                        onChange={(s, l) => {
-                          const rgb = hslToRgb(hsl.h, s, l);
+                        hue={hsv.h}
+                        saturation={hsv.s}
+                        value={hsv.v}
+                        onChange={(s, v) => {
+                          const rgb = hsvToRgb(hsv.h, s, v);
                           updateColorStop('linear', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
                         }}
                       />
@@ -1281,9 +1399,9 @@ export default function ColorPicker({
 
                     {/* HUE Bar */}
                     <HueBar
-                      hue={hsl.h}
+                      hue={hsv.h}
                       onChange={(hue) => {
-                        const rgb = hslToRgb(hue, hsl.s, hsl.l);
+                        const rgb = hsvToRgb(hue, hsv.s, hsv.v);
                         updateColorStop('linear', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
                       }}
                     />
@@ -1351,17 +1469,17 @@ export default function ColorPicker({
                 const selectedStop = radialStops.find(s => s.id === selectedStopId);
                 if (!selectedStop) return null;
                 const stopRgba = parseColor(selectedStop.color);
-                const hsl = rgbToHsl(stopRgba.r, stopRgba.g, stopRgba.b);
+                const hsv = rgbToHsv(stopRgba.r, stopRgba.g, stopRgba.b);
                 return (
                   <div className="flex flex-col gap-3">
-                    {/* Saturation/Lightness Picker */}
+                    {/* Saturation/Value Picker (HSV) */}
                     <div className="w-full relative aspect-[4/3]">
                       <SaturationLightnessPicker
-                        hue={hsl.h}
-                        saturation={hsl.s}
-                        lightness={hsl.l}
-                        onChange={(s, l) => {
-                          const rgb = hslToRgb(hsl.h, s, l);
+                        hue={hsv.h}
+                        saturation={hsv.s}
+                        value={hsv.v}
+                        onChange={(s, v) => {
+                          const rgb = hsvToRgb(hsv.h, s, v);
                           updateColorStop('radial', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
                         }}
                       />
@@ -1369,9 +1487,9 @@ export default function ColorPicker({
 
                     {/* HUE Bar */}
                     <HueBar
-                      hue={hsl.h}
+                      hue={hsv.h}
                       onChange={(hue) => {
-                        const rgb = hslToRgb(hue, hsl.s, hsl.l);
+                        const rgb = hsvToRgb(hue, hsv.s, hsv.v);
                         updateColorStop('radial', selectedStopId, { color: rgbaToHex({ ...rgb, a: stopRgba.a }) });
                       }}
                     />
