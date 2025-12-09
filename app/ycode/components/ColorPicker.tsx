@@ -277,16 +277,21 @@ function SaturationLightnessPicker({ hue, saturation, lightness, onChange }: Sat
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   // Create accurate background gradient using standard color picker approach
-  // This creates a proper saturation/lightness picker where:
-  // - Top = white (lightness 100%)
-  // - Bottom = black (lightness 0%)
-  // - Left = grayscale (saturation 0%)
-  // - Right = full hue color (saturation 100%)
-  // The multiply blend mode combines them to show accurate colors at each position
+  // Standard saturation/lightness picker layout:
+  // - X-axis (left to right): saturation 0% (gray) to 100% (full color)
+  // - Y-axis (top to bottom): lightness 100% (white) to 0% (black)
+  // Using two gradients with multiply blend mode:
+  // 1. Vertical: white to black (controls lightness)
+  // 2. Horizontal: white to full hue color (controls saturation)
+  // Multiply blend combines them correctly
   const backgroundGradient = React.useMemo(() => {
+    // Get the full saturation color at 50% lightness for the right edge
+    const fullColor = hslToRgb(hue, 100, 50);
+    const fullColorStr = `rgb(${fullColor.r}, ${fullColor.g}, ${fullColor.b})`;
+    
     return `
       linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(0,0,0,1) 100%),
-      linear-gradient(to right, rgba(255,255,255,1) 0%, hsl(${hue}, 100%, 50%) 100%)
+      linear-gradient(to right, rgba(255,255,255,1) 0%, ${fullColorStr} 100%)
     `;
   }, [hue]);
 
@@ -678,6 +683,26 @@ export default function ColorPicker({
     return parseColor(defaultValue);
   });
 
+  // Local state for HEX input to allow free typing
+  const [hexInputValue, setHexInputValue] = useState(() => {
+    if (!isGradient && displayValue) {
+      return getHexOnly(displayValue);
+    }
+    return getHexOnly(defaultValue);
+  });
+
+  // Ref to track if color change came from hex input (to prevent sync loop)
+  const isHexInputUpdating = useRef(false);
+
+  // Sync hex input when rgbaColor changes externally (but not from hex input itself)
+  useEffect(() => {
+    if (!isGradient && activeTab === 'solid' && !isHexInputUpdating.current) {
+      setHexInputValue(getHexOnly(rgbaToHex(rgbaColor)));
+    }
+    // Reset flag after sync
+    isHexInputUpdating.current = false;
+  }, [rgbaColor.r, rgbaColor.g, rgbaColor.b, isGradient, activeTab]);
+
   // Gradient state
   const [linearStops, setLinearStops] = useState<ColorStop[]>([
     { id: 'stop-0', color: '#000000', position: 0 },
@@ -728,14 +753,93 @@ export default function ColorPicker({
     immediateOnChange(rgbaToHex(color));
   };
 
-  const handleHexInputChange = (hex: string) => {
-    if (hex.startsWith('#')) {
-      // Parse the hex input (user might type just #hex or #hex/opacity)
-      const parsed = parseColor(hex);
-      // Preserve current opacity if user only typed hex without opacity
-      const finalRgba = hex.includes('/') ? parsed : { ...parsed, a: rgbaColor.a };
-      setRgbaColor(finalRgba);
-      immediateOnChange(rgbaToHex(finalRgba));
+  const handleHexInputChange = (value: string) => {
+    // Update local input state immediately for smooth typing
+    setHexInputValue(value);
+    
+    // Normalize input: remove spaces, ensure # prefix
+    let normalized = value.trim().replace(/\s/g, '');
+    
+    // If user typed without #, add it
+    if (normalized && !normalized.startsWith('#')) {
+      normalized = '#' + normalized;
+      setHexInputValue(normalized);
+    }
+    
+    // If it's just # or empty, allow it (user is still typing)
+    if (!normalized || normalized === '#') {
+      return;
+    }
+    
+    // Parse the hex input (supports #hex, #hex/opacity, or partial #hexhex)
+    // Allow partial values like #ff or #ff00 (user might be typing)
+    if (normalized.startsWith('#') && normalized.length > 1) {
+      // Extract hex part (up to 6 chars after #)
+      const hexMatch = normalized.match(/^#([0-9a-fA-F]{0,6})(?:\/(\d+))?$/);
+      if (hexMatch) {
+        const hexDigits = hexMatch[1];
+        const opacityStr = hexMatch[2];
+        
+        // Only update color when we have exactly 6 hex digits (complete hex value)
+        // Don't prefill or update with partial values - let user type freely
+        if (hexDigits.length === 6 && /^[0-9a-fA-F]+$/.test(hexDigits)) {
+          // Mark that we're updating from hex input to prevent sync loop
+          isHexInputUpdating.current = true;
+          
+          const parsed = parseColor(normalized);
+          // Preserve current opacity if user only typed hex without opacity
+          const finalRgba = opacityStr ? parsed : { ...parsed, a: rgbaColor.a };
+          setRgbaColor(finalRgba);
+          immediateOnChange(rgbaToHex(finalRgba));
+        }
+      }
+    }
+  };
+
+  const handleHexInputBlur = () => {
+    // Mark that we're updating from hex input to prevent sync loop
+    isHexInputUpdating.current = true;
+    
+    // On blur, normalize the value - ensure it's a valid 6-digit hex
+    const current = hexInputValue.trim();
+    let normalized = current;
+    
+    // Add # if missing
+    if (normalized && !normalized.startsWith('#')) {
+      normalized = '#' + normalized;
+    }
+    
+    // Extract hex digits
+    const hexMatch = normalized.match(/^#([0-9a-fA-F]*)$/);
+    if (hexMatch) {
+      const hexDigits = hexMatch[1];
+      
+      if (hexDigits.length === 0) {
+        // Empty - reset to current color
+        setHexInputValue(getHexOnly(rgbaToHex(rgbaColor)));
+      } else if (hexDigits.length < 6) {
+        // Partial - don't auto-fill, just reset to current color
+        // User can type the full hex value if they want
+        setHexInputValue(getHexOnly(rgbaToHex(rgbaColor)));
+      } else if (hexDigits.length === 6) {
+        // Valid 6-digit hex
+        const parsed = parseColor(normalized);
+        const finalRgba = { ...parsed, a: rgbaColor.a };
+        setRgbaColor(finalRgba);
+        setHexInputValue(normalized);
+        immediateOnChange(rgbaToHex(finalRgba));
+      } else {
+        // Too long - truncate to 6 digits
+        const truncated = '#' + hexDigits.slice(0, 6);
+        const parsed = parseColor(truncated);
+        const finalRgba = { ...parsed, a: rgbaColor.a };
+        setRgbaColor(finalRgba);
+        setHexInputValue(truncated);
+        immediateOnChange(rgbaToHex(finalRgba));
+      }
+    } else {
+      // Invalid format - reset to current color
+      setHexInputValue(getHexOnly(rgbaToHex(rgbaColor)));
     }
   };
 
@@ -1066,10 +1170,17 @@ export default function ColorPicker({
               <div className="flex items-center gap-2">
                 <Input
                   type="text"
-                  value={getHexOnly(rgbaToHex(rgbaColor))}
+                  value={hexInputValue}
                   onChange={(e) => handleHexInputChange(e.target.value)}
+                  onBlur={handleHexInputBlur}
+                  onKeyDown={(e) => {
+                    // On Enter, blur to normalize the value
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                    }
+                  }}
                   placeholder={placeholder}
-                  className="flex-1"
+                  className="flex-1 font-mono"
                 />
                 <InputGroup className="w-16">
                   <InputGroupInput
