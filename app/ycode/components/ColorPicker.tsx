@@ -817,6 +817,9 @@ export default function ColorPicker({
 
   // Ref to track if gradient stop color change is internal (to prevent HSV recalculation)
   const isStopInternalUpdate = useRef(false);
+  
+  // Ref to track if gradient value change is internal (to prevent re-parsing)
+  const isInternalGradientChange = useRef(false);
 
   // Sync rgba color when value changes externally (for solid colors)
   useEffect(() => {
@@ -1001,15 +1004,19 @@ export default function ColorPicker({
   // No spaces after commas, no space between color and position
   // Convert colors to rgba format for Tailwind compatibility
   const handleLinearGradientChange = (angle: number, stops: ColorStop[]) => {
+    isInternalGradientChange.current = true;
     const stopsStr = stops.map(s => `${colorToRgbaString(s.color)}${s.position}%`).join(',');
     const gradientValue = `linear-gradient(${angle}deg,${stopsStr})`;
-    debouncedOnChangeRef.current(gradientValue);
+    // Use immediate onChange for gradients to ensure ref is still set when parsing useEffect runs
+    immediateOnChange(gradientValue);
   };
 
   const handleRadialGradientChange = (stops: ColorStop[]) => {
+    isInternalGradientChange.current = true;
     const stopsStr = stops.map(s => `${colorToRgbaString(s.color)}${s.position}%`).join(',');
     const gradientValue = `radial-gradient(circle,${stopsStr})`;
-    debouncedOnChangeRef.current(gradientValue);
+    // Use immediate onChange for gradients to ensure ref is still set when parsing useEffect runs
+    immediateOnChange(gradientValue);
   };
 
   const addColorStop = (type: 'linear' | 'radial', position?: number) => {
@@ -1029,14 +1036,27 @@ export default function ColorPicker({
       color: '#808080',
       position: targetPosition,
     };
+    
+    // Initialize HSV state for the new stop immediately
+    const rgba = parseColor(newStop.color);
+    const hsv = rgbToHsv(rgba.r, rgba.g, rgba.b);
+    setStopHue(hsv.h);
+    setStopSaturation(hsv.s);
+    setStopHsvValue(hsv.v);
+    
+    // Mark as internal update to prevent HSV recalculation
+    isStopInternalUpdate.current = true;
+    
     if (type === 'linear') {
       const newStops = [...linearStops, newStop].sort((a, b) => a.position - b.position);
       setLinearStops(newStops);
+      // Select immediately - this is the key action we want
       setSelectedStopId(newStop.id);
       handleLinearGradientChange(linearAngle, newStops);
     } else {
       const newStops = [...radialStops, newStop].sort((a, b) => a.position - b.position);
       setRadialStops(newStops);
+      // Select immediately - this is the key action we want
       setSelectedStopId(newStop.id);
       handleRadialGradientChange(newStops);
     }
@@ -1152,6 +1172,12 @@ export default function ColorPicker({
   // Format: linear-gradient(180deg,rgba(0,0,0,1)0%,rgba(140,0,0,1)43.31%...)
   // No spaces after commas, no space between color and position
   useEffect(() => {
+    // Skip parsing if this is an internal gradient change (adding/moving/editing stops)
+    if (isInternalGradientChange.current) {
+      isInternalGradientChange.current = false;
+      return;
+    }
+    
     if (displayValue.startsWith('linear-gradient')) {
       // Match: linear-gradient(angle deg,color1position1%,color2position2%,...)
       // Allow optional spaces for compatibility but prefer no spaces
@@ -1246,14 +1272,15 @@ export default function ColorPicker({
   }, [selectedStopId, linearStops, radialStops, activeTab]);
 
   // Ensure at least one stop is always selected when in gradient mode
+  // Only runs when there's NO selection or the selected stop doesn't exist
   useEffect(() => {
     if (activeTab === 'linear' && linearStops.length > 0) {
-      // If no stop is selected or selected stop doesn't exist, select the first one
+      // Only select if no stop is selected or selected stop doesn't exist
       if (!selectedStopId || !linearStops.some(s => s.id === selectedStopId)) {
         setSelectedStopId(linearStops[0].id);
       }
     } else if (activeTab === 'radial' && radialStops.length > 0) {
-      // If no stop is selected or selected stop doesn't exist, select the first one
+      // Only select if no stop is selected or selected stop doesn't exist
       if (!selectedStopId || !radialStops.some(s => s.id === selectedStopId)) {
         setSelectedStopId(radialStops[0].id);
       }
