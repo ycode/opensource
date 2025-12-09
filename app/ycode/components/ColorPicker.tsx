@@ -1020,7 +1020,7 @@ export default function ColorPicker({
           <TabsContent value="solid" className="gap-3">
             <div className="flex flex-col gap-3">
               {/* Saturation/Lightness Picker */}
-              <div className="w-full relative aspect-square">
+              <div className="w-full relative aspect-video">
                 <SaturationLightnessPicker
                   hue={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).h}
                   saturation={rgbToHsl(rgbaColor.r, rgbaColor.g, rgbaColor.b).s}
@@ -1119,7 +1119,7 @@ export default function ColorPicker({
                 return (
                   <div className="flex flex-col gap-3">
                     {/* Saturation/Lightness Picker */}
-                    <div className="w-full relative aspect-square">
+                    <div className="w-full relative aspect-video">
                       <SaturationLightnessPicker
                         hue={hsl.h}
                         saturation={hsl.s}
@@ -1207,7 +1207,7 @@ export default function ColorPicker({
                 return (
                   <div className="flex flex-col gap-3">
                     {/* Saturation/Lightness Picker */}
-                    <div className="w-full relative aspect-square">
+                    <div className="w-full relative aspect-video">
                       <SaturationLightnessPicker
                         hue={hsl.h}
                         saturation={hsl.s}
