@@ -1126,7 +1126,7 @@ export default function ColorPicker({
           value={activeTab} onValueChange={handleTabChange}
           className="!gap-3"
         >
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="w-full">
             <TabsTrigger value="solid">
               <Icon name="color" />
             </TabsTrigger>
@@ -1135,6 +1135,9 @@ export default function ColorPicker({
             </TabsTrigger>
             <TabsTrigger value="radial">
               <Icon name="radial" />
+            </TabsTrigger>
+            <TabsTrigger value="image">
+              <Icon name="fill-image" />
             </TabsTrigger>
           </TabsList>
 
@@ -1400,6 +1403,13 @@ export default function ColorPicker({
               })()}
             </div>
           </TabsContent>
+
+          <TabsContent value="image">
+
+            Hello
+
+          </TabsContent>
+
         </Tabs>
       </PopoverContent>
     </Popover>

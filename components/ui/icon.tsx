@@ -13,7 +13,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'more' | 'copy' | 'component' | 'arrowLeft' | 'bold' | 'italic' | 'strikethrough' | 'quote' | 'listOrdered' | 'listUnordered' | 'code' | 'pencil' | 'eye' | 'eye-off'
     | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'zap'
     | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in' | 'ease-back-in-out' | 'ease-back-out'
-    | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color'
+    | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image'
   );
 }
 
@@ -54,6 +54,69 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
         fill="url(#linearGradient-1)" cx="6"
         cy="6" r="5"
       />
+    </>
+  ),
+  'fill-image': (
+    <>
+      <linearGradient
+        id="linearGradient-1"
+        x1="50%"
+        y1="0%"
+        x2="50%"
+        y2="100%"
+      >
+        <stop
+          stop-color="#FFFFFF" stop-opacity="0.8"
+          offset="0%"
+        />
+        <stop
+          stop-color="#FFFFFF" stop-opacity="0"
+          offset="100%"
+        />
+      </linearGradient>
+      <linearGradient
+        id="linearGradient-2"
+        x1="50%"
+        y1="0%"
+        x2="50%"
+        y2="100%"
+      >
+        <stop
+          stop-color="#FFFFFF" stop-opacity="0.8"
+          offset="0%"
+        />
+        <stop
+          stop-color="#FFFFFF" stop-opacity="0"
+          offset="100%"
+        />
+      </linearGradient>
+      <linearGradient
+        id="linearGradient-3"
+        x1="50%"
+        y1="0%"
+        x2="50%"
+        y2="100%"
+      >
+        <stop
+          stop-color="#FFFFFF" stop-opacity="0.8"
+          offset="0%"
+        />
+        <stop
+          stop-color="#FFFFFF" stop-opacity="0"
+          offset="100%"
+        />
+      </linearGradient>
+      <path d="M6,0 C9.3137085,0 12,2.6862915 12,6 C12,9.3137085 9.3137085,12 6,12 C2.6862915,12 0,9.3137085 0,6 C0,2.6862915 2.6862915,0 6,0 Z M6,1 C3.23857625,1 1,3.23857625 1,6 C1,8.76142375 3.23857625,11 6,11 C8.76142375,11 11,8.76142375 11,6 C11,3.23857625 8.76142375,1 6,1 Z" fill="#FFFFFF" />
+      <circle
+        fill-opacity="0.15"
+        fill="#FFFFFF"
+        cx="6"
+        cy="6"
+        r="5"
+      />
+      <path d="M5,3 C4.44771525,3 4,3.44771525 4,4 C4,4.55228475 4.44771525,5 5,5 C5.55228475,5 6,4.55228475 6,4 C6,3.44771525 5.55228475,3 5,3 Z" fill="url(#linearGradient-1)" />
+      <path d="M9.67029444,5.54917717 C10.2678001,6.04518712 10.8653057,6.54119707 11.4628113,7.03720702 L9.29480419,10.7003784 C6.83886929,11.3494554 4.82493142,11.2730966 3.2529906,10.4713021 C3.29192243,10.4328413 4.98958993,8.80861882 8.34599312,5.59863462 L8.34488637,5.59747552 C8.71083497,5.24805373 9.28011784,5.22703291 9.67083961,5.54851459 Z" fill="url(#linearGradient-2)" />
+      <path d="M3.40949666,6.49524935 C3.81550227,6.90105405 4.50969186,7.51170742 5.49206543,8.32720947 L3.35371882,10.3882755 L1,8.35054693 C1.03605509,8.31492806 1.544894,7.71035663 2.52651672,6.53683265 L2.52584075,6.53626835 C2.73820119,6.28188735 3.11656989,6.24782296 3.37095088,6.4601834 C3.38429082,6.47131975 3.39714066,6.48303037 3.40946406,6.49528215 Z" fill="url(#linearGradient-3)" />
     </>
   ),
   color: (
