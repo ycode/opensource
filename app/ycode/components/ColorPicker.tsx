@@ -1019,6 +1019,50 @@ export default function ColorPicker({
     immediateOnChange(gradientValue);
   };
 
+  // Helper to interpolate color at a specific position on the gradient
+  const interpolateColorAtPosition = (stops: ColorStop[], position: number): string => {
+    // Sort stops by position
+    const sortedStops = [...stops].sort((a, b) => a.position - b.position);
+    
+    // If position is before first stop, use first stop's color
+    if (position <= sortedStops[0].position) {
+      return sortedStops[0].color;
+    }
+    
+    // If position is after last stop, use last stop's color
+    if (position >= sortedStops[sortedStops.length - 1].position) {
+      return sortedStops[sortedStops.length - 1].color;
+    }
+    
+    // Find the two stops that surround the target position
+    let leftStop = sortedStops[0];
+    let rightStop = sortedStops[sortedStops.length - 1];
+    
+    for (let i = 0; i < sortedStops.length - 1; i++) {
+      if (sortedStops[i].position <= position && sortedStops[i + 1].position >= position) {
+        leftStop = sortedStops[i];
+        rightStop = sortedStops[i + 1];
+        break;
+      }
+    }
+    
+    // Calculate interpolation factor (0 to 1)
+    const factor = (position - leftStop.position) / (rightStop.position - leftStop.position);
+    
+    // Parse colors to RGBA
+    const leftRgba = parseColor(leftStop.color);
+    const rightRgba = parseColor(rightStop.color);
+    
+    // Interpolate each channel
+    const r = Math.round(leftRgba.r + (rightRgba.r - leftRgba.r) * factor);
+    const g = Math.round(leftRgba.g + (rightRgba.g - leftRgba.g) * factor);
+    const b = Math.round(leftRgba.b + (rightRgba.b - leftRgba.b) * factor);
+    const a = leftRgba.a + (rightRgba.a - leftRgba.a) * factor;
+    
+    // Return as hex with opacity
+    return rgbaToHex({ r, g, b, a });
+  };
+
   const addColorStop = (type: 'linear' | 'radial', position?: number) => {
     const targetPosition = position ?? 50;
     const currentStops = type === 'linear' ? linearStops : radialStops;
@@ -1031,9 +1075,12 @@ export default function ColorPicker({
       return;
     }
 
+    // Interpolate color at the target position
+    const interpolatedColor = interpolateColorAtPosition(currentStops, targetPosition);
+
     const newStop: ColorStop = {
       id: `stop-${Date.now()}`,
-      color: '#808080',
+      color: interpolatedColor,
       position: targetPosition,
     };
     
