@@ -22,20 +22,20 @@ export default function BackgroundsControls({ layer, onLayerUpdate }: Background
     activeBreakpoint,
     activeUIState,
   });
-  
+
   // Get current values from layer (no inheritance - only exact breakpoint values)
   const backgroundColor = getDesignProperty('backgrounds', 'backgroundColor') || '';
   const backgroundImage = getDesignProperty('backgrounds', 'backgroundImage') || '';
   const backgroundSize = getDesignProperty('backgrounds', 'backgroundSize') || 'cover';
   const backgroundPosition = getDesignProperty('backgrounds', 'backgroundPosition') || 'center';
   const backgroundRepeat = getDesignProperty('backgrounds', 'backgroundRepeat') || 'no-repeat';
-  
+
   // Handle background color change
   const handleBackgroundColorChange = (value: string) => {
     const sanitized = removeSpaces(value);
     updateDesignProperty('backgrounds', 'backgroundColor', sanitized || null);
   };
-  
+
   // Handle background image change
   const handleBackgroundImageChange = (value: string) => {
     const sanitized = removeSpaces(value);
@@ -46,22 +46,22 @@ export default function BackgroundsControls({ layer, onLayerUpdate }: Background
     }
     updateDesignProperty('backgrounds', 'backgroundImage', value || null);
   };
-  
+
   // Handle background size change
   const handleBackgroundSizeChange = (value: string) => {
     updateDesignProperty('backgrounds', 'backgroundSize', value);
   };
-  
+
   // Handle background position change
   const handleBackgroundPositionChange = (value: string) => {
     updateDesignProperty('backgrounds', 'backgroundPosition', value);
   };
-  
+
   // Handle background repeat change
   const handleBackgroundRepeatChange = (value: string) => {
     updateDesignProperty('backgrounds', 'backgroundRepeat', value);
   };
-  
+
   // Extract URL from background image
   const extractImageUrl = (prop: string): string => {
     if (!prop) return '';
@@ -70,7 +70,7 @@ export default function BackgroundsControls({ layer, onLayerUpdate }: Background
     }
     return prop;
   };
-  
+
   return (
     <div className="py-5">
       <header className="py-4 -mt-4">
@@ -79,7 +79,7 @@ export default function BackgroundsControls({ layer, onLayerUpdate }: Background
 
       <div className="flex flex-col gap-2">
         <div className="grid grid-cols-3">
-          <Label variant="muted">Color</Label>
+          <Label variant="muted">Fill</Label>
           <div className="col-span-2 *:w-full">
             <ColorPicker
               value={backgroundColor}
