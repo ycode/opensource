@@ -1,89 +1,93 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Icon } from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import Icon from '@/components/ui/icon';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import FieldsDropdown from '@/app/ycode/components/FieldsDropdown';
-import { getLayerIcon } from '@/lib/layer-utils';
+import { Button } from '@/components/ui/button';
 import { TiptapEditor } from '@/components/ui/tiptap-editor';
-import {
-  DropdownMenu,
-  DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-
-const AVAILABLE_LANGUAGES = [
-  { value: 'en', label: 'English' },
-  { value: 'fr', label: 'French' },
-  { value: 'lt', label: 'Lithuanian' },
-];
-
-interface Locale {
-  id: string;
-  language: string;
-  name: string;
-}
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { InputAutocomplete } from '@/components/ui/input-autocomplete';
+import { LOCALES, type Locale as LocaleOption } from '@/lib/localisation-utils';
+import { useLocalisationStore } from '@/stores/useLocalisationStore';
+import type { Locale } from '@/types';
 
 interface LocalizationContentProps {
   children: React.ReactNode;
 }
 
 export default function LocalizationContent({ children }: LocalizationContentProps) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const defaultLocale: Locale = {
-    id: 'en-default',
-    language: 'en',
-    name: 'English',
-  };
+  // Store (locales are already sorted)
+  const locales = useLocalisationStore((state) => state.locales);
+  const selectedLocaleId = useLocalisationStore((state) => state.selectedLocaleId);
+  const setSelectedLocaleId = useLocalisationStore((state) => state.setSelectedLocaleId);
+  const createLocale = useLocalisationStore((state) => state.createLocale);
+  const isLoading = useLocalisationStore((state) => state.isLoading);
+  const error = useLocalisationStore((state) => state.error);
+  const clearError = useLocalisationStore((state) => state.clearError);
 
-  const [locales, setLocales] = useState<Locale[]>([defaultLocale]);
-  const [selectedLocaleId, setSelectedLocaleId] = useState<string | null>(defaultLocale.id);
+  // Local state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('');
-  const [localeName, setLocaleName] = useState<string>('');
+  const [selectedLanguage, setSelectedLanguage] = useState<LocaleOption | null>(null);
+  const [customLocaleName, setCustomLocaleName] = useState<string>('');
   const [selectedContentType, setSelectedContentType] = useState<string>('pages');
   const [translationValues, setTranslationValues] = useState<Record<string, string>>({});
-
-  // Auto-select first locale if none selected
-  useEffect(() => {
-    if (!selectedLocaleId && locales.length > 0) {
-      setSelectedLocaleId(locales[0].id);
-    }
-  }, [selectedLocaleId, locales]);
+  const [localeSearch, setLocaleSearch] = useState('');
 
   const selectedLocale = locales.find(l => l.id === selectedLocaleId);
 
-  const handleAddLocale = () => {
-    if (!selectedLanguage || !localeName.trim()) {
+  // Filter out locales that already exist
+  const existingLocaleCodes = new Set(locales.map(l => l.code));
+  const availableLocales = LOCALES.filter(l => !existingLocaleCodes.has(l.code));
+
+  const handleAddLocale = async () => {
+    if (!selectedLanguage || !customLocaleName.trim()) {
       return;
     }
 
-    const languageLabel = AVAILABLE_LANGUAGES.find(l => l.value === selectedLanguage)?.label || selectedLanguage;
-    const newLocale: Locale = {
-      id: `${selectedLanguage}-${Date.now()}`,
-      language: selectedLanguage,
-      name: localeName.trim(),
-    };
+    try {
+      const newLocale = await createLocale({
+        code: selectedLanguage.code,
+        label: customLocaleName.trim(),
+      });
 
-    setLocales([...locales, newLocale]);
-    setSelectedLanguage('');
-    setLocaleName('');
-    setIsDialogOpen(false);
+      if (newLocale) {
+        setSelectedLanguage(null);
+        setCustomLocaleName('');
+        setLocaleSearch('');
+        setIsDialogOpen(false);
+      }
+    } catch (error) {
+      console.error('Failed to create locale:', error);
+    }
   };
 
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
-    setSelectedLanguage('');
-    setLocaleName('');
+    setSelectedLanguage(null);
+    setCustomLocaleName('');
+    setLocaleSearch('');
+    clearError();
+  };
+
+  const handleSelectLanguage = (locale: LocaleOption | null) => {
+    clearError();
+
+    if (!locale) {
+      setSelectedLanguage(null);
+      setLocaleSearch('');
+      setCustomLocaleName('');
+      return;
+    }
+
+    setLocaleSearch(locale.label);
+    setSelectedLanguage(locale);
+    setCustomLocaleName(locale.label);
   };
 
   return (
@@ -95,7 +99,10 @@ export default function LocalizationContent({ children }: LocalizationContentPro
           <Button
             size="xs"
             variant="secondary"
-            onClick={() => setIsDialogOpen(true)}
+            onClick={() => {
+              clearError();
+              setIsDialogOpen(true);
+            }}
           >
             <Icon name="plus" className="size-3" />
           </Button>
@@ -104,7 +111,6 @@ export default function LocalizationContent({ children }: LocalizationContentPro
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-0">
             {locales.map((locale) => {
-              const languageLabel = AVAILABLE_LANGUAGES.find(l => l.value === locale.language)?.label || locale.language;
               const isActive = selectedLocaleId === locale.id;
 
               return (
@@ -112,20 +118,25 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                   key={locale.id}
                   onClick={() => setSelectedLocaleId(locale.id)}
                   className={cn(
-                    'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg cursor-pointer select-none w-full text-left px-2 text-xs gap-1',
+                    'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg cursor-pointer select-none w-full text-left px-2 text-xs gap-1.5',
                     'hover:bg-secondary/50',
                     isActive && 'bg-primary text-primary-foreground hover:bg-primary',
                     !isActive && 'text-secondary-foreground/80 dark:text-muted-foreground'
                   )}
                 >
-                  <span className="bg-secondary text-[10px] font-semibold py-0.5 px-1 rounded-[6px]">EN</span>
-                  <Label>{locale.name} ({languageLabel})</Label>
+                  <span className="bg-secondary text-[10px] font-semibold py-0.5 px-1.5 rounded-[6px] uppercase">{locale.code}</span>
+                  <Label>{locale.label}</Label>
+                  {locale.is_default && (
+                    <Badge variant="secondary" className="ml-auto text-[10px]">
+                      Default
+                    </Badge>
+                  )}
                 </button>
               );
             })}
             {locales.length === 0 && (
               <div className="px-2 py-4 text-xs text-muted-foreground">
-                No locales added yet
+                {isLoading ? 'Loading locales...' : 'No locales added yet'}
               </div>
             )}
           </div>
@@ -135,10 +146,8 @@ export default function LocalizationContent({ children }: LocalizationContentPro
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         {selectedLocale ? (
-          <div className="">
-
+          <div>
             <div className="p-4 flex items-center gap-2 border-b">
-
               <div>
                 <Select value={selectedContentType} onValueChange={setSelectedContentType}>
                   <SelectTrigger className="w-32">
@@ -162,11 +171,9 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                   </InputGroupAddon>
                 </InputGroup>
               </div>
-
             </div>
 
             <div>
-
               <header className="p-4 flex items-center gap-1.5 border-b">
                 <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50 hover:bg-secondary/100">
                   <Icon name="page" className="size-2.5 opacity-60" />
@@ -178,24 +185,21 @@ export default function LocalizationContent({ children }: LocalizationContentPro
               </header>
 
               <ul className="divide-y pl-4">
-
                 <li className="flex items-start gap-2 pr-4">
-
                   <div className="flex-1 grid grid-cols-2 items-center gap-4">
-
                     <div className="py-5">
                       <span className="opacity-50">Create stunning websites with ease</span>
                     </div>
-                    <div className="flex flex-col py-3 h-full *:flex-1">
-                    <TiptapEditor
-                      value={translationValues['text-1'] || ''}
-                      onChange={(value) => setTranslationValues(prev => ({ ...prev, 'text-1': value }))}
-                      placeholder="Enter translation..."
-                      className="min-h-[28px] [&>*:first-child]:mb-0 py-1 px-2.5 !bg-transparent"
-                      hideControls
-                    />
-                  </div>
 
+                    <div className="flex flex-col py-3 h-full *:flex-1">
+                      <TiptapEditor
+                        value={translationValues['text-1'] || ''}
+                        onChange={(value) => setTranslationValues(prev => ({ ...prev, 'text-1': value }))}
+                        placeholder="Enter translation..."
+                        className="min-h-[28px] [&>*:first-child]:mb-0 py-1 px-2.5 !bg-transparent"
+                        hideControls
+                      />
+                    </div>
                   </div>
 
                   <div className="py-3">
@@ -212,12 +216,9 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-
                 </li>
-
               </ul>
             </div>
-
           </div>
         ) : (
           children
@@ -226,36 +227,73 @@ export default function LocalizationContent({ children }: LocalizationContentPro
 
       {/* Add Locale Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
-        <DialogContent>
+        <DialogContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
           <DialogHeader>
-            <DialogTitle>Add Locale</DialogTitle>
+            <DialogTitle>Add locale</DialogTitle>
+            <DialogDescription>Select a locale to add to your project</DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="language">Language</Label>
-              <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-                <SelectTrigger id="language">
-                  <SelectValue placeholder="Select a language" />
-                </SelectTrigger>
-                <SelectContent>
-                  {AVAILABLE_LANGUAGES.map((lang) => (
-                    <SelectItem key={lang.value} value={lang.value}>
-                      {lang.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {error && (
+              <div className="px-3 py-2 text-xs text-destructive bg-destructive/10 rounded-md">
+                {error}
+              </div>
+            )}
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                value={localeName}
-                onChange={(e) => setLocaleName(e.target.value)}
-                placeholder="Enter locale name"
+              <Label htmlFor="language">Locale</Label>
+
+              <InputAutocomplete
+                id="language"
+                search={localeSearch}
+                onSearchChange={setLocaleSearch}
+                options={availableLocales}
+                selected={selectedLanguage}
+                onSelect={handleSelectLanguage}
+                placeholder="Search for a locale"
+                searchableKeys={['label', 'native_label', 'code']}
+                renderItem={(locale) => (
+                  <div className="flex items-center justify-between px-1.5 py-1.25 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span>{locale.label}</span>
+                      <span className="text-muted-foreground">{locale.native_label}</span>
+                    </div>
+                    <Badge variant="secondary" className="uppercase text-[10px]">
+                      {locale.code}
+                    </Badge>
+                  </div>
+                )}
+                renderEmpty={() => (
+                  <div className="px-3 py-6 text-center text-muted-foreground text-xs">
+                    No locales found
+                  </div>
+                )}
               />
+            </div>
+
+            <div className="flex gap-4">
+              <div className="flex flex-col gap-2 flex-1">
+                <Label htmlFor="name">Custom name</Label>
+                <Input
+                  id="name"
+                  value={customLocaleName}
+                  onChange={(e) => setCustomLocaleName(e.target.value)}
+                  placeholder="Custom name"
+                />
+              </div>
+              <div className="flex flex-col gap-2 flex-1">
+                <Label htmlFor="code">Locale code</Label>
+                <Input
+                  id="code"
+                  value={selectedLanguage?.code || ''}
+                  disabled
+                  placeholder="Code"
+                  className={selectedLanguage?.code ? 'uppercase' : ''}
+                />
+              </div>
             </div>
           </div>
 
@@ -265,16 +303,17 @@ export default function LocalizationContent({ children }: LocalizationContentPro
               variant="secondary"
               onClick={handleCloseDialog}
               size="sm"
+              disabled={isLoading}
             >
               Cancel
             </Button>
             <Button
               type="button"
               onClick={handleAddLocale}
-              disabled={!selectedLanguage || !localeName.trim()}
+              disabled={!selectedLanguage || !customLocaleName.trim() || isLoading}
               size="sm"
             >
-              Add
+              {isLoading ? 'Adding...' : 'Add'}
             </Button>
           </DialogFooter>
         </DialogContent>

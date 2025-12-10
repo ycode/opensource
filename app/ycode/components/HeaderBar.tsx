@@ -4,7 +4,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import { findHomepage } from '@/lib/page-utils';
-import { ArrowLeft, LogOut, Monitor, Moon, Sun, Upload } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PublishDialog from './PublishDialog';
 import { FileManagerDialog } from './FileManagerDialog';
 
@@ -31,13 +30,13 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
-import { publishApi, pagesApi, collectionsApi, componentsApi, layerStylesApi, cacheApi } from '@/lib/api';
+import { useLocalisationStore } from '@/stores/useLocalisationStore';
+import { pagesApi, collectionsApi, componentsApi, layerStylesApi, cacheApi } from '@/lib/api';
 import { buildSlugPath, buildDynamicPageUrl } from '@/lib/page-utils';
 
 // 5. Types
 import type { Page } from '@/types';
 import type { User } from '@supabase/supabase-js';
-import { Empty, EmptyContent, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import { Separator } from '@/components/ui/separator';
@@ -92,6 +91,7 @@ export default function HeaderBar({
   const { getComponentById } = useComponentsStore();
   const { folders, pages: storePages } = usePagesStore();
   const { items } = useCollectionsStore();
+  const { locales, selectedLocaleId, setSelectedLocaleId, getSelectedLocale } = useLocalisationStore();
   const { navigateToLayers, updateQueryParams } = useEditorUrl();
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [showPublishPopover, setShowPublishPopover] = useState(false);
@@ -106,22 +106,14 @@ export default function HeaderBar({
     return 'dark';
   });
   const [baseUrl, setBaseUrl] = useState<string>('');
-  const [selectedLanguage, setSelectedLanguage] = useState<'en' | 'fr'>(() => {
-    if (typeof window !== 'undefined') {
-      const savedLanguage = localStorage.getItem('language') as 'en' | 'fr' | null;
-      return savedLanguage || 'en';
-    }
-    return 'en';
-  });
 
   // Get current host after mount
   useEffect(() => {
     setBaseUrl(window.location.protocol + '//' + window.location.host);
   }, []);
 
-  // Get component and return page info for edit mode
-  const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
-  const returnToPage = returnToPageId ? pages.find(p => p.id === returnToPageId) : null;
+  // Get selected locale
+  const selectedLocale = getSelectedLocale();
 
   // Build full page path including folders (memoized for performance)
   const fullPagePath = useMemo(() => {
@@ -203,11 +195,6 @@ export default function HeaderBar({
 
     localStorage.setItem('theme', theme);
   }, [theme]);
-
-  // Save language preference to localStorage
-  useEffect(() => {
-    localStorage.setItem('language', selectedLanguage);
-  }, [selectedLanguage]);
 
   // Close page dropdown when clicking outside
   useEffect(() => {
@@ -482,26 +469,32 @@ export default function HeaderBar({
           <DropdownMenuTrigger asChild>
             <Button size="xs" variant="ghost">
               <Icon name="globe" />
-              {selectedLanguage === 'en' ? 'EN' : 'FR'}
+              {selectedLocale ? selectedLocale.code.toUpperCase() : 'EN'}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuRadioGroup
-              value={selectedLanguage}
-              onValueChange={(value) => setSelectedLanguage(value as 'en' | 'fr')}
+              value={selectedLocaleId || ''}
+              onValueChange={(value) => setSelectedLocaleId(value)}
             >
-              <DropdownMenuRadioItem value="en">
-                English
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="fr">
-                French
-              </DropdownMenuRadioItem>
+              {locales.map((locale) => (
+                <DropdownMenuRadioItem key={locale.id} value={locale.id}>
+                  <span className="flex items-center gap-3">
+                    {locale.label}
+                    {locale.is_default && (
+                      <Badge variant="secondary" className="text-[10px] mr-5">
+                        Default
+                      </Badge>
+                    )}
+                  </span>
+                </DropdownMenuRadioItem>
+              ))}
             </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => router.push('/ycode/localization/languages')}
             >
-              Language settings
+              Manage locales
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
