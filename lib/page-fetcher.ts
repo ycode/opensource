@@ -397,13 +397,76 @@ export async function fetchHomepage(isPublished: boolean): Promise<Pick<PageData
 }
 
 /**
+ * Resolve reference field values by fetching referenced item data
+ * Adds referenced item's fields with a prefix based on the field path
+ * @param itemValues - Current item values (field_id -> value)
+ * @param fields - Collection fields to check for references
+ * @param isPublished - Whether to fetch published data
+ * @returns Enhanced item values with resolved reference data
+ */
+async function resolveReferenceFields(
+  itemValues: Record<string, string>,
+  fields: CollectionField[],
+  isPublished: boolean
+): Promise<Record<string, string>> {
+  const enhancedValues = { ...itemValues };
+  
+  // Find reference fields (single reference only - multi-reference is used for collection sources)
+  const referenceFields = fields.filter(
+    f => f.type === 'reference' && f.reference_collection_id
+  );
+  
+  for (const field of referenceFields) {
+    const refItemId = itemValues[field.id];
+    if (!refItemId || !field.reference_collection_id) continue;
+    
+    try {
+      // Fetch the referenced item
+      const refItem = await getItemWithValues(refItemId, isPublished);
+      if (!refItem) continue;
+      
+      // Get fields for the referenced collection
+      const refFields = await getFieldsByCollectionId(field.reference_collection_id, isPublished);
+      
+      // Add referenced item's values with field.id as prefix
+      // e.g., if field is "Author" with id "abc123", and referenced item has "name" field with id "xyz789"
+      // the value becomes accessible as "abc123.xyz789" in the values map
+      for (const refField of refFields) {
+        const refValue = refItem.values[refField.id];
+        if (refValue !== undefined) {
+          // Store as: parentFieldId.refFieldId for relationship path resolution
+          enhancedValues[`${field.id}.${refField.id}`] = refValue;
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to resolve reference field ${field.id}:`, error);
+    }
+  }
+  
+  return enhancedValues;
+}
+
+/**
  * Inject collection field values into a layer and its children
  * Recursively resolves field variables in text, images, etc.
  * @param layer - Layer to inject data into
  * @param itemValues - Collection item field values (field_id -> value)
+ * @param fields - Optional collection fields (for reference field resolution)
+ * @param isPublished - Whether fetching published data
  * @returns Layer with resolved field values
  */
-function injectCollectionData(layer: Layer, itemValues: Record<string, string>): Layer {
+async function injectCollectionData(
+  layer: Layer,
+  itemValues: Record<string, string>,
+  fields?: CollectionField[],
+  isPublished: boolean = true
+): Promise<Layer> {
+  // Resolve reference fields if we have field definitions
+  let enhancedValues = itemValues;
+  if (fields && fields.length > 0) {
+    enhancedValues = await resolveReferenceFields(itemValues, fields, isPublished);
+  }
+  
   const updates: Partial<Layer> = {};
   
   // Resolve inline variables (embedded JSON format)
@@ -417,9 +480,9 @@ function injectCollectionData(layer: Layer, itemValues: Record<string, string>):
       deleted_at: null,
       manual_order: 0,
       is_published: true,
-      values: itemValues,
+      values: enhancedValues,
     };
-    const resolved = resolveInlineVariables(textContent, mockItem);
+    const resolved = resolveInlineVariablesWithRelationships(textContent, mockItem);
 
     updates.text = resolved;
     updates.variables = {
@@ -429,19 +492,21 @@ function injectCollectionData(layer: Layer, itemValues: Record<string, string>):
   }
   // Direct field binding (non-inline)
   else if (layer.text && isFieldVariable(layer.text)) {
-    const resolvedValue = resolveFieldValue(layer.text, itemValues);
+    const resolvedValue = resolveFieldValueWithRelationships(layer.text, enhancedValues);
     updates.text = resolvedValue || layer.text;
   }
   
   // Image URL field binding
   if (layer.url && isFieldVariable(layer.url)) {
-    const resolvedUrl = resolveFieldValue(layer.url, itemValues);
+    const resolvedUrl = resolveFieldValueWithRelationships(layer.url, enhancedValues);
     updates.url = resolvedUrl;
   }
   
   // Recursively process children
-  const resolvedChildren = layer.children?.map(child => injectCollectionData(child, itemValues));
-  if (resolvedChildren) {
+  if (layer.children) {
+    const resolvedChildren = await Promise.all(
+      layer.children.map(child => injectCollectionData(child, enhancedValues, fields, isPublished))
+    );
     updates.children = resolvedChildren;
   }
   
@@ -452,24 +517,85 @@ function injectCollectionData(layer: Layer, itemValues: Record<string, string>):
 }
 
 /**
+ * Resolve inline variables with support for relationship paths
+ * e.g., {"type":"field","data":{"field_id":"authorId","relationships":["nameFieldId"]}}
+ */
+function resolveInlineVariablesWithRelationships(
+  text: string,
+  collectionItem: CollectionItemWithValues
+): string {
+  if (!collectionItem || !collectionItem.values) {
+    return text;
+  }
+
+  const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+  return text.replace(regex, (match, variableContent) => {
+    try {
+      const parsed = JSON.parse(variableContent.trim());
+
+      if (parsed.type === 'field' && parsed.data?.field_id) {
+        const fieldId = parsed.data.field_id;
+        const relationships = parsed.data.relationships || [];
+        
+        // Build the full path for relationship resolution
+        if (relationships.length > 0) {
+          const fullPath = [fieldId, ...relationships].join('.');
+          const fieldValue = collectionItem.values[fullPath];
+          return fieldValue || '';
+        }
+        
+        // Simple field lookup
+        const fieldValue = collectionItem.values[fieldId];
+        return fieldValue || '';
+      }
+    } catch {
+      // Invalid JSON or not a field variable, leave as is
+    }
+
+    return match;
+  });
+}
+
+/**
+ * Resolve field value with support for relationship paths
+ */
+function resolveFieldValueWithRelationships(
+  fieldVariable: { type: 'field'; data: { field_id: string; relationships?: string[]; format?: string } },
+  itemValues: Record<string, string>
+): string | undefined {
+  const { field_id, relationships = [] } = fieldVariable.data;
+  
+  // Build the full path for relationship resolution
+  if (relationships.length > 0) {
+    const fullPath = [field_id, ...relationships].join('.');
+    return itemValues[fullPath];
+  }
+  
+  return itemValues[field_id];
+}
+
+/**
  * Resolve collection layers server-side by fetching their data
  * Recursively traverses the layer tree and injects collection items
  * @param layers - Layer tree to resolve
  * @param isPublished - Whether to fetch published or draft items
+ * @param parentItemValues - Optional parent item values for multi-reference filtering
  * @returns Layers with collection data injected
  */
 export async function resolveCollectionLayers(
   layers: Layer[],
-  isPublished: boolean
+  isPublished: boolean,
+  parentItemValues?: Record<string, string>
 ): Promise<Layer[]> {
   console.log('[resolveCollectionLayers] ===== START =====');
   console.log('[resolveCollectionLayers] Processing layers:', {
     layerCount: layers.length,
     isPublished,
     topLevelLayerIds: layers.map(l => l.id),
+    hasParentItemValues: !!parentItemValues,
   });
   
-  const resolveLayer = async (layer: Layer): Promise<Layer> => {
+  const resolveLayer = async (layer: Layer, itemValues?: Record<string, string>): Promise<Layer> => {
     console.log('[resolveCollectionLayers] Processing layer:', {
       layerId: layer.id,
       layerName: layer.name,
@@ -491,6 +617,7 @@ export async function resolveCollectionLayers(
           const sortOrder = collectionVariable.sort_order;
           const limit = collectionVariable.limit;
           const offset = collectionVariable.offset;
+          const sourceFieldId = collectionVariable.source_field_id;
           
           // Build filters for the query
           const filters: any = {};
@@ -498,7 +625,7 @@ export async function resolveCollectionLayers(
           if (offset) filters.offset = offset;
           
           // Fetch items with values
-          const { items } = await getItemsWithValues(
+          let { items } = await getItemsWithValues(
             collectionVariable.id,
             isPublished,
             filters
@@ -511,7 +638,31 @@ export async function resolveCollectionLayers(
             sortOrder,
             limit,
             offset,
+            sourceFieldId,
           });
+          
+          // Filter by multi-reference field if source_field_id is set
+          if (sourceFieldId && itemValues) {
+            const refValue = itemValues[sourceFieldId];
+            if (refValue) {
+              try {
+                const allowedIds = JSON.parse(refValue);
+                if (Array.isArray(allowedIds)) {
+                  items = items.filter(item => allowedIds.includes(item.id));
+                  console.log(`[resolveCollectionLayers] Filtered by multi-reference field ${sourceFieldId}:`, {
+                    allowedIds,
+                    filteredCount: items.length,
+                  });
+                }
+              } catch {
+                console.warn(`[resolveCollectionLayers] Failed to parse multi-reference value for field ${sourceFieldId}`);
+                items = [];
+              }
+            } else {
+              // No value in parent item for this field - show no items
+              items = [];
+            }
+          }
           
           // Apply sorting if specified (since API doesn't handle sortBy yet)
           let sortedItems = items;
@@ -538,9 +689,13 @@ export async function resolveCollectionLayers(
             }
           }
           
+          // Fetch collection fields for reference resolution
+          const collectionFields = await getFieldsByCollectionId(collectionVariable.id, isPublished);
+
           // Flatten collection items by duplicating children for each item
+          // Pass the current item values to children for nested multi-reference support
           const resolvedChildren = layer.children 
-            ? await Promise.all(layer.children.map(resolveLayer)) 
+            ? await Promise.all(layer.children.map(child => resolveLayer(child, itemValues))) 
             : [];
 
           console.log(`[resolveCollectionLayers] Resolved children for layer ${layer.id}:`, {
@@ -549,17 +704,21 @@ export async function resolveCollectionLayers(
           });
 
           // Create a wrapper div for each collection item with resolved children
-          const flattenedChildren: Layer[] = sortedItems.map((item, index) => ({
-            id: `${layer.id}-item-${item.id}`,
-            name: 'div',
-            classes: [] as string[],
-            attributes: {
-              'data-collection-item-id': item.id,
-            } as Record<string, any>,
-            children: resolvedChildren.map(child => 
-              injectCollectionData(child, item.values)
-            ),
-          }));
+          const flattenedChildren: Layer[] = await Promise.all(
+            sortedItems.map(async (item) => ({
+              id: `${layer.id}-item-${item.id}`,
+              name: 'div',
+              classes: [] as string[],
+              attributes: {
+                'data-collection-item-id': item.id,
+              } as Record<string, any>,
+              children: await Promise.all(
+                resolvedChildren.map(child => 
+                  injectCollectionData(child, item.values, collectionFields, isPublished)
+                )
+              ),
+            }))
+          );
 
           console.log(`[resolveCollectionLayers] Created ${flattenedChildren.length} wrapper divs for ${sortedItems.length} items`);
 
@@ -577,24 +736,24 @@ export async function resolveCollectionLayers(
           console.error(`Failed to resolve collection layer ${layer.id}:`, error);
           return {
             ...layer,
-            children: layer.children ? await Promise.all(layer.children.map(resolveLayer)) : undefined,
+            children: layer.children ? await Promise.all(layer.children.map(child => resolveLayer(child, itemValues))) : undefined,
           };
         }
       }
     }
     
-    // Recursively resolve children
+    // Recursively resolve children, passing current item values
     if (layer.children) {
       return {
         ...layer,
-        children: await Promise.all(layer.children.map(resolveLayer)),
+        children: await Promise.all(layer.children.map(child => resolveLayer(child, itemValues))),
       };
     }
     
     return layer;
   };
   
-  const result = await Promise.all(layers.map(resolveLayer));
+  const result = await Promise.all(layers.map(layer => resolveLayer(layer, parentItemValues)));
   console.log('[resolveCollectionLayers] ===== END =====');
   console.log('[resolveCollectionLayers] Processed layers count:', result.length);
   

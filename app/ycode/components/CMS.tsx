@@ -31,6 +31,51 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Badge } from '@/components/ui/badge';
 
+/**
+ * Helper component to render reference field values in CMS list
+ */
+interface ReferenceFieldCellProps {
+  value: string;
+  field: CollectionField;
+  referenceItemsCache: Record<string, Record<string, string>>; // collectionId -> { itemId -> displayName }
+  fields: Record<string, CollectionField[]>; // All fields by collection ID
+}
+
+function ReferenceFieldCell({ value, field, referenceItemsCache, fields }: ReferenceFieldCellProps) {
+  if (!value || !field.reference_collection_id) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+
+  const refCollectionId = field.reference_collection_id;
+  const cache = referenceItemsCache[refCollectionId] || {};
+
+  if (field.type === 'multi_reference') {
+    // Parse JSON array of IDs
+    try {
+      const ids = JSON.parse(value);
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return <span className="text-muted-foreground">-</span>;
+      }
+      return (
+        <Badge variant="secondary" className="font-normal">
+          {ids.length} item{ids.length !== 1 ? 's' : ''}
+        </Badge>
+      );
+    } catch {
+      return <span className="text-muted-foreground">-</span>;
+    }
+  }
+
+  // Single reference - show item name
+  const displayName = cache[value];
+  if (displayName) {
+    return <span>{displayName}</span>;
+  }
+
+  // Loading or not found
+  return <span className="text-muted-foreground">Loading...</span>;
+}
+
 // Sortable row component for drag and drop
 interface SortableRowProps {
   item: CollectionItemWithValues;
@@ -115,6 +160,8 @@ const CMS = React.memo(function CMS() {
   const [editingField, setEditingField] = useState<CollectionField | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [showSkeleton, setShowSkeleton] = useState(false);
+  // Cache for reference item display names: { collectionId: { itemId: displayName } }
+  const [referenceItemsCache, setReferenceItemsCache] = useState<Record<string, Record<string, string>>>({});
 
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = useMemo(
@@ -306,6 +353,78 @@ const CMS = React.memo(function CMS() {
     }
     prevPageSizeRef.current = pageSize;
   }, [pageSize]);
+
+  // Track fetched reference collections to prevent duplicate calls
+  const fetchedReferenceCollections = React.useRef<Set<string>>(new Set());
+
+  // Reset fetched collections when the selected collection changes
+  useEffect(() => {
+    fetchedReferenceCollections.current.clear();
+    setReferenceItemsCache({});
+  }, [selectedCollectionId]);
+
+  // Fetch referenced item display names for reference fields in the list
+  useEffect(() => {
+    if (!selectedCollectionId || !collectionItems.length || !collectionFields.length) return;
+
+    // Find reference/multi_reference fields that need data
+    const refFields = collectionFields.filter(
+      f => (f.type === 'reference' || f.type === 'multi_reference') && f.reference_collection_id
+    );
+
+    if (refFields.length === 0) return;
+
+    // Collect all referenced collection IDs that we haven't fetched yet
+    const collectionsToFetch = new Set<string>();
+
+    refFields.forEach(field => {
+      if (field.reference_collection_id && !fetchedReferenceCollections.current.has(field.reference_collection_id)) {
+        collectionsToFetch.add(field.reference_collection_id);
+      }
+    });
+
+    if (collectionsToFetch.size === 0) return;
+
+    // Fetch display names for each collection
+    const fetchReferencedItems = async () => {
+      const newCache: Record<string, Record<string, string>> = {};
+
+      for (const collectionId of collectionsToFetch) {
+        // Mark as fetched to prevent duplicate calls
+        fetchedReferenceCollections.current.add(collectionId);
+
+        try {
+          // Fetch items from this collection
+          const response = await collectionsApi.getItems(collectionId, { limit: 100 });
+          if (response.error || !response.data?.items) continue;
+
+          // Get the display field for this collection
+          const refCollectionFields = fields[collectionId] || [];
+          const displayField = refCollectionFields.find(f => f.key === 'title')
+            || refCollectionFields.find(f => f.key === 'name')
+            || refCollectionFields.find(f => f.type === 'text' && f.fillable)
+            || refCollectionFields[0];
+
+          // Build cache entries for all items in the collection
+          newCache[collectionId] = {};
+          response.data.items.forEach(item => {
+            const displayValue = displayField
+              ? item.values[displayField.id] || 'Untitled'
+              : 'Untitled';
+            newCache[collectionId][item.id] = displayValue;
+          });
+        } catch (error) {
+          console.error(`Failed to fetch referenced items for collection ${collectionId}:`, error);
+        }
+      }
+
+      if (Object.keys(newCache).length > 0) {
+        setReferenceItemsCache(prev => ({ ...prev, ...newCache }));
+      }
+    };
+
+    fetchReferencedItems();
+  }, [selectedCollectionId, collectionItems.length, collectionFields, fields]);
 
   // Sync URL with item editing state (URL is source of truth for persistence, not immediate UI)
   useEffect(() => {
@@ -614,6 +733,7 @@ const CMS = React.memo(function CMS() {
     name: string;
     type: FieldType;
     default: string;
+    reference_collection_id?: string | null;
   }) => {
     if (!selectedCollectionId) return;
 
@@ -629,6 +749,7 @@ const CMS = React.memo(function CMS() {
         fillable: true,
         key: null,
         hidden: false,
+        reference_collection_id: data.reference_collection_id || null,
       });
 
       // No reload needed - store already updated local state optimistically
@@ -653,6 +774,7 @@ const CMS = React.memo(function CMS() {
     name: string;
     type: FieldType;
     default: string;
+    reference_collection_id?: string | null;
   }) => {
     if (!selectedCollectionId || !editingField) return;
 
@@ -661,6 +783,7 @@ const CMS = React.memo(function CMS() {
       await updateField(selectedCollectionId, editingField.id, {
         name: data.name,
         default: data.default || null,
+        reference_collection_id: data.reference_collection_id,
       });
 
       // No reload needed - store already updated local state optimistically
@@ -772,7 +895,8 @@ const CMS = React.memo(function CMS() {
                   <FieldFormPopover
                     trigger={
                       <Button
-                        size="sm" variant="ghost"
+                        size="sm"
+                        variant="ghost"
                         disabled={showSkeleton}
                       >
                         <Icon name="plus" />
@@ -780,6 +904,7 @@ const CMS = React.memo(function CMS() {
                       </Button>
                     }
                     mode="create"
+                    currentCollectionId={selectedCollectionId || undefined}
                     onSubmit={handleCreateFieldFromPopover}
                     open={createFieldPopoverOpen}
                     onOpenChange={setCreateFieldPopoverOpen}
@@ -844,6 +969,24 @@ const CMS = React.memo(function CMS() {
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
                             {formatDate(value, 'MMM D YYYY, HH:mm')}
+                          </td>
+                        );
+                      }
+
+                      // Reference and multi-reference fields
+                      if ((field.type === 'reference' || field.type === 'multi_reference') && field.reference_collection_id) {
+                        return (
+                          <td
+                            key={field.id}
+                            className="px-4 py-5 text-muted-foreground"
+                            onClick={() => !isManualMode && handleEditItem(item)}
+                          >
+                            <ReferenceFieldCell
+                              value={value}
+                              field={field}
+                              referenceItemsCache={referenceItemsCache}
+                              fields={fields}
+                            />
                           </td>
                         );
                       }
@@ -965,6 +1108,7 @@ const CMS = React.memo(function CMS() {
                 </Button>
               }
               mode="create"
+              currentCollectionId={selectedCollectionId || undefined}
               onSubmit={handleCreateFieldFromPopover}
               open={createFieldPopoverOpen}
               onOpenChange={setCreateFieldPopoverOpen}
@@ -1082,6 +1226,7 @@ const CMS = React.memo(function CMS() {
         <FieldFormPopover
           mode="edit"
           field={editingField}
+          currentCollectionId={selectedCollectionId || undefined}
           onSubmit={handleUpdateFieldFromDialog}
           open={editFieldDialogOpen}
           onOpenChange={(open) => {

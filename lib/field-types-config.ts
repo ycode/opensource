@@ -12,6 +12,7 @@ export const FIELD_TYPES = [
   { value: 'boolean', label: 'Boolean' },
   { value: 'date', label: 'Date' },
   { value: 'reference', label: 'Reference' },
+  { value: 'multi_reference', label: 'Multi-Reference' },
   { value: 'image', label: 'Image' },
 ] as const;
 

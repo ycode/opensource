@@ -359,7 +359,25 @@
       // Resolve field variable from collection item data
       if (collectionItemData) {
         const fieldId = text.data.field_id;
-        const value = collectionItemData[fieldId];
+        const relationships = text.data.relationships || [];
+        const itemValues = collectionItemData.values || collectionItemData;
+        
+        // If there are relationships, resolve the reference path
+        if (relationships.length > 0) {
+          const resolvedValue = resolveReferenceFieldValue(
+            fieldId,
+            relationships,
+            itemValues,
+            collectionId
+          );
+          if (resolvedValue !== null) {
+            return resolvedValue;
+          }
+          return '';
+        }
+        
+        // No relationships - direct field access
+        const value = itemValues[fieldId];
         if (value !== undefined && value !== null) {
           return value;
         }
@@ -384,8 +402,27 @@
                 const variable = JSON.parse(jsonContent.trim());
                 if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
                   const fieldId = variable.data.field_id;
-                  // Collection item data has values in a nested object
-                  const value = collectionItemData.values?.[fieldId] ?? collectionItemData[fieldId];
+                  const relationships = variable.data.relationships || [];
+                  
+                  // Get the current item's values
+                  const itemValues = collectionItemData.values || collectionItemData;
+                  
+                  // If there are relationships, resolve the reference path
+                  if (relationships.length > 0) {
+                    const resolvedValue = resolveReferenceFieldValue(
+                      fieldId,
+                      relationships,
+                      itemValues,
+                      collectionId
+                    );
+                    if (resolvedValue !== null) {
+                      return resolvedValue;
+                    }
+                    return '';
+                  }
+                  
+                  // No relationships - direct field access
+                  const value = itemValues[fieldId];
                   if (value !== undefined && value !== null) {
                     return value;
                   }
@@ -447,6 +484,75 @@
     }
 
     return text;
+  }
+
+  /**
+   * Resolve a reference field value by following the relationship path
+   * @param {string} rootFieldId - The root reference field ID
+   * @param {string[]} relationships - Array of field IDs to traverse
+   * @param {Object} currentItemValues - The current item's values
+   * @param {string} currentCollectionId - The current collection ID
+   * @returns {string|null} The resolved value or null
+   */
+  function resolveReferenceFieldValue(rootFieldId, relationships, currentItemValues, currentCollectionId) {
+    // Get the root field to find its reference_collection_id
+    let currentFields = collectionFields[currentCollectionId] || pageCollectionFields || [];
+    let currentValues = currentItemValues;
+    let currentFieldId = rootFieldId;
+    
+    // Traverse the relationship path
+    const pathToTraverse = [rootFieldId, ...relationships];
+    
+    for (let i = 0; i < pathToTraverse.length; i++) {
+      const fieldId = pathToTraverse[i];
+      const isLastField = i === pathToTraverse.length - 1;
+      
+      if (isLastField) {
+        // Last field in path - return its value
+        const value = currentValues?.[fieldId];
+        return value !== undefined && value !== null ? value : null;
+      }
+      
+      // Not the last field - it's a reference field, follow it
+      const field = currentFields.find(f => f.id === fieldId);
+      if (!field || field.type !== 'reference' || !field.reference_collection_id) {
+        console.warn('[resolveReferenceFieldValue] Field not found or not a reference:', fieldId);
+        return null;
+      }
+      
+      // Get the referenced item ID
+      const referencedItemId = currentValues?.[fieldId];
+      if (!referencedItemId) {
+        return null;
+      }
+      
+      // Look up the referenced item in the collection's data
+      const referencedCollectionId = field.reference_collection_id;
+      const referencedItems = collectionItems[referencedCollectionId] || [];
+      const referencedItem = referencedItems.find(item => item.id === referencedItemId);
+      
+      // Also check collection layer data (items loaded for layers)
+      let foundItem = referencedItem;
+      if (!foundItem) {
+        // Search through all layer data for the referenced item
+        for (const layerId in collectionLayerData) {
+          const layerItems = collectionLayerData[layerId] || [];
+          foundItem = layerItems.find(item => item.id === referencedItemId);
+          if (foundItem) break;
+        }
+      }
+      
+      if (!foundItem) {
+        console.warn('[resolveReferenceFieldValue] Referenced item not found:', referencedItemId);
+        return null;
+      }
+      
+      // Update current context for next iteration
+      currentValues = foundItem.values || {};
+      currentFields = collectionFields[referencedCollectionId] || [];
+    }
+    
+    return null;
   }
 
   /**
@@ -680,7 +786,7 @@
     // Render children - handle collection layers specially
     if (hasChildren) {
       if (isCollectionLayer && collectionId) {
-        // Collection layer: use layer-specific data instead of global collection items
+        // Collection layer: repeat the element itself for each item (not a wrapper)
         const items = collectionLayerData[layer.id] || [];
 
         console.log('[Canvas] Rendering collection layer', {
@@ -691,19 +797,38 @@
         });
 
         if (items.length > 0) {
-          items.forEach((item) => {
-            const itemWrapper = document.createElement('div');
-            itemWrapper.setAttribute('data-collection-item-id', item.id);
+          // Create a fragment to hold multiple repeated elements
+          const fragment = document.createDocumentFragment();
 
+          items.forEach((item, index) => {
+            // Clone the element for each item (element already has all styles/classes)
+            const itemElement = element.cloneNode(false); // Shallow clone (no children)
+            itemElement.setAttribute('data-collection-item-id', item.id);
+
+            // Render children inside each item element
             layer.children.forEach(child => {
               const childElement = renderLayer(child, item.values, activeCollectionId);
               if (childElement) {
-                itemWrapper.appendChild(childElement);
+                itemElement.appendChild(childElement);
               }
             });
 
-            element.appendChild(itemWrapper);
+            // Add event listeners and selection state to each item
+            if (editMode) {
+              addEventListeners(itemElement, layer);
+
+              if (selectedLayerId === layer.id) {
+                const selectionClass = editingComponentId ? 'ycode-selected-purple' : 'ycode-selected';
+                itemElement.classList.add(selectionClass);
+              }
+            }
+
+            fragment.appendChild(itemElement);
           });
+
+          // Return the fragment instead of single element
+          // Mark this as a collection render so caller knows to append fragment
+          return fragment;
         } else if (editMode) {
           // Show skeleton placeholder in edit mode when no data yet
           const skeleton = document.createElement('div');

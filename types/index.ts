@@ -473,7 +473,7 @@ export interface AuthState {
 }
 
 // Collection Types (EAV Architecture)
-export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'rich_text' | 'image';
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {
@@ -606,6 +606,7 @@ export interface CollectionVariable {
   sort_order?: 'asc' | 'desc'; // Only used when sort_by is a field ID
   limit?: number; // Maximum number of items to show
   offset?: number; // Number of items to skip
+  source_field_id?: string; // Multi-reference field ID from parent item (for filtered collection source)
 }
 
 export interface LayerVariables {

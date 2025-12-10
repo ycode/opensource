@@ -30,16 +30,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FIELD_TYPES, type FieldType } from '@/lib/field-types-config';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import type { CollectionField } from '@/types';
 
 interface FieldFormPopoverProps {
   trigger?: React.ReactNode;
   mode: 'create' | 'edit';
   field?: CollectionField;
+  currentCollectionId?: string; // ID of the collection being edited (to exclude from reference options)
   onSubmit: (data: {
     name: string;
     type: FieldType;
     default: string;
+    reference_collection_id?: string | null;
   }) => void | Promise<void>;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -50,36 +53,86 @@ export default function FieldFormPopover({
   trigger,
   mode,
   field,
+  currentCollectionId,
   onSubmit,
   open,
   onOpenChange,
   useDialog = false,
 }: FieldFormPopoverProps) {
-  const [fieldName, setFieldName] = useState('');
-  const [fieldType, setFieldType] = useState<FieldType>('text');
-  const [fieldDefault, setFieldDefault] = useState('');
+  // Initialize state from field prop for edit mode
+  const [fieldName, setFieldName] = useState(mode === 'edit' && field ? field.name : '');
+  const [fieldType, setFieldType] = useState<FieldType>(mode === 'edit' && field ? field.type : 'text');
+  const [fieldDefault, setFieldDefault] = useState(mode === 'edit' && field ? (field.default || '') : '');
+  const [referenceCollectionId, setReferenceCollectionId] = useState<string | null>(
+    mode === 'edit' && field ? (field.reference_collection_id || null) : null
+  );
 
-  // Initialize form values when field changes (for edit mode)
+  // Get collections for reference field dropdown
+  const { collections } = useCollectionsStore();
+
+  // Filter out the current collection from reference options (can't reference self)
+  // In edit mode, ensure the currently referenced collection is always in the list
+  const availableCollections = React.useMemo(() => {
+    const filtered = collections.filter(c => c.id !== currentCollectionId);
+    
+    // In edit mode, ensure the referenced collection is included (even if collections list is stale)
+    if (mode === 'edit' && field?.reference_collection_id) {
+      const refCollectionExists = filtered.some(c => c.id === field.reference_collection_id);
+      if (!refCollectionExists) {
+        // Find it in the full collections list
+        const refCollection = collections.find(c => c.id === field.reference_collection_id);
+        if (refCollection) {
+          return [...filtered, refCollection];
+        }
+      }
+    }
+    
+    return filtered;
+  }, [collections, currentCollectionId, mode, field?.reference_collection_id]);
+
+  // Check if current field type requires a reference collection
+  const isReferenceType = fieldType === 'reference' || fieldType === 'multi_reference';
+
+  // Initialize form values when field changes or dialog opens (for edit mode)
   useEffect(() => {
-    if (mode === 'edit' && field) {
+    if (mode === 'edit' && field && open) {
       setFieldName(field.name);
       setFieldType(field.type);
       setFieldDefault(field.default || '');
-    } else if (mode === 'create') {
+      setReferenceCollectionId(field.reference_collection_id || null);
+      setHasChangedType(false);
+    } else if (mode === 'create' && open) {
       // Reset for create mode
       setFieldName('');
       setFieldType('text');
       setFieldDefault('');
+      setReferenceCollectionId(null);
+      setHasChangedType(false);
     }
-  }, [mode, field]);
+  }, [mode, field, open]);
+
+  // Track if user has interacted with the type selector
+  const [hasChangedType, setHasChangedType] = useState(false);
+
+  // Clear reference collection when user switches away from reference types
+  useEffect(() => {
+    // Only clear if user actively changed the type (not on initial render)
+    if (hasChangedType && !isReferenceType) {
+      setReferenceCollectionId(null);
+    }
+  }, [isReferenceType, hasChangedType]);
 
   const handleSubmit = async () => {
     if (!fieldName.trim()) return;
+
+    // Validate reference collection is selected for reference types
+    if (isReferenceType && !referenceCollectionId) return;
 
     await onSubmit({
       name: fieldName.trim(),
       type: fieldType,
       default: fieldDefault,
+      reference_collection_id: isReferenceType ? referenceCollectionId : null,
     });
 
     // Reset form after successful submission
@@ -87,6 +140,7 @@ export default function FieldFormPopover({
       setFieldName('');
       setFieldType('text');
       setFieldDefault('');
+      setReferenceCollectionId(null);
     }
   };
 
@@ -97,10 +151,14 @@ export default function FieldFormPopover({
         setFieldName('');
         setFieldType('text');
         setFieldDefault('');
+        setReferenceCollectionId(null);
       }
     }
     onOpenChange?.(newOpen);
   };
+
+  // Determine if submit button should be disabled
+  const isSubmitDisabled = !fieldName.trim() || (isReferenceType && !referenceCollectionId);
 
   const formContent = (
     <div className="flex flex-col gap-4">
@@ -124,7 +182,10 @@ export default function FieldFormPopover({
         <div className="col-span-3">
           <Select
             value={fieldType}
-            onValueChange={(value: any) => setFieldType(value)}
+            onValueChange={(value: any) => {
+              setFieldType(value);
+              setHasChangedType(true);
+            }}
             disabled={mode === 'edit'}
           >
             <SelectTrigger id="field-type" className="w-full">
@@ -142,31 +203,73 @@ export default function FieldFormPopover({
           </Select>
         </div>
       </div>
-      <div className="grid grid-cols-4 items-center gap-4">
-        <Label htmlFor="field-default" className="text-right">
-          Default
-        </Label>
-        <div className="col-span-3">
-          <Input
-            id="field-default"
-            value={fieldDefault}
-            onChange={(e) => setFieldDefault(e.target.value)}
-            placeholder="Default value"
-          />
+
+      {/* Reference Collection Selector - only show for reference types */}
+      {isReferenceType && (
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label htmlFor="field-reference-collection" className="text-right">
+            Collection
+          </Label>
+          <div className="col-span-3">
+            <Select
+              value={referenceCollectionId || ''}
+              onValueChange={(value) => setReferenceCollectionId(value || null)}
+              disabled={mode === 'edit'}
+            >
+              <SelectTrigger id="field-reference-collection" className="w-full">
+                <SelectValue placeholder="Select collection" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {availableCollections.length > 0 ? (
+                    availableCollections.map((collection) => (
+                      <SelectItem key={collection.id} value={collection.id}>
+                        {collection.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      No collections available
+                    </div>
+                  )}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Default value - hide for reference types (they have no default) */}
+      {!isReferenceType && (
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label htmlFor="field-default" className="text-right">
+            Default
+          </Label>
+          <div className="col-span-3">
+            <Input
+              id="field-default"
+              value={fieldDefault}
+              onChange={(e) => setFieldDefault(e.target.value)}
+              placeholder="Default value"
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-end gap-2">
         {useDialog && (
           <Button
-            variant="secondary" size="sm"
+            variant="secondary"
+            size="sm"
             onClick={() => handleOpenChange(false)}
           >
             Cancel
           </Button>
         )}
         <Button
-          size="sm" onClick={handleSubmit}
-          disabled={!fieldName.trim()}
+          size="sm"
+          onClick={handleSubmit}
+          disabled={isSubmitDisabled}
         >
           {mode === 'create' ? 'Create field' : 'Update field'}
         </Button>

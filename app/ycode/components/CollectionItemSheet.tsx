@@ -30,6 +30,7 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
+import ReferenceFieldCombobox from './ReferenceFieldCombobox';
 import type { CollectionItemWithValues } from '@/types';
 
 interface CollectionItemSheetProps {
@@ -227,6 +228,22 @@ export default function CollectionItemSheet({
                               value={formField.value || ''}
                               onChange={formField.onChange}
                               placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
+                            />
+                          ) : field.type === 'reference' && field.reference_collection_id ? (
+                            <ReferenceFieldCombobox
+                              collectionId={field.reference_collection_id}
+                              value={formField.value || ''}
+                              onChange={formField.onChange}
+                              isMulti={false}
+                              placeholder={`Select ${field.name.toLowerCase()}...`}
+                            />
+                          ) : field.type === 'multi_reference' && field.reference_collection_id ? (
+                            <ReferenceFieldCombobox
+                              collectionId={field.reference_collection_id}
+                              value={formField.value || '[]'}
+                              onChange={formField.onChange}
+                              isMulti={true}
+                              placeholder={`Select ${field.name.toLowerCase()}...`}
                             />
                           ) : (
                             <Input

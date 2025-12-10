@@ -9,14 +9,47 @@ import type { CollectionField, InlineVariable } from '@/types';
 
 /**
  * Gets the display label for a variable based on its type and data
+ * - Root fields: just "FieldName"
+ * - Nested fields: "SourceName FieldName" (source = immediate parent reference)
  */
 export function getVariableLabel(
   variable: InlineVariable,
-  fields?: CollectionField[]
+  fields?: CollectionField[],
+  allFields?: Record<string, CollectionField[]>
 ): string {
   if (variable.type === 'field' && variable.data?.field_id) {
-    const field = fields?.find(f => f.id === variable.data.field_id);
-    return field?.name || '[Deleted Field]';
+    const rootField = fields?.find(f => f.id === variable.data.field_id);
+    const relationships = variable.data.relationships || [];
+
+    if (relationships.length > 0 && allFields) {
+      // For nested references, show "SourceName FieldName"
+      // where SourceName is the immediate parent reference field
+      let sourceName = rootField?.name || '[Deleted]';
+      let currentFields = rootField?.reference_collection_id
+        ? allFields[rootField.reference_collection_id]
+        : [];
+      let finalFieldName = '';
+
+      for (let i = 0; i < relationships.length; i++) {
+        const relId = relationships[i];
+        const relField = currentFields?.find(f => f.id === relId);
+        
+        if (i === relationships.length - 1) {
+          // Last field in chain - this is the actual field we're selecting
+          finalFieldName = relField?.name || '[Deleted]';
+        } else {
+          // Intermediate reference - update source name
+          sourceName = relField?.name || '[Deleted]';
+          currentFields = relField?.reference_collection_id
+            ? allFields[relField.reference_collection_id]
+            : [];
+        }
+      }
+
+      return `${sourceName} ${finalFieldName}`;
+    }
+
+    return rootField?.name || '[Deleted Field]';
   }
   return variable.type;
 }
@@ -30,7 +63,8 @@ export function getVariableLabel(
 export function parseValueToContent(
   text: string,
   fields?: CollectionField[],
-  variables?: Record<string, InlineVariable>
+  variables?: Record<string, InlineVariable>,
+  allFields?: Record<string, CollectionField[]>
 ): {
   type: 'doc';
   content: Array<{
@@ -63,7 +97,7 @@ export function parseValueToContent(
     // Priority 1: Look up by ID if provided and variables map exists
     if (variableId && variables && variables[variableId]) {
       variable = variables[variableId];
-      label = getVariableLabel(variable, fields);
+      label = getVariableLabel(variable, fields, allFields);
     }
     // Priority 2: Parse embedded JSON (legacy format)
     else if (variableContent) {
@@ -71,7 +105,7 @@ export function parseValueToContent(
         const parsed = JSON.parse(variableContent);
         if (parsed.type && parsed.data) {
           variable = parsed;
-          label = getVariableLabel(parsed, fields);
+          label = getVariableLabel(parsed, fields, allFields);
         }
       } catch {
         // Invalid JSON, skip this variable

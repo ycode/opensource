@@ -170,14 +170,37 @@ const LayerItem: React.FC<{
   const collectionVariable = getCollectionVariable(layer);
   const isCollectionLayer = !!collectionVariable;
   const collectionId = collectionVariable?.id;
+  const sourceFieldId = collectionVariable?.source_field_id;
   const layerData = useCollectionLayerStore((state) => state.layerData[layer.id]);
   const isLoadingLayerData = useCollectionLayerStore((state) => state.loading[layer.id]);
   const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
-  const collectionItems = layerData || [];
+  const allCollectionItems = layerData || [];
+
+  // Filter items by multi-reference field if source_field_id is set
+  const collectionItems = React.useMemo(() => {
+    if (!sourceFieldId || !effectiveCollectionItemData) {
+      return allCollectionItems;
+    }
+
+    // Get the multi-reference field value from parent item
+    const refValue = effectiveCollectionItemData[sourceFieldId];
+    if (!refValue) return [];
+
+    try {
+      const allowedIds = JSON.parse(refValue);
+      if (!Array.isArray(allowedIds)) return [];
+
+      // Filter to only items whose IDs are in the multi-reference array
+      return allCollectionItems.filter(item => allowedIds.includes(item.id));
+    } catch {
+      return [];
+    }
+  }, [allCollectionItems, sourceFieldId, effectiveCollectionItemData]);
+
   useEffect(() => {
     if (!isEditMode) return;
     if (!collectionVariable?.id) return;
-    if (collectionItems.length > 0 || isLoadingLayerData) return;
+    if (allCollectionItems.length > 0 || isLoadingLayerData) return;
 
     fetchLayerData(
       layer.id,
@@ -194,7 +217,7 @@ const LayerItem: React.FC<{
     collectionVariable?.sort_order,
     collectionVariable?.limit,
     collectionVariable?.offset,
-    collectionItems.length,
+    allCollectionItems.length,
     isLoadingLayerData,
     fetchLayerData,
     layer.id,
@@ -412,6 +435,81 @@ const LayerItem: React.FC<{
       );
     }
 
+    // Collection layers - repeat the element for each item (design applies to each looped item)
+    if (isCollectionLayer && isEditMode) {
+      if (isLoadingLayerData) {
+        return (
+          <Tag {...elementProps}>
+            <div className="w-full p-4">
+              <ShimmerSkeleton
+                count={3}
+                height="60px"
+                gap="1rem"
+              />
+            </div>
+          </Tag>
+        );
+      }
+
+      if (collectionItems.length === 0) {
+        // Show empty state with the layer design
+        return (
+          <Tag {...elementProps}>
+            {/* Selection Badge */}
+            {isSelected && !isEditing && (
+              <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
+                {htmlTag.charAt(0).toUpperCase() + htmlTag.slice(1)} Selected (Collection - 0 items)
+              </span>
+            )}
+            <div className="text-muted-foreground text-sm p-4 text-center">
+              No collection items
+            </div>
+          </Tag>
+        );
+      }
+
+      // Repeat the element for each collection item
+      return (
+        <>
+          {collectionItems.map((item, index) => (
+            <Tag
+              key={item.id}
+              {...elementProps}
+              data-collection-item-id={item.id}
+              data-layer-id={layer.id} // Keep same layer ID for all instances
+            >
+              {/* Selection Badge - only show on first item */}
+              {index === 0 && isSelected && !isEditing && (
+                <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
+                  {htmlTag.charAt(0).toUpperCase() + htmlTag.slice(1)} Selected ({collectionItems.length} items)
+                </span>
+              )}
+
+              {textContent && textContent}
+
+              {children && children.length > 0 && (
+                <LayerRenderer
+                  layers={children}
+                  onLayerClick={onLayerClick}
+                  onLayerUpdate={onLayerUpdate}
+                  selectedLayerId={selectedLayerId}
+                  isEditMode={isEditMode}
+                  isPublished={isPublished}
+                  enableDragDrop={enableDragDrop}
+                  activeLayerId={activeLayerId}
+                  projected={projected}
+                  pageId={pageId}
+                  collectionItemData={item.values}
+                  pageCollectionItemData={pageCollectionItemData}
+                  hiddenLayerIds={hiddenLayerIds}
+                />
+              )}
+            </Tag>
+          ))}
+        </>
+      );
+    }
+
     // Regular elements with text and/or children
     return (
       <Tag {...elementProps}>
@@ -427,52 +525,21 @@ const LayerItem: React.FC<{
 
         {/* Render children */}
         {children && children.length > 0 && (
-          isCollectionLayer && isEditMode ? (
-            isLoadingLayerData ? (
-              <div className="w-full p-4">
-                <ShimmerSkeleton
-                  count={3} height="60px"
-                  gap="1rem"
-                />
-              </div>
-            ) : (
-              collectionItems.map((item) => (
-                <div key={item.id} data-collection-item-id={item.id}>
-                  <LayerRenderer
-                    layers={children}
-                    onLayerClick={onLayerClick}
-                    onLayerUpdate={onLayerUpdate}
-                    selectedLayerId={selectedLayerId}
-                    isEditMode={isEditMode}
-                    isPublished={isPublished}
-                    enableDragDrop={enableDragDrop}
-                    activeLayerId={activeLayerId}
-                    projected={projected}
-                    pageId={pageId}
-                    collectionItemData={item.values}
-                    pageCollectionItemData={pageCollectionItemData}
-                    hiddenLayerIds={hiddenLayerIds}
-                  />
-                </div>
-              ))
-            )
-          ) : (
-            <LayerRenderer
-              layers={children}
-              onLayerClick={onLayerClick}
-              onLayerUpdate={onLayerUpdate}
-              selectedLayerId={selectedLayerId}
-              isEditMode={isEditMode}
-              isPublished={isPublished}
-              enableDragDrop={enableDragDrop}
-              activeLayerId={activeLayerId}
-              projected={projected}
-              pageId={pageId}
-              collectionItemData={effectiveCollectionItemData}
-              pageCollectionItemData={pageCollectionItemData}
-              hiddenLayerIds={hiddenLayerIds}
-            />
-          )
+          <LayerRenderer
+            layers={children}
+            onLayerClick={onLayerClick}
+            onLayerUpdate={onLayerUpdate}
+            selectedLayerId={selectedLayerId}
+            isEditMode={isEditMode}
+            isPublished={isPublished}
+            enableDragDrop={enableDragDrop}
+            activeLayerId={activeLayerId}
+            projected={projected}
+            pageId={pageId}
+            collectionItemData={effectiveCollectionItemData}
+            pageCollectionItemData={pageCollectionItemData}
+            hiddenLayerIds={hiddenLayerIds}
+          />
         )}
       </Tag>
     );

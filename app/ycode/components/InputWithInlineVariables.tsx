@@ -17,24 +17,18 @@ import Text from '@tiptap/extension-text';
 import Paragraph from '@tiptap/extension-paragraph';
 import Placeholder from '@tiptap/extension-placeholder';
 import { cn } from '@/lib/utils';
-import type { CollectionField } from '@/types';
+import type { CollectionField, Collection } from '@/types';
 import {
   parseValueToContent,
   convertContentToValue,
   getVariableLabel,
 } from '@/lib/cms-variables-utils';
 import type { FieldVariable } from '@/types';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectGroup,
-  SelectLabel,
-} from '@/components/ui/select';
-import * as SelectPrimitive from '@radix-ui/react-select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
+import FieldTreeSelect from './FieldTreeSelect';
 
 interface InputWithInlineVariablesProps {
   value: string;
@@ -43,6 +37,10 @@ interface InputWithInlineVariablesProps {
   className?: string;
   fields?: CollectionField[];
   fieldSourceLabel?: string;
+  /** All fields keyed by collection ID for resolving nested references */
+  allFields?: Record<string, CollectionField[]>;
+  /** All collections for reference field lookups */
+  collections?: Collection[];
 }
 
 export interface InputWithInlineVariablesHandle {
@@ -180,8 +178,11 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   className,
   fields,
   fieldSourceLabel,
+  allFields,
+  collections,
 }, ref) => {
   const [isFocused, setIsFocused] = useState(false);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
   const editor = useEditor({
     immediatelyRender: true,
@@ -194,7 +195,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         placeholder,
       }),
     ],
-    content: parseValueToContent(value, fields),
+    content: parseValueToContent(value, fields, undefined, allFields),
     editorProps: {
       attributes: {
         class: cn(
@@ -225,7 +226,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
     },
     onCreate: ({ editor }) => {
       // Set initial content
-      const content = parseValueToContent(value, fields);
+      const content = parseValueToContent(value, fields, undefined, allFields);
       editor.commands.setContent(content);
     },
     onFocus: () => {
@@ -256,7 +257,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
     if (currentValue !== value) {
       // Check if editor was focused before updating content
       const wasFocused = editor.isFocused;
-      const content = parseValueToContent(value, fields);
+      const content = parseValueToContent(value, fields, undefined, allFields);
       editor.commands.setContent(content);
 
       // Only focus if editor was already focused (user was actively editing)
@@ -273,7 +274,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
           if (node.type === 'dynamicVariable' && node.attrs?.variable) {
             const variable = node.attrs.variable;
             if (variable.type === 'field' && variable.data?.field_id) {
-              const newLabel = getVariableLabel(variable, fields);
+              const newLabel = getVariableLabel(variable, fields, allFields);
               if (node.attrs.label !== newLabel) {
                 updated = true;
                 return {
@@ -302,7 +303,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         }
       }
     }
-  }, [value, fields, editor]);
+  }, [value, fields, allFields, editor]);
 
   // Internal function to add a field variable
   const addFieldVariableInternal = useCallback((variableData: FieldVariable) => {
@@ -353,7 +354,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
     }
 
     // Get label for the variable
-    const label = getVariableLabel(variableData, fields);
+    const label = getVariableLabel(variableData, fields, allFields);
 
     // Build content to insert
     const contentToInsert: any[] = [];
@@ -395,7 +396,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
     setTimeout(() => {
       editor.commands.focus(finalPosition);
     }, 0);
-  }, [editor, fields, onChange]);
+  }, [editor, fields, allFields, onChange]);
 
   // Expose addFieldVariable function via ref
   useImperativeHandle(ref, () => ({
@@ -406,19 +407,19 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
     return null;
   }
 
-  const handleFieldSelect = (fieldId: string) => {
+  const handleFieldSelect = (fieldId: string, relationshipPath: string[]) => {
     if (!fields) return;
 
-    const field = fields.find(f => f.id === fieldId);
-    if (field) {
-      addFieldVariableInternal({
-        type: 'field',
-        data: {
-          field_id: field.id,
-          relationships: [],
-        },
-      });
-    }
+    addFieldVariableInternal({
+      type: 'field',
+      data: {
+        field_id: fieldId,
+        relationships: relationshipPath,
+      },
+    });
+
+    // Close the popover after selection
+    setIsPopoverOpen(false);
   };
 
   return (
@@ -429,44 +430,30 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
 
       {fields && fields.length > 0 && (
         <div className="absolute top-1 right-1">
-          <Select
-            value=""
-            onValueChange={handleFieldSelect}
-          >
-            <SelectPrimitive.Trigger asChild>
+          <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+            <PopoverTrigger asChild>
               <Button
                 variant="secondary"
                 size="xs"
               >
                 <Icon name="database" className="size-2.5" />
               </Button>
-            </SelectPrimitive.Trigger>
+            </PopoverTrigger>
 
-            <SelectContent>
-              {fields.length > 0 ? (
-                fieldSourceLabel ? (
-                  <SelectGroup>
-                    <SelectLabel>{fieldSourceLabel}</SelectLabel>
-                    {fields.map((field) => (
-                      <SelectItem key={field.id} value={field.id}>
-                        {field.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                ) : (
-                  fields.map((field) => (
-                    <SelectItem key={field.id} value={field.id}>
-                      {field.name}
-                    </SelectItem>
-                  ))
-                )
-              ) : (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                  No fields available
-                </div>
-              )}
-            </SelectContent>
-          </Select>
+            <PopoverContent
+              className="w-56 p-0 max-h-80 overflow-y-auto"
+              align="end"
+              sideOffset={4}
+            >
+              <FieldTreeSelect
+                fields={fields}
+                allFields={allFields || {}}
+                collections={collections || []}
+                onSelect={handleFieldSelect}
+                collectionLabel={fieldSourceLabel}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       )}
     </div>

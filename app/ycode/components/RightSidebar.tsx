@@ -57,7 +57,7 @@ import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTe
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
 
 // 7. Types
-import type { Layer, FieldVariable } from '@/types';
+import type { Layer, FieldVariable, CollectionField } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import {
   DropdownMenu,
@@ -149,6 +149,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
   const collections = useCollectionsStore((state) => state.collections);
   const fields = useCollectionsStore((state) => state.fields);
+  const loadFields = useCollectionsStore((state) => state.loadFields);
 
   // Get all layers (for interactions target selection)
   const allLayers: Layer[] = useMemo(() => {
@@ -537,6 +538,59 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   };
 
+  // Handle source type change (collection vs reference field)
+  const handleSourceTypeChange = (sourceType: 'collection' | 'reference_field') => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      if (sourceType === 'collection') {
+        // Switching to collection source - clear source_field_id
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: currentCollectionVariable ? {
+              ...currentCollectionVariable,
+              source_field_id: undefined,
+            } : undefined
+          }
+        });
+      } else {
+        // Switching to reference field - the collection ID will come from the reference field's target collection
+        // Clear the collection ID for now, user will select the reference field next
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: currentCollectionVariable ? {
+              ...currentCollectionVariable,
+              id: '', // Will be set when user selects a reference field
+              source_field_id: '', // Will be set when user selects a reference field
+            } : { id: '', source_field_id: '' }
+          }
+        });
+      }
+    }
+  };
+
+  // Handle reference field selection (for multi-reference as collection source)
+  const handleReferenceFieldChange = (fieldId: string) => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      // Find the selected field to get its reference_collection_id
+      const selectedField = parentCollectionFields.find(f => f.id === fieldId);
+      if (selectedField?.reference_collection_id) {
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              id: selectedField.reference_collection_id, // Set collection ID from reference field's target
+              source_field_id: fieldId, // Store the field ID for runtime filtering
+            }
+          }
+        });
+      }
+    }
+  };
+
   // Handle sort order change
   const handleSortOrderChange = (sortOrder: 'asc' | 'desc') => {
     if (selectedLayerId && selectedLayer) {
@@ -705,6 +759,58 @@ const RightSidebar = React.memo(function RightSidebar({
     if (!collectionId) return [];
     return fields[collectionId] || [];
   }, [selectedLayer, fields]);
+
+  // Ensure fields for all referenced collections are loaded (for nested reference dropdowns)
+  useEffect(() => {
+    // Recursively find all referenced collection IDs
+    const findReferencedCollections = (collectionFields: CollectionField[], visited: Set<string>): string[] => {
+      const referencedIds: string[] = [];
+      
+      collectionFields.forEach(field => {
+        if (field.type === 'reference' && field.reference_collection_id) {
+          const refId = field.reference_collection_id;
+          if (!visited.has(refId)) {
+            visited.add(refId);
+            referencedIds.push(refId);
+            
+            // Recursively check the referenced collection's fields if we have them
+            const refFields = fields[refId];
+            if (refFields) {
+              referencedIds.push(...findReferencedCollections(refFields, visited));
+            }
+          }
+        }
+      });
+      
+      return referencedIds;
+    };
+
+    // Start with parent collection fields
+    if (parentCollectionFields.length > 0) {
+      const visited = new Set<string>();
+      const referencedIds = findReferencedCollections(parentCollectionFields, visited);
+      
+      // Check if any referenced collections are missing fields
+      const missingFieldsCollections = referencedIds.filter(id => !fields[id] || fields[id].length === 0);
+      
+      // Load missing fields - loadFields(null) loads all fields at once
+      if (missingFieldsCollections.length > 0) {
+        loadFields(null);
+      }
+    }
+  }, [parentCollectionFields, fields, loadFields]);
+
+  // Get multi-reference fields from parent context (for Reference Field as Source option)
+  const parentMultiReferenceFields = useMemo(() => {
+    return parentCollectionFields.filter(f => f.type === 'multi_reference' && f.reference_collection_id);
+  }, [parentCollectionFields]);
+
+  // Determine current source type for collection layer
+  const collectionSourceType = useMemo(() => {
+    if (!selectedLayer) return 'collection';
+    const collectionVariable = getCollectionVariable(selectedLayer);
+    return collectionVariable?.source_field_id ? 'reference_field' : 'collection';
+  }, [selectedLayer]);
 
   // Handle adding custom attribute
   const handleAddAttribute = () => {
@@ -1019,6 +1125,8 @@ const RightSidebar = React.memo(function RightSidebar({
                     placeholder="Enter text..."
                     fields={parentCollectionFields}
                     fieldSourceLabel={fieldSourceLabel}
+                    allFields={fields}
+                    collections={collections}
                   />
                 </div>
               </SettingsPanel>
@@ -1032,34 +1140,86 @@ const RightSidebar = React.memo(function RightSidebar({
                 onToggle={() => setCollectionBindingOpen(!collectionBindingOpen)}
               >
                 <div className="flex flex-col gap-2">
-                  <div className="grid grid-cols-3">
-                    <Label variant="muted">Source</Label>
-                    <div className="col-span-2 *:w-full">
-                      <Select
-                        value={getCollectionVariable(selectedLayer)?.id || ''}
-                        onValueChange={handleCollectionChange}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a collection" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            {collections.length > 0 ? (
-                              collections.map((collection) => (
-                                <SelectItem key={collection.id} value={collection.id}>
-                                  {collection.name}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                                No collections available
-                              </div>
-                            )}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
+                  {/* Source Type - only show if parent has multi-reference fields */}
+                  {parentMultiReferenceFields.length > 0 && (
+                    <div className="grid grid-cols-3">
+                      <Label variant="muted">Source type</Label>
+                      <div className="col-span-2 *:w-full">
+                        <Select
+                          value={collectionSourceType}
+                          onValueChange={(value: 'collection' | 'reference_field') => handleSourceTypeChange(value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectItem value="collection">Collection</SelectItem>
+                              <SelectItem value="reference_field">Reference Field</SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Reference Field Selector - show when source type is reference_field */}
+                  {collectionSourceType === 'reference_field' && parentMultiReferenceFields.length > 0 && (
+                    <div className="grid grid-cols-3">
+                      <Label variant="muted">Field</Label>
+                      <div className="col-span-2 *:w-full">
+                        <Select
+                          value={getCollectionVariable(selectedLayer)?.source_field_id || ''}
+                          onValueChange={handleReferenceFieldChange}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select field" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {parentMultiReferenceFields.map((field) => (
+                                <SelectItem key={field.id} value={field.id}>
+                                  {field.name}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Collection Selector - show when source type is collection */}
+                  {collectionSourceType === 'collection' && (
+                    <div className="grid grid-cols-3">
+                      <Label variant="muted">Source</Label>
+                      <div className="col-span-2 *:w-full">
+                        <Select
+                          value={getCollectionVariable(selectedLayer)?.id || ''}
+                          onValueChange={handleCollectionChange}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a collection" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {collections.length > 0 ? (
+                                collections.map((collection) => (
+                                  <SelectItem key={collection.id} value={collection.id}>
+                                    {collection.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                  No collections available
+                                </div>
+                              )}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Sort By - only show if collection is selected */}
                   {getCollectionVariable(selectedLayer)?.id && (
@@ -1247,6 +1407,8 @@ const RightSidebar = React.memo(function RightSidebar({
               onLayerUpdate={onLayerUpdate}
               fields={parentCollectionFields}
               fieldSourceLabel={fieldSourceLabel}
+              allFields={fields}
+              collections={collections}
             />
 
             <ConditionalVisibilitySettings

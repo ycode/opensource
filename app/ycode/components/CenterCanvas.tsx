@@ -47,7 +47,7 @@ import { getCollectionVariable } from '@/lib/layer-utils';
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
 
 // 7. Types
-import type { Layer, Page, PageFolder } from '@/types';
+import type { Layer, Page, PageFolder, CollectionField } from '@/types';
 import {
   DropdownMenu,
   DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut,
@@ -149,6 +149,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   // Collection layer store for independent layer data
   const collectionLayerData = useCollectionLayerStore((state) => state.layerData);
+  const referencedItems = useCollectionLayerStore((state) => state.referencedItems);
+  const fetchReferencedCollectionItems = useCollectionLayerStore((state) => state.fetchReferencedCollectionItems);
 
   const { routeType, urlState, navigateToLayers, navigateToPage, navigateToPageEdit, updateQueryParams } = useEditorUrl();
   const components = useComponentsStore((state) => state.components);
@@ -733,7 +735,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         selectedLayerId,
         componentMap,
         editingComponentId: editingComponentId || null,
-        collectionItems: collectionItemsFromStore,
+        collectionItems: { ...collectionItemsFromStore, ...referencedItems },
         collectionFields: collectionFieldsFromStore,
         pageCollectionItem,
         pageCollectionFields,
@@ -746,6 +748,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     components,
     editingComponentId,
     collectionItemsFromStore,
+    referencedItems,
     collectionFieldsFromStore,
     pageCollectionItem,
     pageCollectionFields,
@@ -773,6 +776,57 @@ const CenterCanvas = React.memo(function CenterCanvas({
       });
     });
   }, [collectionLayerData, iframeReady]);
+
+  // Fetch referenced collection items recursively when layers with reference fields are detected
+  useEffect(() => {
+    // Recursively find all referenced collection IDs by following reference chains
+    const findAllReferencedCollections = (
+      fieldsMap: Record<string, CollectionField[]>,
+      visited: Set<string> = new Set()
+    ): Set<string> => {
+      const referencedIds = new Set<string>();
+
+      const processFields = (fields: CollectionField[]) => {
+        fields.forEach((field) => {
+          if (field.type === 'reference' && field.reference_collection_id) {
+            const refId = field.reference_collection_id;
+            if (!visited.has(refId)) {
+              referencedIds.add(refId);
+              visited.add(refId);
+
+              // Recursively check the referenced collection's fields
+              const refFields = fieldsMap[refId];
+              if (refFields) {
+                processFields(refFields);
+              }
+            }
+          }
+        });
+      };
+
+      // Process all loaded collection fields
+      Object.values(fieldsMap).forEach(processFields);
+
+      return referencedIds;
+    };
+
+    // Start with loaded fields
+    const allReferencedIds = findAllReferencedCollections(collectionFieldsFromStore);
+
+    // Also check page collection fields
+    if (pageCollectionFields) {
+      pageCollectionFields.forEach((field) => {
+        if (field.type === 'reference' && field.reference_collection_id) {
+          allReferencedIds.add(field.reference_collection_id);
+        }
+      });
+    }
+
+    // Fetch items for each referenced collection
+    allReferencedIds.forEach((collectionId) => {
+      fetchReferencedCollectionItems(collectionId);
+    });
+  }, [collectionFieldsFromStore, pageCollectionFields, fetchReferencedCollectionItems]);
 
   // Send breakpoint updates to iframe
   useEffect(() => {

@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import SettingsPanel from './SettingsPanel';
 import InputWithInlineVariables from './InputWithInlineVariables';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
-import type { Layer, CollectionField } from '@/types';
+import type { Layer, CollectionField, Collection } from '@/types';
 import { getCollectionVariable, isFieldVariable } from '@/lib/layer-utils';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -35,9 +35,11 @@ interface ImageSettingsProps {
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
   fields?: CollectionField[];
   fieldSourceLabel?: string;
+  allFields?: Record<string, CollectionField[]>;
+  collections?: Collection[];
 }
 
-export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourceLabel }: ImageSettingsProps) {
+export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourceLabel, allFields, collections }: ImageSettingsProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [showFileManagerDialog, setShowFileManagerDialog] = useState(false);
@@ -235,6 +237,8 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
               placeholder="Image description"
               fields={placeholderFields}
               fieldSourceLabel="Fields"
+              allFields={allFields}
+              collections={collections}
             />
           </div>
         </div>

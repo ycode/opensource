@@ -15,6 +15,8 @@ interface CollectionLayerState {
   loading: Record<string, boolean>; // loading state per layer
   error: Record<string, string | null>; // error state per layer
   layerConfig: Record<string, { collectionId: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; limit?: number; offset?: number }>; // Track config per layer
+  referencedItems: Record<string, CollectionItemWithValues[]>; // Items for referenced collections, keyed by collectionId
+  referencedLoading: Record<string, boolean>; // Loading state for referenced collections
 }
 
 interface CollectionLayerActions {
@@ -26,6 +28,7 @@ interface CollectionLayerActions {
     limit?: number,
     offset?: number
   ) => Promise<void>;
+  fetchReferencedCollectionItems: (collectionId: string) => Promise<void>;
   clearLayerData: (layerId: string) => void;
   clearAllLayerData: () => void;
   updateItemInLayerData: (itemId: string, values: Record<string, string>) => void;
@@ -40,6 +43,38 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
   loading: {},
   error: {},
   layerConfig: {},
+  referencedItems: {},
+  referencedLoading: {},
+
+  // Fetch items for a referenced collection (used for reference field resolution)
+  fetchReferencedCollectionItems: async (collectionId: string) => {
+    const { referencedItems, referencedLoading } = get();
+    
+    // Skip if already loaded or loading
+    if (referencedItems[collectionId] || referencedLoading[collectionId]) {
+      return;
+    }
+    
+    set((state) => ({
+      referencedLoading: { ...state.referencedLoading, [collectionId]: true },
+    }));
+    
+    try {
+      const response = await collectionsApi.getItems(collectionId, { limit: 100 });
+      
+      if (!response.error && response.data?.items) {
+        set((state) => ({
+          referencedItems: { ...state.referencedItems, [collectionId]: response.data!.items },
+          referencedLoading: { ...state.referencedLoading, [collectionId]: false },
+        }));
+      }
+    } catch (error) {
+      console.error(`[CollectionLayerStore] Error fetching referenced items for ${collectionId}:`, error);
+      set((state) => ({
+        referencedLoading: { ...state.referencedLoading, [collectionId]: false },
+      }));
+    }
+  },
 
   // Fetch data for a specific layer
   fetchLayerData: async (
@@ -121,6 +156,8 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
       layerData: {},
       loading: {},
       error: {},
+      referencedItems: {},
+      referencedLoading: {},
     });
   },
 
