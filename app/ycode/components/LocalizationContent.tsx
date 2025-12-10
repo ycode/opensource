@@ -200,7 +200,7 @@ export default function LocalizationContent({ children }: LocalizationContentPro
 
                   <div className="py-3">
                     <DropdownMenu>
-                      <DropdownMenuTrigger>
+                      <DropdownMenuTrigger asChild>
                         <Button size="sm" variant="ghost">
                           <Icon name="more" />
                         </Button>

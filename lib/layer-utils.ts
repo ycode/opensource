@@ -3,7 +3,7 @@
  */
 
 import { Collection, Component, Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, CollectionField } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, generateId } from '@/lib/utils';
 import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
 import { resolveInlineVariables } from '@/lib/inline-variables';
@@ -448,20 +448,93 @@ export function applyLimitOffset(
  */
 export function hasSingleInlineVariable(layer: Layer): boolean {
   const text = layer.variables?.text;
-  
+
   if (!text || typeof text !== 'string') {
     return false;
   }
-  
+
   // Match all inline variable tags
   const regex = /<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g;
   const matches = text.match(regex);
-  
+
   if (!matches || matches.length !== 1) {
     return false; // Not exactly one variable
   }
-  
+
   // Remove the variable tag and check if only whitespace remains
   const withoutVariable = text.replace(regex, '').trim();
   return withoutVariable === '';
+}
+
+/**
+ * Regenerate interaction and tween IDs, and optionally remap layer_id references
+ * @param interactions - Array of interactions to process
+ * @param layerIdMap - Optional map of old layer IDs to new layer IDs for remapping
+ * @returns New array of interactions with regenerated IDs
+ */
+export function regenerateInteractionIds(
+  interactions: Layer['interactions'],
+  layerIdMap?: Map<string, string>
+): Layer['interactions'] {
+  if (!interactions || interactions.length === 0) return interactions;
+
+  return interactions.map(interaction => ({
+    ...interaction,
+    id: generateId('int'), // Regenerate interaction ID
+    tweens: interaction.tweens.map(tween => ({
+      ...tween,
+      id: generateId('twn'), // Regenerate tween ID
+      layer_id: layerIdMap?.has(tween.layer_id)
+        ? layerIdMap.get(tween.layer_id)!
+        : tween.layer_id, // Keep external layer references unchanged
+    })),
+  }));
+}
+
+/**
+ * Regenerate layer IDs, interaction IDs, tween IDs, and remap self-targeted interactions
+ * When duplicating/pasting layers, all IDs must be regenerated to avoid conflicts
+ */
+export function regenerateIdsWithInteractionRemapping(layer: Layer): Layer {
+  // Track old layer ID -> new layer ID mapping
+  const idMap = new Map<string, string>();
+
+  // First pass: generate new layer IDs and build mapping
+  const generateNewIds = (l: Layer): Layer => {
+    const newId = generateId('lyr');
+    idMap.set(l.id, newId);
+
+    return {
+      ...l,
+      id: newId,
+      children: l.children?.map(generateNewIds),
+    };
+  };
+
+  const layerWithNewIds = generateNewIds(layer);
+
+  // Second pass: regenerate interaction/tween IDs and remap layer_id references
+  const remapInteractions = (l: Layer): Layer => {
+    let updatedLayer = l;
+
+    // If layer has interactions, regenerate IDs and remap tween layer_ids
+    if (l.interactions && l.interactions.length > 0) {
+      updatedLayer = {
+        ...updatedLayer,
+        interactions: regenerateInteractionIds(l.interactions, idMap),
+      };
+    }
+
+    // Recursively process children
+    if (updatedLayer.children) {
+      updatedLayer = {
+        ...updatedLayer,
+        children: updatedLayer.children.map(remapInteractions),
+      };
+    }
+
+    return updatedLayer;
+  };
+
+  return remapInteractions(layerWithNewIds);
 }
