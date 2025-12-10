@@ -407,7 +407,9 @@ export async function fetchHomepage(isPublished: boolean): Promise<Pick<PageData
 async function resolveReferenceFields(
   itemValues: Record<string, string>,
   fields: CollectionField[],
-  isPublished: boolean
+  isPublished: boolean,
+  pathPrefix: string = '',
+  visited: Set<string> = new Set()
 ): Promise<Record<string, string>> {
   const enhancedValues = { ...itemValues };
   
@@ -420,6 +422,11 @@ async function resolveReferenceFields(
     const refItemId = itemValues[field.id];
     if (!refItemId || !field.reference_collection_id) continue;
     
+    // Prevent infinite loops from circular references
+    const visitKey = `${field.id}:${refItemId}`;
+    if (visited.has(visitKey)) continue;
+    visited.add(visitKey);
+    
     try {
       // Fetch the referenced item
       const refItem = await getItemWithValues(refItemId, isPublished);
@@ -428,16 +435,31 @@ async function resolveReferenceFields(
       // Get fields for the referenced collection
       const refFields = await getFieldsByCollectionId(field.reference_collection_id, isPublished);
       
-      // Add referenced item's values with field.id as prefix
+      // Build the path prefix for this level
+      const currentPath = pathPrefix ? `${pathPrefix}.${field.id}` : field.id;
+      
+      // Add referenced item's values with the current path as prefix
       // e.g., if field is "Author" with id "abc123", and referenced item has "name" field with id "xyz789"
       // the value becomes accessible as "abc123.xyz789" in the values map
       for (const refField of refFields) {
         const refValue = refItem.values[refField.id];
         if (refValue !== undefined) {
           // Store as: parentFieldId.refFieldId for relationship path resolution
-          enhancedValues[`${field.id}.${refField.id}`] = refValue;
+          enhancedValues[`${currentPath}.${refField.id}`] = refValue;
         }
       }
+      
+      // Recursively resolve nested reference fields
+      const nestedValues = await resolveReferenceFields(
+        refItem.values,
+        refFields,
+        isPublished,
+        currentPath,
+        visited
+      );
+      
+      // Merge nested values (they'll have the full path)
+      Object.assign(enhancedValues, nestedValues);
     } catch (error) {
       console.error(`Failed to resolve reference field ${field.id}:`, error);
     }
