@@ -4,9 +4,51 @@
 
 import type { InteractionTween, TweenProperties, Layer } from '@/types';
 
+/**
+ * Creates a SplitText instance with responsive animation support
+ * @param element - The element to split
+ * @param config - SplitText configuration
+ * @param tween - The tween configuration for animation
+ * @param gsapInstance - GSAP instance to use for animations
+ * @returns Object with splitElements array and the SplitText instance
+ */
+export function createSplitTextAnimation(
+  element: HTMLElement,
+  config: { type: 'chars' | 'words' | 'lines'; stagger: { amount: number } },
+  tween: InteractionTween,
+  gsapInstance: any,
+  SplitTextClass: any
+): { splitElements: HTMLElement[]; splitInstance: any } | null {
+  try {
+    const splitInstance = new SplitTextClass(element, {
+      type: config.type,
+    });
+
+    // Get the split elements array from the instance
+    const splitProperty = config.type === 'chars' ? 'chars' :
+      config.type === 'words' ? 'words' : 'lines';
+    const createdElements = splitInstance[splitProperty] as HTMLElement[];
+
+    if (!createdElements || createdElements.length === 0) {
+      console.warn(`SplitText created but no ${config.type} elements found.`);
+      try {
+        splitInstance.revert();
+      } catch (error) {
+        // Ignore revert errors
+      }
+      return null;
+    }
+
+    return { splitElements: createdElements, splitInstance };
+  } catch (error) {
+    console.warn('Failed to create SplitText:', error);
+    return null;
+  }
+}
+
 // Types
 export type TriggerType = 'click' | 'hover' | 'scroll-into-view' | 'while-scrolling' | 'load';
-export type PropertyType = 'position-x' | 'position-y' | 'scale' | 'rotation' | 'skew-x' | 'skew-y' | 'opacity' | 'display';
+export type PropertyType = 'position-x' | 'position-y' | 'scale' | 'rotation' | 'skew-x' | 'skew-y' | 'opacity' | 'display' | 'split-text';
 
 export interface PropertyConfig {
   key: keyof TweenProperties;
@@ -168,9 +210,12 @@ export function calculateTweenStartTime(tweens: InteractionTween[], index: numbe
     return 0;
   }
   const prevStart = calculateTweenStartTime(tweens, index - 1);
-  const prevDuration = tweens[index - 1].duration;
+  const prevTween = tweens[index - 1];
+  const prevDuration = prevTween.duration;
+  // Include stagger amount if splitText is enabled on the previous tween
+  const prevStaggerAmount = prevTween.splitText?.stagger?.amount || 0;
   if (tween.position === '>') {
-    return prevStart + prevDuration;
+    return prevStart + prevDuration + prevStaggerAmount;
   }
   if (tween.position === '<') {
     return prevStart;
@@ -202,6 +247,11 @@ export function getTweenProperties(tween: InteractionTween): PropertyOption[] {
 
 /** Check if a property type is already added to a tween */
 export function isPropertyInTween(tween: InteractionTween, propertyType: PropertyType): boolean {
+  // Special handling for split-text
+  if (propertyType === 'split-text') {
+    return !!tween.splitText;
+  }
+
   const propertyOption = PROPERTY_OPTIONS.find((p) => p.type === propertyType);
   if (!propertyOption) return false;
   return propertyOption.properties.some((p) => {
@@ -401,6 +451,53 @@ export interface AddTweenOptions {
   ease: string;
   position: number | string;
   onComplete?: () => void;
+  splitText?: {
+    type: 'chars' | 'words' | 'lines';
+    stagger: { amount: number }; // GSAP stagger config
+  };
+  /** Pre-split elements from SplitText instance (chars, words, or lines array) */
+  splitElements?: HTMLElement[];
+}
+
+/**
+ * Updates a specific interaction in a list by ID
+ */
+export function updateInteractionById(
+  interactions: import('@/types').LayerInteraction[],
+  interactionId: string,
+  updateFn: (interaction: import('@/types').LayerInteraction) => import('@/types').LayerInteraction
+): import('@/types').LayerInteraction[] {
+  return interactions.map((interaction) => {
+    if (interaction.id !== interactionId) return interaction;
+    return updateFn(interaction);
+  });
+}
+
+/**
+ * Updates tweens within a specific interaction
+ */
+export function updateInteractionTweens(
+  interaction: import('@/types').LayerInteraction,
+  updateFn: (tweens: import('@/types').LayerInteraction['tweens']) => import('@/types').LayerInteraction['tweens']
+): import('@/types').LayerInteraction {
+  return {
+    ...interaction,
+    tweens: updateFn(interaction.tweens),
+  };
+}
+
+/**
+ * Updates a specific tween within tweens array
+ */
+export function updateTweenById(
+  tweens: import('@/types').LayerInteraction['tweens'],
+  tweenId: string,
+  updateFn: (tween: import('@/types').LayerInteraction['tweens'][number]) => import('@/types').LayerInteraction['tweens'][number]
+): import('@/types').LayerInteraction['tweens'] {
+  return tweens.map((tween) => {
+    if (tween.id !== tweenId) return tween;
+    return updateFn(tween);
+  });
 }
 
 /** Adds a tween to a GSAP timeline, handling mixed from/to/fromTo properties */
@@ -408,16 +505,101 @@ export function addTweenToTimeline(
   timeline: gsap.core.Timeline,
   options: AddTweenOptions
 ): void {
-  const { element, from, to, duration, ease, position, onComplete } = options;
+  const { element, from, to, duration, ease, position, onComplete, splitText, splitElements: providedSplitElements } = options;
   const safeDur = safeDuration(duration);
+
+  // If splitText is enabled, we need to target child elements created by GSAP's SplitText
+  if (splitText) {
+    // Use provided split elements if available, otherwise try to query by class
+    let splitElements = providedSplitElements;
+
+    if (!splitElements || splitElements.length === 0) {
+      // Fallback: Try to find elements by class (GSAP SplitText creates these)
+      const splitClass = splitText.type === 'chars' ? '.char' : splitText.type === 'words' ? '.word' : '.line';
+      splitElements = Array.from(element.querySelectorAll(splitClass)) as HTMLElement[];
+    }
+
+    if (splitElements.length > 0) {
+      const { fromTo, fromOnly, toOnly, hasFromTo, hasFromOnly, hasToOnly } = separateAnimationProps(from, to);
+
+      // Use GSAP's stagger configuration directly
+      // Can be a number (fixed delay) or { amount: duration } (total time to distribute)
+      const staggerConfig = splitText.stagger;
+
+      // Prevent immediate render for split text to avoid "from" state conflicts
+      // when multiple tweens animate the same split elements in sequence
+      const shouldDelayRender = position === '>' || position === '<' || (typeof position === 'number' && position > 0);
+
+      if (hasFromTo) {
+        timeline.fromTo(
+          splitElements,
+          fromTo.from,
+          {
+            ...fromTo.to,
+            duration: safeDur,
+            ease,
+            stagger: staggerConfig,
+            immediateRender: !shouldDelayRender,
+            onComplete: !hasFromOnly && !hasToOnly ? onComplete : undefined
+          },
+          position
+        );
+      }
+
+      if (hasFromOnly) {
+        timeline.from(
+          splitElements,
+          {
+            ...fromOnly,
+            duration: safeDur,
+            ease,
+            stagger: staggerConfig,
+            immediateRender: !shouldDelayRender && !hasFromTo,
+            onComplete: !hasToOnly ? onComplete : undefined
+          },
+          hasFromTo ? '<' : position
+        );
+      }
+
+      if (hasToOnly) {
+        timeline.to(
+          splitElements,
+          {
+            ...toOnly,
+            duration: safeDur,
+            ease,
+            stagger: staggerConfig,
+            onComplete
+          },
+          hasFromTo || hasFromOnly ? '<' : position
+        );
+      }
+      return;
+    }
+
+    // If splitText is enabled but no split elements were found, fall back to regular animation
+    // This can happen if the element has no text content or SplitText wasn't applied correctly
+    console.warn(`SplitText enabled but no ${splitText.type} elements found for element:`, element);
+  }
+
+  // Regular animation without split text
   const { fromTo, fromOnly, toOnly, hasFromTo, hasFromOnly, hasToOnly } = separateAnimationProps(from, to);
+
+  // Prevent immediate render to avoid "from" state conflicts in timelines
+  const shouldDelayRender = position === '>' || position === '<' || (typeof position === 'number' && position > 0);
 
   // Add tweens - use '<' to run simultaneously with the first one
   if (hasFromTo) {
     timeline.fromTo(
       element,
       fromTo.from,
-      { ...fromTo.to, duration: safeDur, ease, onComplete: !hasFromOnly && !hasToOnly ? onComplete : undefined },
+      {
+        ...fromTo.to,
+        duration: safeDur,
+        ease,
+        immediateRender: !shouldDelayRender,
+        onComplete: !hasFromOnly && !hasToOnly ? onComplete : undefined
+      },
       position
     );
   }
@@ -425,7 +607,13 @@ export function addTweenToTimeline(
   if (hasFromOnly) {
     timeline.from(
       element,
-      { ...fromOnly, duration: safeDur, ease, onComplete: !hasToOnly ? onComplete : undefined },
+      {
+        ...fromOnly,
+        duration: safeDur,
+        ease,
+        immediateRender: !shouldDelayRender && !hasFromTo,
+        onComplete: !hasToOnly ? onComplete : undefined
+      },
       hasFromTo ? '<' : position
     );
   }

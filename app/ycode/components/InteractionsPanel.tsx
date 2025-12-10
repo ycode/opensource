@@ -14,6 +14,12 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEn
 import { restrictToParentElement } from '@dnd-kit/modifiers';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import gsap from 'gsap';
+import { SplitText } from 'gsap/SplitText';
+
+// Register GSAP plugins
+if (typeof window !== 'undefined') {
+  gsap.registerPlugin(SplitText);
+}
 
 // 3. ShadCN UI
 import Icon, { IconProps } from '@/components/ui/icon';
@@ -56,11 +62,16 @@ import {
   isPropertyInTween,
   buildGsapProps,
   addTweenToTimeline,
+  createSplitTextAnimation,
+  updateInteractionById,
+  updateInteractionTweens,
+  updateTweenById,
 } from '@/lib/animation-utils';
 import type { TriggerType, PropertyType } from '@/lib/animation-utils';
 
 // 4. Types
 import type { Layer, LayerInteraction, InteractionTimeline, InteractionTween, TweenProperties, Breakpoint } from '@/types';
+import { BREAKPOINTS, BREAKPOINT_VALUES } from '@/lib/breakpoint-utils';
 import { Badge } from '@/components/ui/badge';
 
 interface InteractionsPanelProps {
@@ -151,12 +162,14 @@ function SortableAnimationItem({
       <Badge variant="secondary" className="text-[11px]">
         {(() => {
           const startTime = calculateTweenStartTime(tweens, index);
-          const endTime = startTime + tween.duration;
+          // Calculate stagger amount if splitText is enabled
+          const staggerAmount = tween.splitText?.stagger?.amount || 0;
+          const endTime = startTime + tween.duration + staggerAmount;
           return (
             <>
-              {startTime}s
+              {startTime.toFixed(1)}s
               <Icon name="chevronRight" className="opacity-70 shrink-0" />
-              {endTime}s
+              {endTime.toFixed(1)}s
             </>
           );
         })()}
@@ -193,7 +206,9 @@ export default function InteractionsPanel({
   const previewTweenRef = React.useRef<gsap.core.Tween | null>(null);
   const previewTimelineRef = React.useRef<gsap.core.Timeline | null>(null);
   const previewedElementsRef = React.useRef<Map<string, { element: HTMLElement; originalStyle: string; wasHidden: boolean }>>(new Map());
+  const splitTextInstancesRef = React.useRef<Map<string, SplitText>>(new Map());
   const isChangingPropertyRef = React.useRef(false);
+  const pendingClearRAFsRef = React.useRef<number[]>([]); // Track pending RAF IDs to cancel them
 
   /** Get element from iframe by layer ID */
   const getIframeElement = useCallback((layerId: string): HTMLElement | null => {
@@ -201,6 +216,33 @@ export default function InteractionsPanel({
     const iframeDoc = iframe?.contentDocument || iframe?.contentWindow?.document;
     if (!iframeDoc) return null;
     return iframeDoc.querySelector(`[data-layer-id="${layerId}"]`) as HTMLElement;
+  }, []);
+
+  /** Get iframe's GSAP SplitText instance */
+  const getIframeSplitText = useCallback((): typeof SplitText | null => {
+    const iframe = document.querySelector('iframe') as HTMLIFrameElement;
+    const iframeWindow = iframe?.contentWindow;
+    if (!iframeWindow) {
+      console.warn('Cannot access iframe window');
+      return null;
+    }
+
+    // Access GSAP and SplitText from iframe's window
+    const iframeGsap = (iframeWindow as any).gsap;
+    const iframeSplitText = (iframeWindow as any).SplitText;
+
+    if (!iframeGsap) {
+      console.warn('GSAP not loaded in iframe');
+      return null;
+    }
+
+    if (!iframeSplitText) {
+      console.warn('SplitText not loaded in iframe');
+      return null;
+    }
+
+    // Return a wrapper that creates SplitText instances in iframe context
+    return iframeSplitText as typeof SplitText;
   }, []);
 
   /** Clear preview styles and restore original */
@@ -215,7 +257,19 @@ export default function InteractionsPanel({
     }
 
     if (previewedElementRef.current) {
-      const { element, originalStyle, wasHidden } = previewedElementRef.current;
+      const { layerId, element, originalStyle, wasHidden } = previewedElementRef.current;
+
+      // Revert any split text instance for this element (single property preview)
+      const splitInstance = splitTextInstancesRef.current.get(layerId);
+      if (splitInstance) {
+        try {
+          splitInstance.revert();
+          splitTextInstancesRef.current.delete(layerId);
+        } catch (error) {
+          // Ignore revert errors
+        }
+      }
+
       // Use GSAP to clear transforms
       gsap.set(element, { clearProps: 'all' });
       element.setAttribute('style', originalStyle);
@@ -230,7 +284,11 @@ export default function InteractionsPanel({
   }, []);
 
   /** Apply preview styles to a layer element using GSAP */
-  const applyPreviewStyles = useCallback((layerId: string, properties: gsap.TweenVars) => {
+  const applyPreviewStyles = useCallback((layerId: string, properties: gsap.TweenVars, options?: { splitText?: { type: 'chars' | 'words' | 'lines'; stagger: { amount: number } }; duration?: number }) => {
+    // Cancel any pending clear operations from blur events
+    pendingClearRAFsRef.current.forEach(id => cancelAnimationFrame(id));
+    pendingClearRAFsRef.current = [];
+
     const element = getIframeElement(layerId);
     if (!element) return;
 
@@ -248,17 +306,77 @@ export default function InteractionsPanel({
       };
     }
 
-    // Use GSAP to set the preview state instantly
+    // If splitText is enabled, apply preview to split elements with stagger
+    if (options?.splitText) {
+      const IframeSplitText = getIframeSplitText();
+      const iframeWindow = (document.querySelector('iframe') as HTMLIFrameElement)?.contentWindow;
+      const iframeGsap = iframeWindow ? (iframeWindow as any).gsap : null;
+
+      if (IframeSplitText && iframeGsap) {
+        // Check if we already have a split instance for this element
+        let splitInstance = splitTextInstancesRef.current.get(layerId);
+        let splitElements: HTMLElement[] | undefined;
+
+        if (!splitInstance) {
+          // Create new split instance
+          try {
+            splitInstance = new IframeSplitText(element, {
+              type: options.splitText.type,
+            });
+            const splitProperty = options.splitText.type === 'chars' ? 'chars' :
+              options.splitText.type === 'words' ? 'words' : 'lines';
+            splitElements = splitInstance[splitProperty] as HTMLElement[];
+
+            if (splitElements && splitElements.length > 0) {
+              splitTextInstancesRef.current.set(layerId, splitInstance);
+            } else {
+              splitInstance.revert();
+              splitInstance = undefined;
+            }
+          } catch (error) {
+            console.warn('Failed to create SplitText for preview:', error);
+          }
+        } else {
+          // Use existing split elements
+          const splitProperty = options.splitText.type === 'chars' ? 'chars' :
+            options.splitText.type === 'words' ? 'words' : 'lines';
+          splitElements = splitInstance[splitProperty] as HTMLElement[];
+        }
+
+        // Apply preview to split elements instantly (no stagger for instant preview)
+        if (splitElements && splitElements.length > 0) {
+          iframeGsap.set(splitElements, properties);
+          return;
+        }
+      }
+    }
+
+    // Fallback: Use GSAP to set the preview state instantly on the element
     gsap.set(element, properties);
-  }, [clearPreviewStyles, getIframeElement]);
+  }, [clearPreviewStyles, getIframeElement, getIframeSplitText]);
 
   /** Clear all preview styles from timeline playback */
   const clearAllPreviewStyles = useCallback(() => {
+    // Cancel any pending clear operations from blur events
+    pendingClearRAFsRef.current.forEach(id => cancelAnimationFrame(id));
+    pendingClearRAFsRef.current = [];
+
     // Kill any running timeline
     if (previewTimelineRef.current) {
       previewTimelineRef.current.kill();
       previewTimelineRef.current = null;
     }
+
+    // Revert all SplitText instances
+    splitTextInstancesRef.current.forEach((splitInstance) => {
+      try {
+        splitInstance.revert();
+      } catch (error) {
+        // Ignore errors if revert fails (element might be removed)
+        console.warn('Failed to revert SplitText:', error);
+      }
+    });
+    splitTextInstancesRef.current.clear();
 
     // Restore all previewed elements
     previewedElementsRef.current.forEach(({ element, originalStyle, wasHidden }) => {
@@ -285,13 +403,24 @@ export default function InteractionsPanel({
     duration: number,
     ease: string,
     displayStart: string | null,
-    displayEnd: string | null
+    displayEnd: string | null,
+    splitTextConfig?: { type: 'chars' | 'words' | 'lines'; stagger: { amount: number } }
   ) => {
     // Clear any existing preview first (force clear)
     clearAllPreviewStyles();
 
     const element = getIframeElement(layerId);
     if (!element) return;
+
+    // Get iframe's GSAP instance - MUST use iframe's gsap for consistency with SplitText
+    const iframeWindow = (document.querySelector('iframe') as HTMLIFrameElement)?.contentWindow;
+    const iframeGsap = iframeWindow ? (iframeWindow as any).gsap : null;
+    const IframeSplitText = getIframeSplitText();
+
+    if (!iframeGsap) {
+      console.warn('GSAP not available in iframe');
+      return;
+    }
 
     // Store original style and hidden state
     previewedElementRef.current = {
@@ -301,14 +430,63 @@ export default function InteractionsPanel({
       wasHidden: element.hasAttribute('data-gsap-hidden'),
     };
 
+    // Apply split text if configured using GSAP's SplitText
+    let effectiveSplitTextConfig = splitTextConfig;
+    let splitElements: HTMLElement[] | undefined;
+    if (splitTextConfig) {
+      // Revert any existing SplitText instance for this element
+      const existingSplit = splitTextInstancesRef.current.get(layerId);
+      if (existingSplit) {
+        try {
+          existingSplit.revert();
+        } catch (error) {
+          // Ignore errors if revert fails
+          console.warn('Failed to revert existing SplitText:', error);
+        }
+      }
+
+      if (!IframeSplitText) {
+        console.warn('GSAP SplitText not available in iframe');
+        effectiveSplitTextConfig = undefined;
+      } else {
+        // Create a temporary tween object for the utility function
+        const tempTween: InteractionTween = {
+          id: '',
+          layer_id: layerId,
+          position: 0,
+          duration,
+          ease,
+          from: from as any,
+          to: to as any,
+          apply_styles: {} as any,
+          splitText: splitTextConfig,
+        };
+
+        const result = createSplitTextAnimation(
+          element,
+          splitTextConfig,
+          tempTween,
+          iframeGsap,
+          IframeSplitText
+        );
+
+        if (result) {
+          splitTextInstancesRef.current.set(layerId, result.splitInstance);
+          splitElements = result.splitElements;
+        } else {
+          effectiveSplitTextConfig = undefined;
+        }
+      }
+    }
+
     // Handle display via data-gsap-hidden attribute (same as AnimationInitializer)
     // 'visible' = remove attribute, 'hidden' = add attribute
     if (displayStart === 'visible') {
       element.removeAttribute('data-gsap-hidden');
     }
 
-    // Play the animation using GSAP with shared utility
-    const tl = gsap.timeline({
+    // Play the animation using iframe's GSAP (same context as SplitText)
+    const tl = iframeGsap.timeline({
       onComplete: () => {
         if (displayEnd === 'hidden') {
           element.setAttribute('data-gsap-hidden', '');
@@ -323,10 +501,12 @@ export default function InteractionsPanel({
       duration,
       ease,
       position: 0,
+      splitText: effectiveSplitTextConfig,
+      splitElements,
     });
 
     previewTweenRef.current = tl as unknown as gsap.core.Tween;
-  }, [clearAllPreviewStyles, getIframeElement]);
+  }, [clearAllPreviewStyles, getIframeElement, getIframeSplitText]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -349,8 +529,13 @@ export default function InteractionsPanel({
     const timelineRef = previewTimelineRef;
     const elementRef = previewedElementRef;
     const elementsRef = previewedElementsRef;
+    const pendingClearRAFsRefCopy = pendingClearRAFsRef;
 
     return () => {
+      // Cancel any pending RAF clear operations
+      pendingClearRAFsRefCopy.current.forEach(id => cancelAnimationFrame(id));
+      pendingClearRAFsRefCopy.current = [];
+
       // Kill any running preview animation
       if (tweenRef.current) {
         tweenRef.current.kill();
@@ -398,14 +583,37 @@ export default function InteractionsPanel({
     // Clear any existing previews first
     clearAllPreviewStyles();
 
-    // Create a new timeline
-    const timeline = gsap.timeline({
-      // onComplete: () => {
-      //   clearAllPreviewStyles();
-      // },
-    });
+    // Get iframe's GSAP instance - MUST use iframe's gsap for consistency with SplitText
+    const iframeWindow = (document.querySelector('iframe') as HTMLIFrameElement)?.contentWindow;
+    const iframeGsap = iframeWindow ? (iframeWindow as any).gsap : null;
+    const IframeSplitText = getIframeSplitText();
 
-    // Store original styles and add tweens to timeline
+    if (!iframeGsap) {
+      console.warn('GSAP not available in iframe');
+      return;
+    }
+
+    // Create timeline using iframe's GSAP to ensure same context as SplitText
+    const timeline = iframeGsap.timeline({});
+
+    // Cache split elements to reuse across multiple tweens on the same element
+    const splitElementsCache = new Map<string, HTMLElement[]>();
+
+    // First pass: prepare all elements, split text, and collect initial states
+    // This ensures all initial "from" states are applied at time 0
+    interface PreparedTween {
+      tween: InteractionTween;
+      element: HTMLElement;
+      splitElements?: HTMLElement[];
+      effectiveSplitText?: typeof tweens[0]['splitText'];
+      fromProps: gsap.TweenVars;
+      toProps: gsap.TweenVars;
+      displayStart: string | null;
+      displayEnd: string | null;
+      position: string | number;
+    }
+    const preparedTweens: PreparedTween[] = [];
+
     tweens.forEach((tween, index) => {
       const element = getIframeElement(tween.layer_id);
       if (!element) return;
@@ -417,6 +625,53 @@ export default function InteractionsPanel({
           originalStyle: element.getAttribute('style') || '',
           wasHidden: element.hasAttribute('data-gsap-hidden'),
         });
+      }
+
+      // Apply split text if configured using GSAP's SplitText
+      let effectiveSplitText = tween.splitText;
+      let splitElements: HTMLElement[] | undefined;
+      if (tween.splitText) {
+        // Check if we've already split this element in this timeline
+        const cacheKey = `${tween.layer_id}_${tween.splitText.type}`;
+
+        if (splitElementsCache.has(cacheKey)) {
+          // Reuse existing split elements (do NOT revert - keep same instance)
+          splitElements = splitElementsCache.get(cacheKey);
+          effectiveSplitText = tween.splitText;
+        } else {
+          // First tween with this split config - create new SplitText
+          // Revert any existing SplitText instance from previous timeline playback
+          const existingSplit = splitTextInstancesRef.current.get(tween.layer_id);
+          if (existingSplit) {
+            try {
+              existingSplit.revert();
+            } catch (error) {
+              console.warn('Failed to revert existing SplitText:', error);
+            }
+          }
+
+          if (!IframeSplitText) {
+            console.warn('GSAP SplitText not available in iframe');
+            effectiveSplitText = undefined;
+          } else {
+            const result = createSplitTextAnimation(
+              element,
+              tween.splitText,
+              tween,
+              iframeGsap,
+              IframeSplitText
+            );
+
+            if (result) {
+              splitTextInstancesRef.current.set(tween.layer_id, result.splitInstance);
+              splitElements = result.splitElements;
+              // Cache for reuse within this timeline
+              splitElementsCache.set(cacheKey, result.splitElements);
+            } else {
+              effectiveSplitText = undefined;
+            }
+          }
+        }
       }
 
       // Build from/to props
@@ -432,6 +687,28 @@ export default function InteractionsPanel({
         position = '<'; // With previous
       }
 
+      preparedTweens.push({
+        tween,
+        element,
+        splitElements,
+        effectiveSplitText,
+        fromProps,
+        toProps,
+        displayStart,
+        displayEnd,
+        position,
+      });
+    });
+
+    // Second pass: Add all tweens to timeline
+    // For each tween, apply its "from" state at the same position it starts
+    preparedTweens.forEach(({ element, splitElements, effectiveSplitText, fromProps, toProps, displayStart, displayEnd, tween, position }) => {
+      // Apply the "from" state at the same position as the tween starts
+      // This ensures sequenced animations have correct initial state when they begin
+      if (Object.keys(fromProps).length > 0) {
+        const targets = splitElements && splitElements.length > 0 ? splitElements : element;
+        timeline.set(targets, fromProps, position);
+      }
       // Handle display via data-gsap-hidden attribute (same as AnimationInitializer)
       if (displayStart === 'visible') {
         timeline.call(() => element.removeAttribute('data-gsap-hidden'), undefined, position);
@@ -445,6 +722,8 @@ export default function InteractionsPanel({
         duration: tween.duration,
         ease: tween.ease,
         position,
+        splitText: effectiveSplitText,
+        splitElements,
         onComplete: displayEnd === 'hidden'
           ? () => element.setAttribute('data-gsap-hidden', '')
           : undefined,
@@ -452,7 +731,7 @@ export default function InteractionsPanel({
     });
 
     previewTimelineRef.current = timeline;
-  }, [selectedInteraction, getIframeElement, clearAllPreviewStyles]);
+  }, [selectedInteraction, getIframeElement, clearAllPreviewStyles, getIframeSplitText]);
 
   // Find layers that animate the current trigger layer (where this layer is a target in tweens)
   const animatedByLayers = useMemo(() => {
@@ -516,7 +795,7 @@ export default function InteractionsPanel({
         id: generateId('int'),
         trigger,
         timeline: {
-          breakpoints: [activeBreakpoint],
+          breakpoints: [...BREAKPOINT_VALUES], // All breakpoints by default
           repeat: 0,
           yoyo: false,
           // Add scroll-specific defaults
@@ -537,7 +816,7 @@ export default function InteractionsPanel({
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
       setSelectedInteractionId(newInteraction.id);
     },
-    [interactions, triggerLayer.id, onLayerUpdate, activeBreakpoint]
+    [interactions, triggerLayer.id, onLayerUpdate]
   );
 
   // Remove interaction
@@ -563,13 +842,14 @@ export default function InteractionsPanel({
     (updates: Partial<InteractionTimeline>) => {
       if (!selectedInteraction) return;
 
-      const updatedInteractions = interactions.map((interaction) => {
-        if (interaction.id !== selectedInteractionId) return interaction;
-        return {
+      const updatedInteractions = updateInteractionById(
+        interactions,
+        selectedInteractionId!,
+        (interaction) => ({
           ...interaction,
           timeline: { ...interaction.timeline, ...updates },
-        };
-      });
+        })
+      );
 
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
     },
@@ -600,13 +880,11 @@ export default function InteractionsPanel({
       },
     };
 
-    const updatedInteractions = interactions.map((interaction) => {
-      if (interaction.id !== selectedInteractionId) return interaction;
-      return {
-        ...interaction,
-        tweens: [...interaction.tweens, newTween],
-      };
-    });
+    const updatedInteractions = updateInteractionById(
+      interactions,
+      selectedInteractionId!,
+      (interaction) => updateInteractionTweens(interaction, (tweens) => [...tweens, newTween])
+    );
 
     onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
     setSelectedTweenId(newTween.id);
@@ -617,13 +895,11 @@ export default function InteractionsPanel({
     (tweenId: string) => {
       if (!selectedInteraction) return;
 
-      const updatedInteractions = interactions.map((interaction) => {
-        if (interaction.id !== selectedInteractionId) return interaction;
-        return {
-          ...interaction,
-          tweens: interaction.tweens.filter((t) => t.id !== tweenId),
-        };
-      });
+      const updatedInteractions = updateInteractionById(
+        interactions,
+        selectedInteractionId!,
+        (interaction) => updateInteractionTweens(interaction, (tweens) => tweens.filter((t) => t.id !== tweenId))
+      );
 
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
       if (selectedTweenId === tweenId) {
@@ -647,10 +923,11 @@ export default function InteractionsPanel({
 
       const reorderedTweens = arrayMove(tweens, oldIndex, newIndex);
 
-      const updatedInteractions = interactions.map((interaction) => {
-        if (interaction.id !== selectedInteractionId) return interaction;
-        return { ...interaction, tweens: reorderedTweens };
-      });
+      const updatedInteractions = updateInteractionById(
+        interactions,
+        selectedInteractionId!,
+        (interaction) => ({ ...interaction, tweens: reorderedTweens })
+      );
 
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
     },
@@ -662,15 +939,14 @@ export default function InteractionsPanel({
     (tweenId: string, updates: Partial<InteractionTween>) => {
       if (!selectedInteraction) return;
 
-      const updatedInteractions = interactions.map((interaction) => {
-        if (interaction.id !== selectedInteractionId) return interaction;
-        return {
-          ...interaction,
-          tweens: interaction.tweens.map((t) =>
-            t.id === tweenId ? { ...t, ...updates } : t
-          ),
-        };
-      });
+      const updatedInteractions = updateInteractionById(
+        interactions,
+        selectedInteractionId!,
+        (interaction) => updateInteractionTweens(
+          interaction,
+          (tweens) => updateTweenById(tweens, tweenId, (tween) => ({ ...tween, ...updates }))
+        )
+      );
 
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
     },
@@ -685,24 +961,22 @@ export default function InteractionsPanel({
       const propertyOption = PROPERTY_OPTIONS.find((p) => p.type === propertyType);
       if (!propertyOption) return;
 
-      const updatedInteractions = interactions.map((interaction) => {
-        if (interaction.id !== selectedInteractionId) return interaction;
-        return {
-          ...interaction,
-          tweens: interaction.tweens.map((tween) => {
-            if (tween.id !== tweenId) return tween;
-
+      const updatedInteractions = updateInteractionById(
+        interactions,
+        selectedInteractionId!,
+        (interaction) => updateInteractionTweens(
+          interaction,
+          (tweens) => updateTweenById(tweens, tweenId, (tween) => {
             const newFrom: TweenProperties = { ...tween.from };
             const newTo: TweenProperties = { ...tween.to };
             propertyOption.properties.forEach((prop) => {
               (newFrom[prop.key] as string | null) = prop.defaultFrom;
               (newTo[prop.key] as string | null) = prop.defaultTo;
             });
-
             return { ...tween, from: newFrom, to: newTo };
-          }),
-        };
-      });
+          })
+        )
+      );
 
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
     },
@@ -717,24 +991,22 @@ export default function InteractionsPanel({
       const propertyOption = PROPERTY_OPTIONS.find((p) => p.type === propertyType);
       if (!propertyOption) return;
 
-      const updatedInteractions = interactions.map((interaction) => {
-        if (interaction.id !== selectedInteractionId) return interaction;
-        return {
-          ...interaction,
-          tweens: interaction.tweens.map((tween) => {
-            if (tween.id !== tweenId) return tween;
-
+      const updatedInteractions = updateInteractionById(
+        interactions,
+        selectedInteractionId!,
+        (interaction) => updateInteractionTweens(
+          interaction,
+          (tweens) => updateTweenById(tweens, tweenId, (tween) => {
             const newFrom = { ...tween.from };
             const newTo = { ...tween.to };
             propertyOption.properties.forEach((prop) => {
               delete newFrom[prop.key];
               delete newTo[prop.key];
             });
-
             return { ...tween, from: newFrom, to: newTo };
-          }),
-        };
-      });
+          })
+        )
+      );
 
       onLayerUpdate(triggerLayer.id, { interactions: updatedInteractions });
     },
@@ -924,23 +1196,24 @@ export default function InteractionsPanel({
                       size="sm"
                       className="w-full justify-between"
                     >
-                      <span className="capitalize">
-                        {(selectedInteraction.timeline?.breakpoints?.length ?? 0) === 3
+                      <span>
+                        {(selectedInteraction.timeline?.breakpoints?.length ?? 0) === BREAKPOINTS.length
                           ? 'All breakpoints'
-                          : selectedInteraction.timeline?.breakpoints?.join(', ') || 'No breakpoints'}
+                          : selectedInteraction.timeline?.breakpoints
+                            ?.map(bp => BREAKPOINTS.find(b => b.value === bp)?.label || bp)
+                            .join(', ') || 'No breakpoints'}
                       </span>
                       <Icon name="chevronCombo" className="size-3 opacity-50" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-40">
-                    {(['mobile', 'tablet', 'desktop'] as Breakpoint[]).map((bp) => (
+                    {BREAKPOINTS.map((bp) => (
                       <DropdownMenuCheckboxItem
-                        key={bp}
-                        checked={selectedInteraction.timeline?.breakpoints?.includes(bp) ?? false}
-                        onCheckedChange={() => handleToggleBreakpoint(bp)}
-                        className="capitalize"
+                        key={bp.value}
+                        checked={selectedInteraction.timeline?.breakpoints?.includes(bp.value) ?? false}
+                        onCheckedChange={() => handleToggleBreakpoint(bp.value)}
                       >
-                        {bp}
+                        {bp.label}
                       </DropdownMenuCheckboxItem>
                     ))}
                   </DropdownMenuContent>
@@ -1408,7 +1681,8 @@ export default function InteractionsPanel({
                             selectedTween.duration,
                             selectedTween.ease,
                             displayStart,
-                            displayEnd
+                            displayEnd,
+                            selectedTween.splitText
                           );
                         }}
                       >
@@ -1536,6 +1810,106 @@ export default function InteractionsPanel({
                 </Select>
               </div>
             </div>
+
+            {/* Split Text Configuration */}
+            <div className="grid grid-cols-3 items-center">
+              <Label variant="muted">Animate</Label>
+              <div className="col-span-2">
+                <Select
+                  value={selectedTween.splitText ? 'text' : 'layer'}
+                  onValueChange={(value) => {
+                    if (value === 'text') {
+                      // Enable split text with default stagger of 0.5 seconds
+                      handleUpdateTween(selectedTween.id, {
+                        splitText: {
+                          type: 'words',
+                          stagger: { amount: 0.5 },
+                        },
+                      });
+                    } else {
+                      // Disable split text (animate layers normally)
+                      handleUpdateTween(selectedTween.id, {
+                        splitText: undefined,
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="layer">Layer element</SelectItem>
+                    <SelectItem value="text">Text elements</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {selectedTween.splitText && (
+              <>
+                <div className="grid grid-cols-3 items-center">
+                  <Label variant="muted">Split by</Label>
+                  <div className="col-span-2">
+                    <Select
+                      value={selectedTween.splitText.type}
+                      onValueChange={(value: 'chars' | 'words' | 'lines') =>
+                        handleUpdateTween(selectedTween.id, {
+                          splitText: {
+                            ...selectedTween.splitText!,
+                            type: value,
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="chars">Characters</SelectItem>
+                        <SelectItem value="words">Words</SelectItem>
+                        <SelectItem value="lines">Lines</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 items-center">
+                  <div className="flex items-center gap-1.5">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Icon name="info" className="size-3 opacity-70" />
+                      </TooltipTrigger>
+                      <TooltipContent align="start">Total time between each element</TooltipContent>
+                    </Tooltip>
+                    <Label variant="muted">Stagger</Label>
+                  </div>
+
+                  <div className="col-span-2">
+                    <InputGroup>
+                      <InputGroupInput
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={selectedTween.splitText.stagger.amount}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value) || 0;
+                          handleUpdateTween(selectedTween.id, {
+                            splitText: {
+                              ...selectedTween.splitText!,
+                              stagger: { amount: value },
+                            },
+                          });
+                        }}
+                      />
+                      <InputGroupAddon align="inline-end" className="text-xs text-muted-foreground">
+                        sec
+                      </InputGroupAddon>
+                    </InputGroup>
+                  </div>
+                </div>
+
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1644,7 +2018,11 @@ export default function InteractionsPanel({
                         if (value === null || value === undefined) return;
                         const gsapValue = toGsapValue(value, prop);
                         if (gsapValue !== undefined) {
-                          applyPreviewStyles(selectedTween.layer_id, { [prop.key]: gsapValue });
+                          applyPreviewStyles(
+                            selectedTween.layer_id,
+                            { [prop.key]: gsapValue },
+                            { splitText: selectedTween.splitText, duration: selectedTween.duration }
+                          );
                         }
                       };
 
@@ -1655,7 +2033,11 @@ export default function InteractionsPanel({
                         if (value === null || value === undefined) return;
                         const gsapValue = toGsapValue(value, prop);
                         if (gsapValue !== undefined) {
-                          applyPreviewStyles(selectedTween.layer_id, { [prop.key]: gsapValue });
+                          applyPreviewStyles(
+                            selectedTween.layer_id,
+                            { [prop.key]: gsapValue },
+                            { splitText: selectedTween.splitText, duration: selectedTween.duration }
+                          );
                         }
                       };
 
@@ -1673,48 +2055,54 @@ export default function InteractionsPanel({
                         applyToPreview(toValue as string);
                       };
 
-                      const handleFromChange = (value: string) => {
+                      /** Helper to update property and apply preview after iframe re-renders */
+                      const handlePropertyChange = (updateFn: () => void, applyPreviewFn: () => void) => {
                         isChangingPropertyRef.current = true;
-                        setFromValue(value);
+                        updateFn();
                         // Apply preview after iframe re-renders (double RAF to ensure DOM is updated)
                         requestAnimationFrame(() => {
                           requestAnimationFrame(() => {
                             // Update originalStyle after iframe re-renders (element may have been recreated)
                             const element = getIframeElement(selectedTween.layer_id);
                             if (element && previewedElementRef.current?.layerId === selectedTween.layer_id) {
+                              // If element was recreated, clear any cached SplitText instance
+                              if (element !== previewedElementRef.current.element) {
+                                const oldSplitInstance = splitTextInstancesRef.current.get(selectedTween.layer_id);
+                                if (oldSplitInstance) {
+                                  try {
+                                    oldSplitInstance.revert();
+                                  } catch (e) {
+                                    // Ignore errors from reverting stale instances
+                                  }
+                                  splitTextInstancesRef.current.delete(selectedTween.layer_id);
+                                }
+                              }
                               previewedElementRef.current = {
                                 ...previewedElementRef.current,
                                 element,
                                 originalStyle: element.getAttribute('style') || '',
                               };
                             }
-                            applyFromPreview(value);
+                            applyPreviewFn();
                             isChangingPropertyRef.current = false;
                           });
                         });
                       };
 
+                      const handleFromChange = (value: string) => {
+                        handlePropertyChange(
+                          () => setFromValue(value),
+                          () => applyFromPreview(value)
+                        );
+                      };
+
                       const handleToChange = (value: string) => {
-                        isChangingPropertyRef.current = true;
-                        handleUpdateTween(selectedTween.id, {
-                          to: { ...selectedTween.to, [prop.key]: value },
-                        });
-                        // Apply preview after iframe re-renders (double RAF to ensure DOM is updated)
-                        requestAnimationFrame(() => {
-                          requestAnimationFrame(() => {
-                            // Update originalStyle after iframe re-renders (element may have been recreated)
-                            const element = getIframeElement(selectedTween.layer_id);
-                            if (element && previewedElementRef.current?.layerId === selectedTween.layer_id) {
-                              previewedElementRef.current = {
-                                ...previewedElementRef.current,
-                                element,
-                                originalStyle: element.getAttribute('style') || '',
-                              };
-                            }
-                            applyToPreview(value);
-                            isChangingPropertyRef.current = false;
-                          });
-                        });
+                        handlePropertyChange(
+                          () => handleUpdateTween(selectedTween.id, {
+                            to: { ...selectedTween.to, [prop.key]: value },
+                          }),
+                          () => applyToPreview(value)
+                        );
                       };
 
                       return (
@@ -1781,7 +2169,19 @@ export default function InteractionsPanel({
                                       value={fromValue ?? ''}
                                       onChange={(e) => handleFromChange(e.target.value)}
                                       onFocus={handlePreviewFrom}
-                                      onBlur={() => clearPreviewStyles()}
+                                      onBlur={() => {
+                                        // Defer clearing to ensure any pending RAF callbacks complete first
+                                        // Store RAF IDs so they can be canceled if a new preview is applied
+                                        const rafId1 = requestAnimationFrame(() => {
+                                          const rafId2 = requestAnimationFrame(() => {
+                                            clearPreviewStyles();
+                                            // Remove this RAF ID from the pending list
+                                            pendingClearRAFsRef.current = pendingClearRAFsRef.current.filter(id => id !== rafId1 && id !== rafId2);
+                                          });
+                                          pendingClearRAFsRef.current.push(rafId2);
+                                        });
+                                        pendingClearRAFsRef.current.push(rafId1);
+                                      }}
                                       placeholder="0"
                                       className="text-xs"
                                     />
@@ -1794,7 +2194,19 @@ export default function InteractionsPanel({
                                     value={fromValue ?? ''}
                                     onChange={(e) => handleFromChange(e.target.value)}
                                     onFocus={handlePreviewFrom}
-                                    onBlur={() => clearPreviewStyles()}
+                                    onBlur={() => {
+                                      // Defer clearing to ensure any pending RAF callbacks complete first
+                                      // Store RAF IDs so they can be canceled if a new preview is applied
+                                      const rafId1 = requestAnimationFrame(() => {
+                                        const rafId2 = requestAnimationFrame(() => {
+                                          clearPreviewStyles();
+                                          // Remove this RAF ID from the pending list
+                                          pendingClearRAFsRef.current = pendingClearRAFsRef.current.filter(id => id !== rafId1 && id !== rafId2);
+                                        });
+                                        pendingClearRAFsRef.current.push(rafId2);
+                                      });
+                                      pendingClearRAFsRef.current.push(rafId1);
+                                    }}
                                     placeholder="0"
                                     className="flex-1 h-7 text-xs"
                                   />
@@ -1868,7 +2280,19 @@ export default function InteractionsPanel({
                                   value={toValue ?? ''}
                                   onChange={(e) => handleToChange(e.target.value)}
                                   onFocus={handlePreviewTo}
-                                  onBlur={() => clearPreviewStyles()}
+                                  onBlur={() => {
+                                    // Defer clearing to ensure any pending RAF callbacks complete first
+                                    // Store RAF IDs so they can be canceled if a new preview is applied
+                                    const rafId1 = requestAnimationFrame(() => {
+                                      const rafId2 = requestAnimationFrame(() => {
+                                        clearPreviewStyles();
+                                        // Remove this RAF ID from the pending list
+                                        pendingClearRAFsRef.current = pendingClearRAFsRef.current.filter(id => id !== rafId1 && id !== rafId2);
+                                      });
+                                      pendingClearRAFsRef.current.push(rafId2);
+                                    });
+                                    pendingClearRAFsRef.current.push(rafId1);
+                                  }}
                                   placeholder="0"
                                   className="text-xs"
                                 />
@@ -1881,7 +2305,19 @@ export default function InteractionsPanel({
                                 value={toValue ?? ''}
                                 onChange={(e) => handleToChange(e.target.value)}
                                 onFocus={handlePreviewTo}
-                                onBlur={() => clearPreviewStyles()}
+                                onBlur={() => {
+                                  // Defer clearing to ensure any pending RAF callbacks complete first
+                                  // Store RAF IDs so they can be canceled if a new preview is applied
+                                  const rafId1 = requestAnimationFrame(() => {
+                                    const rafId2 = requestAnimationFrame(() => {
+                                      clearPreviewStyles();
+                                      // Remove this RAF ID from the pending list
+                                      pendingClearRAFsRef.current = pendingClearRAFsRef.current.filter(id => id !== rafId1 && id !== rafId2);
+                                    });
+                                    pendingClearRAFsRef.current.push(rafId2);
+                                  });
+                                  pendingClearRAFsRef.current.push(rafId1);
+                                }}
                                 placeholder="0"
                                 className="flex-1 h-7 text-xs"
                               />

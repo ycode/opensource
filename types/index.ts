@@ -166,6 +166,10 @@ export interface InteractionTween {
   from: TweenProperties;
   to: TweenProperties;
   apply_styles: InteractionApplyStyles;
+  splitText?: {
+    type: 'chars' | 'words' | 'lines';
+    stagger: { amount: number }; // GSAP stagger: { amount: totalTime }
+  };
 }
 
 export type ApplyStyles = 'on-load' | 'on-trigger';

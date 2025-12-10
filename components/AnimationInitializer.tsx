@@ -11,13 +11,14 @@
 import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { SplitText } from 'gsap/SplitText';
 
-import { buildGsapProps, addTweenToTimeline } from '@/lib/animation-utils';
+import { buildGsapProps, addTweenToTimeline, createSplitTextAnimation } from '@/lib/animation-utils';
 import type { Layer, LayerInteraction, Breakpoint } from '@/types';
 
 // Register GSAP plugins
 if (typeof window !== 'undefined') {
-  gsap.registerPlugin(ScrollTrigger);
+  gsap.registerPlugin(ScrollTrigger, SplitText);
 }
 
 interface AnimationInitializerProps {
@@ -81,15 +82,68 @@ function buildTimeline(interaction: LayerInteraction): gsap.core.Timeline | null
     displayEnd: string | null;
   }> = [];
 
+  // Track SplitText instances for cleanup
+  const splitTextInstances: SplitText[] = [];
+
+  // Track split elements per layer to reuse across multiple tweens
+  const splitElementsCache = new Map<string, HTMLElement[]>();
+
   const timeline = gsap.timeline({
     paused: true,
     repeat: interaction.timeline?.repeat ?? 0,
     yoyo: isYoyo,
+    onComplete: () => {
+      // Clean up split text after animation completes (optional)
+      // splitTextInstances.forEach(split => split.revert());
+    },
   });
+
+  // First pass: prepare all elements, split text, and collect data
+  interface PreparedTween {
+    element: HTMLElement;
+    splitElements?: HTMLElement[];
+    from: gsap.TweenVars;
+    to: gsap.TweenVars;
+    displayStart: string | null;
+    displayEnd: string | null;
+    position: string | number;
+    duration: number;
+    ease: string;
+    splitTextConfig?: typeof interaction.tweens[0]['splitText'];
+  }
+  const preparedTweens: PreparedTween[] = [];
 
   (interaction.tweens || []).forEach((tween, index) => {
     const element = getElement(tween.layer_id);
     if (!element) return;
+
+    // Apply split text if configured using GSAP's SplitText
+    let splitElements: HTMLElement[] | undefined;
+    if (tween.splitText) {
+      // Check if we've already split this element in this timeline
+      const cacheKey = `${tween.layer_id}_${tween.splitText.type}`;
+
+      if (splitElementsCache.has(cacheKey)) {
+        // Reuse existing split elements
+        splitElements = splitElementsCache.get(cacheKey);
+      } else {
+        // Create new split for this element
+        const result = createSplitTextAnimation(
+          element,
+          tween.splitText,
+          tween,
+          gsap,
+          SplitText
+        );
+
+        if (result) {
+          splitTextInstances.push(result.splitInstance);
+          splitElements = result.splitElements;
+          // Cache the split elements for reuse
+          splitElementsCache.set(cacheKey, result.splitElements);
+        }
+      }
+    }
 
     const { from, to, displayStart, displayEnd } = buildGsapProps(tween);
 
@@ -108,14 +162,40 @@ function buildTimeline(interaction: LayerInteraction): gsap.core.Timeline | null
       displayTransitions.push({ element, displayStart, displayEnd });
     }
 
+    preparedTweens.push({
+      element,
+      splitElements,
+      from,
+      to,
+      displayStart,
+      displayEnd,
+      position,
+      duration: tween.duration,
+      ease: tween.ease,
+      splitTextConfig: tween.splitText,
+    });
+  });
+
+  // Second pass: Add all tweens to timeline
+  // For each tween, apply its "from" state at the same position it starts
+  preparedTweens.forEach(({ element, splitElements, from, to, displayStart, displayEnd, position, duration, ease, splitTextConfig }) => {
+    // Apply the "from" state at the same position as the tween starts
+    // This ensures sequenced animations have correct initial state when they begin
+    if (Object.keys(from).length > 0) {
+      const targets = splitElements && splitElements.length > 0 ? splitElements : element;
+      timeline.set(targets, from, position);
+    }
+
     // Add tween to timeline using shared utility
     addTweenToTimeline(timeline, {
       element,
       from,
       to,
-      duration: tween.duration,
-      ease: tween.ease,
+      duration,
+      ease,
       position,
+      splitText: splitTextConfig,
+      splitElements,
       onComplete: displayEnd === 'hidden'
         ? () => element.setAttribute('data-gsap-hidden', '')
         : undefined,
