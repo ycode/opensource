@@ -14,6 +14,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { SplitText } from 'gsap/SplitText';
 
 import { buildGsapProps, addTweenToTimeline, createSplitTextAnimation } from '@/lib/animation-utils';
+import { getCurrentBreakpoint } from '@/lib/breakpoint-utils';
 import type { Layer, LayerInteraction, Breakpoint } from '@/types';
 
 // Register GSAP plugins
@@ -49,15 +50,6 @@ function collectInteractions(layers: Layer[]): CollectedInteraction[] {
 
   traverse(layers);
   return interactions;
-}
-
-/** Get current breakpoint based on window width */
-function getCurrentBreakpoint(): Breakpoint {
-  if (typeof window === 'undefined') return 'desktop';
-  const width = window.innerWidth;
-  if (width < 768) return 'mobile';
-  if (width < 1024) return 'tablet';
-  return 'desktop';
 }
 
 /** Check if interaction should run on current breakpoint */

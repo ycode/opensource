@@ -1,12 +1,13 @@
 /**
  * Tailwind Class Mapper
- * 
+ *
  * Bidirectional conversion between design object properties and Tailwind CSS classes
  * with intelligent conflict resolution
  */
 
-import type { Layer, UIState } from '@/types';
+import type { Layer, UIState, Breakpoint } from '@/types';
 import { cn } from '@/lib/utils';
+import { getBreakpointPrefix } from './breakpoint-utils';
 
 /**
  * Helper: Check if a value looks like a color (hex, rgb, rgba, hsl, hsla, or color name)
@@ -18,15 +19,15 @@ function isColorValue(value: string): boolean {
   if (/^#?[0-9A-Fa-f]{3}$/.test(value)) return true; // #RGB or RGB
   if (/^#?[0-9A-Fa-f]{6}$/.test(value)) return true; // #RRGGBB or RRGGBB
   if (/^#?[0-9A-Fa-f]{8}$/.test(value)) return true; // #RRGGBBAA or RRGGBBAA
-  
+
   // Check for rgb/rgba functions
   // Supports: rgb(r,g,b), rgba(r,g,b,a), with or without spaces
   if (/^rgba?\s*\(/i.test(value)) return true;
-  
+
   // Check for hsl/hsla functions
   // Supports: hsl(h,s,l), hsla(h,s,l,a), with or without spaces
   if (/^hsla?\s*\(/i.test(value)) return true;
-  
+
   // Check for CSS color keywords (common ones)
   const colorKeywords = [
     'transparent', 'currentcolor', 'inherit',
@@ -35,19 +36,19 @@ function isColorValue(value: string): boolean {
     'indigo', 'violet', 'brown', 'lime', 'teal', 'navy', 'maroon', 'olive'
   ];
   if (colorKeywords.includes(value.toLowerCase())) return true;
-  
+
   // If it has a size unit, it's definitely NOT a color
   // Units: px, rem, em, %, vh, vw, vmin, vmax, ch, ex, cm, mm, in, pt, pc
   if (/^-?\d*\.?\d+(px|rem|em|%|vh|vw|vmin|vmax|ch|ex|cm|mm|in|pt|pc)$/i.test(value)) {
     return false;
   }
-  
+
   // If it's just a number (with optional decimal), it's a size, not a color
   // Examples: 10, 1.5, 100, 0.5
   if (/^-?\d*\.?\d+$/.test(value)) {
     return false;
   }
-  
+
   // Default: if we can't determine, assume it's NOT a color (safer default)
   return false;
 }
@@ -55,12 +56,12 @@ function isColorValue(value: string): boolean {
 /**
  * Helper: Format measurement value for Tailwind class generation
  * Handles plain numbers by adding 'px', preserves explicit units
- * 
+ *
  * @param value - The measurement value (e.g., "100", "100px", "10rem")
  * @param prefix - The Tailwind prefix (e.g., "w", "m", "text")
  * @param allowedNamedValues - Optional array of named values (e.g., ["auto", "full"])
  * @returns Formatted Tailwind class
- * 
+ *
  * @example
  * formatMeasurementClass("100", "w") // "w-[100px]"
  * formatMeasurementClass("100px", "m") // "m-[100px]"
@@ -68,7 +69,7 @@ function isColorValue(value: string): boolean {
  * formatMeasurementClass("auto", "w", ["auto"]) // "w-auto"
  */
 function formatMeasurementClass(
-  value: string, 
+  value: string,
   prefix: string,
   allowedNamedValues: string[] = []
 ): string {
@@ -76,24 +77,24 @@ function formatMeasurementClass(
   if (allowedNamedValues.includes(value)) {
     return `${prefix}-${value}`;
   }
-  
+
   // Check if value already ends with px - don't add it again
   if (value.endsWith('px')) {
     return `${prefix}-[${value}]`;
   }
-  
+
   // Check if value is just a number (e.g., "100" without any unit)
   const isPlainNumber = /^-?\d*\.?\d+$/.test(value);
   if (isPlainNumber) {
     // Add px to plain numbers
     return `${prefix}-[${value}px]`;
   }
-  
+
   // For values with other units (rem, em, %, etc.), wrap in arbitrary value
   if (value.match(/^\d/)) {
     return `${prefix}-[${value}]`;
   }
-  
+
   // Otherwise use as named class (e.g., "large", "small")
   return `${prefix}-${value}`;
 }
@@ -115,7 +116,7 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   rowGap: /^gap-y-(\[.+\]|\d+|px|0\.5|1\.5|2\.5|3\.5)$/,
   gridTemplateColumns: /^grid-cols-(\[.+\]|\d+|none|subgrid)$/,
   gridTemplateRows: /^grid-rows-(\[.+\]|\d+|none|subgrid)$/,
-  
+
   // Spacing
   padding: /^p-(\[.+\]|\d+|px|0\.5|1\.5|2\.5|3\.5)$/,
   paddingTop: /^pt-(\[.+\]|\d+|px|0\.5|1\.5|2\.5|3\.5)$/,
@@ -127,7 +128,7 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   marginRight: /^mr-(\[.+\]|\d+|px|auto|0\.5|1\.5|2\.5|3\.5)$/,
   marginBottom: /^mb-(\[.+\]|\d+|px|auto|0\.5|1\.5|2\.5|3\.5)$/,
   marginLeft: /^ml-(\[.+\]|\d+|px|auto|0\.5|1\.5|2\.5|3\.5)$/,
-  
+
   // Sizing
   width: /^w-(\[.+\]|\d+\/\d+|\d+|px|auto|full|screen|min|max|fit)$/,
   height: /^h-(\[.+\]|\d+\/\d+|\d+|px|auto|full|screen|min|max|fit)$/,
@@ -135,7 +136,7 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   minHeight: /^min-h-(\[.+\]|\d+|px|full|screen|min|max|fit)$/,
   maxWidth: /^max-w-(\[.+\]|none|xs|sm|md|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|full|min|max|fit|prose|screen-sm|screen-md|screen-lg|screen-xl|screen-2xl)$/,
   maxHeight: /^max-h-(\[.+\]|\d+|px|full|screen|min|max|fit)$/,
-  
+
   // Typography
   fontFamily: /^font-(sans|serif|mono|\[.+\])$/,
   // Updated to match partial arbitrary values like text-n, text-no, text-non (not just complete text-[10rem])
@@ -150,14 +151,14 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   // Updated to match partial arbitrary values like text-r, text-re, text-red (not just complete text-[#FF0000])
   // Excludes fontSize named values and text-align values
   color: /^text-(?!(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl|left|center|right|justify|start|end)(?:\s|$)).+$/,
-  
+
   // Backgrounds
   backgroundColor: /^bg-(?!(?:auto|cover|contain|bottom|center|left|left-bottom|left-top|right|right-bottom|right-top|top|repeat|no-repeat|repeat-x|repeat-y|repeat-round|repeat-space|none|gradient-to-t|gradient-to-tr|gradient-to-r|gradient-to-br|gradient-to-b|gradient-to-bl|gradient-to-l|gradient-to-tl)$)((\w+)(-\d+)?|\[.+\](?:\/\d+)?)$/,
   backgroundSize: /^bg-(auto|cover|contain|\[.+\])$/,
   backgroundPosition: /^bg-(bottom|center|left|left-bottom|left-top|right|right-bottom|right-top|top|\[.+\])$/,
   backgroundRepeat: /^bg-(repeat|no-repeat|repeat-x|repeat-y|repeat-round|repeat-space)$/,
   backgroundImage: /^bg-(none|gradient-to-t|gradient-to-tr|gradient-to-r|gradient-to-br|gradient-to-b|gradient-to-bl|gradient-to-l|gradient-to-tl|\[.+\])$/,
-  
+
   // Borders
   borderWidth: /^border(-\d+|-\[.+\])?$/,
   borderTopWidth: /^border-t(-\d+|-\[.+\])?$/,
@@ -171,11 +172,11 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   borderTopRightRadius: /^rounded-tr(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
   borderBottomRightRadius: /^rounded-br(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
   borderBottomLeftRadius: /^rounded-bl(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
-  
+
   // Effects
   opacity: /^opacity-(\d+|\[.+\])$/,
   boxShadow: /^shadow(-none|-sm|-md|-lg|-xl|-2xl|-inner|-\[.+\])?$/,
-  
+
   // Positioning
   position: /^(static|fixed|absolute|relative|sticky)$/,
   top: /^top-(\[.+\]|\d+|px|auto|0\.5|1\.5|2\.5|3\.5)$/,
@@ -211,49 +212,49 @@ export function removeConflictingClasses(
 ): string[] {
   const pattern = getConflictingClassPattern(property);
   if (!pattern) return classes;
-  
+
   return classes.filter(cls => {
     // Check if this class matches the pattern
     if (!pattern.test(cls)) return true; // Keep it if it doesn't match
-    
+
     // Special handling for text-[...] arbitrary values
     // Need to distinguish between fontSize (text-[10rem]) and color (text-[#0000FF])
     if (cls.startsWith('text-[')) {
       const value = extractArbitraryValue(cls);
       if (value) {
         const isColor = isColorValue(value);
-        
+
         // If we're removing fontSize conflicts, keep color classes
         if (property === 'fontSize' && isColor) {
           return true; // Keep this class, it's a color not a size
         }
-        
+
         // If we're removing color conflicts, keep size classes
         if (property === 'color' && !isColor) {
           return true; // Keep this class, it's a size not a color
         }
       }
     }
-    
+
     // Special handling for bg-[...] arbitrary values
     // Need to distinguish between backgroundColor (bg-[#0000FF]) and backgroundImage (bg-[url(...)])
     if (cls.startsWith('bg-[')) {
       const value = extractArbitraryValue(cls);
       if (value) {
         const isImage = isImageValue(value);
-        
+
         // If we're removing backgroundColor conflicts, keep image classes
         if (property === 'backgroundColor' && isImage) {
           return true; // Keep this class, it's an image not a color
         }
-        
+
         // If we're removing backgroundImage conflicts, keep color classes
         if (property === 'backgroundImage' && !isImage) {
           return true; // Keep this class, it's a color not an image
         }
       }
     }
-    
+
     // For all other cases, remove the conflicting class
     return false;
   });
@@ -270,11 +271,11 @@ export function replaceConflictingClasses(
   newClass: string | null
 ): string[] {
   const filtered = removeConflictingClasses(existingClasses, property);
-  
+
   if (newClass) {
     return [...filtered, newClass];
   }
-  
+
   return filtered;
 }
 
@@ -287,7 +288,7 @@ export function propertyToClass(
   value: string
 ): string | null {
   if (!value) return null;
-  
+
   // Layout conversions
   if (category === 'layout') {
     switch (property) {
@@ -322,7 +323,7 @@ export function propertyToClass(
         return `grid-rows-[${value}]`;
     }
   }
-  
+
   // Typography conversions
   if (category === 'typography') {
     switch (property) {
@@ -350,7 +351,7 @@ export function propertyToClass(
         return value.match(/^#|^rgb/) ? `text-[${value}]` : `text-${value}`;
     }
   }
-  
+
   // Spacing conversions
   if (category === 'spacing') {
     const prefixMap: Record<string, string> = {
@@ -365,7 +366,7 @@ export function propertyToClass(
       marginBottom: 'mb',
       marginLeft: 'ml',
     };
-    
+
     const prefix = prefixMap[property];
     if (prefix) {
       // Margin can be auto
@@ -375,7 +376,7 @@ export function propertyToClass(
       return formatMeasurementClass(value, prefix);
     }
   }
-  
+
   // Sizing conversions
   if (category === 'sizing') {
     const prefixMap: Record<string, string> = {
@@ -386,17 +387,17 @@ export function propertyToClass(
       maxWidth: 'max-w',
       maxHeight: 'max-h',
     };
-    
+
     const prefix = prefixMap[property];
     if (prefix) {
       // Special case: 100% → full
       if (value === '100%') return `${prefix}-full`;
-      
+
       // Use abstracted helper with allowed named values
       return formatMeasurementClass(value, prefix, ['auto', 'full', 'screen', 'min', 'max', 'fit']);
     }
   }
-  
+
   // Borders conversions
   if (category === 'borders') {
     switch (property) {
@@ -431,7 +432,7 @@ export function propertyToClass(
         return formatMeasurementClass(value, 'rounded-bl');
     }
   }
-  
+
   // Backgrounds conversions
   if (category === 'backgrounds') {
     switch (property) {
@@ -458,13 +459,13 @@ export function propertyToClass(
         return `bg-${value}`;
     }
   }
-  
+
   // Effects conversions
   if (category === 'effects') {
     switch (property) {
       case 'opacity':
         // Convert 0-100 to 0-100 or decimal to percentage
-        const opacityValue = value.includes('.') 
+        const opacityValue = value.includes('.')
           ? Math.round(parseFloat(value) * 100).toString()
           : value;
         return `opacity-[${opacityValue}%]`;
@@ -476,7 +477,7 @@ export function propertyToClass(
         return `shadow-[${value}]`;
     }
   }
-  
+
   // Positioning conversions
   if (category === 'positioning') {
     switch (property) {
@@ -492,7 +493,7 @@ export function propertyToClass(
         return value.match(/^\d/) ? `z-[${value}]` : `z-${value}`;
     }
   }
-  
+
   return null;
 }
 
@@ -501,28 +502,28 @@ export function propertyToClass(
  */
 export function designToClasses(design?: Layer['design']): string[] {
   if (!design) return [];
-  
+
   const classes: string[] = [];
-  
+
   // Process each category
   Object.entries(design).forEach(([category, properties]) => {
     if (!properties || typeof properties !== 'object') return;
-    
+
     Object.entries(properties).forEach(([property, value]) => {
       if (property === 'isActive' || !value) return;
-      
+
       const cls = propertyToClass(
         category as keyof NonNullable<Layer['design']>,
         property,
         value as string
       );
-      
+
       if (cls) {
         classes.push(cls);
       }
     });
   });
-  
+
   return classes;
 }
 
@@ -542,14 +543,14 @@ export function designToClassString(design?: Layer['design']): string {
  */
 export function getAffectedProperties(className: string): string[] {
   const properties: string[] = [];
-  
+
   // Special handling for text-[...] arbitrary values
   // Must distinguish between fontSize and color
   if (className.startsWith('text-[')) {
     const value = extractArbitraryValue(className);
     if (value) {
       const isColor = isColorValue(value);
-      
+
       if (isColor) {
         // This is a color class, only affects color property
         properties.push('color');
@@ -561,14 +562,14 @@ export function getAffectedProperties(className: string): string[] {
       }
     }
   }
-  
+
   // Special handling for bg-[...] arbitrary values
   // Must distinguish between backgroundColor and backgroundImage
   if (className.startsWith('bg-[')) {
     const value = extractArbitraryValue(className);
     if (value) {
       const isImage = isImageValue(value);
-      
+
       if (isImage) {
         // This is an image class, only affects backgroundImage property
         properties.push('backgroundImage');
@@ -580,14 +581,14 @@ export function getAffectedProperties(className: string): string[] {
       }
     }
   }
-  
+
   // For all other classes, check each property pattern
   for (const [property, pattern] of Object.entries(CLASS_PROPERTY_MAP)) {
     if (pattern.test(className)) {
       properties.push(property);
     }
   }
-  
+
   return properties;
 }
 
@@ -599,15 +600,15 @@ export function removeConflictsForClass(
   newClass: string
 ): string[] {
   const affectedProperties = getAffectedProperties(newClass);
-  
+
   // Start with existing classes
   let result = existingClasses;
-  
+
   // Remove conflicts for each affected property
   affectedProperties.forEach(property => {
     result = removeConflictingClasses(result, property);
   });
-  
+
   return result;
 }
 
@@ -616,7 +617,7 @@ export function removeConflictsForClass(
  */
 export function mergeDesign(existing: Layer['design'] | undefined, parsed: Layer['design'] | undefined): Layer['design'] {
   if (!parsed) return existing || {};
-  
+
   const result: Layer['design'] = {
     layout: { ...(existing?.layout || {}), ...(parsed.layout || {}) },
     typography: { ...(existing?.typography || {}), ...(parsed.typography || {}) },
@@ -636,7 +637,7 @@ export function mergeDesign(existing: Layer['design'] | undefined, parsed: Layer
  */
 export function classesToDesign(classes: string | string[]): Layer['design'] {
   const classList = Array.isArray(classes) ? classes : classes.split(' ').filter(Boolean);
-  
+
   const design: Layer['design'] = {
     layout: {},
     typography: {},
@@ -647,7 +648,7 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     effects: {},
     positioning: {},
   };
-  
+
   classList.forEach(cls => {
     // CRITICAL FIX: Skip state-specific classes (they should not be in design object)
     // The design object should only contain base/neutral values
@@ -655,17 +656,17 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls.match(/^(hover|focus|active|disabled|visited):/)) {
       return; // Skip this class
     }
-    
+
     // Also skip breakpoint+state combinations
     if (cls.match(/^(max-lg|max-md|lg|md):(hover|focus|active|disabled|visited):/)) {
       return; // Skip this class
     }
-    
+
     // Strip breakpoint prefix (but keep base classes)
     // "max-md:m-[10px]" should still be parsed into design object
     // But "max-md:hover:m-[10px]" should have been skipped above
     cls = cls.replace(/^(max-lg|max-md|lg|md):/, '');
-    
+
     // ===== LAYOUT =====
     // Display
     if (cls === 'block') design.layout!.display = 'block';
@@ -676,13 +677,13 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls === 'grid') design.layout!.display = 'grid';
     if (cls === 'inline-grid') design.layout!.display = 'inline-grid';
     if (cls === 'hidden') design.layout!.display = 'hidden';
-    
+
     // Flex Direction
     if (cls === 'flex-row') design.layout!.flexDirection = 'row';
     if (cls === 'flex-row-reverse') design.layout!.flexDirection = 'row-reverse';
     if (cls === 'flex-col') design.layout!.flexDirection = 'column';
     if (cls === 'flex-col-reverse') design.layout!.flexDirection = 'column-reverse';
-    
+
     // Justify Content
     if (cls.startsWith('justify-')) {
       const value = cls.replace('justify-', '');
@@ -690,7 +691,7 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
         design.layout!.justifyContent = value;
       }
     }
-    
+
     // Align Items
     if (cls.startsWith('items-')) {
       const value = cls.replace('items-', '');
@@ -698,13 +699,13 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
         design.layout!.alignItems = value;
       }
     }
-    
+
     // Gap
     if (cls.startsWith('gap-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.layout!.gap = value;
     }
-    
+
     // Grid
     if (cls.startsWith('grid-cols-[')) {
       const value = extractArbitraryValue(cls);
@@ -714,7 +715,7 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
       const value = extractArbitraryValue(cls);
       if (value) design.layout!.gridTemplateRows = value;
     }
-    
+
     // ===== TYPOGRAPHY =====
     // Color - Check FIRST before fontSize to avoid confusion
     if (cls.startsWith('text-[')) {
@@ -724,13 +725,13 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
         return; // Skip further checks for this class
       }
     }
-    
+
     // Font Size - Only if not a color
     if (cls.startsWith('text-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.typography!.fontSize = value;
     }
-    
+
     // Font Weight (arbitrary values)
     if (cls.startsWith('font-[') && !cls.includes('sans') && !cls.includes('serif') && !cls.includes('mono')) {
       const value = extractArbitraryValue(cls);
@@ -746,7 +747,7 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls === 'font-bold') design.typography!.fontWeight = '700';
     if (cls === 'font-extrabold') design.typography!.fontWeight = '800';
     if (cls === 'font-black') design.typography!.fontWeight = '900';
-    
+
     // Font Family (arbitrary values)
     if (cls.startsWith('font-[') && (cls.includes('sans') || cls.includes('serif') || cls.includes('mono') || cls.includes(','))) {
       const value = extractArbitraryValue(cls);
@@ -756,36 +757,36 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls === 'font-sans') design.typography!.fontFamily = 'sans-serif';
     if (cls === 'font-serif') design.typography!.fontFamily = 'serif';
     if (cls === 'font-mono') design.typography!.fontFamily = 'monospace';
-    
+
     // Text Align
     if (cls === 'text-left') design.typography!.textAlign = 'left';
     if (cls === 'text-center') design.typography!.textAlign = 'center';
     if (cls === 'text-right') design.typography!.textAlign = 'right';
     if (cls === 'text-justify') design.typography!.textAlign = 'justify';
-    
+
     // Text Transform
     if (cls === 'uppercase') design.typography!.textTransform = 'uppercase';
     if (cls === 'lowercase') design.typography!.textTransform = 'lowercase';
     if (cls === 'capitalize') design.typography!.textTransform = 'capitalize';
     if (cls === 'normal-case') design.typography!.textTransform = 'none';
-    
+
     // Text Decoration
     if (cls === 'underline') design.typography!.textDecoration = 'underline';
     if (cls === 'line-through') design.typography!.textDecoration = 'line-through';
     if (cls === 'no-underline') design.typography!.textDecoration = 'none';
-    
+
     // Line Height
     if (cls.startsWith('leading-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.typography!.lineHeight = value;
     }
-    
+
     // Letter Spacing
     if (cls.startsWith('tracking-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.typography!.letterSpacing = value;
     }
-    
+
     // ===== SPACING =====
     // Padding
     if (cls.startsWith('p-[')) {
@@ -804,7 +805,7 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
       const value = extractArbitraryValue(cls);
       if (value) design.spacing!.paddingLeft = value;
     }
-    
+
     // Margin
     if (cls.startsWith('m-[')) {
       const value = extractArbitraryValue(cls);
@@ -822,44 +823,44 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
       const value = extractArbitraryValue(cls);
       if (value) design.spacing!.marginLeft = value;
     }
-    
+
     // ===== SIZING =====
     // Width
     if (cls.startsWith('w-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.sizing!.width = value;
     }
-    
+
     // Height
     if (cls.startsWith('h-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.sizing!.height = value;
     }
-    
+
     // Min Width
     if (cls.startsWith('min-w-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.sizing!.minWidth = value;
     }
-    
+
     // Min Height
     if (cls.startsWith('min-h-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.sizing!.minHeight = value;
     }
-    
+
     // Max Width
     if (cls.startsWith('max-w-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.sizing!.maxWidth = value;
     }
-    
+
     // Max Height
     if (cls.startsWith('max-h-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.sizing!.maxHeight = value;
     }
-    
+
     // ===== BORDERS =====
     // Border Radius (all)
     if (cls.startsWith('rounded-[')) {
@@ -880,46 +881,46 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
       const value = extractArbitraryValue(cls);
       if (value) design.borders!.borderBottomLeftRadius = value;
     }
-    
+
     // Border Width (all)
     if (cls.startsWith('border-[') && !cls.includes('#') && !cls.includes('rgb')) {
       const value = extractArbitraryValue(cls);
       if (value) design.borders!.borderWidth = value;
     }
-    
+
     // Border Style
     if (cls === 'border-solid') design.borders!.borderStyle = 'solid';
     if (cls === 'border-dashed') design.borders!.borderStyle = 'dashed';
     if (cls === 'border-dotted') design.borders!.borderStyle = 'dotted';
     if (cls === 'border-double') design.borders!.borderStyle = 'double';
     if (cls === 'border-none') design.borders!.borderStyle = 'none';
-    
+
     // Border Color
     if (cls.startsWith('border-[#') || cls.startsWith('border-[rgb')) {
       const value = extractArbitraryValue(cls);
       if (value) design.borders!.borderColor = value;
     }
-    
+
     // ===== BACKGROUNDS =====
     // Background Color
     if (cls.startsWith('bg-[#') || cls.startsWith('bg-[rgb')) {
       const value = extractArbitraryValue(cls);
       if (value) design.backgrounds!.backgroundColor = value;
     }
-    
+
     // ===== EFFECTS =====
     // Opacity
     if (cls.startsWith('opacity-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.effects!.opacity = value;
     }
-    
+
     // Box Shadow
     if (cls.startsWith('shadow-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.effects!.boxShadow = value;
     }
-    
+
     // ===== POSITIONING =====
     // Position
     if (cls === 'static') design.positioning!.position = 'static';
@@ -927,7 +928,7 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls === 'absolute') design.positioning!.position = 'absolute';
     if (cls === 'fixed') design.positioning!.position = 'fixed';
     if (cls === 'sticky') design.positioning!.position = 'sticky';
-    
+
     // Top/Right/Bottom/Left
     if (cls.startsWith('top-[')) {
       const value = extractArbitraryValue(cls);
@@ -945,26 +946,16 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
       const value = extractArbitraryValue(cls);
       if (value) design.positioning!.left = value;
     }
-    
+
     // Z-Index
     if (cls.startsWith('z-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.positioning!.zIndex = value;
     }
   });
-  
+
   return design;
 }
-
-/**
- * Breakpoint Configuration (Desktop-First)
- * Desktop is base (no prefix), tablet and mobile use max-width overrides
- */
-export const BREAKPOINT_CONFIG = {
-  desktop: { prefix: '', maxWidth: null },
-  tablet: { prefix: 'max-lg:', maxWidth: 1023 },
-  mobile: { prefix: 'max-md:', maxWidth: 767 },
-} as const;
 
 /**
  * UI State Configuration (for hover, focus, active, etc.)
@@ -977,16 +968,6 @@ export const UI_STATE_CONFIG = {
   disabled: { prefix: 'disabled:' },
   current: { prefix: 'visited:' }, // Tailwind uses 'visited' for current/visited state
 } as const;
-
-export type Breakpoint = 'mobile' | 'tablet' | 'desktop';
-
-/**
- * Convert breakpoint to Tailwind prefix (Desktop-First)
- * desktop → '' (base), tablet → 'max-lg:', mobile → 'max-md:'
- */
-export function getBreakpointPrefix(breakpoint: Breakpoint): string {
-  return BREAKPOINT_CONFIG[breakpoint].prefix;
-}
 
 /**
  * Get UI state prefix for Tailwind classes
@@ -1008,7 +989,7 @@ export function parseFullClass(className: string): {
   let remaining = className;
   let breakpoint: Breakpoint = 'desktop';
   let uiState: UIState = 'neutral';
-  
+
   // Check for responsive prefix first (Tailwind order: responsive then state)
   if (remaining.startsWith('max-md:')) {
     breakpoint = 'mobile';
@@ -1023,7 +1004,7 @@ export function parseFullClass(className: string): {
     breakpoint = 'tablet';
     remaining = remaining.slice(3);
   }
-  
+
   // Check for state prefix
   if (remaining.startsWith('hover:')) {
     uiState = 'hover';
@@ -1041,7 +1022,7 @@ export function parseFullClass(className: string): {
     uiState = 'current';
     remaining = remaining.slice(8);
   }
-  
+
   return { breakpoint, uiState, baseClass: remaining };
 }
 
@@ -1088,7 +1069,7 @@ export function addBreakpointPrefix(breakpoint: Breakpoint, className: string): 
  */
 export function getBreakpointClasses(classes: string[], breakpoint: Breakpoint): string[] {
   const prefix = getBreakpointPrefix(breakpoint);
-  
+
   return classes
     .filter(cls => {
       if (prefix) {
@@ -1097,7 +1078,7 @@ export function getBreakpointClasses(classes: string[], breakpoint: Breakpoint):
       } else {
         // For desktop (no prefix), return classes without max-lg: or max-md: prefix
         // Also exclude legacy mobile-first prefixes (md:, lg:)
-        return !cls.startsWith('max-lg:') && !cls.startsWith('max-md:') && 
+        return !cls.startsWith('max-lg:') && !cls.startsWith('max-md:') &&
                !cls.startsWith('md:') && !cls.startsWith('lg:');
       }
     })
@@ -1112,17 +1093,17 @@ function isImageValue(value: string): boolean {
   if (value.startsWith('url(') || value.includes('http://') || value.includes('https://') || value.includes('data:')) {
     return true;
   }
-  
+
   // Check for gradients
   if (value.includes('gradient(') || value.includes('linear-gradient') || value.includes('radial-gradient') || value.includes('conic-gradient')) {
     return true;
   }
-  
+
   // If it's a color, it's not an image
   if (isColorValue(value)) {
     return false;
   }
-  
+
   // Default: if we can't determine, treat as color (safer default for bg-[...])
   return false;
 }
@@ -1135,32 +1116,32 @@ function isImageValue(value: string): boolean {
 function shouldIncludeClassForProperty(className: string, property: string, pattern: RegExp): boolean {
   // First check if pattern matches
   if (!pattern.test(className)) return false;
-  
+
   // Special handling for text-[...] arbitrary values (fontSize vs color)
   if (className.startsWith('text-[')) {
     const value = extractArbitraryValue(className);
     if (value) {
       const isColor = isColorValue(value);
-      
+
       // If looking for fontSize, exclude color values
       if (property === 'fontSize' && isColor) {
         return false;
       }
-      
+
       // If looking for color, exclude size values
       if (property === 'color' && !isColor) {
         return false;
       }
     }
   }
-  
+
   // Special handling for bg-[...] arbitrary values (backgroundColor vs backgroundImage)
   if (className.startsWith('bg-[')) {
     const value = extractArbitraryValue(className);
     if (value) {
       const isImage = isImageValue(value);
       const isGradient = value.includes('gradient(') || value.includes('linear-gradient') || value.includes('radial-gradient') || value.includes('conic-gradient');
-      
+
       // Gradients should be treated as backgroundColor, not backgroundImage
       // If looking for backgroundColor, exclude only URL-based images (keep gradients)
       if (property === 'backgroundColor') {
@@ -1170,7 +1151,7 @@ function shouldIncludeClassForProperty(className: string, property: string, patt
         }
         return true; // Include gradients and colors for backgroundColor
       }
-      
+
       // If looking for backgroundImage, exclude color values and gradients
       if (property === 'backgroundImage') {
         // Only include URL-based images, not gradients or colors
@@ -1181,7 +1162,7 @@ function shouldIncludeClassForProperty(className: string, property: string, patt
       }
     }
   }
-  
+
   return true;
 }
 
@@ -1197,21 +1178,21 @@ export function getInheritedValue(
 ): { value: string | null; source: Breakpoint | null } {
   const pattern = getConflictingClassPattern(property);
   if (!pattern) return { value: null, source: null };
-  
+
   // Define inheritance chain based on current breakpoint (desktop-first)
-  const inheritanceChain: Breakpoint[] = 
+  const inheritanceChain: Breakpoint[] =
     currentBreakpoint === 'mobile' ? ['desktop', 'tablet', 'mobile'] :
       currentBreakpoint === 'tablet' ? ['desktop', 'tablet'] :
         ['desktop'];
-  
+
   // Check each breakpoint in order (desktop → tablet → mobile)
   let lastValue: string | null = null;
   let lastSource: Breakpoint | null = null;
-  
+
   for (const breakpoint of inheritanceChain) {
     const bpPrefix = getBreakpointPrefix(breakpoint);
     const statePrefix = getUIStatePrefix(currentUIState);
-    
+
     // If we're in a specific state (not neutral), check for state-specific class at this breakpoint
     if (currentUIState !== 'neutral') {
       const fullPrefix = bpPrefix + statePrefix;
@@ -1222,14 +1203,14 @@ export function getInheritedValue(
         // Smart filtering for text-[...] classes
         return shouldIncludeClassForProperty(baseClass, property, pattern);
       });
-      
+
       if (stateClass) {
         lastValue = stateClass.slice(fullPrefix.length);
         lastSource = breakpoint;
         // Don't break - keep checking for more specific breakpoints
       }
     }
-    
+
     // Check for neutral state class at this breakpoint (always check this)
     const neutralClass = classes.find(cls => {
       if (bpPrefix) {
@@ -1246,10 +1227,10 @@ export function getInheritedValue(
         return shouldIncludeClassForProperty(cls, property, pattern);
       }
     });
-    
+
     if (neutralClass) {
       const baseClass = bpPrefix ? neutralClass.slice(bpPrefix.length) : neutralClass;
-      
+
       // CRITICAL FIX: If we're in neutral state, ONLY use neutral classes
       // If we're in a specific state, only use neutral as fallback if no state-specific value found
       if (currentUIState === 'neutral') {
@@ -1265,7 +1246,7 @@ export function getInheritedValue(
       }
     }
   }
-  
+
   return { value: lastValue, source: lastSource };
 }
 
@@ -1280,12 +1261,12 @@ export function removeConflictingClassesForBreakpoint(
 ): string[] {
   const pattern = getConflictingClassPattern(property);
   if (!pattern) return classes;
-  
+
   const prefix = getBreakpointPrefix(breakpoint);
-  
+
   return classes.filter(cls => {
     const parsed = parseBreakpointClass(cls);
-    
+
     // Only remove if:
     // 1. It's from the same breakpoint
     // 2. It matches the property pattern AND passes smart filtering
@@ -1293,7 +1274,7 @@ export function removeConflictingClassesForBreakpoint(
       // Use smart filtering to distinguish text-[size] from text-[color]
       return !shouldIncludeClassForProperty(parsed.baseClass, property, pattern);
     }
-    
+
     return true; // Keep classes from other breakpoints
   });
 }

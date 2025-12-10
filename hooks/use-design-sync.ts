@@ -1,12 +1,12 @@
 /**
  * Design Sync Hook
- * 
+ *
  * Manages bidirectional sync between layer.design object and Tailwind classes
  * Supports breakpoint-aware class application for responsive design
  */
 
-import { useCallback, useMemo } from 'react';
-import type { Layer, UIState } from '@/types';
+import { useCallback } from 'react';
+import type { Layer, UIState, Breakpoint } from '@/types';
 import {
   propertyToClass,
   replaceConflictingClasses,
@@ -14,10 +14,8 @@ import {
   setBreakpointClass,
   getInheritedValue,
   getConflictingClassPattern,
-  type Breakpoint,
 } from '@/lib/tailwind-class-mapper';
 import { updateStyledLayer } from '@/lib/layer-style-utils';
-import { cn } from '@/lib/utils';
 
 interface UseDesignSyncProps {
   layer: Layer | null;
@@ -26,9 +24,9 @@ interface UseDesignSyncProps {
   activeUIState?: UIState; // Optional UI state for state-specific styling
 }
 
-export function useDesignSync({ 
-  layer, 
-  onLayerUpdate, 
+export function useDesignSync({
+  layer,
+  onLayerUpdate,
   activeBreakpoint = 'desktop',
   activeUIState = 'neutral'
 }: UseDesignSyncProps) {
@@ -43,11 +41,11 @@ export function useDesignSync({
       value: string | null
     ) => {
       if (!layer) return;
-      
+
       // 1. Update design object
       const currentDesign = layer.design || {};
       const categoryData = currentDesign[category] || {};
-      
+
       const updatedDesign = {
         ...currentDesign,
         [category]: {
@@ -56,20 +54,20 @@ export function useDesignSync({
           isActive: true, // Mark category as active
         },
       };
-      
+
       // Remove property if value is null/empty
       if (!value) {
         delete updatedDesign[category]![property as keyof typeof categoryData];
       }
-      
+
       // 2. Convert to Tailwind class
       const newClass = value ? propertyToClass(category, property, value) : null;
-      
+
       // 3. Get existing classes as array
       const existingClasses = Array.isArray(layer.classes)
         ? layer.classes
         : (layer.classes || '').split(' ').filter(Boolean);
-      
+
       // 4. Apply breakpoint-aware class replacement with UI state support
       // Uses setBreakpointClass which applies correct prefix (desktop → '', tablet → 'max-lg:', mobile → 'max-md:')
       // and state prefix (neutral → '', hover → 'hover:', etc.)
@@ -80,7 +78,7 @@ export function useDesignSync({
         activeBreakpoint,
         activeUIState
       );
-      
+
       // 5. Update layer with both design object and classes
       // If layer has a style applied, track changes as overrides
       // Note: Use join instead of cn() because setBreakpointClass already handles
@@ -89,12 +87,12 @@ export function useDesignSync({
         design: updatedDesign,
         classes: updatedClasses.join(' '),
       });
-      
+
       onLayerUpdate(layer.id, finalUpdate);
     },
     [layer, onLayerUpdate, activeBreakpoint, activeUIState]
   );
-  
+
   /**
    * Update multiple design properties at once
    * Applies breakpoint-aware class prefixes based on active viewport
@@ -106,14 +104,14 @@ export function useDesignSync({
       value: string | null;
     }[]) => {
       if (!layer) return;
-      
+
       let currentClasses = Array.isArray(layer.classes)
         ? [...layer.classes]
         : (layer.classes || '').split(' ').filter(Boolean);
-      
+
       const currentDesign = layer.design || {};
       const updatedDesign = { ...currentDesign };
-      
+
       // Process all updates
       updates.forEach(({ category, property, value }) => {
         // Update design object
@@ -123,11 +121,11 @@ export function useDesignSync({
           [property]: value,
           isActive: true,
         };
-        
+
         if (!value) {
           delete updatedDesign[category]![property as keyof typeof categoryData];
         }
-        
+
         // Update classes with breakpoint and UI state awareness
         const newClass = value ? propertyToClass(category, property, value) : null;
         currentClasses = setBreakpointClass(
@@ -138,7 +136,7 @@ export function useDesignSync({
           activeUIState
         );
       });
-      
+
       // Apply all updates at once
       // Note: Use join instead of cn() because setBreakpointClass already handles
       // property-aware conflict resolution
@@ -149,7 +147,7 @@ export function useDesignSync({
     },
     [layer, onLayerUpdate, activeBreakpoint, activeUIState]
   );
-  
+
   /**
    * Get current value for a design property
    * @param category - Design category (e.g., 'typography', 'sizing')
@@ -158,78 +156,78 @@ export function useDesignSync({
    */
   const getDesignProperty = useCallback(
     (
-      category: keyof NonNullable<Layer['design']>, 
+      category: keyof NonNullable<Layer['design']>,
       property: string
     ): string | undefined => {
       if (!layer) return undefined;
-      
+
       // Get classes as array
       const classes = Array.isArray(layer.classes)
         ? layer.classes
         : (layer.classes || '').split(' ').filter(Boolean);
-      
+
       if (classes.length === 0) {
         // Fallback to design object if no classes at all
         if (!layer.design?.[category]) return undefined;
         const categoryData = layer.design[category] as Record<string, any>;
         return categoryData[property];
       }
-      
+
       // Use inheritance to get the value that will actually apply (desktop → tablet → mobile)
       // with UI state support (checks state-specific classes first, then falls back to neutral)
       const { value: inheritedClass } = getInheritedValue(classes, property, activeBreakpoint, activeUIState);
-      
+
       if (!inheritedClass) {
         // CRITICAL: Do NOT fall back to design object here
         // If getInheritedValue returns null, it means:
         // 1. No neutral/base class exists for this property
         // 2. AND we're in neutral state (where state-specific classes are ignored)
         // This is correct behavior - the input should be empty
-        // 
+        //
         // The design object might have corrupted values from before the classesToDesign fix,
         // so we should only trust the classes as the source of truth
         return undefined;
       }
-      
+
       // Parse the inherited class to extract the actual value
       const arbitraryMatch = inheritedClass.match(/\[([^\]]+)\]/);
       if (arbitraryMatch) {
         return arbitraryMatch[1];
       }
-      
+
       return mapClassToDesignValue(inheritedClass, property);
     },
     [layer, activeBreakpoint, activeUIState]
   );
-  
+
   /**
    * Reset a design category (remove all properties and related classes)
    */
   const resetDesignCategory = useCallback(
     (category: keyof NonNullable<Layer['design']>) => {
       if (!layer) return;
-      
+
       const currentDesign = layer.design || {};
       const categoryData = currentDesign[category];
-      
+
       if (!categoryData) return;
-      
+
       // Get all properties in this category (except isActive)
       const properties = Object.keys(categoryData).filter(key => key !== 'isActive');
-      
+
       // Remove all conflicting classes
       let currentClasses = Array.isArray(layer.classes)
         ? [...layer.classes]
         : (layer.classes || '').split(' ').filter(Boolean);
-      
+
       properties.forEach(property => {
         currentClasses = replaceConflictingClasses(currentClasses, property, null);
       });
-      
+
       // Remove category from design object
       const updatedDesign = { ...currentDesign };
       delete updatedDesign[category];
-      
+
       // Note: Use join instead of cn() because replaceConflictingClasses already handles
       // property-aware conflict resolution
       onLayerUpdate(layer.id, {
@@ -239,7 +237,7 @@ export function useDesignSync({
     },
     [layer, onLayerUpdate]
   );
-  
+
   /**
    * Sync classes back to design object
    * Useful when classes are manually edited
@@ -247,18 +245,18 @@ export function useDesignSync({
   const syncClassesToDesign = useCallback(
     (classes: string) => {
       if (!layer) return;
-      
+
       // For now, we keep the existing design object
       // and only update classes
       // Full bidirectional sync can be added later if needed
-      
+
       onLayerUpdate(layer.id, {
         classes,
       });
     },
     [layer, onLayerUpdate]
   );
-  
+
   return {
     updateDesignProperty,
     updateDesignProperties,
@@ -275,7 +273,7 @@ export function useDesignSync({
 function mapClassToDesignValue(className: string, property: string): string | undefined {
   // Remove any breakpoint and state prefixes
   const cleanClass = className.replace(/^(max-lg:|max-md:|lg:|md:)?(hover:|focus:|active:|disabled:|visited:)?/, '');
-  
+
   // Special cases for properties where classes don't have dashes or are complete values
   const noSplitProperties = [
     'position',        // static, absolute, relative, fixed, sticky
@@ -283,19 +281,19 @@ function mapClassToDesignValue(className: string, property: string): string | un
     'textTransform',   // uppercase, lowercase, capitalize, normal-case
     'textDecoration',  // underline, overline, line-through, no-underline
   ];
-  
+
   if (noSplitProperties.includes(property)) {
     return cleanClass;
   }
-  
+
   // Extract the value part after the property prefix
   // e.g., "text-3xl" → "3xl", "font-bold" → "bold", "w-full" → "full"
   const parts = cleanClass.split('-');
   if (parts.length < 2) return undefined;
-  
+
   // Join everything after the first part (e.g., "text-center" → "center", "bg-blue-500" → "blue-500")
   const value = parts.slice(1).join('-');
-  
+
   // Special mappings for named values
   const namedMappings: Record<string, Record<string, string>> = {
     fontWeight: {
@@ -336,11 +334,11 @@ function mapClassToDesignValue(className: string, property: string): string | un
       'nowrap': 'nowrap',
     },
   };
-  
+
   // Check if we have a named mapping for this property
   if (namedMappings[property]?.[value]) {
     return namedMappings[property][value];
   }
-  
+
   return value;
 }
