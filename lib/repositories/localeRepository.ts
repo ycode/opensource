@@ -116,14 +116,24 @@ export async function getDefaultLocale(isPublished: boolean = false): Promise<Lo
 
 /**
  * Create a new locale (draft by default)
+ * If a locale with the same code exists (including soft-deleted), it will be updated instead
+ * Returns both the created/updated locale and all locales
  */
 export async function createLocale(
   localeData: CreateLocaleData
-): Promise<Locale> {
+): Promise<{ locale: Locale; locales: Locale[] }> {
   const client = await getSupabaseAdmin();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
+
+  // Check if a locale with this code already exists (including soft-deleted)
+  const { data: existingLocale } = await client
+    .from('locales')
+    .select('*')
+    .eq('code', localeData.code)
+    .eq('is_published', false)
+    .maybeSingle();
 
   // If this is set as default, unset any existing default
   if (localeData.is_default) {
@@ -134,31 +144,62 @@ export async function createLocale(
       .eq('is_published', false);
   }
 
-  const { data, error } = await client
-    .from('locales')
-    .insert({
-      code: localeData.code,
-      label: localeData.label,
-      is_default: localeData.is_default || false,
-      is_published: false,
-    })
-    .select()
-    .single();
+  let data: Locale;
 
-  if (error) {
-    throw new Error(`Failed to create locale: ${error.message}`);
+  if (existingLocale) {
+    // Update existing locale (restore if soft-deleted)
+    const { data: updatedData, error } = await client
+      .from('locales')
+      .update({
+        label: localeData.label,
+        is_default: localeData.is_default || false,
+        deleted_at: null, // Restore if soft-deleted
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existingLocale.id)
+      .eq('is_published', false)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update locale: ${error.message}`);
+    }
+
+    data = updatedData;
+  } else {
+    // Create new locale
+    const { data: newData, error } = await client
+      .from('locales')
+      .insert({
+        code: localeData.code,
+        label: localeData.label,
+        is_default: localeData.is_default || false,
+        is_published: false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create locale: ${error.message}`);
+    }
+
+    data = newData;
   }
 
-  return data;
+  // Always return all locales so client can update all is_default flags
+  const allLocales = await getAllLocales(false);
+
+  return { locale: data, locales: allLocales };
 }
 
 /**
  * Update a locale (draft only)
+ * Returns both the updated locale and all locales
  */
 export async function updateLocale(
   id: string,
   updates: UpdateLocaleData
-): Promise<Locale> {
+): Promise<{ locale: Locale; locales: Locale[] }> {
   const client = await getSupabaseAdmin();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
@@ -189,7 +230,10 @@ export async function updateLocale(
     throw new Error(`Failed to update locale: ${error.message}`);
   }
 
-  return data;
+  // Always return all locales so client can update all is_default flags
+  const allLocales = await getAllLocales(false);
+
+  return { locale: data, locales: allLocales };
 }
 
 /**

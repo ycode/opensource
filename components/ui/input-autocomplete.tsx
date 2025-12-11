@@ -16,6 +16,7 @@ interface InputAutocompleteProps<T extends Record<string, any>> {
   placeholder?: string;
   id?: string;
   className?: string;
+  disabled?: boolean;
   searchableKeys?: (keyof T)[];
   filterFn?: (option: T, search: string) => boolean;
   renderItem?: (option: T, isSelected: boolean) => ReactNode;
@@ -31,6 +32,7 @@ export function InputAutocomplete<T extends Record<string, any>>({
   placeholder = 'Search...',
   id,
   className,
+  disabled = false,
   searchableKeys,
   filterFn,
   renderItem,
@@ -73,7 +75,7 @@ export function InputAutocomplete<T extends Record<string, any>>({
   };
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
+    <Popover open={isOpen && !disabled} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <div className={cn('relative', className)}>
           <Input
@@ -81,21 +83,30 @@ export function InputAutocomplete<T extends Record<string, any>>({
             placeholder={placeholder}
             value={search}
             onChange={(e) => {
-              setSearch(e.target.value);
-              setIsOpen(true);
+              if (!disabled) {
+                setSearch(e.target.value);
+                setIsOpen(true);
+              }
             }}
-            onFocus={() => setIsOpen(true)}
+            onFocus={() => {
+              if (!disabled) {
+                setIsOpen(true);
+              }
+            }}
             onClick={(e) => {
               e.stopPropagation();
-              setIsOpen(true);
+              if (!disabled) {
+                setIsOpen(true);
+              }
             }}
             onPointerDown={(e) => {
               e.stopPropagation();
             }}
             autoComplete="off"
             className="pr-8"
+            disabled={disabled}
           />
-          {search && (
+          {search && !disabled && (
             <Button
               type="button"
               variant="ghost"

@@ -9,15 +9,29 @@ import { create } from 'zustand';
 import type { Locale, CreateLocaleData, UpdateLocaleData } from '@/types';
 
 /**
- * Sort locales alphabetically by label
+ * Sort locales: default first, then alphabetically by label
  */
 function sortLocales(locales: Locale[]): Locale[] {
-  return [...locales].sort((a, b) => a.label.localeCompare(b.label));
+  return [...locales].sort((a, b) => {
+    // Default locale first
+    if (a.is_default && !b.is_default) return -1;
+    if (!a.is_default && b.is_default) return 1;
+    // Then sort alphabetically by label
+    return a.label.localeCompare(b.label);
+  });
+}
+
+interface LoadingState {
+  load: boolean;
+  create: boolean;
+  update: boolean;
+  delete: boolean;
+  setDefault: boolean;
 }
 
 interface LocalisationState {
   locales: Locale[];
-  isLoading: boolean;
+  isLoading: LoadingState;
   error: string | null;
   defaultLocale: Locale | null;
   selectedLocaleId: string | null;
@@ -52,10 +66,18 @@ interface LocalisationActions {
 
 type LocalisationStore = LocalisationState & LocalisationActions;
 
+const initialLoadingState: LoadingState = {
+  load: false,
+  create: false,
+  update: false,
+  delete: false,
+  setDefault: false,
+};
+
 export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
   // Initial state
   locales: [],
-  isLoading: false,
+  isLoading: initialLoadingState,
   error: null,
   defaultLocale: null,
   selectedLocaleId: null,
@@ -74,14 +96,14 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
 
   // Load all locales
   loadLocales: async () => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: { ...initialLoadingState, load: true }, error: null });
 
     try {
       const response = await fetch('/api/locales');
       const result = await response.json();
 
       if (result.error) {
-        set({ error: result.error, isLoading: false });
+        set({ error: result.error, isLoading: initialLoadingState });
         return;
       }
 
@@ -90,16 +112,16 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
       const { selectedLocaleId } = get();
       const newSelectedLocaleId = selectedLocaleId || (locales.length > 0 ? locales[0].id : null);
 
-      set({ locales, defaultLocale, selectedLocaleId: newSelectedLocaleId, isLoading: false });
+      set({ locales, defaultLocale, selectedLocaleId: newSelectedLocaleId, isLoading: initialLoadingState });
     } catch (error) {
       console.error('Failed to load locales:', error);
-      set({ error: 'Failed to load locales', isLoading: false });
+      set({ error: 'Failed to load locales', isLoading: initialLoadingState });
     }
   },
 
   // Create a new locale
   createLocale: async (data) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: { ...initialLoadingState, create: true }, error: null });
 
     try {
       const response = await fetch('/api/locales', {
@@ -111,36 +133,34 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
       const result = await response.json();
 
       if (result.error) {
-        set({ error: result.error, isLoading: false });
+        set({ error: result.error, isLoading: initialLoadingState });
         return null;
       }
 
-      const newLocale = result.data;
+      const { locale, locales } = result.data;
+      const sortedLocales = sortLocales(locales);
+      const defaultLocale = sortedLocales.find(l => l.is_default) || null;
+      const { selectedLocaleId } = get();
+      const newSelectedLocaleId = selectedLocaleId || (sortedLocales.length > 0 ? sortedLocales[0].id : null);
 
-      set((state) => {
-        const locales = sortLocales([newLocale, ...state.locales]);
-        const defaultLocale = newLocale.is_default ? newLocale : state.defaultLocale;
-        const selectedLocaleId = state.selectedLocaleId || newLocale.id;
-
-        return {
-          locales,
-          defaultLocale,
-          selectedLocaleId,
-          isLoading: false,
-        };
+      set({
+        locales: sortedLocales,
+        defaultLocale,
+        selectedLocaleId: newSelectedLocaleId,
+        isLoading: initialLoadingState,
       });
 
-      return newLocale;
+      return locale;
     } catch (error) {
       console.error('Failed to create locale:', error);
-      set({ error: 'Failed to create locale', isLoading: false });
+      set({ error: 'Failed to create locale', isLoading: initialLoadingState });
       return null;
     }
   },
 
   // Update a locale
   updateLocale: async (id, updates) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: { ...initialLoadingState, update: true }, error: null });
 
     try {
       const response = await fetch(`/api/locales/${id}`, {
@@ -152,38 +172,28 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
       const result = await response.json();
 
       if (result.error) {
-        set({ error: result.error, isLoading: false });
+        set({ error: result.error, isLoading: initialLoadingState });
         return;
       }
 
-      const updatedLocale = result.data;
+      const { locale, locales } = result.data;
+      const sortedLocales = sortLocales(locales);
+      const defaultLocale = sortedLocales.find(l => l.is_default) || null;
 
-      set((state) => {
-        const locales = sortLocales(state.locales.map((l) => (l.id === id ? updatedLocale : l)));
-
-        // Update defaultLocale if this locale is now default or was default before
-        let defaultLocale = state.defaultLocale;
-        if (updatedLocale.is_default) {
-          defaultLocale = updatedLocale;
-        } else if (state.defaultLocale?.id === id && !updatedLocale.is_default) {
-          defaultLocale = locales.find(l => l.is_default) || null;
-        }
-
-        return {
-          locales,
-          defaultLocale,
-          isLoading: false,
-        };
+      set({
+        locales: sortedLocales,
+        defaultLocale,
+        isLoading: initialLoadingState,
       });
     } catch (error) {
       console.error('Failed to update locale:', error);
-      set({ error: 'Failed to update locale', isLoading: false });
+      set({ error: 'Failed to update locale', isLoading: initialLoadingState });
     }
   },
 
   // Delete a locale
   deleteLocale: async (id) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: { ...initialLoadingState, delete: true }, error: null });
 
     try {
       const response = await fetch(`/api/locales/${id}`, {
@@ -193,7 +203,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
       const result = await response.json();
 
       if (result.error) {
-        set({ error: result.error, isLoading: false });
+        set({ error: result.error, isLoading: initialLoadingState });
         return;
       }
 
@@ -212,18 +222,18 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
           locales,
           defaultLocale,
           selectedLocaleId,
-          isLoading: false,
+          isLoading: initialLoadingState,
         };
       });
     } catch (error) {
       console.error('Failed to delete locale:', error);
-      set({ error: 'Failed to delete locale', isLoading: false });
+      set({ error: 'Failed to delete locale', isLoading: initialLoadingState });
     }
   },
 
   // Set a locale as default
   setDefaultLocale: async (id) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: { ...initialLoadingState, setDefault: true }, error: null });
 
     try {
       const response = await fetch(`/api/locales/${id}/default`, {
@@ -233,7 +243,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
       const result = await response.json();
 
       if (result.error) {
-        set({ error: result.error, isLoading: false });
+        set({ error: result.error, isLoading: initialLoadingState });
         return;
       }
 
@@ -245,11 +255,11 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
           is_default: l.id === id,
         }))),
         defaultLocale: updatedLocale,
-        isLoading: false,
+        isLoading: initialLoadingState,
       }));
     } catch (error) {
       console.error('Failed to set default locale:', error);
-      set({ error: 'Failed to set default locale', isLoading: false });
+      set({ error: 'Failed to set default locale', isLoading: initialLoadingState });
     }
   },
 

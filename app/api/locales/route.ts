@@ -35,9 +35,9 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const locale = await createLocale({ code, label, is_default });
+    const { locale, locales } = await createLocale({ code, label, is_default });
     
-    return NextResponse.json({ data: locale }, { status: 201 });
+    return NextResponse.json({ data: { locale, locales } }, { status: 201 });
   } catch (error) {
     console.error('Error creating locale:', error);
     return NextResponse.json(

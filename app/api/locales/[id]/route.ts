@@ -45,9 +45,9 @@ export async function PUT(
     if (label !== undefined) updates.label = label;
     if (is_default !== undefined) updates.is_default = is_default;
     
-    const locale = await updateLocale(id, updates);
+    const { locale, locales } = await updateLocale(id, updates);
     
-    return NextResponse.json({ data: locale });
+    return NextResponse.json({ data: { locale, locales } });
   } catch (error) {
     console.error('Error updating locale:', error);
     return NextResponse.json(

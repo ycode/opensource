@@ -8,9 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TiptapEditor } from '@/components/ui/tiptap-editor';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { InputAutocomplete } from '@/components/ui/input-autocomplete';
 import { LOCALES, type Locale as LocaleOption } from '@/lib/localisation-utils';
@@ -21,23 +23,42 @@ interface LocalizationContentProps {
   children: React.ReactNode;
 }
 
+interface ModalState {
+  isOpen: boolean;
+  isEditMode: boolean;
+  editingLocaleId: string | null;
+  selectedLanguage: LocaleOption | null;
+  customLocaleName: string;
+  isDefaultLocale: boolean;
+  localeSearch: string;
+}
+
+const initialModalState: ModalState = {
+  isOpen: false,
+  isEditMode: false,
+  editingLocaleId: null,
+  selectedLanguage: null,
+  customLocaleName: '',
+  isDefaultLocale: false,
+  localeSearch: '',
+};
+
 export default function LocalizationContent({ children }: LocalizationContentProps) {
   // Store (locales are already sorted)
   const locales = useLocalisationStore((state) => state.locales);
   const selectedLocaleId = useLocalisationStore((state) => state.selectedLocaleId);
   const setSelectedLocaleId = useLocalisationStore((state) => state.setSelectedLocaleId);
   const createLocale = useLocalisationStore((state) => state.createLocale);
+  const updateLocale = useLocalisationStore((state) => state.updateLocale);
+  const deleteLocale = useLocalisationStore((state) => state.deleteLocale);
   const isLoading = useLocalisationStore((state) => state.isLoading);
   const error = useLocalisationStore((state) => state.error);
   const clearError = useLocalisationStore((state) => state.clearError);
 
   // Local state
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<LocaleOption | null>(null);
-  const [customLocaleName, setCustomLocaleName] = useState<string>('');
+  const [modalState, setModalState] = useState<ModalState>(initialModalState);
   const [selectedContentType, setSelectedContentType] = useState<string>('pages');
   const [translationValues, setTranslationValues] = useState<Record<string, string>>({});
-  const [localeSearch, setLocaleSearch] = useState('');
 
   const selectedLocale = locales.find(l => l.id === selectedLocaleId);
 
@@ -46,32 +67,75 @@ export default function LocalizationContent({ children }: LocalizationContentPro
   const availableLocales = LOCALES.filter(l => !existingLocaleCodes.has(l.code));
 
   const handleAddLocale = async () => {
-    if (!selectedLanguage || !customLocaleName.trim()) {
+    if (!modalState.selectedLanguage || !modalState.customLocaleName.trim()) {
       return;
     }
 
     try {
       const newLocale = await createLocale({
-        code: selectedLanguage.code,
-        label: customLocaleName.trim(),
+        code: modalState.selectedLanguage.code,
+        label: modalState.customLocaleName.trim(),
+        is_default: modalState.isDefaultLocale,
       });
 
       if (newLocale) {
-        setSelectedLanguage(null);
-        setCustomLocaleName('');
-        setLocaleSearch('');
-        setIsDialogOpen(false);
+        setSelectedLocaleId(newLocale.id);
+        setModalState(prev => ({ ...prev, isOpen: false }));
       }
     } catch (error) {
       console.error('Failed to create locale:', error);
     }
   };
 
+  const handleUpdateLocale = async () => {
+    if (!modalState.editingLocaleId || !modalState.customLocaleName.trim()) {
+      return;
+    }
+
+    try {
+      await updateLocale(modalState.editingLocaleId, {
+        label: modalState.customLocaleName.trim(),
+        is_default: modalState.isDefaultLocale,
+      });
+
+      setModalState(prev => ({ ...prev, isOpen: false }));
+    } catch (error) {
+      console.error('Failed to update locale:', error);
+    }
+  };
+
+  const handleDeleteLocale = async () => {
+    if (!modalState.editingLocaleId) {
+      return;
+    }
+
+    try {
+      await deleteLocale(modalState.editingLocaleId);
+      setModalState(initialModalState);
+    } catch (error) {
+      console.error('Failed to delete locale:', error);
+    }
+  };
+
+  const handleOpenEditDialog = (locale: Locale) => {
+    clearError();
+
+    // Set the selected language to show in the disabled selector
+    const localeOption = LOCALES.find(l => l.code === locale.code);
+
+    setModalState({
+      isOpen: true,
+      isEditMode: true,
+      editingLocaleId: locale.id,
+      customLocaleName: locale.label,
+      isDefaultLocale: locale.is_default,
+      selectedLanguage: localeOption || null,
+      localeSearch: localeOption?.label || '',
+    });
+  };
+
   const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    setSelectedLanguage(null);
-    setCustomLocaleName('');
-    setLocaleSearch('');
+    setModalState(prev => ({ ...prev, isOpen: false }));
     clearError();
   };
 
@@ -79,15 +143,21 @@ export default function LocalizationContent({ children }: LocalizationContentPro
     clearError();
 
     if (!locale) {
-      setSelectedLanguage(null);
-      setLocaleSearch('');
-      setCustomLocaleName('');
+      setModalState(prev => ({
+        ...prev,
+        selectedLanguage: null,
+        localeSearch: '',
+        customLocaleName: '',
+      }));
       return;
     }
 
-    setLocaleSearch(locale.label);
-    setSelectedLanguage(locale);
-    setCustomLocaleName(locale.label);
+    setModalState(prev => ({
+      ...prev,
+      localeSearch: locale.label,
+      selectedLanguage: locale,
+      customLocaleName: locale.label,
+    }));
   };
 
   return (
@@ -101,7 +171,10 @@ export default function LocalizationContent({ children }: LocalizationContentPro
             variant="secondary"
             onClick={() => {
               clearError();
-              setIsDialogOpen(true);
+              setModalState({
+                ...initialModalState,
+                isOpen: true,
+              });
             }}
           >
             <Icon name="plus" className="size-3" />
@@ -114,29 +187,41 @@ export default function LocalizationContent({ children }: LocalizationContentPro
               const isActive = selectedLocaleId === locale.id;
 
               return (
-                <button
+                <div
                   key={locale.id}
-                  onClick={() => setSelectedLocaleId(locale.id)}
                   className={cn(
-                    'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg cursor-pointer select-none w-full text-left px-2 text-xs gap-1.5',
-                    'hover:bg-secondary/50',
+                    'group relative flex items-center h-8 rounded-lg w-full px-2 gap-1.5',
+                    'hover:bg-secondary/50 cursor-pointer',
                     isActive && 'bg-primary text-primary-foreground hover:bg-primary',
                     !isActive && 'text-secondary-foreground/80 dark:text-muted-foreground'
                   )}
+                  onClick={() => setSelectedLocaleId(locale.id)}
                 >
-                  <span className="bg-secondary text-[10px] font-semibold py-0.5 px-1.5 rounded-[6px] uppercase">{locale.code}</span>
-                  <Label>{locale.label}</Label>
-                  {locale.is_default && (
-                    <Badge variant="secondary" className="ml-auto text-[10px]">
-                      Default
-                    </Badge>
-                  )}
-                </button>
+                  <div className="flex items-center flex-1 outline-none focus:outline-none select-none text-left text-xs gap-1.5 min-w-0">
+                    <span className="bg-secondary text-[10px] font-semibold py-0.5 px-1.5 rounded-[6px] uppercase shrink-0">{locale.code}</span>
+                    <Label className="cursor-[inherit] min-w-0 flex-1">
+                      <div className="truncate">{locale.label}</div>
+                    </Label>
+                    {locale.is_default && <Badge variant="secondary" className="shrink-0 ml-auto text-[10px]">Default</Badge>}
+                  </div>
+
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    className="hidden group-hover:flex"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEditDialog(locale);
+                    }}
+                  >
+                    <Icon name="more" className="size-3" />
+                  </Button>
+                </div>
               );
             })}
             {locales.length === 0 && (
               <div className="px-2 py-4 text-xs text-muted-foreground">
-                {isLoading ? 'Loading locales...' : 'No locales added yet'}
+                {isLoading.load ? 'Loading locales...' : 'No locales added yet'}
               </div>
             )}
           </div>
@@ -225,15 +310,15 @@ export default function LocalizationContent({ children }: LocalizationContentPro
         )}
       </div>
 
-      {/* Add Locale Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
+      {/* Add/Edit Locale Dialog */}
+      <Dialog open={modalState.isOpen} onOpenChange={(open) => !open && handleCloseDialog()}>
         <DialogContent
+          aria-describedby={undefined}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
           <DialogHeader>
-            <DialogTitle>Add locale</DialogTitle>
-            <DialogDescription>Select a locale to add to your project</DialogDescription>
+            <DialogTitle>{modalState.isEditMode ? 'Edit locale' : 'Add locale'}</DialogTitle>
           </DialogHeader>
 
           <div className="flex flex-col gap-4">
@@ -248,13 +333,14 @@ export default function LocalizationContent({ children }: LocalizationContentPro
 
               <InputAutocomplete
                 id="language"
-                search={localeSearch}
-                onSearchChange={setLocaleSearch}
+                search={modalState.localeSearch}
+                onSearchChange={(value) => setModalState(prev => ({ ...prev, localeSearch: value }))}
                 options={availableLocales}
-                selected={selectedLanguage}
+                selected={modalState.selectedLanguage}
                 onSelect={handleSelectLanguage}
                 placeholder="Search for a locale"
                 searchableKeys={['label', 'native_label', 'code']}
+                disabled={modalState.isEditMode}
                 renderItem={(locale) => (
                   <div className="flex items-center justify-between px-1.5 py-1.25 text-xs">
                     <div className="flex items-center gap-2">
@@ -274,13 +360,13 @@ export default function LocalizationContent({ children }: LocalizationContentPro
               />
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               <div className="flex flex-col gap-2 flex-1">
                 <Label htmlFor="name">Custom name</Label>
                 <Input
                   id="name"
-                  value={customLocaleName}
-                  onChange={(e) => setCustomLocaleName(e.target.value)}
+                  value={modalState.customLocaleName}
+                  onChange={(e) => setModalState(prev => ({ ...prev, customLocaleName: e.target.value }))}
                   placeholder="Custom name"
                 />
               </div>
@@ -288,33 +374,108 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                 <Label htmlFor="code">Locale code</Label>
                 <Input
                   id="code"
-                  value={selectedLanguage?.code || ''}
+                  value={modalState.selectedLanguage?.code || ''}
                   disabled
                   placeholder="Code"
-                  className={selectedLanguage?.code ? 'uppercase' : ''}
+                  className={modalState.selectedLanguage?.code ? 'uppercase' : ''}
                 />
               </div>
             </div>
+
+            {(() => {
+              const editingLocale = modalState.isEditMode
+                ? locales.find(l => l.id === modalState.editingLocaleId)
+                : null;
+              const isCurrentlyDefault = editingLocale?.is_default ?? false;
+              const shouldDisable = modalState.isEditMode && isCurrentlyDefault;
+
+              return (
+                <div className="mt-1 flex items-start gap-2">
+                  <Switch
+                    id="is-default"
+                    checked={modalState.isDefaultLocale}
+                    onCheckedChange={(checked) => setModalState(prev => ({ ...prev, isDefaultLocale: checked }))}
+                    disabled={shouldDisable}
+                  />
+
+                  <Label
+                    htmlFor="is-default"
+                    className={cn('cursor-pointer flex-col items-start gap-0.5', shouldDisable && 'cursor-not-allowed opacity-50')}
+                  >
+                    <span>Set as default locale</span>
+                    <span className="text-muted-foreground/75">All your pages and CMS contents should be written in this locale.</span>
+                  </Label>
+                </div>
+              );
+            })()}
           </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleCloseDialog}
-              size="sm"
-              disabled={isLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleAddLocale}
-              disabled={!selectedLanguage || !customLocaleName.trim() || isLoading}
-              size="sm"
-            >
-              {isLoading ? 'Adding...' : 'Add'}
-            </Button>
+          <DialogFooter className="justify-between">
+            {modalState.isEditMode && (() => {
+              const editingLocale = locales.find(l => l.id === modalState.editingLocaleId);
+              const isCurrentlyDefault = editingLocale?.is_default ?? false;
+              const isOnlyLocale = locales.length === 1;
+              const isDisabled = isLoading.delete || isOnlyLocale || isCurrentlyDefault;
+
+              let tooltipMessage = '';
+              if (isCurrentlyDefault) {
+                tooltipMessage = 'Cannot delete the default locale';
+              } else if (isOnlyLocale) {
+                tooltipMessage = 'Cannot delete the only locale';
+              }
+
+              const button = (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleDeleteLocale}
+                  size="sm"
+                  disabled={isDisabled}
+                >
+                  <Icon name="trash" className="size-3" />
+                  Delete
+                </Button>
+              );
+
+              if (isDisabled && tooltipMessage && !isLoading.delete) {
+                return (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {button}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {tooltipMessage}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              }
+
+              return button;
+            })()}
+
+            <div className="flex gap-2 ml-auto">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleCloseDialog}
+                size="sm"
+                disabled={isLoading.create || isLoading.update || isLoading.delete}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={modalState.isEditMode ? handleUpdateLocale : handleAddLocale}
+                disabled={
+                  modalState.isEditMode
+                    ? !modalState.customLocaleName.trim() || isLoading.update
+                    : !modalState.selectedLanguage || !modalState.customLocaleName.trim() || isLoading.create
+                }
+                size="sm"
+              >
+                {modalState.isEditMode ? 'Update' : 'Add'}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
