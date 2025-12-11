@@ -768,17 +768,14 @@ export async function resolveCollectionLayers(
 
           console.log(`[resolveCollectionLayers] Cloned collection layer into ${clonedLayers.length} items`);
 
-          // Return a transparent wrapper containing the cloned layers
-          // The wrapper has no styling - all design is on the cloned children
+          // Return a fragment layer - LayerRenderer will render children directly without wrapper
           return {
             ...layer,
-            id: `${layer.id}-wrapper`,
-            name: 'div',
-            classes: [],  // Clear classes so wrapper is invisible
-            design: undefined,  // Clear design so wrapper has no styling
-            attributes: {
-              'data-collection-wrapper': 'true',
-            } as Record<string, any>,
+            id: `${layer.id}-fragment`,
+            name: '_fragment',  // Special marker for LayerRenderer to unwrap
+            classes: [],
+            design: undefined,
+            attributes: {} as Record<string, any>,
             children: clonedLayers,
             variables: {
               ...layer.variables,

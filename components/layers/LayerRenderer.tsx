@@ -46,30 +46,40 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
 
+  // Helper to render a layer or unwrap fragments
+  const renderLayer = (layer: Layer): React.ReactNode => {
+    // Fragment layers: render children directly without wrapper element
+    if (layer.name === '_fragment' && layer.children) {
+      return layer.children.map((child: Layer) => renderLayer(child));
+    }
+
+    return (
+      <LayerItem
+        key={layer.id}
+        layer={layer}
+        isEditMode={isEditMode}
+        isPublished={isPublished}
+        enableDragDrop={enableDragDrop}
+        selectedLayerId={selectedLayerId}
+        activeLayerId={activeLayerId}
+        projected={projected}
+        onLayerClick={onLayerClick}
+        onLayerUpdate={onLayerUpdate}
+        editingLayerId={editingLayerId}
+        setEditingLayerId={setEditingLayerId}
+        editingContent={editingContent}
+        setEditingContent={setEditingContent}
+        pageId={pageId}
+        collectionItemData={collectionItemData}
+        pageCollectionItemData={pageCollectionItemData}
+        hiddenLayerIds={hiddenLayerIds}
+      />
+    );
+  };
+
   return (
     <>
-      {layers.map((layer) => (
-        <LayerItem
-          key={layer.id}
-          layer={layer}
-          isEditMode={isEditMode}
-          isPublished={isPublished}
-          enableDragDrop={enableDragDrop}
-          selectedLayerId={selectedLayerId}
-          activeLayerId={activeLayerId}
-          projected={projected}
-          onLayerClick={onLayerClick}
-          onLayerUpdate={onLayerUpdate}
-          editingLayerId={editingLayerId}
-          setEditingLayerId={setEditingLayerId}
-          editingContent={editingContent}
-          setEditingContent={setEditingContent}
-          pageId={pageId}
-          collectionItemData={collectionItemData}
-          pageCollectionItemData={pageCollectionItemData}
-          hiddenLayerIds={hiddenLayerIds}
-        />
-      ))}
+      {layers.map((layer) => renderLayer(layer))}
     </>
   );
 };
@@ -300,7 +310,24 @@ const LayerItem: React.FC<{
   // Render element-specific content
   const renderContent = () => {
     const Tag = htmlTag as any;
-    const attributes = layer.attributes || {};
+    const { style: attrStyle, ...otherAttributes } = layer.attributes || {};
+
+    // Parse style string to object if needed (for display: contents from collection wrappers)
+    const parsedAttrStyle = typeof attrStyle === 'string'
+      ? Object.fromEntries(
+        attrStyle.split(';')
+          .filter(Boolean)
+          .map(rule => {
+            const [prop, val] = rule.split(':').map(s => s.trim());
+            // Convert kebab-case to camelCase for React
+            const camelProp = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+            return [camelProp, val];
+          })
+      )
+      : attrStyle;
+
+    // Merge styles: base style + attribute style
+    const mergedStyle = { ...style, ...parsedAttrStyle };
 
     // Check if element is truly empty (no text, no children)
     const isEmpty = !textContent && (!children || children.length === 0);
@@ -312,11 +339,11 @@ const LayerItem: React.FC<{
     const elementProps: Record<string, unknown> = {
       ref: setNodeRef,
       className: fullClassName,
-      style,
+      style: mergedStyle,
       'data-layer-id': layer.id,
       'data-layer-type': htmlTag,
       'data-is-empty': isEmpty ? 'true' : 'false',
-      ...(enableDragDrop && !isEditing ? { ...attributes, ...listeners } : attributes),
+      ...(enableDragDrop && !isEditing ? { ...otherAttributes, ...listeners } : otherAttributes),
     };
 
     // Add data-gsap-hidden attribute for elements that should start hidden
@@ -419,7 +446,7 @@ const LayerItem: React.FC<{
       return (
         <Tag
           {...elementProps}
-          src={layer.url || attributes.src || ''}
+          src={layer.url || (otherAttributes as Record<string, string>).src || ''}
         />
       );
     }
