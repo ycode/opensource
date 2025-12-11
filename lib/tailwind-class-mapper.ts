@@ -1212,6 +1212,21 @@ function shouldIncludeClassForProperty(className: string, property: string, patt
     }
   }
 
+  // Special handling for fontSize property
+  // NEVER remove text-transparent or bg-clip-text (they're part of text gradient, not a font size)
+  if (property === 'fontSize') {
+    if (baseClass === 'text-transparent' || baseClass === 'bg-clip-text') {
+      return false; // Don't consider this a fontSize conflict, keep it
+    }
+    // Also keep gradient backgrounds when changing fontSize
+    if (baseClass.startsWith('bg-[')) {
+      const value = extractArbitraryValue(baseClass);
+      if (value && value.includes('gradient(')) {
+        return false; // Keep text gradient background
+      }
+    }
+  }
+
   // First check if pattern matches (use baseClass)
   if (!pattern.test(baseClass)) return false;
 
