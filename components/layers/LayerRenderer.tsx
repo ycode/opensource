@@ -171,21 +171,32 @@ const LayerItem: React.FC<{
   const isCollectionLayer = !!collectionVariable;
   const collectionId = collectionVariable?.id;
   const sourceFieldId = collectionVariable?.source_field_id;
+  const sourceFieldType = collectionVariable?.source_field_type;
   const layerData = useCollectionLayerStore((state) => state.layerData[layer.id]);
   const isLoadingLayerData = useCollectionLayerStore((state) => state.loading[layer.id]);
   const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
   const allCollectionItems = layerData || [];
 
-  // Filter items by multi-reference field if source_field_id is set
+  // Filter items by reference field if source_field_id is set
+  // Single reference: get the one referenced item (no loop, just context)
+  // Multi-reference: filter to items in the array (loops through all)
   const collectionItems = React.useMemo(() => {
     if (!sourceFieldId || !effectiveCollectionItemData) {
       return allCollectionItems;
     }
 
-    // Get the multi-reference field value from parent item
+    // Get the reference field value from parent item
     const refValue = effectiveCollectionItemData[sourceFieldId];
     if (!refValue) return [];
 
+    // Handle single reference: value is just an item ID string
+    if (sourceFieldType === 'reference') {
+      // Find the single referenced item by ID
+      const singleItem = allCollectionItems.find(item => item.id === refValue);
+      return singleItem ? [singleItem] : [];
+    }
+
+    // Handle multi-reference: value is a JSON array of item IDs
     try {
       const allowedIds = JSON.parse(refValue);
       if (!Array.isArray(allowedIds)) return [];
@@ -195,7 +206,7 @@ const LayerItem: React.FC<{
     } catch {
       return [];
     }
-  }, [allCollectionItems, sourceFieldId, effectiveCollectionItemData]);
+  }, [allCollectionItems, sourceFieldId, sourceFieldType, effectiveCollectionItemData]);
 
   useEffect(() => {
     if (!isEditMode) return;

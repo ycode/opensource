@@ -640,6 +640,7 @@ export async function resolveCollectionLayers(
           const limit = collectionVariable.limit;
           const offset = collectionVariable.offset;
           const sourceFieldId = collectionVariable.source_field_id;
+          const sourceFieldType = collectionVariable.source_field_type;
           
           // Build filters for the query
           const filters: any = {};
@@ -661,24 +662,37 @@ export async function resolveCollectionLayers(
             limit,
             offset,
             sourceFieldId,
+            sourceFieldType,
           });
           
-          // Filter by multi-reference field if source_field_id is set
+          // Filter by reference field if source_field_id is set
+          // Single reference: value is just an item ID string (renders once, sets context)
+          // Multi-reference: value is a JSON array of item IDs (loops through all)
           if (sourceFieldId && itemValues) {
             const refValue = itemValues[sourceFieldId];
             if (refValue) {
-              try {
-                const allowedIds = JSON.parse(refValue);
-                if (Array.isArray(allowedIds)) {
-                  items = items.filter(item => allowedIds.includes(item.id));
-                  console.log(`[resolveCollectionLayers] Filtered by multi-reference field ${sourceFieldId}:`, {
-                    allowedIds,
-                    filteredCount: items.length,
-                  });
+              if (sourceFieldType === 'reference') {
+                // Single reference: filter to just the one referenced item
+                items = items.filter(item => item.id === refValue);
+                console.log(`[resolveCollectionLayers] Filtered by single reference field ${sourceFieldId}:`, {
+                  refItemId: refValue,
+                  filteredCount: items.length,
+                });
+              } else {
+                // Multi-reference: parse JSON array and filter
+                try {
+                  const allowedIds = JSON.parse(refValue);
+                  if (Array.isArray(allowedIds)) {
+                    items = items.filter(item => allowedIds.includes(item.id));
+                    console.log(`[resolveCollectionLayers] Filtered by multi-reference field ${sourceFieldId}:`, {
+                      allowedIds,
+                      filteredCount: items.length,
+                    });
+                  }
+                } catch {
+                  console.warn(`[resolveCollectionLayers] Failed to parse multi-reference value for field ${sourceFieldId}`);
+                  items = [];
                 }
-              } catch {
-                console.warn(`[resolveCollectionLayers] Failed to parse multi-reference value for field ${sourceFieldId}`);
-                items = [];
               }
             } else {
               // No value in parent item for this field - show no items
@@ -714,36 +728,42 @@ export async function resolveCollectionLayers(
           // Fetch collection fields for reference resolution
           const collectionFields = await getFieldsByCollectionId(collectionVariable.id, isPublished);
 
-          // Flatten collection items by duplicating children for each item
-          // Pass the current item values to children for nested multi-reference support
-          const resolvedChildren = layer.children 
-            ? await Promise.all(layer.children.map(child => resolveLayer(child, itemValues))) 
-            : [];
-
-          console.log(`[resolveCollectionLayers] Resolved children for layer ${layer.id}:`, {
-            childrenCount: resolvedChildren.length,
+          console.log(`[resolveCollectionLayers] Resolving children for layer ${layer.id}:`, {
+            childrenCount: layer.children?.length || 0,
             sortedItemsCount: sortedItems.length,
           });
 
           // Clone the collection layer for each item (design settings apply to each repeated item)
+          // For each item, resolve nested collection layers with that item's values
           const clonedLayers: Layer[] = await Promise.all(
-            sortedItems.map(async (item) => ({
-              ...layer,  // Clone all properties including classes, design, name, etc.
-              id: `${layer.id}-item-${item.id}`,
-              attributes: {
-                ...layer.attributes,
-                'data-collection-item-id': item.id,
-              } as Record<string, any>,
-              variables: {
-                ...layer.variables,
-                collection: undefined,  // Remove collection binding from clone
-              },
-              children: await Promise.all(
+            sortedItems.map(async (item) => {
+              // Resolve children for THIS specific item's values
+              // This ensures nested collection layers filter based on this item's reference fields
+              const resolvedChildren = layer.children 
+                ? await Promise.all(layer.children.map(child => resolveLayer(child, item.values))) 
+                : [];
+              
+              // Then inject field data into the resolved children
+              const injectedChildren = await Promise.all(
                 resolvedChildren.map(child => 
                   injectCollectionData(child, item.values, collectionFields, isPublished)
                 )
-              ),
-            }))
+              );
+              
+              return {
+                ...layer,  // Clone all properties including classes, design, name, etc.
+                id: `${layer.id}-item-${item.id}`,
+                attributes: {
+                  ...layer.attributes,
+                  'data-collection-item-id': item.id,
+                } as Record<string, any>,
+                variables: {
+                  ...layer.variables,
+                  collection: undefined,  // Remove collection binding from clone
+                },
+                children: injectedChildren,
+              };
+            })
           );
 
           console.log(`[resolveCollectionLayers] Cloned collection layer into ${clonedLayers.length} items`);

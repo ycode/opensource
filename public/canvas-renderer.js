@@ -100,6 +100,11 @@
    * Get HTML tag for layer
    */
   function getLayerHtmlTag(layer) {
+    // Body layer should render as div (actual <body> is the iframe's body)
+    if (layer.id === 'body' || layer.name === 'body') {
+      return 'div';
+    }
+
     // Check for custom tag in settings
     if (layer.settings && layer.settings.tag) {
       return layer.settings.tag;
@@ -787,13 +792,43 @@
     if (hasChildren) {
       if (isCollectionLayer && collectionId) {
         // Collection layer: repeat the element itself for each item (not a wrapper)
-        const items = collectionLayerData[layer.id] || [];
+        let items = collectionLayerData[layer.id] || [];
+        
+        // Filter items by reference field if source_field_id is set
+        const sourceFieldId = collectionVariable?.source_field_id;
+        const sourceFieldType = collectionVariable?.source_field_type;
+        
+        if (sourceFieldId && collectionItemData) {
+          const refValue = collectionItemData[sourceFieldId];
+          if (refValue) {
+            if (sourceFieldType === 'reference') {
+              // Single reference: filter to just the one referenced item
+              items = items.filter(item => item.id === refValue);
+            } else {
+              // Multi-reference: parse JSON array and filter
+              try {
+                const allowedIds = JSON.parse(refValue);
+                if (Array.isArray(allowedIds)) {
+                  items = items.filter(item => allowedIds.includes(item.id));
+                }
+              } catch {
+                items = [];
+              }
+            }
+          } else {
+            // No value in parent item for this field - show no items
+            items = [];
+          }
+        }
 
         console.log('[Canvas] Rendering collection layer', {
           layerId: layer.id,
           collectionId,
           itemsCount: items.length,
-          hasLayerData: !!collectionLayerData[layer.id]
+          hasLayerData: !!collectionLayerData[layer.id],
+          sourceFieldId,
+          sourceFieldType,
+          hasParentData: !!collectionItemData
         });
 
         if (items.length > 0) {

@@ -406,6 +406,11 @@ export function getLayerName(
  * Get the HTML tag name for a layer
  */
 export function getLayerHtmlTag(layer: Layer): string {
+  // Body layer should render as div (actual <body> is managed by Next.js)
+  if (layer.id === 'body' || layer.name === 'body') {
+    return 'div';
+  }
+
   if (layer.settings?.tag) {
     return layer.settings.tag;
   }
