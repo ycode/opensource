@@ -214,13 +214,36 @@ export function removeConflictingClasses(
   if (!pattern) return classes;
 
   return classes.filter(cls => {
-    // Check if this class matches the pattern
-    if (!pattern.test(cls)) return true; // Keep it if it doesn't match
+    // Strip breakpoint and state prefixes for helper class detection
+    const baseClass = cls.replace(/^(max-lg:|max-md:|lg:|md:)?(hover:|focus:|active:|disabled:|visited:)?/, '');
+
+    // Special handling for text color property
+    // Remove gradient-related classes (bg-[gradient], bg-clip-text, text-transparent)
+    if (property === 'color') {
+      // Remove bg-[gradient] used for text gradient
+      if (baseClass.startsWith('bg-[')) {
+        const value = extractArbitraryValue(baseClass);
+        if (value && value.includes('gradient(')) {
+          return false; // Remove gradient background (it's a text gradient)
+        }
+      }
+      // Remove bg-clip-text (used for text gradients)
+      if (baseClass === 'bg-clip-text') {
+        return false;
+      }
+      // Remove text-transparent (used for text gradients)
+      if (baseClass === 'text-transparent') {
+        return false;
+      }
+    }
+
+    // Check if this class matches the pattern (use baseClass)
+    if (!pattern.test(baseClass)) return true; // Keep it if it doesn't match
 
     // Special handling for text-[...] arbitrary values
     // Need to distinguish between fontSize (text-[10rem]) and color (text-[#0000FF])
-    if (cls.startsWith('text-[')) {
-      const value = extractArbitraryValue(cls);
+    if (baseClass.startsWith('text-[')) {
+      const value = extractArbitraryValue(baseClass);
       if (value) {
         const isColor = isColorValue(value);
 
@@ -238,8 +261,8 @@ export function removeConflictingClasses(
 
     // Special handling for bg-[...] arbitrary values
     // Need to distinguish between backgroundColor (bg-[#0000FF]) and backgroundImage (bg-[url(...)])
-    if (cls.startsWith('bg-[')) {
-      const value = extractArbitraryValue(cls);
+    if (baseClass.startsWith('bg-[')) {
+      const value = extractArbitraryValue(baseClass);
       if (value) {
         const isImage = isImageValue(value);
 
@@ -348,6 +371,12 @@ export function propertyToClass(
         if (value === 'none') return 'no-underline';
         return value; // underline, line-through, overline
       case 'color':
+        // Check if value is a gradient (linear-gradient or radial-gradient)
+        if (value.includes('gradient(')) {
+          // For gradients on text, we need bg-[gradient] + bg-clip-text + text-transparent
+          // Note: This returns space-separated classes that will be split by the caller
+          return `bg-[${value}] bg-clip-text text-transparent`;
+        }
         return value.match(/^#|^rgb/) ? `text-[${value}]` : `text-${value}`;
     }
   }
@@ -519,7 +548,9 @@ export function designToClasses(design?: Layer['design']): string[] {
       );
 
       if (cls) {
-        classes.push(cls);
+        // Handle multiple space-separated classes (e.g., for text gradients)
+        const clsList = cls.split(' ').filter(Boolean);
+        classes.push(...clsList);
       }
     });
   });
@@ -544,10 +575,20 @@ export function designToClassString(design?: Layer['design']): string {
 export function getAffectedProperties(className: string): string[] {
   const properties: string[] = [];
 
+  // Strip breakpoint and state prefixes for helper class detection
+  const baseClass = className.replace(/^(max-lg:|max-md:|lg:|md:)?(hover:|focus:|active:|disabled:|visited:)?/, '');
+
+  // Special handling for text gradient helper classes
+  // bg-clip-text and text-transparent are part of text gradient implementation
+  if (baseClass === 'bg-clip-text' || baseClass === 'text-transparent') {
+    properties.push('color');
+    return properties;
+  }
+
   // Special handling for text-[...] arbitrary values
   // Must distinguish between fontSize and color
-  if (className.startsWith('text-[')) {
-    const value = extractArbitraryValue(className);
+  if (baseClass.startsWith('text-[')) {
+    const value = extractArbitraryValue(baseClass);
     if (value) {
       const isColor = isColorValue(value);
 
@@ -564,11 +605,23 @@ export function getAffectedProperties(className: string): string[] {
   }
 
   // Special handling for bg-[...] arbitrary values
-  // Must distinguish between backgroundColor and backgroundImage
-  if (className.startsWith('bg-[')) {
-    const value = extractArbitraryValue(className);
+  // Must distinguish between backgroundColor, backgroundImage, and text gradient
+  if (baseClass.startsWith('bg-[')) {
+    const value = extractArbitraryValue(baseClass);
     if (value) {
       const isImage = isImageValue(value);
+      const isGradient = value.includes('gradient(');
+
+      // Gradients in bg-[...] can be used for text color (with bg-clip-text)
+      // or for background color. We'll treat them as backgroundColor by default
+      // The context (presence of bg-clip-text) will determine actual usage
+      if (isGradient) {
+        // This could be text gradient or background gradient
+        // For conflict resolution, we'll mark it as backgroundColor
+        // The removeConflictingClasses function will handle text gradient case specially
+        properties.push('backgroundColor');
+        return properties;
+      }
 
       if (isImage) {
         // This is an image class, only affects backgroundImage property
@@ -648,6 +701,21 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     effects: {},
     positioning: {},
   };
+
+  // Check if this is a text gradient (bg-[gradient] + bg-clip-text)
+  const hasBgClipText = classList.includes('bg-clip-text');
+  const hasTextTransparent = classList.includes('text-transparent');
+  const gradientBgClass = classList.find(cls => 
+    cls.startsWith('bg-[') && extractArbitraryValue(cls)?.includes('gradient(')
+  );
+
+  // If we have all the gradient text indicators, extract the gradient and store as text color
+  if (hasBgClipText && hasTextTransparent && gradientBgClass) {
+    const gradientValue = extractArbitraryValue(gradientBgClass);
+    if (gradientValue) {
+      design.typography!.color = gradientValue;
+    }
+  }
 
   classList.forEach(cls => {
     // CRITICAL FIX: Skip state-specific classes (they should not be in design object)
@@ -907,6 +975,13 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
       const value = extractArbitraryValue(cls);
       if (value) design.backgrounds!.backgroundColor = value;
     }
+    // Background Gradient (but skip if it's a text gradient)
+    if (cls.startsWith('bg-[') && !hasBgClipText) {
+      const value = extractArbitraryValue(cls);
+      if (value && value.includes('gradient(')) {
+        design.backgrounds!.backgroundColor = value;
+      }
+    }
 
     // ===== EFFECTS =====
     // Opacity
@@ -1114,12 +1189,35 @@ function isImageValue(value: string): boolean {
  * Smart filtering for bg-[...] to distinguish between backgroundColor and backgroundImage
  */
 function shouldIncludeClassForProperty(className: string, property: string, pattern: RegExp): boolean {
-  // First check if pattern matches
-  if (!pattern.test(className)) return false;
+  // Strip breakpoint and state prefixes for helper class detection
+  const baseClass = className.replace(/^(max-lg:|max-md:|lg:|md:)?(hover:|focus:|active:|disabled:|visited:)?/, '');
+
+  // Special handling for text color property
+  // Include gradient-related classes (bg-[gradient], bg-clip-text, text-transparent)
+  if (property === 'color') {
+    // Include bg-[gradient] for text gradient
+    if (baseClass.startsWith('bg-[')) {
+      const value = extractArbitraryValue(baseClass);
+      if (value && value.includes('gradient(')) {
+        return true; // This is a text gradient
+      }
+    }
+    // Include bg-clip-text (part of text gradient)
+    if (baseClass === 'bg-clip-text') {
+      return true;
+    }
+    // Include text-transparent (part of text gradient)
+    if (baseClass === 'text-transparent') {
+      return true;
+    }
+  }
+
+  // First check if pattern matches (use baseClass)
+  if (!pattern.test(baseClass)) return false;
 
   // Special handling for text-[...] arbitrary values (fontSize vs color)
-  if (className.startsWith('text-[')) {
-    const value = extractArbitraryValue(className);
+  if (baseClass.startsWith('text-[')) {
+    const value = extractArbitraryValue(baseClass);
     if (value) {
       const isColor = isColorValue(value);
 
@@ -1136,14 +1234,20 @@ function shouldIncludeClassForProperty(className: string, property: string, patt
   }
 
   // Special handling for bg-[...] arbitrary values (backgroundColor vs backgroundImage)
-  if (className.startsWith('bg-[')) {
-    const value = extractArbitraryValue(className);
+  if (baseClass.startsWith('bg-[')) {
+    const value = extractArbitraryValue(baseClass);
     if (value) {
       const isImage = isImageValue(value);
       const isGradient = value.includes('gradient(') || value.includes('linear-gradient') || value.includes('radial-gradient') || value.includes('conic-gradient');
 
+      // When looking for text color, gradients in bg-[...] are text gradients
+      if (property === 'color' && isGradient) {
+        return true; // Include gradient for text color
+      }
+
       // Gradients should be treated as backgroundColor, not backgroundImage
       // If looking for backgroundColor, exclude only URL-based images (keep gradients)
+      // But exclude gradients that are being used as text gradients (handled above)
       if (property === 'backgroundColor') {
         // Exclude URL images, but include gradients and colors
         if (isImage && !isGradient) {
@@ -1308,7 +1412,12 @@ export function setBreakpointClass(
 
   // Add new class if value is provided
   if (newClass) {
-    newClasses.push(fullPrefix + newClass);
+    // Handle multiple space-separated classes (e.g., for text gradients)
+    // Each class needs to get the prefix individually
+    const classesToAdd = newClass.split(' ').filter(Boolean);
+    classesToAdd.forEach(cls => {
+      newClasses.push(fullPrefix + cls);
+    });
   }
 
   return newClasses;
