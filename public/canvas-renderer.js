@@ -680,6 +680,311 @@
   }
 
   /**
+   * Extract gap value from Tailwind classes
+   */
+  function extractGapValue(classesString) {
+    if (!classesString) return null;
+
+    // Match gap-[value] arbitrary values
+    const arbitraryMatch = classesString.match(/gap-\[([^\]]+)\]/);
+    if (arbitraryMatch) {
+      return arbitraryMatch[1];
+    }
+
+    // Match standard gap-{size} classes
+    const standardMatch = classesString.match(/gap-(\d+\.?\d*)/);
+    if (standardMatch) {
+      const value = parseFloat(standardMatch[1]);
+      // Tailwind uses 0.25rem per unit (e.g., gap-4 = 1rem)
+      return (value * 0.25) + 'rem';
+    }
+
+    return null;
+  }
+
+  /**
+   * Convert gap value string to pixels
+   */
+  function parseGapValueToPixels(gapValue) {
+    if (!gapValue) return 0;
+
+    // Already in pixels
+    if (gapValue.endsWith('px')) {
+      return parseFloat(gapValue);
+    }
+
+    // Convert rem to pixels (1rem = 16px by default)
+    if (gapValue.endsWith('rem')) {
+      return parseFloat(gapValue) * 16;
+    }
+
+    // Convert em to pixels (assume 16px base)
+    if (gapValue.endsWith('em')) {
+      return parseFloat(gapValue) * 16;
+    }
+
+    // Try to parse as number (assume pixels)
+    const num = parseFloat(gapValue);
+    return isNaN(num) ? 0 : num;
+  }
+
+  // Track if we're currently dragging to prevent re-rendering
+  let isCurrentlyDragging = false;
+
+  /**
+   * Render gap indicators as overlays (without affecting DOM structure)
+   */
+  function renderGapIndicators() {
+    // Don't re-render while dragging to prevent blinking
+    if (isCurrentlyDragging) {
+      return;
+    }
+
+    // Remove existing gap overlay container
+    let overlayContainer = document.getElementById('gap-indicators-overlay');
+    if (overlayContainer) {
+      overlayContainer.remove();
+    }
+
+    // Only show in edit mode when something is selected
+    if (!editMode || !selectedLayerId) return;
+
+    // Find the selected element
+    const selectedElement = document.querySelector(`[data-layer-id="${selectedLayerId}"]`);
+    if (!selectedElement) return;
+
+    // Check if it's a flex-column container
+    const classes = selectedElement.className;
+    if (!classes.includes('flex') || !classes.includes('flex-col')) return;
+
+    // Get gap value
+    const gapValue = extractGapValue(classes);
+    if (!gapValue) return;
+
+    // Create overlay container (hidden by default)
+    overlayContainer = document.createElement('div');
+    overlayContainer.id = 'gap-indicators-overlay';
+    overlayContainer.style.position = 'fixed';
+    overlayContainer.style.top = '0';
+    overlayContainer.style.left = '0';
+    overlayContainer.style.width = '100%';
+    overlayContainer.style.height = '100%';
+    overlayContainer.style.pointerEvents = 'none';
+    overlayContainer.style.zIndex = '9999';
+    overlayContainer.style.opacity = '0';
+    document.body.appendChild(overlayContainer);
+
+    // Track hover state and dragging state
+    let isHoveringElement = false;
+    let isHoveringIndicator = false;
+    let isDraggingAny = false;
+
+    function updateIndicatorVisibility() {
+      if (overlayContainer) {
+        // Use global isCurrentlyDragging instead of local isDraggingAny to avoid scope issues
+        const newOpacity = (isHoveringElement || isHoveringIndicator || isCurrentlyDragging) ? '1' : '0';
+        overlayContainer.style.opacity = newOpacity;
+      }
+    }
+
+    // Show/hide indicators based on hover state of selected element
+    selectedElement.addEventListener('mouseenter', function showIndicators() {
+      // Don't update hover state during drag
+      if (!isDraggingAny) {
+        isHoveringElement = true;
+        updateIndicatorVisibility();
+      }
+    });
+
+    selectedElement.addEventListener('mouseleave', function hideIndicators() {
+      // Don't update hover state during drag
+      if (!isDraggingAny) {
+        isHoveringElement = false;
+        // Delay slightly to allow moving to indicator
+        setTimeout(() => {
+          if (!isDraggingAny) {
+            updateIndicatorVisibility();
+          }
+        }, 50);
+      }
+    });
+
+    // Get all direct children of the flex container (excluding gap indicators)
+    const children = Array.from(selectedElement.children).filter(
+      child => !child.hasAttribute('data-gap-divider') && !child.hasAttribute('data-collection-item-id')
+    );
+
+    // For collection items, get the wrapper divs
+    const collectionWrappers = Array.from(selectedElement.children).filter(
+      child => child.hasAttribute('data-collection-item-id')
+    );
+
+    const allChildren = collectionWrappers.length > 0 ? collectionWrappers : children;
+
+    // Create gap overlays between children
+    for (let i = 0; i < allChildren.length - 1; i++) {
+      const currentChild = allChildren[i];
+      const nextChild = allChildren[i + 1];
+
+      const currentRect = currentChild.getBoundingClientRect();
+      const nextRect = nextChild.getBoundingClientRect();
+
+      // Calculate gap position (between bottom of current and top of next)
+      const gapTop = currentRect.bottom;
+      const gapHeight = nextRect.top - currentRect.bottom;
+      const gapLeft = currentRect.left;
+      const gapWidth = currentRect.width;
+
+      // Create gap indicator overlay (full size but invisible for hover target)
+      const gapIndicator = document.createElement('div');
+      gapIndicator.style.position = 'fixed';
+      gapIndicator.style.top = gapTop + 'px';
+      gapIndicator.style.left = gapLeft + 'px';
+      gapIndicator.style.width = gapWidth + 'px';
+      gapIndicator.style.height = gapHeight + 'px';
+      gapIndicator.style.pointerEvents = 'auto';
+      gapIndicator.style.cursor = 'ns-resize';
+      gapIndicator.style.display = 'flex';
+      gapIndicator.style.alignItems = 'center';
+      gapIndicator.style.justifyContent = 'center';
+      gapIndicator.style.overflow = 'visible'; // Allow label to extend outside
+
+      // Create small indicator marker (20px x 2px)
+      const marker = document.createElement('div');
+      marker.style.width = '20px';
+      marker.style.height = '2px';
+      marker.style.backgroundColor = '#ec4899'; // pink-500
+      marker.style.borderRadius = '20px';
+      marker.style.pointerEvents = 'none';
+
+      // Create full-size background overlay (hidden by default)
+      const background = document.createElement('div');
+      background.style.position = 'absolute';
+      background.style.top = '0';
+      background.style.left = '0';
+      background.style.width = '100%';
+      background.style.height = '100%';
+      background.style.backgroundColor = 'rgba(236, 72, 153, 0)';
+      background.style.pointerEvents = 'none';
+
+      gapIndicator.appendChild(background);
+      gapIndicator.appendChild(marker);
+
+      // Hover interactions - show full gap with 5% opacity
+      gapIndicator.addEventListener('mouseenter', function() {
+        background.style.backgroundColor = 'rgba(236, 72, 153, 0.05)';
+        // Don't update hover state during drag to prevent blinking
+        if (!isDraggingAny) {
+          isHoveringIndicator = true;
+          updateIndicatorVisibility();
+        }
+      });
+
+      gapIndicator.addEventListener('mouseleave', function() {
+        background.style.backgroundColor = 'rgba(236, 72, 153, 0)';
+        // Don't update hover state during drag to prevent blinking
+        if (!isDraggingAny) {
+          isHoveringIndicator = false;
+          updateIndicatorVisibility();
+        }
+      });
+
+      // Drag functionality to adjust gap (no visual changes)
+      (function setupDrag() {
+        let isDragging = false;
+        let startY = 0;
+        let startGapValue = 0;
+        let lastUpdateTime = 0;
+        const updateThrottle = 16; // ~60fps
+
+        const handleMouseDown = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          isDragging = true;
+          isDraggingAny = true;
+          isCurrentlyDragging = true; // Prevent re-rendering during drag
+          updateIndicatorVisibility();
+          
+          startY = e.clientY;
+          lastUpdateTime = 0;
+          
+          // Parse current gap value to pixels
+          startGapValue = parseGapValueToPixels(gapValue);
+          
+          // Change cursor to indicate dragging
+          document.body.style.cursor = 'ns-resize';
+          document.body.style.userSelect = 'none';
+          
+          // Add document listeners for move and up
+          document.addEventListener('mousemove', handleMouseMove);
+          document.addEventListener('mouseup', handleMouseUp);
+        };
+
+        const handleMouseMove = function(e) {
+          if (!isDragging) return;
+          
+          const deltaY = e.clientY - startY;
+          const newGapValue = Math.max(0, startGapValue + deltaY);
+          
+          // Throttle updates to parent (send at most every 16ms)
+          const now = Date.now();
+          if (now - lastUpdateTime >= updateThrottle) {
+            lastUpdateTime = now;
+            const newGapString = Math.round(newGapValue) + 'px';
+            
+            // Send real-time update to parent
+            sendToParent('UPDATE_GAP', {
+              layerId: selectedLayerId,
+              gapValue: newGapString
+            });
+          }
+        };
+
+        const handleMouseUp = function(e) {
+          if (!isDragging) return;
+          
+          const deltaY = e.clientY - startY;
+          const newGapValue = Math.max(0, startGapValue + deltaY);
+          
+          // Convert to appropriate unit and send final update
+          const newGapString = Math.round(newGapValue) + 'px';
+          
+          // Send final update to parent
+          sendToParent('UPDATE_GAP', {
+            layerId: selectedLayerId,
+            gapValue: newGapString
+          });
+          
+          // Reset cursor and dragging state
+          isDragging = false;
+          isDraggingAny = false;
+          updateIndicatorVisibility();
+          
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          
+          // Remove document listeners
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+          
+          // Re-render gap indicators after drag completes
+          // Delay allowing re-renders until after the update settles
+          setTimeout(() => {
+            isCurrentlyDragging = false;
+            renderGapIndicators();
+          }, 100);
+        };
+
+        // Make the entire gap indicator draggable
+        gapIndicator.addEventListener('mousedown', handleMouseDown);
+      })();
+
+      overlayContainer.appendChild(gapIndicator);
+    }
+  }
+
+  /**
    * Render layer tree
    */
   function render() {
@@ -701,6 +1006,11 @@
 
     // Report content height after render
     reportContentHeight();
+
+    // Render gap indicators as overlays
+    requestAnimationFrame(() => {
+      renderGapIndicators();
+    });
   }
 
   /**
@@ -1208,6 +1518,11 @@
         // addSelectionBadge(element, tag, !!editingComponentId);
       }
     }
+
+    // Update gap indicators
+    requestAnimationFrame(() => {
+      renderGapIndicators();
+    });
   }
 
   /**
