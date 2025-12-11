@@ -293,6 +293,68 @@ const RightSidebar = React.memo(function RightSidebar({
            containerTags.includes(layer.settings?.tag || '');
   };
 
+  // Helper function to check if layer is a text element
+  const isTextLayer = (layer: Layer | null): boolean => {
+    if (!layer) return false;
+    const layerName = (layer.name || '').toLowerCase();
+    const textTypes = ['text', 'heading', 'p', 'span', 'label', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+    return textTypes.includes(layerName) || isHeadingLayer(layer);
+  };
+
+  // Helper function to check if layer is an image element
+  const isImageLayer = (layer: Layer | null): boolean => {
+    if (!layer) return false;
+    return layer.name === 'image';
+  };
+
+  // Helper function to check if layer is a button element
+  const isButtonLayer = (layer: Layer | null): boolean => {
+    if (!layer) return false;
+    return layer.name === 'button' || layer.settings?.tag === 'button';
+  };
+
+  // Control visibility rules based on layer type
+  const shouldShowControl = (controlName: string, layer: Layer | null): boolean => {
+    if (!layer) return false;
+    
+    switch (controlName) {
+      case 'layout':
+        // Layout controls: show for containers, hide for text-only elements
+        return !isTextLayer(layer) || isButtonLayer(layer);
+
+      case 'spacing':
+        // Spacing controls: show for all elements
+        return true;
+
+      case 'sizing':
+        // Sizing controls: show for all elements
+        return true;
+
+      case 'typography':
+        // Typography controls: only show for text elements
+        return isTextLayer(layer) || isButtonLayer(layer);
+
+      case 'backgrounds':
+        // Background controls: hide for text elements, show for buttons and containers
+        return !isTextLayer(layer) || isButtonLayer(layer);
+
+      case 'borders':
+        // Border controls: hide for pure text elements, show for everything else
+        return !isTextLayer(layer) || isButtonLayer(layer);
+
+      case 'effects':
+        // Effect controls (opacity, shadow): show for all
+        return true;
+
+      case 'position':
+        // Position controls: show for all
+        return true;
+
+      default:
+        return true;
+    }
+  };
+
   // Get default heading tag based on layer type/name
   const getDefaultHeadingTag = (layer: Layer | null): string => {
     if (!layer) return 'h1';
@@ -864,21 +926,37 @@ const RightSidebar = React.memo(function RightSidebar({
             </>
           )}
 
-          <LayoutControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          {shouldShowControl('layout', selectedLayer) && (
+            <LayoutControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          )}
 
-          <SpacingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          {shouldShowControl('spacing', selectedLayer) && (
+            <SpacingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          )}
 
-          <SizingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          {shouldShowControl('sizing', selectedLayer) && (
+            <SizingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          )}
 
-          <TypographyControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          {shouldShowControl('typography', selectedLayer) && (
+            <TypographyControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          )}
 
-          <BackgroundsControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          {shouldShowControl('backgrounds', selectedLayer) && (
+            <BackgroundsControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          )}
 
-          <BorderControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          {shouldShowControl('borders', selectedLayer) && (
+            <BorderControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          )}
 
-          <EffectControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          {shouldShowControl('effects', selectedLayer) && (
+            <EffectControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          )}
 
-          <PositionControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          {shouldShowControl('position', selectedLayer) && (
+            <PositionControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+          )}
 
           <SettingsPanel
             title="Classes"
