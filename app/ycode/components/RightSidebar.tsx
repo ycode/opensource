@@ -560,6 +560,78 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   };
 
+  // Handle dynamic page source selection (unified handler for field or collection)
+  // Value format: "field:{fieldId}" or "collection:{collectionId}" or "none"
+  const handleDynamicPageSourceChange = (value: string) => {
+    if (!selectedLayerId || !selectedLayer) return;
+
+    const currentCollectionVariable = getCollectionVariable(selectedLayer);
+
+    if (value === 'none' || !value) {
+      // Clear collection binding
+      onLayerUpdate(selectedLayerId, {
+        variables: {
+          ...selectedLayer?.variables,
+          collection: {
+            id: '',
+            source_field_id: undefined,
+            source_field_type: undefined,
+          }
+        }
+      });
+      return;
+    }
+
+    if (value.startsWith('field:')) {
+      // Reference field from CMS page data
+      const fieldId = value.replace('field:', '');
+      const selectedField = dynamicPageReferenceFields.find(f => f.id === fieldId);
+      if (selectedField?.reference_collection_id) {
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              id: selectedField.reference_collection_id,
+              source_field_id: fieldId,
+              source_field_type: selectedField.type as 'reference' | 'multi_reference',
+            }
+          }
+        });
+      }
+    } else if (value.startsWith('collection:')) {
+      // Direct collection selection
+      const collectionId = value.replace('collection:', '');
+      onLayerUpdate(selectedLayerId, {
+        variables: {
+          ...selectedLayer?.variables,
+          collection: {
+            id: collectionId,
+            source_field_id: undefined,
+            source_field_type: undefined,
+            sort_by: currentCollectionVariable?.sort_by,
+            sort_order: currentCollectionVariable?.sort_order,
+          }
+        }
+      });
+    }
+  };
+
+  // Get current value for dynamic page source dropdown
+  const getDynamicPageSourceValue = useMemo(() => {
+    if (!selectedLayer) return 'none';
+    const collectionVariable = getCollectionVariable(selectedLayer);
+    if (!collectionVariable?.id) return 'none';
+    
+    // If source_field_id is set, it's a field reference
+    if (collectionVariable.source_field_id) {
+      return `field:${collectionVariable.source_field_id}`;
+    }
+    
+    // Otherwise it's a direct collection
+    return `collection:${collectionVariable.id}`;
+  }, [selectedLayer]);
+
   // Handle sort order change
   const handleSortOrderChange = (sortOrder: 'asc' | 'desc') => {
     if (selectedLayerId && selectedLayer) {
@@ -776,6 +848,17 @@ const RightSidebar = React.memo(function RightSidebar({
       f => (f.type === 'reference' || f.type === 'multi_reference') && f.reference_collection_id
     );
   }, [parentCollectionFields]);
+
+  // Get reference fields from dynamic page's source collection (for top-level collection layers on dynamic pages)
+  const dynamicPageReferenceFields = useMemo(() => {
+    if (!currentPage?.is_dynamic) return [];
+    const collectionId = currentPage.settings?.cms?.collection_id;
+    if (!collectionId) return [];
+    const collectionFields = fields[collectionId] || [];
+    return collectionFields.filter(
+      f => (f.type === 'reference' || f.type === 'multi_reference') && f.reference_collection_id
+    );
+  }, [currentPage, fields]);
 
   // Handle adding custom attribute
   const handleAddAttribute = () => {
@@ -1134,8 +1217,47 @@ const RightSidebar = React.memo(function RightSidebar({
                             </SelectGroup>
                           </SelectContent>
                         </Select>
+                      ) : currentPage?.is_dynamic ? (
+                        /* On dynamic pages, show CMS page data fields + all collections */
+                        <Select
+                          value={getDynamicPageSourceValue}
+                          onValueChange={handleDynamicPageSourceChange}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select source" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectItem value="none">None</SelectItem>
+                            </SelectGroup>
+                            {dynamicPageReferenceFields.length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>CMS page data</SelectLabel>
+                                {dynamicPageReferenceFields.map((field) => (
+                                  <SelectItem key={field.id} value={`field:${field.id}`}>
+                                    {field.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            <SelectGroup>
+                              <SelectLabel>Collections</SelectLabel>
+                              {collections.length > 0 ? (
+                                collections.map((collection) => (
+                                  <SelectItem key={collection.id} value={`collection:${collection.id}`}>
+                                    {collection.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                  No collections available
+                                </div>
+                              )}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
                       ) : (
-                        /* When not inside a parent collection, show collections as source options */
+                        /* When not inside a parent collection and not dynamic, show collections as source options */
                         <Select
                           value={getCollectionVariable(selectedLayer)?.id || ''}
                           onValueChange={handleCollectionChange}

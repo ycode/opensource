@@ -189,10 +189,35 @@ export async function fetchPageByPath(
               isPublished
             );
 
-            // Resolve collection layers server-side (for both draft and published)
+            // Resolve reference fields in the collection item values
+            // This adds nested field values like "location.name" for inline variable resolution
+            const enhancedItemValues = await resolveReferenceFields(
+              collectionItem.values,
+              collectionFields,
+              isPublished
+            );
+
+            // Create enhanced collection item with resolved reference values
+            const enhancedCollectionItem = {
+              ...collectionItem,
+              values: enhancedItemValues,
+            };
+
+            // First, inject dynamic page collection data into TOP-LEVEL layers
+            // This resolves inline variables like "Name → Location" on the page
+            const layersWithInjectedData = pageLayers?.layers
+              ? await Promise.all(
+                pageLayers.layers.map((layer: Layer) => 
+                  injectCollectionData(layer, enhancedItemValues, collectionFields, isPublished)
+                )
+              )
+              : [];
+
+            // Then resolve collection layers (nested collections will handle their own injection)
             // The isPublished parameter controls which collection items to fetch
-            const resolvedLayers = pageLayers?.layers
-              ? await resolveCollectionLayers(pageLayers.layers, isPublished)
+            // Pass enhanced values so nested collections can filter based on dynamic page data
+            const resolvedLayers = layersWithInjectedData.length > 0
+              ? await resolveCollectionLayers(layersWithInjectedData, isPublished, enhancedItemValues)
               : [];
 
             return {
@@ -202,7 +227,7 @@ export async function fetchPageByPath(
                 layers: resolvedLayers,
               },
               components: components || [],
-              collectionItem, // Include collection item for dynamic pages
+              collectionItem: enhancedCollectionItem, // Include enhanced collection item for dynamic pages
               collectionFields, // Include collection fields for resolving placeholders
             };
           }
