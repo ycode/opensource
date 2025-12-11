@@ -5,7 +5,7 @@ import type { Layer, Page, PageLayers, PageFolder, PageItemDuplicateResult, Coll
 import { pagesApi, pageLayersApi, foldersApi } from '../lib/api';
 import { getTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
-import { canHaveChildren } from '../lib/layer-utils';
+import { canHaveChildren, regenerateIdsWithInteractionRemapping } from '../lib/layer-utils';
 import { getDescendantFolderIds, isHomepage, findHomepage, findNextSelection } from '../lib/page-utils';
 import { updateLayersWithStyle, detachStyleFromLayers } from '../lib/layer-style-utils';
 import { updateLayersWithComponent, detachComponentFromLayers } from '../lib/component-utils';
@@ -864,17 +864,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const layerCopy = copyLayer(pageId, layerId);
     if (!layerCopy) return;
 
-    // Regenerate IDs for the copy
-    const regenerateIds = (layer: Layer): Layer => {
-      const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      return {
-        ...layer,
-        id: newId,
-        children: layer.children?.map(regenerateIds),
-      };
-    };
-
-    const newLayer = regenerateIds(layerCopy);
+    // Regenerate IDs and remap self-targeted interactions
+    const newLayer = regenerateIdsWithInteractionRemapping(layerCopy);
 
     // Find parent and index of the original layer
     const findParentAndIndex = (
@@ -982,23 +973,14 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       return;
     }
 
-    // Regenerate IDs for a layer and its children
-    const regenerateIds = (layer: Layer): Layer => {
-      const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      return {
-        ...layer,
-        id: newId,
-        children: layer.children?.map(regenerateIds),
-      };
-    };
-
     // Duplicate each layer
     let newLayers = draft.layers;
     for (const layerId of validIds) {
       const layerCopy = copyLayer(pageId, layerId);
       if (!layerCopy) continue;
 
-      const newLayer = regenerateIds(layerCopy);
+      // Regenerate IDs and remap self-targeted interactions
+      const newLayer = regenerateIdsWithInteractionRemapping(layerCopy);
 
       // Find parent and index of the original layer
       const findParentAndIndex = (
@@ -1065,17 +1047,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (!draft) return;
 
-    // Regenerate IDs for the pasted layer
-    const regenerateIds = (layer: Layer): Layer => {
-      const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      return {
-        ...layer,
-        id: newId,
-        children: layer.children?.map(regenerateIds),
-      };
-    };
-
-    const newLayer = regenerateIds(cloneDeep(layerToPaste));
+    // Regenerate IDs and remap self-targeted interactions
+    const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(layerToPaste));
 
     // Find parent and index of the target layer
     // Must check BOTH children AND items when both exist
@@ -2390,17 +2363,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (!draft) return;
 
-    // Regenerate IDs for the pasted layer
-    const regenerateIds = (layer: Layer): Layer => {
-      const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      return {
-        ...layer,
-        id: newId,
-        children: layer.children?.map(regenerateIds),
-      };
-    };
-
-    const newLayer = regenerateIds(cloneDeep(layerToPaste));
+    // Regenerate IDs and remap self-targeted interactions
+    const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(layerToPaste));
 
     // Insert as last child of target layer
     const insertInside = (layers: Layer[]): Layer[] => {

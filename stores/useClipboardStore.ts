@@ -8,7 +8,7 @@
  */
 
 import { create } from 'zustand';
-import type { Layer } from '../types';
+import type { Layer, LayerInteraction } from '../types';
 
 interface CopiedStyle {
   classes: string;
@@ -17,11 +17,17 @@ interface CopiedStyle {
   styleOverrides?: Layer['styleOverrides'];
 }
 
+interface CopiedInteractions {
+  interactions: LayerInteraction[];
+  sourceLayerId: string;
+}
+
 interface ClipboardState {
   clipboardLayer: Layer | null;
   clipboardMode: 'copy' | 'cut' | null;
   sourcePageId: string | null;
   copiedStyle: CopiedStyle | null;
+  copiedInteractions: CopiedInteractions | null;
 }
 
 interface ClipboardActions {
@@ -31,6 +37,9 @@ interface ClipboardActions {
   copyStyle: (classes: string, design?: Layer['design'], styleId?: string, styleOverrides?: Layer['styleOverrides']) => void;
   pasteStyle: () => CopiedStyle | null;
   clearStyle: () => void;
+  copyInteractions: (interactions: LayerInteraction[], sourceLayerId: string) => void;
+  pasteInteractions: () => CopiedInteractions | null;
+  clearInteractions: () => void;
 }
 
 type ClipboardStore = ClipboardState & ClipboardActions;
@@ -40,6 +49,7 @@ export const useClipboardStore = create<ClipboardStore>((set, get) => ({
   clipboardMode: null,
   sourcePageId: null,
   copiedStyle: null,
+  copiedInteractions: null,
 
   copyLayer: (layer, pageId) => {
     set({
@@ -83,6 +93,25 @@ export const useClipboardStore = create<ClipboardStore>((set, get) => ({
   clearStyle: () => {
     set({
       copiedStyle: null,
+    });
+  },
+
+  copyInteractions: (interactions, sourceLayerId) => {
+    set({
+      copiedInteractions: {
+        interactions: JSON.parse(JSON.stringify(interactions)),
+        sourceLayerId,
+      },
+    });
+  },
+
+  pasteInteractions: () => {
+    return get().copiedInteractions;
+  },
+
+  clearInteractions: () => {
+    set({
+      copiedInteractions: null,
     });
   },
 }));

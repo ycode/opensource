@@ -615,3 +615,27 @@ export interface LayerVariables {
   text?: string; // Text with embedded JSON inline variables: "Hello <ycode-inline-variable>{JSON}</ycode-inline-variable>"
   // Future: image, link, etc.
 }
+
+// Localisation Types
+export interface Locale {
+  id: string;
+  code: string;
+  label: string;
+  is_default: boolean;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface CreateLocaleData {
+  code: string;
+  label: string;
+  is_default?: boolean;
+}
+
+export interface UpdateLocaleData {
+  code?: string;
+  label?: string;
+  is_default?: boolean;
+}

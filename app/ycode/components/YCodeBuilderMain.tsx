@@ -50,6 +50,7 @@ import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
+import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { useMigrationStore } from '@/stores/useMigrationStore';
 
 // 6. Utils/lib
@@ -434,6 +435,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             const { setComponents } = useComponentsStore.getState();
             const { setStyles } = useLayerStylesStore.getState();
             const { setSettings } = useSettingsStore.getState();
+            const { setLocales } = useLocalisationStore.getState();
             const { loadAssets } = useAssetsStore.getState();
             const { preloadCollectionsAndItems } = useCollectionsStore.getState();
 
@@ -443,6 +445,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             setComponents(response.data.components);
             setStyles(response.data.styles);
             setSettings(response.data.settings);
+            setLocales(response.data.locales || []);
 
             // Load async data in parallel
             const asyncTasks = [

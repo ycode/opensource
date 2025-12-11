@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { EditorState, UIState } from '../types';
-import type { Layer } from '../types';
+import type { Layer, Breakpoint } from '../types';
 
 interface HistoryEntry {
   pageId: string;
@@ -21,7 +21,7 @@ interface EditorActions {
   setCurrentPageCollectionItemId: (id: string | null) => void;
   setLoading: (value: boolean) => void;
   setSaving: (value: boolean) => void;
-  setActiveBreakpoint: (breakpoint: 'mobile' | 'tablet' | 'desktop') => void;
+  setActiveBreakpoint: (breakpoint: Breakpoint) => void;
   setActiveUIState: (state: UIState) => void;
   setEditingComponentId: (id: string | null, returnPageId?: string | null) => void;
   setBuilderDataPreloaded: (preloaded: boolean) => void;
@@ -70,7 +70,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   isDragging: false,
   isLoading: false,
   isSaving: false,
-  activeBreakpoint: 'mobile' as 'mobile' | 'tablet' | 'desktop',
+  activeBreakpoint: 'desktop' as Breakpoint,
   activeUIState: 'neutral' as UIState,
   history: [],
   historyIndex: -1,

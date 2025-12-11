@@ -4,7 +4,7 @@
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData } from '../types';
+import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData, Locale } from '../types';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -565,6 +565,7 @@ export const editorApi = {
     styles: LayerStyle[];
     settings: Setting[];
     collections: Collection[];
+    locales: Locale[];
   }>> {
     return apiRequest('/api/editor/init');
   },

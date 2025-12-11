@@ -607,7 +607,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       .map(folder => ({
         id: folder.id,
         name: folder.name,
-        path: buildFolderPath(folder, folders),
+        path: buildFolderPath(folder, folders, false) as string,
         depth: folder.depth,
         disabled: isIndex && folderHasIndexPage(folder.id, pages, currentPage?.id), // Disable if this page is index and folder already has an index
       }))

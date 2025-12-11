@@ -19,7 +19,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useClipboardStore } from '@/stores/useClipboardStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
-import { canHaveChildren, findLayerById, getClassesString } from '@/lib/layer-utils';
+import { canHaveChildren, findLayerById, getClassesString, regenerateIdsWithInteractionRemapping, regenerateInteractionIds } from '@/lib/layer-utils';
 import type { Layer } from '@/types';
 import CreateComponentDialog from './CreateComponentDialog';
 
@@ -62,9 +62,13 @@ export default function LayerContextMenu({
   const copyStyleToClipboard = useClipboardStore((state) => state.copyStyle);
   const pasteStyleFromClipboard = useClipboardStore((state) => state.pasteStyle);
   const copiedStyle = useClipboardStore((state) => state.copiedStyle);
+  const copyInteractionsToClipboard = useClipboardStore((state) => state.copyInteractions);
+  const pasteInteractionsFromClipboard = useClipboardStore((state) => state.pasteInteractions);
+  const copiedInteractions = useClipboardStore((state) => state.copiedInteractions);
 
   const hasClipboard = clipboardLayer !== null;
   const hasStyleClipboard = copiedStyle !== null;
+  const hasInteractionsClipboard = copiedInteractions !== null;
 
   // Check if this layer is a component instance
   const draft = draftsByPageId[pageId];
@@ -159,6 +163,35 @@ export default function LayerContextMenu({
     });
   };
 
+  const handleCopyInteractions = () => {
+    const draft = draftsByPageId[pageId];
+    if (!draft) return;
+
+    const layer = findLayerById(draft.layers, layerId);
+    if (!layer || !layer.interactions || layer.interactions.length === 0) return;
+
+    copyInteractionsToClipboard(layer.interactions, layerId);
+  };
+
+  const handlePasteInteractions = () => {
+    const copiedData = pasteInteractionsFromClipboard();
+    if (!copiedData) return;
+
+    const { interactions, sourceLayerId } = copiedData;
+
+    // Create layer ID map for remapping source layer to target layer
+    const layerIdMap = new Map<string, string>();
+    layerIdMap.set(sourceLayerId, layerId);
+
+    // Regenerate IDs and remap layer_id references
+    const updatedInteractions = regenerateInteractionIds(interactions, layerIdMap);
+
+    // Apply interactions to the current layer
+    updateLayer(pageId, layerId, {
+      interactions: updatedInteractions,
+    });
+  };
+
   const handleCreateComponent = () => {
     // Get layer name for default component name
     const draft = draftsByPageId[pageId];
@@ -221,20 +254,11 @@ export default function LayerContextMenu({
       return layers.flatMap(currentLayer => {
         if (currentLayer.id === layerId) {
           // Replace this layer with the component's layers
-          // Deep clone to avoid mutations and regenerate IDs
+          // Deep clone to avoid mutations and regenerate IDs with interaction remapping
           const clonedLayers = JSON.parse(JSON.stringify(component.layers));
 
-          // Regenerate IDs for all cloned layers to avoid conflicts
-          const regenerateIds = (layer: Layer): Layer => {
-            const newId = `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            return {
-              ...layer,
-              id: newId,
-              children: layer.children?.map(regenerateIds),
-            };
-          };
-
-          return clonedLayers.map(regenerateIds);
+          // Regenerate IDs and remap self-targeted interactions
+          return clonedLayers.map(regenerateIdsWithInteractionRemapping);
         }
 
         // Recursively process children
@@ -328,19 +352,33 @@ export default function LayerContextMenu({
           <ContextMenuShortcut>⌫</ContextMenuShortcut>
         </ContextMenuItem>
 
-        <ContextMenuSeparator />
+        {!isComponentInstance && (
+          <>
+            <ContextMenuSeparator />
 
-        <ContextMenuItem onClick={handleCopyStyle}>
-          Copy style
-          <ContextMenuShortcut>⌥⌘C</ContextMenuShortcut>
-        </ContextMenuItem>
+            <ContextMenuItem onClick={handleCopyStyle}>
+              Copy style
+              <ContextMenuShortcut>⌥⌘C</ContextMenuShortcut>
+            </ContextMenuItem>
 
-        <ContextMenuItem onClick={handlePasteStyle} disabled={!hasStyleClipboard}>
-          Paste style
-          <ContextMenuShortcut>⌥⌘V</ContextMenuShortcut>
-        </ContextMenuItem>
+            <ContextMenuItem onClick={handlePasteStyle} disabled={!hasStyleClipboard}>
+              Paste style
+              <ContextMenuShortcut>⌥⌘V</ContextMenuShortcut>
+            </ContextMenuItem>
 
-        <ContextMenuSeparator />
+            <ContextMenuSeparator />
+
+            <ContextMenuItem onClick={handleCopyInteractions} disabled={!layer?.interactions || layer.interactions.length === 0}>
+              Copy interactions
+            </ContextMenuItem>
+
+            <ContextMenuItem onClick={handlePasteInteractions} disabled={!hasInteractionsClipboard}>
+              Paste interactions
+            </ContextMenuItem>
+
+            <ContextMenuSeparator />
+          </>
+        )}
 
         {isComponentInstance ? (
           <>

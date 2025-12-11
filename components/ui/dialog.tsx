@@ -98,7 +98,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn('flex flex-col justify-center px-6 gap-2 border-b -mx-6 h-14 -mt-6', className)}
+      className={cn('flex flex-col justify-center px-6 gap-1.25 border-b -mx-6 h-14 -mt-5', className)}
       {...props}
     />
   )
@@ -137,7 +137,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn('text-muted-foreground text-xs', className)}
+      className={cn('text-muted-foreground text-xs leading-none', className)}
       {...props}
     />
   )

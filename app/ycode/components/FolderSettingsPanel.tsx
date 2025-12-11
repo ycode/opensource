@@ -258,7 +258,7 @@ const FolderSettingsPanel = React.forwardRef<FolderSettingsPanelHandle, FolderSe
       .map(f => ({
         id: f.id,
         name: f.name,
-        path: buildFolderPath(f, folders),
+        path: buildFolderPath(f, folders, false) as string,
         depth: f.depth,
       }))
       .sort((a, b) => a.path.localeCompare(b.path));
