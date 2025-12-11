@@ -725,15 +725,19 @@ export async function resolveCollectionLayers(
             sortedItemsCount: sortedItems.length,
           });
 
-          // Create a wrapper div for each collection item with resolved children
-          const flattenedChildren: Layer[] = await Promise.all(
+          // Clone the collection layer for each item (design settings apply to each repeated item)
+          const clonedLayers: Layer[] = await Promise.all(
             sortedItems.map(async (item) => ({
+              ...layer,  // Clone all properties including classes, design, name, etc.
               id: `${layer.id}-item-${item.id}`,
-              name: 'div',
-              classes: [] as string[],
               attributes: {
+                ...layer.attributes,
                 'data-collection-item-id': item.id,
               } as Record<string, any>,
+              variables: {
+                ...layer.variables,
+                collection: undefined,  // Remove collection binding from clone
+              },
               children: await Promise.all(
                 resolvedChildren.map(child => 
                   injectCollectionData(child, item.values, collectionFields, isPublished)
@@ -742,13 +746,20 @@ export async function resolveCollectionLayers(
             }))
           );
 
-          console.log(`[resolveCollectionLayers] Created ${flattenedChildren.length} wrapper divs for ${sortedItems.length} items`);
+          console.log(`[resolveCollectionLayers] Cloned collection layer into ${clonedLayers.length} items`);
 
+          // Return a transparent wrapper containing the cloned layers
+          // The wrapper has no styling - all design is on the cloned children
           return {
             ...layer,
-            // Replace children with flattened collection items
-            children: flattenedChildren,
-            // Remove collection variable so LayerRenderer treats it as normal div
+            id: `${layer.id}-wrapper`,
+            name: 'div',
+            classes: [],  // Clear classes so wrapper is invisible
+            design: undefined,  // Clear design so wrapper has no styling
+            attributes: {
+              'data-collection-wrapper': 'true',
+            } as Record<string, any>,
+            children: clonedLayers,
             variables: {
               ...layer.variables,
               collection: undefined,
