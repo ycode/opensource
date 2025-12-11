@@ -549,10 +549,17 @@ async function injectCollectionData(
     updates.url = resolvedUrl;
   }
   
-  // Recursively process children
+  // Recursively process children, but SKIP collection layers
+  // Collection layers will be processed by resolveCollectionLayers with their own item data
   if (layer.children) {
     const resolvedChildren = await Promise.all(
-      layer.children.map(child => injectCollectionData(child, enhancedValues, fields, isPublished))
+      layer.children.map(child => {
+        // Skip collection layers - they'll be processed separately with correct per-item data
+        if (child.variables?.collection?.id) {
+          return Promise.resolve(child);
+        }
+        return injectCollectionData(child, enhancedValues, fields, isPublished);
+      })
     );
     updates.children = resolvedChildren;
   }
