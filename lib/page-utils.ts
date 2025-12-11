@@ -115,15 +115,26 @@ export function buildDynamicPageUrl(
  *
  * @example
  * buildFolderPath(folder, allFolders) // "Products / Electronics"
+ * buildFolderPath(folder, allFolders, true) // ["Products", "Electronics"]
  */
-export function buildFolderPath(folder: PageFolder, allFolders: PageFolder[]): string {
+export function buildFolderPath(
+  folder: PageFolder,
+  allFolders: PageFolder[],
+  asArray: boolean = false
+): string | string[] {
   if (!folder.page_folder_id) {
-    return folder.name;
+    return asArray ? [folder.name] : folder.name;
   }
   const parent = allFolders.find(f => f.id === folder.page_folder_id);
   if (!parent) {
-    return folder.name;
+    return asArray ? [folder.name] : folder.name;
   }
+
+  if (asArray) {
+    const parentPath = buildFolderPath(parent, allFolders, true) as string[];
+    return [...parentPath, folder.name];
+  }
+
   return `${buildFolderPath(parent, allFolders)} / ${folder.name}`;
 }
 

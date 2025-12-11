@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Icon } from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
@@ -15,8 +15,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { InputAutocomplete } from '@/components/ui/input-autocomplete';
+import { Spinner } from '@/components/ui/spinner';
 import { LOCALES, type Locale as LocaleOption } from '@/lib/localisation-utils';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
+import { usePagesStore } from '@/stores/usePagesStore';
+import { buildFolderPath } from '@/lib/page-utils';
 import type { Locale } from '@/types';
 
 interface LocalizationContentProps {
@@ -55,12 +58,95 @@ export default function LocalizationContent({ children }: LocalizationContentPro
   const error = useLocalisationStore((state) => state.error);
   const clearError = useLocalisationStore((state) => state.clearError);
 
+  // Pages store
+  const storePages = usePagesStore((state) => state.pages);
+  const storeFolders = usePagesStore((state) => state.folders);
+
   // Local state
   const [modalState, setModalState] = useState<ModalState>(initialModalState);
   const [selectedContentType, setSelectedContentType] = useState<string>('pages');
   const [translationValues, setTranslationValues] = useState<Record<string, string>>({});
+  const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
 
   const selectedLocale = locales.find(l => l.id === selectedLocaleId);
+
+  // Sort pages: by folder hierarchy order, then page order, error pages at the bottom
+  const sortedPages = useMemo(() => {
+    // Get ancestor folder at a specific depth
+    const getAncestorAtDepth = (page: typeof storePages[0], targetDepth: number): { id: string | null; order: number; isFolder: boolean } => {
+      if (page.depth === targetDepth) {
+        return { id: page.page_folder_id, order: page.order ?? 0, isFolder: false };
+      }
+
+      // Page is deeper, find its ancestor folder at targetDepth
+      let currentFolderId = page.page_folder_id;
+      while (currentFolderId) {
+        const folder = storeFolders.find(f => f.id === currentFolderId);
+        if (!folder) break;
+
+        if (folder.depth === targetDepth) {
+          return { id: currentFolderId, order: folder.order ?? 0, isFolder: true };
+        }
+
+        currentFolderId = folder.page_folder_id;
+      }
+
+      return { id: null, order: page.order ?? 0, isFolder: false };
+    };
+
+    return [...storePages].sort((a, b) => {
+      // Error pages at the bottom
+      const aIsError = a.error_page !== null;
+      const bIsError = b.error_page !== null;
+      if (aIsError && !bIsError) return 1;
+      if (!aIsError && bIsError) return -1;
+
+      // Find the shallower depth to compare at
+      const compareDepth = Math.min(a.depth, b.depth);
+
+      // Get ancestors at the comparison depth
+      const aAncestor = getAncestorAtDepth(a, compareDepth);
+      const bAncestor = getAncestorAtDepth(b, compareDepth);
+
+      // Compare orders at the same depth level
+      const orderDiff = aAncestor.order - bAncestor.order;
+      if (orderDiff !== 0) return orderDiff;
+
+      // If same order at comparison depth, shallower items come first
+      if (a.depth !== b.depth) {
+        return a.depth - b.depth;
+      }
+
+      // Same depth and order, compare by page order
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+  }, [storePages, storeFolders]);
+
+  // Initialize expanded pages when pages change
+  useEffect(() => {
+    if (sortedPages.length > 0 && expandedPages.size === 0) {
+      setExpandedPages(new Set(sortedPages.map(p => p.id)));
+    }
+  }, [sortedPages, expandedPages.size]);
+
+  // Build full page path segments for display
+  const getPagePathSegments = (page: typeof sortedPages[0]): string[] => {
+    const folder = page.page_folder_id ? storeFolders.find(f => f.id === page.page_folder_id) : null;
+    const folderSegments = folder ? (buildFolderPath(folder, storeFolders, true) as string[]) : [];
+    return [...folderSegments, page.name];
+  };
+
+  const togglePageExpansion = (pageId: string) => {
+    setExpandedPages(prev => {
+      const next = new Set(prev);
+      if (next.has(pageId)) {
+        next.delete(pageId);
+      } else {
+        next.add(pageId);
+      }
+      return next;
+    });
+  };
 
   // Filter out locales that already exist
   const existingLocaleCodes = new Set(locales.map(l => l.code));
@@ -232,7 +318,7 @@ export default function LocalizationContent({ children }: LocalizationContentPro
       <div className="flex-1 overflow-y-auto">
         {selectedLocale ? (
           <div>
-            <div className="p-4 flex items-center gap-2 border-b">
+            <div className="sticky top-0 z-10 bg-background p-4 flex items-center gap-2 border-b">
               <div>
                 <Select value={selectedContentType} onValueChange={setSelectedContentType}>
                   <SelectTrigger className="w-32">
@@ -256,54 +342,92 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                   </InputGroupAddon>
                 </InputGroup>
               </div>
+
+              <div className="ml-auto">
+                <Button size="sm" variant="secondary">Auto-translate</Button>
+              </div>
             </div>
 
-            <div>
-              <header className="p-4 flex items-center gap-1.5 border-b">
-                <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50 hover:bg-secondary/100">
-                  <Icon name="page" className="size-2.5 opacity-60" />
-                </div>
-                <Label variant="muted">Homepage</Label>
-                <div className="-my-1 ml-auto">
-                  <Button size="sm" variant="secondary">Auto-translate</Button>
-                </div>
-              </header>
-
-              <ul className="divide-y pl-4">
-                <li className="flex items-start gap-2 pr-4">
-                  <div className="flex-1 grid grid-cols-2 items-center gap-4">
-                    <div className="py-5">
-                      <span className="opacity-50">Create stunning websites with ease</span>
-                    </div>
-
-                    <div className="flex flex-col py-3 h-full *:flex-1">
-                      <TiptapEditor
-                        value={translationValues['text-1'] || ''}
-                        onChange={(value) => setTranslationValues(prev => ({ ...prev, 'text-1': value }))}
-                        placeholder="Enter translation..."
-                        className="min-h-[28px] [&>*:first-child]:mb-0 py-1 px-2.5 !bg-transparent"
-                        hideControls
-                      />
-                    </div>
+            {selectedContentType === 'pages' && (
+              <div>
+                {sortedPages.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground text-sm">
+                    No pages found
                   </div>
+                ) : (
+                  sortedPages.map((page) => {
+                    const isExpanded = expandedPages.has(page.id);
 
-                  <div className="py-3">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="sm" variant="ghost">
-                          <Icon name="more" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Done</DropdownMenuItem>
-                        <DropdownMenuItem>Reset</DropdownMenuItem>
-                        <DropdownMenuItem>Auto-translate</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </li>
-              </ul>
-            </div>
+                    return (
+                      <div key={page.id}>
+                        <header
+                          className="p-4 flex items-center gap-1.5 border-b cursor-pointer bg-secondary/10 hover:bg-secondary/40 transition-colors"
+                          onClick={() => togglePageExpansion(page.id)}
+                        >
+                          <Icon
+                            name="chevronRight"
+                            className={cn(
+                              'size-3 transition-transform',
+                              isExpanded && 'rotate-90'
+                            )}
+                          />
+                          <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50">
+                            <Icon name="page" className="size-2.5 opacity-60" />
+                          </div>
+                          <Label className="flex items-center gap-1">
+                            {getPagePathSegments(page).map((segment, index, array) => (
+                              <React.Fragment key={index}>
+                                <span>{segment}</span>
+                                {index < array.length - 1 && (
+                                  <Icon name="chevronRight" className="size-3 opacity-60" />
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </Label>
+                        </header>
+
+                        {isExpanded && (
+                          <ul className="border-b divide-y pl-4">
+                            <li className="flex items-start gap-2 pr-4">
+                              <div className="flex-1 grid grid-cols-2 items-center gap-4">
+                                <div className="py-5">
+                                  <span className="opacity-50">Create stunning websites with ease</span>
+                                </div>
+
+                                <div className="flex flex-col py-3 h-full *:flex-1">
+                                  <TiptapEditor
+                                    value={translationValues[`${page.id}-text-1`] || ''}
+                                    onChange={(value) => setTranslationValues(prev => ({ ...prev, [`${page.id}-text-1`]: value }))}
+                                    placeholder="Enter translation..."
+                                    className="min-h-[28px] [&>*:first-child]:mb-0 py-1 px-2.5 !bg-transparent"
+                                    hideControls
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="py-3">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button size="sm" variant="ghost">
+                                      <Icon name="more" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem>Done</DropdownMenuItem>
+                                    <DropdownMenuItem>Reset</DropdownMenuItem>
+                                    <DropdownMenuItem>Auto-translate</DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </li>
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
         ) : (
           children
