@@ -495,6 +495,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
                 [key]: {
                   ...existingTranslation,
                   content_value: updates.content_value!,
+                  deleted_at: null, // Restore if previously deleted
                 },
               },
             },

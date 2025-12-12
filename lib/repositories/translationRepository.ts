@@ -158,6 +158,7 @@ export async function createTranslation(
         content_type: translationData.content_type,
         content_value: translationData.content_value,
         is_published: false,
+        deleted_at: null, // Restore if previously deleted
       },
       {
         onConflict: 'locale_id,source_type,source_id,content_key,is_published',
@@ -190,6 +191,7 @@ export async function updateTranslation(
     .from('translations')
     .update({
       ...updates,
+      deleted_at: null, // Restore if previously deleted
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
@@ -246,6 +248,7 @@ export async function upsertTranslations(
     content_type: t.content_type,
     content_value: t.content_value,
     is_published: false,
+    deleted_at: null, // Restore if previously deleted
   }));
 
   const { data, error } = await client
