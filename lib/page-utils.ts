@@ -1003,7 +1003,10 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                     children: [
                       {
                         id: 'layer-1762789150944-5qezgblbe',
-                        name: 'h2',
+                        name: 'heading',
+                        settings: {
+                          tag: 'h1',
+                        },
                         text: '401',
                         design: {
                           typography: { color: '#111827', fontSize: '30', isActive: true, fontWeight: '700' },
@@ -1101,7 +1104,10 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                     children: [
                       {
                         id: 'layer-1762789150944-5qezgblbe',
-                        name: 'h2',
+                        name: 'heading',
+                        settings: {
+                          tag: 'h1',
+                        },
                         text: '404',
                         design: {
                           typography: { color: '#111827', fontSize: '30', isActive: true, fontWeight: '700' },
@@ -1199,7 +1205,10 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                     children: [
                       {
                         id: 'layer-1762789150944-5qezgblbe',
-                        name: 'h2',
+                        name: 'heading',
+                        settings: {
+                          tag: 'h1',
+                        },
                         text: '500',
                         design: {
                           typography: { color: '#111827', fontSize: '30', isActive: true, fontWeight: '700' },

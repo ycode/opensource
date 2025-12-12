@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TiptapEditor } from '@/components/ui/tiptap-editor';
+import InputWithInlineVariables from '@/app/ycode/components/InputWithInlineVariables';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -15,12 +15,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { InputAutocomplete } from '@/components/ui/input-autocomplete';
-import { Spinner } from '@/components/ui/spinner';
-import { LOCALES, type Locale as LocaleOption } from '@/lib/localisation-utils';
+import { LOCALES, type Locale as LocaleOption, extractPageTranslatableItems, getTranslatableItemIcon } from '@/lib/localisation-utils';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { usePagesStore } from '@/stores/usePagesStore';
-import { buildFolderPath } from '@/lib/page-utils';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { buildFolderPath, getPageIcon } from '@/lib/page-utils';
 import type { Locale } from '@/types';
+import { Separator } from '@/components/ui/separator';
 
 interface LocalizationContentProps {
   children: React.ReactNode;
@@ -61,6 +62,11 @@ export default function LocalizationContent({ children }: LocalizationContentPro
   // Pages store
   const storePages = usePagesStore((state) => state.pages);
   const storeFolders = usePagesStore((state) => state.folders);
+  const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
+
+  // Collections store (for field names and variables)
+  const allFields = useCollectionsStore((state) => state.fields);
+  const collections = useCollectionsStore((state) => state.collections);
 
   // Local state
   const [modalState, setModalState] = useState<ModalState>(initialModalState);
@@ -318,16 +324,17 @@ export default function LocalizationContent({ children }: LocalizationContentPro
       <div className="flex-1 overflow-y-auto">
         {selectedLocale ? (
           <div>
-            <div className="sticky top-0 z-10 bg-background p-4 flex items-center gap-2 border-b">
+            <div className="sticky top-0 z-10 h-16 bg-background p-4 flex items-center gap-2 border-b">
               <div>
                 <Select value={selectedContentType} onValueChange={setSelectedContentType}>
                   <SelectTrigger className="w-32">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pages">Pages</SelectItem>
-                    <SelectItem value="cms">CMS</SelectItem>
-                    <SelectItem value="components">Components</SelectItem>
+                    <SelectItem value="pages"><Icon name="page" className="size-3" /> Pages</SelectItem>
+                    <SelectItem value="folders"><Icon name="folder" className="size-3" /> Folders</SelectItem>
+                    <SelectItem value="cms"><Icon name="database" className="size-3" /> CMS</SelectItem>
+                    <SelectItem value="components"><Icon name="component" className="size-3" /> Components</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -361,67 +368,146 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                     return (
                       <div key={page.id}>
                         <header
-                          className="p-4 flex items-center gap-1.5 border-b cursor-pointer bg-secondary/10 hover:bg-secondary/40 transition-colors"
+                          className="sticky top-16 z-[5] border-b cursor-pointer bg-background"
                           onClick={() => togglePageExpansion(page.id)}
                         >
-                          <Icon
-                            name="chevronRight"
-                            className={cn(
-                              'size-3 transition-transform',
-                              isExpanded && 'rotate-90'
-                            )}
-                          />
-                          <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50">
-                            <Icon name="page" className="size-2.5 opacity-60" />
+                          <div className="p-4 flex items-center gap-1.5 bg-secondary/10 hover:bg-secondary/35 transition-colors">
+                            <Icon
+                              name="chevronRight"
+                              className={cn(
+                                'size-3 transition-transform',
+                                isExpanded && 'rotate-90'
+                              )}
+                            />
+                            <div className="size-5.5 flex items-center justify-center rounded-[6px] bg-secondary/50">
+                              <Icon name={getPageIcon(page)} className="size-3 opacity-60" />
+                            </div>
+                            <Label className="flex items-center gap-1">
+                              {getPagePathSegments(page).map((segment, index, array) => (
+                                <React.Fragment key={index}>
+                                  <span>{segment}</span>
+                                  {index < array.length - 1 && (
+                                    <Icon name="chevronRight" className="size-3 opacity-60" />
+                                  )}
+                                </React.Fragment>
+                              ))}
+                            </Label>
                           </div>
-                          <Label className="flex items-center gap-1">
-                            {getPagePathSegments(page).map((segment, index, array) => (
-                              <React.Fragment key={index}>
-                                <span>{segment}</span>
-                                {index < array.length - 1 && (
-                                  <Icon name="chevronRight" className="size-3 opacity-60" />
-                                )}
-                              </React.Fragment>
-                            ))}
-                          </Label>
                         </header>
 
-                        {isExpanded && (
-                          <ul className="border-b divide-y pl-4">
-                            <li className="flex items-start gap-2 pr-4">
-                              <div className="flex-1 grid grid-cols-2 items-center gap-4">
-                                <div className="py-5">
-                                  <span className="opacity-50">Create stunning websites with ease</span>
+                        {isExpanded && (() => {
+                          const draft = draftsByPageId[page.id];
+                          const layers = draft?.layers || [];
+                          const translatableItems = extractPageTranslatableItems(page, layers);
+
+                          if (translatableItems.length === 0) {
+                            return (
+                              <div className="py-8 text-center text-muted-foreground text-xs border-b">
+                                No translatable text elements found
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <ul className="border-b px-3 py-4 flex flex-col gap-4">
+                              {translatableItems.map((item) => (
+                                <li key={item.id} className="flex flex-col gap-1.5">
+                                  {/* Item header */}
+                                  <div className="flex items-center gap-1.75">
+                                    <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50">
+                                      <Icon name={getTranslatableItemIcon(item, layers)} className="shrink-0 size-2.5 opacity-50" />
+                                    </div>
+
+                                    <span className="text-xs font-medium opacity-60">{item.label}</span>
+
+                                    {item.description && (
+                                    <>
+                                      <Separator className="w-3! bg-foreground/8" />
+                                      <div className="text-[11px] text-muted-foreground/70">{item.description}</div>
+                                    </>
+                                    )}
+
+                                    <Separator className="min-w-0 flex-1 bg-foreground/8" />
                                 </div>
 
-                                <div className="flex flex-col py-3 h-full *:flex-1">
-                                  <TiptapEditor
-                                    value={translationValues[`${page.id}-text-1`] || ''}
-                                    onChange={(value) => setTranslationValues(prev => ({ ...prev, [`${page.id}-text-1`]: value }))}
-                                    placeholder="Enter translation..."
-                                    className="min-h-[28px] [&>*:first-child]:mb-0 py-1 px-2.5 !bg-transparent"
-                                    hideControls
-                                  />
-                                </div>
-                              </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-full grid grid-cols-2 gap-2">
+                                      {/* Left side (default locale value, read-only) */}
+                                      <div className="text-sm opacity-50">
+                                        {(() => {
+                                          // Get fields for this page's collection (if dynamic)
+                                          const pageCollectionId = page.settings?.cms?.collection_id;
+                                          const pageFields = pageCollectionId ? (allFields[pageCollectionId] || []) : [];
+                                          const collection = pageCollectionId ? collections.find(c => c.id === pageCollectionId) : null;
 
-                              <div className="py-3">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button size="sm" variant="ghost">
-                                      <Icon name="more" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem>Done</DropdownMenuItem>
-                                    <DropdownMenuItem>Reset</DropdownMenuItem>
-                                    <DropdownMenuItem>Auto-translate</DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </li>
-                          </ul>
-                        )}
+                                          return (
+                                            <InputWithInlineVariables
+                                              value={item.value}
+                                              onChange={() => {}} // Read-only on left side
+                                              placeholder=""
+                                              fields={pageFields}
+                                              fieldSourceLabel={collection?.name}
+                                              allFields={allFields}
+                                              collections={collections}
+                                              disabled={true}
+                                            />
+                                          );
+                                        })()}
+                                      </div>
+
+                                      {/* Right side (translation value, editable) */}
+                                      <div className="flex flex-col h-full *:flex-1">
+                                        {(() => {
+                                          // Get fields for this page's collection (if dynamic)
+                                          const pageCollectionId = page.settings?.cms?.collection_id;
+                                          const pageFields = pageCollectionId ? (allFields[pageCollectionId] || []) : [];
+                                          const collection = pageCollectionId ? collections.find(c => c.id === pageCollectionId) : null;
+
+                                          return (
+                                            <InputWithInlineVariables
+                                              value={translationValues[item.id] || ''}
+                                              onChange={(value: string) => setTranslationValues(prev => ({ ...prev, [item.id]: value }))}
+                                              placeholder="Enter translation..."
+                                              className="min-h-[28px] [&_.ProseMirror]:py-1 [&_.ProseMirror]:px-2.5 [&_.ProseMirror]:!bg-transparent"
+                                              fields={pageFields}
+                                              fieldSourceLabel={collection?.name}
+                                              allFields={allFields}
+                                              collections={collections}
+                                            />
+                                          );
+                                        })()}
+                                      </div>
+                                    </div>
+
+                                    {/* Dropdown menu */}
+                                    <div className="">
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button size="sm" variant="ghost">
+                                            <Icon name="more" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem>Done</DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            onClick={() => setTranslationValues(prev => {
+                                              const next = { ...prev };
+                                              delete next[item.id];
+                                              return next;
+                                            })}
+                                          >
+                                            Reset
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem>Auto-translate</DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    </div>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                        })()}
                       </div>
                     );
                   })

@@ -12,6 +12,8 @@ import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import Icon from '@/components/ui/icon';
 import type { CollectionField, Collection } from '@/types';
+import type { IconProps } from '@/components/ui/icon';
+import { getFieldIcon } from '@/lib/field-types-config';
 
 interface FieldTreeSelectProps {
   /** Fields to display at the current level */
@@ -28,30 +30,6 @@ interface FieldTreeSelectProps {
   collectionLabel?: string;
   /** Depth level for indentation (used internally) */
   depth?: number;
-}
-
-/**
- * Get icon name for field type
- */
-function getFieldTypeIcon(type: string): string {
-  switch (type) {
-    case 'text':
-      return 'textAlignLeft';
-    case 'rich_text':
-      return 'textAlignLeft';
-    case 'number':
-      return 'hash';
-    case 'boolean':
-      return 'check';
-    case 'date':
-      return 'calendar';
-    case 'image':
-      return 'image';
-    case 'reference':
-      return 'database';
-    default:
-      return 'textAlignLeft';
-  }
 }
 
 /**
@@ -77,7 +55,7 @@ function FieldItem({
       )}
       style={{ paddingLeft: `${8 + depth * 16}px` }}
     >
-      <Icon name={getFieldTypeIcon(field.type) as any} className="size-3 text-zinc-500 shrink-0" />
+      <Icon name={getFieldIcon(field) as IconProps['name']} className="size-3 text-zinc-500 shrink-0" />
       <span className="truncate">{field.name}</span>
     </button>
   );
@@ -122,8 +100,8 @@ function ReferenceFieldGroup({
         className={cn(
           'flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded-md',
           'transition-colors',
-          hasNestedFields 
-            ? 'hover:bg-zinc-700/50 text-zinc-400 hover:text-zinc-200 cursor-pointer' 
+          hasNestedFields
+            ? 'hover:bg-zinc-700/50 text-zinc-400 hover:text-zinc-200 cursor-pointer'
             : 'text-zinc-600 cursor-default'
         )}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
