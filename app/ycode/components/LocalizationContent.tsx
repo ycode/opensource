@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { InputAutocomplete } from '@/components/ui/input-autocomplete';
-import { LOCALES, type Locale as LocaleOption, extractPageTranslatableItems, getTranslatableItemIcon } from '@/lib/localisation-utils';
+import { LOCALES, type Locale as LocaleOption, extractPageTranslatableItems } from '@/lib/localisation-utils';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
@@ -59,6 +59,13 @@ export default function LocalizationContent({ children }: LocalizationContentPro
   const error = useLocalisationStore((state) => state.error);
   const clearError = useLocalisationStore((state) => state.clearError);
 
+  // Translation store functions
+  const loadTranslations = useLocalisationStore((state) => state.loadTranslations);
+  const getTranslationByKey = useLocalisationStore((state) => state.getTranslationByKey);
+  const createTranslation = useLocalisationStore((state) => state.createTranslation);
+  const updateTranslation = useLocalisationStore((state) => state.updateTranslation);
+  const deleteTranslation = useLocalisationStore((state) => state.deleteTranslation);
+
   // Pages store
   const storePages = usePagesStore((state) => state.pages);
   const storeFolders = usePagesStore((state) => state.folders);
@@ -71,10 +78,20 @@ export default function LocalizationContent({ children }: LocalizationContentPro
   // Local state
   const [modalState, setModalState] = useState<ModalState>(initialModalState);
   const [selectedContentType, setSelectedContentType] = useState<string>('pages');
-  const [translationValues, setTranslationValues] = useState<Record<string, string>>({});
   const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
+  // Local input values for immediate UI feedback (keyed by item.key)
+  const [localInputValues, setLocalInputValues] = useState<Record<string, string>>({});
 
   const selectedLocale = locales.find(l => l.id === selectedLocaleId);
+
+  // Load translations when locale changes
+  useEffect(() => {
+    if (selectedLocaleId) {
+      loadTranslations(selectedLocaleId);
+      // Clear local input values when switching locales
+      setLocalInputValues({});
+    }
+  }, [selectedLocaleId, loadTranslations]);
 
   // Sort pages: by folder hierarchy order, then page order, error pages at the bottom
   const sortedPages = useMemo(() => {
@@ -409,26 +426,26 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                           }
 
                           return (
-                            <ul className="border-b px-3 py-4 flex flex-col gap-4">
+                            <ul className="border-b px-4 py-5 flex flex-col gap-5">
                               {translatableItems.map((item) => (
-                                <li key={item.id} className="flex flex-col gap-1.5">
+                                <li key={item.key} className="flex flex-col gap-1.5">
                                   {/* Item header */}
                                   <div className="flex items-center gap-1.75">
                                     <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50">
-                                      <Icon name={getTranslatableItemIcon(item, layers)} className="shrink-0 size-2.5 opacity-50" />
+                                      <Icon name={item.info.icon} className="shrink-0 size-2.5 opacity-50" />
                                     </div>
 
-                                    <span className="text-xs font-medium opacity-60">{item.label}</span>
+                                    <span className="text-xs font-medium opacity-60">{item.info.label}</span>
 
-                                    {item.description && (
-                                    <>
-                                      <Separator className="w-3! bg-foreground/8" />
-                                      <div className="text-[11px] text-muted-foreground/70">{item.description}</div>
-                                    </>
+                                    {item.info.description && (
+                                      <>
+                                        <Separator className="w-3! bg-foreground/8" />
+                                        <div className="text-[11px] text-muted-foreground/70">{item.info.description}</div>
+                                      </>
                                     )}
 
                                     <Separator className="min-w-0 flex-1 bg-foreground/8" />
-                                </div>
+                                  </div>
 
                                   <div className="flex items-center gap-2">
                                     <div className="w-full grid grid-cols-2 gap-2">
@@ -442,7 +459,7 @@ export default function LocalizationContent({ children }: LocalizationContentPro
 
                                           return (
                                             <InputWithInlineVariables
-                                              value={item.value}
+                                              value={item.content_value}
                                               onChange={() => {}} // Read-only on left side
                                               placeholder=""
                                               fields={pageFields}
@@ -463,10 +480,59 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                           const pageFields = pageCollectionId ? (allFields[pageCollectionId] || []) : [];
                                           const collection = pageCollectionId ? collections.find(c => c.id === pageCollectionId) : null;
 
+                                          // Get translation from store
+                                          const translation = selectedLocaleId
+                                            ? getTranslationByKey(selectedLocaleId, item.key)
+                                            : null;
+                                          const storeValue = translation?.content_value || '';
+
+                                          // Use local value if available, otherwise use store value
+                                          const translationValue = localInputValues[item.key] !== undefined
+                                            ? localInputValues[item.key]
+                                            : storeValue;
+
+                                          // Update local state on change (immediate UI feedback)
+                                          const handleTranslationChange = (value: string) => {
+                                            setLocalInputValues(prev => ({
+                                              ...prev,
+                                              [item.key]: value,
+                                            }));
+                                          };
+
+                                          // Save to store/API on blur (optimistic update + API call)
+                                          const handleTranslationBlur = (value: string) => {
+                                            if (!selectedLocaleId) return;
+
+                                            // Clear local value (will use store value after save)
+                                            setLocalInputValues(prev => {
+                                              const next = { ...prev };
+                                              delete next[item.key];
+                                              return next;
+                                            });
+
+                                            const translationData = {
+                                              locale_id: selectedLocaleId,
+                                              source_type: item.source_type,
+                                              source_id: item.source_id,
+                                              content_key: item.content_key,
+                                              content_type: item.content_type,
+                                              content_value: value,
+                                            };
+
+                                            if (translation) {
+                                              // Update existing translation (optimistic + API call)
+                                              updateTranslation(translation, { content_value: value });
+                                            } else {
+                                              // Create new translation (optimistic + API call)
+                                              createTranslation(translationData);
+                                            }
+                                          };
+
                                           return (
                                             <InputWithInlineVariables
-                                              value={translationValues[item.id] || ''}
-                                              onChange={(value: string) => setTranslationValues(prev => ({ ...prev, [item.id]: value }))}
+                                              value={translationValue}
+                                              onChange={handleTranslationChange}
+                                              onBlur={handleTranslationBlur}
                                               placeholder="Enter translation..."
                                               className="min-h-[28px] [&_.ProseMirror]:py-1 [&_.ProseMirror]:px-2.5 [&_.ProseMirror]:!bg-transparent"
                                               fields={pageFields}
@@ -490,11 +556,13 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                         <DropdownMenuContent align="end">
                                           <DropdownMenuItem>Done</DropdownMenuItem>
                                           <DropdownMenuItem
-                                            onClick={() => setTranslationValues(prev => {
-                                              const next = { ...prev };
-                                              delete next[item.id];
-                                              return next;
-                                            })}
+                                            onClick={async () => {
+                                              if (!selectedLocaleId) return;
+                                              const translation = getTranslationByKey(selectedLocaleId, item.key);
+                                              if (translation) {
+                                                await deleteTranslation(translation);
+                                              }
+                                            }}
                                           >
                                             Reset
                                           </DropdownMenuItem>

@@ -1,5 +1,5 @@
-import type { Layer, Page } from '@/types';
-import { getLayerIcon, findLayerById } from '@/lib/layer-utils';
+import type { Layer, Page, Translation } from '@/types';
+import { getLayerIcon, findLayerById, getLayerName } from '@/lib/layer-utils';
 import type { IconProps } from '@/components/ui/icon';
 
 /**
@@ -257,13 +257,17 @@ export function isLocaleRtl(locale: Locale): boolean {
  * Translatable item extracted from pages
  */
 export interface TranslatableItem {
-  id: string; // Unique identifier for this item
-  type: 'slug' | 'seo_title' | 'seo_description' | 'layer_text';
-  layerId?: string; // Layer ID (for layer_text type)
-  label: string; // Display label (e.g., "SEO Title", "Heading Layer")
-  description?: string; // Optional description text
-  value: string; // Current text value (may contain inline variables)
-  key: string; // Translation key for storage (e.g., "page:pageId:layer:layerId:text" or "page:pageId:seo:title")
+  key: string; // Unique identifier for the item (same key for all locales)
+  source_type: 'page' | 'folder' | 'component' | 'cms'; // Source type (page, foler, component, cms)
+  source_id: string; // Source ID (e.g., page ID, folder ID, component ID, collection item ID)
+  content_key: string; // Source key (e.g., 'layer:{layerId}:text', 'seo:title', 'slug')
+  content_type: 'text' | 'richtext' | 'asset_id'; // Content type (text, richtext, asset)
+  content_value: string; // Current text value (may contain inline variables)
+  info: {
+    icon: IconProps['name']; // Icon name for the item
+    label: string; // Item label (e.g., "SEO Title", "Heading")
+    description?: string; // Optional item description
+  }
 }
 
 /**
@@ -272,20 +276,17 @@ export interface TranslatableItem {
 function extractLayerText(layer: Layer): string | null {
   let text: string | null = null;
 
-  // Check variables.text for inline variables
   if (layer.variables?.text && typeof layer.variables.text === 'string') {
+    // Check variables.text for inline variables
     text = layer.variables.text;
-  }
-  // Check legacy text property
-  else if (typeof layer.text === 'string') {
+  } else if (typeof layer.text === 'string') {
+    // Check legacy text property
     text = layer.text;
-  }
-  // Check legacy content property
-  else if (typeof layer.content === 'string') {
+  } else if (typeof layer.content === 'string') {
+    // Check legacy content property
     text = layer.content;
-  }
-  // Skip if text is a FieldVariable object (not inline)
-  else if (layer.text && typeof layer.text === 'object' && layer.text.type === 'field') {
+  } else if (layer.text && typeof layer.text === 'object' && layer.text.type === 'field') {
+    // Skip if text is a FieldVariable object (not inline)
     return null;
   }
 
@@ -305,18 +306,21 @@ function extractLayerTexts(
   items: TranslatableItem[]
 ): void {
   for (const layer of layers) {
-    const layerLabel = layer.customName || layer.name || 'Layer';
-
     // Extract text from this layer (including inline variables)
     const text = extractLayerText(layer);
+
     if (text) {
       items.push({
-        id: `${pageId}:layer:${layer.id}:text`,
-        type: 'layer_text',
-        layerId: layer.id,
-        label: layerLabel,
-        value: text,
         key: `page:${pageId}:layer:${layer.id}:text`,
+        source_type: 'page',
+        source_id: pageId,
+        content_key: `layer:${layer.id}:text`,
+        content_type: layer.name === 'richtext' ? 'richtext' : 'text',
+        content_value: text,
+        info: {
+          icon: getLayerIcon(layer),
+          label: getLayerName(layer),
+        },
       });
     }
 
@@ -339,21 +343,31 @@ function extractSeoItems(
 
   if (seo.title && typeof seo.title === 'string' && seo.title.trim()) {
     items.push({
-      id: `${pageId}:seo:title`,
-      type: 'seo_title',
-      label: 'SEO Title',
-      value: seo.title.trim(),
       key: `page:${pageId}:seo:title`,
+      source_type: 'page',
+      source_id: pageId,
+      content_key: 'seo:title',
+      content_type: 'text',
+      content_value: seo.title.trim(),
+      info: {
+        icon: 'search',
+        label: 'SEO Title',
+      },
     });
   }
 
   if (seo.description && typeof seo.description === 'string' && seo.description.trim()) {
     items.push({
-      id: `${pageId}:seo:description`,
-      type: 'seo_description',
-      label: 'SEO Description',
-      value: seo.description.trim(),
       key: `page:${pageId}:seo:description`,
+      source_type: 'page',
+      source_id: pageId,
+      content_key: 'seo:description',
+      content_type: 'text',
+      content_value: seo.description.trim(),
+      info: {
+        icon: 'search',
+        label: 'SEO Description',
+      },
     });
   }
 }
@@ -372,12 +386,17 @@ export function extractPageTranslatableItems(
   // 1. Extract slug (first) - exclude dynamic pages
   if (!page.is_dynamic && page.slug && page.slug.trim()) {
     items.push({
-      id: `${page.id}:slug`,
-      type: 'slug',
-      label: 'Page slug',
-      description: 'Changing this will affect URLs generated by your website',
-      value: page.slug.trim(),
       key: `page:${page.id}:slug`,
+      source_type: 'page',
+      source_id: page.id,
+      content_key: 'slug',
+      content_type: 'text',
+      content_value: page.slug.trim(),
+      info: {
+        icon: 'link',
+        label: 'Page slug',
+        description: 'Changing this will affect the URLs generated by your website',
+      },
     });
   }
 
@@ -393,27 +412,13 @@ export function extractPageTranslatableItems(
 }
 
 /**
- * Get the icon name for a translatable item
- * @param item - The translatable item
- * @param layers - Array of layers (required for layer_text type)
- * @returns Icon name for the item
+ * Generate a translatable key from a Translation
+ * Format: source_type:source_id:content_key
+ * @param translation - Translation object or object with source_type, source_id, and content_key
+ * @returns Translatable key string
  */
-export function getTranslatableItemIcon(
-  item: TranslatableItem,
-  layers: Layer[]
-): IconProps['name'] {
-  if (item.type === 'slug') {
-    return 'link';
-  }
-
-  if (item.type === 'seo_title' || item.type === 'seo_description') {
-    return 'search';
-  }
-
-  if (item.type === 'layer_text') {
-    const layer = item.layerId ? findLayerById(layers, item.layerId) : null;
-    return layer ? getLayerIcon(layer) : 'block';
-  }
-
-  return 'block';
+export function getTranslatableKey(
+  translation: Translation | { source_type: string; source_id: string; content_key: string }
+): string {
+  return `${translation.source_type}:${translation.source_id}:${translation.content_key}`;
 }
