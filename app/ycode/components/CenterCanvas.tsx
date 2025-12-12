@@ -1015,6 +1015,48 @@ const CenterCanvas = React.memo(function CenterCanvas({
           }
           break;
 
+        case 'UPDATE_GAP':
+          // Handle gap value update from drag interaction
+          if (message.payload.layerId && currentPageId) {
+            const layerId = message.payload.layerId;
+            const newGapValue = message.payload.gapValue;
+
+            // Get current layer to update its classes
+            const draft = draftsByPageId[currentPageId];
+            if (draft) {
+              // Helper to find and update layer
+              const updateGapInLayer = (layers: Layer[]): Layer[] => {
+                return layers.map(layer => {
+                  if (layer.id === layerId) {
+                    // Get current classes
+                    const currentClasses = Array.isArray(layer.classes) 
+                      ? layer.classes.join(' ') 
+                      : (layer.classes || '');
+
+                    // Remove existing gap classes
+                    let newClasses = currentClasses
+                      .split(' ')
+                      .filter(cls => !cls.startsWith('gap-'))
+                      .join(' ');
+
+                    // Add new gap class with arbitrary value
+                    newClasses = `${newClasses} gap-[${newGapValue}]`.trim();
+
+                    return { ...layer, classes: newClasses };
+                  }
+                  if (layer.children) {
+                    return { ...layer, children: updateGapInLayer(layer.children) };
+                  }
+                  return layer;
+                });
+              };
+
+              const updatedLayers = updateGapInLayer(draft.layers);
+              usePagesStore.getState().setDraftLayers(currentPageId, updatedLayers);
+            }
+          }
+          break;
+
         case 'DRAG_START':
         case 'DRAG_OVER':
         case 'DROP':

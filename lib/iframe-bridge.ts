@@ -29,7 +29,8 @@ export type IframeToParentMessage =
   | { type: 'ZOOM_GESTURE'; payload: { delta: number; reset?: boolean; zoomToFit?: boolean; autofit?: boolean } }
   | { type: 'CONTENT_HEIGHT'; payload: { height: number } }
   | { type: 'OPEN_COLLECTION_ITEM_SHEET'; payload: { collectionId: string; itemId: string } }
-  | { type: 'DELETE_LAYER'; payload: null };
+  | { type: 'DELETE_LAYER'; payload: null }
+  | { type: 'UPDATE_GAP'; payload: { layerId: string; gapValue: string } };
 
 export type IframeMessage = ParentToIframeMessage | IframeToParentMessage;
 
@@ -95,6 +96,7 @@ function isIframeToParentMessage(message: any): message is IframeToParentMessage
     'CONTENT_HEIGHT',
     'OPEN_COLLECTION_ITEM_SHEET',
     'DELETE_LAYER',
+    'UPDATE_GAP',
   ];
 
   return validTypes.includes(message.type);

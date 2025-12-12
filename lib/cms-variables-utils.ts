@@ -33,7 +33,7 @@ export function getVariableLabel(
       for (let i = 0; i < relationships.length; i++) {
         const relId = relationships[i];
         const relField = currentFields?.find(f => f.id === relId);
-        
+
         if (i === relationships.length - 1) {
           // Last field in chain - this is the actual field we're selecting
           finalFieldName = relField?.name || '[Deleted]';

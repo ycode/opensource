@@ -41,6 +41,8 @@ interface InputWithInlineVariablesProps {
   allFields?: Record<string, CollectionField[]>;
   /** All collections for reference field lookups */
   collections?: Collection[];
+  /** Disable editing and hide database button */
+  disabled?: boolean;
 }
 
 export interface InputWithInlineVariablesHandle {
@@ -143,24 +145,37 @@ const DynamicVariable = Node.create({
       // Render React Badge component asynchronously to avoid triggering updates during render phase
       // The renderHTML fallback matches Badge styling exactly, so there's no visual difference
       const root = createRoot(container);
-      queueMicrotask(() => {
+      
+      const renderBadge = () => {
+        const isEditable = editor.isEditable;
         root.render(
           <Badge variant="secondary">
             <span>{label}</span>
-            <Button
-              onClick={handleDelete}
-              className="!size-4 !p-0 -mr-1"
-              variant="outline"
-            >
-              <Icon name="x" className="size-2" />
-            </Button>
+            {isEditable && (
+              <Button
+                onClick={handleDelete}
+                className="!size-4 !p-0 -mr-1"
+                variant="outline"
+              >
+                <Icon name="x" className="size-2" />
+              </Button>
+            )}
           </Badge>
         );
-      });
+      };
+
+      queueMicrotask(renderBadge);
+
+      // Re-render when editor editable state changes
+      const updateListener = () => {
+        renderBadge();
+      };
+      editor.on('update', updateListener);
 
       return {
         dom: container,
         destroy: () => {
+          editor.off('update', updateListener);
           // Defer unmount to avoid synchronous unmount during render
           setTimeout(() => {
             root.unmount();
@@ -180,6 +195,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   fieldSourceLabel,
   allFields,
   collections,
+  disabled = false,
 }, ref) => {
   const [isFocused, setIsFocused] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -236,6 +252,12 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
       setIsFocused(false);
     },
   });
+
+  // Update editor editable state when disabled prop changes
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(!disabled);
+  }, [editor, disabled]);
 
   // Update placeholder attribute when placeholder prop changes
   useEffect(() => {
@@ -428,7 +450,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         <EditorContent editor={editor} />
       </div>
 
-      {fields && fields.length > 0 && (
+      {!disabled && fields && fields.length > 0 && (
         <div className="absolute top-1 right-1">
           <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
             <PopoverTrigger asChild>

@@ -9,19 +9,20 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import Icon from '@/components/ui/icon';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { collectionsApi } from '@/lib/api';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { cn } from '@/lib/utils';
 import type { CollectionItemWithValues, CollectionField } from '@/types';
+import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
 interface ReferenceFieldComboboxProps {
   /** The collection ID to fetch items from */
@@ -129,9 +130,14 @@ export default function ReferenceFieldCombobox({
     });
   }, [items, searchQuery]);
 
-  // Handle single selection
+  // Handle single selection with toggle (can deselect)
   const handleSingleSelect = (itemId: string) => {
-    onChange(itemId);
+    // If clicking the same item, deselect it
+    if (selectedIds.includes(itemId)) {
+      onChange('');
+    } else {
+      onChange(itemId);
+    }
     setOpen(false);
     setSearchQuery('');
   };
@@ -169,50 +175,43 @@ export default function ReferenceFieldCombobox({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          disabled={disabled}
-          className={cn(
-            'w-full justify-between font-normal',
-            !selectedIds.length && 'text-muted-foreground'
-          )}
-        >
-          <span className="truncate">{getDisplayText()}</span>
-          <div className="flex items-center gap-1 ml-2">
-            {selectedIds.length > 0 && (
-              <span
-                role="button"
-                onClick={handleClear}
-                className="hover:bg-secondary rounded p-0.5"
-              >
-                <Icon name="x" className="size-3" />
-              </span>
+    <div className="flex items-center gap-1">
+
+      <div className="flex-1">
+        <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="input"
+            role="combobox"
+            size="sm"
+            aria-expanded={open}
+            disabled={disabled}
+            className={cn(
+              'w-full justify-between font-normal',
+              !selectedIds.length && 'text-muted-foreground'
             )}
+          >
+            <span className="truncate">{getDisplayText()}</span>
             <Icon
               name="chevronCombo"
-              className={cn('size-4 transition-transform', open && 'rotate-180')}
+              className={cn('size-2.5 opacity-50 ml-2', open && '')}
             />
-          </div>
-        </Button>
-      </PopoverTrigger>
+          </Button>
+        </DropdownMenuTrigger>
 
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[200px]" align="start">
         {/* Search Input */}
-        <div className="p-2 border-b">
+        <div className="mb-2">
           <Input
             placeholder={`Search ${collection?.name || 'items'}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8"
+            size="xs"
           />
         </div>
 
         {/* Items List */}
-        <div className="max-h-60 overflow-y-auto p-1">
+        <div className="max-h-60 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-4">
               <Spinner />
@@ -223,72 +222,44 @@ export default function ReferenceFieldCombobox({
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="text-center py-4 text-sm text-muted-foreground">
-              {searchQuery ? 'No items found' : 'No items in this collection'}
+              <Empty>
+                <EmptyTitle>{searchQuery ? 'No items found' : 'No items in this collection'}</EmptyTitle>
+              </Empty>
             </div>
           ) : (
             filteredItems.map((item) => {
               const isSelected = selectedIds.includes(item.id);
               const displayName = getItemDisplayName(item);
 
-              if (isMulti) {
-                return (
-                  <label
-                    key={item.id}
-                    className={cn(
-                      'flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer',
-                      'hover:bg-secondary/50',
-                      isSelected && 'bg-secondary'
-                    )}
-                  >
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => handleMultiToggle(item.id)}
-                    />
-                    <span className="truncate text-sm">{displayName}</span>
-                  </label>
-                );
-              }
-
               return (
-                <button
+                <DropdownMenuCheckboxItem
                   key={item.id}
-                  type="button"
-                  onClick={() => handleSingleSelect(item.id)}
-                  className={cn(
-                    'w-full flex items-center gap-2 px-2 py-1.5 rounded text-left',
-                    'hover:bg-secondary/50',
-                    isSelected && 'bg-secondary'
-                  )}
+                  checked={isSelected}
+                  onCheckedChange={() => isMulti ? handleMultiToggle(item.id) : handleSingleSelect(item.id)}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                  }}
                 >
-                  {isSelected && <Icon name="check" className="size-4 text-primary" />}
-                  <span className={cn('truncate text-sm', !isSelected && 'ml-6')}>
-                    {displayName}
-                  </span>
-                </button>
+                  {displayName}
+                </DropdownMenuCheckboxItem>
               );
             })
           )}
         </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+      </div>
 
-        {/* Multi-select footer */}
-        {isMulti && selectedIds.length > 0 && (
-          <div className="border-t p-2 flex items-center justify-between">
-            <Badge variant="secondary">
-              {selectedIds.length} selected
-            </Badge>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setOpen(false);
-                setSearchQuery('');
-              }}
-            >
-              Done
-            </Button>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+      {selectedIds.length > 0 && (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleClear}
+        >
+          <Icon name="x" />
+        </Button>
+      )}
+
+  </div>
   );
 }

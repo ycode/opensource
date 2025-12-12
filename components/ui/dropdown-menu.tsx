@@ -93,7 +93,7 @@ function DropdownMenuCheckboxItem({
     <DropdownMenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground relative flex cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-xs outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "focus:bg-accent focus:text-accent-foreground relative flex cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-2 pl-7 text-xs outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       checked={checked}
@@ -101,7 +101,7 @@ function DropdownMenuCheckboxItem({
     >
       <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator>
-          <CheckIcon className="size-4" />
+          <Icon name="check" className="size-3.5 opacity-50" />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
       {children}
@@ -137,7 +137,7 @@ function DropdownMenuRadioItem({
       {children}
       <span className="absolute right-2 flex size-3.5 items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator>
-          <Icon name="check" className="size-3 opacity-50" />
+          <Icon name="check" className="size-3.5 opacity-50" />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
     </DropdownMenuPrimitive.RadioItem>
