@@ -19,7 +19,7 @@ interface EffectControlsProps {
 
 export default function EffectControls({ layer, onLayerUpdate }: EffectControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
-  const { updateDesignProperty, getDesignProperty } = useDesignSync({
+  const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
@@ -39,21 +39,21 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
   
   const opacityValue = extractOpacity(opacity);
   
-  // Handle opacity change
+  // Handle opacity change (debounced for text input)
   const handleOpacityChange = (value: string) => {
     const numValue = Math.max(0, Math.min(100, parseInt(value) || 0));
-    updateDesignProperty('effects', 'opacity', `${numValue}`);
+    debouncedUpdateDesignProperty('effects', 'opacity', `${numValue}`);
   };
   
-  // Handle opacity slider change
+  // Handle opacity slider change (immediate - slider interaction)
   const handleOpacitySliderChange = (values: number[]) => {
     updateDesignProperty('effects', 'opacity', `${values[0]}`);
   };
   
-  // Handle box shadow change
+  // Handle box shadow change (debounced for text input)
   const handleBoxShadowChange = (value: string) => {
     const sanitized = removeSpaces(value);
-    updateDesignProperty('effects', 'boxShadow', sanitized || null);
+    debouncedUpdateDesignProperty('effects', 'boxShadow', sanitized || null);
   };
   
   return (

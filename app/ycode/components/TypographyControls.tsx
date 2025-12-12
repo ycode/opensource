@@ -22,7 +22,7 @@ interface TypographyControlsProps {
 
 export default function TypographyControls({ layer, onLayerUpdate }: TypographyControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
-  const { updateDesignProperty, getDesignProperty } = useDesignSync({
+  const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
@@ -85,36 +85,36 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
     updateDesignProperty('typography', 'fontWeight', numericWeight);
   };
   
-  // Handle font size change
+  // Handle font size change (debounced for text input)
   const handleFontSizeChange = (value: string) => {
     setFontSizeInput(value); // Update local state immediately (spaces auto-stripped by hook)
     const sanitized = removeSpaces(value);
-    updateDesignProperty('typography', 'fontSize', sanitized || null);
+    debouncedUpdateDesignProperty('typography', 'fontSize', sanitized || null);
   };
   
-  // Handle text align change
+  // Handle text align change (immediate - button toggle)
   const handleTextAlignChange = (value: string) => {
     updateDesignProperty('typography', 'textAlign', value);
   };
   
-  // Handle letter spacing change
+  // Handle letter spacing change (debounced for text input)
   const handleLetterSpacingChange = (value: string) => {
     setLetterSpacingInput(value); // Update local state immediately (spaces auto-stripped by hook)
     const sanitized = removeSpaces(value);
-    updateDesignProperty('typography', 'letterSpacing', sanitized || null);
+    debouncedUpdateDesignProperty('typography', 'letterSpacing', sanitized || null);
   };
   
-  // Handle line height change
+  // Handle line height change (debounced for text input)
   const handleLineHeightChange = (value: string) => {
     setLineHeightInput(value); // Update local state immediately (spaces auto-stripped by hook)
     const sanitized = removeSpaces(value);
-    updateDesignProperty('typography', 'lineHeight', sanitized || null);
+    debouncedUpdateDesignProperty('typography', 'lineHeight', sanitized || null);
   };
 
-  // Handle color change
+  // Handle color change (debounced for text input)
   const handleColorChange = (value: string) => {
     const sanitized = removeSpaces(value);
-    updateDesignProperty('typography', 'color', sanitized || null);
+    debouncedUpdateDesignProperty('typography', 'color', sanitized || null);
   };
   
   return (

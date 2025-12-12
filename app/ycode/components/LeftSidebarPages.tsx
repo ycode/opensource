@@ -1,12 +1,16 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, startTransition, Suspense, lazy } from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Icon from '@/components/ui/icon';
 import PagesTree from './PagesTree';
-import PageSettingsPanel, { type PageFormData, type PageSettingsPanelHandle } from './PageSettingsPanel';
-import FolderSettingsPanel, { type FolderFormData, type FolderSettingsPanelHandle } from './FolderSettingsPanel';
+import { type PageFormData, type PageSettingsPanelHandle } from './PageSettingsPanel';
+import { type FolderFormData, type FolderSettingsPanelHandle } from './FolderSettingsPanel';
+
+// Lazy-loaded components (heavy settings panels, not needed immediately)
+const PageSettingsPanel = lazy(() => import('./PageSettingsPanel'));
+const FolderSettingsPanel = lazy(() => import('./FolderSettingsPanel'));
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
@@ -284,6 +288,8 @@ export default function LeftSidebarPages({
     if (!canProceed) {
       return;
     }
+    
+    // Immediate UI feedback - selection updates instantly
     setSelectedItemId(pageId);
 
     // Preserve current query params (convert null to undefined)
@@ -291,17 +297,20 @@ export default function LeftSidebarPages({
     const rightTab = urlState.rightTab || undefined;
     const layerId = urlState.layerId || undefined;
 
-    // Navigate to the same route type but with the new page ID
-    if (routeType === 'layers') {
-      navigateToLayers(pageId, view, rightTab, layerId);
-    } else if (routeType === 'page' && urlState.isEditing) {
-      navigateToPageEdit(pageId);
-    } else if (routeType === 'page') {
-      navigateToPage(pageId, view, rightTab, layerId);
-    } else {
-      // Default to layers if no route type (shouldn't happen, but safe fallback)
-      navigateToLayers(pageId, view, rightTab, layerId);
-    }
+    // Defer navigation to avoid blocking UI
+    startTransition(() => {
+      // Navigate to the same route type but with the new page ID
+      if (routeType === 'layers') {
+        navigateToLayers(pageId, view, rightTab, layerId);
+      } else if (routeType === 'page' && urlState.isEditing) {
+        navigateToPageEdit(pageId);
+      } else if (routeType === 'page') {
+        navigateToPage(pageId, view, rightTab, layerId);
+      } else {
+        // Default to layers if no route type (shouldn't happen, but safe fallback)
+        navigateToLayers(pageId, view, rightTab, layerId);
+      }
+    });
   };
 
   // Handle folder selection with unsaved changes check
@@ -797,40 +806,44 @@ export default function LeftSidebarPages({
         )}
       </div>
 
-      {/* Page settings panel */}
-      <PageSettingsPanel
-        ref={pageSettingsPanelRef}
-        isOpen={showPageSettings}
-        onClose={() => {
-          setShowPageSettings(false);
-          setEditingPage(null);
+      {/* Page settings panel (lazy loaded) */}
+      <Suspense fallback={null}>
+        <PageSettingsPanel
+          ref={pageSettingsPanelRef}
+          isOpen={showPageSettings}
+          onClose={() => {
+            setShowPageSettings(false);
+            setEditingPage(null);
 
-          // Navigate back to pages view if we're in edit mode
-          if (urlState.isEditing && currentPageId) {
-            // Since edit param preserves other params, we can just remove the edit param
-            // The URL already has view, tab, layer params preserved
-            const view = urlState.view || undefined;
-            const rightTab = urlState.rightTab || undefined;
-            const layerId = urlState.layerId || undefined;
+            // Navigate back to pages view if we're in edit mode
+            if (urlState.isEditing && currentPageId) {
+              // Since edit param preserves other params, we can just remove the edit param
+              // The URL already has view, tab, layer params preserved
+              const view = urlState.view || undefined;
+              const rightTab = urlState.rightTab || undefined;
+              const layerId = urlState.layerId || undefined;
 
-            navigateToPage(currentPageId, view, rightTab, layerId);
-          }
-        }}
-        page={editingPage}
-        onSave={handleSavePage}
-      />
+              navigateToPage(currentPageId, view, rightTab, layerId);
+            }
+          }}
+          page={editingPage}
+          onSave={handleSavePage}
+        />
+      </Suspense>
 
-      {/* Folder settings panel */}
-      <FolderSettingsPanel
-        ref={folderSettingsPanelRef}
-        isOpen={showFolderSettings}
-        onClose={() => {
-          setShowFolderSettings(false);
-          setEditingFolder(null);
-        }}
-        folder={editingFolder}
-        onSave={handleSaveFolder}
-      />
+      {/* Folder settings panel (lazy loaded) */}
+      <Suspense fallback={null}>
+        <FolderSettingsPanel
+          ref={folderSettingsPanelRef}
+          isOpen={showFolderSettings}
+          onClose={() => {
+            setShowFolderSettings(false);
+            setEditingFolder(null);
+          }}
+          folder={editingFolder}
+          onSave={handleSaveFolder}
+        />
+      </Suspense>
     </>
   );
 }

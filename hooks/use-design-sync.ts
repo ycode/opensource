@@ -5,7 +5,8 @@
  * Supports breakpoint-aware class application for responsive design
  */
 
-import { useCallback } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
+import debounce from 'lodash.debounce';
 import type { Layer, UIState, Breakpoint } from '@/types';
 import {
   propertyToClass,
@@ -257,9 +258,71 @@ export function useDesignSync({
     [layer, onLayerUpdate]
   );
 
+  /**
+   * Debounced version of updateDesignProperty for text inputs
+   * Use this for inputs where users type values (e.g., spacing, sizing)
+   * to avoid flooding the canvas with updates on every keystroke
+   * 
+   * IMPORTANT: This implementation avoids stale closure issues by:
+   * 1. Using a ref to always access the latest updateDesignProperty
+   * 2. Cancelling pending calls when the layer changes
+   * 3. Cleaning up on unmount
+   */
+  
+  // Store the latest updateDesignProperty in a ref to avoid stale closures
+  const updateDesignPropertyRef = useRef(updateDesignProperty);
+  updateDesignPropertyRef.current = updateDesignProperty;
+  
+  // Track the current layer ID to detect layer changes
+  const currentLayerIdRef = useRef(layer?.id);
+  
+  // Create a stable debounced function that always calls the latest updateDesignProperty
+  const debouncedFnRef = useRef(
+    debounce(
+      (
+        category: keyof NonNullable<Layer['design']>,
+        property: string,
+        value: string | null
+      ) => {
+        updateDesignPropertyRef.current(category, property, value);
+      },
+      150
+    )
+  );
+  
+  // Cancel pending debounced calls when layer changes to prevent stale updates
+  useEffect(() => {
+    if (currentLayerIdRef.current !== layer?.id) {
+      // Layer changed - cancel any pending debounced calls
+      debouncedFnRef.current.cancel();
+      currentLayerIdRef.current = layer?.id;
+    }
+  }, [layer?.id]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    const debouncedFn = debouncedFnRef.current;
+    return () => {
+      debouncedFn.cancel();
+    };
+  }, []);
+  
+  // Return a stable wrapper function
+  const debouncedUpdateDesignProperty = useCallback(
+    (
+      category: keyof NonNullable<Layer['design']>,
+      property: string,
+      value: string | null
+    ) => {
+      debouncedFnRef.current(category, property, value);
+    },
+    []
+  );
+
   return {
     updateDesignProperty,
     updateDesignProperties,
+    debouncedUpdateDesignProperty,
     getDesignProperty,
     resetDesignCategory,
     syncClassesToDesign,

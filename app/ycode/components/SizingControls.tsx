@@ -23,7 +23,7 @@ interface SizingControlsProps {
 
 export default function SizingControls({ layer, onLayerUpdate }: SizingControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
-  const { updateDesignProperty, getDesignProperty } = useDesignSync({
+  const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
@@ -57,12 +57,13 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
   const [maxWidthInput, setMaxWidthInput] = inputs.maxWidth;
   const [maxHeightInput, setMaxHeightInput] = inputs.maxHeight;
 
-  // Handle width changes
+  // Handle width changes (debounced for text input)
   const handleWidthChange = (value: string) => {
     setWidthInput(value);
-    updateDesignProperty('sizing', 'width', formatMeasurementValue(value));
+    debouncedUpdateDesignProperty('sizing', 'width', formatMeasurementValue(value));
   };
 
+  // Preset changes are immediate (button clicks)
   const handleWidthPresetChange = (value: string) => {
     if (value === 'w-[100%]') {
       setWidthInput('100%');
@@ -76,12 +77,13 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
     }
   };
 
-  // Handle height changes
+  // Handle height changes (debounced for text input)
   const handleHeightChange = (value: string) => {
     setHeightInput(value);
-    updateDesignProperty('sizing', 'height', formatMeasurementValue(value));
+    debouncedUpdateDesignProperty('sizing', 'height', formatMeasurementValue(value));
   };
 
+  // Preset changes are immediate (button clicks)
   const handleHeightPresetChange = (value: string) => {
     if (value === 'h-[100%]') {
       setHeightInput('100%');
@@ -92,26 +94,26 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
     }
   };
 
-  // Handle min/max width changes
+  // Handle min/max width changes (debounced for text input)
   const handleMinWidthChange = (value: string) => {
     setMinWidthInput(value);
-    updateDesignProperty('sizing', 'minWidth', formatMeasurementValue(value));
+    debouncedUpdateDesignProperty('sizing', 'minWidth', formatMeasurementValue(value));
   };
 
   const handleMaxWidthChange = (value: string) => {
     setMaxWidthInput(value);
-    updateDesignProperty('sizing', 'maxWidth', formatMeasurementValue(value));
+    debouncedUpdateDesignProperty('sizing', 'maxWidth', formatMeasurementValue(value));
   };
 
-  // Handle min/max height changes
+  // Handle min/max height changes (debounced for text input)
   const handleMinHeightChange = (value: string) => {
     setMinHeightInput(value);
-    updateDesignProperty('sizing', 'minHeight', formatMeasurementValue(value));
+    debouncedUpdateDesignProperty('sizing', 'minHeight', formatMeasurementValue(value));
   };
 
   const handleMaxHeightChange = (value: string) => {
     setMaxHeightInput(value);
-    updateDesignProperty('sizing', 'maxHeight', formatMeasurementValue(value));
+    debouncedUpdateDesignProperty('sizing', 'maxHeight', formatMeasurementValue(value));
   };
 
   return (

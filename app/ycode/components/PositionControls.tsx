@@ -22,7 +22,7 @@ interface PositionControlsProps {
 
 export default function PositionControls({ layer, onLayerUpdate }: PositionControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
-  const { updateDesignProperty, getDesignProperty } = useDesignSync({
+  const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
@@ -55,67 +55,67 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
   const [leftInput, setLeftInput] = inputs.left;
   const [zIndexInput, setZIndexInput] = inputs.zIndex;
 
-  // Handle position change
+  // Handle position change (immediate - dropdown selection)
   const handlePositionChange = (value: string) => {
     updateDesignProperty('positioning', 'position', value);
   };
 
-  // Handle top change
+  // Handle top change (debounced for text input)
   const handleTopChange = (value: string) => {
     setTopInput(value);
     if (value === 'auto') {
-      updateDesignProperty('positioning', 'top', 'auto');
+      debouncedUpdateDesignProperty('positioning', 'top', 'auto');
     } else {
       const sanitized = removeSpaces(value);
-      updateDesignProperty('positioning', 'top', sanitized || null);
+      debouncedUpdateDesignProperty('positioning', 'top', sanitized || null);
     }
   };
 
-  // Handle right change
+  // Handle right change (debounced for text input)
   const handleRightChange = (value: string) => {
     setRightInput(value);
     if (value === 'auto') {
-      updateDesignProperty('positioning', 'right', 'auto');
+      debouncedUpdateDesignProperty('positioning', 'right', 'auto');
     } else {
       const sanitized = removeSpaces(value);
-      updateDesignProperty('positioning', 'right', sanitized || null);
+      debouncedUpdateDesignProperty('positioning', 'right', sanitized || null);
     }
   };
 
-  // Handle bottom change
+  // Handle bottom change (debounced for text input)
   const handleBottomChange = (value: string) => {
     setBottomInput(value);
     if (value === 'auto') {
-      updateDesignProperty('positioning', 'bottom', 'auto');
+      debouncedUpdateDesignProperty('positioning', 'bottom', 'auto');
     } else {
       const sanitized = removeSpaces(value);
-      updateDesignProperty('positioning', 'bottom', sanitized || null);
+      debouncedUpdateDesignProperty('positioning', 'bottom', sanitized || null);
     }
   };
 
-  // Handle left change
+  // Handle left change (debounced for text input)
   const handleLeftChange = (value: string) => {
     setLeftInput(value);
     if (value === 'auto') {
-      updateDesignProperty('positioning', 'left', 'auto');
+      debouncedUpdateDesignProperty('positioning', 'left', 'auto');
     } else {
       const sanitized = removeSpaces(value);
-      updateDesignProperty('positioning', 'left', sanitized || null);
+      debouncedUpdateDesignProperty('positioning', 'left', sanitized || null);
     }
   };
 
-  // Handle z-index change
+  // Handle z-index change (debounced for text input)
   const handleZIndexChange = (value: string) => {
     setZIndexInput(value);
     if (value === 'auto') {
-      updateDesignProperty('positioning', 'zIndex', 'auto');
+      debouncedUpdateDesignProperty('positioning', 'zIndex', 'auto');
     } else {
       const sanitized = removeSpaces(value);
-      updateDesignProperty('positioning', 'zIndex', sanitized || null);
+      debouncedUpdateDesignProperty('positioning', 'zIndex', sanitized || null);
     }
   };
 
-  // Handle z-index slider change
+  // Handle z-index slider change (immediate - slider interaction)
   const handleZIndexSliderChange = (values: number[]) => {
     const value = values[0].toString();
     setZIndexInput(value);

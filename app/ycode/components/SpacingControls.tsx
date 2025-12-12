@@ -23,7 +23,7 @@ interface SpacingControlsProps {
 
 export default function SpacingControls({ layer, onLayerUpdate }: SpacingControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
-  const { updateDesignProperty, updateDesignProperties, getDesignProperty } = useDesignSync({
+  const { updateDesignProperty, updateDesignProperties, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
@@ -63,15 +63,15 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
     getCurrentValue: (prop: string) => getDesignProperty('spacing', prop) || '',
   });
   
-  // Handle margin changes
+  // Handle margin changes (debounced for smooth typing experience)
   const handleMarginChange = (value: string) => {
     setMarginInput(value);
     if (marginModeToggle.mode === 'all-borders') {
       if (value === 'auto') {
-        updateDesignProperty('spacing', 'margin', 'auto');
+        debouncedUpdateDesignProperty('spacing', 'margin', 'auto');
       } else {
         const sanitized = removeSpaces(value);
-        updateDesignProperty('spacing', 'margin', sanitized || null);
+        debouncedUpdateDesignProperty('spacing', 'margin', sanitized || null);
       }
     }
   };
@@ -79,40 +79,40 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
   const handleMarginTopChange = (value: string) => {
     setMarginTopInput(value);
     if (value === 'auto') {
-      updateDesignProperty('spacing', 'marginTop', 'auto');
+      debouncedUpdateDesignProperty('spacing', 'marginTop', 'auto');
     } else {
       const sanitized = removeSpaces(value);
-      updateDesignProperty('spacing', 'marginTop', sanitized || null);
+      debouncedUpdateDesignProperty('spacing', 'marginTop', sanitized || null);
     }
   };
   
   const handleMarginRightChange = (value: string) => {
     setMarginRightInput(value);
     if (value === 'auto') {
-      updateDesignProperty('spacing', 'marginRight', 'auto');
+      debouncedUpdateDesignProperty('spacing', 'marginRight', 'auto');
     } else {
       const sanitized = removeSpaces(value);
-      updateDesignProperty('spacing', 'marginRight', sanitized || null);
+      debouncedUpdateDesignProperty('spacing', 'marginRight', sanitized || null);
     }
   };
   
   const handleMarginBottomChange = (value: string) => {
     setMarginBottomInput(value);
     if (value === 'auto') {
-      updateDesignProperty('spacing', 'marginBottom', 'auto');
+      debouncedUpdateDesignProperty('spacing', 'marginBottom', 'auto');
     } else {
       const sanitized = removeSpaces(value);
-      updateDesignProperty('spacing', 'marginBottom', sanitized || null);
+      debouncedUpdateDesignProperty('spacing', 'marginBottom', sanitized || null);
     }
   };
   
   const handleMarginLeftChange = (value: string) => {
     setMarginLeftInput(value);
     if (value === 'auto') {
-      updateDesignProperty('spacing', 'marginLeft', 'auto');
+      debouncedUpdateDesignProperty('spacing', 'marginLeft', 'auto');
     } else {
       const sanitized = removeSpaces(value);
-      updateDesignProperty('spacing', 'marginLeft', sanitized || null);
+      debouncedUpdateDesignProperty('spacing', 'marginLeft', sanitized || null);
     }
   };
   

@@ -309,6 +309,13 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return draft ? draft.layers : [];
   }, [editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
+  // Check if we're waiting for a draft to load (page selected but no draft yet)
+  const isDraftLoading = useMemo(() => {
+    if (editingComponentId) return false;
+    if (!currentPageId) return false;
+    return !draftsByPageId[currentPageId];
+  }, [editingComponentId, currentPageId, draftsByPageId]);
+
   // Check if canvas is empty (only Body layer with no children)
   const isCanvasEmpty = useMemo(() => {
     if (layers.length === 0) return false; // No layers at all - handled separately
@@ -1306,6 +1313,16 @@ const CenterCanvas = React.memo(function CenterCanvas({
         ref={canvasContainerRef}
         className="flex-1 relative overflow-hidden bg-neutral-50 dark:bg-neutral-950/80"
       >
+        {/* Loading skeleton overlay when draft is being fetched */}
+        {isDraftLoading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-neutral-50/80 dark:bg-neutral-950/80 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+              <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm">Loading page...</span>
+            </div>
+          </div>
+        )}
+
         {/* Scrollable container with hidden scrollbars */}
         <div
           ref={scrollContainerRef}

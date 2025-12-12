@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, startTransition, Suspense, lazy } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
@@ -11,9 +11,11 @@ import { cn } from '@/lib/utils';
 
 // 4. Internal components
 import AssetLibrary from '@/components/AssetLibrary';
-import ElementLibrary from './ElementLibrary';
 import LayersTree from './LayersTree';
 import LeftSidebarPages from './LeftSidebarPages';
+
+// Lazy-loaded components (heavy, not needed immediately)
+const ElementLibrary = lazy(() => import('./ElementLibrary'));
 
 // 5. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -56,6 +58,14 @@ const LeftSidebar = React.memo(function LeftSidebar({
   const [hoveredCollectionId, setHoveredCollectionId] = useState<string | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
+  // Local state for instant tab switching - syncs with URL but allows immediate UI feedback
+  const [localActiveTab, setLocalActiveTab] = useState<EditorTab>(sidebarTab);
+
+  // Sync local tab with URL when URL changes (e.g., from navigation or page load)
+  useEffect(() => {
+    setLocalActiveTab(sidebarTab);
+  }, [sidebarTab]);
+
   // Optimize store subscriptions - use selective selectors
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const loadFolders = usePagesStore((state) => state.loadFolders);
@@ -80,8 +90,8 @@ const LeftSidebar = React.memo(function LeftSidebar({
   const updateCollection = useCollectionsStore((state) => state.updateCollection);
   const deleteCollection = useCollectionsStore((state) => state.deleteCollection);
 
-  // Sidebar tab is inferred from route, not stored in URL query param
-  const activeTab = sidebarTab;
+  // Use local state for immediate tab switching
+  const activeTab = localActiveTab;
 
   // Get component layers if in edit mode
   const editingComponent = editingComponentId ? getComponentById(editingComponentId) : null;
@@ -91,7 +101,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
     const handleToggleElementLibrary = (event: Event) => {
       const customEvent = event as CustomEvent<{ tab?: 'elements' | 'layouts' | 'components' }>;
       const tab = customEvent.detail?.tab;
-        
+
       if (tab) {
         setElementLibraryTab(tab);
         setShowElementLibrary(true);
@@ -146,11 +156,57 @@ const LeftSidebar = React.memo(function LeftSidebar({
   }, []);
 
   // Load draft when page changes (only if not already in store)
+  // Wrapped in startTransition so draft loading doesn't block UI updates
   useEffect(() => {
     if (currentPageId && !draftsByPageId[currentPageId]) {
-      loadDraft(currentPageId);
+      startTransition(() => {
+        loadDraft(currentPageId);
+      });
     }
   }, [currentPageId, loadDraft, draftsByPageId]);
+
+  // Preload adjacent page drafts in background for instant navigation
+  // Uses requestIdleCallback to avoid blocking the main thread
+  useEffect(() => {
+    if (!currentPageId || pages.length === 0) return;
+
+    // Find current page index
+    const currentIndex = pages.findIndex(p => p.id === currentPageId);
+    if (currentIndex === -1) return;
+
+    // Get adjacent pages (2 before, 2 after)
+    const adjacentPages = pages.slice(
+      Math.max(0, currentIndex - 2),
+      Math.min(pages.length, currentIndex + 3)
+    ).filter(p => p.id !== currentPageId);
+
+    // Preload drafts that aren't already cached
+    const pagesToPreload = adjacentPages.filter(p => !draftsByPageId[p.id]);
+
+    if (pagesToPreload.length === 0) return;
+
+    // Use requestIdleCallback for low-priority background loading
+    const preloadDrafts = () => {
+      pagesToPreload.forEach((page, index) => {
+        // Stagger requests to avoid flooding the server
+        setTimeout(() => {
+          if (!usePagesStore.getState().draftsByPageId[page.id]) {
+            loadDraft(page.id);
+          }
+        }, index * 100); // 100ms stagger between requests
+      });
+    };
+
+    // Check if requestIdleCallback is available (not in all browsers)
+    if ('requestIdleCallback' in window) {
+      const idleCallbackId = requestIdleCallback(preloadDrafts, { timeout: 2000 });
+      return () => cancelIdleCallback(idleCallbackId);
+    } else {
+      // Fallback: use setTimeout with a delay
+      const timeoutId = setTimeout(preloadDrafts, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentPageId, pages, draftsByPageId, loadDraft]);
 
   // Handle creating a new collection
   const handleCreateCollection = async () => {
@@ -272,228 +328,237 @@ const LeftSidebar = React.memo(function LeftSidebar({
     <>
       <div className="w-64 shrink-0 bg-background border-r flex overflow-hidden p-4 pb-0">
         {/* Tabs */}
-        <Tabs
-          value={activeTab}
-          onValueChange={(value) => {
-            const newTab = value as EditorTab;
-            setShowElementLibrary(false);
+        <div className="w-full">
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => {
+              const newTab = value as EditorTab;
 
-            // Navigate to appropriate route based on tab selection
-            if (newTab === 'layers') {
-              // Navigate to layers view for current page, or first page if none selected
-              const targetPageId = currentPageId || (pages.length > 0 ? pages[0].id : null);
-              if (targetPageId) {
-                navigateToLayers(targetPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
-              }
-            } else if (newTab === 'pages') {
-              // Navigate to pages view for current page, or first page if none selected
-              const targetPageId = currentPageId || (pages.length > 0 ? pages[0].id : null);
-              if (targetPageId) {
-                navigateToPage(targetPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
-              }
-            } else if (newTab === 'cms') {
-              // Navigate to first collection or selected collection
-              const collectionId = selectedCollectionId || (collections.length > 0 ? collections[0].id : null);
-              if (collectionId) {
-                openCollection(collectionId);
-              } else {
-                // No collections - navigate to base route
-                navigateToCollections();
-              }
-            }
-          }}
-          className="flex-1 gap-0"
-        >
-          <TabsList className="w-full shrink-0">
-            <TabsTrigger value="layers">Layers</TabsTrigger>
-            <TabsTrigger value="pages">Pages</TabsTrigger>
-            <TabsTrigger value="cms">CMS</TabsTrigger>
-          </TabsList>
+              // Immediately update local state for instant UI feedback
+              setLocalActiveTab(newTab);
+              setShowElementLibrary(false);
 
-          <hr className="mt-4" />
+              // Defer URL navigation to avoid blocking the UI
+              // startTransition marks this as a low-priority update
+              startTransition(() => {
+                if (newTab === 'layers') {
+                  const targetPageId = currentPageId || (pages.length > 0 ? pages[0].id : null);
+                  if (targetPageId) {
+                    navigateToLayers(targetPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
+                  }
+                } else if (newTab === 'pages') {
+                  const targetPageId = currentPageId || (pages.length > 0 ? pages[0].id : null);
+                  if (targetPageId) {
+                    navigateToPage(targetPageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
+                  }
+                } else if (newTab === 'cms') {
+                  const collectionId = selectedCollectionId || (collections.length > 0 ? collections[0].id : null);
+                  if (collectionId) {
+                    openCollection(collectionId);
+                  } else {
+                    navigateToCollections();
+                  }
+                }
+              });
+            }}
+            className="flex-1 gap-0"
+          >
+            <TabsList className="w-full shrink-0">
+              <TabsTrigger value="layers">Layers</TabsTrigger>
+              <TabsTrigger value="pages">Pages</TabsTrigger>
+              <TabsTrigger value="cms">CMS</TabsTrigger>
+            </TabsList>
 
-          {/* Content */}
-          <TabsContent value="layers" className="flex flex-col min-h-0">
-            <header className="py-5 flex justify-between shrink-0">
-              <span className="font-medium">Layers</span>
-              <div className="-my-1">
-                <Button
-                  size="xs" variant="secondary"
-                  onClick={() => setShowElementLibrary(prev => !prev)}
-                >
-                  <Icon name="plus" className={`${showElementLibrary ? 'rotate-45' : 'rotate-0'} transition-transform duration-100`} />
-                </Button>
-              </div>
-            </header>
-            <div className="flex flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar pb-4">
-              {!currentPageId && !editingComponentId ? (
-                <Empty>
-                  <EmptyTitle>No page selected</EmptyTitle>
-                  <EmptyDescription>Select a page from the Pages tab to start building</EmptyDescription>
-                </Empty>
-              ) : layersForCurrentPage.length === 0 ? (
+            <hr className="mt-4" />
+
+            {/* Content - forceMount keeps all tabs mounted for instant switching */}
+            <TabsContent
+              value="layers" className="flex flex-col min-h-0"
+              forceMount
+            >
+              <header className="py-5 flex justify-between shrink-0">
+                <span className="font-medium">Layers</span>
+                <div className="-my-1">
+                  <Button
+                    size="xs" variant="secondary"
+                    onClick={() => setShowElementLibrary(prev => !prev)}
+                  >
+                    <Icon name="plus" className={`${showElementLibrary ? 'rotate-45' : 'rotate-0'} transition-transform duration-100`} />
+                  </Button>
+                </div>
+              </header>
+              <div className="flex flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar pb-4">
+                {!currentPageId && !editingComponentId ? (
+                  <Empty>
+                    <EmptyTitle>No page selected</EmptyTitle>
+                    <EmptyDescription>Select a page from the Pages tab to start building</EmptyDescription>
+                  </Empty>
+                ) : layersForCurrentPage.length === 0 ? (
                   <Empty>
                     <EmptyTitle>No layers yet</EmptyTitle>
                     <EmptyDescription>Click the + button above to add your first block</EmptyDescription>
                   </Empty>
-              ) : (
-                <LayersTree
-                  layers={layersForCurrentPage}
-                  selectedLayerId={selectedLayerId}
-                  selectedLayerIds={selectedLayerIds}
-                  onLayerSelect={onLayerSelect}
-                  onReorder={handleLayersReorder}
-                  pageId={currentPageId || ''}
-                />
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="pages">
-            <LeftSidebarPages
-              pages={pages}
-              folders={folders}
-              currentPageId={currentPageId}
-              onPageSelect={onPageSelect}
-              setCurrentPageId={setCurrentPageId}
-            />
-          </TabsContent>
-
-          <TabsContent value="cms">
-            <header className="py-5 flex justify-between">
-              <span className="font-medium">Collections</span>
-              <div className="-my-1">
-                <Button
-                  size="xs"
-                  variant="secondary"
-                  onClick={handleCreateCollection}
-                >
-                  <Icon name="plus" />
-                </Button>
+                ) : (
+                  <LayersTree
+                    layers={layersForCurrentPage}
+                    selectedLayerId={selectedLayerId}
+                    selectedLayerIds={selectedLayerIds}
+                    onLayerSelect={onLayerSelect}
+                    onReorder={handleLayersReorder}
+                    pageId={currentPageId || ''}
+                  />
+                )}
               </div>
-            </header>
+            </TabsContent>
 
-            <div className="flex flex-col">
-              {collections.map((collection) => {
-                const isSelected = selectedCollectionId === collection.id;
-                const isRenaming = renamingCollectionId === collection.id;
-                const isHovered = hoveredCollectionId === collection.id;
+            <TabsContent value="pages" forceMount>
+              <LeftSidebarPages
+                pages={pages}
+                folders={folders}
+                currentPageId={currentPageId}
+                onPageSelect={onPageSelect}
+                setCurrentPageId={setCurrentPageId}
+              />
+            </TabsContent>
 
-                return (
-                  <div key={collection.id}>
-                    {isRenaming ? (
-                      <div className="pl-3 pr-1.5 h-8 rounded-lg flex gap-2 items-center bg-secondary/50">
-                        <Icon name="database" className="size-3 shrink-0" />
-                        <Input
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleRenameSubmit();
-                            } else if (e.key === 'Escape') {
-                              handleRenameCancel();
-                            }
-                          }}
-                          onBlur={handleRenameCancel}
-                          autoFocus
-                          className="h-6 px-1 py-0 text-xs rounded-md -ml-1"
-                        />
-                      </div>
-                    ) : (
-                      <ContextMenu>
-                        <ContextMenuTrigger asChild>
-                          <div
-                            className={cn(
-                              'px-3 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full group cursor-pointer',
-                              isSelected
-                                ? 'bg-primary text-primary-foreground'
-                                : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
-                            )}
-                            onClick={() => {
-                              openCollection(collection.id);
+            <TabsContent value="cms" forceMount>
+              <header className="py-5 flex justify-between">
+                <span className="font-medium">Collections</span>
+                <div className="-my-1">
+                  <Button
+                    size="xs"
+                    variant="secondary"
+                    onClick={handleCreateCollection}
+                  >
+                    <Icon name="plus" />
+                  </Button>
+                </div>
+              </header>
+
+              <div className="flex flex-col">
+                {collections.map((collection) => {
+                  const isSelected = selectedCollectionId === collection.id;
+                  const isRenaming = renamingCollectionId === collection.id;
+                  const isHovered = hoveredCollectionId === collection.id;
+
+                  return (
+                    <div key={collection.id}>
+                      {isRenaming ? (
+                        <div className="pl-3 pr-1.5 h-8 rounded-lg flex gap-2 items-center bg-secondary/50">
+                          <Icon name="database" className="size-3 shrink-0" />
+                          <Input
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleRenameSubmit();
+                              } else if (e.key === 'Escape') {
+                                handleRenameCancel();
+                              }
                             }}
-                            onContextMenu={() => {
-                              setSelectedCollectionId(collection.id);
-                            }}
-                            onDoubleClick={() => handleCollectionDoubleClick(collection)}
-                            onMouseEnter={() => setHoveredCollectionId(collection.id)}
-                            onMouseLeave={() => setHoveredCollectionId(null)}
-                          >
-                            <div className="flex gap-2 items-center">
-                              <Icon name="database" className="size-3" />
-                              <span>{collection.name}</span>
-                            </div>
+                            onBlur={handleRenameCancel}
+                            autoFocus
+                            className="h-6 px-1 py-0 text-xs rounded-md -ml-1"
+                          />
+                        </div>
+                      ) : (
+                        <ContextMenu>
+                          <ContextMenuTrigger asChild>
+                            <div
+                              className={cn(
+                                'px-3 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full group cursor-pointer',
+                                isSelected
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
+                              )}
+                              onClick={() => {
+                                openCollection(collection.id);
+                              }}
+                              onContextMenu={() => {
+                                setSelectedCollectionId(collection.id);
+                              }}
+                              onDoubleClick={() => handleCollectionDoubleClick(collection)}
+                              onMouseEnter={() => setHoveredCollectionId(collection.id)}
+                              onMouseLeave={() => setHoveredCollectionId(null)}
+                            >
+                              <div className="flex gap-2 items-center">
+                                <Icon name="database" className="size-3" />
+                                <span>{collection.name}</span>
+                              </div>
 
-                            <div className="group-hover:opacity-100 opacity-0">
+                              <div className="group-hover:opacity-100 opacity-0">
 
-                              <DropdownMenu
-                                open={openDropdownId === collection.id}
-                                onOpenChange={(open) => setOpenDropdownId(open ? collection.id : null)}
-                              >
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    size="xs"
-                                    variant={isSelected ? 'default' : 'ghost'}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                    }}
-                                    className="-mr-2"
-                                  >
-                                    <Icon name="more" className="size-3" />
-                                  </Button>
-                                </DropdownMenuTrigger>
+                                <DropdownMenu
+                                  open={openDropdownId === collection.id}
+                                  onOpenChange={(open) => setOpenDropdownId(open ? collection.id : null)}
+                                >
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      size="xs"
+                                      variant={isSelected ? 'default' : 'ghost'}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                      }}
+                                      className="-mr-2"
+                                    >
+                                      <Icon name="more" className="size-3" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
 
-                                <DropdownMenuContent>
-                                  <DropdownMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
-                                    Rename
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleCollectionDelete(collection.id)}>
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
+                                  <DropdownMenuContent>
+                                    <DropdownMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
+                                      Rename
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleCollectionDelete(collection.id)}>
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
 
-                              </DropdownMenu>
+                                </DropdownMenu>
 
-                            </div>
+                              </div>
 
                               <span className="group-hover:hidden block text-xs opacity-50">
                                 {collection.draft_items_count}
                               </span>
 
-                          </div>
-                        </ContextMenuTrigger>
-                        <ContextMenuContent>
-                          <ContextMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
-                            Rename
-                          </ContextMenuItem>
-                          <ContextMenuItem onClick={() => handleCollectionDelete(collection.id)}>
-                            Delete
-                          </ContextMenuItem>
-                        </ContextMenuContent>
-                      </ContextMenu>
-                    )}
-                  </div>
-                );
-              })}
+                            </div>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent>
+                            <ContextMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
+                              Rename
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => handleCollectionDelete(collection.id)}>
+                              Delete
+                            </ContextMenuItem>
+                          </ContextMenuContent>
+                        </ContextMenu>
+                      )}
+                    </div>
+                  );
+                })}
 
-              {collections.length === 0 && (
-                <Empty>
-                  <EmptyTitle>Collections</EmptyTitle>
-                  <EmptyDescription>No collections yet. Click + to create new.</EmptyDescription>
-                </Empty>
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
+                {collections.length === 0 && (
+                  <Empty>
+                    <EmptyTitle>Collections</EmptyTitle>
+                    <EmptyDescription>No collections yet. Click + to create new.</EmptyDescription>
+                  </Empty>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
 
-      {/* Element Library Slide-Out */}
+      {/* Element Library Slide-Out (lazy loaded) */}
       {showElementLibrary && (
-        <ElementLibrary
-          isOpen={showElementLibrary}
-          onClose={() => setShowElementLibrary(false)}
-          defaultTab={elementLibraryTab}
-        />
+        <Suspense fallback={null}>
+          <ElementLibrary
+            isOpen={showElementLibrary}
+            onClose={() => setShowElementLibrary(false)}
+            defaultTab={elementLibraryTab}
+          />
+        </Suspense>
       )}
     </>
   );

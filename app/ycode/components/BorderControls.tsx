@@ -24,7 +24,7 @@ interface BorderControlsProps {
 
 export default function BorderControls({ layer, onLayerUpdate }: BorderControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
-  const { updateDesignProperty, updateDesignProperties, getDesignProperty } = useDesignSync({
+  const { updateDesignProperty, updateDesignProperties, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
@@ -93,74 +93,73 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
     getCurrentValue: (prop: string) => getDesignProperty('borders', prop) || '',
   });
   
-  // Extract numeric value from design property
-  // Handle radius changes
+  // Handle radius changes (debounced for text input)
   const handleRadiusChange = (value: string) => {
     setBorderRadiusInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('borders', 'borderRadius', sanitized || null);
+    debouncedUpdateDesignProperty('borders', 'borderRadius', sanitized || null);
   };
   
   const handleTopLeftRadiusChange = (value: string) => {
     setBorderTopLeftRadiusInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('borders', 'borderTopLeftRadius', sanitized || null);
+    debouncedUpdateDesignProperty('borders', 'borderTopLeftRadius', sanitized || null);
   };
   
   const handleTopRightRadiusChange = (value: string) => {
     setBorderTopRightRadiusInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('borders', 'borderTopRightRadius', sanitized || null);
+    debouncedUpdateDesignProperty('borders', 'borderTopRightRadius', sanitized || null);
   };
   
   const handleBottomRightRadiusChange = (value: string) => {
     setBorderBottomRightRadiusInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('borders', 'borderBottomRightRadius', sanitized || null);
+    debouncedUpdateDesignProperty('borders', 'borderBottomRightRadius', sanitized || null);
   };
   
   const handleBottomLeftRadiusChange = (value: string) => {
     setBorderBottomLeftRadiusInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('borders', 'borderBottomLeftRadius', sanitized || null);
+    debouncedUpdateDesignProperty('borders', 'borderBottomLeftRadius', sanitized || null);
   };
   
-  // Handle border width changes
+  // Handle border width changes (debounced for text input)
   const handleBorderWidthChange = (value: string) => {
     setBorderWidthInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('borders', 'borderWidth', sanitized || null);
+    debouncedUpdateDesignProperty('borders', 'borderWidth', sanitized || null);
   };
   
   const handleTopWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
-    updateDesignProperty('borders', 'borderTopWidth', sanitized || null);
+    debouncedUpdateDesignProperty('borders', 'borderTopWidth', sanitized || null);
   };
   
   const handleRightWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
-    updateDesignProperty('borders', 'borderRightWidth', sanitized || null);
+    debouncedUpdateDesignProperty('borders', 'borderRightWidth', sanitized || null);
   };
   
   const handleBottomWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
-    updateDesignProperty('borders', 'borderBottomWidth', sanitized || null);
+    debouncedUpdateDesignProperty('borders', 'borderBottomWidth', sanitized || null);
   };
   
   const handleLeftWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
-    updateDesignProperty('borders', 'borderLeftWidth', sanitized || null);
+    debouncedUpdateDesignProperty('borders', 'borderLeftWidth', sanitized || null);
   };
   
-  // Handle border style change
+  // Handle border style change (immediate - dropdown selection)
   const handleBorderStyleChange = (value: string) => {
     updateDesignProperty('borders', 'borderStyle', value);
   };
   
-  // Handle border color change
+  // Handle border color change (debounced for text input)
   const handleBorderColorChange = (value: string) => {
     const sanitized = removeSpaces(value);
-    updateDesignProperty('borders', 'borderColor', sanitized || null);
+    debouncedUpdateDesignProperty('borders', 'borderColor', sanitized || null);
   };
   
   // Add border

@@ -19,22 +19,24 @@
  */
 
 // 1. React/Next.js
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback, Suspense, lazy } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 // 2. Internal components
 import CenterCanvas from '../components/CenterCanvas';
-import CMS from '../components/CMS';
 import HeaderBar from '../components/HeaderBar';
 import LeftSidebar from '../components/LeftSidebar';
-import RightSidebar from '../components/RightSidebar';
 import SettingsContent from '../components/SettingsContent';
 import LocalizationContent from '../components/LocalizationContent';
 import UpdateNotification from '@/components/UpdateNotification';
 import MigrationChecker from '@/components/MigrationChecker';
 import BuilderLoading from '@/components/BuilderLoading';
-import CollectionItemSheet from '../components/CollectionItemSheet';
+
+// Lazy-loaded components (heavy, not needed on initial render)
+const RightSidebar = lazy(() => import('../components/RightSidebar'));
+const CMS = lazy(() => import('../components/CMS'));
+const CollectionItemSheet = lazy(() => import('../components/CollectionItemSheet'));
 
 // 3. Hooks
 // useCanvasCSS removed - now handled by iframe with Tailwind JIT CDN
@@ -1379,7 +1381,9 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
             {/* Conditional Content Based on Active Tab */}
             {activeTab === 'cms' ? (
-              <CMS />
+              <Suspense fallback={null}>
+                <CMS />
+              </Suspense>
             ) : (
               <>
                 {/* Center Canvas - Preview */}
@@ -1390,37 +1394,39 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                   setViewportMode={setViewportMode}
                 />
 
-                {/* Right Sidebar - Properties (hidden in preview mode) */}
+                {/* Right Sidebar - Properties (lazy loaded, hidden in preview mode) */}
                 {!isPreviewMode && (
-                  <RightSidebar
-                    selectedLayerId={selectedLayerId}
-                    onLayerUpdate={(layerId, updates) => {
-                      // If editing component, update component draft
-                      if (editingComponentId) {
-                        const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
-                        const layers = componentDrafts[editingComponentId] || [];
+                  <Suspense fallback={<div className="w-72 shrink-0 bg-background border-l" />}>
+                    <RightSidebar
+                      selectedLayerId={selectedLayerId}
+                      onLayerUpdate={(layerId, updates) => {
+                        // If editing component, update component draft
+                        if (editingComponentId) {
+                          const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
+                          const layers = componentDrafts[editingComponentId] || [];
 
-                        // Find and update layer in tree
-                        const updateLayerInTree = (tree: Layer[]): Layer[] => {
-                          return tree.map(layer => {
-                            if (layer.id === layerId) {
-                              return { ...layer, ...updates };
-                            }
-                            if (layer.children) {
-                              return { ...layer, children: updateLayerInTree(layer.children) };
-                            }
-                            return layer;
-                          });
-                        };
+                          // Find and update layer in tree
+                          const updateLayerInTree = (tree: Layer[]): Layer[] => {
+                            return tree.map(layer => {
+                              if (layer.id === layerId) {
+                                return { ...layer, ...updates };
+                              }
+                              if (layer.children) {
+                                return { ...layer, children: updateLayerInTree(layer.children) };
+                              }
+                              return layer;
+                            });
+                          };
 
-                        const updatedLayers = updateLayerInTree(layers);
-                        updateComponentDraft(editingComponentId, updatedLayers);
-                      } else if (currentPageId) {
-                        // Regular page mode
-                        updateLayer(currentPageId, layerId, updates);
-                      }
-                    }}
-                  />
+                          const updatedLayers = updateLayerInTree(layers);
+                          updateComponentDraft(editingComponentId, updatedLayers);
+                        } else if (currentPageId) {
+                          // Regular page mode
+                          updateLayer(currentPageId, layerId, updates);
+                        }
+                      }}
+                    />
+                  </Suspense>
                 )}
               </>
             )}
@@ -1429,9 +1435,9 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       </div>
     </div>
 
-    {/* Collection Item Sheet - renders globally */}
-    {(() => {
-      return collectionItemSheet && (
+    {/* Collection Item Sheet - renders globally (lazy loaded) */}
+    {collectionItemSheet && (
+      <Suspense fallback={null}>
         <CollectionItemSheet
           open={collectionItemSheet.open}
           onOpenChange={(open) => {
@@ -1444,8 +1450,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             closeCollectionItemSheet();
           }}
         />
-      );
-    })()}
+      </Suspense>
+    )}
     </>
   );
 }

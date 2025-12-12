@@ -24,7 +24,7 @@ interface LayoutControlsProps {
 
 export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
-  const { updateDesignProperty, updateDesignProperties, getDesignProperty } = useDesignSync({
+  const { updateDesignProperty, updateDesignProperties, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
@@ -137,69 +137,70 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     updateDesignProperty('layout', 'flexWrap', value === 'yes' ? 'wrap' : 'nowrap');
   };
 
-  // Handle gap changes
+  // Handle gap changes (debounced for text input)
   const handleGapChange = (value: string) => {
     setGapInput(value);
     if (gapModeToggle.mode === 'all-borders') {
       const sanitized = removeSpaces(value);
-      updateDesignProperty('layout', 'gap', sanitized || null);
+      debouncedUpdateDesignProperty('layout', 'gap', sanitized || null);
     }
   };
 
   const handleColumnGapChange = (value: string) => {
     setColumnGapInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('layout', 'columnGap', sanitized || null);
+    debouncedUpdateDesignProperty('layout', 'columnGap', sanitized || null);
   };
 
   const handleRowGapChange = (value: string) => {
     setRowGapInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('layout', 'rowGap', sanitized || null);
+    debouncedUpdateDesignProperty('layout', 'rowGap', sanitized || null);
   };
 
-  // Handle padding changes
+  // Handle padding changes (debounced for text input)
   const handlePaddingChange = (value: string) => {
     setPaddingInput(value);
     if (paddingModeToggle.mode === 'all-borders') {
       const sanitized = removeSpaces(value);
-      updateDesignProperty('spacing', 'padding', sanitized || null);
+      debouncedUpdateDesignProperty('spacing', 'padding', sanitized || null);
     }
   };
 
   const handlePaddingTopChange = (value: string) => {
     setPaddingTopInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('spacing', 'paddingTop', sanitized || null);
+    debouncedUpdateDesignProperty('spacing', 'paddingTop', sanitized || null);
   };
 
   const handlePaddingRightChange = (value: string) => {
     setPaddingRightInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('spacing', 'paddingRight', sanitized || null);
+    debouncedUpdateDesignProperty('spacing', 'paddingRight', sanitized || null);
   };
 
   const handlePaddingBottomChange = (value: string) => {
     setPaddingBottomInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('spacing', 'paddingBottom', sanitized || null);
+    debouncedUpdateDesignProperty('spacing', 'paddingBottom', sanitized || null);
   };
 
   const handlePaddingLeftChange = (value: string) => {
     setPaddingLeftInput(value);
     const sanitized = removeSpaces(value);
-    updateDesignProperty('spacing', 'paddingLeft', sanitized || null);
+    debouncedUpdateDesignProperty('spacing', 'paddingLeft', sanitized || null);
   };
 
-  // Handle grid template changes
+  // Handle grid template changes (debounced for text input)
   const handleGridColsChange = (value: string) => {
     const sanitized = removeSpaces(value);
-    updateDesignProperty('layout', 'gridTemplateColumns', sanitized || null);
+    debouncedUpdateDesignProperty('layout', 'gridTemplateColumns', sanitized || null);
   };
 
+  // Handle grid rows change (debounced for text input)
   const handleGridRowsChange = (value: string) => {
     const sanitized = removeSpaces(value);
-    updateDesignProperty('layout', 'gridTemplateRows', sanitized || null);
+    debouncedUpdateDesignProperty('layout', 'gridTemplateRows', sanitized || null);
   };
 
   // Extract numeric value from design property

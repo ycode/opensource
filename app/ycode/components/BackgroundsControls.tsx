@@ -16,7 +16,7 @@ interface BackgroundsControlsProps {
 
 export default function BackgroundsControls({ layer, onLayerUpdate }: BackgroundsControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
-  const { updateDesignProperty, getDesignProperty } = useDesignSync({
+  const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
@@ -30,34 +30,33 @@ export default function BackgroundsControls({ layer, onLayerUpdate }: Background
   const backgroundPosition = getDesignProperty('backgrounds', 'backgroundPosition') || 'center';
   const backgroundRepeat = getDesignProperty('backgrounds', 'backgroundRepeat') || 'no-repeat';
 
-  // Handle background color change
+  // Handle background color change (debounced for text/color input)
   const handleBackgroundColorChange = (value: string) => {
     const sanitized = removeSpaces(value);
-    updateDesignProperty('backgrounds', 'backgroundColor', sanitized || null);
+    debouncedUpdateDesignProperty('backgrounds', 'backgroundColor', sanitized || null);
   };
 
-  // Handle background image change
+  // Handle background image change (debounced for text input)
   const handleBackgroundImageChange = (value: string) => {
     const sanitized = removeSpaces(value);
+    let processedValue = sanitized;
     if (sanitized && !sanitized.startsWith('url(')) {
-      value = `url(${sanitized})`;
-    } else {
-      value = sanitized;
+      processedValue = `url(${sanitized})`;
     }
-    updateDesignProperty('backgrounds', 'backgroundImage', value || null);
+    debouncedUpdateDesignProperty('backgrounds', 'backgroundImage', processedValue || null);
   };
 
-  // Handle background size change
+  // Handle background size change (immediate - dropdown selection)
   const handleBackgroundSizeChange = (value: string) => {
     updateDesignProperty('backgrounds', 'backgroundSize', value);
   };
 
-  // Handle background position change
+  // Handle background position change (immediate - dropdown selection)
   const handleBackgroundPositionChange = (value: string) => {
     updateDesignProperty('backgrounds', 'backgroundPosition', value);
   };
 
-  // Handle background repeat change
+  // Handle background repeat change (immediate - dropdown selection)
   const handleBackgroundRepeatChange = (value: string) => {
     updateDesignProperty('backgrounds', 'backgroundRepeat', value);
   };
