@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
-import { getLayerHtmlTag, getClassesString, getText, getImageUrl, resolveFieldValue, isTextEditable, getCollectionVariable } from '../../lib/layer-utils';
+import { getLayerHtmlTag, getClassesString, getText, getImageUrl, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '../../lib/layer-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 import { useComponentsStore } from '../../stores/useComponentsStore';
@@ -305,6 +305,30 @@ const LayerItem: React.FC<{
   // Check if layer should be hidden (hide completely in both edit mode and public pages)
   if (layer.settings?.hidden) {
     return null;
+  }
+
+  // Evaluate conditional visibility (only in edit mode - SSR handles published pages)
+  const conditionalVisibility = layer.variables?.conditionalVisibility;
+  if (isEditMode && conditionalVisibility && conditionalVisibility.groups?.length > 0) {
+    // Build page collection counts from the store
+    const pageCollectionCounts: Record<string, number> = {};
+    conditionalVisibility.groups.forEach(group => {
+      group.conditions?.forEach(condition => {
+        if (condition.source === 'page_collection' && condition.collectionLayerId) {
+          // Use the layerData from the store for collection counts
+          const storeData = useCollectionLayerStore.getState().layerData[condition.collectionLayerId];
+          pageCollectionCounts[condition.collectionLayerId] = storeData?.length ?? 0;
+        }
+      });
+    });
+
+    const isVisible = evaluateVisibility(conditionalVisibility, {
+      collectionItemData: effectiveCollectionItemData,
+      pageCollectionCounts,
+    });
+    if (!isVisible) {
+      return null;
+    }
   }
 
   // Render element-specific content

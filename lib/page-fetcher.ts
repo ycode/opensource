@@ -3,7 +3,7 @@ import { buildSlugPath } from '@/lib/page-utils';
 import { getItemWithValues, getItemsWithValues } from '@/lib/repositories/collectionItemRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer } from '@/types';
-import { getCollectionVariable, resolveFieldValue, isFieldVariable } from '@/lib/layer-utils';
+import { getCollectionVariable, resolveFieldValue, isFieldVariable, evaluateVisibility } from '@/lib/layer-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 
 export interface PageData {
@@ -794,7 +794,9 @@ export async function resolveCollectionLayers(
                   collection: undefined,  // Remove collection binding from clone
                 },
                 children: injectedChildren,
-              };
+                // Store item values for visibility filtering (SSR only, not serialized to client)
+                _collectionItemValues: item.values,
+              } as Layer;
             })
           );
 
@@ -839,5 +841,90 @@ export async function resolveCollectionLayers(
   console.log('[resolveCollectionLayers] ===== END =====');
   console.log('[resolveCollectionLayers] Processed layers count:', result.length);
   
-  return result;
+  // Second pass: Filter layers by conditional visibility
+  // We need to compute collection counts first, then filter
+  const filteredResult = filterByVisibility(result, parentItemValues);
+  
+  return filteredResult;
+}
+
+/**
+ * Compute item counts for all collection layers in a layer tree
+ * Used for evaluating page collection visibility conditions
+ */
+function computeCollectionCounts(layers: Layer[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  
+  function traverse(layerList: Layer[]) {
+    for (const layer of layerList) {
+      // If this is a fragment containing cloned collection items, count them
+      if (layer.name === '_fragment' && layer.children) {
+        // Find the original layer ID (before -fragment suffix)
+        const originalId = layer.id.replace('-fragment', '');
+        counts[originalId] = layer.children.length;
+      }
+      
+      // Also check for pre-resolved collection items
+      if (layer._collectionItems) {
+        counts[layer.id] = layer._collectionItems.length;
+      }
+      
+      if (layer.children) {
+        traverse(layer.children);
+      }
+    }
+  }
+  
+  traverse(layers);
+  return counts;
+}
+
+/**
+ * Filter layers by conditional visibility rules
+ * @param layers - Layer tree to filter
+ * @param itemValues - Current collection item values for field conditions
+ * @returns Filtered layer tree with hidden layers removed
+ */
+function filterByVisibility(
+  layers: Layer[],
+  itemValues?: Record<string, string>
+): Layer[] {
+  // First compute all collection counts
+  const pageCollectionCounts = computeCollectionCounts(layers);
+  
+  function filterLayer(layer: Layer, currentItemValues?: Record<string, string>): Layer | null {
+    // Use stored item values from cloned collection layers if available
+    // This ensures children of collection items have access to the correct item values
+    const effectiveItemValues = layer._collectionItemValues || currentItemValues;
+    
+    // Check conditional visibility
+    const conditionalVisibility = layer.variables?.conditionalVisibility;
+    if (conditionalVisibility && conditionalVisibility.groups?.length > 0) {
+      const isVisible = evaluateVisibility(conditionalVisibility, {
+        collectionItemData: effectiveItemValues,
+        pageCollectionCounts,
+      });
+      if (!isVisible) {
+        return null;
+      }
+    }
+    
+    // Recursively filter children, passing down the effective item values
+    if (layer.children) {
+      const filteredChildren = layer.children
+        .map(child => filterLayer(child, effectiveItemValues))
+        .filter((child): child is Layer => child !== null);
+      
+      return {
+        ...layer,
+        children: filteredChildren,
+      };
+    }
+    
+    return layer;
+  }
+  
+  return layers
+    .map(layer => filterLayer(layer, itemValues))
+    .filter((layer): layer is Layer => layer !== null);
 }

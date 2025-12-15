@@ -543,3 +543,376 @@ export function regenerateIdsWithInteractionRemapping(layer: Layer): Layer {
 
   return remapInteractions(layerWithNewIds);
 }
+
+/**
+ * Collection layer info for conditional visibility
+ */
+export interface CollectionLayerInfo {
+  layerId: string;
+  layerName: string;
+  collectionId: string;
+}
+
+/**
+ * Find all collection layers in a layer tree
+ * Used for page collections dropdown in conditional visibility
+ * Only finds top-level collection layers (direct layers bound to CMS collections),
+ * not nested ones or reference field collections.
+ * @param layers - Root layers array
+ * @param topLevelOnly - If true, only returns the first collection layer found in each branch
+ * @returns Array of collection layer info
+ */
+export function findAllCollectionLayers(layers: Layer[], topLevelOnly: boolean = true): CollectionLayerInfo[] {
+  const result: CollectionLayerInfo[] = [];
+
+  const traverse = (layerList: Layer[], foundCollectionInBranch: boolean = false) => {
+    for (const layer of layerList) {
+      const collectionVariable = getCollectionVariable(layer);
+      
+      // If this layer is a collection layer
+      if (collectionVariable) {
+        // Only add if we haven't found a collection parent in this branch (for topLevelOnly mode)
+        if (!topLevelOnly || !foundCollectionInBranch) {
+          // Use customName if set, otherwise fallback to 'Collection'
+          // Don't use layer.name as it's just the element type (e.g., 'div', 'section')
+          result.push({
+            layerId: layer.id,
+            layerName: layer.customName || 'Collection',
+            collectionId: collectionVariable.id,
+          });
+        }
+        // Continue traversing children, but mark that we've found a collection in this branch
+        if (layer.children) {
+          traverse(layer.children, true);
+        }
+      } else {
+        // Not a collection layer, continue traversing
+        if (layer.children) {
+          traverse(layer.children, foundCollectionInBranch);
+        }
+      }
+    }
+  };
+
+  traverse(layers);
+  return result;
+}
+
+/**
+ * Context for evaluating visibility conditions
+ */
+export interface VisibilityContext {
+  /** Field values from parent collection item (field_id -> value) */
+  collectionItemData?: Record<string, string>;
+  /** Item counts for each collection layer on the page (layerId -> count) */
+  pageCollectionCounts?: Record<string, number>;
+  /** Field definitions for type-aware comparison */
+  collectionFields?: CollectionField[];
+}
+
+/**
+ * Evaluate a single visibility condition
+ * @param condition - The condition to evaluate
+ * @param context - The context containing field values and collection counts
+ * @returns True if condition is met, false otherwise
+ */
+function evaluateCondition(
+  condition: import('@/types').VisibilityCondition,
+  context: VisibilityContext
+): boolean {
+  const { collectionItemData, pageCollectionCounts, collectionFields } = context;
+
+  if (condition.source === 'page_collection') {
+    // Page collection conditions
+    const count = pageCollectionCounts?.[condition.collectionLayerId || ''] ?? 0;
+    
+    switch (condition.operator) {
+      case 'has_items':
+        return count > 0;
+      case 'has_no_items':
+        return count === 0;
+      case 'item_count': {
+        const compareValue = condition.compareValue ?? 0;
+        const compareOp = condition.compareOperator ?? 'eq';
+        switch (compareOp) {
+          case 'eq': return count === compareValue;
+          case 'lt': return count < compareValue;
+          case 'lte': return count <= compareValue;
+          case 'gt': return count > compareValue;
+          case 'gte': return count >= compareValue;
+          default: return count === compareValue;
+        }
+      }
+      default:
+        return true;
+    }
+  }
+
+  // Collection field conditions
+  if (condition.source === 'collection_field') {
+    const fieldId = condition.fieldId;
+    if (!fieldId) return true;
+
+    const rawValue = collectionItemData?.[fieldId];
+    const value = rawValue ?? '';
+    const compareValue = condition.value ?? '';
+    const fieldType = condition.fieldType || 'text';
+
+    // Check if value is present (non-empty)
+    const isPresent = rawValue !== undefined && rawValue !== null && rawValue !== '';
+
+    switch (condition.operator) {
+      // Text operators
+      case 'is':
+        if (fieldType === 'boolean') {
+          return value.toLowerCase() === compareValue.toLowerCase();
+        }
+        if (fieldType === 'number') {
+          return parseFloat(value) === parseFloat(compareValue);
+        }
+        return value === compareValue;
+      
+      case 'is_not':
+        if (fieldType === 'number') {
+          return parseFloat(value) !== parseFloat(compareValue);
+        }
+        return value !== compareValue;
+      
+      case 'contains':
+        return value.toLowerCase().includes(compareValue.toLowerCase());
+      
+      case 'does_not_contain':
+        return !value.toLowerCase().includes(compareValue.toLowerCase());
+      
+      case 'is_present':
+        return isPresent;
+      
+      case 'is_empty':
+        return !isPresent;
+
+      // Number operators
+      case 'lt':
+        return parseFloat(value) < parseFloat(compareValue);
+      
+      case 'lte':
+        return parseFloat(value) <= parseFloat(compareValue);
+      
+      case 'gt':
+        return parseFloat(value) > parseFloat(compareValue);
+      
+      case 'gte':
+        return parseFloat(value) >= parseFloat(compareValue);
+
+      // Date operators
+      case 'is_before': {
+        const dateValue = new Date(value);
+        const compareDateValue = new Date(compareValue);
+        return dateValue < compareDateValue;
+      }
+      
+      case 'is_after': {
+        const dateValue = new Date(value);
+        const compareDateValue = new Date(compareValue);
+        return dateValue > compareDateValue;
+      }
+      
+      case 'is_between': {
+        const dateValue = new Date(value);
+        const startDate = new Date(compareValue);
+        const endDate = new Date(condition.value2 ?? '');
+        return dateValue >= startDate && dateValue <= endDate;
+      }
+      
+      case 'is_not_empty':
+        return isPresent;
+
+      // Reference operators
+      case 'is_one_of': {
+        try {
+          const allowedIds = JSON.parse(compareValue || '[]');
+          if (!Array.isArray(allowedIds)) return false;
+          // For multi-reference, value might be a JSON array
+          try {
+            const valueIds = JSON.parse(value);
+            if (Array.isArray(valueIds)) {
+              // Check if any of the value IDs are in the allowed list
+              return valueIds.some((id: string) => allowedIds.includes(id));
+            }
+          } catch {
+            // Not a JSON array, treat as single ID
+          }
+          return allowedIds.includes(value);
+        } catch {
+          return false;
+        }
+      }
+
+      case 'is_not_one_of': {
+        try {
+          const excludedIds = JSON.parse(compareValue || '[]');
+          if (!Array.isArray(excludedIds)) return true;
+          // For multi-reference, value might be a JSON array
+          try {
+            const valueIds = JSON.parse(value);
+            if (Array.isArray(valueIds)) {
+              // Check if none of the value IDs are in the excluded list
+              return !valueIds.some((id: string) => excludedIds.includes(id));
+            }
+          } catch {
+            // Not a JSON array, treat as single ID
+          }
+          return !excludedIds.includes(value);
+        } catch {
+          return true;
+        }
+      }
+
+      case 'exists':
+        return isPresent;
+
+      case 'does_not_exist':
+        return !isPresent;
+
+      // Multi-reference operators
+      case 'contains_all_of': {
+        try {
+          const requiredIds = JSON.parse(compareValue || '[]');
+          if (!Array.isArray(requiredIds)) return false;
+          // Parse the multi-reference value
+          let valueIds: string[] = [];
+          try {
+            const parsed = JSON.parse(value);
+            valueIds = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            valueIds = value ? [value] : [];
+          }
+          return requiredIds.every((id: string) => valueIds.includes(id));
+        } catch {
+          return false;
+        }
+      }
+
+      case 'contains_exactly': {
+        try {
+          const requiredIds = JSON.parse(compareValue || '[]');
+          if (!Array.isArray(requiredIds)) return false;
+          // Parse the multi-reference value
+          let valueIds: string[] = [];
+          try {
+            const parsed = JSON.parse(value);
+            valueIds = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            valueIds = value ? [value] : [];
+          }
+          // Check exact match (same items, regardless of order)
+          return requiredIds.length === valueIds.length && 
+                 requiredIds.every((id: string) => valueIds.includes(id));
+        } catch {
+          return false;
+        }
+      }
+
+      // For multi-reference has_items / has_no_items - check if array has items
+      // Note: 'has_items' and 'has_no_items' for page_collection are handled elsewhere
+      // Here we handle them for multi-reference fields
+      case 'has_items': {
+        // For page_collection source, this is handled by PageCollectionOperator logic
+        // For collection_field source with multi_reference, check array length
+        if (condition.source === 'collection_field') {
+          try {
+            const arr = JSON.parse(value || '[]');
+            return Array.isArray(arr) && arr.length > 0;
+          } catch {
+            return isPresent;
+          }
+        }
+        // For page_collection, handled by pageCollectionCounts
+        return true;
+      }
+
+      case 'has_no_items': {
+        if (condition.source === 'collection_field') {
+          try {
+            const arr = JSON.parse(value || '[]');
+            return !Array.isArray(arr) || arr.length === 0;
+          } catch {
+            return !isPresent;
+          }
+        }
+        return true;
+      }
+
+      // Multi-reference item_count - compare the count of references
+      case 'item_count': {
+        if (condition.source === 'collection_field' && condition.fieldType === 'multi_reference') {
+          let count = 0;
+          try {
+            const arr = JSON.parse(value || '[]');
+            count = Array.isArray(arr) ? arr.length : 0;
+          } catch {
+            count = 0;
+          }
+          const compareVal = condition.compareValue ?? 0;
+          const compareOp = condition.compareOperator ?? 'eq';
+          switch (compareOp) {
+            case 'eq': return count === compareVal;
+            case 'lt': return count < compareVal;
+            case 'lte': return count <= compareVal;
+            case 'gt': return count > compareVal;
+            case 'gte': return count >= compareVal;
+            default: return count === compareVal;
+          }
+        }
+        // For page_collection, this is handled earlier in the function
+        return true;
+      }
+
+      default:
+        return true;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Evaluate conditional visibility for a layer
+ * Groups are AND'd together; conditions within a group are OR'd
+ * 
+ * @param conditionalVisibility - The visibility rules from layer.variables
+ * @param context - The context containing field values and collection counts
+ * @returns True if layer should be visible, false if it should be hidden
+ */
+export function evaluateVisibility(
+  conditionalVisibility: import('@/types').ConditionalVisibility | undefined,
+  context: VisibilityContext
+): boolean {
+  // No conditional visibility set - layer is visible
+  if (!conditionalVisibility || !conditionalVisibility.groups || conditionalVisibility.groups.length === 0) {
+    return true;
+  }
+
+  // Evaluate each group (AND logic between groups)
+  for (const group of conditionalVisibility.groups) {
+    if (!group.conditions || group.conditions.length === 0) {
+      continue; // Empty group is truthy (skipped)
+    }
+
+    // Evaluate conditions within group (OR logic)
+    let groupResult = false;
+    for (const condition of group.conditions) {
+      if (evaluateCondition(condition, context)) {
+        groupResult = true;
+        break; // Short-circuit: one true condition makes the group true
+      }
+    }
+
+    // If any group is false, the whole visibility is false (AND logic)
+    if (!groupResult) {
+      return false;
+    }
+  }
+
+  // All groups passed
+  return true;
+}

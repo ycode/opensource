@@ -240,6 +240,8 @@ export interface Layer {
 
   // SSR-only property for resolved collection items
   _collectionItems?: CollectionItemWithValues[];
+  // SSR-only property for collection item values (used for visibility filtering)
+  _collectionItemValues?: Record<string, string>;
   // Interactions / Animations (new structured approach)
   interactions?: LayerInteraction[];
 }
@@ -613,7 +615,54 @@ export interface CollectionVariable {
 export interface LayerVariables {
   collection?: CollectionVariable;
   text?: string; // Text with embedded JSON inline variables: "Hello <ycode-inline-variable>{JSON}</ycode-inline-variable>"
+  conditionalVisibility?: ConditionalVisibility;
   // Future: image, link, etc.
+}
+
+// Conditional Visibility Types
+// Operators are grouped by field type for type-aware condition building
+
+export type TextOperator = 'is' | 'is_not' | 'contains' | 'does_not_contain' | 'is_present' | 'is_empty';
+export type NumberOperator = 'is' | 'is_not' | 'lt' | 'lte' | 'gt' | 'gte';
+export type DateOperator = 'is' | 'is_before' | 'is_after' | 'is_between' | 'is_empty' | 'is_not_empty';
+export type BooleanOperator = 'is';
+export type ReferenceOperator = 'is_one_of' | 'is_not_one_of' | 'exists' | 'does_not_exist';
+export type MultiReferenceOperator = 'is_one_of' | 'is_not_one_of' | 'contains_all_of' | 'contains_exactly' | 'item_count' | 'has_items' | 'has_no_items';
+export type PageCollectionOperator = 'item_count' | 'has_items' | 'has_no_items';
+
+export type VisibilityOperator = 
+  | TextOperator 
+  | NumberOperator 
+  | DateOperator 
+  | BooleanOperator 
+  | ReferenceOperator 
+  | MultiReferenceOperator
+  | PageCollectionOperator;
+
+export interface VisibilityCondition {
+  id: string;
+  source: 'collection_field' | 'page_collection';
+  // For collection_field source
+  fieldId?: string;
+  fieldType?: CollectionFieldType;
+  referenceCollectionId?: string; // For reference fields - the collection to fetch items from
+  operator: VisibilityOperator;
+  value?: string; // For is_one_of/is_not_one_of: JSON array of item IDs
+  value2?: string; // For 'is_between' date operator
+  // For page_collection source  
+  collectionLayerId?: string;
+  collectionLayerName?: string; // Display name for the layer
+  compareOperator?: 'eq' | 'lt' | 'lte' | 'gt' | 'gte'; // For 'item_count' operator
+  compareValue?: number; // For 'item_count' operator
+}
+
+export interface VisibilityConditionGroup {
+  id: string;
+  conditions: VisibilityCondition[];
+}
+
+export interface ConditionalVisibility {
+  groups: VisibilityConditionGroup[];
 }
 
 // Localisation Types

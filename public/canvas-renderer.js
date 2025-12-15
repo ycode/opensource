@@ -345,6 +345,312 @@
   }
 
   /**
+   * Compute item counts for all collection layers on the page
+   * Used for page collection visibility conditions
+   */
+  function computePageCollectionCounts(layerList) {
+    const counts = {};
+
+    function traverse(layers) {
+      for (const layer of layers) {
+        const collectionVariable = layer.variables?.collection || layer.collection || null;
+        if (collectionVariable?.id) {
+          // Get the item count for this layer
+          const items = collectionLayerData[layer.id] || [];
+          counts[layer.id] = items.length;
+        }
+        if (layer.children) {
+          traverse(layer.children);
+        }
+      }
+    }
+
+    traverse(layerList);
+    return counts;
+  }
+
+  /**
+   * Evaluate a single visibility condition
+   */
+  function evaluateCondition(condition, context) {
+    const { collectionItemData, pageCollectionCounts } = context;
+
+    if (condition.source === 'page_collection') {
+      const count = pageCollectionCounts?.[condition.collectionLayerId] ?? 0;
+      
+      switch (condition.operator) {
+        case 'has_items':
+          return count > 0;
+        case 'has_no_items':
+          return count === 0;
+        case 'item_count': {
+          const compareValue = condition.compareValue ?? 0;
+          const compareOp = condition.compareOperator ?? 'eq';
+          switch (compareOp) {
+            case 'eq': return count === compareValue;
+            case 'lt': return count < compareValue;
+            case 'lte': return count <= compareValue;
+            case 'gt': return count > compareValue;
+            case 'gte': return count >= compareValue;
+            default: return count === compareValue;
+          }
+        }
+        default:
+          return true;
+      }
+    }
+
+    // Collection field conditions
+    if (condition.source === 'collection_field') {
+      const fieldId = condition.fieldId;
+      if (!fieldId) return true;
+
+      const rawValue = collectionItemData?.[fieldId];
+      const value = rawValue ?? '';
+      const compareValue = condition.value ?? '';
+      const fieldType = condition.fieldType || 'text';
+
+      const isPresent = rawValue !== undefined && rawValue !== null && rawValue !== '';
+
+      switch (condition.operator) {
+        // Text operators
+        case 'is':
+          if (fieldType === 'boolean') {
+            return value.toLowerCase() === compareValue.toLowerCase();
+          }
+          if (fieldType === 'number') {
+            return parseFloat(value) === parseFloat(compareValue);
+          }
+          return value === compareValue;
+        
+        case 'is_not':
+          if (fieldType === 'number') {
+            return parseFloat(value) !== parseFloat(compareValue);
+          }
+          return value !== compareValue;
+        
+        case 'contains':
+          return value.toLowerCase().includes(compareValue.toLowerCase());
+        
+        case 'does_not_contain':
+          return !value.toLowerCase().includes(compareValue.toLowerCase());
+        
+        case 'is_present':
+          return isPresent;
+        
+        case 'is_empty':
+          return !isPresent;
+
+        // Number operators
+        case 'lt':
+          return parseFloat(value) < parseFloat(compareValue);
+        
+        case 'lte':
+          return parseFloat(value) <= parseFloat(compareValue);
+        
+        case 'gt':
+          return parseFloat(value) > parseFloat(compareValue);
+        
+        case 'gte':
+          return parseFloat(value) >= parseFloat(compareValue);
+
+        // Date operators
+        case 'is_before': {
+          const dateValue = new Date(value);
+          const compareDateValue = new Date(compareValue);
+          return dateValue < compareDateValue;
+        }
+        
+        case 'is_after': {
+          const dateValue = new Date(value);
+          const compareDateValue = new Date(compareValue);
+          return dateValue > compareDateValue;
+        }
+        
+        case 'is_between': {
+          const dateValue = new Date(value);
+          const startDate = new Date(compareValue);
+          const endDate = new Date(condition.value2 ?? '');
+          return dateValue >= startDate && dateValue <= endDate;
+        }
+        
+        case 'is_not_empty':
+          return isPresent;
+
+        // Reference operators
+        case 'is_one_of': {
+          try {
+            const allowedIds = JSON.parse(compareValue || '[]');
+            if (!Array.isArray(allowedIds)) return false;
+            // For multi-reference, value might be a JSON array
+            try {
+              const valueIds = JSON.parse(value);
+              if (Array.isArray(valueIds)) {
+                // Check if any of the value IDs are in the allowed list
+                return valueIds.some(id => allowedIds.includes(id));
+              }
+            } catch {
+              // Not a JSON array, treat as single ID
+            }
+            return allowedIds.includes(value);
+          } catch {
+            return false;
+          }
+        }
+
+        case 'is_not_one_of': {
+          try {
+            const excludedIds = JSON.parse(compareValue || '[]');
+            if (!Array.isArray(excludedIds)) return true;
+            // For multi-reference, value might be a JSON array
+            try {
+              const valueIds = JSON.parse(value);
+              if (Array.isArray(valueIds)) {
+                // Check if none of the value IDs are in the excluded list
+                return !valueIds.some(id => excludedIds.includes(id));
+              }
+            } catch {
+              // Not a JSON array, treat as single ID
+            }
+            return !excludedIds.includes(value);
+          } catch {
+            return true;
+          }
+        }
+
+        case 'exists':
+          return isPresent;
+
+        case 'does_not_exist':
+          return !isPresent;
+
+        // Multi-reference operators
+        case 'contains_all_of': {
+          try {
+            const requiredIds = JSON.parse(compareValue || '[]');
+            if (!Array.isArray(requiredIds)) return false;
+            // Parse the multi-reference value
+            let valueIds = [];
+            try {
+              const parsed = JSON.parse(value);
+              valueIds = Array.isArray(parsed) ? parsed : [];
+            } catch {
+              valueIds = value ? [value] : [];
+            }
+            return requiredIds.every(id => valueIds.includes(id));
+          } catch {
+            return false;
+          }
+        }
+
+        case 'contains_exactly': {
+          try {
+            const requiredIds = JSON.parse(compareValue || '[]');
+            if (!Array.isArray(requiredIds)) return false;
+            // Parse the multi-reference value
+            let valueIds = [];
+            try {
+              const parsed = JSON.parse(value);
+              valueIds = Array.isArray(parsed) ? parsed : [];
+            } catch {
+              valueIds = value ? [value] : [];
+            }
+            // Check exact match (same items, regardless of order)
+            return requiredIds.length === valueIds.length && 
+                   requiredIds.every(id => valueIds.includes(id));
+          } catch {
+            return false;
+          }
+        }
+
+        // For multi-reference has_items / has_no_items - check if array has items
+        case 'has_items': {
+          if (condition.source === 'collection_field') {
+            try {
+              const arr = JSON.parse(value || '[]');
+              return Array.isArray(arr) && arr.length > 0;
+            } catch {
+              return isPresent;
+            }
+          }
+          return true;
+        }
+
+        case 'has_no_items': {
+          if (condition.source === 'collection_field') {
+            try {
+              const arr = JSON.parse(value || '[]');
+              return !Array.isArray(arr) || arr.length === 0;
+            } catch {
+              return !isPresent;
+            }
+          }
+          return true;
+        }
+
+        // Multi-reference item_count - compare the count of references
+        case 'item_count': {
+          if (condition.source === 'collection_field' && condition.fieldType === 'multi_reference') {
+            let count = 0;
+            try {
+              const arr = JSON.parse(value || '[]');
+              count = Array.isArray(arr) ? arr.length : 0;
+            } catch {
+              count = 0;
+            }
+            const compareVal = condition.compareValue ?? 0;
+            const compareOp = condition.compareOperator ?? 'eq';
+            switch (compareOp) {
+              case 'eq': return count === compareVal;
+              case 'lt': return count < compareVal;
+              case 'lte': return count <= compareVal;
+              case 'gt': return count > compareVal;
+              case 'gte': return count >= compareVal;
+              default: return count === compareVal;
+            }
+          }
+          return true;
+        }
+
+        default:
+          return true;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Evaluate conditional visibility for a layer
+   * Groups are AND'd together; conditions within a group are OR'd
+   */
+  function evaluateVisibility(conditionalVisibility, context) {
+    if (!conditionalVisibility || !conditionalVisibility.groups || conditionalVisibility.groups.length === 0) {
+      return true;
+    }
+
+    for (const group of conditionalVisibility.groups) {
+      if (!group.conditions || group.conditions.length === 0) {
+        continue;
+      }
+
+      let groupResult = false;
+      for (const condition of group.conditions) {
+        if (evaluateCondition(condition, context)) {
+          groupResult = true;
+          break;
+        }
+      }
+
+      if (!groupResult) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
    * Check if a layer is text-editable
    */
   function isTextEditable(layer) {
@@ -997,8 +1303,11 @@
       return;
     }
 
+    // Compute page collection counts for visibility evaluation
+    const pageCollectionCounts = computePageCollectionCounts(layers);
+
     layers.forEach(layer => {
-      const element = renderLayer(layer);
+      const element = renderLayer(layer, undefined, undefined, pageCollectionCounts);
       if (element) {
         root.appendChild(element);
       }
@@ -1016,10 +1325,23 @@
   /**
    * Render a single layer and its children
    */
-  function renderLayer(layer, collectionItemData, parentCollectionId) {
+  function renderLayer(layer, collectionItemData, parentCollectionId, pageCollectionCounts) {
     // Skip hidden layers
     if (layer.settings && layer.settings.hidden) {
       return null;
+    }
+
+    // Evaluate conditional visibility
+    const conditionalVisibility = layer.variables?.conditionalVisibility;
+    if (conditionalVisibility) {
+      const inheritedItemData = collectionItemData || (pageCollectionItem ? pageCollectionItem.values : undefined);
+      const isVisible = evaluateVisibility(conditionalVisibility, {
+        collectionItemData: inheritedItemData,
+        pageCollectionCounts: pageCollectionCounts || {},
+      });
+      if (!isVisible) {
+        return null;
+      }
     }
 
     // Check if this layer has a collection binding (not based on name or type)
@@ -1152,7 +1474,7 @@
 
             // Render children inside each item element
             layer.children.forEach(child => {
-              const childElement = renderLayer(child, item.values, activeCollectionId);
+              const childElement = renderLayer(child, item.values, activeCollectionId, pageCollectionCounts);
               if (childElement) {
                 itemElement.appendChild(childElement);
               }
@@ -1194,7 +1516,7 @@
       } else {
         // Regular rendering: just render children normally
         layer.children.forEach(child => {
-          const childElement = renderLayer(child, inheritedCollectionItemData, activeCollectionId);
+          const childElement = renderLayer(child, inheritedCollectionItemData, activeCollectionId, pageCollectionCounts);
           if (childElement) {
             element.appendChild(childElement);
           }
