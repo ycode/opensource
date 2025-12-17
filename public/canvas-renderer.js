@@ -1453,6 +1453,17 @@
           }
         }
 
+        // Apply collection filters (evaluate against each item's own values)
+        const collectionFilters = collectionVariable?.filters;
+        if (collectionFilters?.groups?.length) {
+          items = items.filter(item => 
+            evaluateVisibility(collectionFilters, {
+              collectionItemData: item.values,
+              pageCollectionCounts: {},
+            })
+          );
+        }
+
         console.log('[Canvas] Rendering collection layer', {
           layerId: layer.id,
           collectionId,

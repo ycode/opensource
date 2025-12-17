@@ -29,6 +29,7 @@ import AddAttributeModal from './AddAttributeModal';
 import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
+import CollectionFiltersSettings from './CollectionFiltersSettings';
 import ConditionalVisibilitySettings from './ConditionalVisibilitySettings';
 import ImageSettings from './ImageSettings';
 import InputWithInlineVariables from './InputWithInlineVariables';
@@ -1552,6 +1553,15 @@ const RightSidebar = React.memo(function RightSidebar({
               allFields={fields}
               collections={collections}
             />
+
+            {/* Collection Filters - only for collection layers */}
+            {selectedLayer && getCollectionVariable(selectedLayer)?.id && (
+              <CollectionFiltersSettings
+                layer={selectedLayer}
+                onLayerUpdate={onLayerUpdate}
+                collectionId={getCollectionVariable(selectedLayer)!.id}
+              />
+            )}
 
             <ConditionalVisibilitySettings
               layer={selectedLayer}

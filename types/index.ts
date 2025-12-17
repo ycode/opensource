@@ -610,6 +610,7 @@ export interface CollectionVariable {
   offset?: number; // Number of items to skip
   source_field_id?: string; // Reference field ID from parent item (for filtered collection source)
   source_field_type?: 'reference' | 'multi_reference'; // Type of source field (single vs multi)
+  filters?: ConditionalVisibility; // Filter conditions to apply to collection items
 }
 
 export interface LayerVariables {

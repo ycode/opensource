@@ -732,6 +732,21 @@ export async function resolveCollectionLayers(
             }
           }
           
+          // Apply collection filters (evaluate against each item's own values)
+          const collectionFilters = collectionVariable.filters;
+          if (collectionFilters?.groups?.length) {
+            items = items.filter(item => 
+              evaluateVisibility(collectionFilters, {
+                collectionItemData: item.values,
+                pageCollectionCounts: {},
+              })
+            );
+            console.log(`[resolveCollectionLayers] Applied collection filters for layer ${layer.id}:`, {
+              filterGroupCount: collectionFilters.groups.length,
+              filteredCount: items.length,
+            });
+          }
+          
           // Apply sorting if specified (since API doesn't handle sortBy yet)
           let sortedItems = items;
           if (sortBy && sortBy !== 'none') {
