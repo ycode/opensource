@@ -6,7 +6,8 @@
  */
 
 import { create } from 'zustand';
-import type { Locale, CreateLocaleData, UpdateLocaleData } from '@/types';
+import { getTranslatableKey } from '@/lib/localisation-utils';
+import type { Locale, CreateLocaleData, UpdateLocaleData, Translation, CreateTranslationData, UpdateTranslationData } from '@/types';
 
 /**
  * Sort locales: default first, then alphabetically by label
@@ -27,6 +28,10 @@ interface LoadingState {
   update: boolean;
   delete: boolean;
   setDefault: boolean;
+  loadTranslations: boolean;
+  createTranslation: boolean;
+  updateTranslation: boolean;
+  deleteTranslation: boolean;
 }
 
 interface LocalisationState {
@@ -35,31 +40,48 @@ interface LocalisationState {
   error: string | null;
   defaultLocale: Locale | null;
   selectedLocaleId: string | null;
+  translations: Record<string, Record<string, Translation>>; // Keyed by `locale_id` (UUID), then by `translatable key`
 }
 
 interface LocalisationActions {
-  // Data loading
+  // Locale data loading
   setLocales: (locales: Locale[]) => void;
   loadLocales: () => Promise<void>;
 
-  // CRUD operations
+  // Locale CRUD
   createLocale: (data: CreateLocaleData) => Promise<Locale | null>;
   updateLocale: (id: string, updates: UpdateLocaleData) => Promise<void>;
   deleteLocale: (id: string) => Promise<void>;
 
-  // Default locale management
+  // Locale selection & defaults
+  setSelectedLocaleId: (id: string | null) => void;
+  getSelectedLocale: () => Locale | null;
   setDefaultLocale: (id: string) => Promise<void>;
   getDefaultLocale: () => Locale | null;
 
-  // Selected locale management
-  setSelectedLocaleId: (id: string | null) => void;
-  getSelectedLocale: () => Locale | null;
-
-  // Convenience actions
+  // Locale queries
   getLocaleById: (id: string) => Locale | undefined;
   getLocaleByCode: (code: string) => Locale | undefined;
 
-  // State management
+  // Translation data loading
+  loadTranslations: (localeId: string) => Promise<void>;
+  clearTranslations: (localeId?: string) => void;
+
+  // Translation CRUD
+  createTranslation: (data: CreateTranslationData) => Promise<Translation | null>;
+  updateTranslation: (translation: Translation | { locale_id: string; source_type: string; source_id: string; content_key: string }, updates: UpdateTranslationData) => Promise<void>;
+  deleteTranslation: (translation: Translation | { locale_id: string; source_type: string; source_id: string; content_key: string }) => Promise<void>;
+  upsertTranslations: (translations: CreateTranslationData[]) => Promise<void>;
+
+  // Optimistic translation updates (immediate store updates, no API calls)
+  optimisticallyUpdateTranslationValue: (localeId: string, key: string, contentValue: string) => void;
+
+  // Translation queries
+  getTranslation: (localeId: string, translation: Translation | { source_type: string; source_id: string; content_key: string }) => Translation | undefined;
+  getTranslationByKey: (localeId: string, key: string) => Translation | undefined;
+  getTranslationsBySource: (localeId: string, sourceType: string, sourceId: string) => Translation[];
+
+  // Error management
   setError: (error: string | null) => void;
   clearError: () => void;
 }
@@ -72,6 +94,10 @@ const initialLoadingState: LoadingState = {
   update: false,
   delete: false,
   setDefault: false,
+  loadTranslations: false,
+  createTranslation: false,
+  updateTranslation: false,
+  deleteTranslation: false,
 };
 
 export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
@@ -81,6 +107,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
   error: null,
   defaultLocale: null,
   selectedLocaleId: null,
+  translations: {},
 
   // Set locales (used by unified init)
   setLocales: (locales) => {
@@ -288,6 +315,391 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
   // Get locale by code (convenience method)
   getLocaleByCode: (code) => {
     return get().locales.find((l) => l.code === code);
+  },
+
+  // Load translations for a locale
+  loadTranslations: async (localeId) => {
+    set({ isLoading: { ...initialLoadingState, loadTranslations: true }, error: null });
+
+    try {
+      const response = await fetch(`/api/translations?locale_id=${localeId}&is_published=false`);
+      const result = await response.json();
+
+      if (result.error) {
+        set({ error: result.error, isLoading: initialLoadingState });
+        return;
+      }
+
+      const translations: Translation[] = result.data || [];
+      const translationsMap: Record<string, Translation> = {};
+
+      for (const translation of translations) {
+        const key = getTranslatableKey(translation);
+        translationsMap[key] = translation;
+      }
+
+      set((state) => ({
+        translations: { ...state.translations, [localeId]: translationsMap },
+        isLoading: initialLoadingState,
+      }));
+    } catch (error) {
+      console.error('Failed to load translations:', error);
+      set({ error: 'Failed to load translations', isLoading: initialLoadingState });
+    }
+  },
+
+  // Get translation by translation object or key parts
+  getTranslation: (localeId, translation) => {
+    const key = getTranslatableKey(translation);
+    return get().translations[localeId]?.[key];
+  },
+
+  // Get translation by translatable key string
+  getTranslationByKey: (localeId, key) => {
+    return get().translations[localeId]?.[key];
+  },
+
+  // Get all translations for a specific source
+  getTranslationsBySource: (localeId, sourceType, sourceId) => {
+    const localeTranslations = get().translations[localeId];
+    if (!localeTranslations) return [];
+    return Object.values(localeTranslations).filter(
+      (t) => t.source_type === sourceType && t.source_id === sourceId
+    );
+  },
+
+  // Create a new translation
+  createTranslation: async (data) => {
+    const key = getTranslatableKey(data);
+    const localeId = data.locale_id;
+
+    // Optimistically create translation in store
+    const optimisticTranslation: Translation = {
+      id: `temp-${Date.now()}`,
+      locale_id: localeId,
+      source_type: data.source_type,
+      source_id: data.source_id,
+      content_key: data.content_key,
+      content_type: data.content_type,
+      content_value: data.content_value,
+      is_published: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      deleted_at: null,
+    };
+
+    set((state) => ({
+      translations: {
+        ...state.translations,
+        [localeId]: {
+          ...(state.translations[localeId] || {}),
+          [key]: optimisticTranslation,
+        },
+      },
+      isLoading: { ...initialLoadingState, createTranslation: true },
+      error: null,
+    }));
+
+    try {
+      const response = await fetch('/api/translations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (result.error) {
+        // Revert optimistic update on error
+        set((state) => {
+          const localeTranslations = state.translations[localeId];
+          if (!localeTranslations) {
+            return { error: result.error, isLoading: initialLoadingState };
+          }
+
+          const { [key]: _, ...restTranslations } = localeTranslations;
+          return {
+            translations: {
+              ...state.translations,
+              [localeId]: restTranslations,
+            },
+            error: result.error,
+            isLoading: initialLoadingState,
+          };
+        });
+        return null;
+      }
+
+      const translation: Translation = result.data;
+      const finalKey = getTranslatableKey(translation);
+      const finalLocaleId = translation.locale_id;
+
+      // Replace optimistic translation with real one
+      set((state) => ({
+        translations: {
+          ...state.translations,
+          [finalLocaleId]: {
+            ...(state.translations[finalLocaleId] || {}),
+            [finalKey]: translation,
+          },
+        },
+        isLoading: initialLoadingState,
+      }));
+
+      return translation;
+    } catch (error) {
+      // Revert optimistic update on error
+      set((state) => {
+        const localeTranslations = state.translations[localeId];
+        if (!localeTranslations) {
+          return { error: 'Failed to create translation', isLoading: initialLoadingState };
+        }
+
+        const { [key]: _, ...restTranslations } = localeTranslations;
+        return {
+          translations: {
+            ...state.translations,
+            [localeId]: restTranslations,
+          },
+          error: 'Failed to create translation',
+          isLoading: initialLoadingState,
+        };
+      });
+      return null;
+    }
+  },
+
+  // Update a translation
+  updateTranslation: async (translation, updates) => {
+    const localeId = translation.locale_id;
+    const key = getTranslatableKey(translation);
+    const existingTranslation = get().translations[localeId]?.[key];
+
+    if (!existingTranslation) {
+      set({ error: 'Translation not found', isLoading: initialLoadingState });
+      return;
+    }
+
+    // Optimistically update translation in store
+    if (updates.content_value !== undefined) {
+      set((state) => {
+        const localeTranslations = state.translations[localeId] || {};
+        const existingTranslation = localeTranslations[key];
+
+        if (existingTranslation) {
+          return {
+            translations: {
+              ...state.translations,
+              [localeId]: {
+                ...localeTranslations,
+                [key]: {
+                  ...existingTranslation,
+                  content_value: updates.content_value!,
+                  deleted_at: null, // Restore if previously deleted
+                },
+              },
+            },
+          };
+        }
+
+        return state;
+      });
+    }
+
+    set({ isLoading: { ...initialLoadingState, updateTranslation: true }, error: null });
+
+    try {
+      const response = await fetch(`/api/translations/${existingTranslation.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+
+      const result = await response.json();
+
+      if (result.error) {
+        // Revert optimistic update on error
+        if (updates.content_value !== undefined && existingTranslation) {
+          set((state) => {
+            const localeTranslations = state.translations[localeId] || {};
+            return {
+              translations: {
+                ...state.translations,
+                [localeId]: {
+                  ...localeTranslations,
+                  [key]: existingTranslation,
+                },
+              },
+              error: result.error,
+              isLoading: initialLoadingState,
+            };
+          });
+          return;
+        }
+        set({ error: result.error, isLoading: initialLoadingState });
+        return;
+      }
+
+      const updatedTranslation: Translation = result.data;
+      const updatedKey = getTranslatableKey(updatedTranslation);
+      const updatedLocaleId = updatedTranslation.locale_id;
+
+      // Update with server response (may have additional fields updated)
+      set((state) => ({
+        translations: {
+          ...state.translations,
+          [updatedLocaleId]: {
+            ...(state.translations[updatedLocaleId] || {}),
+            [updatedKey]: updatedTranslation,
+          },
+        },
+        isLoading: initialLoadingState,
+      }));
+    } catch (error) {
+      // Revert optimistic update on error
+      if (updates.content_value !== undefined && existingTranslation) {
+        set((state) => {
+          const localeTranslations = state.translations[localeId] || {};
+          return {
+            translations: {
+              ...state.translations,
+              [localeId]: {
+                ...localeTranslations,
+                [key]: existingTranslation,
+              },
+            },
+            error: 'Failed to update translation',
+            isLoading: initialLoadingState,
+          };
+        });
+        return;
+      }
+      console.error('Failed to update translation:', error);
+      set({ error: 'Failed to update translation', isLoading: initialLoadingState });
+    }
+  },
+
+  // Delete a translation
+  deleteTranslation: async (translation) => {
+    set({ isLoading: { ...initialLoadingState, deleteTranslation: true }, error: null });
+
+    const localeId = translation.locale_id;
+    const key = getTranslatableKey(translation);
+    const existingTranslation = get().translations[localeId]?.[key];
+
+    if (!existingTranslation) {
+      set({ error: 'Translation not found', isLoading: initialLoadingState });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/translations/${existingTranslation.id}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (result.error) {
+        set({ error: result.error, isLoading: initialLoadingState });
+        return;
+      }
+
+      set((state) => {
+        const localeTranslations = state.translations[localeId];
+        if (!localeTranslations) {
+          return { isLoading: initialLoadingState };
+        }
+
+        const { [key]: _, ...restTranslations } = localeTranslations;
+        return {
+          translations: {
+            ...state.translations,
+            [localeId]: restTranslations,
+          },
+          isLoading: initialLoadingState,
+        };
+      });
+    } catch (error) {
+      console.error('Failed to delete translation:', error);
+      set({ error: 'Failed to delete translation', isLoading: initialLoadingState });
+    }
+  },
+
+  // Upsert multiple translations (create or update)
+  upsertTranslations: async (translationsData) => {
+    set({ isLoading: { ...initialLoadingState, createTranslation: true }, error: null });
+
+    try {
+      const response = await fetch('/api/translations/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ translations: translationsData }),
+      });
+
+      const result = await response.json();
+
+      if (result.error) {
+        set({ error: result.error, isLoading: initialLoadingState });
+        return;
+      }
+
+      const translations: Translation[] = result.data || [];
+      const updatedTranslations = { ...get().translations };
+
+      for (const translation of translations) {
+        const key = getTranslatableKey(translation);
+        const localeId = translation.locale_id;
+
+        if (!updatedTranslations[localeId]) {
+          updatedTranslations[localeId] = {};
+        }
+
+        updatedTranslations[localeId][key] = translation;
+      }
+
+      set({ translations: updatedTranslations, isLoading: initialLoadingState });
+    } catch (error) {
+      console.error('Failed to upsert translations:', error);
+      set({ error: 'Failed to upsert translations', isLoading: initialLoadingState });
+    }
+  },
+
+  // Optimistically update translation value in store (no API call)
+  optimisticallyUpdateTranslationValue: (localeId, key, contentValue) => {
+    set((state) => {
+      const localeTranslations = state.translations[localeId] || {};
+      const existingTranslation = localeTranslations[key];
+
+      if (existingTranslation) {
+        // Update existing translation
+        return {
+          translations: {
+            ...state.translations,
+            [localeId]: {
+              ...localeTranslations,
+              [key]: {
+                ...existingTranslation,
+                content_value: contentValue,
+              },
+            },
+          },
+        };
+      }
+
+      return state;
+    });
+  },
+
+  // Clear all translations from state (optionally for a specific locale)
+  clearTranslations: (localeId) => {
+    if (localeId) {
+      set((state) => {
+        const { [localeId]: _, ...restTranslations } = state.translations;
+        return { translations: restTranslations };
+      });
+    } else {
+      set({ translations: {} });
+    }
   },
 
   // Error management

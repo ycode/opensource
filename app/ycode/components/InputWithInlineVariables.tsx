@@ -33,6 +33,7 @@ import FieldTreeSelect from './FieldTreeSelect';
 interface InputWithInlineVariablesProps {
   value: string;
   onChange: (value: string) => void;
+  onBlur?: (value: string) => void;
   placeholder?: string;
   className?: string;
   fields?: CollectionField[];
@@ -145,7 +146,7 @@ const DynamicVariable = Node.create({
       // Render React Badge component asynchronously to avoid triggering updates during render phase
       // The renderHTML fallback matches Badge styling exactly, so there's no visual difference
       const root = createRoot(container);
-      
+
       const renderBadge = () => {
         const isEditable = editor.isEditable;
         root.render(
@@ -189,6 +190,7 @@ const DynamicVariable = Node.create({
 const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, InputWithInlineVariablesProps>(({
   value,
   onChange,
+  onBlur: onBlurProp,
   placeholder = '',
   className,
   fields,
@@ -250,6 +252,10 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
     },
     onBlur: () => {
       setIsFocused(false);
+      if (onBlurProp && editor) {
+        const currentValue = convertContentToValue(editor.getJSON());
+        onBlurProp(currentValue);
+      }
     },
   });
 

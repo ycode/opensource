@@ -688,3 +688,33 @@ export interface UpdateLocaleData {
   label?: string;
   is_default?: boolean;
 }
+
+export type TranslationSourceType = 'page' | 'folder' | 'component' | 'cms'
+export type TranslationContentType = 'text' | 'richtext' | 'asset_id'
+
+export interface Translation {
+  id: string;
+  locale_id: string;
+  source_type: TranslationSourceType;
+  source_id: string;
+  content_key: string;
+  content_type: TranslationContentType;
+  content_value: string;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface CreateTranslationData {
+  locale_id: string;
+  source_type: TranslationSourceType;
+  source_id: string;
+  content_key: string;
+  content_type: TranslationContentType;
+  content_value: string;
+}
+
+export interface UpdateTranslationData {
+  content_value?: string;
+}
