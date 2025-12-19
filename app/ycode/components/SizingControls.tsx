@@ -39,6 +39,7 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
   const minHeight = getDesignProperty('sizing', 'minHeight') || '';
   const maxWidth = getDesignProperty('sizing', 'maxWidth') || '';
   const maxHeight = getDesignProperty('sizing', 'maxHeight') || '';
+  const overflow = getDesignProperty('sizing', 'overflow') || 'visible';
 
   // Local controlled inputs (prevents repopulation bug)
   const inputs = useControlledInputs({
@@ -203,6 +204,11 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
       setMaxHeightInput('100svh');
       updateDesignProperty('sizing', 'maxHeight', '[100svh]');
     }
+  };
+
+  // Handle overflow change
+  const handleOverflowChange = (value: string) => {
+    updateDesignProperty('sizing', 'overflow', value);
   };
 
   return (
@@ -396,15 +402,16 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
       <div className="grid grid-cols-3">
         <Label variant="muted">Overflow</Label>
         <div className="col-span-2 *:w-full">
-          <Select>
+          <Select value={overflow} onValueChange={handleOverflowChange}>
             <SelectTrigger>
-              Visible
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="1">Visible</SelectItem>
-                <SelectItem value="2">Hidden</SelectItem>
-                <SelectItem value="3">Scroll</SelectItem>
+                <SelectItem value="visible">Visible</SelectItem>
+                <SelectItem value="hidden">Hidden</SelectItem>
+                <SelectItem value="scroll">Scroll</SelectItem>
+                <SelectItem value="auto">Auto</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
