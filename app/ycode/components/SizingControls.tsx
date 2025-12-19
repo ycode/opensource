@@ -63,17 +63,25 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
     debouncedUpdateDesignProperty('sizing', 'width', formatMeasurementValue(value));
   };
 
+  // Get current width preset value (for Select display)
+  const getWidthPresetValue = () => {
+    if (widthInput === '100%') return 'w-[100%]';
+    if (widthInput === 'fit') return 'w-fit-content';
+    if (widthInput === '100vw') return 'w-[100vw]';
+    return '';
+  };
+
   // Preset changes are immediate (button clicks)
   const handleWidthPresetChange = (value: string) => {
     if (value === 'w-[100%]') {
       setWidthInput('100%');
-      updateDesignProperty('sizing', 'width', '100%');
+      updateDesignProperty('sizing', 'width', '[100%]');
     } else if (value === 'w-fit-content') {
       setWidthInput('fit');
       updateDesignProperty('sizing', 'width', 'fit');
     } else if (value === 'w-[100vw]') {
       setWidthInput('100vw');
-      updateDesignProperty('sizing', 'width', '100vw');
+      updateDesignProperty('sizing', 'width', '[100vw]');
     }
   };
 
@@ -83,14 +91,21 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
     debouncedUpdateDesignProperty('sizing', 'height', formatMeasurementValue(value));
   };
 
+  // Get current height preset value (for Select display)
+  const getHeightPresetValue = () => {
+    if (heightInput === '100%') return 'h-[100%]';
+    if (heightInput === '100svh') return 'h-[100svh]';
+    return '';
+  };
+
   // Preset changes are immediate (button clicks)
   const handleHeightPresetChange = (value: string) => {
     if (value === 'h-[100%]') {
       setHeightInput('100%');
-      updateDesignProperty('sizing', 'height', '100%');
+      updateDesignProperty('sizing', 'height', '[100%]');
     } else if (value === 'h-[100svh]') {
       setHeightInput('100svh');
-      updateDesignProperty('sizing', 'height', '100svh');
+      updateDesignProperty('sizing', 'height', '[100svh]');
     }
   };
 
@@ -130,7 +145,7 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
               placeholder="0"
             />
             <ButtonGroupSeparator />
-            <Select onValueChange={handleWidthPresetChange}>
+            <Select value={getWidthPresetValue()} onValueChange={handleWidthPresetChange}>
               <SelectTrigger />
               <SelectContent>
                 <SelectGroup>
@@ -223,7 +238,7 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
               placeholder="0"
             />
             <ButtonGroupSeparator />
-            <Select onValueChange={handleHeightPresetChange}>
+            <Select value={getHeightPresetValue()} onValueChange={handleHeightPresetChange}>
               <SelectTrigger />
               <SelectContent>
                 <SelectGroup>
