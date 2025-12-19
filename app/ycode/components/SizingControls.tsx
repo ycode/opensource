@@ -109,15 +109,69 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
     }
   };
 
+  // Get current min/max width preset values
+  const getMinWidthPresetValue = () => {
+    if (minWidthInput === '100%') return 'w-[100%]';
+    if (minWidthInput === 'fit') return 'w-fit-content';
+    if (minWidthInput === '100vw') return 'w-[100vw]';
+    return '';
+  };
+
+  const getMaxWidthPresetValue = () => {
+    if (maxWidthInput === '100%') return 'w-[100%]';
+    if (maxWidthInput === 'fit') return 'w-fit-content';
+    if (maxWidthInput === '100vw') return 'w-[100vw]';
+    return '';
+  };
+
   // Handle min/max width changes (debounced for text input)
   const handleMinWidthChange = (value: string) => {
     setMinWidthInput(value);
     debouncedUpdateDesignProperty('sizing', 'minWidth', formatMeasurementValue(value));
   };
 
+  const handleMinWidthPresetChange = (value: string) => {
+    if (value === 'w-[100%]') {
+      setMinWidthInput('100%');
+      updateDesignProperty('sizing', 'minWidth', '[100%]');
+    } else if (value === 'w-fit-content') {
+      setMinWidthInput('fit');
+      updateDesignProperty('sizing', 'minWidth', 'fit');
+    } else if (value === 'w-[100vw]') {
+      setMinWidthInput('100vw');
+      updateDesignProperty('sizing', 'minWidth', '[100vw]');
+    }
+  };
+
   const handleMaxWidthChange = (value: string) => {
     setMaxWidthInput(value);
     debouncedUpdateDesignProperty('sizing', 'maxWidth', formatMeasurementValue(value));
+  };
+
+  const handleMaxWidthPresetChange = (value: string) => {
+    if (value === 'w-[100%]') {
+      setMaxWidthInput('100%');
+      updateDesignProperty('sizing', 'maxWidth', '[100%]');
+    } else if (value === 'w-fit-content') {
+      setMaxWidthInput('fit');
+      updateDesignProperty('sizing', 'maxWidth', 'fit');
+    } else if (value === 'w-[100vw]') {
+      setMaxWidthInput('100vw');
+      updateDesignProperty('sizing', 'maxWidth', '[100vw]');
+    }
+  };
+
+  // Get current min/max height preset values
+  const getMinHeightPresetValue = () => {
+    if (minHeightInput === '100%') return 'h-[100%]';
+    if (minHeightInput === '100svh') return 'h-[100svh]';
+    return '';
+  };
+
+  const getMaxHeightPresetValue = () => {
+    if (maxHeightInput === '100%') return 'h-[100%]';
+    if (maxHeightInput === '100svh') return 'h-[100svh]';
+    return '';
   };
 
   // Handle min/max height changes (debounced for text input)
@@ -126,9 +180,29 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
     debouncedUpdateDesignProperty('sizing', 'minHeight', formatMeasurementValue(value));
   };
 
+  const handleMinHeightPresetChange = (value: string) => {
+    if (value === 'h-[100%]') {
+      setMinHeightInput('100%');
+      updateDesignProperty('sizing', 'minHeight', '[100%]');
+    } else if (value === 'h-[100svh]') {
+      setMinHeightInput('100svh');
+      updateDesignProperty('sizing', 'minHeight', '[100svh]');
+    }
+  };
+
   const handleMaxHeightChange = (value: string) => {
     setMaxHeightInput(value);
     debouncedUpdateDesignProperty('sizing', 'maxHeight', formatMeasurementValue(value));
+  };
+
+  const handleMaxHeightPresetChange = (value: string) => {
+    if (value === 'h-[100%]') {
+      setMaxHeightInput('100%');
+      updateDesignProperty('sizing', 'maxHeight', '[100%]');
+    } else if (value === 'h-[100svh]') {
+      setMaxHeightInput('100svh');
+      updateDesignProperty('sizing', 'maxHeight', '[100svh]');
+    }
   };
 
   return (
@@ -179,7 +253,7 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
                 </InputGroup>
               </ButtonGroup>
               <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-100">
-                <Select>
+                <Select value={getMinWidthPresetValue()} onValueChange={handleMinWidthPresetChange}>
                   <SelectTrigger size="xs" variant="ghost" />
                   <SelectContent>
                     <SelectGroup>
@@ -213,7 +287,7 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
                 </InputGroup>
               </ButtonGroup>
               <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-100">
-                <Select>
+                <Select value={getMaxWidthPresetValue()} onValueChange={handleMaxWidthPresetChange}>
                   <SelectTrigger size="xs" variant="ghost" />
                   <SelectContent>
                     <SelectGroup>
@@ -271,13 +345,12 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
                 </InputGroup>
               </ButtonGroup>
               <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-100">
-                <Select>
+                <Select value={getMinHeightPresetValue()} onValueChange={handleMinHeightPresetChange}>
                   <SelectTrigger size="xs" variant="ghost" />
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value="w-[100%]">Fill</SelectItem>
-                      <SelectItem value="w-fit-content">Fit</SelectItem>
-                      <SelectItem value="w-[100vw]">Screen</SelectItem>
+                      <SelectItem value="h-[100%]">Fill</SelectItem>
+                      <SelectItem value="h-[100svh]">Screen</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
@@ -305,13 +378,12 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
                 </InputGroup>
               </ButtonGroup>
               <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 z-100">
-                <Select>
+                <Select value={getMaxHeightPresetValue()} onValueChange={handleMaxHeightPresetChange}>
                   <SelectTrigger size="xs" variant="ghost" />
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value="w-[100%]">Fill</SelectItem>
-                      <SelectItem value="w-fit-content">Fit</SelectItem>
-                      <SelectItem value="w-[100vw]">Screen</SelectItem>
+                      <SelectItem value="h-[100%]">Fill</SelectItem>
+                      <SelectItem value="h-[100svh]">Screen</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
