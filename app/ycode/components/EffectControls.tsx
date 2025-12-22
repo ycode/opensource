@@ -101,11 +101,13 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
   const [editingShadowId, setEditingShadowId] = useState<string | null>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
 
-  // Sync shadows when layer or boxShadow changes
+  // Sync shadows when layer changes (not when boxShadow updates during editing)
   useEffect(() => {
-    if (boxShadow) {
+    const currentBoxShadow = getDesignProperty('effects', 'boxShadow') || '';
+    
+    if (currentBoxShadow) {
       // Parse and load existing shadows
-      const parsed = parseExistingShadows(boxShadow);
+      const parsed = parseExistingShadows(currentBoxShadow);
       setShadows(parsed);
     } else {
       // Clear shadows when no boxShadow
@@ -115,7 +117,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
     setEditingShadowId(null);
     setPopoverOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layer?.id, boxShadow]);
+  }, [layer?.id, activeBreakpoint, activeUIState]);
 
   // Extract numeric value (0-100)
   const extractOpacity = (prop: string): number => {
