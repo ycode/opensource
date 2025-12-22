@@ -2,7 +2,7 @@
 
 /**
  * Create Component Dialog
- * 
+ *
  * Dialog for creating a component from a layer
  * Prompts user for component name
  */
@@ -38,7 +38,7 @@ export default function CreateComponentDialog({
 
   const handleConfirm = async () => {
     if (!componentName.trim()) return;
-    
+
     setIsCreating(true);
     await onConfirm(componentName.trim());
     setIsCreating(false);
@@ -59,20 +59,16 @@ export default function CreateComponentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent width="320px" className="!gap-3">
         <DialogHeader>
           <DialogTitle>Create Component</DialogTitle>
-          <DialogDescription>
-            Create a reusable component from this layer. Components can be used across pages and sync when updated.
-          </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 py-4">
+        <div className="flex flex-col gap-4 -mt-3">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="component-name">Component Name</Label>
             <Input
               id="component-name"
-              placeholder="Enter component name..."
+              placeholder="Name"
               value={componentName}
               onChange={(e) => setComponentName(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -81,7 +77,7 @@ export default function CreateComponentDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="grid grid-cols-2">
           <Button
             variant="secondary"
             onClick={handleCancel}
@@ -93,7 +89,7 @@ export default function CreateComponentDialog({
             onClick={handleConfirm}
             disabled={!componentName.trim() || isCreating}
           >
-            {isCreating ? 'Creating...' : 'Create Component'}
+            Create
           </Button>
         </DialogFooter>
       </DialogContent>
