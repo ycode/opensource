@@ -136,6 +136,7 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   minHeight: /^min-h-(\[.+\]|\d+|px|full|screen|min|max|fit)$/,
   maxWidth: /^max-w-(\[.+\]|none|xs|sm|md|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|full|min|max|fit|prose|screen-sm|screen-md|screen-lg|screen-xl|screen-2xl)$/,
   maxHeight: /^max-h-(\[.+\]|\d+|px|full|screen|min|max|fit)$/,
+  overflow: /^overflow-(visible|hidden|clip|scroll|auto|x-visible|x-hidden|x-clip|x-scroll|x-auto|y-visible|y-hidden|y-clip|y-scroll|y-auto)$/,
 
   // Typography
   fontFamily: /^font-(sans|serif|mono|\[.+\])$/,
@@ -424,6 +425,11 @@ export function propertyToClass(
 
       // Use abstracted helper with allowed named values
       return formatMeasurementClass(value, prefix, ['auto', 'full', 'screen', 'min', 'max', 'fit']);
+    }
+
+    // Overflow
+    if (property === 'overflow') {
+      return `overflow-${value}`; // overflow-visible, overflow-hidden, overflow-scroll, overflow-auto
     }
   }
 
