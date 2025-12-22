@@ -30,6 +30,7 @@ import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
 import EffectControls from './EffectControls';
 import CollectionFiltersSettings from './CollectionFiltersSettings';
+import CollectionPaginationSettings from './CollectionPaginationSettings';
 import ConditionalVisibilitySettings from './ConditionalVisibilitySettings';
 import ImageSettings from './ImageSettings';
 import InputWithInlineVariables from './InputWithInlineVariables';
@@ -113,7 +114,7 @@ const RightSidebar = React.memo(function RightSidebar({
     if (urlTab !== activeTab) {
       setActiveTab(urlTab);
     }
-  }, [urlState.rightTab]);
+  }, [urlState.rightTab, activeTab]);
 
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
   const [attributesOpen, setAttributesOpen] = useState(true);
@@ -1557,6 +1558,15 @@ const RightSidebar = React.memo(function RightSidebar({
             {/* Collection Filters - only for collection layers */}
             {selectedLayer && getCollectionVariable(selectedLayer)?.id && (
               <CollectionFiltersSettings
+                layer={selectedLayer}
+                onLayerUpdate={onLayerUpdate}
+                collectionId={getCollectionVariable(selectedLayer)!.id}
+              />
+            )}
+
+            {/* Collection Pagination - only for collection layers */}
+            {selectedLayer && getCollectionVariable(selectedLayer)?.id && (
+              <CollectionPaginationSettings
                 layer={selectedLayer}
                 onLayerUpdate={onLayerUpdate}
                 collectionId={getCollectionVariable(selectedLayer)!.id}

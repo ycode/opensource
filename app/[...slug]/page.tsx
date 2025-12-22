@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
 import { generatePageMetadata } from '@/lib/generate-page-metadata';
-import { fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
+import { fetchPageByPath, fetchErrorPage, PaginationContext } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import type { Page, PageFolder } from '@/types';
@@ -72,12 +72,14 @@ export async function generateStaticParams() {
 
 /**
  * Fetch published page and layers data from database
- * Cached per slug for revalidation
+ * Cached per slug and page for revalidation
  */
-async function fetchPublishedPageWithLayers(slugPath: string) {
+async function fetchPublishedPageWithLayers(slugPath: string, paginationContext?: PaginationContext) {
+  // Include page number in cache key for pagination support
+  const pageNum = paginationContext?.defaultPage || 1;
   return unstable_cache(
-    async () => fetchPageByPath(slugPath, true),
-    [`data-for-route-/${slugPath}`],
+    async () => fetchPageByPath(slugPath, true, paginationContext),
+    [`data-for-route-/${slugPath}`, `page-${pageNum}`],
     {
       tags: [`route-/${slugPath}`], // Tag for revalidation on publish
       revalidate: 3600,
@@ -85,15 +87,28 @@ async function fetchPublishedPageWithLayers(slugPath: string) {
   )();
 }
 
-export default async function Page({ params }: { params: Promise<{ slug: string | string[] }> }) {
-  // Await params (Next.js 15 requirement)
+interface PageProps {
+  params: Promise<{ slug: string | string[] }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function Page({ params, searchParams }: PageProps) {
+  // Await params and searchParams (Next.js 15 requirement)
   const { slug } = await params;
+  const resolvedSearchParams = await searchParams;
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
 
+  // Extract page number from search params for pagination
+  const pageParam = resolvedSearchParams.page;
+  const pageNumber = typeof pageParam === 'string' ? parseInt(pageParam, 10) : 1;
+  const paginationContext: PaginationContext = {
+    defaultPage: isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber,
+  };
+
   // Fetch page and layers data
-  const data = await fetchPublishedPageWithLayers(slugPath);
+  const data = await fetchPublishedPageWithLayers(slugPath, paginationContext);
 
   // If page not found, try to show custom 404 error page
   if (!data) {

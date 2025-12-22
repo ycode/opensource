@@ -2,7 +2,7 @@
  * Iframe Bridge - Type-safe postMessage communication between editor and canvas iframe
  */
 
-import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint } from '@/types';
+import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, CollectionPaginationMeta } from '@/types';
 
 // Message types sent FROM parent TO iframe
 export type ParentToIframeMessage =
@@ -13,7 +13,8 @@ export type ParentToIframeMessage =
   | { type: 'ENABLE_EDIT_MODE'; payload: { enabled: boolean } }
   | { type: 'HIGHLIGHT_DROP_ZONE'; payload: { layerId: string | null } }
   | { type: 'COLLECTION_LAYER_DATA'; payload: { layerId: string; items: CollectionItemWithValues[] } }
-  | { type: 'UPDATE_HOVER'; payload: { layerId: string | null } };
+  | { type: 'UPDATE_HOVER'; payload: { layerId: string | null } }
+  | { type: 'UPDATE_PAGINATION_DATA'; payload: { layerId: string; items: CollectionItemWithValues[]; meta: CollectionPaginationMeta } };
 
 // Message types sent FROM iframe TO parent
 export type IframeToParentMessage =
@@ -30,7 +31,8 @@ export type IframeToParentMessage =
   | { type: 'CONTENT_HEIGHT'; payload: { height: number } }
   | { type: 'OPEN_COLLECTION_ITEM_SHEET'; payload: { collectionId: string; itemId: string } }
   | { type: 'DELETE_LAYER'; payload: null }
-  | { type: 'UPDATE_GAP'; payload: { layerId: string; gapValue: string } };
+  | { type: 'UPDATE_GAP'; payload: { layerId: string; gapValue: string } }
+  | { type: 'PAGINATION_PAGE_CHANGE'; payload: { layerId: string; page: number; collectionId?: string; itemsPerPage?: number } };
 
 export type IframeMessage = ParentToIframeMessage | IframeToParentMessage;
 
@@ -97,6 +99,7 @@ function isIframeToParentMessage(message: any): message is IframeToParentMessage
     'OPEN_COLLECTION_ITEM_SHEET',
     'DELETE_LAYER',
     'UPDATE_GAP',
+    'PAGINATION_PAGE_CHANGE',
   ];
 
   return validTypes.includes(message.type);

@@ -242,6 +242,8 @@ export interface Layer {
   _collectionItems?: CollectionItemWithValues[];
   // SSR-only property for collection item values (used for visibility filtering)
   _collectionItemValues?: Record<string, string>;
+  // SSR-only property for pagination metadata (when pagination is enabled)
+  _paginationMeta?: CollectionPaginationMeta;
   // Interactions / Animations (new structured approach)
   interactions?: LayerInteraction[];
 }
@@ -602,15 +604,32 @@ export interface FieldVariable {
 export type InlineVariable = FieldVariable;
 
 // Layer Variable Types
+export interface CollectionPaginationConfig {
+  enabled: boolean;
+  mode: 'pages' | 'load_more';
+  items_per_page: number;
+}
+
 export interface CollectionVariable {
   id: string; // Collection ID
   sort_by?: 'none' | 'manual' | 'random' | string; // 'none', 'manual', 'random', or field ID
   sort_order?: 'asc' | 'desc'; // Only used when sort_by is a field ID
-  limit?: number; // Maximum number of items to show
-  offset?: number; // Number of items to skip
+  limit?: number; // Maximum number of items to show (deprecated when pagination enabled)
+  offset?: number; // Number of items to skip (deprecated when pagination enabled)
   source_field_id?: string; // Reference field ID from parent item (for filtered collection source)
   source_field_type?: 'reference' | 'multi_reference'; // Type of source field (single vs multi)
   filters?: ConditionalVisibility; // Filter conditions to apply to collection items
+  pagination?: CollectionPaginationConfig; // Pagination settings for collection
+}
+
+// Runtime pagination metadata (attached to layer during SSR, not saved to database)
+export interface CollectionPaginationMeta {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  layerId: string; // To identify which collection layer this belongs to
+  collectionId: string; // Collection ID for fetching more pages
 }
 
 export interface LayerVariables {

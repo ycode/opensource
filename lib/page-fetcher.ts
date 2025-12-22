@@ -2,8 +2,16 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
 import { getItemWithValues, getItemsWithValues } from '@/lib/repositories/collectionItemRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
-import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer } from '@/types';
+import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer, CollectionPaginationMeta } from '@/types';
 import { getCollectionVariable, resolveFieldValue, isFieldVariable, evaluateVisibility } from '@/lib/layer-utils';
+
+// Pagination context passed through to resolveCollectionLayers
+export interface PaginationContext {
+  // Map of layerId -> page number (defaults to 1 if not specified)
+  pageNumbers?: Record<string, number>;
+  // Default page number for all collection layers (from URL ?page=N)
+  defaultPage?: number;
+}
 import { resolveInlineVariables } from '@/lib/inline-variables';
 
 export interface PageData {
@@ -95,10 +103,14 @@ async function getCollectionItemBySlug(
  * Fetch page by full path (including folders)
  * Works for both draft and published pages
  * Handles dynamic pages by matching URL patterns and fetching collection items
+ * @param slugPath - The URL path
+ * @param isPublished - Whether to fetch published or draft version
+ * @param paginationContext - Optional pagination context with page numbers from URL
  */
 export async function fetchPageByPath(
   slugPath: string,
-  isPublished: boolean
+  isPublished: boolean,
+  paginationContext?: PaginationContext
 ): Promise<PageData | null> {
   try {
     const supabase = await getSupabaseAdmin();
@@ -217,7 +229,7 @@ export async function fetchPageByPath(
             // The isPublished parameter controls which collection items to fetch
             // Pass enhanced values so nested collections can filter based on dynamic page data
             const resolvedLayers = layersWithInjectedData.length > 0
-              ? await resolveCollectionLayers(layersWithInjectedData, isPublished, enhancedItemValues)
+              ? await resolveCollectionLayers(layersWithInjectedData, isPublished, enhancedItemValues, paginationContext)
               : [];
 
             return {
@@ -272,7 +284,7 @@ export async function fetchPageByPath(
     // Resolve collection layers server-side (for both draft and published)
     // The isPublished parameter controls which collection items to fetch
     const resolvedLayers = pageLayers?.layers
-      ? await resolveCollectionLayers(pageLayers.layers, isPublished)
+      ? await resolveCollectionLayers(pageLayers.layers, isPublished, undefined, paginationContext)
       : [];
 
     return {
@@ -634,12 +646,14 @@ function resolveFieldValueWithRelationships(
  * @param layers - Layer tree to resolve
  * @param isPublished - Whether to fetch published or draft items
  * @param parentItemValues - Optional parent item values for multi-reference filtering
+ * @param paginationContext - Optional pagination context with page numbers
  * @returns Layers with collection data injected
  */
 export async function resolveCollectionLayers(
   layers: Layer[],
   isPublished: boolean,
-  parentItemValues?: Record<string, string>
+  parentItemValues?: Record<string, string>,
+  paginationContext?: PaginationContext
 ): Promise<Layer[]> {
   console.log('[resolveCollectionLayers] ===== START =====');
   console.log('[resolveCollectionLayers] Processing layers:', {
@@ -669,32 +683,58 @@ export async function resolveCollectionLayers(
           // Fetch collection items with layer-specific settings
           const sortBy = collectionVariable.sort_by;
           const sortOrder = collectionVariable.sort_order;
-          const limit = collectionVariable.limit;
-          const offset = collectionVariable.offset;
           const sourceFieldId = collectionVariable.source_field_id;
           const sourceFieldType = collectionVariable.source_field_type;
+          
+          // Check if pagination is enabled
+          const paginationConfig = collectionVariable.pagination;
+          const isPaginated = paginationConfig?.enabled && paginationConfig?.mode === 'pages';
+          
+          // Determine limit and offset based on pagination settings
+          let limit: number | undefined;
+          let offset: number | undefined;
+          let currentPage = 1;
+          
+          if (isPaginated) {
+            const itemsPerPage = paginationConfig.items_per_page || 10;
+            // Get page number from context (either specific to this layer or default)
+            currentPage = paginationContext?.pageNumbers?.[layer.id] 
+              ?? paginationContext?.defaultPage 
+              ?? 1;
+            limit = itemsPerPage;
+            offset = (currentPage - 1) * itemsPerPage;
+          } else {
+            // Use legacy limit/offset from collection variable
+            limit = collectionVariable.limit;
+            offset = collectionVariable.offset;
+          }
           
           // Build filters for the query
           const filters: any = {};
           if (limit) filters.limit = limit;
           if (offset) filters.offset = offset;
           
-          // Fetch items with values
-          let { items } = await getItemsWithValues(
+          // Fetch items with values - also get total count for pagination
+          const fetchResult = await getItemsWithValues(
             collectionVariable.id,
             isPublished,
             filters
           );
+          let items = fetchResult.items;
+          const totalItems = fetchResult.total;
           
           console.log(`[resolveCollectionLayers] Fetched items for layer ${layer.id}:`, {
             collectionId: collectionVariable.id,
             itemsCount: items.length,
+            totalItems,
             sortBy,
             sortOrder,
             limit,
             offset,
             sourceFieldId,
             sourceFieldType,
+            isPaginated,
+            currentPage,
           });
           
           // Filter by reference field if source_field_id is set
@@ -817,6 +857,28 @@ export async function resolveCollectionLayers(
 
           console.log(`[resolveCollectionLayers] Cloned collection layer into ${clonedLayers.length} items`);
 
+          // Build pagination metadata if pagination is enabled
+          let paginationMeta: CollectionPaginationMeta | undefined;
+          if (isPaginated && paginationConfig) {
+            const itemsPerPage = paginationConfig.items_per_page || 10;
+            paginationMeta = {
+              currentPage,
+              totalPages: Math.ceil(totalItems / itemsPerPage),
+              totalItems,
+              itemsPerPage,
+              layerId: layer.id,
+              collectionId: collectionVariable.id,
+            };
+            console.log(`[resolveCollectionLayers] Pagination meta for layer ${layer.id}:`, paginationMeta);
+          }
+
+          // Build children array - cloned items plus pagination wrapper if enabled
+          let fragmentChildren = clonedLayers;
+          if (paginationMeta && paginationMeta.totalPages > 1) {
+            const paginationWrapper = generatePaginationWrapper(layer.id, paginationMeta);
+            fragmentChildren = [...clonedLayers, paginationWrapper];
+          }
+
           // Return a fragment layer - LayerRenderer will render children directly without wrapper
           return {
             ...layer,
@@ -825,11 +887,13 @@ export async function resolveCollectionLayers(
             classes: [],
             design: undefined,
             attributes: {} as Record<string, any>,
-            children: clonedLayers,
+            children: fragmentChildren,
             variables: {
               ...layer.variables,
               collection: undefined,
             },
+            // Store pagination meta for client hydration (SSR only)
+            _paginationMeta: paginationMeta,
           };
         } catch (error) {
           console.error(`Failed to resolve collection layer ${layer.id}:`, error);
@@ -942,4 +1006,83 @@ function filterByVisibility(
   return layers
     .map(layer => filterLayer(layer, itemValues))
     .filter((layer): layer is Layer => layer !== null);
+}
+
+/**
+ * Generate a pagination wrapper layer with Previous/Next buttons
+ * This is injected as a sibling after the collection fragment
+ * @param collectionLayerId - Original collection layer ID
+ * @param paginationMeta - Pagination metadata
+ * @returns Layer structure for pagination controls
+ */
+export function generatePaginationWrapper(
+  collectionLayerId: string,
+  paginationMeta: CollectionPaginationMeta
+): Layer {
+  const { currentPage, totalPages } = paginationMeta;
+  const isFirstPage = currentPage <= 1;
+  const isLastPage = currentPage >= totalPages;
+
+  return {
+    id: `${collectionLayerId}-pagination`,
+    name: 'div',
+    classes: 'flex items-center justify-center gap-4 mt-4',
+    children: [
+      // Previous Button
+      {
+        id: `${collectionLayerId}-pagination-prev`,
+        name: 'button',
+        classes: `px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 transition-colors ${isFirstPage ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`,
+        settings: {
+          tag: 'button',
+        },
+        attributes: {
+          'data-pagination-action': 'prev',
+          'data-collection-layer-id': collectionLayerId,
+          'data-current-page': String(currentPage),
+          ...(isFirstPage ? { disabled: 'true' } : {}),
+        } as Record<string, any>,
+        children: [
+          {
+            id: `${collectionLayerId}-pagination-prev-text`,
+            name: 'span',
+            content: 'Previous',
+          } as Layer,
+        ],
+      } as Layer,
+      // Page indicator
+      {
+        id: `${collectionLayerId}-pagination-info`,
+        name: 'span',
+        classes: 'text-sm text-gray-600',
+        content: `Page ${currentPage} of ${totalPages}`,
+      } as Layer,
+      // Next Button
+      {
+        id: `${collectionLayerId}-pagination-next`,
+        name: 'button',
+        classes: `px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 transition-colors ${isLastPage ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`,
+        settings: {
+          tag: 'button',
+        },
+        attributes: {
+          'data-pagination-action': 'next',
+          'data-collection-layer-id': collectionLayerId,
+          'data-current-page': String(currentPage),
+          ...(isLastPage ? { disabled: 'true' } : {}),
+        } as Record<string, any>,
+        children: [
+          {
+            id: `${collectionLayerId}-pagination-next-text`,
+            name: 'span',
+            content: 'Next',
+          } as Layer,
+        ],
+      } as Layer,
+    ],
+    attributes: {
+      'data-pagination-wrapper': 'true',
+      'data-collection-layer-id': collectionLayerId,
+    } as Record<string, any>,
+  } as Layer;
 }

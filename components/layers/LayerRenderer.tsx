@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
@@ -11,6 +11,7 @@ import { useComponentsStore } from '../../stores/useComponentsStore';
 import { useCollectionLayerStore } from '../../stores/useCollectionLayerStore';
 import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { cn } from '@/lib/utils';
+import PaginatedCollection from '@/components/PaginatedCollection';
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -50,7 +51,27 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   const renderLayer = (layer: Layer): React.ReactNode => {
     // Fragment layers: render children directly without wrapper element
     if (layer.name === '_fragment' && layer.children) {
-      return layer.children.map((child: Layer) => renderLayer(child));
+      const renderedChildren = layer.children.map((child: Layer) => renderLayer(child));
+      
+      // If this fragment has pagination metadata and we're in published mode,
+      // wrap it with PaginatedCollection for client-side navigation
+      if (layer._paginationMeta && isPublished) {
+        // Extract the original layer ID from the fragment ID (remove -fragment suffix)
+        const originalLayerId = layer.id.replace(/-fragment$/, '');
+        
+        return (
+          <Suspense key={layer.id} fallback={<div className="animate-pulse bg-gray-200 rounded h-32" />}>
+            <PaginatedCollection
+              paginationMeta={layer._paginationMeta}
+              collectionLayerId={originalLayerId}
+            >
+              {renderedChildren}
+            </PaginatedCollection>
+          </Suspense>
+        );
+      }
+      
+      return renderedChildren;
     }
 
     return (
@@ -185,7 +206,7 @@ const LayerItem: React.FC<{
   const layerData = useCollectionLayerStore((state) => state.layerData[layer.id]);
   const isLoadingLayerData = useCollectionLayerStore((state) => state.loading[layer.id]);
   const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
-  const allCollectionItems = layerData || [];
+  const allCollectionItems = React.useMemo(() => layerData || [], [layerData]);
 
   // Filter items by reference field if source_field_id is set
   // Single reference: get the one referenced item (no loop, just context)
