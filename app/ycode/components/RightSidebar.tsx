@@ -192,6 +192,43 @@ const RightSidebar = React.memo(function RightSidebar({
     return result?.parent === null;
   }, [selectedLayerId, allLayers]);
 
+  // Check if selected collection is nested inside another collection
+  // If so, we hide the pagination option entirely (not just disable it)
+  const isNestedInCollection: boolean = useMemo(() => {
+    if (!selectedLayer || !selectedLayerId) return false;
+    
+    const collectionVar = getCollectionVariable(selectedLayer);
+    if (!collectionVar) return false;
+    
+    const parentCollection = findParentCollectionLayer(allLayers, selectedLayerId);
+    return !!parentCollection;
+  }, [selectedLayer, selectedLayerId, allLayers]);
+
+  // Check if pagination should be disabled (only for root-level case where we show a message)
+  const isPaginationDisabled: boolean = useMemo(() => {
+    if (!selectedLayer) return true;
+    
+    const collectionVar = getCollectionVariable(selectedLayer);
+    if (!collectionVar) return true;
+    
+    // If at root level (no parent container at all), pagination is disabled (need a container for sibling)
+    return isSelectedLayerAtRoot;
+  }, [selectedLayer, isSelectedLayerAtRoot]);
+
+  // Get the reason why pagination is disabled (only for actionable messages)
+  const paginationDisabledReason: string | null = useMemo(() => {
+    if (!selectedLayer) return null;
+    
+    const collectionVar = getCollectionVariable(selectedLayer);
+    if (!collectionVar) return null;
+    
+    if (isSelectedLayerAtRoot) {
+      return 'Wrap collection in a container to enable pagination';
+    }
+    
+    return null;
+  }, [selectedLayer, isSelectedLayerAtRoot]);
+
   // Set interaction owner when interactions tab becomes active
   useEffect(() => {
     if (activeTab === 'interactions' && selectedLayerId && !interactionOwnerLayerId) {
@@ -1706,29 +1743,31 @@ const RightSidebar = React.memo(function RightSidebar({
                         </div>
                       </div>
 
-                      {/* Pagination */}
-                      <div className="grid grid-cols-3">
-                        <Label variant="muted">Pagination</Label>
-                        <div className="col-span-2 *:w-full">
-                          <ToggleGroup
-                            options={[
-                              { label: 'Off', value: false },
-                              { label: 'On', value: true },
-                            ]}
-                            value={getCollectionVariable(selectedLayer)?.pagination?.enabled ?? false}
-                            onChange={(value) => handlePaginationEnabledChange(value as boolean)}
-                            disabled={isSelectedLayerAtRoot}
-                          />
-                          {isSelectedLayerAtRoot && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Wrap collection in a container to enable pagination
-                            </p>
-                          )}
+                      {/* Pagination - hidden for nested collections */}
+                      {!isNestedInCollection && (
+                        <div className="grid grid-cols-3">
+                          <Label variant="muted">Pagination</Label>
+                          <div className="col-span-2 *:w-full">
+                            <ToggleGroup
+                              options={[
+                                { label: 'Off', value: false },
+                                { label: 'On', value: true },
+                              ]}
+                              value={getCollectionVariable(selectedLayer)?.pagination?.enabled ?? false}
+                              onChange={(value) => handlePaginationEnabledChange(value as boolean)}
+                              disabled={isPaginationDisabled}
+                            />
+                            {paginationDisabledReason && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {paginationDisabledReason}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Pagination type and items per page - only show when pagination enabled */}
-                      {getCollectionVariable(selectedLayer)?.pagination?.enabled && (
+                      {!isNestedInCollection && getCollectionVariable(selectedLayer)?.pagination?.enabled && (
                         <>
                           <div className="grid grid-cols-3">
                             <Label variant="muted">Type</Label>
