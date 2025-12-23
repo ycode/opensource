@@ -641,6 +641,9 @@ export interface CollectionPaginationMeta {
   itemsPerPage: number;
   layerId: string; // To identify which collection layer this belongs to
   collectionId: string; // Collection ID for fetching more pages
+  mode?: 'pages' | 'load_more'; // Pagination mode
+  itemIds?: string[]; // For multi-reference filtering in load_more mode
+  layerTemplate?: Layer[]; // Layer template for rendering new items in load_more mode
 }
 
 export interface LayerVariables {

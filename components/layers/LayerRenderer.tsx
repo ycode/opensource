@@ -12,6 +12,7 @@ import { useCollectionLayerStore } from '../../stores/useCollectionLayerStore';
 import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { cn } from '@/lib/utils';
 import PaginatedCollection from '@/components/PaginatedCollection';
+import LoadMoreCollection from '@/components/LoadMoreCollection';
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -54,11 +55,29 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
       const renderedChildren = layer.children.map((child: Layer) => renderLayer(child));
       
       // If this fragment has pagination metadata and we're in published mode,
-      // wrap it with PaginatedCollection for client-side navigation
+      // wrap it with the appropriate pagination component
       if (layer._paginationMeta && isPublished) {
         // Extract the original layer ID from the fragment ID (remove -fragment suffix)
         const originalLayerId = layer.id.replace(/-fragment$/, '');
+        const paginationMode = layer._paginationMeta.mode || 'pages';
         
+        if (paginationMode === 'load_more') {
+          // Use LoadMoreCollection for "Load More" mode
+          return (
+            <Suspense key={layer.id} fallback={<div className="animate-pulse bg-gray-200 rounded h-32" />}>
+              <LoadMoreCollection
+                paginationMeta={layer._paginationMeta}
+                collectionLayerId={originalLayerId}
+                itemIds={layer._paginationMeta.itemIds}
+                layerTemplate={layer._paginationMeta.layerTemplate}
+              >
+                {renderedChildren}
+              </LoadMoreCollection>
+            </Suspense>
+          );
+        }
+        
+        // Default: Use PaginatedCollection for "Pages" mode
         return (
           <Suspense key={layer.id} fallback={<div className="animate-pulse bg-gray-200 rounded h-32" />}>
             <PaginatedCollection

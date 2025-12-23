@@ -1396,7 +1396,7 @@
    * Update pagination layer with dynamic meta (page info text, button states)
    */
   function updatePaginationLayerMeta(layer, meta) {
-    const { currentPage, totalPages } = meta;
+    const { currentPage, totalPages, totalItems, itemsPerPage, mode } = meta;
     const layerId = layer.id;
     
     // Deep clone the layer to avoid mutating the original
@@ -1404,9 +1404,15 @@
     
     // Helper to recursively update layers
     function updateLayerRecursive(l) {
-      // Update page info text
+      // Update page info text (for 'pages' mode)
       if (l.id && l.id.endsWith('-pagination-info')) {
         l.text = `Page ${currentPage} of ${totalPages}`;
+      }
+      
+      // Update items count text (for 'load_more' mode)
+      if (l.id && l.id.endsWith('-pagination-count')) {
+        const shownItems = Math.min(itemsPerPage, totalItems);
+        l.text = `Showing ${shownItems} of ${totalItems}`;
       }
       
       // Update previous button state
@@ -1437,6 +1443,19 @@
             l.classes = [...l.classes, 'opacity-50', 'cursor-not-allowed'];
           } else {
             l.classes = (l.classes || '') + ' opacity-50 cursor-not-allowed';
+          }
+        }
+      }
+      
+      // Hide load more button when all items shown (in load_more mode)
+      if (l.id && l.id.endsWith('-pagination-loadmore')) {
+        const allItemsShown = itemsPerPage >= totalItems;
+        if (allItemsShown) {
+          // Hide the button by adding display:none class or attribute
+          if (Array.isArray(l.classes)) {
+            l.classes = [...l.classes, 'hidden'];
+          } else {
+            l.classes = (l.classes || '') + ' hidden';
           }
         }
       }
@@ -1502,6 +1521,17 @@
       });
       if (!isVisible) {
         return null;
+      }
+    }
+
+    // Check if this is a pagination wrapper sibling (has data-pagination-for attribute)
+    // If so, look up the pagination meta from the associated collection and update the layer
+    const paginationForLayerId = layer.attributes?.['data-pagination-for'];
+    if (paginationForLayerId) {
+      const collectionMeta = paginationState[paginationForLayerId]?.meta;
+      if (collectionMeta) {
+        // Update this layer with the pagination meta (text counts, button states)
+        layer = updatePaginationLayerMeta(layer, collectionMeta);
       }
     }
 
@@ -1625,9 +1655,9 @@
           );
         }
 
-        // Check for pagination settings
+        // Check for pagination settings (both 'pages' and 'load_more' modes)
         const paginationConfig = collectionVariable?.pagination;
-        const isPaginated = paginationConfig?.enabled && paginationConfig?.mode === 'pages';
+        const isPaginated = paginationConfig?.enabled && (paginationConfig?.mode === 'pages' || paginationConfig?.mode === 'load_more');
         let paginationMeta = null;
         
         if (isPaginated) {
@@ -1655,13 +1685,17 @@
               totalItems,
               itemsPerPage,
               layerId: layer.id,
-              collectionId
+              collectionId,
+              mode: paginationConfig.mode || 'pages',
             };
             
-            // Initialize pagination state if not exists
-            if (!paginationState[layer.id]) {
-              paginationState[layer.id] = { page: 1, loading: false, meta: paginationMeta };
-            }
+            // Always update pagination state with latest meta
+            // (preserves current page if already set, but updates item counts)
+            paginationState[layer.id] = {
+              page: paginationState[layer.id]?.page || 1,
+              loading: paginationState[layer.id]?.loading || false,
+              meta: paginationMeta,
+            };
           }
         }
 

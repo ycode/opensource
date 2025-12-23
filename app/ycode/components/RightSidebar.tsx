@@ -758,118 +758,187 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   };
 
+  // Helper: Create pagination wrapper for "pages" mode (Prev/Next buttons)
+  const createPagesWrapper = (collectionLayerId: string): Layer => ({
+    id: `${collectionLayerId}-pagination-wrapper`,
+    name: 'div',
+    customName: 'Pagination',
+    classes: 'flex items-center justify-center gap-4 mt-4',
+    attributes: {
+      'data-pagination-for': collectionLayerId,
+      'data-pagination-mode': 'pages',
+    },
+    children: [
+      {
+        id: `${collectionLayerId}-pagination-prev`,
+        name: 'button',
+        customName: 'Previous Button',
+        classes: 'px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors cursor-pointer',
+        settings: { tag: 'button' },
+        attributes: {
+          'data-pagination-action': 'prev',
+          'data-collection-layer-id': collectionLayerId,
+        },
+        children: [
+          {
+            id: `${collectionLayerId}-pagination-prev-text`,
+            name: 'span',
+            customName: 'Previous Text',
+            classes: '',
+            text: 'Previous',
+          } as Layer,
+        ],
+      } as Layer,
+      {
+        id: `${collectionLayerId}-pagination-info`,
+        name: 'span',
+        customName: 'Page Info',
+        classes: 'text-sm text-[#4b5563]',
+        text: 'Page 1 of 1',
+      } as Layer,
+      {
+        id: `${collectionLayerId}-pagination-next`,
+        name: 'button',
+        customName: 'Next Button',
+        classes: 'px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors cursor-pointer',
+        settings: { tag: 'button' },
+        attributes: {
+          'data-pagination-action': 'next',
+          'data-collection-layer-id': collectionLayerId,
+        },
+        children: [
+          {
+            id: `${collectionLayerId}-pagination-next-text`,
+            name: 'span',
+            customName: 'Next Text',
+            classes: '',
+            text: 'Next',
+          } as Layer,
+        ],
+      } as Layer,
+    ],
+  });
+
+  // Helper: Create pagination wrapper for "load_more" mode (Load more button + count)
+  const createLoadMoreWrapper = (collectionLayerId: string): Layer => ({
+    id: `${collectionLayerId}-pagination-wrapper`,
+    name: 'div',
+    customName: 'Load More',
+    classes: 'flex flex-col items-center gap-2 mt-4',
+    attributes: {
+      'data-pagination-for': collectionLayerId,
+      'data-pagination-mode': 'load_more',
+    },
+    children: [
+      {
+        id: `${collectionLayerId}-pagination-loadmore`,
+        name: 'button',
+        customName: 'Load More Button',
+        classes: 'px-6 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors cursor-pointer',
+        settings: { tag: 'button' },
+        attributes: {
+          'data-pagination-action': 'load_more',
+          'data-collection-layer-id': collectionLayerId,
+        },
+        children: [
+          {
+            id: `${collectionLayerId}-pagination-loadmore-text`,
+            name: 'span',
+            customName: 'Load More Text',
+            classes: '',
+            text: 'Load More',
+          } as Layer,
+        ],
+      } as Layer,
+      {
+        id: `${collectionLayerId}-pagination-count`,
+        name: 'span',
+        customName: 'Items Count',
+        classes: 'text-sm text-[#4b5563]',
+        text: 'Showing items',
+      } as Layer,
+    ],
+  });
+
+  // Helper: Get current layers from the appropriate store
+  const getCurrentLayersFromStore = (): Layer[] => {
+    if (editingComponentId) {
+      return useComponentsStore.getState().componentDrafts[editingComponentId] || [];
+    } else if (currentPageId) {
+      const draft = usePagesStore.getState().draftsByPageId[currentPageId];
+      return draft ? draft.layers : [];
+    }
+    return [];
+  };
+
+  // Helper: Add or replace pagination wrapper
+  const addOrReplacePaginationWrapper = (collectionLayerId: string, mode: 'pages' | 'load_more') => {
+    const currentLayers = getCurrentLayersFromStore();
+    const parentResult = findLayerWithParent(currentLayers, collectionLayerId);
+    const parentLayer = parentResult?.parent;
+    
+    if (!parentLayer) {
+      console.warn('Pagination at root level not yet supported - collection layer should be inside a container');
+      return;
+    }
+    
+    const paginationWrapperId = `${collectionLayerId}-pagination-wrapper`;
+    const paginationWrapper = mode === 'pages' 
+      ? createPagesWrapper(collectionLayerId)
+      : createLoadMoreWrapper(collectionLayerId);
+    
+    // Get parent's CURRENT children from fresh lookup
+    const freshParentResult = findLayerWithParent(currentLayers, parentLayer.id);
+    const freshParent = freshParentResult?.layer || parentLayer;
+    const parentChildren = freshParent.children || [];
+    
+    const collectionIndex = parentChildren.findIndex(c => c.id === collectionLayerId);
+    const existingPaginationIndex = parentChildren.findIndex(c => c.id === paginationWrapperId);
+    
+    let newChildren: Layer[];
+    if (existingPaginationIndex === -1) {
+      // Add new wrapper after collection
+      newChildren = [
+        ...parentChildren.slice(0, collectionIndex + 1),
+        paginationWrapper,
+        ...parentChildren.slice(collectionIndex + 1),
+      ];
+    } else {
+      // Replace existing wrapper
+      newChildren = parentChildren.map(c => c.id === paginationWrapperId ? paginationWrapper : c);
+    }
+    
+    onLayerUpdate(parentLayer.id, { children: newChildren });
+  };
+
+  // Helper: Remove pagination wrapper
+  const removePaginationWrapper = (collectionLayerId: string) => {
+    const currentLayers = getCurrentLayersFromStore();
+    const parentResult = findLayerWithParent(currentLayers, collectionLayerId);
+    const parentLayer = parentResult?.parent;
+    
+    if (!parentLayer) return;
+    
+    const paginationWrapperId = `${collectionLayerId}-pagination-wrapper`;
+    const freshParentResult = findLayerWithParent(currentLayers, parentLayer.id);
+    const freshParent = freshParentResult?.layer || parentLayer;
+    const parentChildren = freshParent.children || [];
+    
+    const newChildren = parentChildren.filter(c => c.id !== paginationWrapperId);
+    onLayerUpdate(parentLayer.id, { children: newChildren });
+  };
+
   // Handle pagination enabled toggle
   const handlePaginationEnabledChange = (checked: boolean) => {
     if (selectedLayerId && selectedLayer) {
       const currentCollectionVariable = getCollectionVariable(selectedLayer);
       if (currentCollectionVariable) {
-        // Get the CURRENT layers from the store (not memoized allLayers which could be stale)
-        let currentLayers: Layer[];
-        if (editingComponentId) {
-          currentLayers = useComponentsStore.getState().componentDrafts[editingComponentId] || [];
-        } else if (currentPageId) {
-          const draft = usePagesStore.getState().draftsByPageId[currentPageId];
-          currentLayers = draft ? draft.layers : [];
+        const mode = currentCollectionVariable.pagination?.mode || 'pages';
+        
+        if (checked) {
+          addOrReplacePaginationWrapper(selectedLayerId, mode);
         } else {
-          currentLayers = [];
-        }
-        
-        // Find the parent of the selected collection layer
-        const parentResult = findLayerWithParent(currentLayers, selectedLayerId);
-        const parentLayer = parentResult?.parent;
-        
-        // Pagination wrapper ID (sibling of collection layer)
-        const paginationWrapperId = `${selectedLayerId}-pagination-wrapper`;
-        
-        // Create pagination wrapper layer
-        const paginationWrapper: Layer = {
-          id: paginationWrapperId,
-          name: 'div',
-          customName: 'Pagination',
-          classes: 'flex items-center justify-center gap-4 mt-4',
-          attributes: {
-            'data-pagination-for': selectedLayerId,
-          },
-          children: [
-            {
-              id: `${selectedLayerId}-pagination-prev`,
-              name: 'button',
-              customName: 'Previous Button',
-              classes: 'px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors cursor-pointer',
-              settings: { tag: 'button' },
-              attributes: {
-                'data-pagination-action': 'prev',
-                'data-collection-layer-id': selectedLayerId,
-              },
-              children: [
-                {
-                  id: `${selectedLayerId}-pagination-prev-text`,
-                  name: 'span',
-                  customName: 'Previous Text',
-                  classes: '',
-                  text: 'Previous',
-                } as Layer,
-              ],
-            } as Layer,
-            {
-              id: `${selectedLayerId}-pagination-info`,
-              name: 'span',
-              customName: 'Page Info',
-              classes: 'text-sm text-[#4b5563]',
-              text: 'Page 1 of 1',
-            } as Layer,
-            {
-              id: `${selectedLayerId}-pagination-next`,
-              name: 'button',
-              customName: 'Next Button',
-              classes: 'px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors cursor-pointer',
-              settings: { tag: 'button' },
-              attributes: {
-                'data-pagination-action': 'next',
-                'data-collection-layer-id': selectedLayerId,
-              },
-              children: [
-                {
-                  id: `${selectedLayerId}-pagination-next-text`,
-                  name: 'span',
-                  customName: 'Next Text',
-                  classes: '',
-                  text: 'Next',
-                } as Layer,
-              ],
-            } as Layer,
-          ],
-        };
-
-        // Add/remove pagination wrapper as sibling FIRST (before updating collection config)
-        if (parentLayer) {
-          // Get parent's CURRENT children from fresh lookup (parentLayer might be stale)
-          const freshParentResult = findLayerWithParent(currentLayers, parentLayer.id);
-          const freshParent = freshParentResult?.layer || parentLayer;
-          const parentChildren = freshParent.children || [];
-          // Find index of the collection layer
-          const collectionIndex = parentChildren.findIndex(c => c.id === selectedLayerId);
-          
-          if (checked) {
-            // Add pagination wrapper right after the collection layer
-            const existingPaginationIndex = parentChildren.findIndex(c => c.id === paginationWrapperId);
-            if (existingPaginationIndex === -1) {
-              const newChildren = [
-                ...parentChildren.slice(0, collectionIndex + 1),
-                paginationWrapper,
-                ...parentChildren.slice(collectionIndex + 1),
-              ];
-              onLayerUpdate(parentLayer.id, { children: newChildren });
-            }
-          } else {
-            // Remove pagination wrapper
-            const newChildren = parentChildren.filter(c => c.id !== paginationWrapperId);
-            onLayerUpdate(parentLayer.id, { children: newChildren });
-          }
-        } else {
-          // Collection layer is at root level - need to update the page layers directly
-          // For now, store pagination config and let the renderer handle it
-          console.warn('Pagination at root level not yet supported - collection layer should be inside a container');
+          removePaginationWrapper(selectedLayerId);
         }
 
         // Update the collection layer's pagination config
@@ -879,7 +948,7 @@ const RightSidebar = React.memo(function RightSidebar({
             collection: {
               ...currentCollectionVariable,
               pagination: checked 
-                ? { enabled: true, mode: 'pages' as const, items_per_page: 10 }
+                ? { enabled: true, mode, items_per_page: 10 }
                 : undefined,
             }
           }
@@ -917,6 +986,10 @@ const RightSidebar = React.memo(function RightSidebar({
     if (selectedLayerId && selectedLayer) {
       const currentCollectionVariable = getCollectionVariable(selectedLayer);
       if (currentCollectionVariable?.pagination) {
+        // Recreate the pagination wrapper with the new mode
+        addOrReplacePaginationWrapper(selectedLayerId, mode);
+        
+        // Update the collection layer's pagination config
         onLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
@@ -1670,9 +1743,7 @@ const RightSidebar = React.memo(function RightSidebar({
                                 <SelectContent>
                                   <SelectGroup>
                                     <SelectItem value="pages">Pages (Previous / Next)</SelectItem>
-                                    <SelectItem value="load_more" disabled>
-                                      Load More (coming soon)
-                                    </SelectItem>
+                                    <SelectItem value="load_more">Load More</SelectItem>
                                   </SelectGroup>
                                 </SelectContent>
                               </Select>

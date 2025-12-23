@@ -691,9 +691,9 @@ export async function resolveCollectionLayers(
           const sourceFieldId = collectionVariable.source_field_id;
           const sourceFieldType = collectionVariable.source_field_type;
           
-          // Check if pagination is enabled
+          // Check if pagination is enabled (either 'pages' or 'load_more' mode)
           const paginationConfig = collectionVariable.pagination;
-          const isPaginated = paginationConfig?.enabled && paginationConfig?.mode === 'pages';
+          const isPaginated = paginationConfig?.enabled && (paginationConfig?.mode === 'pages' || paginationConfig?.mode === 'load_more');
           
           // Determine limit and offset based on pagination settings
           let limit: number | undefined;
@@ -878,6 +878,10 @@ export async function resolveCollectionLayers(
               itemsPerPage,
               layerId: layer.id,
               collectionId: collectionVariable.id,
+              mode: paginationConfig.mode, // 'pages' or 'load_more'
+              itemIds: allowedItemIds, // For multi-reference filtering in load_more
+              // Store the original layer template for load_more client-side rendering
+              layerTemplate: paginationConfig.mode === 'load_more' ? layer.children : undefined,
             };
             console.log(`[resolveCollectionLayers] Pagination meta for layer ${layer.id}:`, paginationMeta);
           }
@@ -1061,16 +1065,22 @@ function filterByVisibility(
  * @returns Updated layer with dynamic content
  */
 function updatePaginationLayerWithMeta(layer: Layer, meta: CollectionPaginationMeta): Layer {
-  const { currentPage, totalPages } = meta;
+  const { currentPage, totalPages, totalItems, itemsPerPage, mode } = meta;
   
   // Deep clone to avoid mutation
   const updatedLayer: Layer = JSON.parse(JSON.stringify(layer));
   
   // Helper to recursively update layers
   function updateLayerRecursive(l: Layer): void {
-    // Update page info text
+    // Update page info text (for 'pages' mode)
     if (l.id?.endsWith('-pagination-info')) {
       l.text = `Page ${currentPage} of ${totalPages}`;
+    }
+    
+    // Update items count text (for 'load_more' mode)
+    if (l.id?.endsWith('-pagination-count')) {
+      const shownItems = Math.min(itemsPerPage, totalItems);
+      l.text = `Showing ${shownItems} of ${totalItems}`;
     }
     
     // Update previous button state
@@ -1096,6 +1106,16 @@ function updatePaginationLayerWithMeta(layer: Layer, meta: CollectionPaginationM
         l.classes = Array.isArray(l.classes) 
           ? [...l.classes, 'opacity-50', 'cursor-not-allowed']
           : `${l.classes || ''} opacity-50 cursor-not-allowed`;
+      }
+    }
+    
+    // Hide load more button when all items shown (in load_more mode)
+    if (l.id?.endsWith('-pagination-loadmore')) {
+      const allItemsShown = itemsPerPage >= totalItems;
+      if (allItemsShown) {
+        l.classes = Array.isArray(l.classes) 
+          ? [...l.classes, 'hidden']
+          : `${l.classes || ''} hidden`;
       }
     }
     
@@ -1186,4 +1206,221 @@ export function generatePaginationWrapper(
       'data-collection-layer-id': collectionLayerId,
     } as Record<string, any>,
   } as Layer;
+}
+
+/**
+ * Render collection items to HTML string for "Load More" pagination
+ * Takes the original layer template and renders each item with injected data
+ * @param items - Collection items with values
+ * @param layerTemplate - The original layer template (children of the collection layer)
+ * @param collectionId - Collection ID for fetching fields
+ * @param collectionLayerId - The collection layer ID (for unique item IDs)
+ * @param isPublished - Whether to fetch published data
+ * @returns HTML string of rendered items
+ */
+export async function renderCollectionItemsToHtml(
+  items: CollectionItemWithValues[],
+  layerTemplate: Layer[],
+  collectionId: string,
+  collectionLayerId: string,
+  isPublished: boolean
+): Promise<string> {
+  // Fetch collection fields for field resolution
+  const collectionFields = await getFieldsByCollectionId(collectionId, isPublished);
+  
+  // Render each item using the template
+  const renderedItems = await Promise.all(
+    items.map(async (item, index) => {
+      // Deep clone the template for each item
+      const clonedTemplate = JSON.parse(JSON.stringify(layerTemplate));
+      
+      // Inject collection data into each layer of the template (text, images, etc.)
+      const injectedLayers = await Promise.all(
+        clonedTemplate.map((layer: Layer) => 
+          injectCollectionDataForHtml(layer, item.values, collectionFields, isPublished)
+        )
+      );
+      
+      // Resolve nested collection layers (sub-collections like "shades" inside "colors")
+      // Pass item.values so nested collections can filter based on parent item's field values
+      const resolvedLayers = await resolveCollectionLayers(
+        injectedLayers,
+        isPublished,
+        item.values // Parent item values for multi-reference filtering
+      );
+      
+      // Convert layers to HTML (handles fragments from resolved collections)
+      const itemHtml = resolvedLayers.map(layer => layerToHtml(layer, item.id)).join('');
+      
+      // Wrap in collection item container with the proper layer ID format
+      const itemWrapperId = `${collectionLayerId}-item-${item.id}`;
+      return `<div data-layer-id="${itemWrapperId}" data-collection-item-id="${item.id}">${itemHtml}</div>`;
+    })
+  );
+  
+  return renderedItems.join('');
+}
+
+/**
+ * Inject collection data into a layer for HTML rendering
+ * Similar to injectCollectionData but simplified for HTML output
+ */
+async function injectCollectionDataForHtml(
+  layer: Layer,
+  itemValues: Record<string, string>,
+  fields: CollectionField[],
+  isPublished: boolean
+): Promise<Layer> {
+  // Resolve reference fields if we have field definitions
+  let enhancedValues = itemValues;
+  if (fields && fields.length > 0) {
+    enhancedValues = await resolveReferenceFields(itemValues, fields, isPublished);
+  }
+  
+  const updates: Partial<Layer> = {};
+  
+  // Resolve inline variables (embedded JSON format)
+  const textContent = layer.variables?.text || layer.text;
+  if (textContent && typeof textContent === 'string' && textContent.includes('<ycode-inline-variable>')) {
+    const mockItem: CollectionItemWithValues = {
+      id: 'temp',
+      collection_id: 'temp',
+      created_at: '',
+      updated_at: '',
+      deleted_at: null,
+      manual_order: 0,
+      is_published: true,
+      values: enhancedValues,
+    };
+    const resolved = resolveInlineVariables(textContent, mockItem);
+    updates.text = resolved;
+  }
+  // Direct field binding (non-inline)
+  else if (layer.text && isFieldVariable(layer.text)) {
+    const fieldId = layer.text.data.field_id;
+    const relationships = layer.text.data.relationships || [];
+    const fullPath = relationships.length > 0 
+      ? [fieldId, ...relationships].join('.')
+      : fieldId;
+    updates.text = enhancedValues[fullPath] || '';
+  }
+  
+  // Image URL field binding
+  if (layer.url && isFieldVariable(layer.url)) {
+    const fieldId = layer.url.data.field_id;
+    const relationships = layer.url.data.relationships || [];
+    const fullPath = relationships.length > 0 
+      ? [fieldId, ...relationships].join('.')
+      : fieldId;
+    updates.url = enhancedValues[fullPath] || '';
+  }
+  
+  // Recursively process children
+  if (layer.children) {
+    const resolvedChildren = await Promise.all(
+      layer.children.map(child => 
+        injectCollectionDataForHtml(child, enhancedValues, fields, isPublished)
+      )
+    );
+    updates.children = resolvedChildren;
+  }
+  
+  return {
+    ...layer,
+    ...updates,
+  };
+}
+
+/**
+ * Convert a Layer to HTML string
+ * Handles common layer types and their attributes
+ */
+function layerToHtml(layer: Layer, collectionItemId?: string): string {
+  // Handle fragment layers (created by resolveCollectionLayers for nested collections)
+  // Fragments render their children directly without a wrapper element
+  if (layer.name === '_fragment' && layer.children) {
+    return layer.children.map(child => layerToHtml(child, collectionItemId)).join('');
+  }
+  
+  // Get the HTML tag
+  const tag = layer.settings?.tag || layer.name || 'div';
+  
+  // Build classes string
+  let classesStr = '';
+  if (Array.isArray(layer.classes)) {
+    classesStr = layer.classes.join(' ');
+  } else if (typeof layer.classes === 'string') {
+    classesStr = layer.classes;
+  }
+  
+  // Build attributes
+  const attrs: string[] = [];
+  
+  if (layer.id) {
+    attrs.push(`data-layer-id="${escapeHtml(layer.id)}"`);
+  }
+  
+  if (classesStr) {
+    attrs.push(`class="${escapeHtml(classesStr)}"`);
+  }
+  
+  if (layer.settings?.id) {
+    attrs.push(`id="${escapeHtml(layer.settings.id)}"`);
+  }
+  
+  // Handle images
+  if (tag === 'img' && layer.url) {
+    const src = typeof layer.url === 'string' ? layer.url : '';
+    attrs.push(`src="${escapeHtml(src)}"`);
+    if (layer.alt) {
+      attrs.push(`alt="${escapeHtml(layer.alt)}"`);
+    }
+  }
+  
+  // Handle links
+  if (tag === 'a' && layer.settings?.linkSettings?.href) {
+    attrs.push(`href="${escapeHtml(layer.settings.linkSettings.href)}"`);
+    if (layer.settings.linkSettings.target) {
+      attrs.push(`target="${escapeHtml(layer.settings.linkSettings.target)}"`);
+    }
+  }
+  
+  // Add custom attributes
+  if (layer.attributes) {
+    for (const [key, value] of Object.entries(layer.attributes)) {
+      if (value !== undefined && value !== null) {
+        attrs.push(`${escapeHtml(key)}="${escapeHtml(String(value))}"`);
+      }
+    }
+  }
+  
+  // Get text content
+  const textContent = typeof layer.text === 'string' ? layer.text : '';
+  
+  // Render children
+  const childrenHtml = layer.children 
+    ? layer.children.map(child => layerToHtml(child, collectionItemId)).join('')
+    : '';
+  
+  // Handle self-closing tags
+  const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link'];
+  if (selfClosingTags.includes(tag)) {
+    return `<${tag} ${attrs.join(' ')} />`;
+  }
+  
+  // Render the element
+  const attrsStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
+  return `<${tag}${attrsStr}>${escapeHtml(textContent)}${childrenHtml}</${tag}>`;
+}
+
+/**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
