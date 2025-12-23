@@ -719,7 +719,45 @@ export async function resolveCollectionLayers(
           if (limit) filters.limit = limit;
           if (offset) filters.offset = offset;
           
-          // Fetch items with values - also get total count for pagination
+          // For reference/multi-reference fields, get allowed item IDs BEFORE fetching
+          // This ensures pagination counts and offsets are correct for the filtered set
+          let allowedItemIds: string[] | undefined;
+          if (sourceFieldId && itemValues) {
+            const refValue = itemValues[sourceFieldId];
+            if (refValue) {
+              if (sourceFieldType === 'reference') {
+                // Single reference: only one item ID
+                allowedItemIds = [refValue];
+                console.log(`[resolveCollectionLayers] Single reference filter for field ${sourceFieldId}:`, {
+                  refItemId: refValue,
+                });
+              } else {
+                // Multi-reference: parse JSON array of item IDs
+                try {
+                  const parsedIds = JSON.parse(refValue);
+                  if (Array.isArray(parsedIds)) {
+                    allowedItemIds = parsedIds;
+                    console.log(`[resolveCollectionLayers] Multi-reference filter for field ${sourceFieldId}:`, {
+                      allowedIds: parsedIds,
+                    });
+                  }
+                } catch {
+                  console.warn(`[resolveCollectionLayers] Failed to parse multi-reference value for field ${sourceFieldId}`);
+                  allowedItemIds = []; // No valid items
+                }
+              }
+            } else {
+              // No value in parent item for this field - show no items
+              allowedItemIds = [];
+            }
+          }
+          
+          // Pass allowed item IDs as filter so count and pagination are correct
+          if (allowedItemIds !== undefined) {
+            filters.itemIds = allowedItemIds;
+          }
+          
+          // Fetch items with values - total count now reflects filtered set
           const fetchResult = await getItemsWithValues(
             collectionVariable.id,
             isPublished,
@@ -740,42 +778,8 @@ export async function resolveCollectionLayers(
             sourceFieldType,
             isPaginated,
             currentPage,
+            hasItemIdFilter: !!allowedItemIds,
           });
-          
-          // Filter by reference field if source_field_id is set
-          // Single reference: value is just an item ID string (renders once, sets context)
-          // Multi-reference: value is a JSON array of item IDs (loops through all)
-          if (sourceFieldId && itemValues) {
-            const refValue = itemValues[sourceFieldId];
-            if (refValue) {
-              if (sourceFieldType === 'reference') {
-                // Single reference: filter to just the one referenced item
-                items = items.filter(item => item.id === refValue);
-                console.log(`[resolveCollectionLayers] Filtered by single reference field ${sourceFieldId}:`, {
-                  refItemId: refValue,
-                  filteredCount: items.length,
-                });
-              } else {
-                // Multi-reference: parse JSON array and filter
-                try {
-                  const allowedIds = JSON.parse(refValue);
-                  if (Array.isArray(allowedIds)) {
-                    items = items.filter(item => allowedIds.includes(item.id));
-                    console.log(`[resolveCollectionLayers] Filtered by multi-reference field ${sourceFieldId}:`, {
-                      allowedIds,
-                      filteredCount: items.length,
-                    });
-                  }
-                } catch {
-                  console.warn(`[resolveCollectionLayers] Failed to parse multi-reference value for field ${sourceFieldId}`);
-                  items = [];
-                }
-              }
-            } else {
-              // No value in parent item for this field - show no items
-              items = [];
-            }
-          }
           
           // Apply collection filters (evaluate against each item's own values)
           const collectionFilters = collectionVariable.filters;
