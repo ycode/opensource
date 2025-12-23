@@ -32,6 +32,17 @@ interface ColorPickerProps {
   onChange: (value: string) => void;
   defaultValue?: string;
   placeholder?: string;
+  // Additional props for background image mode
+  backgroundImageProps?: {
+    backgroundImage?: string;
+    backgroundSize?: string;
+    backgroundPosition?: string;
+    backgroundRepeat?: string;
+    onBackgroundImageChange?: (value: string, immediate?: boolean) => void;
+    onBackgroundSizeChange?: (value: string) => void;
+    onBackgroundPositionChange?: (value: string) => void;
+    onBackgroundRepeatChange?: (value: string) => void;
+  };
 }
 
 // Helper to convert hex/rgba to RgbaColor object
@@ -724,9 +735,19 @@ export default function ColorPicker({
   onChange,
   defaultValue = '#ffffff',
   placeholder = '#ffffff',
+  backgroundImageProps,
 }: ColorPickerProps) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'solid' | 'linear' | 'radial' | 'image'>('solid');
+
+  // Extract background image URL if provided
+  const extractImageUrl = (prop: string): string => {
+    if (!prop) return '';
+    if (prop.startsWith('url(')) {
+      return prop.slice(4, -1).replace(/['"]/g, '');
+    }
+    return prop;
+  };
 
   const displayValue = value || '';
   const isGradient = displayValue.startsWith('linear') || displayValue.startsWith('radial');
@@ -810,6 +831,37 @@ export default function ColorPicker({
   // Track dragging state for gradient bar handles
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
 
+  // Ref for hidden file input (temporary front-end upload)
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // TODO: Temporary front-end upload - replace with proper backend upload later
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check if it's an image
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Convert to data URL for temporary front-end use
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      if (dataUrl && backgroundImageProps?.onBackgroundImageChange) {
+        // Use immediate update for uploaded images (not debounced)
+        backgroundImageProps.onBackgroundImageChange(`url(${dataUrl})`, true);
+      }
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input so same file can be selected again
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+  };
+
   // HSV state for selected gradient stop (similar to solid picker)
   const [stopHue, setStopHue] = useState(0);
   const [stopSaturation, setStopSaturation] = useState(0);
@@ -840,10 +892,14 @@ export default function ColorPicker({
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Clear both backgroundColor and backgroundImage
     onChange('');
+    if (backgroundImageProps?.backgroundImage) {
+      backgroundImageProps.onBackgroundImageChange?.('', true);
+    }
   };
 
-  const hasValue = !!displayValue;
+  const hasValue = !!displayValue || !!backgroundImageProps?.backgroundImage;
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -1230,41 +1286,50 @@ export default function ColorPicker({
   };
 
   const handleTabChange = (value: string) => {
-    setActiveTab(value as 'solid' | 'linear' | 'radial' | 'image');
+    const newTab = value as 'solid' | 'linear' | 'radial' | 'image';
+    const previousTab = activeTab;
+    
+    setActiveTab(newTab);
     setSelectedStopId(null); // Reset selected stop when switching tabs
 
-    // When switching to image tab, clear any existing color/gradient classes
-    if (value === 'image') {
-      if (displayValue) {
-        onChange('');
-      }
-      return;
-    }
+    // Clear previous fill type when switching tabs
+    // Each tab represents a different type of fill, so switching should clear the old one
 
-    if (value === 'linear' && !displayValue.startsWith('linear')) {
-      handleLinearGradientChange(0, linearStops);
+    if (newTab === 'solid') {
+      // Switching TO solid: Clear gradients and background images
+      if (previousTab === 'linear' || previousTab === 'radial') {
+        // Clear gradient, set to solid color
+        onChange(rgbaToHex(rgbaColor));
+      }
+      if (previousTab === 'image' && backgroundImageProps?.backgroundImage) {
+        // Clear background image
+        backgroundImageProps.onBackgroundImageChange?.('', true);
+      }
+    } else if (newTab === 'linear') {
+      // Switching TO linear gradient: Clear solid colors, images, and radial gradients
+      if (previousTab === 'image' && backgroundImageProps?.backgroundImage) {
+        backgroundImageProps.onBackgroundImageChange?.('', true);
+      }
+      handleLinearGradientChange(linearAngle, linearStops);
       // Always ensure at least one stop is selected
       if (linearStops.length > 0) {
         setSelectedStopId(linearStops[0].id);
       }
-    } else if (value === 'radial' && !displayValue.startsWith('radial')) {
+    } else if (newTab === 'radial') {
+      // Switching TO radial gradient: Clear solid colors, images, and linear gradients
+      if (previousTab === 'image' && backgroundImageProps?.backgroundImage) {
+        backgroundImageProps.onBackgroundImageChange?.('', true);
+      }
       handleRadialGradientChange(radialStops);
       // Always ensure at least one stop is selected
       if (radialStops.length > 0) {
         setSelectedStopId(radialStops[0].id);
       }
-    } else if (value === 'solid' && isGradient) {
-      onChange(rgbaToHex(rgbaColor));
-    } else if (value === 'linear' && linearStops.length > 0) {
-      // Always ensure at least one stop is selected
-      setSelectedStopId(selectedStopId && linearStops.some(s => s.id === selectedStopId)
-        ? selectedStopId
-        : linearStops[0].id);
-    } else if (value === 'radial' && radialStops.length > 0) {
-      // Always ensure at least one stop is selected
-      setSelectedStopId(selectedStopId && radialStops.some(s => s.id === selectedStopId)
-        ? selectedStopId
-        : radialStops[0].id);
+    } else if (newTab === 'image') {
+      // Switching TO image: Clear solid colors and gradients
+      if (displayValue) {
+        onChange('');
+      }
     }
   };
 
@@ -1417,13 +1482,19 @@ export default function ColorPicker({
       {hasValue ? (
         <div className="flex items-center justify-start h-8 rounded-lg bg-input hover:bg-input/60 px-2.5 flex items-center gap-2 cursor-pointer">
           <div
-            className="size-4 rounded shrink-0"
-            style={{
-              background: isGradient ? displayValue : displayValue,
-            }}
+            className="size-4 rounded shrink-0 bg-cover bg-center"
+            style={
+              backgroundImageProps?.backgroundImage 
+                ? {
+                  backgroundImage: backgroundImageProps.backgroundImage,
+                }
+                : {
+                  background: isGradient ? displayValue : displayValue,
+                }
+            }
           />
           <Label variant="muted" className="truncate max-w-[120px]">
-            {getDisplayText(displayValue)}
+            {backgroundImageProps?.backgroundImage ? 'Image' : getDisplayText(displayValue)}
           </Label>
           <div className="ml-auto -mr-1.5">
               <Button
@@ -1802,60 +1873,125 @@ export default function ColorPicker({
 
           <TabsContent value="image">
 
-            <div className="aspect-[4/3] bg-input rounded-md flex items-center justify-center">
-              <Button size="sm" variant="secondary">Choose image...</Button>
-            </div>
+            <div className="flex flex-col gap-3">
 
-            <div className="pt-2 flex flex-col gap-2">
+              {/* Hidden file input for temporary upload */}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
 
+              {/* Image upload button */}
+              <div className="aspect-[4/3] bg-input rounded-md flex items-center justify-center">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => imageInputRef.current?.click()}
+                  type="button"
+                >
+                  Choose image...
+                </Button>
+              </div>
+
+              {/* Manual URL input */}
               <div className="grid grid-cols-3">
-                <Label variant="muted">Type</Label>
+                <Label variant="muted">URL</Label>
                 <div className="col-span-2 *:w-full">
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="1">Auto</SelectItem>
-                        <SelectItem value="2">Fill</SelectItem>
-                        <SelectItem value="3">Fit</SelectItem>
-                        <SelectItem value="4">Tile</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    type="text"
+                    value={extractImageUrl(backgroundImageProps?.backgroundImage || '')}
+                    onChange={(e) => {
+                      const sanitized = e.target.value.trim();
+                      let processedValue = sanitized;
+                      if (sanitized && !sanitized.startsWith('url(')) {
+                        processedValue = `url(${sanitized})`;
+                      }
+                      backgroundImageProps?.onBackgroundImageChange?.(processedValue || '');
+                    }}
+                    placeholder="https://example.com/image.jpg"
+                  />
                 </div>
               </div>
 
-              <div className="grid grid-cols-3">
-                <Label variant="muted">Position</Label>
-                <div className="col-span-2 *:w-full">
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="1">Top left</SelectItem>
-                        <SelectItem value="2">Top</SelectItem>
-                        <SelectItem value="3">Top right</SelectItem>
-                      </SelectGroup>
-                      <DropdownMenuSeparator />
-                      <SelectGroup>
-                        <SelectItem value="4">Left</SelectItem>
-                        <SelectItem value="5">Center</SelectItem>
-                        <SelectItem value="6">Right</SelectItem>
-                      </SelectGroup>
-                      <DropdownMenuSeparator />
-                      <SelectGroup>
-                        <SelectItem value="7">Bottom left</SelectItem>
-                        <SelectItem value="8">Bottom</SelectItem>
-                        <SelectItem value="9">Bottom right</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              {/* Image controls - only show when image is set */}
+              {backgroundImageProps?.backgroundImage && (
+                <>
+                  <div className="grid grid-cols-3">
+                    <Label variant="muted">Size</Label>
+                    <div className="col-span-2 *:w-full">
+                      <Select
+                        value={backgroundImageProps.backgroundSize || 'cover'}
+                        onValueChange={(value) => backgroundImageProps.onBackgroundSizeChange?.(value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="auto">Auto</SelectItem>
+                            <SelectItem value="cover">Cover</SelectItem>
+                            <SelectItem value="contain">Contain</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3">
+                    <Label variant="muted">Position</Label>
+                    <div className="col-span-2 *:w-full">
+                      <Select
+                        value={backgroundImageProps.backgroundPosition || 'center'}
+                        onValueChange={(value) => backgroundImageProps.onBackgroundPositionChange?.(value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="center">Center</SelectItem>
+                            <SelectItem value="top">Top</SelectItem>
+                            <SelectItem value="bottom">Bottom</SelectItem>
+                            <SelectItem value="left">Left</SelectItem>
+                            <SelectItem value="right">Right</SelectItem>
+                            <SelectItem value="left-top">Left Top</SelectItem>
+                            <SelectItem value="left-bottom">Left Bottom</SelectItem>
+                            <SelectItem value="right-top">Right Top</SelectItem>
+                            <SelectItem value="right-bottom">Right Bottom</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3">
+                    <Label variant="muted">Repeat</Label>
+                    <div className="col-span-2 *:w-full">
+                      <Select
+                        value={backgroundImageProps.backgroundRepeat || 'no-repeat'}
+                        onValueChange={(value) => backgroundImageProps.onBackgroundRepeatChange?.(value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="no-repeat">No Repeat</SelectItem>
+                            <SelectItem value="repeat">Repeat</SelectItem>
+                            <SelectItem value="repeat-x">Repeat X</SelectItem>
+                            <SelectItem value="repeat-y">Repeat Y</SelectItem>
+                            <SelectItem value="repeat-round">Repeat Round</SelectItem>
+                            <SelectItem value="repeat-space">Repeat Space</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </>
+              )}
 
             </div>
 

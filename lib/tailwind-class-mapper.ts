@@ -1285,6 +1285,14 @@ function shouldIncludeClassForProperty(className: string, property: string, patt
         }
         return true;
       }
+
+      // CRITICAL: Preserve backgroundImage when updating other background properties
+      // backgroundSize, backgroundPosition, backgroundRepeat should NOT remove backgroundImage
+      if (property === 'backgroundSize' || property === 'backgroundPosition' || property === 'backgroundRepeat') {
+        if (isImage) {
+          return false; // Don't remove image classes when updating size/position/repeat
+        }
+      }
     }
   }
 
