@@ -665,13 +665,55 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     const layers = getCurrentLayers();
     const nextLayerId = findNextLayerToSelect(layers, selectedLayerId);
 
+    // Check if this is a pagination wrapper - if so, disable pagination on the collection
+    const layerToDelete = findLayerById(layers, selectedLayerId);
+    const paginationFor = layerToDelete?.attributes?.['data-pagination-for'];
+    
     if (editingComponentId) {
       // Delete from component draft
-      const newLayers = removeLayerById(layers, selectedLayerId);
+      let newLayers = layers;
+      
+      // If deleting a pagination wrapper, disable pagination on the collection layer
+      if (paginationFor) {
+        const collectionLayer = findLayerById(layers, paginationFor);
+        // Only update if collection variable exists with an id
+        if (collectionLayer?.variables?.collection?.id) {
+          // Helper to update layer in tree
+          const updateInTree = (tree: Layer[], targetId: string, updater: (l: Layer) => Layer): Layer[] => {
+            return tree.map(layer => {
+              if (layer.id === targetId) {
+                return updater(layer);
+              }
+              if (layer.children) {
+                return { ...layer, children: updateInTree(layer.children, targetId, updater) };
+              }
+              return layer;
+            });
+          };
+          
+          newLayers = updateInTree(newLayers, paginationFor, (layer) => ({
+            ...layer,
+            variables: {
+              ...layer.variables,
+              collection: {
+                ...layer.variables!.collection!,
+                pagination: {
+                  mode: 'pages' as const,
+                  items_per_page: 10,
+                  ...(layer.variables?.collection?.pagination || {}),
+                  enabled: false,
+                },
+              },
+            },
+          }));
+        }
+      }
+      
+      newLayers = removeLayerById(newLayers, selectedLayerId);
       updateCurrentLayers(newLayers);
       setSelectedLayerId(nextLayerId);
     } else if (currentPageId) {
-      // Delete from page
+      // Delete from page (pagination sync handled in usePagesStore.deleteLayer)
       deleteLayer(currentPageId, selectedLayerId);
       setSelectedLayerId(nextLayerId);
     }
@@ -1107,6 +1149,47 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                 // Delete multiple from component
                 const layers = getCurrentLayers();
                 let newLayers = layers;
+                
+                // Helper to update layer in tree
+                const updateInTree = (tree: Layer[], targetId: string, updater: (l: Layer) => Layer): Layer[] => {
+                  return tree.map(layer => {
+                    if (layer.id === targetId) {
+                      return updater(layer);
+                    }
+                    if (layer.children) {
+                      return { ...layer, children: updateInTree(layer.children, targetId, updater) };
+                    }
+                    return layer;
+                  });
+                };
+                
+                // Check each layer for pagination wrappers and disable pagination on collection
+                for (const layerId of selectedLayerIds) {
+                  const layerToDelete = findLayerById(layers, layerId);
+                  const paginationFor = layerToDelete?.attributes?.['data-pagination-for'];
+                  if (paginationFor) {
+                    const collectionLayer = findLayerById(layers, paginationFor);
+                    // Only update if collection variable exists with an id
+                    if (collectionLayer?.variables?.collection?.id) {
+                      newLayers = updateInTree(newLayers, paginationFor, (layer) => ({
+                        ...layer,
+                        variables: {
+                          ...layer.variables,
+                          collection: {
+                            ...layer.variables!.collection!,
+                            pagination: {
+                              mode: 'pages' as const,
+                              items_per_page: 10,
+                              ...(layer.variables?.collection?.pagination || {}),
+                              enabled: false,
+                            },
+                          },
+                        },
+                      }));
+                    }
+                  }
+                }
+                
                 for (const layerId of selectedLayerIds) {
                   newLayers = removeLayerById(newLayers, layerId);
                 }

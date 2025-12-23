@@ -1416,8 +1416,12 @@
         l.attributes['data-current-page'] = String(currentPage);
         if (isFirstPage) {
           l.attributes.disabled = 'true';
-          // Add disabled styling
-          l.classes = (l.classes || '') + ' opacity-50 cursor-not-allowed';
+          // Add disabled styling (handle both string and array formats)
+          if (Array.isArray(l.classes)) {
+            l.classes = [...l.classes, 'opacity-50', 'cursor-not-allowed'];
+          } else {
+            l.classes = (l.classes || '') + ' opacity-50 cursor-not-allowed';
+          }
         }
       }
       
@@ -1428,8 +1432,12 @@
         l.attributes['data-current-page'] = String(currentPage);
         if (isLastPage) {
           l.attributes.disabled = 'true';
-          // Add disabled styling
-          l.classes = (l.classes || '') + ' opacity-50 cursor-not-allowed';
+          // Add disabled styling (handle both string and array formats)
+          if (Array.isArray(l.classes)) {
+            l.classes = [...l.classes, 'opacity-50', 'cursor-not-allowed'];
+          } else {
+            l.classes = (l.classes || '') + ' opacity-50 cursor-not-allowed';
+          }
         }
       }
       

@@ -185,6 +185,13 @@ const RightSidebar = React.memo(function RightSidebar({
     return findLayerById(interactionOwnerLayerId);
   }, [interactionOwnerLayerId, findLayerById]);
 
+  // Check if selected layer is at root level (has no parent) - used to disable pagination
+  const isSelectedLayerAtRoot: boolean = useMemo(() => {
+    if (!selectedLayerId || !allLayers.length) return false;
+    const result = findLayerWithParent(allLayers, selectedLayerId);
+    return result?.parent === null;
+  }, [selectedLayerId, allLayers]);
+
   // Set interaction owner when interactions tab becomes active
   useEffect(() => {
     if (activeTab === 'interactions' && selectedLayerId && !interactionOwnerLayerId) {
@@ -1637,7 +1644,13 @@ const RightSidebar = React.memo(function RightSidebar({
                             ]}
                             value={getCollectionVariable(selectedLayer)?.pagination?.enabled ?? false}
                             onChange={(value) => handlePaginationEnabledChange(value as boolean)}
+                            disabled={isSelectedLayerAtRoot}
                           />
+                          {isSelectedLayerAtRoot && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Wrap collection in a container to enable pagination
+                            </p>
+                          )}
                         </div>
                       </div>
 

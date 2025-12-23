@@ -566,25 +566,27 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     if (! draft) return;
 
     // Find layer by ID
-    const findLayer = (tree: Layer[]): Layer | null => {
+    const findLayer = (tree: Layer[], id: string): Layer | null => {
       for (const node of tree) {
-        if (node.id === layerId) return node;
-
+        if (node.id === id) return node;
         if (node.children) {
-          const found = findLayer(node.children);
+          const found = findLayer(node.children, id);
           if (found) return found;
         }
       }
       return null;
     };
 
-    const layerToDelete = findLayer(draft.layers);
+    const layerToDelete = findLayer(draft.layers, layerId);
 
     // Prevent deleting locked layers
     if (layerToDelete?.locked) {
       console.warn('Cannot delete locked layer');
       return;
     }
+
+    // Check if this is a pagination wrapper - if so, we need to disable pagination on the collection
+    const paginationFor = layerToDelete?.attributes?.['data-pagination-for'];
 
     // Helper: Remove from tree (supports both children and items)
     const removeFromTree = (tree: Layer[]): Layer[] => {
@@ -596,7 +598,47 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         });
     };
 
-    const newLayers = removeFromTree(draft.layers);
+    // Helper: Update a layer in tree by ID
+    const updateInTree = (tree: Layer[], targetId: string, updater: (l: Layer) => Layer): Layer[] => {
+      return tree.map(node => {
+        if (node.id === targetId) {
+          return updater(node);
+        }
+        if (node.children) {
+          return { ...node, children: updateInTree(node.children, targetId, updater) };
+        }
+        return node;
+      });
+    };
+
+    // Start with the current layers
+    let newLayers = draft.layers;
+
+    // If this is a pagination wrapper, disable pagination on the collection layer first
+    if (paginationFor) {
+      const collectionLayer = findLayer(draft.layers, paginationFor);
+      // Only update if collection variable exists with an id
+      if (collectionLayer?.variables?.collection?.id) {
+        newLayers = updateInTree(newLayers, paginationFor, (layer) => ({
+          ...layer,
+          variables: {
+            ...layer.variables,
+            collection: {
+              ...layer.variables!.collection!,
+              pagination: {
+                mode: 'pages' as const,
+                items_per_page: 10,
+                ...(layer.variables?.collection?.pagination || {}),
+                enabled: false,
+              },
+            },
+          },
+        }));
+      }
+    }
+
+    // Now remove the layer
+    newLayers = removeFromTree(newLayers);
 
     // Use functional update to ensure we're working with the latest state
     set((state) => ({
@@ -671,6 +713,50 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       }
     }
 
+    // Helper: Update a layer in tree by ID
+    const updateInTree = (tree: Layer[], targetId: string, updater: (l: Layer) => Layer): Layer[] => {
+      return tree.map(node => {
+        if (node.id === targetId) {
+          return updater(node);
+        }
+        if (node.children) {
+          return { ...node, children: updateInTree(node.children, targetId, updater) };
+        }
+        return node;
+      });
+    };
+
+    // Start with current layers
+    let newLayers = draft.layers;
+
+    // Check if any of the deleted layers are pagination wrappers
+    // If so, disable pagination on the associated collection layers
+    for (const id of finalIds) {
+      const layer = findLayer(draft.layers, id);
+      const paginationFor = layer?.attributes?.['data-pagination-for'];
+      if (paginationFor) {
+        const collectionLayer = findLayer(draft.layers, paginationFor);
+        // Only update if collection variable exists with an id
+        if (collectionLayer?.variables?.collection?.id) {
+          newLayers = updateInTree(newLayers, paginationFor, (l) => ({
+            ...l,
+            variables: {
+              ...l.variables,
+              collection: {
+                ...l.variables!.collection!,
+                pagination: {
+                  mode: 'pages' as const,
+                  items_per_page: 10,
+                  ...(l.variables?.collection?.pagination || {}),
+                  enabled: false,
+                },
+              },
+            },
+          }));
+        }
+      }
+    }
+
     // Helper: Remove multiple IDs from tree
     const removeMultipleFromTree = (tree: Layer[]): Layer[] => {
       return tree
@@ -681,7 +767,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         });
     };
 
-    const newLayers = removeMultipleFromTree(draft.layers);
+    // Remove the layers
+    newLayers = removeMultipleFromTree(newLayers);
 
     set((state) => ({
       draftsByPageId: {

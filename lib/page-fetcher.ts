@@ -1147,7 +1147,7 @@ export function generatePaginationWrapper(
           {
             id: `${collectionLayerId}-pagination-prev-text`,
             name: 'span',
-            content: 'Previous',
+            text: 'Previous',
           } as Layer,
         ],
       } as Layer,
@@ -1156,7 +1156,7 @@ export function generatePaginationWrapper(
         id: `${collectionLayerId}-pagination-info`,
         name: 'span',
         classes: 'text-sm text-[#4b5563]',
-        content: `Page ${currentPage} of ${totalPages}`,
+        text: `Page ${currentPage} of ${totalPages}`,
       } as Layer,
       // Next Button
       {
@@ -1176,7 +1176,7 @@ export function generatePaginationWrapper(
           {
             id: `${collectionLayerId}-pagination-next-text`,
             name: 'span',
-            content: 'Next',
+            text: 'Next',
           } as Layer,
         ],
       } as Layer,
