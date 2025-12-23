@@ -374,8 +374,13 @@ export async function fetchErrorPage(
 /**
  * Fetch homepage (index page at root level)
  * Works for both draft and published pages
+ * @param isPublished - Whether to fetch published or draft version
+ * @param paginationContext - Optional pagination context with page numbers from URL
  */
-export async function fetchHomepage(isPublished: boolean): Promise<Pick<PageData, 'page' | 'pageLayers'> | null> {
+export async function fetchHomepage(
+  isPublished: boolean,
+  paginationContext?: PaginationContext
+): Promise<Pick<PageData, 'page' | 'pageLayers'> | null> {
   try {
     const supabase = await getSupabaseAdmin();
 
@@ -418,7 +423,7 @@ export async function fetchHomepage(isPublished: boolean): Promise<Pick<PageData
 
     // Resolve collection layers server-side (for both draft and published)
     const resolvedLayers = pageLayers?.layers
-      ? await resolveCollectionLayers(pageLayers.layers, isPublished)
+      ? await resolveCollectionLayers(pageLayers.layers, isPublished, undefined, paginationContext)
       : [];
 
     return {
@@ -822,11 +827,12 @@ export async function resolveCollectionLayers(
 
           // Clone the collection layer for each item (design settings apply to each repeated item)
           // For each item, resolve nested collection layers with that item's values
+          // Note: Pagination is now a sibling layer, not a child, so no filtering needed
           const clonedLayers: Layer[] = await Promise.all(
             sortedItems.map(async (item) => {
               // Resolve children for THIS specific item's values
               // This ensures nested collection layers filter based on this item's reference fields
-              const resolvedChildren = layer.children 
+              const resolvedChildren = layer.children?.length 
                 ? await Promise.all(layer.children.map(child => resolveLayer(child, item.values))) 
                 : [];
               
@@ -872,12 +878,9 @@ export async function resolveCollectionLayers(
             console.log(`[resolveCollectionLayers] Pagination meta for layer ${layer.id}:`, paginationMeta);
           }
 
-          // Build children array - cloned items plus pagination wrapper if enabled
-          let fragmentChildren = clonedLayers;
-          if (paginationMeta && paginationMeta.totalPages > 1) {
-            const paginationWrapper = generatePaginationWrapper(layer.id, paginationMeta);
-            fragmentChildren = [...clonedLayers, paginationWrapper];
-          }
+          // Build children array - just the cloned items
+          // Pagination is now a sibling layer, not added here
+          const fragmentChildren = clonedLayers;
 
           // Return a fragment layer - LayerRenderer will render children directly without wrapper
           return {
@@ -920,9 +923,48 @@ export async function resolveCollectionLayers(
   console.log('[resolveCollectionLayers] ===== END =====');
   console.log('[resolveCollectionLayers] Processed layers count:', result.length);
   
-  // Second pass: Filter layers by conditional visibility
+  // Collect pagination metadata from all fragments
+  const paginationMetaMap: Record<string, CollectionPaginationMeta> = {};
+  function collectPaginationMeta(layerList: Layer[]) {
+    for (const layer of layerList) {
+      if (layer._paginationMeta) {
+        const originalId = layer.id.replace('-fragment', '');
+        paginationMetaMap[originalId] = layer._paginationMeta;
+      }
+      if (layer.children) {
+        collectPaginationMeta(layer.children);
+      }
+    }
+  }
+  collectPaginationMeta(result);
+  
+  // Update pagination sibling layers with correct meta
+  function updatePaginationSiblings(layerList: Layer[]): Layer[] {
+    return layerList.map(layer => {
+      // Check if this is a pagination wrapper (has data-pagination-for attribute)
+      const paginationFor = layer.attributes?.['data-pagination-for'];
+      if (paginationFor && paginationMetaMap[paginationFor]) {
+        // Update this pagination layer with the meta
+        return updatePaginationLayerWithMeta(layer, paginationMetaMap[paginationFor]);
+      }
+      
+      // Recursively update children
+      if (layer.children) {
+        return {
+          ...layer,
+          children: updatePaginationSiblings(layer.children),
+        };
+      }
+      
+      return layer;
+    });
+  }
+  
+  const resultWithPagination = updatePaginationSiblings(result);
+  
+  // Third pass: Filter layers by conditional visibility
   // We need to compute collection counts first, then filter
-  const filteredResult = filterByVisibility(result, parentItemValues);
+  const filteredResult = filterByVisibility(resultWithPagination, parentItemValues);
   
   return filteredResult;
 }
@@ -1009,6 +1051,61 @@ function filterByVisibility(
 }
 
 /**
+ * Update a pagination layer with dynamic meta (page info text, button states)
+ * @param layer - The pagination layer to update
+ * @param meta - Pagination metadata
+ * @returns Updated layer with dynamic content
+ */
+function updatePaginationLayerWithMeta(layer: Layer, meta: CollectionPaginationMeta): Layer {
+  const { currentPage, totalPages } = meta;
+  
+  // Deep clone to avoid mutation
+  const updatedLayer: Layer = JSON.parse(JSON.stringify(layer));
+  
+  // Helper to recursively update layers
+  function updateLayerRecursive(l: Layer): void {
+    // Update page info text
+    if (l.id?.endsWith('-pagination-info')) {
+      l.text = `Page ${currentPage} of ${totalPages}`;
+    }
+    
+    // Update previous button state
+    if (l.id?.endsWith('-pagination-prev')) {
+      const isFirstPage = currentPage <= 1;
+      l.attributes = l.attributes || {};
+      l.attributes['data-current-page'] = String(currentPage);
+      if (isFirstPage) {
+        l.attributes.disabled = true;
+        l.classes = Array.isArray(l.classes) 
+          ? [...l.classes, 'opacity-50', 'cursor-not-allowed']
+          : `${l.classes || ''} opacity-50 cursor-not-allowed`;
+      }
+    }
+    
+    // Update next button state
+    if (l.id?.endsWith('-pagination-next')) {
+      const isLastPage = currentPage >= totalPages;
+      l.attributes = l.attributes || {};
+      l.attributes['data-current-page'] = String(currentPage);
+      if (isLastPage) {
+        l.attributes.disabled = true;
+        l.classes = Array.isArray(l.classes) 
+          ? [...l.classes, 'opacity-50', 'cursor-not-allowed']
+          : `${l.classes || ''} opacity-50 cursor-not-allowed`;
+      }
+    }
+    
+    // Recursively update children
+    if (l.children) {
+      l.children.forEach(updateLayerRecursive);
+    }
+  }
+  
+  updateLayerRecursive(updatedLayer);
+  return updatedLayer;
+}
+
+/**
  * Generate a pagination wrapper layer with Previous/Next buttons
  * This is injected as a sibling after the collection fragment
  * @param collectionLayerId - Original collection layer ID
@@ -1040,7 +1137,7 @@ export function generatePaginationWrapper(
           'data-pagination-action': 'prev',
           'data-collection-layer-id': collectionLayerId,
           'data-current-page': String(currentPage),
-          ...(isFirstPage ? { disabled: 'true' } : {}),
+          ...(isFirstPage ? { disabled: true } : {}),
         } as Record<string, any>,
         children: [
           {
@@ -1069,7 +1166,7 @@ export function generatePaginationWrapper(
           'data-pagination-action': 'next',
           'data-collection-layer-id': collectionLayerId,
           'data-current-page': String(currentPage),
-          ...(isLastPage ? { disabled: 'true' } : {}),
+          ...(isLastPage ? { disabled: true } : {}),
         } as Record<string, any>,
         children: [
           {

@@ -1393,6 +1393,57 @@
   }
 
   /**
+   * Update pagination layer with dynamic meta (page info text, button states)
+   */
+  function updatePaginationLayerMeta(layer, meta) {
+    const { currentPage, totalPages } = meta;
+    const layerId = layer.id;
+    
+    // Deep clone the layer to avoid mutating the original
+    const updatedLayer = JSON.parse(JSON.stringify(layer));
+    
+    // Helper to recursively update layers
+    function updateLayerRecursive(l) {
+      // Update page info text
+      if (l.id && l.id.endsWith('-pagination-info')) {
+        l.text = `Page ${currentPage} of ${totalPages}`;
+      }
+      
+      // Update previous button state
+      if (l.id && l.id.endsWith('-pagination-prev')) {
+        const isFirstPage = currentPage <= 1;
+        l.attributes = l.attributes || {};
+        l.attributes['data-current-page'] = String(currentPage);
+        if (isFirstPage) {
+          l.attributes.disabled = 'true';
+          // Add disabled styling
+          l.classes = (l.classes || '') + ' opacity-50 cursor-not-allowed';
+        }
+      }
+      
+      // Update next button state
+      if (l.id && l.id.endsWith('-pagination-next')) {
+        const isLastPage = currentPage >= totalPages;
+        l.attributes = l.attributes || {};
+        l.attributes['data-current-page'] = String(currentPage);
+        if (isLastPage) {
+          l.attributes.disabled = 'true';
+          // Add disabled styling
+          l.classes = (l.classes || '') + ' opacity-50 cursor-not-allowed';
+        }
+      }
+      
+      // Recursively update children
+      if (l.children) {
+        l.children.forEach(updateLayerRecursive);
+      }
+    }
+    
+    updateLayerRecursive(updatedLayer);
+    return updatedLayer;
+  }
+
+  /**
    * Render layer tree
    */
   function render() {
@@ -1628,7 +1679,7 @@
             itemElement.setAttribute('data-collection-item-id', item.id);
 
             // Render children inside each item element
-            layer.children.forEach(child => {
+            (layer.children || []).forEach(child => {
               const childElement = renderLayer(child, item.values, activeCollectionId, pageCollectionCounts);
               if (childElement) {
                 itemElement.appendChild(childElement);
@@ -1648,11 +1699,8 @@
             fragment.appendChild(itemElement);
           });
 
-          // Add pagination wrapper if pagination is enabled and there are multiple pages
-          if (isPaginated && paginationMeta && paginationMeta.totalPages > 1) {
-            const paginationWrapper = createPaginationWrapper(layer.id, paginationMeta);
-            fragment.appendChild(paginationWrapper);
-          }
+          // Note: Pagination is now a sibling layer, not a child
+          // It will be rendered separately when the parent's children are rendered
 
           // Return the fragment instead of single element
           // Mark this as a collection render so caller knows to append fragment
@@ -1673,6 +1721,7 @@
             </style>
           `;
           element.appendChild(skeleton);
+          // Note: Pagination is now a sibling layer, rendered separately
         }
       } else {
         // Regular rendering: just render children normally

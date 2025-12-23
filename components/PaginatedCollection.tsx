@@ -7,7 +7,8 @@
  * Hydrates from SSR with initial items and supports client-side navigation.
  * 
  * Features:
- * - URL-based pagination (?page=N)
+ * - URL-based pagination with layer-specific params (?p_LAYER_ID=N)
+ * - Independent pagination for multiple collections on the same page
  * - Skeleton loading during page transitions
  * - Previous/Next button state management
  */
@@ -34,16 +35,19 @@ export default function PaginatedCollection({
   
   const { currentPage, totalPages, totalItems, itemsPerPage } = paginationMeta;
 
-  // Handle page navigation
+  // Handle page navigation - uses layer-specific URL param (p_LAYER_ID=N)
+  // This enables independent pagination for multiple collections on the same page
   const navigateToPage = useCallback((page: number) => {
     if (page < 1 || page > totalPages) return;
     
-    // Build new URL with page param
+    // Build new URL with layer-specific page param
     const params = new URLSearchParams(searchParams.toString());
+    const paramKey = `p_${collectionLayerId}`;
+    
     if (page === 1) {
-      params.delete('page'); // Remove page param for page 1 (cleaner URLs)
+      params.delete(paramKey); // Remove param for page 1 (cleaner URLs)
     } else {
-      params.set('page', String(page));
+      params.set(paramKey, String(page));
     }
     
     const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
@@ -52,7 +56,7 @@ export default function PaginatedCollection({
     startTransition(() => {
       router.push(newUrl);
     });
-  }, [router, pathname, searchParams, totalPages]);
+  }, [router, pathname, searchParams, totalPages, collectionLayerId]);
 
   // Handle click events on pagination buttons (delegated)
   useEffect(() => {

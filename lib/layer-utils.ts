@@ -48,6 +48,26 @@ export function findLayerById(layers: Layer[], id: string): Layer | null {
 }
 
 /**
+ * Helper to find a layer and its parent
+ * @param layers - Root layers array
+ * @param targetId - ID of the layer to find
+ * @param parent - Current parent (for recursion)
+ * @returns Object with layer and its parent, or null if not found
+ */
+export function findLayerWithParent(layers: Layer[], targetId: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null {
+  for (const layer of layers) {
+    if (layer.id === targetId) {
+      return { layer, parent };
+    }
+    if (layer.children) {
+      const found = findLayerWithParent(layer.children, targetId, layer);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
  * Find parent collection layer by traversing up the tree
  * @param layers - Root layers array
  * @param layerId - ID of the layer to start from

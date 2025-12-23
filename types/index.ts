@@ -603,11 +603,22 @@ export interface FieldVariable {
 
 export type InlineVariable = FieldVariable;
 
+// Pagination Layer Definition (partial Layer for styling pagination controls)
+export interface PaginationLayerConfig {
+  classes?: string;
+  design?: DesignProperties;
+}
+
 // Layer Variable Types
 export interface CollectionPaginationConfig {
   enabled: boolean;
   mode: 'pages' | 'load_more';
   items_per_page: number;
+  // Stylable pagination layer configurations
+  wrapperLayer?: PaginationLayerConfig;
+  prevButtonLayer?: PaginationLayerConfig;
+  nextButtonLayer?: PaginationLayerConfig;
+  pageInfoLayer?: PaginationLayerConfig;
 }
 
 export interface CollectionVariable {
