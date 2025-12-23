@@ -788,7 +788,7 @@ const RightSidebar = React.memo(function RightSidebar({
               id: `${selectedLayerId}-pagination-prev`,
               name: 'button',
               customName: 'Previous Button',
-              classes: 'px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 transition-colors cursor-pointer',
+              classes: 'px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors cursor-pointer',
               settings: { tag: 'button' },
               attributes: {
                 'data-pagination-action': 'prev',
@@ -808,14 +808,14 @@ const RightSidebar = React.memo(function RightSidebar({
               id: `${selectedLayerId}-pagination-info`,
               name: 'span',
               customName: 'Page Info',
-              classes: 'text-sm text-gray-600',
+              classes: 'text-sm text-[#4b5563]',
               text: 'Page 1 of 1',
             } as Layer,
             {
               id: `${selectedLayerId}-pagination-next`,
               name: 'button',
               customName: 'Next Button',
-              classes: 'px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 transition-colors cursor-pointer',
+              classes: 'px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors cursor-pointer',
               settings: { tag: 'button' },
               attributes: {
                 'data-pagination-action': 'next',

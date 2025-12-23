@@ -1326,7 +1326,7 @@
 
     // Previous button
     const prevButton = document.createElement('button');
-    prevButton.className = `px-4 py-2 rounded transition-colors ${isFirstPage ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-200 hover:bg-gray-300 cursor-pointer'}`;
+    prevButton.className = `px-4 py-2 rounded transition-colors ${isFirstPage ? 'bg-[#f3f4f6] text-[#9ca3af] cursor-not-allowed' : 'bg-[#e5e7eb] hover:bg-[#d1d5db] cursor-pointer'}`;
     prevButton.textContent = 'Previous';
     prevButton.setAttribute('data-pagination-action', 'prev');
     prevButton.setAttribute('data-collection-layer-id', layerId);
@@ -1341,12 +1341,12 @@
 
     // Page info
     const pageInfo = document.createElement('span');
-    pageInfo.className = 'text-sm text-gray-600';
+    pageInfo.className = 'text-sm text-[#4b5563]';
     pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
 
     // Next button
     const nextButton = document.createElement('button');
-    nextButton.className = `px-4 py-2 rounded transition-colors ${isLastPage ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-200 hover:bg-gray-300 cursor-pointer'}`;
+    nextButton.className = `px-4 py-2 rounded transition-colors ${isLastPage ? 'bg-[#f3f4f6] text-[#9ca3af] cursor-not-allowed' : 'bg-[#e5e7eb] hover:bg-[#d1d5db] cursor-pointer'}`;
     nextButton.textContent = 'Next';
     nextButton.setAttribute('data-pagination-action', 'next');
     nextButton.setAttribute('data-collection-layer-id', layerId);

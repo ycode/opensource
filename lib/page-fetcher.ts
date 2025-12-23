@@ -1133,7 +1133,7 @@ export function generatePaginationWrapper(
       {
         id: `${collectionLayerId}-pagination-prev`,
         name: 'button',
-        classes: `px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 transition-colors ${isFirstPage ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`,
+        classes: `px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors ${isFirstPage ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`,
         settings: {
           tag: 'button',
         },
@@ -1155,14 +1155,14 @@ export function generatePaginationWrapper(
       {
         id: `${collectionLayerId}-pagination-info`,
         name: 'span',
-        classes: 'text-sm text-gray-600',
+        classes: 'text-sm text-[#4b5563]',
         content: `Page ${currentPage} of ${totalPages}`,
       } as Layer,
       // Next Button
       {
         id: `${collectionLayerId}-pagination-next`,
         name: 'button',
-        classes: `px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 transition-colors ${isLastPage ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`,
+        classes: `px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors ${isLastPage ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`,
         settings: {
           tag: 'button',
         },
