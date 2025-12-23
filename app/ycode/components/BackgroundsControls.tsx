@@ -1,8 +1,6 @@
 'use client';
 
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { removeSpaces } from '@/lib/utils';
@@ -36,14 +34,34 @@ export default function BackgroundsControls({ layer, onLayerUpdate }: Background
     debouncedUpdateDesignProperty('backgrounds', 'backgroundColor', sanitized || null);
   };
 
-  // Handle background image change (debounced for text input)
-  const handleBackgroundImageChange = (value: string) => {
-    const sanitized = removeSpaces(value);
-    let processedValue = sanitized;
-    if (sanitized && !sanitized.startsWith('url(')) {
-      processedValue = `url(${sanitized})`;
+  // Handle background image change
+  // Use immediate update for file uploads (data URLs), debounced for manual URL typing
+  const handleBackgroundImageChange = (value: string, immediate = false) => {
+    let processedValue = value;
+    
+    // Don't sanitize data URLs (they can be very long base64 strings)
+    const isDataUrl = value.startsWith('data:') || value.startsWith('url(data:');
+    
+    if (!isDataUrl) {
+      // Only sanitize regular URLs
+      const sanitized = removeSpaces(value);
+      processedValue = sanitized;
+      if (sanitized && !sanitized.startsWith('url(')) {
+        processedValue = `url(${sanitized})`;
+      }
+    } else {
+      // For data URLs, just ensure url() wrapper
+      if (!value.startsWith('url(')) {
+        processedValue = `url(${value})`;
+      }
     }
-    debouncedUpdateDesignProperty('backgrounds', 'backgroundImage', processedValue || null);
+    
+    // Use immediate update for uploaded images, debounced for typed URLs
+    if (immediate || isDataUrl) {
+      updateDesignProperty('backgrounds', 'backgroundImage', processedValue || null);
+    } else {
+      debouncedUpdateDesignProperty('backgrounds', 'backgroundImage', processedValue || null);
+    }
   };
 
   // Handle background size change (immediate - dropdown selection)
@@ -61,15 +79,6 @@ export default function BackgroundsControls({ layer, onLayerUpdate }: Background
     updateDesignProperty('backgrounds', 'backgroundRepeat', value);
   };
 
-  // Extract URL from background image
-  const extractImageUrl = (prop: string): string => {
-    if (!prop) return '';
-    if (prop.startsWith('url(')) {
-      return prop.slice(4, -1).replace(/['"]/g, '');
-    }
-    return prop;
-  };
-
   return (
     <div className="py-5">
       <header className="py-4 -mt-4">
@@ -84,88 +93,19 @@ export default function BackgroundsControls({ layer, onLayerUpdate }: Background
               value={backgroundColor}
               onChange={handleBackgroundColorChange}
               defaultValue="#ffffff"
+              backgroundImageProps={{
+                backgroundImage,
+                backgroundSize,
+                backgroundPosition,
+                backgroundRepeat,
+                onBackgroundImageChange: handleBackgroundImageChange,
+                onBackgroundSizeChange: handleBackgroundSizeChange,
+                onBackgroundPositionChange: handleBackgroundPositionChange,
+                onBackgroundRepeatChange: handleBackgroundRepeatChange,
+              }}
             />
           </div>
         </div>
-
-        <div className="grid grid-cols-3">
-          <Label variant="muted">Image</Label>
-          <div className="col-span-2 *:w-full">
-            <Input
-              type="text"
-              value={extractImageUrl(backgroundImage)}
-              onChange={(e) => handleBackgroundImageChange(e.target.value)}
-              placeholder="https://example.com/image.jpg"
-            />
-          </div>
-        </div>
-
-        {backgroundImage && (
-          <>
-            <div className="grid grid-cols-3">
-              <Label variant="muted">Size</Label>
-              <div className="col-span-2 *:w-full">
-                <Select value={backgroundSize} onValueChange={handleBackgroundSizeChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="auto">Auto</SelectItem>
-                      <SelectItem value="cover">Cover</SelectItem>
-                      <SelectItem value="contain">Contain</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3">
-              <Label variant="muted">Position</Label>
-              <div className="col-span-2 *:w-full">
-                <Select value={backgroundPosition} onValueChange={handleBackgroundPositionChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="center">Center</SelectItem>
-                      <SelectItem value="top">Top</SelectItem>
-                      <SelectItem value="bottom">Bottom</SelectItem>
-                      <SelectItem value="left">Left</SelectItem>
-                      <SelectItem value="right">Right</SelectItem>
-                      <SelectItem value="left-top">Left Top</SelectItem>
-                      <SelectItem value="left-bottom">Left Bottom</SelectItem>
-                      <SelectItem value="right-top">Right Top</SelectItem>
-                      <SelectItem value="right-bottom">Right Bottom</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3">
-              <Label variant="muted">Repeat</Label>
-              <div className="col-span-2 *:w-full">
-                <Select value={backgroundRepeat} onValueChange={handleBackgroundRepeatChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="no-repeat">No Repeat</SelectItem>
-                      <SelectItem value="repeat">Repeat</SelectItem>
-                      <SelectItem value="repeat-x">Repeat X</SelectItem>
-                      <SelectItem value="repeat-y">Repeat Y</SelectItem>
-                      <SelectItem value="repeat-round">Repeat Round</SelectItem>
-                      <SelectItem value="repeat-space">Repeat Space</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </>
-        )}
       </div>
     </div>
   );
