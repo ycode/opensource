@@ -21,6 +21,10 @@
   let collectionLayerData = {}; // Collection items by layer ID (for collection layers)
   let pageCollectionItem = null; // Collection item for dynamic page preview
   let pageCollectionFields = [];
+  
+  // Pagination state for collection layers
+  let paginationState = {}; // { layerId: { page: number, loading: boolean, meta: {...} } }
+  let paginationDataCache = {}; // { layerId: CollectionItemWithValues[] } - current page data
 
   // Root element
   const root = document.getElementById('canvas-root');
@@ -81,6 +85,23 @@
         console.log('[Canvas] Received COLLECTION_LAYER_DATA', {
           layerId: message.payload.layerId,
           itemsCount: message.payload.items.length
+        });
+        render();
+        break;
+
+      case 'UPDATE_PAGINATION_DATA':
+        // Update pagination data for a collection layer
+        const { layerId, items, meta } = message.payload;
+        paginationDataCache[layerId] = items;
+        paginationState[layerId] = {
+          page: meta.currentPage,
+          loading: false,
+          meta: meta
+        };
+        console.log('[Canvas] Received UPDATE_PAGINATION_DATA', {
+          layerId,
+          itemsCount: items.length,
+          meta
         });
         render();
         break;
@@ -1291,6 +1312,165 @@
   }
 
   /**
+   * Create pagination wrapper with Previous/Next buttons for canvas preview
+   */
+  function createPaginationWrapper(layerId, meta) {
+    const { currentPage, totalPages } = meta;
+    const isFirstPage = currentPage <= 1;
+    const isLastPage = currentPage >= totalPages;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex items-center justify-center gap-4 mt-4';
+    wrapper.setAttribute('data-pagination-wrapper', 'true');
+    wrapper.setAttribute('data-collection-layer-id', layerId);
+
+    // Previous button
+    const prevButton = document.createElement('button');
+    prevButton.className = `px-4 py-2 rounded transition-colors ${isFirstPage ? 'bg-[#f3f4f6] text-[#9ca3af] cursor-not-allowed' : 'bg-[#e5e7eb] hover:bg-[#d1d5db] cursor-pointer'}`;
+    prevButton.textContent = 'Previous';
+    prevButton.setAttribute('data-pagination-action', 'prev');
+    prevButton.setAttribute('data-collection-layer-id', layerId);
+    if (isFirstPage) prevButton.disabled = true;
+    
+    prevButton.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!isFirstPage) {
+        handlePaginationClick(layerId, currentPage - 1);
+      }
+    });
+
+    // Page info
+    const pageInfo = document.createElement('span');
+    pageInfo.className = 'text-sm text-[#4b5563]';
+    pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+
+    // Next button
+    const nextButton = document.createElement('button');
+    nextButton.className = `px-4 py-2 rounded transition-colors ${isLastPage ? 'bg-[#f3f4f6] text-[#9ca3af] cursor-not-allowed' : 'bg-[#e5e7eb] hover:bg-[#d1d5db] cursor-pointer'}`;
+    nextButton.textContent = 'Next';
+    nextButton.setAttribute('data-pagination-action', 'next');
+    nextButton.setAttribute('data-collection-layer-id', layerId);
+    if (isLastPage) nextButton.disabled = true;
+    
+    nextButton.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (!isLastPage) {
+        handlePaginationClick(layerId, currentPage + 1);
+      }
+    });
+
+    wrapper.appendChild(prevButton);
+    wrapper.appendChild(pageInfo);
+    wrapper.appendChild(nextButton);
+
+    return wrapper;
+  }
+
+  /**
+   * Handle pagination button clicks - send message to parent
+   */
+  function handlePaginationClick(layerId, page) {
+    // Get current pagination state for this layer
+    const state = paginationState[layerId];
+    const meta = state?.meta;
+    
+    // Update local state for immediate feedback
+    if (state) {
+      state.loading = true;
+    }
+    
+    // Send message to parent with full context for fetching
+    sendToParent('PAGINATION_PAGE_CHANGE', { 
+      layerId, 
+      page,
+      // Include context so parent doesn't need pre-existing state
+      collectionId: meta?.collectionId,
+      itemsPerPage: meta?.itemsPerPage || 10,
+    });
+    
+    // Re-render to show loading state
+    render();
+  }
+
+  /**
+   * Update pagination layer with dynamic meta (page info text, button states)
+   */
+  function updatePaginationLayerMeta(layer, meta) {
+    const { currentPage, totalPages, totalItems, itemsPerPage, mode } = meta;
+    const layerId = layer.id;
+    
+    // Deep clone the layer to avoid mutating the original
+    const updatedLayer = JSON.parse(JSON.stringify(layer));
+    
+    // Helper to recursively update layers
+    function updateLayerRecursive(l) {
+      // Update page info text (for 'pages' mode)
+      if (l.id && l.id.endsWith('-pagination-info')) {
+        l.text = `Page ${currentPage} of ${totalPages}`;
+      }
+      
+      // Update items count text (for 'load_more' mode)
+      if (l.id && l.id.endsWith('-pagination-count')) {
+        const shownItems = Math.min(itemsPerPage, totalItems);
+        l.text = `Showing ${shownItems} of ${totalItems}`;
+      }
+      
+      // Update previous button state
+      if (l.id && l.id.endsWith('-pagination-prev')) {
+        const isFirstPage = currentPage <= 1;
+        l.attributes = l.attributes || {};
+        l.attributes['data-current-page'] = String(currentPage);
+        if (isFirstPage) {
+          l.attributes.disabled = 'true';
+          // Add disabled styling (handle both string and array formats)
+          if (Array.isArray(l.classes)) {
+            l.classes = [...l.classes, 'opacity-50', 'cursor-not-allowed'];
+          } else {
+            l.classes = (l.classes || '') + ' opacity-50 cursor-not-allowed';
+          }
+        }
+      }
+      
+      // Update next button state
+      if (l.id && l.id.endsWith('-pagination-next')) {
+        const isLastPage = currentPage >= totalPages;
+        l.attributes = l.attributes || {};
+        l.attributes['data-current-page'] = String(currentPage);
+        if (isLastPage) {
+          l.attributes.disabled = 'true';
+          // Add disabled styling (handle both string and array formats)
+          if (Array.isArray(l.classes)) {
+            l.classes = [...l.classes, 'opacity-50', 'cursor-not-allowed'];
+          } else {
+            l.classes = (l.classes || '') + ' opacity-50 cursor-not-allowed';
+          }
+        }
+      }
+      
+      // Hide load more button when all items shown (in load_more mode)
+      if (l.id && l.id.endsWith('-pagination-loadmore')) {
+        const allItemsShown = itemsPerPage >= totalItems;
+        if (allItemsShown) {
+          // Hide the button by adding display:none class or attribute
+          if (Array.isArray(l.classes)) {
+            l.classes = [...l.classes, 'hidden'];
+          } else {
+            l.classes = (l.classes || '') + ' hidden';
+          }
+        }
+      }
+      
+      // Recursively update children
+      if (l.children) {
+        l.children.forEach(updateLayerRecursive);
+      }
+    }
+    
+    updateLayerRecursive(updatedLayer);
+    return updatedLayer;
+  }
+
+  /**
    * Render layer tree
    */
   function render() {
@@ -1341,6 +1521,17 @@
       });
       if (!isVisible) {
         return null;
+      }
+    }
+
+    // Check if this is a pagination wrapper sibling (has data-pagination-for attribute)
+    // If so, look up the pagination meta from the associated collection and update the layer
+    const paginationForLayerId = layer.attributes?.['data-pagination-for'];
+    if (paginationForLayerId) {
+      const collectionMeta = paginationState[paginationForLayerId]?.meta;
+      if (collectionMeta) {
+        // Update this layer with the pagination meta (text counts, button states)
+        layer = updatePaginationLayerMeta(layer, collectionMeta);
       }
     }
 
@@ -1464,8 +1655,54 @@
           );
         }
 
+        // Check for pagination settings (both 'pages' and 'load_more' modes)
+        const paginationConfig = collectionVariable?.pagination;
+        const isPaginated = paginationConfig?.enabled && (paginationConfig?.mode === 'pages' || paginationConfig?.mode === 'load_more');
+        let paginationMeta = null;
+        
+        if (isPaginated) {
+          // Check if we have cached pagination data from parent
+          const cachedState = paginationState[layer.id];
+          const cachedItems = paginationDataCache[layer.id];
+          
+          if (cachedItems) {
+            items = cachedItems;
+            paginationMeta = cachedState?.meta;
+          } else {
+            // Apply local pagination for preview
+            const itemsPerPage = paginationConfig.items_per_page || 10;
+            const currentPage = cachedState?.page || 1;
+            const offset = (currentPage - 1) * itemsPerPage;
+            const totalItems = items.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            
+            // Slice items for current page
+            items = items.slice(offset, offset + itemsPerPage);
+            
+            paginationMeta = {
+              currentPage,
+              totalPages,
+              totalItems,
+              itemsPerPage,
+              layerId: layer.id,
+              collectionId,
+              mode: paginationConfig.mode || 'pages',
+            };
+            
+            // Always update pagination state with latest meta
+            // (preserves current page if already set, but updates item counts)
+            paginationState[layer.id] = {
+              page: paginationState[layer.id]?.page || 1,
+              loading: paginationState[layer.id]?.loading || false,
+              meta: paginationMeta,
+            };
+          }
+        }
+
         console.log('[Canvas] Rendering collection layer', {
           layerId: layer.id,
+          isPaginated,
+          paginationMeta,
           collectionId,
           itemsCount: items.length,
           hasLayerData: !!collectionLayerData[layer.id],
@@ -1484,7 +1721,7 @@
             itemElement.setAttribute('data-collection-item-id', item.id);
 
             // Render children inside each item element
-            layer.children.forEach(child => {
+            (layer.children || []).forEach(child => {
               const childElement = renderLayer(child, item.values, activeCollectionId, pageCollectionCounts);
               if (childElement) {
                 itemElement.appendChild(childElement);
@@ -1503,6 +1740,9 @@
 
             fragment.appendChild(itemElement);
           });
+
+          // Note: Pagination is now a sibling layer, not a child
+          // It will be rendered separately when the parent's children are rendered
 
           // Return the fragment instead of single element
           // Mark this as a collection render so caller knows to append fragment
@@ -1523,6 +1763,7 @@
             </style>
           `;
           element.appendChild(skeleton);
+          // Note: Pagination is now a sibling layer, rendered separately
         }
       } else {
         // Regular rendering: just render children normally

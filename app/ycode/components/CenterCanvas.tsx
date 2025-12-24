@@ -334,6 +334,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   // Fetch collection data for all collection layers in the page
   const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
+  const fetchPage = useCollectionLayerStore((state) => state.fetchPage);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Create a stable string representation of collection layer settings for dependency
@@ -1057,6 +1058,52 @@ const CenterCanvas = React.memo(function CenterCanvas({
           }
           break;
 
+        case 'PAGINATION_PAGE_CHANGE':
+          // Handle pagination page change from canvas
+          if (message.payload.layerId && message.payload.page) {
+            const { layerId, page, collectionId, itemsPerPage } = message.payload;
+            console.log('[CenterCanvas] Pagination page change:', { layerId, page, collectionId, itemsPerPage });
+            
+            // Initialize pagination meta if not exists (for first-time pagination clicks)
+            const store = useCollectionLayerStore.getState();
+            if (!store.paginationMeta[layerId] && collectionId) {
+              store.setPaginationMeta(layerId, {
+                currentPage: 1,
+                totalPages: 1,
+                totalItems: 0,
+                itemsPerPage: itemsPerPage || 10,
+                layerId,
+                collectionId,
+              });
+              // Also ensure layer config exists
+              if (!store.layerConfig[layerId]) {
+                // Get sort settings from existing layer data if available
+                useCollectionLayerStore.setState((state) => ({
+                  layerConfig: {
+                    ...state.layerConfig,
+                    [layerId]: { collectionId, limit: itemsPerPage || 10, offset: 0 },
+                  },
+                }));
+              }
+            }
+            
+            // Fetch new page data
+            fetchPage(layerId, page).then((result) => {
+              if (result && iframeRef.current) {
+                // Send updated pagination data back to iframe
+                sendToIframe(iframeRef.current, {
+                  type: 'UPDATE_PAGINATION_DATA',
+                  payload: {
+                    layerId,
+                    items: result.items,
+                    meta: result.meta,
+                  },
+                });
+              }
+            });
+          }
+          break;
+
         case 'DRAG_START':
         case 'DRAG_OVER':
         case 'DROP':
@@ -1068,7 +1115,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     const cleanup = listenToIframe(handleIframeMessage);
     return cleanup;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPageId, editingComponentId, componentDrafts, setSelectedLayerId, selectedLayerIds, updateLayer, deleteLayer, deleteLayers, clearSelection, draftsByPageId, handleZoomGesture, resetZoom, zoomToFit, autofit]);
+  }, [currentPageId, editingComponentId, componentDrafts, setSelectedLayerId, selectedLayerIds, updateLayer, deleteLayer, deleteLayers, clearSelection, draftsByPageId, handleZoomGesture, resetZoom, zoomToFit, autofit, fetchPage]);
 
   // Add zoom gesture handlers for preview mode (when iframe doesn't have them)
   useEffect(() => {

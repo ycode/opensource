@@ -2,8 +2,16 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
 import { getItemWithValues, getItemsWithValues } from '@/lib/repositories/collectionItemRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
-import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer } from '@/types';
+import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer, CollectionPaginationMeta } from '@/types';
 import { getCollectionVariable, resolveFieldValue, isFieldVariable, evaluateVisibility } from '@/lib/layer-utils';
+
+// Pagination context passed through to resolveCollectionLayers
+export interface PaginationContext {
+  // Map of layerId -> page number (defaults to 1 if not specified)
+  pageNumbers?: Record<string, number>;
+  // Default page number for all collection layers (from URL ?page=N)
+  defaultPage?: number;
+}
 import { resolveInlineVariables } from '@/lib/inline-variables';
 
 export interface PageData {
@@ -95,10 +103,14 @@ async function getCollectionItemBySlug(
  * Fetch page by full path (including folders)
  * Works for both draft and published pages
  * Handles dynamic pages by matching URL patterns and fetching collection items
+ * @param slugPath - The URL path
+ * @param isPublished - Whether to fetch published or draft version
+ * @param paginationContext - Optional pagination context with page numbers from URL
  */
 export async function fetchPageByPath(
   slugPath: string,
-  isPublished: boolean
+  isPublished: boolean,
+  paginationContext?: PaginationContext
 ): Promise<PageData | null> {
   try {
     const supabase = await getSupabaseAdmin();
@@ -217,7 +229,7 @@ export async function fetchPageByPath(
             // The isPublished parameter controls which collection items to fetch
             // Pass enhanced values so nested collections can filter based on dynamic page data
             const resolvedLayers = layersWithInjectedData.length > 0
-              ? await resolveCollectionLayers(layersWithInjectedData, isPublished, enhancedItemValues)
+              ? await resolveCollectionLayers(layersWithInjectedData, isPublished, enhancedItemValues, paginationContext)
               : [];
 
             return {
@@ -272,7 +284,7 @@ export async function fetchPageByPath(
     // Resolve collection layers server-side (for both draft and published)
     // The isPublished parameter controls which collection items to fetch
     const resolvedLayers = pageLayers?.layers
-      ? await resolveCollectionLayers(pageLayers.layers, isPublished)
+      ? await resolveCollectionLayers(pageLayers.layers, isPublished, undefined, paginationContext)
       : [];
 
     return {
@@ -362,8 +374,13 @@ export async function fetchErrorPage(
 /**
  * Fetch homepage (index page at root level)
  * Works for both draft and published pages
+ * @param isPublished - Whether to fetch published or draft version
+ * @param paginationContext - Optional pagination context with page numbers from URL
  */
-export async function fetchHomepage(isPublished: boolean): Promise<Pick<PageData, 'page' | 'pageLayers'> | null> {
+export async function fetchHomepage(
+  isPublished: boolean,
+  paginationContext?: PaginationContext
+): Promise<Pick<PageData, 'page' | 'pageLayers'> | null> {
   try {
     const supabase = await getSupabaseAdmin();
 
@@ -406,7 +423,7 @@ export async function fetchHomepage(isPublished: boolean): Promise<Pick<PageData
 
     // Resolve collection layers server-side (for both draft and published)
     const resolvedLayers = pageLayers?.layers
-      ? await resolveCollectionLayers(pageLayers.layers, isPublished)
+      ? await resolveCollectionLayers(pageLayers.layers, isPublished, undefined, paginationContext)
       : [];
 
     return {
@@ -634,12 +651,14 @@ function resolveFieldValueWithRelationships(
  * @param layers - Layer tree to resolve
  * @param isPublished - Whether to fetch published or draft items
  * @param parentItemValues - Optional parent item values for multi-reference filtering
+ * @param paginationContext - Optional pagination context with page numbers
  * @returns Layers with collection data injected
  */
 export async function resolveCollectionLayers(
   layers: Layer[],
   isPublished: boolean,
-  parentItemValues?: Record<string, string>
+  parentItemValues?: Record<string, string>,
+  paginationContext?: PaginationContext
 ): Promise<Layer[]> {
   console.log('[resolveCollectionLayers] ===== START =====');
   console.log('[resolveCollectionLayers] Processing layers:', {
@@ -669,68 +688,98 @@ export async function resolveCollectionLayers(
           // Fetch collection items with layer-specific settings
           const sortBy = collectionVariable.sort_by;
           const sortOrder = collectionVariable.sort_order;
-          const limit = collectionVariable.limit;
-          const offset = collectionVariable.offset;
           const sourceFieldId = collectionVariable.source_field_id;
           const sourceFieldType = collectionVariable.source_field_type;
+          
+          // Check if pagination is enabled (either 'pages' or 'load_more' mode)
+          const paginationConfig = collectionVariable.pagination;
+          const isPaginated = paginationConfig?.enabled && (paginationConfig?.mode === 'pages' || paginationConfig?.mode === 'load_more');
+          
+          // Determine limit and offset based on pagination settings
+          let limit: number | undefined;
+          let offset: number | undefined;
+          let currentPage = 1;
+          
+          if (isPaginated) {
+            const itemsPerPage = paginationConfig.items_per_page || 10;
+            // Get page number from context (either specific to this layer or default)
+            currentPage = paginationContext?.pageNumbers?.[layer.id] 
+              ?? paginationContext?.defaultPage 
+              ?? 1;
+            limit = itemsPerPage;
+            offset = (currentPage - 1) * itemsPerPage;
+          } else {
+            // Use legacy limit/offset from collection variable
+            limit = collectionVariable.limit;
+            offset = collectionVariable.offset;
+          }
           
           // Build filters for the query
           const filters: any = {};
           if (limit) filters.limit = limit;
           if (offset) filters.offset = offset;
           
-          // Fetch items with values
-          let { items } = await getItemsWithValues(
+          // For reference/multi-reference fields, get allowed item IDs BEFORE fetching
+          // This ensures pagination counts and offsets are correct for the filtered set
+          let allowedItemIds: string[] | undefined;
+          if (sourceFieldId && itemValues) {
+            const refValue = itemValues[sourceFieldId];
+            if (refValue) {
+              if (sourceFieldType === 'reference') {
+                // Single reference: only one item ID
+                allowedItemIds = [refValue];
+                console.log(`[resolveCollectionLayers] Single reference filter for field ${sourceFieldId}:`, {
+                  refItemId: refValue,
+                });
+              } else {
+                // Multi-reference: parse JSON array of item IDs
+                try {
+                  const parsedIds = JSON.parse(refValue);
+                  if (Array.isArray(parsedIds)) {
+                    allowedItemIds = parsedIds;
+                    console.log(`[resolveCollectionLayers] Multi-reference filter for field ${sourceFieldId}:`, {
+                      allowedIds: parsedIds,
+                    });
+                  }
+                } catch {
+                  console.warn(`[resolveCollectionLayers] Failed to parse multi-reference value for field ${sourceFieldId}`);
+                  allowedItemIds = []; // No valid items
+                }
+              }
+            } else {
+              // No value in parent item for this field - show no items
+              allowedItemIds = [];
+            }
+          }
+          
+          // Pass allowed item IDs as filter so count and pagination are correct
+          if (allowedItemIds !== undefined) {
+            filters.itemIds = allowedItemIds;
+          }
+          
+          // Fetch items with values - total count now reflects filtered set
+          const fetchResult = await getItemsWithValues(
             collectionVariable.id,
             isPublished,
             filters
           );
+          let items = fetchResult.items;
+          const totalItems = fetchResult.total;
           
           console.log(`[resolveCollectionLayers] Fetched items for layer ${layer.id}:`, {
             collectionId: collectionVariable.id,
             itemsCount: items.length,
+            totalItems,
             sortBy,
             sortOrder,
             limit,
             offset,
             sourceFieldId,
             sourceFieldType,
+            isPaginated,
+            currentPage,
+            hasItemIdFilter: !!allowedItemIds,
           });
-          
-          // Filter by reference field if source_field_id is set
-          // Single reference: value is just an item ID string (renders once, sets context)
-          // Multi-reference: value is a JSON array of item IDs (loops through all)
-          if (sourceFieldId && itemValues) {
-            const refValue = itemValues[sourceFieldId];
-            if (refValue) {
-              if (sourceFieldType === 'reference') {
-                // Single reference: filter to just the one referenced item
-                items = items.filter(item => item.id === refValue);
-                console.log(`[resolveCollectionLayers] Filtered by single reference field ${sourceFieldId}:`, {
-                  refItemId: refValue,
-                  filteredCount: items.length,
-                });
-              } else {
-                // Multi-reference: parse JSON array and filter
-                try {
-                  const allowedIds = JSON.parse(refValue);
-                  if (Array.isArray(allowedIds)) {
-                    items = items.filter(item => allowedIds.includes(item.id));
-                    console.log(`[resolveCollectionLayers] Filtered by multi-reference field ${sourceFieldId}:`, {
-                      allowedIds,
-                      filteredCount: items.length,
-                    });
-                  }
-                } catch {
-                  console.warn(`[resolveCollectionLayers] Failed to parse multi-reference value for field ${sourceFieldId}`);
-                  items = [];
-                }
-              }
-            } else {
-              // No value in parent item for this field - show no items
-              items = [];
-            }
-          }
           
           // Apply collection filters (evaluate against each item's own values)
           const collectionFilters = collectionVariable.filters;
@@ -782,11 +831,12 @@ export async function resolveCollectionLayers(
 
           // Clone the collection layer for each item (design settings apply to each repeated item)
           // For each item, resolve nested collection layers with that item's values
+          // Note: Pagination is now a sibling layer, not a child, so no filtering needed
           const clonedLayers: Layer[] = await Promise.all(
             sortedItems.map(async (item) => {
               // Resolve children for THIS specific item's values
               // This ensures nested collection layers filter based on this item's reference fields
-              const resolvedChildren = layer.children 
+              const resolvedChildren = layer.children?.length 
                 ? await Promise.all(layer.children.map(child => resolveLayer(child, item.values))) 
                 : [];
               
@@ -817,6 +867,29 @@ export async function resolveCollectionLayers(
 
           console.log(`[resolveCollectionLayers] Cloned collection layer into ${clonedLayers.length} items`);
 
+          // Build pagination metadata if pagination is enabled
+          let paginationMeta: CollectionPaginationMeta | undefined;
+          if (isPaginated && paginationConfig) {
+            const itemsPerPage = paginationConfig.items_per_page || 10;
+            paginationMeta = {
+              currentPage,
+              totalPages: Math.ceil(totalItems / itemsPerPage),
+              totalItems,
+              itemsPerPage,
+              layerId: layer.id,
+              collectionId: collectionVariable.id,
+              mode: paginationConfig.mode, // 'pages' or 'load_more'
+              itemIds: allowedItemIds, // For multi-reference filtering in load_more
+              // Store the original layer template for load_more client-side rendering
+              layerTemplate: paginationConfig.mode === 'load_more' ? layer.children : undefined,
+            };
+            console.log(`[resolveCollectionLayers] Pagination meta for layer ${layer.id}:`, paginationMeta);
+          }
+
+          // Build children array - just the cloned items
+          // Pagination is now a sibling layer, not added here
+          const fragmentChildren = clonedLayers;
+
           // Return a fragment layer - LayerRenderer will render children directly without wrapper
           return {
             ...layer,
@@ -825,11 +898,13 @@ export async function resolveCollectionLayers(
             classes: [],
             design: undefined,
             attributes: {} as Record<string, any>,
-            children: clonedLayers,
+            children: fragmentChildren,
             variables: {
               ...layer.variables,
               collection: undefined,
             },
+            // Store pagination meta for client hydration (SSR only)
+            _paginationMeta: paginationMeta,
           };
         } catch (error) {
           console.error(`Failed to resolve collection layer ${layer.id}:`, error);
@@ -856,9 +931,48 @@ export async function resolveCollectionLayers(
   console.log('[resolveCollectionLayers] ===== END =====');
   console.log('[resolveCollectionLayers] Processed layers count:', result.length);
   
-  // Second pass: Filter layers by conditional visibility
+  // Collect pagination metadata from all fragments
+  const paginationMetaMap: Record<string, CollectionPaginationMeta> = {};
+  function collectPaginationMeta(layerList: Layer[]) {
+    for (const layer of layerList) {
+      if (layer._paginationMeta) {
+        const originalId = layer.id.replace('-fragment', '');
+        paginationMetaMap[originalId] = layer._paginationMeta;
+      }
+      if (layer.children) {
+        collectPaginationMeta(layer.children);
+      }
+    }
+  }
+  collectPaginationMeta(result);
+  
+  // Update pagination sibling layers with correct meta
+  function updatePaginationSiblings(layerList: Layer[]): Layer[] {
+    return layerList.map(layer => {
+      // Check if this is a pagination wrapper (has data-pagination-for attribute)
+      const paginationFor = layer.attributes?.['data-pagination-for'];
+      if (paginationFor && paginationMetaMap[paginationFor]) {
+        // Update this pagination layer with the meta
+        return updatePaginationLayerWithMeta(layer, paginationMetaMap[paginationFor]);
+      }
+      
+      // Recursively update children
+      if (layer.children) {
+        return {
+          ...layer,
+          children: updatePaginationSiblings(layer.children),
+        };
+      }
+      
+      return layer;
+    });
+  }
+  
+  const resultWithPagination = updatePaginationSiblings(result);
+  
+  // Third pass: Filter layers by conditional visibility
   // We need to compute collection counts first, then filter
-  const filteredResult = filterByVisibility(result, parentItemValues);
+  const filteredResult = filterByVisibility(resultWithPagination, parentItemValues);
   
   return filteredResult;
 }
@@ -942,4 +1056,371 @@ function filterByVisibility(
   return layers
     .map(layer => filterLayer(layer, itemValues))
     .filter((layer): layer is Layer => layer !== null);
+}
+
+/**
+ * Update a pagination layer with dynamic meta (page info text, button states)
+ * @param layer - The pagination layer to update
+ * @param meta - Pagination metadata
+ * @returns Updated layer with dynamic content
+ */
+function updatePaginationLayerWithMeta(layer: Layer, meta: CollectionPaginationMeta): Layer {
+  const { currentPage, totalPages, totalItems, itemsPerPage, mode } = meta;
+  
+  // Deep clone to avoid mutation
+  const updatedLayer: Layer = JSON.parse(JSON.stringify(layer));
+  
+  // Helper to recursively update layers
+  function updateLayerRecursive(l: Layer): void {
+    // Update page info text (for 'pages' mode)
+    if (l.id?.endsWith('-pagination-info')) {
+      l.text = `Page ${currentPage} of ${totalPages}`;
+    }
+    
+    // Update items count text (for 'load_more' mode)
+    if (l.id?.endsWith('-pagination-count')) {
+      const shownItems = Math.min(itemsPerPage, totalItems);
+      l.text = `Showing ${shownItems} of ${totalItems}`;
+    }
+    
+    // Update previous button state
+    if (l.id?.endsWith('-pagination-prev')) {
+      const isFirstPage = currentPage <= 1;
+      l.attributes = l.attributes || {};
+      l.attributes['data-current-page'] = String(currentPage);
+      if (isFirstPage) {
+        l.attributes.disabled = true;
+        l.classes = Array.isArray(l.classes) 
+          ? [...l.classes, 'opacity-50', 'cursor-not-allowed']
+          : `${l.classes || ''} opacity-50 cursor-not-allowed`;
+      }
+    }
+    
+    // Update next button state
+    if (l.id?.endsWith('-pagination-next')) {
+      const isLastPage = currentPage >= totalPages;
+      l.attributes = l.attributes || {};
+      l.attributes['data-current-page'] = String(currentPage);
+      if (isLastPage) {
+        l.attributes.disabled = true;
+        l.classes = Array.isArray(l.classes) 
+          ? [...l.classes, 'opacity-50', 'cursor-not-allowed']
+          : `${l.classes || ''} opacity-50 cursor-not-allowed`;
+      }
+    }
+    
+    // Hide load more button when all items shown (in load_more mode)
+    if (l.id?.endsWith('-pagination-loadmore')) {
+      const allItemsShown = itemsPerPage >= totalItems;
+      if (allItemsShown) {
+        l.classes = Array.isArray(l.classes) 
+          ? [...l.classes, 'hidden']
+          : `${l.classes || ''} hidden`;
+      }
+    }
+    
+    // Recursively update children
+    if (l.children) {
+      l.children.forEach(updateLayerRecursive);
+    }
+  }
+  
+  updateLayerRecursive(updatedLayer);
+  return updatedLayer;
+}
+
+/**
+ * Generate a pagination wrapper layer with Previous/Next buttons
+ * This is injected as a sibling after the collection fragment
+ * @param collectionLayerId - Original collection layer ID
+ * @param paginationMeta - Pagination metadata
+ * @returns Layer structure for pagination controls
+ */
+export function generatePaginationWrapper(
+  collectionLayerId: string,
+  paginationMeta: CollectionPaginationMeta
+): Layer {
+  const { currentPage, totalPages } = paginationMeta;
+  const isFirstPage = currentPage <= 1;
+  const isLastPage = currentPage >= totalPages;
+
+  return {
+    id: `${collectionLayerId}-pagination`,
+    name: 'div',
+    classes: 'flex items-center justify-center gap-4 mt-4',
+    children: [
+      // Previous Button
+      {
+        id: `${collectionLayerId}-pagination-prev`,
+        name: 'button',
+        classes: `px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors ${isFirstPage ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`,
+        settings: {
+          tag: 'button',
+        },
+        attributes: {
+          'data-pagination-action': 'prev',
+          'data-collection-layer-id': collectionLayerId,
+          'data-current-page': String(currentPage),
+          ...(isFirstPage ? { disabled: true } : {}),
+        } as Record<string, any>,
+        children: [
+          {
+            id: `${collectionLayerId}-pagination-prev-text`,
+            name: 'span',
+            text: 'Previous',
+          } as Layer,
+        ],
+      } as Layer,
+      // Page indicator
+      {
+        id: `${collectionLayerId}-pagination-info`,
+        name: 'span',
+        classes: 'text-sm text-[#4b5563]',
+        text: `Page ${currentPage} of ${totalPages}`,
+      } as Layer,
+      // Next Button
+      {
+        id: `${collectionLayerId}-pagination-next`,
+        name: 'button',
+        classes: `px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors ${isLastPage ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`,
+        settings: {
+          tag: 'button',
+        },
+        attributes: {
+          'data-pagination-action': 'next',
+          'data-collection-layer-id': collectionLayerId,
+          'data-current-page': String(currentPage),
+          ...(isLastPage ? { disabled: true } : {}),
+        } as Record<string, any>,
+        children: [
+          {
+            id: `${collectionLayerId}-pagination-next-text`,
+            name: 'span',
+            text: 'Next',
+          } as Layer,
+        ],
+      } as Layer,
+    ],
+    attributes: {
+      'data-pagination-wrapper': 'true',
+      'data-collection-layer-id': collectionLayerId,
+    } as Record<string, any>,
+  } as Layer;
+}
+
+/**
+ * Render collection items to HTML string for "Load More" pagination
+ * Takes the original layer template and renders each item with injected data
+ * @param items - Collection items with values
+ * @param layerTemplate - The original layer template (children of the collection layer)
+ * @param collectionId - Collection ID for fetching fields
+ * @param collectionLayerId - The collection layer ID (for unique item IDs)
+ * @param isPublished - Whether to fetch published data
+ * @returns HTML string of rendered items
+ */
+export async function renderCollectionItemsToHtml(
+  items: CollectionItemWithValues[],
+  layerTemplate: Layer[],
+  collectionId: string,
+  collectionLayerId: string,
+  isPublished: boolean
+): Promise<string> {
+  // Fetch collection fields for field resolution
+  const collectionFields = await getFieldsByCollectionId(collectionId, isPublished);
+  
+  // Render each item using the template
+  const renderedItems = await Promise.all(
+    items.map(async (item, index) => {
+      // Deep clone the template for each item
+      const clonedTemplate = JSON.parse(JSON.stringify(layerTemplate));
+      
+      // Inject collection data into each layer of the template (text, images, etc.)
+      const injectedLayers = await Promise.all(
+        clonedTemplate.map((layer: Layer) => 
+          injectCollectionDataForHtml(layer, item.values, collectionFields, isPublished)
+        )
+      );
+      
+      // Resolve nested collection layers (sub-collections like "shades" inside "colors")
+      // Pass item.values so nested collections can filter based on parent item's field values
+      const resolvedLayers = await resolveCollectionLayers(
+        injectedLayers,
+        isPublished,
+        item.values // Parent item values for multi-reference filtering
+      );
+      
+      // Convert layers to HTML (handles fragments from resolved collections)
+      const itemHtml = resolvedLayers.map(layer => layerToHtml(layer, item.id)).join('');
+      
+      // Wrap in collection item container with the proper layer ID format
+      const itemWrapperId = `${collectionLayerId}-item-${item.id}`;
+      return `<div data-layer-id="${itemWrapperId}" data-collection-item-id="${item.id}">${itemHtml}</div>`;
+    })
+  );
+  
+  return renderedItems.join('');
+}
+
+/**
+ * Inject collection data into a layer for HTML rendering
+ * Similar to injectCollectionData but simplified for HTML output
+ */
+async function injectCollectionDataForHtml(
+  layer: Layer,
+  itemValues: Record<string, string>,
+  fields: CollectionField[],
+  isPublished: boolean
+): Promise<Layer> {
+  // Resolve reference fields if we have field definitions
+  let enhancedValues = itemValues;
+  if (fields && fields.length > 0) {
+    enhancedValues = await resolveReferenceFields(itemValues, fields, isPublished);
+  }
+  
+  const updates: Partial<Layer> = {};
+  
+  // Resolve inline variables (embedded JSON format)
+  const textContent = layer.variables?.text || layer.text;
+  if (textContent && typeof textContent === 'string' && textContent.includes('<ycode-inline-variable>')) {
+    const mockItem: CollectionItemWithValues = {
+      id: 'temp',
+      collection_id: 'temp',
+      created_at: '',
+      updated_at: '',
+      deleted_at: null,
+      manual_order: 0,
+      is_published: true,
+      values: enhancedValues,
+    };
+    const resolved = resolveInlineVariables(textContent, mockItem);
+    updates.text = resolved;
+  }
+  // Direct field binding (non-inline)
+  else if (layer.text && isFieldVariable(layer.text)) {
+    const fieldId = layer.text.data.field_id;
+    const relationships = layer.text.data.relationships || [];
+    const fullPath = relationships.length > 0 
+      ? [fieldId, ...relationships].join('.')
+      : fieldId;
+    updates.text = enhancedValues[fullPath] || '';
+  }
+  
+  // Image URL field binding
+  if (layer.url && isFieldVariable(layer.url)) {
+    const fieldId = layer.url.data.field_id;
+    const relationships = layer.url.data.relationships || [];
+    const fullPath = relationships.length > 0 
+      ? [fieldId, ...relationships].join('.')
+      : fieldId;
+    updates.url = enhancedValues[fullPath] || '';
+  }
+  
+  // Recursively process children
+  if (layer.children) {
+    const resolvedChildren = await Promise.all(
+      layer.children.map(child => 
+        injectCollectionDataForHtml(child, enhancedValues, fields, isPublished)
+      )
+    );
+    updates.children = resolvedChildren;
+  }
+  
+  return {
+    ...layer,
+    ...updates,
+  };
+}
+
+/**
+ * Convert a Layer to HTML string
+ * Handles common layer types and their attributes
+ */
+function layerToHtml(layer: Layer, collectionItemId?: string): string {
+  // Handle fragment layers (created by resolveCollectionLayers for nested collections)
+  // Fragments render their children directly without a wrapper element
+  if (layer.name === '_fragment' && layer.children) {
+    return layer.children.map(child => layerToHtml(child, collectionItemId)).join('');
+  }
+  
+  // Get the HTML tag
+  const tag = layer.settings?.tag || layer.name || 'div';
+  
+  // Build classes string
+  let classesStr = '';
+  if (Array.isArray(layer.classes)) {
+    classesStr = layer.classes.join(' ');
+  } else if (typeof layer.classes === 'string') {
+    classesStr = layer.classes;
+  }
+  
+  // Build attributes
+  const attrs: string[] = [];
+  
+  if (layer.id) {
+    attrs.push(`data-layer-id="${escapeHtml(layer.id)}"`);
+  }
+  
+  if (classesStr) {
+    attrs.push(`class="${escapeHtml(classesStr)}"`);
+  }
+  
+  if (layer.settings?.id) {
+    attrs.push(`id="${escapeHtml(layer.settings.id)}"`);
+  }
+  
+  // Handle images
+  if (tag === 'img' && layer.url) {
+    const src = typeof layer.url === 'string' ? layer.url : '';
+    attrs.push(`src="${escapeHtml(src)}"`);
+    if (layer.alt) {
+      attrs.push(`alt="${escapeHtml(layer.alt)}"`);
+    }
+  }
+  
+  // Handle links
+  if (tag === 'a' && layer.settings?.linkSettings?.href) {
+    attrs.push(`href="${escapeHtml(layer.settings.linkSettings.href)}"`);
+    if (layer.settings.linkSettings.target) {
+      attrs.push(`target="${escapeHtml(layer.settings.linkSettings.target)}"`);
+    }
+  }
+  
+  // Add custom attributes
+  if (layer.attributes) {
+    for (const [key, value] of Object.entries(layer.attributes)) {
+      if (value !== undefined && value !== null) {
+        attrs.push(`${escapeHtml(key)}="${escapeHtml(String(value))}"`);
+      }
+    }
+  }
+  
+  // Get text content
+  const textContent = typeof layer.text === 'string' ? layer.text : '';
+  
+  // Render children
+  const childrenHtml = layer.children 
+    ? layer.children.map(child => layerToHtml(child, collectionItemId)).join('')
+    : '';
+  
+  // Handle self-closing tags
+  const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link'];
+  if (selfClosingTags.includes(tag)) {
+    return `<${tag} ${attrs.join(' ')} />`;
+  }
+  
+  // Render the element
+  const attrsStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
+  return `<${tag}${attrsStr}>${escapeHtml(textContent)}${childrenHtml}</${tag}>`;
+}
+
+/**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }

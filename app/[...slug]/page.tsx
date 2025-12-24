@@ -1,16 +1,16 @@
 import { notFound } from 'next/navigation';
-import { unstable_cache } from 'next/cache';
+import { unstable_cache, unstable_noStore } from 'next/cache';
 import type { Metadata } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
 import { generatePageMetadata } from '@/lib/generate-page-metadata';
-import { fetchPageByPath, fetchErrorPage } from '@/lib/page-fetcher';
+import { fetchPageByPath, fetchErrorPage, PaginationContext } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import type { Page, PageFolder } from '@/types';
 
-// Incremental Static Regeneration (ISR) with on-demand revalidation
-export const revalidate = false;
+// Static by default for performance, dynamic only when pagination is requested
+export const revalidate = 3600; // Revalidate every hour
 export const dynamicParams = true;
 
 /**
@@ -72,12 +72,20 @@ export async function generateStaticParams() {
 
 /**
  * Fetch published page and layers data from database
- * Cached per slug for revalidation
+ * Cached per slug and page for revalidation
  */
-async function fetchPublishedPageWithLayers(slugPath: string) {
+async function fetchPublishedPageWithLayers(slugPath: string, paginationContext?: PaginationContext) {
+  // Include pagination params in cache key for per-collection pagination support
+  // Sort keys for consistent cache key regardless of param order
+  const paginationKey = paginationContext?.pageNumbers 
+    ? Object.entries(paginationContext.pageNumbers)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, page]) => `${id}:${page}`)
+      .join(',')
+    : '';
   return unstable_cache(
-    async () => fetchPageByPath(slugPath, true),
-    [`data-for-route-/${slugPath}`],
+    async () => fetchPageByPath(slugPath, true, paginationContext),
+    [`data-for-route-/${slugPath}`, `pagination-${paginationKey}`],
     {
       tags: [`route-/${slugPath}`], // Tag for revalidation on publish
       revalidate: 3600,
@@ -85,15 +93,45 @@ async function fetchPublishedPageWithLayers(slugPath: string) {
   )();
 }
 
-export default async function Page({ params }: { params: Promise<{ slug: string | string[] }> }) {
-  // Await params (Next.js 15 requirement)
+interface PageProps {
+  params: Promise<{ slug: string | string[] }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function Page({ params, searchParams }: PageProps) {
+  // Await params and searchParams (Next.js 15 requirement)
   const { slug } = await params;
+  const resolvedSearchParams = await searchParams;
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
 
+  // Parse layer-specific pagination params (p_LAYER_ID=N)
+  // This enables independent pagination for multiple collections on the same page
+  const pageNumbers: Record<string, number> = {};
+  for (const [key, value] of Object.entries(resolvedSearchParams)) {
+    if (key.startsWith('p_') && typeof value === 'string') {
+      const layerId = key.slice(2); // Remove 'p_' prefix
+      const pageNum = parseInt(value, 10);
+      if (!isNaN(pageNum) && pageNum >= 1) {
+        pageNumbers[layerId] = pageNum;
+      }
+    }
+  }
+  
+  // Only opt out of caching when pagination is requested
+  // This keeps default page visits fast and cached
+  if (Object.keys(pageNumbers).length > 0) {
+    unstable_noStore();
+  }
+  
+  const paginationContext: PaginationContext = {
+    pageNumbers,
+    defaultPage: 1,
+  };
+
   // Fetch page and layers data
-  const data = await fetchPublishedPageWithLayers(slugPath);
+  const data = await fetchPublishedPageWithLayers(slugPath, paginationContext);
 
   // If page not found, try to show custom 404 error page
   if (!data) {

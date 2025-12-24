@@ -23,6 +23,7 @@ interface ToggleGroupProps {
   value: string | boolean;
   onChange: (value: string | boolean) => void;
   className?: string;
+  disabled?: boolean;
 }
 
 export default function ToggleGroup({
@@ -30,6 +31,7 @@ export default function ToggleGroup({
   value,
   onChange,
   className = '',
+  disabled = false,
 }: ToggleGroupProps) {
   // Convert boolean values to strings for Tabs component
   const stringValue = String(value);
@@ -47,14 +49,15 @@ export default function ToggleGroup({
   return (
     <Tabs 
       value={stringValue} 
-      onValueChange={handleChange}
-      className={className}
+      onValueChange={disabled ? undefined : handleChange}
+      className={cn(className, disabled && 'opacity-50 pointer-events-none')}
     >
       <TabsList className="w-full">
         {options.map((option) => (
           <TabsTrigger 
             key={String(option.value)} 
             value={String(option.value)}
+            disabled={disabled}
             className={cn(
               'flex items-center gap-1.5',
               !option.label && 'justify-center'

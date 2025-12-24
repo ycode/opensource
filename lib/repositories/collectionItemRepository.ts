@@ -20,6 +20,7 @@ export interface QueryFilters {
   search?: string;
   limit?: number;
   offset?: number;
+  itemIds?: string[]; // Filter to specific item IDs (for multi-reference pagination)
 }
 
 /**
@@ -112,6 +113,12 @@ export async function getItemsByCollectionId(
     throw new Error('Supabase client not configured');
   }
 
+  // If itemIds filter is provided, use those directly (for multi-reference fields)
+  // If no items are linked, return early
+  if (filters?.itemIds && filters.itemIds.length === 0) {
+    return { items: [], total: 0 };
+  }
+
   // If search is provided, find matching item IDs from values table
   let matchingItemIds: string[] | null = null;
   if (filters?.search && filters.search.trim()) {
@@ -140,15 +147,31 @@ export async function getItemsByCollectionId(
     }
   }
 
+  // Combine itemIds filter with search results (intersection if both present)
+  let filterIds: string[] | null = null;
+  if (filters?.itemIds) {
+    if (matchingItemIds !== null) {
+      // Intersection: only IDs that are in both lists
+      filterIds = filters.itemIds.filter(id => matchingItemIds!.includes(id));
+      if (filterIds.length === 0) {
+        return { items: [], total: 0 };
+      }
+    } else {
+      filterIds = filters.itemIds;
+    }
+  } else if (matchingItemIds !== null) {
+    filterIds = matchingItemIds;
+  }
+
   // Build base query for counting
   let countQuery = client
     .from('collection_items')
     .select('*', { count: 'exact', head: true })
     .eq('collection_id', collection_id)
     .eq('is_published', is_published);
-  // Apply search filter to count query
-  if (matchingItemIds !== null) {
-    countQuery = countQuery.in('id', matchingItemIds);
+  // Apply item ID filter to count query (from itemIds filter and/or search)
+  if (filterIds !== null) {
+    countQuery = countQuery.in('id', filterIds);
   }
 
   // Apply deleted filter to count query
@@ -178,9 +201,9 @@ export async function getItemsByCollectionId(
     .order('manual_order', { ascending: true })
     .order('created_at', { ascending: false });
 
-  // Apply search filter if we found matching items
-  if (matchingItemIds !== null) {
-    query = query.in('id', matchingItemIds);
+  // Apply item ID filter (from itemIds filter and/or search)
+  if (filterIds !== null) {
+    query = query.in('id', filterIds);
   }
 
   // Apply filters - only filter deleted_at when explicitly specified

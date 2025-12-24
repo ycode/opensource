@@ -54,7 +54,7 @@ import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
 // 6. Utils, APIs, lib
 import { classesToDesign, mergeDesign, removeConflictsForClass } from '@/lib/tailwind-class-mapper';
 import { cn } from '@/lib/utils';
-import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTextEditable } from '@/lib/layer-utils';
+import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTextEditable, findLayerWithParent } from '@/lib/layer-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
 
 // 7. Types
@@ -113,7 +113,7 @@ const RightSidebar = React.memo(function RightSidebar({
     if (urlTab !== activeTab) {
       setActiveTab(urlTab);
     }
-  }, [urlState.rightTab]);
+  }, [urlState.rightTab, activeTab]);
 
   const [currentClassInput, setCurrentClassInput] = useState<string>('');
   const [attributesOpen, setAttributesOpen] = useState(true);
@@ -184,6 +184,50 @@ const RightSidebar = React.memo(function RightSidebar({
   const interactionOwnerLayer: Layer | null = useMemo(() => {
     return findLayerById(interactionOwnerLayerId);
   }, [interactionOwnerLayerId, findLayerById]);
+
+  // Check if selected layer is at root level (has no parent) - used to disable pagination
+  const isSelectedLayerAtRoot: boolean = useMemo(() => {
+    if (!selectedLayerId || !allLayers.length) return false;
+    const result = findLayerWithParent(allLayers, selectedLayerId);
+    return result?.parent === null;
+  }, [selectedLayerId, allLayers]);
+
+  // Check if selected collection is nested inside another collection
+  // If so, we hide the pagination option entirely (not just disable it)
+  const isNestedInCollection: boolean = useMemo(() => {
+    if (!selectedLayer || !selectedLayerId) return false;
+    
+    const collectionVar = getCollectionVariable(selectedLayer);
+    if (!collectionVar) return false;
+    
+    const parentCollection = findParentCollectionLayer(allLayers, selectedLayerId);
+    return !!parentCollection;
+  }, [selectedLayer, selectedLayerId, allLayers]);
+
+  // Check if pagination should be disabled (only for root-level case where we show a message)
+  const isPaginationDisabled: boolean = useMemo(() => {
+    if (!selectedLayer) return true;
+    
+    const collectionVar = getCollectionVariable(selectedLayer);
+    if (!collectionVar) return true;
+    
+    // If at root level (no parent container at all), pagination is disabled (need a container for sibling)
+    return isSelectedLayerAtRoot;
+  }, [selectedLayer, isSelectedLayerAtRoot]);
+
+  // Get the reason why pagination is disabled (only for actionable messages)
+  const paginationDisabledReason: string | null = useMemo(() => {
+    if (!selectedLayer) return null;
+    
+    const collectionVar = getCollectionVariable(selectedLayer);
+    if (!collectionVar) return null;
+    
+    if (isSelectedLayerAtRoot) {
+      return 'Wrap collection in a container to enable pagination';
+    }
+    
+    return null;
+  }, [selectedLayer, isSelectedLayerAtRoot]);
 
   // Set interaction owner when interactions tab becomes active
   useEffect(() => {
@@ -744,6 +788,254 @@ const RightSidebar = React.memo(function RightSidebar({
             collection: {
               ...currentCollectionVariable,
               offset: offset && offset >= 0 ? offset : undefined,
+            }
+          }
+        });
+      }
+    }
+  };
+
+  // Helper: Create pagination wrapper for "pages" mode (Prev/Next buttons)
+  const createPagesWrapper = (collectionLayerId: string): Layer => ({
+    id: `${collectionLayerId}-pagination-wrapper`,
+    name: 'div',
+    customName: 'Pagination',
+    classes: 'flex items-center justify-center gap-4 mt-4',
+    attributes: {
+      'data-pagination-for': collectionLayerId,
+      'data-pagination-mode': 'pages',
+    },
+    children: [
+      {
+        id: `${collectionLayerId}-pagination-prev`,
+        name: 'button',
+        customName: 'Previous Button',
+        classes: 'px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors cursor-pointer',
+        settings: { tag: 'button' },
+        attributes: {
+          'data-pagination-action': 'prev',
+          'data-collection-layer-id': collectionLayerId,
+        },
+        children: [
+          {
+            id: `${collectionLayerId}-pagination-prev-text`,
+            name: 'span',
+            customName: 'Previous Text',
+            classes: '',
+            text: 'Previous',
+          } as Layer,
+        ],
+      } as Layer,
+      {
+        id: `${collectionLayerId}-pagination-info`,
+        name: 'span',
+        customName: 'Page Info',
+        classes: 'text-sm text-[#4b5563]',
+        text: 'Page 1 of 1',
+      } as Layer,
+      {
+        id: `${collectionLayerId}-pagination-next`,
+        name: 'button',
+        customName: 'Next Button',
+        classes: 'px-4 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors cursor-pointer',
+        settings: { tag: 'button' },
+        attributes: {
+          'data-pagination-action': 'next',
+          'data-collection-layer-id': collectionLayerId,
+        },
+        children: [
+          {
+            id: `${collectionLayerId}-pagination-next-text`,
+            name: 'span',
+            customName: 'Next Text',
+            classes: '',
+            text: 'Next',
+          } as Layer,
+        ],
+      } as Layer,
+    ],
+  });
+
+  // Helper: Create pagination wrapper for "load_more" mode (Load more button + count)
+  const createLoadMoreWrapper = (collectionLayerId: string): Layer => ({
+    id: `${collectionLayerId}-pagination-wrapper`,
+    name: 'div',
+    customName: 'Load More',
+    classes: 'flex flex-col items-center gap-2 mt-4',
+    attributes: {
+      'data-pagination-for': collectionLayerId,
+      'data-pagination-mode': 'load_more',
+    },
+    children: [
+      {
+        id: `${collectionLayerId}-pagination-loadmore`,
+        name: 'button',
+        customName: 'Load More Button',
+        classes: 'px-6 py-2 rounded bg-[#e5e7eb] hover:bg-[#d1d5db] transition-colors cursor-pointer',
+        settings: { tag: 'button' },
+        attributes: {
+          'data-pagination-action': 'load_more',
+          'data-collection-layer-id': collectionLayerId,
+        },
+        children: [
+          {
+            id: `${collectionLayerId}-pagination-loadmore-text`,
+            name: 'span',
+            customName: 'Load More Text',
+            classes: '',
+            text: 'Load More',
+          } as Layer,
+        ],
+      } as Layer,
+      {
+        id: `${collectionLayerId}-pagination-count`,
+        name: 'span',
+        customName: 'Items Count',
+        classes: 'text-sm text-[#4b5563]',
+        text: 'Showing items',
+      } as Layer,
+    ],
+  });
+
+  // Helper: Get current layers from the appropriate store
+  const getCurrentLayersFromStore = (): Layer[] => {
+    if (editingComponentId) {
+      return useComponentsStore.getState().componentDrafts[editingComponentId] || [];
+    } else if (currentPageId) {
+      const draft = usePagesStore.getState().draftsByPageId[currentPageId];
+      return draft ? draft.layers : [];
+    }
+    return [];
+  };
+
+  // Helper: Add or replace pagination wrapper
+  const addOrReplacePaginationWrapper = (collectionLayerId: string, mode: 'pages' | 'load_more') => {
+    const currentLayers = getCurrentLayersFromStore();
+    const parentResult = findLayerWithParent(currentLayers, collectionLayerId);
+    const parentLayer = parentResult?.parent;
+    
+    if (!parentLayer) {
+      console.warn('Pagination at root level not yet supported - collection layer should be inside a container');
+      return;
+    }
+    
+    const paginationWrapperId = `${collectionLayerId}-pagination-wrapper`;
+    const paginationWrapper = mode === 'pages' 
+      ? createPagesWrapper(collectionLayerId)
+      : createLoadMoreWrapper(collectionLayerId);
+    
+    // Get parent's CURRENT children from fresh lookup
+    const freshParentResult = findLayerWithParent(currentLayers, parentLayer.id);
+    const freshParent = freshParentResult?.layer || parentLayer;
+    const parentChildren = freshParent.children || [];
+    
+    const collectionIndex = parentChildren.findIndex(c => c.id === collectionLayerId);
+    const existingPaginationIndex = parentChildren.findIndex(c => c.id === paginationWrapperId);
+    
+    let newChildren: Layer[];
+    if (existingPaginationIndex === -1) {
+      // Add new wrapper after collection
+      newChildren = [
+        ...parentChildren.slice(0, collectionIndex + 1),
+        paginationWrapper,
+        ...parentChildren.slice(collectionIndex + 1),
+      ];
+    } else {
+      // Replace existing wrapper
+      newChildren = parentChildren.map(c => c.id === paginationWrapperId ? paginationWrapper : c);
+    }
+    
+    onLayerUpdate(parentLayer.id, { children: newChildren });
+  };
+
+  // Helper: Remove pagination wrapper
+  const removePaginationWrapper = (collectionLayerId: string) => {
+    const currentLayers = getCurrentLayersFromStore();
+    const parentResult = findLayerWithParent(currentLayers, collectionLayerId);
+    const parentLayer = parentResult?.parent;
+    
+    if (!parentLayer) return;
+    
+    const paginationWrapperId = `${collectionLayerId}-pagination-wrapper`;
+    const freshParentResult = findLayerWithParent(currentLayers, parentLayer.id);
+    const freshParent = freshParentResult?.layer || parentLayer;
+    const parentChildren = freshParent.children || [];
+    
+    const newChildren = parentChildren.filter(c => c.id !== paginationWrapperId);
+    onLayerUpdate(parentLayer.id, { children: newChildren });
+  };
+
+  // Handle pagination enabled toggle
+  const handlePaginationEnabledChange = (checked: boolean) => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      if (currentCollectionVariable) {
+        const mode = currentCollectionVariable.pagination?.mode || 'pages';
+        
+        if (checked) {
+          addOrReplacePaginationWrapper(selectedLayerId, mode);
+        } else {
+          removePaginationWrapper(selectedLayerId);
+        }
+
+        // Update the collection layer's pagination config
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              pagination: checked 
+                ? { enabled: true, mode, items_per_page: 10 }
+                : undefined,
+            }
+          }
+        });
+      }
+    }
+  };
+
+  // Handle items per page change
+  const handleItemsPerPageChange = (value: string) => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      if (currentCollectionVariable?.pagination) {
+        const itemsPerPage = parseInt(value, 10);
+        if (!isNaN(itemsPerPage) && itemsPerPage > 0) {
+          onLayerUpdate(selectedLayerId, {
+            variables: {
+              ...selectedLayer?.variables,
+              collection: {
+                ...currentCollectionVariable,
+                pagination: {
+                  ...currentCollectionVariable.pagination,
+                  items_per_page: itemsPerPage,
+                }
+              }
+            }
+          });
+        }
+      }
+    }
+  };
+
+  // Handle pagination mode change
+  const handlePaginationModeChange = (mode: 'pages' | 'load_more') => {
+    if (selectedLayerId && selectedLayer) {
+      const currentCollectionVariable = getCollectionVariable(selectedLayer);
+      if (currentCollectionVariable?.pagination) {
+        // Recreate the pagination wrapper with the new mode
+        addOrReplacePaginationWrapper(selectedLayerId, mode);
+        
+        // Update the collection layer's pagination config
+        onLayerUpdate(selectedLayerId, {
+          variables: {
+            ...selectedLayer?.variables,
+            collection: {
+              ...currentCollectionVariable,
+              pagination: {
+                ...currentCollectionVariable.pagination,
+                mode,
+              }
             }
           }
         });
@@ -1450,6 +1742,66 @@ const RightSidebar = React.memo(function RightSidebar({
                           />
                         </div>
                       </div>
+
+                      {/* Pagination - hidden for nested collections */}
+                      {!isNestedInCollection && (
+                        <div className="grid grid-cols-3">
+                          <Label variant="muted">Pagination</Label>
+                          <div className="col-span-2 *:w-full">
+                            <ToggleGroup
+                              options={[
+                                { label: 'Off', value: false },
+                                { label: 'On', value: true },
+                              ]}
+                              value={getCollectionVariable(selectedLayer)?.pagination?.enabled ?? false}
+                              onChange={(value) => handlePaginationEnabledChange(value as boolean)}
+                              disabled={isPaginationDisabled}
+                            />
+                            {paginationDisabledReason && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {paginationDisabledReason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Pagination type and items per page - only show when pagination enabled */}
+                      {!isNestedInCollection && getCollectionVariable(selectedLayer)?.pagination?.enabled && (
+                        <>
+                          <div className="grid grid-cols-3">
+                            <Label variant="muted">Type</Label>
+                            <div className="col-span-2 *:w-full">
+                              <Select
+                                value={getCollectionVariable(selectedLayer)?.pagination?.mode ?? 'pages'}
+                                onValueChange={(value) => handlePaginationModeChange(value as 'pages' | 'load_more')}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectGroup>
+                                    <SelectItem value="pages">Pages (Previous / Next)</SelectItem>
+                                    <SelectItem value="load_more">Load More</SelectItem>
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3">
+                            <Label variant="muted">Per page</Label>
+                            <div className="col-span-2 *:w-full">
+                              <Input
+                                type="number"
+                                min={1}
+                                max={100}
+                                value={getCollectionVariable(selectedLayer)?.pagination?.items_per_page ?? 10}
+                                onChange={(e) => handleItemsPerPageChange(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                 </div>

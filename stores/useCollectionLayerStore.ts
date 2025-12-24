@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { collectionsApi } from '@/lib/api';
-import type { CollectionItemWithValues } from '@/types';
+import type { CollectionItemWithValues, CollectionPaginationMeta } from '@/types';
 
 /**
  * Collection Layer Store
@@ -17,6 +17,9 @@ interface CollectionLayerState {
   layerConfig: Record<string, { collectionId: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; limit?: number; offset?: number }>; // Track config per layer
   referencedItems: Record<string, CollectionItemWithValues[]>; // Items for referenced collections, keyed by collectionId
   referencedLoading: Record<string, boolean>; // Loading state for referenced collections
+  // Pagination state
+  paginationMeta: Record<string, CollectionPaginationMeta>; // Pagination meta per layer
+  paginationLoading: Record<string, boolean>; // Loading state for pagination per layer
 }
 
 interface CollectionLayerActions {
@@ -33,6 +36,9 @@ interface CollectionLayerActions {
   clearAllLayerData: () => void;
   updateItemInLayerData: (itemId: string, values: Record<string, string>) => void;
   refetchLayersForCollection: (collectionId: string) => Promise<void>;
+  // Pagination actions
+  fetchPage: (layerId: string, page: number) => Promise<{ items: CollectionItemWithValues[]; meta: CollectionPaginationMeta } | null>;
+  setPaginationMeta: (layerId: string, meta: CollectionPaginationMeta) => void;
 }
 
 type CollectionLayerStore = CollectionLayerState & CollectionLayerActions;
@@ -45,6 +51,8 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
   layerConfig: {},
   referencedItems: {},
   referencedLoading: {},
+  paginationMeta: {},
+  paginationLoading: {},
 
   // Fetch items for a referenced collection (used for reference field resolution)
   fetchReferencedCollectionItems: async (collectionId: string) => {
@@ -215,6 +223,77 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
           console.error(`[CollectionLayerStore] Error refetching layer ${layerId}:`, error);
         }
       }
+    }
+  },
+
+  // Set pagination meta for a layer
+  setPaginationMeta: (layerId, meta) => {
+    set((state) => ({
+      paginationMeta: { ...state.paginationMeta, [layerId]: meta },
+    }));
+  },
+
+  // Fetch a specific page for a layer with pagination
+  fetchPage: async (layerId, page) => {
+    const { paginationMeta, layerConfig } = get();
+    const meta = paginationMeta[layerId];
+    const config = layerConfig[layerId];
+    
+    if (!meta || !config) {
+      console.warn(`[CollectionLayerStore] Cannot fetch page for layer ${layerId}: missing meta or config`);
+      return null;
+    }
+    
+    // Set loading state
+    set((state) => ({
+      paginationLoading: { ...state.paginationLoading, [layerId]: true },
+    }));
+    
+    try {
+      const offset = (page - 1) * meta.itemsPerPage;
+      
+      const response = await collectionsApi.getItems(config.collectionId, {
+        sortBy: config.sortBy,
+        sortOrder: config.sortOrder,
+        limit: meta.itemsPerPage,
+        offset,
+      });
+      
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      
+      const items = response.data?.items || [];
+      const total = response.data?.total || 0;
+      
+      // Build new pagination meta
+      const newMeta: CollectionPaginationMeta = {
+        ...meta,
+        currentPage: page,
+        totalItems: total,
+        totalPages: Math.ceil(total / meta.itemsPerPage),
+      };
+      
+      // Update store
+      set((state) => ({
+        layerData: { ...state.layerData, [layerId]: items },
+        paginationMeta: { ...state.paginationMeta, [layerId]: newMeta },
+        paginationLoading: { ...state.paginationLoading, [layerId]: false },
+      }));
+      
+      console.log(`[CollectionLayerStore] Fetched page ${page} for layer ${layerId}:`, {
+        items: items.length,
+        total,
+        newMeta,
+      });
+      
+      return { items, meta: newMeta };
+    } catch (error) {
+      console.error(`[CollectionLayerStore] Error fetching page for layer ${layerId}:`, error);
+      set((state) => ({
+        paginationLoading: { ...state.paginationLoading, [layerId]: false },
+      }));
+      return null;
     }
   },
 }));
