@@ -36,11 +36,12 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
+import { useLocalisationStore } from '@/stores/useLocalisationStore';
 
 // 6. Utils
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
 import type { IframeToParentMessage } from '@/lib/iframe-bridge';
-import { buildPageTree, getNodeIcon, findHomepage, buildSlugPath, buildDynamicPageUrl } from '@/lib/page-utils';
+import { buildPageTree, getNodeIcon, findHomepage, buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
 import { getCollectionVariable } from '@/lib/layer-utils';
@@ -120,6 +121,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds);
   const clearSelection = useEditorStore((state) => state.clearSelection);
+
+  const selectedLocaleId = useLocalisationStore((state) => state.selectedLocaleId);
+  const getSelectedLocale = useLocalisationStore((state) => state.getSelectedLocale);
+  const translations = useLocalisationStore((state) => state.translations);
   const activeUIState = useEditorStore((state) => state.activeUIState);
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
   const setCurrentPageId = useEditorStore((state) => state.setCurrentPageId);
@@ -501,6 +506,12 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return collectionFieldsFromStore[collectionId] || [];
   }, [currentPage, collectionFieldsFromStore]);
 
+  // Get selected locale and translations
+  const selectedLocale = getSelectedLocale();
+  const localeTranslations = useMemo(() => {
+    return selectedLocaleId ? translations[selectedLocaleId] : undefined;
+  }, [selectedLocaleId, translations]);
+
   // Build preview URL for preview mode
   const previewUrl = useMemo(() => {
     if (!currentPage) return '';
@@ -510,10 +521,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
       return `/ycode/preview/error-pages/${currentPage.error_page}`;
     }
 
-    // Build full page path including folders
-    const fullPagePath = buildSlugPath(currentPage, folders, 'page');
-
-    // Get collection item slug value for dynamic pages
+    // Get collection item slug value for dynamic pages (with translation support)
     const collectionItemSlug = currentPage.is_dynamic && currentPageCollectionItemId
       ? (() => {
         const collectionId = currentPage.settings?.cms?.collection_id;
@@ -526,17 +534,38 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
         if (!selectedItem || !selectedItem.values) return null;
 
-        return selectedItem.values[slugFieldId] || null;
+        let slugValue = selectedItem.values[slugFieldId];
+
+        // If locale is selected, check for translated slug
+        if (localeTranslations && slugValue) {
+          const collectionFields = collectionFieldsFromStore[collectionId] || [];
+          const slugField = collectionFields.find(f => f.id === slugFieldId);
+          
+          if (slugField) {
+            // Build translation key: field:key:{key} or field:id:{id}
+            const contentKey = slugField.key
+              ? `field:key:${slugField.key}`
+              : `field:id:${slugField.id}`;
+            const translationKey = `cms:${currentPageCollectionItemId}:${contentKey}`;
+            const translation = localeTranslations[translationKey];
+
+            if (translation && translation.content_value && translation.content_value.trim()) {
+              slugValue = translation.content_value.trim();
+            }
+          }
+        }
+
+        return slugValue || null;
       })()
       : null;
 
-    // For dynamic pages, use buildDynamicPageUrl to ensure slug value is always current
+    // Build localized path with translated slugs
     const path = currentPage.is_dynamic
-      ? buildDynamicPageUrl(currentPage, folders, collectionItemSlug)
-      : fullPagePath;
+      ? buildLocalizedDynamicPageUrl(currentPage, folders, collectionItemSlug, selectedLocale, localeTranslations)
+      : buildLocalizedSlugPath(currentPage, folders, 'page', selectedLocale, localeTranslations);
 
     return `/ycode/preview${path === '/' ? '' : path}`;
-  }, [currentPage, folders, currentPageCollectionItemId, collectionItemsFromStore]);
+  }, [currentPage, folders, currentPageCollectionItemId, collectionItemsFromStore, selectedLocale, localeTranslations]);
 
   // Load collection items when dynamic page is selected
   useEffect(() => {

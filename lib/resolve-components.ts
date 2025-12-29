@@ -6,6 +6,19 @@
 import type { Layer, Component } from '@/types';
 
 /**
+ * Tag layers with their master component ID for translation lookups
+ */
+function tagLayersWithComponentId(layers: Layer[], componentId: string): Layer[] {
+  return layers.map(layer => ({
+    ...layer,
+    _masterComponentId: componentId,
+    children: layer.children
+      ? tagLayersWithComponentId(layer.children, componentId)
+      : undefined,
+  }));
+}
+
+/**
  * Recursively resolve component instances in a layer tree
  * @param layers - The layer tree to process
  * @param components - Array of available components
@@ -24,37 +37,34 @@ export function resolveComponents(layers: Layer[], components: Component[]): Lay
         componentLayersCount: component?.layers?.length || 0
       });
 
-      if (component && component.layers && component.layers.length > 0) {
-        // Keep the wrapper layer but populate children from the component
+      if (component?.layers?.length) {
         // The component's first layer is the actual content (Section, etc.)
         const componentContent = component.layers[0];
 
-        // Recursively resolve any nested components within the component's content
-        const resolvedChildren = componentContent.children
+        // Recursively resolve nested components, then tag with master component ID
+        const nestedResolved = componentContent.children 
           ? resolveComponents(componentContent.children, components)
           : [];
+        const resolvedChildren = nestedResolved.length
+          ? tagLayersWithComponentId(nestedResolved, component.id)
+          : [];
 
-        // Return the wrapper with the component's content merged in
-        const resolved = {
+        // Merge component content with instance layer, keeping instance ID
+        return {
           ...layer,
-          ...componentContent, // Merge the component's properties (classes, design, etc.)
-          id: layer.id, // Keep the instance's ID
-          // Remove componentId so it's treated as a normal resolved layer
+          ...componentContent,
+          id: layer.id,
           componentId: undefined,
+          _masterComponentId: component.id,
           children: resolvedChildren,
         };
-
-        // Clean up undefined properties
-        delete resolved.componentId;
-
-        return resolved;
-      } else {
-        console.warn('[resolveComponents] Component not found or has no layers:', layer.componentId);
       }
+      
+      console.warn('[resolveComponents] Component not found or has no layers:', layer.componentId);
     }
 
-    // Recursively process children
-    if (layer.children && layer.children.length > 0) {
+    // Recursively process children for non-component layers
+    if (layer.children?.length) {
       return {
         ...layer,
         children: resolveComponents(layer.children, components),

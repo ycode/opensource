@@ -32,7 +32,7 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { pagesApi, collectionsApi, componentsApi, layerStylesApi, cacheApi } from '@/lib/api';
-import { buildSlugPath, buildDynamicPageUrl } from '@/lib/page-utils';
+import { buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 
 // 5. Types
 import type { Page } from '@/types';
@@ -90,8 +90,8 @@ export default function HeaderBar({
   const { editingComponentId, returnToPageId, currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode } = useEditorStore();
   const { getComponentById } = useComponentsStore();
   const { folders, pages: storePages } = usePagesStore();
-  const { items } = useCollectionsStore();
-  const { locales, selectedLocaleId, setSelectedLocaleId, getSelectedLocale } = useLocalisationStore();
+  const { items, fields } = useCollectionsStore();
+  const { locales, selectedLocaleId, setSelectedLocaleId, getSelectedLocale, translations } = useLocalisationStore();
   const { navigateToLayers, updateQueryParams } = useEditorUrl();
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [showPublishPopover, setShowPublishPopover] = useState(false);
@@ -115,13 +115,30 @@ export default function HeaderBar({
   // Get selected locale
   const selectedLocale = getSelectedLocale();
 
+  // Get translations for the selected locale
+  const localeTranslations = useMemo(() => {
+    return selectedLocaleId ? translations[selectedLocaleId] : undefined;
+  }, [selectedLocaleId, translations]);
+
   // Build full page path including folders (memoized for performance)
   const fullPagePath = useMemo(() => {
     if (!currentPage) return '/';
     return buildSlugPath(currentPage, folders, 'page');
   }, [currentPage, folders]);
 
-  // Get collection item slug value for dynamic pages
+  // Build localized page path with translated slugs
+  const localizedPagePath = useMemo(() => {
+    if (!currentPage) return '/';
+    return buildLocalizedSlugPath(
+      currentPage,
+      folders,
+      'page',
+      selectedLocale,
+      localeTranslations
+    );
+  }, [currentPage, folders, selectedLocale, localeTranslations]);
+
+  // Get collection item slug value for dynamic pages (with translation support)
   const collectionItemSlug = useMemo(() => {
     if (!currentPage?.is_dynamic || !currentPageCollectionItemId) {
       return null;
@@ -143,9 +160,29 @@ export default function HeaderBar({
     }
 
     // Get the slug value from the item's values
-    const slugValue = selectedItem.values[slugFieldId];
+    let slugValue = selectedItem.values[slugFieldId];
+
+    // If locale is selected, check for translated slug
+    if (localeTranslations && slugValue) {
+      const collectionFields = fields[collectionId] || [];
+      const slugField = collectionFields.find((f: { id: string; key: string | null }) => f.id === slugFieldId);
+
+      if (slugField) {
+        // Build translation key: field:key:{key} or field:id:{id}
+        const contentKey = slugField.key
+          ? `field:key:${slugField.key}`
+          : `field:id:${slugField.id}`;
+        const translationKey = `cms:${currentPageCollectionItemId}:${contentKey}`;
+        const translation = localeTranslations[translationKey];
+
+        if (translation && translation.content_value && translation.content_value.trim()) {
+          slugValue = translation.content_value.trim();
+        }
+      }
+    }
+
     return slugValue || null;
-  }, [currentPage, currentPageCollectionItemId, items]);
+  }, [currentPage, currentPageCollectionItemId, items, fields, localeTranslations]);
 
   // Build preview URL (special handling for error pages and dynamic pages)
   const previewUrl = useMemo(() => {
@@ -156,25 +193,25 @@ export default function HeaderBar({
       return `/ycode/preview/error-pages/${currentPage.error_page}`;
     }
 
-    // For dynamic pages, use buildDynamicPageUrl to ensure slug value is always current
+    // For dynamic pages, use localized dynamic URL builder
     const path = currentPage.is_dynamic
-      ? buildDynamicPageUrl(currentPage, folders, collectionItemSlug)
-      : fullPagePath;
+      ? buildLocalizedDynamicPageUrl(currentPage, folders, collectionItemSlug, selectedLocale, localeTranslations)
+      : localizedPagePath;
 
     return `/ycode/preview${path === '/' ? '' : path}`;
-  }, [currentPage, folders, fullPagePath, collectionItemSlug]);
+  }, [currentPage, folders, localizedPagePath, collectionItemSlug, selectedLocale, localeTranslations]);
 
   // Build published URL (for the link in the center)
   const publishedUrl = useMemo(() => {
     if (!currentPage) return '';
 
-    // For dynamic pages, use buildDynamicPageUrl to ensure slug value is always current
+    // For dynamic pages, use localized dynamic URL builder
     const path = currentPage.is_dynamic
-      ? buildDynamicPageUrl(currentPage, folders, collectionItemSlug)
-      : fullPagePath;
+      ? buildLocalizedDynamicPageUrl(currentPage, folders, collectionItemSlug, selectedLocale, localeTranslations)
+      : localizedPagePath;
 
     return path === '/' ? '' : path;
-  }, [currentPage, folders, fullPagePath, collectionItemSlug]);
+  }, [currentPage, folders, localizedPagePath, collectionItemSlug, selectedLocale, localeTranslations]);
 
   // Apply theme to HTML element
   useEffect(() => {
@@ -458,10 +495,9 @@ export default function HeaderBar({
             }}
           >
             <Icon name="arrowLeft" />
-            Return back
+            Go back
           </Button>
         )}
-
       </div>
 
       <div className="flex gap-1.5 items-center justify-center">
@@ -490,12 +526,16 @@ export default function HeaderBar({
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => router.push('/ycode/localization/languages')}
-            >
-              Manage locales
-            </DropdownMenuItem>
+            {!pathname?.startsWith('/ycode/localization') && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => router.push('/ycode/localization/languages')}
+                >
+                  Manage locales
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="h-5">

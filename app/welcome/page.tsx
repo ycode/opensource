@@ -387,7 +387,7 @@ export default function WelcomePage() {
                     onClick={() => setStep('welcome')}
                     disabled={loading}
                   >
-                    Return back
+                    Go back
                   </Button>
                 </div>
 
@@ -542,7 +542,7 @@ export default function WelcomePage() {
                           onClick={() => setStep('welcome')}
                           disabled={loading}
                         >
-                          Return back
+                          Go back
                         </Button>
                       </div>
 
@@ -643,7 +643,7 @@ export default function WelcomePage() {
                   onClick={() => setStep('supabase')}
                   disabled={loading}
                 >
-                  Return back
+                  Go back
                 </Button>
               </div>
 

@@ -255,8 +255,6 @@ function LayerRow({
             !isSelected && !isChildOfSelected && 'rounded-lg text-secondary-foreground/80 dark:text-muted-foreground',
             // Background colors
             !isDragActive && !isDragging && 'hover:bg-secondary/50',
-            // Component instances get cursor-default when not expandable
-            shouldHideChildren && 'cursor-default',
             // Component instances OR component edit mode use purple, regular layers use blue
             isSelected && !usePurpleStyle && 'bg-primary text-primary-foreground hover:bg-primary',
             isSelected && usePurpleStyle && 'bg-purple-500 text-white hover:bg-purple-500',

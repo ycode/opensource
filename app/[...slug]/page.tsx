@@ -7,7 +7,7 @@ import { generatePageMetadata } from '@/lib/generate-page-metadata';
 import { fetchPageByPath, fetchErrorPage, PaginationContext } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import type { Page, PageFolder } from '@/types';
+import type { Page, PageFolder, Translation } from '@/types';
 
 // Static by default for performance, dynamic only when pagination is requested
 export const revalidate = 3600; // Revalidate every hour
@@ -16,6 +16,7 @@ export const dynamicParams = true;
 /**
  * Generate static params for known published pages
  * This tells Next.js which pages to pre-render
+ * Includes both default locale paths and translated paths for all locales
  */
 export async function generateStaticParams() {
   try {
@@ -38,32 +39,102 @@ export async function generateStaticParams() {
       .eq('is_published', true)
       .is('deleted_at', null);
 
+    // Get all active locales
+    const { data: locales } = await supabase
+      .from('locales')
+      .select('*')
+      .is('deleted_at', null);
+
+    // Get all published translations
+    const { data: translations } = await supabase
+      .from('translations')
+      .select('*')
+      .eq('is_published', true)
+      .is('deleted_at', null);
+
     if (!pages || !folders) {
       return [];
     }
 
-    // Build full paths for all pages (exclude dynamic pages - they use dynamicParams)
-    return pages
-      .map((page: Page) => {
-        // Skip dynamic pages - they are handled dynamically at request time
-        if (page.is_dynamic) {
-          return null;
+    const params: { slug: string[] }[] = [];
+
+    // Build translations map for easier lookup
+    const translationsMap: Record<string, Record<string, Translation>> = {};
+    if (translations) {
+      for (const translation of translations) {
+        if (!translationsMap[translation.locale_id]) {
+          translationsMap[translation.locale_id] = {};
         }
+        const key = `${translation.source_type}:${translation.source_id}:${translation.content_key}`;
+        translationsMap[translation.locale_id][key] = translation;
+      }
+    }
 
-        const fullPath = buildSlugPath(page, folders as PageFolder[], 'page');
-        // Remove leading slash and split into segments
-        const pathSegments = fullPath.slice(1).split('/').filter(Boolean);
+    // Generate localized homepage paths (e.g., /fr/, /es/)
+    if (locales) {
+      for (const locale of locales) {
+        if (locale.is_default) continue; // Skip default locale (/ is handled by app/page.tsx)
+        params.push({ slug: [locale.code] });
+      }
+    }
 
-        // Skip empty paths (homepage is handled by app/page.tsx)
-        if (pathSegments.length === 0) {
-          return null;
+    // Generate params for each non-dynamic page
+    for (const page of pages) {
+      // Skip dynamic pages - they are handled dynamically at request time
+      if (page.is_dynamic) {
+        continue;
+      }
+
+      // Generate default locale path (no locale prefix)
+      const defaultPath = buildSlugPath(page, folders as PageFolder[], 'page');
+      const defaultSegments = defaultPath.slice(1).split('/').filter(Boolean);
+
+      // Skip empty paths (homepage is handled by app/page.tsx)
+      if (defaultSegments.length > 0) {
+        params.push({ slug: defaultSegments });
+      }
+
+      // Generate translated paths for non-default locales
+      if (locales) {
+        for (const locale of locales) {
+          if (locale.is_default) continue; // Skip default locale
+
+          const localeTranslations = translationsMap[locale.id] || {};
+          
+          // Build localized path with translated slugs
+          const slugParts: string[] = [locale.code];
+
+          // Add translated folder path
+          let currentFolderId = page.page_folder_id;
+          const folderSegments: string[] = [];
+          while (currentFolderId) {
+            const folder = folders.find(f => f.id === currentFolderId);
+            if (!folder) break;
+
+            const translationKey = `folder:${folder.id}:slug`;
+            const translatedSlug = localeTranslations[translationKey]?.content_value || folder.slug;
+            folderSegments.unshift(translatedSlug);
+            
+            currentFolderId = folder.page_folder_id;
+          }
+          slugParts.push(...folderSegments);
+
+          // Add page's own slug
+          if (!page.is_index && page.slug) {
+            const pageKey = `page:${page.id}:slug`;
+            const translatedSlug = localeTranslations[pageKey]?.content_value || page.slug;
+            slugParts.push(translatedSlug);
+          }
+
+          const localizedSegments = slugParts.filter(Boolean);
+          if (localizedSegments.length > 1) { // Must have at least locale + something
+            params.push({ slug: localizedSegments });
+          }
         }
+      }
+    }
 
-        return {
-          slug: pathSegments,
-        };
-      })
-      .filter((param): param is { slug: string[] } => param !== null);
+    return params;
   } catch (error) {
     console.error('Failed to generate static params:', error);
     return [];

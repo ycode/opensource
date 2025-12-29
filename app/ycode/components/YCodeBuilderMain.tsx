@@ -1422,10 +1422,10 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         signOut={signOut}
         showPageDropdown={showPageDropdown}
         setShowPageDropdown={setShowPageDropdown}
-        currentPage={routeType === 'settings' || routeType === 'localization' ? undefined : currentPage}
-        currentPageId={routeType === 'settings' || routeType === 'localization' ? null : currentPageId}
-        pages={routeType === 'settings' || routeType === 'localization' ? [] : pages}
-        setCurrentPageId={routeType === 'settings' || routeType === 'localization' ? () => {} : setCurrentPageId}
+        currentPage={routeType === 'settings' ? undefined : currentPage}
+        currentPageId={routeType === 'settings' ? null : currentPageId}
+        pages={routeType === 'settings' ? [] : pages}
+        setCurrentPageId={routeType === 'settings' ? () => {} : setCurrentPageId}
         isSaving={routeType === 'settings' || routeType === 'localization' ? false : isCurrentlySaving}
         hasUnsavedChanges={routeType === 'settings' || routeType === 'localization' ? false : hasUnsavedChanges}
         lastSaved={routeType === 'settings' || routeType === 'localization' ? null : lastSaved}

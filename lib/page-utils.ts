@@ -3,7 +3,8 @@
  */
 
 import { IconProps } from '@/components/ui/icon';
-import type { Page, PageFolder, PageSettings, FieldVariable } from '../types';
+import type { Page, PageFolder, PageSettings, FieldVariable, Translation, Locale } from '../types';
+import { getTranslatableKey } from './localisation-utils';
 
 export interface PageTreeNode {
   id: string;
@@ -107,6 +108,277 @@ export function buildDynamicPageUrl(
 
   // Replace {slug} placeholder with the actual slug value
   return patternPath.replace(/\{slug\}/g, collectionItemSlug);
+}
+
+/**
+ * Get translated slug for a page or folder from translations
+ * Falls back to original slug if no translation exists
+ */
+function getTranslatedSlug(
+  itemId: string,
+  itemType: 'page' | 'folder',
+  originalSlug: string,
+  translations: Record<string, Translation> | undefined
+): string {
+  if (!translations) return originalSlug;
+
+  const key = getTranslatableKey({
+    source_type: itemType,
+    source_id: itemId,
+    content_key: 'slug',
+  });
+
+  const translation = translations[key];
+  return translation?.content_value || originalSlug;
+}
+
+/**
+ * Build localized slug path with translated slugs
+ * Adds locale code prefix and uses translated slugs when available
+ *
+ * @param item - Page or folder to build path for
+ * @param allFolders - Array of all folders
+ * @param itemType - Type of item ('page' or 'folder')
+ * @param locale - Locale object (null or undefined for default locale)
+ * @param translations - Translations for the locale (keyed by translatable key)
+ * @param slugFieldKey - Placeholder for dynamic page slugs (default: '{slug}')
+ * @returns Localized URL path with locale prefix and translated slugs
+ *
+ * @example
+ * buildLocalizedSlugPath(page, folders, 'page', frLocale, translations) // "/fr/produits/article-1"
+ * buildLocalizedSlugPath(page, folders, 'page', null, undefined) // "/products/item-1" (default)
+ */
+export function buildLocalizedSlugPath(
+  item: Page | PageFolder | null,
+  allFolders: PageFolder[],
+  itemType: 'page' | 'folder',
+  locale: Locale | null | undefined,
+  translations: Record<string, Translation> | undefined,
+  slugFieldKey: string = '{slug}'
+): string {
+  if (!item) return '/';
+
+  // Use default path if no locale or default locale
+  const isDefaultLocale = !locale || locale.is_default;
+  if (isDefaultLocale) {
+    return buildSlugPath(item, allFolders, itemType, slugFieldKey);
+  }
+
+  const slugParts: string[] = [];
+
+  // Build folder path with translated slugs
+  let currentFolderId = item.page_folder_id;
+  while (currentFolderId) {
+    const folder = allFolders.find(f => f.id === currentFolderId);
+    if (!folder) break;
+
+    const translatedSlug = getTranslatedSlug(
+      folder.id,
+      'folder',
+      folder.slug,
+      translations
+    );
+    slugParts.unshift(translatedSlug);
+    currentFolderId = folder.page_folder_id;
+  }
+
+  // Add item's own slug (for folders or non-index pages)
+  if (itemType === 'folder') {
+    const folder = item as PageFolder;
+    const translatedSlug = getTranslatedSlug(
+      folder.id,
+      'folder',
+      folder.slug,
+      translations
+    );
+    slugParts.push(translatedSlug);
+  } else if (itemType === 'page') {
+    const page = item as Page;
+
+    if (page.is_dynamic) {
+      slugParts.push(slugFieldKey);
+    } else if (!page.is_index && page.slug) {
+      const translatedSlug = getTranslatedSlug(
+        page.id,
+        'page',
+        page.slug,
+        translations
+      );
+      slugParts.push(translatedSlug);
+    }
+  }
+
+  // Add locale code prefix
+  const pathWithoutLocale = '/' + slugParts.filter(Boolean).join('/');
+  return `/${locale.code}${pathWithoutLocale}`;
+}
+
+/**
+ * Build localized URL for a dynamic page with translated slugs
+ * Combines localized path building with dynamic slug replacement
+ *
+ * @param page - The dynamic page
+ * @param allFolders - Array of all folders
+ * @param collectionItemSlug - The slug value from the collection item
+ * @param locale - Locale object (null or undefined for default locale)
+ * @param translations - Translations for the locale
+ * @returns Localized URL with locale prefix, translated folder/page slugs, and collection item slug
+ *
+ * @example
+ * buildLocalizedDynamicPageUrl(page, folders, 'mon-article', frLocale, translations)
+ * // "/fr/produits/mon-article"
+ */
+export function buildLocalizedDynamicPageUrl(
+  page: Page,
+  allFolders: PageFolder[],
+  collectionItemSlug: string | null,
+  locale: Locale | null | undefined,
+  translations: Record<string, Translation> | undefined
+): string {
+  const patternPath = buildLocalizedSlugPath(
+    page,
+    allFolders,
+    'page',
+    locale,
+    translations,
+    '{slug}'
+  );
+
+  // If no slug value provided, return the pattern path
+  if (collectionItemSlug === null) {
+    return patternPath;
+  }
+
+  // Replace {slug} placeholder with the actual slug value
+  return patternPath.replace(/\{slug\}/g, collectionItemSlug);
+}
+
+/**
+ * Detect locale code from URL path
+ * Checks if the first segment of the path is a valid locale code from the provided list
+ *
+ * @param slugPath - The URL path (e.g., "fr/products/item" or "products/item")
+ * @param validLocaleCodes - Array of valid locale codes from the database
+ * @returns Object with locale code and remaining path, or null if no locale detected
+ *
+ * @example
+ * detectLocaleFromPath("fr/products/item", ["en", "fr"]) // { localeCode: "fr", remainingPath: "products/item" }
+ * detectLocaleFromPath("products/item", ["en", "fr"]) // null (no locale prefix)
+ */
+export function detectLocaleFromPath(
+  slugPath: string,
+  validLocaleCodes: string[]
+): { localeCode: string; remainingPath: string } | null {
+  const segments = slugPath.split('/').filter(Boolean);
+
+  if (segments.length === 0) {
+    return null;
+  }
+
+  const firstSegment = segments[0].toLowerCase();
+
+  // Check if first segment is a valid locale code from the database
+  const isValidLocale = validLocaleCodes.some(code => code.toLowerCase() === firstSegment);
+
+  if (isValidLocale) {
+    return {
+      localeCode: firstSegment,
+      remainingPath: segments.slice(1).join('/'),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Match URL path against page using translated slugs
+ * Tries to match folder slugs and page slugs with translations
+ *
+ * @param urlPath - The URL path to match (without locale prefix)
+ * @param page - The page to check
+ * @param allFolders - Array of all folders
+ * @param translations - Translations map (keyed by translatable key)
+ * @returns True if URL matches this page's translated path
+ */
+export function matchPageWithTranslatedSlugs(
+  urlPath: string,
+  page: Page,
+  allFolders: PageFolder[],
+  translations: Record<string, Translation> | undefined
+): boolean {
+  const targetPath = `/${urlPath}`;
+  const slugParts: string[] = [];
+
+  // Build folder path with either translated or original slugs
+  let currentFolderId = page.page_folder_id;
+  while (currentFolderId) {
+    const folder = allFolders.find(f => f.id === currentFolderId);
+    if (!folder) break;
+
+    // Try translated slug first, fall back to original
+    const translatedSlug = getTranslatedSlug(folder.id, 'folder', folder.slug, translations);
+
+    slugParts.unshift(translatedSlug);
+    currentFolderId = folder.page_folder_id;
+  }
+
+  // Add page's own slug
+  if (!page.is_index && page.slug) {
+    const translatedSlug = getTranslatedSlug(page.id, 'page', page.slug, translations);
+    slugParts.push(translatedSlug);
+  }
+
+  const constructedPath = '/' + slugParts.filter(Boolean).join('/');
+  return constructedPath === targetPath;
+}
+
+/**
+ * Match URL path against dynamic page pattern using translated slugs
+ * Similar to matchDynamicPagePattern but with translation support
+ *
+ * @param urlPath - The URL path to match (without locale prefix)
+ * @param page - The dynamic page to check
+ * @param allFolders - Array of all folders
+ * @param translations - Translations map
+ * @returns The extracted slug value or null if no match
+ */
+export function matchDynamicPageWithTranslatedSlugs(
+  urlPath: string,
+  page: Page,
+  allFolders: PageFolder[],
+  translations: Record<string, Translation> | undefined
+): string | null {
+  const targetPath = `/${urlPath}`;
+  const slugParts: string[] = [];
+
+  // Build folder path with translated slugs
+  let currentFolderId = page.page_folder_id;
+  while (currentFolderId) {
+    const folder = allFolders.find(f => f.id === currentFolderId);
+    if (!folder) break;
+
+    const translatedSlug = getTranslatedSlug(folder.id, 'folder', folder.slug, translations);
+
+    slugParts.unshift(translatedSlug);
+    currentFolderId = folder.page_folder_id;
+  }
+
+  // Add {slug} placeholder for dynamic page
+  slugParts.push('{slug}');
+
+  const patternPath = '/' + slugParts.filter(Boolean).join('/');
+
+  // Replace {slug} with regex capture group
+  const patternRegex = patternPath.replace(/\{slug\}/g, '([^/]+)');
+  const regex = new RegExp(`^${patternRegex}$`);
+  const match = targetPath.match(regex);
+
+  if (!match) {
+    return null;
+  }
+
+  // Extract the slug value (first capture group)
+  return match[1] || null;
 }
 
 /**

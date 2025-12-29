@@ -73,12 +73,12 @@ export default function LayerContextMenu({
   // Check if this layer is a component instance
   const draft = draftsByPageId[pageId];
   const layer = draft ? findLayerById(draft.layers, layerId) : null;
-  
+
   // Debug logging for development
   if (process.env.NODE_ENV === 'development' && !layer) {
     console.warn(`[LayerContextMenu] Could not find layer ${layerId} in page ${pageId}. Draft exists:`, !!draft, 'Layers count:', draft?.layers?.length);
   }
-  
+
   const isComponentInstance = !!(layer && layer.componentId);
   const componentName = isComponentInstance && layer?.componentId
     ? getComponentById(layer.componentId)?.name
@@ -382,9 +382,12 @@ export default function LayerContextMenu({
 
         {isComponentInstance ? (
           <>
+          <ContextMenuSeparator />
+
             <ContextMenuItem onClick={handleEditMasterComponent}>
               Edit master component
             </ContextMenuItem>
+
             <ContextMenuItem onClick={handleDetachFromComponent}>
               Detach from component
             </ContextMenuItem>
