@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Icon } from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
@@ -14,14 +15,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { InputAutocomplete } from '@/components/ui/input-autocomplete';
-import { LOCALES, type Locale as LocaleOption, extractPageTranslatableItems, extractFolderTranslatableItems, extractComponentTranslatableItems, extractCmsTranslatableItems } from '@/lib/localisation-utils';
+import { LOCALES, extractPageTranslatableItems, extractFolderTranslatableItems, extractComponentTranslatableItems, extractCmsTranslatableItems } from '@/lib/localisation-utils';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { buildFolderPath, getPageIcon } from '@/lib/page-utils';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import type { Locale } from '@/types';
+import type { Locale, LocaleOption } from '@/types';
 
 interface LocalizationContentProps {
   children: React.ReactNode;
@@ -80,14 +81,47 @@ export default function LocalizationContent({ children }: LocalizationContentPro
   const collections = useCollectionsStore((state) => state.collections);
   const items = useCollectionsStore((state) => state.items);
 
-  // Local state
+  // URL management
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Initialize state from URL params
   const [modalState, setModalState] = useState<ModalState>(initialModalState);
-  const [selectedContentType, setSelectedContentType] = useState<string>('pages');
+  const [selectedContentType, setSelectedContentType] = useState<string>(() => {
+    return searchParams?.get('type') || 'pages';
+  });
+  const [completionFilter, setCompletionFilter] = useState<'all' | 'done' | 'todo'>(() => {
+    const filter = searchParams?.get('filter');
+    return (filter === 'done' || filter === 'todo') ? filter : 'all';
+  });
+  const [searchQuery, setSearchQuery] = useState<string>(() => {
+    return searchParams?.get('search') || '';
+  });
   const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
   // Local input values for immediate UI feedback (keyed by item.key)
   const [localInputValues, setLocalInputValues] = useState<Record<string, string>>({});
 
+  // Track if we've initialized from URL to prevent race conditions
+  const hasInitializedFromUrl = useRef(false);
+
   const selectedLocale = locales.find(l => l.id === selectedLocaleId);
+  const defaultLocale = locales.find(l => l.is_default);
+
+  // Initialize selected locale from URL when locales are loaded (runs once)
+  useEffect(() => {
+    if (hasInitializedFromUrl.current || locales.length === 0) return;
+
+    const localeCodeFromUrl = searchParams?.get('locale');
+    if (localeCodeFromUrl) {
+      const localeFromUrl = locales.find(l => l.code === localeCodeFromUrl);
+      if (localeFromUrl) {
+        setSelectedLocaleId(localeFromUrl.id);
+      }
+    }
+
+    hasInitializedFromUrl.current = true;
+  }, [locales, searchParams, setSelectedLocaleId]);
 
   // Load translations when locale changes
   useEffect(() => {
@@ -97,6 +131,117 @@ export default function LocalizationContent({ children }: LocalizationContentPro
       setLocalInputValues({});
     }
   }, [selectedLocaleId, loadTranslations]);
+
+  // Sync URL params with filter state and selected locale (localization route only)
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams?.toString() || '');
+
+    // Update or remove type param
+    if (selectedContentType !== 'pages') {
+      params.set('type', selectedContentType);
+    } else {
+      params.delete('type');
+    }
+
+    // Update or remove filter param
+    if (completionFilter !== 'all') {
+      params.set('filter', completionFilter);
+    } else {
+      params.delete('filter');
+    }
+
+    // Update or remove search param
+    if (searchQuery.trim()) {
+      params.set('search', searchQuery);
+    } else {
+      params.delete('search');
+    }
+
+    // Update or remove locale param
+    if (selectedLocale?.code) {
+      params.set('locale', selectedLocale.code);
+    } else {
+      params.delete('locale');
+    }
+
+    // Update URL without reloading (only if something changed)
+    const newQuery = params.toString();
+    const currentQuery = searchParams?.toString() || '';
+    if (newQuery !== currentQuery) {
+      router.replace(`${pathname}${newQuery ? `?${newQuery}` : ''}`, { scroll: false });
+    }
+  }, [selectedContentType, completionFilter, searchQuery, selectedLocale, router, pathname, searchParams]);
+
+  // Cleanup: Remove localization params when component unmounts
+  useEffect(() => {
+    return () => {
+      // Get current search params at unmount time
+      const currentParams = new URLSearchParams(window.location.search);
+
+      // Check if any localization params exist
+      const hasLocalizationParams =
+        currentParams.has('type') ||
+        currentParams.has('filter') ||
+        currentParams.has('search') ||
+        currentParams.has('locale');
+
+      if (hasLocalizationParams) {
+        // Remove localization-specific params
+        currentParams.delete('type');
+        currentParams.delete('filter');
+        currentParams.delete('search');
+        currentParams.delete('locale');
+
+        const cleanedQuery = currentParams.toString();
+        const newPath = window.location.pathname + (cleanedQuery ? `?${cleanedQuery}` : '');
+        // Use history.replaceState to avoid triggering navigation
+        window.history.replaceState({}, '', newPath);
+      }
+    };
+  }, []); // Empty deps - only run on mount/unmount
+
+  // Filter translatable items based on completion status and search query
+  const filterTranslatableItems = (items: any[]) => {
+    return items.filter(item => {
+      // Filter by completion status
+      if (completionFilter !== 'all' && selectedLocaleId) {
+        const translation = getTranslationByKey(selectedLocaleId, item.key);
+
+        if (completionFilter === 'done' && translation?.is_completed !== true) {
+          return false;
+        } else if (completionFilter === 'todo' && translation?.is_completed === true) {
+          return false;
+        }
+      }
+
+      // Filter by search query
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const originalContent = item.content_value?.toLowerCase() || '';
+        const label = item.info?.label?.toLowerCase() || '';
+        const description = item.info?.description?.toLowerCase() || '';
+
+        // Get translated content
+        let translatedContent = '';
+        if (selectedLocaleId) {
+          const translation = getTranslationByKey(selectedLocaleId, item.key);
+          translatedContent = translation?.content_value?.toLowerCase() || '';
+        }
+
+        // Check if query matches any of the searchable fields
+        const matchesOriginal = originalContent.includes(query);
+        const matchesTranslation = translatedContent.includes(query);
+        const matchesLabel = label.includes(query);
+        const matchesDescription = description.includes(query);
+
+        if (!matchesOriginal && !matchesTranslation && !matchesLabel && !matchesDescription) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
 
   // Sort pages: by folder hierarchy order, then page order, error pages at the bottom
   const sortedPages = useMemo(() => {
@@ -378,7 +523,7 @@ export default function LocalizationContent({ children }: LocalizationContentPro
             <div className="sticky top-0 z-10 h-16 bg-background p-4 flex items-center gap-2 border-b">
               <div>
                 <Select value={selectedContentType} onValueChange={setSelectedContentType}>
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="w-34">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -390,10 +535,26 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                 </Select>
               </div>
 
-              <div className="w-full max-w-72">
+              <div>
+                <Select value={completionFilter} onValueChange={(value: 'all' | 'done' | 'todo') => setCompletionFilter(value)}>
+                  <SelectTrigger className="w-38">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    <SelectItem value="all"><Icon name="checkbox" className="size-3" />All translations</SelectItem>
+                    <SelectItem value="todo"><Icon name="block" className="size-3" /> To be translated</SelectItem>
+                    <SelectItem value="done"><Icon name="checkbox" className="size-3" /> Marked as done</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="w-full max-w-80">
                 <InputGroup>
                   <InputGroupInput
                     placeholder="Search..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                   />
                   <InputGroupAddon>
                     <Icon name="search" className="size-3" />
@@ -402,21 +563,31 @@ export default function LocalizationContent({ children }: LocalizationContentPro
               </div>
 
               <div className="ml-auto">
-                <Button size="sm" variant="secondary">Auto-translate</Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={true}
+                >
+                  Auto-translate
+                </Button>
               </div>
             </div>
 
             {/* Default locale selected overlay */}
             {selectedLocale.is_default ? (
-              <Empty>
-                <EmptyMedia variant="icon">
-                  <Icon name="globe" className="size-4" />
-                </EmptyMedia>
-                <EmptyTitle>Default locale selected</EmptyTitle>
-                <EmptyDescription>
-                  Please select a different locale to start translating.
-                </EmptyDescription>
-              </Empty>
+              <>
+                <Empty>
+                  <EmptyMedia variant="icon">
+                    <Icon name="globe" className="size-4" />
+                  </EmptyMedia>
+                  <EmptyTitle>Default locale selected</EmptyTitle>
+                  <EmptyDescription>
+                    Please select a different locale to start translating.
+                  </EmptyDescription>
+                </Empty>
+
+                <div className="flex-1"></div>
+              </>
             ) : (
               <>
                 {selectedContentType === 'pages' && (
@@ -427,6 +598,17 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                       </div>
                     ) : (
                       sortedPages.map((page) => {
+                        // Pre-check if page has any filtered items
+                        const draft = draftsByPageId[page.id];
+                        const layers = draft?.layers || [];
+                        const selectedLocale = locales.find(l => l.id === selectedLocaleId);
+                        const translatableItems = extractPageTranslatableItems(page, layers, selectedLocale);
+                        const filteredItems = filterTranslatableItems(translatableItems);
+
+                        if (filteredItems.length === 0) {
+                          return null;
+                        }
+
                         const isExpanded = expandedPages.has(page.id);
 
                         return (
@@ -443,9 +625,11 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                     isExpanded && 'rotate-90'
                                   )}
                                 />
+
                                 <div className="size-5.5 flex items-center justify-center rounded-[6px] bg-secondary/50">
                                   <Icon name={getPageIcon(page)} className="size-3 opacity-60" />
                                 </div>
+
                                 <Label className="flex items-center gap-1">
                                   {getPagePathSegments(page).map((segment, index, array) => (
                                     <React.Fragment key={index}>
@@ -456,21 +640,16 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                     </React.Fragment>
                                   ))}
                                 </Label>
+
+                                <span className="flex items-center gap-1.5 ml-auto text-xs text-muted-foreground">
+                                  <span>{defaultLocale?.label}</span>
+                                  <Icon name="chevronRight" className="size-3 inline" />
+                                  <span>{selectedLocale?.label}</span>
+                                </span>
                               </div>
                             </header>
 
                             {isExpanded && (() => {
-                              const draft = draftsByPageId[page.id];
-                              const layers = draft?.layers || [];
-                              const translatableItems = extractPageTranslatableItems(page, layers);
-
-                              if (translatableItems.length === 0) {
-                                return (
-                                  <div className="py-8 text-center text-muted-foreground text-xs border-b">
-                                    No translatable text elements found
-                                  </div>
-                                );
-                              }
 
                               // Get fields for this page's collection (if dynamic)
                               const pageCollectionId = page.settings?.cms?.collection_id;
@@ -479,7 +658,7 @@ export default function LocalizationContent({ children }: LocalizationContentPro
 
                               return (
                                 <ul className="border-b px-4 py-5 flex flex-col gap-5">
-                                  {translatableItems.map((item) => (
+                                  {filteredItems.map((item) => (
                                     <TranslationRow
                                       key={item.key}
                                       item={item}
@@ -518,9 +697,11 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                       </div>
                     ) : (
                       sortedFolders.map((folder) => {
-                        const translatableItems = extractFolderTranslatableItems(folder);
+                        const selectedLocale = locales.find(l => l.id === selectedLocaleId);
+                        const translatableItems = extractFolderTranslatableItems(folder, selectedLocale);
+                        const filteredItems = filterTranslatableItems(translatableItems);
 
-                        if (translatableItems.length === 0) {
+                        if (filteredItems.length === 0) {
                           return null;
                         }
 
@@ -534,6 +715,7 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                 <div className="size-5.5 flex items-center justify-center rounded-[6px] bg-secondary/50">
                                   <Icon name="folder" className="size-3 opacity-60" />
                                 </div>
+
                                 <Label className="flex items-center gap-1">
                                   {folderPath.map((segment, index, array) => (
                                     <React.Fragment key={index}>
@@ -544,6 +726,12 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                     </React.Fragment>
                                   ))}
                                 </Label>
+
+                                <span className="flex items-center gap-1.5 ml-auto text-xs text-muted-foreground">
+                                  <span>{defaultLocale?.label}</span>
+                                  <Icon name="chevronRight" className="size-3 inline" />
+                                  <span>{selectedLocale?.label}</span>
+                                </span>
                               </div>
                             </header>
 
@@ -584,23 +772,10 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                         // Get component draft or fallback to published layers
                         const layers = componentDrafts[component.id] || component.layers || [];
                         const translatableItems = extractComponentTranslatableItems(component, layers);
+                        const filteredItems = filterTranslatableItems(translatableItems);
 
-                        if (translatableItems.length === 0) {
-                          return (
-                            <div key={component.id}>
-                              <header className="sticky top-16 z-[5] border-b bg-background">
-                                <div className="p-4 flex items-center gap-1.5 bg-secondary/10">
-                                  <div className="size-5.5 flex items-center justify-center rounded-[6px] bg-secondary/50">
-                                    <Icon name="component" className="size-3 opacity-60" />
-                                  </div>
-                                  <Label>{component.name}</Label>
-                                </div>
-                              </header>
-                              <div className="py-8 text-center text-muted-foreground text-xs border-b">
-                                No translatable text elements found
-                              </div>
-                            </div>
-                          );
+                        if (filteredItems.length === 0) {
+                          return null;
                         }
 
                         return (
@@ -610,7 +785,14 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                 <div className="size-5.5 flex items-center justify-center rounded-[6px] bg-secondary/50">
                                   <Icon name="component" className="size-3 opacity-60" />
                                 </div>
+
                                 <Label>{component.name}</Label>
+
+                                <span className="flex items-center gap-1.5 ml-auto text-xs text-muted-foreground">
+                                  <span>{defaultLocale?.label}</span>
+                                  <Icon name="chevronRight" className="size-3 inline" />
+                                  <span>{selectedLocale?.label}</span>
+                                </span>
                               </div>
                             </header>
 
@@ -657,12 +839,15 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                         }
 
                         return draftItems.map((item: any) => {
+                          const selectedLocale = locales.find(l => l.id === selectedLocaleId);
                           const translatableItems = extractCmsTranslatableItems(
                             item,
-                            collectionFields
+                            collectionFields,
+                            selectedLocale
                           );
+                          const filteredItems = filterTranslatableItems(translatableItems);
 
-                          if (translatableItems.length === 0) {
+                          if (filteredItems.length === 0) {
                             return null;
                           }
 
@@ -677,11 +862,18 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                   <div className="size-5.5 flex items-center justify-center rounded-[6px] bg-secondary/50">
                                     <Icon name="database" className="size-3 opacity-60" />
                                   </div>
+
                                   <Label>{collection.name} <span className="text-muted-foreground">›</span> {itemName}</Label>
+
+                                  <span className="flex items-center gap-1.5 ml-auto text-xs text-muted-foreground">
+                                  <span>{defaultLocale?.label}</span>
+                                  <Icon name="chevronRight" className="size-3 inline" />
+                                  <span>{selectedLocale?.label}</span>
+                                </span>
                                 </div>
                               </header>
                               <ul className="border-b px-4 py-5 flex flex-col gap-5">
-                                {translatableItems.map((transItem) => (
+                                {filteredItems.map((transItem) => (
                                   <TranslationRow
                                     key={transItem.key}
                                     item={transItem}

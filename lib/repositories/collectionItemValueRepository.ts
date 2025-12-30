@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from '../supabase-server';
 import type { CollectionItemValue, CollectionFieldType } from '@/types';
 import { castValue, valueToString } from '../collection-utils';
 import { randomUUID } from 'crypto';
+import { deleteTranslationsInBulk, markTranslationsIncomplete } from './translationRepository';
 
 /**
  * Collection Item Value Repository
@@ -58,7 +59,7 @@ export async function getValuesByItemIds(
 
   // Transform to { item_id: { field_id: value } } structure
   const valuesByItem: Record<string, Record<string, string>> = {};
-  
+
   data?.forEach((row: any) => {
     if (!valuesByItem[row.item_id]) {
       valuesByItem[row.item_id] = {};
@@ -268,11 +269,21 @@ export async function setValuesByFieldName(
     throw new Error('Supabase client not configured');
   }
 
+  // Get current values to detect changes (only for draft updates)
+  let currentValuesMap: Record<string, string | null> = {};
+  if (!is_published) {
+    const currentValues = await getValuesByItemId(item_id, false);
+    currentValuesMap = currentValues.reduce((acc, val) => {
+      acc[val.field_id] = val.value;
+      return acc;
+    }, {} as Record<string, string | null>);
+  }
+
   // Get field mappings to validate field IDs and get types
   // Fields are fetched with the same is_published status as the values
   const { data: fields, error } = await client
     .from('collection_fields')
-    .select('id, type')
+    .select('id, type, key')
     .eq('collection_id', collection_id)
     .eq('is_published', is_published)
     .is('deleted_at', null);
@@ -281,10 +292,14 @@ export async function setValuesByFieldName(
     throw new Error(`Failed to fetch fields: ${error.message}`);
   }
 
-  // Create mapping of field_id -> type
+  // Create mapping of field_id -> type and field_id -> key
   const fieldMap: Record<string, CollectionFieldType> = {};
+  const fieldKeyMap: Record<string, string> = {};
   fields?.forEach((field: any) => {
     fieldMap[field.id] = field.type;
+    if (field.key) {
+      fieldKeyMap[field.id] = field.key;
+    }
   });
 
   // Convert values to strings based on type and set
@@ -294,6 +309,40 @@ export async function setValuesByFieldName(
     const type = fieldMap[fieldId] || fieldType[fieldId];
     if (type) {
       valuesToSet[fieldId] = valueToString(value, type);
+    }
+  }
+
+  // Detect changes and removals for translation management (only for draft)
+  if (!is_published) {
+    const changedKeys: string[] = [];
+    const removedKeys: string[] = [];
+
+    // Check for changed values
+    for (const [fieldId, newValue] of Object.entries(valuesToSet)) {
+      const oldValue = currentValuesMap[fieldId];
+
+      // Generate content key based on field key (if exists) or field id
+      const contentKey = fieldId in fieldKeyMap
+        ? `field:key:${fieldKeyMap[fieldId]}`
+        : `field:id:${fieldId}`;
+
+      if (newValue !== oldValue && newValue !== null && newValue !== '') {
+        changedKeys.push(contentKey);
+      } else if (newValue === null || newValue === '') {
+        // Value was removed/cleared
+        if (oldValue !== null && oldValue !== undefined && oldValue !== '') {
+          removedKeys.push(contentKey);
+        }
+      }
+    }
+
+    // Update translations
+    if (removedKeys.length > 0) {
+      await deleteTranslationsInBulk('cms', item_id, removedKeys);
+    }
+
+    if (changedKeys.length > 0) {
+      await markTranslationsIncomplete('cms', item_id, changedKeys);
     }
   }
 

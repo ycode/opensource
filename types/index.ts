@@ -702,6 +702,20 @@ export interface ConditionalVisibility {
 }
 
 // Localisation Types
+
+/**
+ * Locale option (predefined locale configuration)
+ */
+export interface LocaleOption {
+  code: string; // Language code (ISO 639-1)
+  label: string; // English label
+  native_label: string; // Native language label
+  rtl?: boolean; // Right-to-left language
+}
+
+/**
+ * Locale (database entity)
+ */
 export interface Locale {
   id: string;
   code: string;
@@ -736,6 +750,7 @@ export interface Translation {
   content_key: string;
   content_type: TranslationContentType;
   content_value: string;
+  is_completed: boolean;
   is_published: boolean;
   created_at: string;
   updated_at: string;
@@ -753,4 +768,5 @@ export interface CreateTranslationData {
 
 export interface UpdateTranslationData {
   content_value?: string;
+  is_completed?: boolean;
 }

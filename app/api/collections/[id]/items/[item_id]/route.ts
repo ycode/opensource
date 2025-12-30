@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getItemWithValues, updateItem, deleteItem } from '@/lib/repositories/collectionItemRepository';
 import { setValuesByFieldName } from '@/lib/repositories/collectionItemValueRepository';
+import { deleteTranslationsInBulk } from '@/lib/repositories/translationRepository';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -72,6 +73,7 @@ export async function PUT(
         ...values,
         updated_at: now, // Auto-update the "Updated Date" collection field
       };
+
       await setValuesByFieldName(
         itemId,
         collectionId,
@@ -96,7 +98,7 @@ export async function PUT(
 
 /**
  * DELETE /api/collections/[id]/items/[item_id]
- * Delete item (soft delete)
+ * Delete item and its associated translations (soft delete)
  * Sets deleted_at timestamp to mark item as deleted in draft
  */
 export async function DELETE(
@@ -107,7 +109,11 @@ export async function DELETE(
     const { item_id } = await params;
     const itemId = item_id; // UUID string, no parsing needed
 
+    // Delete the collection item
     await deleteItem(itemId);
+
+    // Delete all translations for this CMS item
+    await deleteTranslationsInBulk('cms', itemId);
 
     return noCache({ data: { success: true } }, 200);
   } catch (error) {

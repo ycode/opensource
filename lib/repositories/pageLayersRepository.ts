@@ -1,6 +1,8 @@
 import { getSupabaseAdmin } from '../supabase-server';
 import type { PageLayers, Layer } from '../../types';
 import { generatePageLayersHash } from '../hash-utils';
+import { deleteTranslationsInBulk, markTranslationsIncomplete } from './translationRepository';
+import { extractLayerContentMap } from '../localisation-utils';
 
 /**
  * Get layers by page_id with optional is_published filter
@@ -120,6 +122,30 @@ export async function upsertDraftLayers(
 
   // Check if draft exists
   const existingDraft = await getDraftLayers(pageId);
+
+  // Detect removed and changed layer content, update translations accordingly
+  if (existingDraft && existingDraft.layers) {
+    const oldContentMap = extractLayerContentMap(existingDraft.layers, 'page', pageId);
+    const newContentMap = extractLayerContentMap(layers, 'page', pageId);
+
+    // Find removed keys (exist in old but not in new)
+    const removedKeys = Object.keys(oldContentMap).filter(key => !(key in newContentMap));
+
+    // Find changed keys (exist in both but value differs)
+    const changedKeys = Object.keys(newContentMap).filter(
+      key => key in oldContentMap && oldContentMap[key] !== newContentMap[key]
+    );
+
+    // Delete translations for removed content
+    if (removedKeys.length > 0) {
+      await deleteTranslationsInBulk('page', pageId, removedKeys);
+    }
+
+    // Mark translations as incomplete for changed content
+    if (changedKeys.length > 0) {
+      await markTranslationsIncomplete('page', pageId, changedKeys);
+    }
+  }
 
   // Calculate content hash for layers
   const contentHash = generatePageLayersHash({

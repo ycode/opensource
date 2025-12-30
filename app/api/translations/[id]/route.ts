@@ -38,10 +38,11 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { content_value } = body;
+    const { content_value, is_completed } = body;
 
     const updates: any = {};
     if (content_value !== undefined) updates.content_value = content_value;
+    if (is_completed !== undefined) updates.is_completed = is_completed;
 
     const translation = await updateTranslation(id, updates);
 

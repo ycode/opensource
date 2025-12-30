@@ -382,6 +382,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
       content_key: data.content_key,
       content_type: data.content_type,
       content_value: data.content_value,
+      is_completed: false,
       is_published: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -481,7 +482,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     }
 
     // Optimistically update translation in store
-    if (updates.content_value !== undefined) {
+    if (updates.content_value !== undefined || updates.is_completed !== undefined) {
       set((state) => {
         const localeTranslations = state.translations[localeId] || {};
         const existingTranslation = localeTranslations[key];
@@ -494,7 +495,8 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
                 ...localeTranslations,
                 [key]: {
                   ...existingTranslation,
-                  content_value: updates.content_value!,
+                  ...(updates.content_value !== undefined && { content_value: updates.content_value }),
+                  ...(updates.is_completed !== undefined && { is_completed: updates.is_completed }),
                   deleted_at: null, // Restore if previously deleted
                 },
               },
@@ -519,7 +521,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
 
       if (result.error) {
         // Revert optimistic update on error
-        if (updates.content_value !== undefined && existingTranslation) {
+        if ((updates.content_value !== undefined || updates.is_completed !== undefined) && existingTranslation) {
           set((state) => {
             const localeTranslations = state.translations[localeId] || {};
             return {
@@ -557,7 +559,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
       }));
     } catch (error) {
       // Revert optimistic update on error
-      if (updates.content_value !== undefined && existingTranslation) {
+      if ((updates.content_value !== undefined || updates.is_completed !== undefined) && existingTranslation) {
         set((state) => {
           const localeTranslations = state.translations[localeId] || {};
           return {

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { deletePageFolder, updatePageFolder, getPageFolderById } from '@/lib/repositories/pageFolderRepository';
+import { deleteTranslationsInBulk } from '@/lib/repositories/translationRepository';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -88,7 +89,7 @@ export async function PUT(
 /**
  * DELETE /api/folders/[id]
  *
- * Delete a folder (soft delete)
+ * Delete a folder and its associated translations (soft delete)
  */
 export async function DELETE(
   request: NextRequest,
@@ -97,7 +98,11 @@ export async function DELETE(
   try {
     const { id } = await params;
 
+    // Delete the folder
     await deletePageFolder(id);
+    
+    // Delete all translations for this folder
+    await deleteTranslationsInBulk('folder', id);
 
     return noCache(
       { data: { success: true } },

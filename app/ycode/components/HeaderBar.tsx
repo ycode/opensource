@@ -88,10 +88,9 @@ export default function HeaderBar({
   const pathname = usePathname();
   const pageDropdownRef = useRef<HTMLDivElement>(null);
   const { editingComponentId, returnToPageId, currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode } = useEditorStore();
-  const { getComponentById } = useComponentsStore();
   const { folders, pages: storePages } = usePagesStore();
   const { items, fields } = useCollectionsStore();
-  const { locales, selectedLocaleId, setSelectedLocaleId, getSelectedLocale, translations } = useLocalisationStore();
+  const { locales, selectedLocaleId, setSelectedLocaleId, translations } = useLocalisationStore();
   const { navigateToLayers, updateQueryParams } = useEditorUrl();
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [showPublishPopover, setShowPublishPopover] = useState(false);
@@ -112,8 +111,11 @@ export default function HeaderBar({
     setBaseUrl(window.location.protocol + '//' + window.location.host);
   }, []);
 
-  // Get selected locale
-  const selectedLocale = getSelectedLocale();
+  // Get selected locale (computed from subscribed store values)
+  const selectedLocale = useMemo(() => {
+    if (!selectedLocaleId) return null;
+    return locales.find(l => l.id === selectedLocaleId) || null;
+  }, [selectedLocaleId, locales]);
 
   // Get translations for the selected locale
   const localeTranslations = useMemo(() => {
@@ -128,15 +130,19 @@ export default function HeaderBar({
 
   // Build localized page path with translated slugs
   const localizedPagePath = useMemo(() => {
-    if (!currentPage) return '/';
+    // If no current page, use homepage for localization route
+    const pageToUse = currentPage || (isSettingsRoute ? findHomepage(storePages) : null);
+
+    if (!pageToUse) return '/';
+
     return buildLocalizedSlugPath(
-      currentPage,
+      pageToUse,
       folders,
       'page',
       selectedLocale,
       localeTranslations
     );
-  }, [currentPage, folders, selectedLocale, localeTranslations]);
+  }, [currentPage, isSettingsRoute, storePages, folders, selectedLocale, localeTranslations]);
 
   // Get collection item slug value for dynamic pages (with translation support)
   const collectionItemSlug = useMemo(() => {
@@ -203,15 +209,17 @@ export default function HeaderBar({
 
   // Build published URL (for the link in the center)
   const publishedUrl = useMemo(() => {
-    if (!currentPage) return '';
+    // If no current page, use homepage for localization route
+    const pageToUse = currentPage || (isSettingsRoute ? findHomepage(storePages) : null);
+    if (!pageToUse) return '';
 
     // For dynamic pages, use localized dynamic URL builder
-    const path = currentPage.is_dynamic
-      ? buildLocalizedDynamicPageUrl(currentPage, folders, collectionItemSlug, selectedLocale, localeTranslations)
+    const path = pageToUse.is_dynamic
+      ? buildLocalizedDynamicPageUrl(pageToUse, folders, collectionItemSlug, selectedLocale, localeTranslations)
       : localizedPagePath;
 
     return path === '/' ? '' : path;
-  }, [currentPage, folders, localizedPagePath, collectionItemSlug, selectedLocale, localeTranslations]);
+  }, [currentPage, isSettingsRoute, storePages, folders, localizedPagePath, collectionItemSlug, selectedLocale, localeTranslations]);
 
   // Apply theme to HTML element
   useEffect(() => {
@@ -538,9 +546,11 @@ export default function HeaderBar({
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+
         <div className="h-5">
           <Separator orientation="vertical" />
         </div>
+
         <Button
           size="xs"
           variant="ghost"
@@ -553,9 +563,11 @@ export default function HeaderBar({
             {baseUrl}
           </a>
         </Button>
+
         <div className="h-5">
           <Separator orientation="vertical" />
         </div>
+
         <Button size="xs" variant="ghost">
           Free
         </Button>

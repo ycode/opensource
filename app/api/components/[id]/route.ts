@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getComponentById, updateComponent, deleteComponent } from '@/lib/repositories/componentRepository';
+import { deleteTranslationsInBulk } from '@/lib/repositories/translationRepository';
 
 /**
  * GET /api/components/[id]
@@ -12,11 +13,11 @@ export async function GET(
   try {
     const { id } = await params;
     const component = await getComponentById(id);
-    
+
     if (!component) {
       return NextResponse.json({ error: 'Component not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({ data: component });
   } catch (error) {
     console.error('Error fetching component:', error);
@@ -39,13 +40,13 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
     const { name, layers } = body;
-    
+
     const updates: any = {};
     if (name !== undefined) updates.name = name;
     if (layers !== undefined) updates.layers = layers;
-    
+
     const component = await updateComponent(id, updates);
-    
+
     return NextResponse.json({ data: component });
   } catch (error) {
     console.error('Error updating component:', error);
@@ -58,7 +59,7 @@ export async function PUT(
 
 /**
  * DELETE /api/components/[id]
- * Delete a component (detaches from all instances)
+ * Delete a component and its associated translations (detaches from all instances)
  */
 export async function DELETE(
   request: NextRequest,
@@ -66,8 +67,13 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+
+    // Delete the component
     await deleteComponent(id);
-    
+
+    // Delete all translations for this component
+    await deleteTranslationsInBulk('component', id);
+
     return NextResponse.json({ message: 'Component deleted successfully' });
   } catch (error) {
     console.error('Error deleting component:', error);

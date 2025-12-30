@@ -2,13 +2,11 @@
 
 import React, { useState } from 'react';
 import { Icon } from '@/components/ui/icon';
-import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import InputWithInlineVariables from '@/app/ycode/components/InputWithInlineVariables';
 import { sanitizeSlug, checkDuplicatePageSlug, checkDuplicateFolderSlug, type ValidationResult } from '@/lib/page-utils';
 import type { TranslatableItem } from '@/lib/localisation-utils';
-import type { Translation, CollectionField, Collection, CreateTranslationData, Page, PageFolder } from '@/types';
+import type { Translation, CollectionField, Collection, CreateTranslationData, UpdateTranslationData, Page, PageFolder } from '@/types';
 
 interface TranslationRowProps {
   item: TranslatableItem;
@@ -18,7 +16,7 @@ interface TranslationRowProps {
   onLocalValueClear: (key: string) => void;
   getTranslationByKey: (localeId: string, key: string) => Translation | undefined;
   createTranslation: (data: CreateTranslationData) => Promise<Translation | null>;
-  updateTranslation: (translation: Translation, data: { content_value: string }) => Promise<void>;
+  updateTranslation: (translation: Translation, data: UpdateTranslationData) => Promise<void>;
   deleteTranslation: (translation: Translation) => Promise<void>;
   // Optional: For pages with CMS fields and inline variables support
   pageFields?: CollectionField[];
@@ -169,6 +167,18 @@ export default function TranslationRow({
     }
   };
 
+  // Toggle completed status
+  const handleToggleCompleted = async () => {
+    if (!selectedLocaleId) return;
+
+    const translation = getTranslationByKey(selectedLocaleId, item.key);
+
+    // Skip if translation has a temporary ID (still being created)
+    if (translation && !translation.id.startsWith('temp-')) {
+      await updateTranslation(translation, { is_completed: !translation.is_completed });
+    }
+  };
+
   return (
     <li key={item.key} className="flex flex-col gap-1.5">
       {/* Item header */}
@@ -187,6 +197,22 @@ export default function TranslationRow({
         )}
 
         <Separator className="min-w-0 flex-1 bg-foreground/8" />
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleToggleCompleted}
+            className={`flex items-center justify-center pl-2 pr-2.5 py-0.75 gap-1.25 rounded-sm transition-colors cursor-pointer ${translation?.is_completed ? 'bg-green-400/6' : 'bg-secondary/50'}`}
+            title={translation?.is_completed ? 'Mark as not completed' : 'Mark as completed'}
+          >
+            {translation?.is_completed
+              ? <Icon name="check" className="size-3 text-green-600 dark:text-green-400" />
+              : <Icon name="block" className="size-2.25 text-muted-foreground/50" />
+            }
+
+            <span className="text-[10px] uppercase font-medium text-muted-foreground">{translation?.is_completed ? 'Done' : 'To do'}</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
@@ -224,24 +250,6 @@ export default function TranslationRow({
               <span className="text-[11px] text-destructive">{validationError}</span>
             )}
           </div>
-        </div>
-
-        {/* Dropdown menu */}
-        <div className="">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="ghost">
-                <Icon name="more" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>Done</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleReset}>
-                Reset
-              </DropdownMenuItem>
-              <DropdownMenuItem>Auto-translate</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
     </li>

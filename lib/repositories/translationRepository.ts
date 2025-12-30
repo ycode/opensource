@@ -228,6 +228,93 @@ export async function deleteTranslation(id: string): Promise<void> {
 }
 
 /**
+ * Delete translations in bulk (soft delete - sets deleted_at timestamp)
+ * Only deletes draft versions
+ *
+ * @param sourceType - Type of source (page, folder, component, cms)
+ * @param sourceIds - Single source ID or array of source IDs
+ * @param contentKeys - Optional. Specific content keys to delete. If not provided, deletes all translations for the source(s).
+ */
+export async function deleteTranslationsInBulk(
+  sourceType: string,
+  sourceIds: string | string[],
+  contentKeys?: string[]
+): Promise<void> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // Normalize sourceIds to array
+  const sourceIdArray = Array.isArray(sourceIds) ? sourceIds : [sourceIds];
+
+  // If no source IDs, nothing to delete
+  if (sourceIdArray.length === 0) {
+    return;
+  }
+
+  // If contentKeys provided but empty, nothing to delete
+  if (contentKeys !== undefined && contentKeys.length === 0) {
+    return;
+  }
+
+  // Build the base query
+  let query = client
+    .from('translations')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('source_type', sourceType)
+    .in('source_id', sourceIdArray)
+    .eq('is_published', false);
+
+  // Add content_key filter if specific keys provided
+  if (contentKeys !== undefined) {
+    query = query.in('content_key', contentKeys);
+  }
+
+  const { error } = await query;
+
+  if (error) {
+    throw new Error(`Failed to delete translations: ${error.message}`);
+  }
+}
+
+/**
+ * Mark translations as incomplete when source content changes
+ */
+export async function markTranslationsIncomplete(
+  sourceType: string,
+  sourceId: string,
+  contentKeys: string[]
+): Promise<void> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  if (contentKeys.length === 0) {
+    return; // Nothing to update
+  }
+
+  const { error } = await client
+    .from('translations')
+    .update({
+      is_completed: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('source_type', sourceType)
+    .eq('source_id', sourceId)
+    .in('content_key', contentKeys)
+    .eq('is_published', false)
+    .is('deleted_at', null);
+
+  if (error) {
+    throw new Error(`Failed to mark translations as incomplete: ${error.message}`);
+  }
+}
+
+/**
  * Upsert multiple translations (draft by default)
  * Uses batch upsert for efficiency
  */

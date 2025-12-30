@@ -2,7 +2,7 @@
  * Layer utilities for rendering and manipulation
  */
 
-import { Collection, Component, Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, CollectionField } from '@/types';
+import { Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, CollectionField } from '@/types';
 import { cn, generateId } from '@/lib/utils';
 import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
@@ -588,7 +588,7 @@ export function findAllCollectionLayers(layers: Layer[], topLevelOnly: boolean =
   const traverse = (layerList: Layer[], foundCollectionInBranch: boolean = false) => {
     for (const layer of layerList) {
       const collectionVariable = getCollectionVariable(layer);
-      
+
       // If this layer is a collection layer
       if (collectionVariable) {
         // Only add if we haven't found a collection parent in this branch (for topLevelOnly mode)
@@ -645,7 +645,7 @@ function evaluateCondition(
   if (condition.source === 'page_collection') {
     // Page collection conditions
     const count = pageCollectionCounts?.[condition.collectionLayerId || ''] ?? 0;
-    
+
     switch (condition.operator) {
       case 'has_items':
         return count > 0;
@@ -691,35 +691,35 @@ function evaluateCondition(
           return parseFloat(value) === parseFloat(compareValue);
         }
         return value === compareValue;
-      
+
       case 'is_not':
         if (fieldType === 'number') {
           return parseFloat(value) !== parseFloat(compareValue);
         }
         return value !== compareValue;
-      
+
       case 'contains':
         return value.toLowerCase().includes(compareValue.toLowerCase());
-      
+
       case 'does_not_contain':
         return !value.toLowerCase().includes(compareValue.toLowerCase());
-      
+
       case 'is_present':
         return isPresent;
-      
+
       case 'is_empty':
         return !isPresent;
 
       // Number operators
       case 'lt':
         return parseFloat(value) < parseFloat(compareValue);
-      
+
       case 'lte':
         return parseFloat(value) <= parseFloat(compareValue);
-      
+
       case 'gt':
         return parseFloat(value) > parseFloat(compareValue);
-      
+
       case 'gte':
         return parseFloat(value) >= parseFloat(compareValue);
 
@@ -729,20 +729,20 @@ function evaluateCondition(
         const compareDateValue = new Date(compareValue);
         return dateValue < compareDateValue;
       }
-      
+
       case 'is_after': {
         const dateValue = new Date(value);
         const compareDateValue = new Date(compareValue);
         return dateValue > compareDateValue;
       }
-      
+
       case 'is_between': {
         const dateValue = new Date(value);
         const startDate = new Date(compareValue);
         const endDate = new Date(condition.value2 ?? '');
         return dateValue >= startDate && dateValue <= endDate;
       }
-      
+
       case 'is_not_empty':
         return isPresent;
 
@@ -825,7 +825,7 @@ function evaluateCondition(
             valueIds = value ? [value] : [];
           }
           // Check exact match (same items, regardless of order)
-          return requiredIds.length === valueIds.length && 
+          return requiredIds.length === valueIds.length &&
                  requiredIds.every((id: string) => valueIds.includes(id));
         } catch {
           return false;
@@ -898,7 +898,7 @@ function evaluateCondition(
 /**
  * Evaluate conditional visibility for a layer
  * Groups are AND'd together; conditions within a group are OR'd
- * 
+ *
  * @param conditionalVisibility - The visibility rules from layer.variables
  * @param context - The context containing field values and collection counts
  * @returns True if layer should be visible, false if it should be hidden

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollectionById, updateCollection, deleteCollection } from '@/lib/repositories/collectionRepository';
+import { getItemsByCollectionId } from '@/lib/repositories/collectionItemRepository';
+import { deleteTranslationsInBulk } from '@/lib/repositories/translationRepository';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -62,7 +64,7 @@ export async function PUT(
 
 /**
  * DELETE /api/collections/[id]
- * Delete collection (soft delete draft version)
+ * Delete collection (soft delete draft version) and all associated translations
  */
 export async function DELETE(
   request: NextRequest,
@@ -71,7 +73,16 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    // Always delete draft version in the builder
+    // Get all items in this collection (draft versions)
+    const { items } = await getItemsByCollectionId(id, false);
+
+    // Delete translations for all items in this collection in a single query
+    if (items.length > 0) {
+      const itemIds = items.map(item => item.id);
+      await deleteTranslationsInBulk('cms', itemIds);
+    }
+
+    // Delete the collection (soft delete draft version)
     await deleteCollection(id, false);
 
     return noCache({ data: { success: true } });

@@ -288,7 +288,12 @@ export function useEditorUrl() {
   }, [router]);
 
   const updateQueryParams = useCallback(
-    (params: { view?: string; tab?: string; layer?: string; preview?: string | undefined }) => {
+    (params: { 
+      view?: string; 
+      tab?: string; 
+      layer?: string; 
+      preview?: string | undefined;
+    }) => {
       const currentSearchParams = new URLSearchParams(window.location.search);
       const newSearchParams = new URLSearchParams(currentSearchParams);
       let hasChanges = false;

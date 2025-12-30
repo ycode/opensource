@@ -9,6 +9,8 @@
 import { getSupabaseAdmin } from '../supabase-server';
 import type { Component, Layer } from '@/types';
 import { generateComponentContentHash } from '../hash-utils';
+import { deleteTranslationsInBulk, markTranslationsIncomplete } from './translationRepository';
+import { extractLayerContentMap } from '../localisation-utils';
 
 /**
  * Input data for creating a new component
@@ -118,6 +120,30 @@ export async function updateComponent(
   const current = await getComponentById(id);
   if (!current) {
     throw new Error('Component not found');
+  }
+
+  // Detect removed and changed layer content if layers are being updated
+  if (updates.layers !== undefined) {
+    const oldContentMap = extractLayerContentMap(current.layers || [], 'component', id);
+    const newContentMap = extractLayerContentMap(updates.layers, 'component', id);
+
+    // Find removed keys (exist in old but not in new)
+    const removedKeys = Object.keys(oldContentMap).filter(key => !(key in newContentMap));
+
+    // Find changed keys (exist in both but value differs)
+    const changedKeys = Object.keys(newContentMap).filter(
+      key => key in oldContentMap && oldContentMap[key] !== newContentMap[key]
+    );
+
+    // Delete translations for removed content
+    if (removedKeys.length > 0) {
+      await deleteTranslationsInBulk('component', id, removedKeys);
+    }
+
+    // Mark translations as incomplete for changed content
+    if (changedKeys.length > 0) {
+      await markTranslationsIncomplete('component', id, changedKeys);
+    }
   }
 
   // Merge current data with updates for hash calculation

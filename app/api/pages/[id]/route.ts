@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getPageById, updatePage, deletePage } from '@/lib/repositories/pageRepository';
+import { deleteTranslationsInBulk } from '@/lib/repositories/translationRepository';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -113,7 +114,7 @@ export async function PUT(
 /**
  * DELETE /api/pages/[id]
  *
- * Delete a page
+ * Delete a page and its associated translations
  */
 export async function DELETE(
   request: NextRequest,
@@ -121,7 +122,12 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+
+    // Delete the page
     await deletePage(id);
+
+    // Delete all translations for this page
+    await deleteTranslationsInBulk('page', id);
 
     return noCache({
       success: true,
