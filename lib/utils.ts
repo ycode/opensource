@@ -257,3 +257,24 @@ export function generateId(prefix?: string): string {
   const id = `${timestamp}${random}`;
   return prefix ? `${prefix}-${id}` : id;
 }
+
+/**
+ * Deep clone object
+ * @param obj - The object to clone
+ * @returns Deep cloned copy of the object
+ */
+export function cloneDeep<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (obj instanceof Date) return new Date(obj.getTime()) as T;
+  if (obj instanceof Array) return obj.map(item => cloneDeep(item)) as T;
+  if (obj instanceof Object) {
+    const clonedObj = {} as Record<string, unknown>;
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        clonedObj[key] = cloneDeep((obj as Record<string, unknown>)[key]);
+      }
+    }
+    return clonedObj as T;
+  }
+  throw new Error('Unable to clone object');
+}

@@ -4,12 +4,12 @@
  * Pre-built combinations of layers with styles
  */
 
-import { Layer } from '@/types';
+import { LayerTemplate } from '@/types';
 
 interface LayoutTemplate {
   category: string;
   previewImage?: string;
-  template: Omit<Layer, 'id'>;
+  template: LayerTemplate;
 }
 
 export const layoutTemplates: Record<string, LayoutTemplate> = {

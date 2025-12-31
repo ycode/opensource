@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import type { Layer, Page, PageLayers, PageFolder, PageItemDuplicateResult, CollectionItemWithValues } from '../types';
 import { pagesApi, pageLayersApi, foldersApi } from '../lib/api';
-import { getTemplate, getBlockName } from '../lib/templates/blocks';
+import { getLayerFromTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
 import { canHaveChildren, regenerateIdsWithInteractionRemapping } from '../lib/layer-utils';
 import { getDescendantFolderIds, isHomepage, findHomepage, findNextSelection } from '../lib/page-utils';
@@ -441,7 +441,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     }
 
     // Get the template and block info
-    const template = getTemplate(templateId);
+    const template = getLayerFromTemplate(templateId);
     if (!template) {
       console.error(`Template ${templateId} not found`);
       return null;

@@ -2,13 +2,8 @@
  * Action Elements Templates
  */
 
-import { Layer } from '@/types';
-
-interface BlockTemplate {
-  icon: string;
-  name: string;
-  template: Omit<Layer, 'id'>;
-}
+import { getTemplateRef } from '@/lib/templates/blocks';
+import { BlockTemplate } from '@/types';
 
 export const actionTemplates: Record<string, BlockTemplate> = {
   button: {
@@ -18,14 +13,7 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       name: 'button',
       classes: ['flex', 'flex-row', 'items-center', 'justify-center', 'text-[#FFFFFF]', 'pr-[20px]', 'pl-[20px]', 'pt-[10px]', 'pb-[10px]', 'text-[16px]', 'rounded-[12px]', 'bg-[#171717]'],
       children: [
-        {
-          id: 'button-text',
-          name: 'text',
-          classes: [],
-          text: 'Button',
-          children: [],
-          design: {}
-        }
+        getTemplateRef('span'),
       ],
       attributes: {
         type: 'button'

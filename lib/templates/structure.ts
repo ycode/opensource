@@ -2,13 +2,7 @@
  * Structure Elements Templates
  */
 
-import { Layer } from '@/types';
-
-interface BlockTemplate {
-  icon: string;
-  name: string;
-  template: Omit<Layer, 'id'>;
-}
+import { BlockTemplate } from '@/types';
 
 export const structureTemplates: Record<string, BlockTemplate> = {
   div: {

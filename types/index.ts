@@ -250,6 +250,23 @@ export interface Layer {
   interactions?: LayerInteraction[];
 }
 
+// Essentially a layer without ID (that can have children without IDs)
+export interface LayerTemplate extends Omit<Layer, 'id' | 'children'> {
+  children?: Array<LayerTemplate | LayerTemplateRef>;
+}
+
+// Template reference marker (lazy reference resolved during template instantiation)
+export type LayerTemplateRef = { __ref: string } & Partial<Omit<LayerTemplate, 'children'>> & {
+  children?: Array<LayerTemplate | LayerTemplateRef>;
+};
+
+// Block template definition (used in template collections)
+export interface BlockTemplate {
+  icon: string;
+  name: string;
+  template: LayerTemplate | LayerTemplateRef;
+}
+
 // Component Types (Reusable Layer Trees)
 export interface Component {
   id: string;

@@ -178,7 +178,7 @@ export function canHaveChildren(layer: Layer, childLayerType?: string): boolean 
 
   const blocksWithoutChildren = [
     'icon', 'image', 'audio', 'video', 'youtube', 'iframe',
-    'heading', 'p', 'span', 'label', 'button', 'hr',
+    'heading', 'p', 'span', 'label', 'hr',
     'input', 'textarea', 'select', 'checkbox', 'radio',
   ];
 

@@ -14,7 +14,7 @@ import Icon from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import Image from 'next/image';
-import { getTemplate, getBlockName, getBlockIcon, getLayoutTemplate, getLayoutCategory, getLayoutPreviewImage, getLayoutsByCategory, getAllLayoutKeys } from '@/lib/templates/blocks';
+import { getLayerFromTemplate, getBlockName, getBlockIcon, getLayoutTemplate, getLayoutCategory, getLayoutPreviewImage, getLayoutsByCategory, getAllLayoutKeys } from '@/lib/templates/blocks';
 import { canHaveChildren } from '@/lib/layer-utils';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -33,6 +33,7 @@ const elementCategories: Record<string, string[]> = {
   Actions: ['button', 'link'],
   Media: ['image', 'icon', 'video', 'audio'],
   Form: ['form', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label'],
+  Utilities: ['map', 'lemonSqueezy', 'lightbox', 'slider', 'localeSelector'],
 };
 
 export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements' }: ElementLibraryProps) {
@@ -55,7 +56,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       const parentId = selectedLayerId || layers[0]?.id || 'body';
 
       // Create new layer from template
-      const template = getTemplate(elementType);
+      const template = getLayerFromTemplate(elementType);
       const displayName = getBlockName(elementType);
       const newLayer = {
         ...template,
@@ -554,7 +555,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                       className="justify-start"
                     >
                       <Icon name={getBlockIcon(el)} />
-                      {getBlockName(el)}
+                      <span className="truncate">{getBlockName(el)}</span>
                     </Button>
                   ))}
                 </div>
@@ -588,11 +589,13 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                             className="justify-start flex-col items-start p-1.5 overflow-hidden hover:opacity-90 transition-opacity rounded-[10px] !h-auto"
                           >
                             {previewImage && (
-                                <img
-                                  src={previewImage}
-                                  alt="Layout preview"
-                                  className="object-contain w-full h-full rounded"
-                                />
+                              <Image
+                                src={previewImage}
+                                width={640}
+                                height={262}
+                                alt="Layout preview"
+                                className="object-contain w-full h-full rounded"
+                              />
                             )}
                           </Button>
                         );
@@ -617,7 +620,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                 <div className="py-5 h-14">
                   <Label>Components</Label>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   {components.map((component) => (
                     <Button
                       key={component.id}
@@ -627,7 +630,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                       className="justify-start"
                     >
                       <Icon name="box" />
-                      {component.name}
+                      <span className="truncate">{component.name}</span>
                     </Button>
                   ))}
                 </div>
