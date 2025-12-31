@@ -47,10 +47,12 @@ async function collectAncestorFolderIds(
     return folderIdsToPublish;
   }
 
-  const foldersById = new Map(allDraftFolders.map((f: PageFolder) => [f.id, f]));
+  const foldersById = new Map<string, PageFolder>(
+    allDraftFolders.map((f: PageFolder) => [f.id, f])
+  );
 
   // Collect all ancestor folder IDs
-  const collectAncestors = (folderId: string | null) => {
+  const collectAncestors = (folderId: string | null): void => {
     if (!folderId) return;
     const folder = foldersById.get(folderId);
     if (folder) {
