@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Icon } from '@/components/ui/icon';
+import { Spinner } from '@/components/ui/spinner';
 import { Separator } from '@/components/ui/separator';
 import InputWithInlineVariables from '@/app/ycode/components/InputWithInlineVariables';
 import { sanitizeSlug, checkDuplicatePageSlug, checkDuplicateFolderSlug, type ValidationResult } from '@/lib/page-utils';
@@ -17,6 +18,8 @@ interface TranslationRowProps {
   getTranslationByKey: (localeId: string, key: string) => Translation | undefined;
   createTranslation: (data: CreateTranslationData) => Promise<Translation | null>;
   updateTranslation: (translation: Translation, data: UpdateTranslationData) => Promise<void>;
+  updateTranslationValue: (translation: Translation, contentValue: string) => Promise<void>;
+  updateTranslationStatus: (translation: Translation, isCompleted: boolean) => Promise<void>;
   deleteTranslation: (translation: Translation) => Promise<void>;
   // Optional: For pages with CMS fields and inline variables support
   pageFields?: CollectionField[];
@@ -42,6 +45,8 @@ export default function TranslationRow({
   getTranslationByKey,
   createTranslation,
   updateTranslation,
+  updateTranslationValue,
+  updateTranslationStatus,
   deleteTranslation,
   pageFields,
   fieldSourceLabel,
@@ -52,6 +57,8 @@ export default function TranslationRow({
   sourceItem,
 }: TranslationRowProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
 
   // Get translation from store
   const translation = selectedLocaleId
@@ -149,33 +156,47 @@ export default function TranslationRow({
       content_value: finalValue,
     };
 
-    if (translation) {
-      // Update existing translation (optimistic + API call)
-      updateTranslation(translation, { content_value: finalValue });
-    } else {
-      // Create new translation (optimistic + API call)
-      createTranslation(translationData);
-    }
+    setIsSaving(true);
+
+    const savePromise = translation
+      ? updateTranslationValue(translation, finalValue)
+      : createTranslation(translationData);
+
+    savePromise
+      .catch((error) => {
+        console.error('Failed to save translation:', error);
+      })
+      .finally(() => {
+        setIsSaving(false);
+      });
   };
 
   // Reset translation
-  const handleReset = async () => {
+  const handleReset = () => {
     if (!selectedLocaleId) return;
     const translation = getTranslationByKey(selectedLocaleId, item.key);
     if (translation) {
-      await deleteTranslation(translation);
+      deleteTranslation(translation);
     }
   };
 
   // Toggle completed status
-  const handleToggleCompleted = async () => {
-    if (!selectedLocaleId) return;
+  const handleToggleCompleted = () => {
+    if (!selectedLocaleId || isSavingStatus) return;
 
     const translation = getTranslationByKey(selectedLocaleId, item.key);
 
     // Skip if translation has a temporary ID (still being created)
     if (translation && !translation.id.startsWith('temp-')) {
-      await updateTranslation(translation, { is_completed: !translation.is_completed });
+      setIsSavingStatus(true);
+
+      updateTranslationStatus(translation, !translation.is_completed)
+        .catch((error) => {
+          console.error('Failed to toggle completion status:', error);
+        })
+        .finally(() => {
+          setIsSavingStatus(false);
+        });
     }
   };
 
@@ -202,13 +223,17 @@ export default function TranslationRow({
         <div className="flex items-center gap-1.5">
           <button
             onClick={handleToggleCompleted}
-            className={`flex items-center justify-center pl-2 pr-2.5 py-0.75 gap-1.25 rounded-sm transition-colors cursor-pointer ${translation?.is_completed ? 'bg-green-400/6' : 'bg-secondary/50'}`}
-            title={translation?.is_completed ? 'Mark as not completed' : 'Mark as completed'}
+            disabled={isSavingStatus || !translation || translation.id.startsWith('temp-')}
+            className={`flex items-center justify-center pl-2 pr-2.5 py-0.75 gap-1.25 rounded-sm transition-colors cursor-pointer ${translation?.is_completed ? 'bg-green-400/6' : 'bg-secondary/50'} disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={isSavingStatus ? 'Saving...' : (translation?.is_completed ? 'Mark as not completed' : 'Mark as completed')}
           >
-            {translation?.is_completed
-              ? <Icon name="check" className="size-3 text-green-600 dark:text-green-400" />
-              : <Icon name="block" className="size-2.25 text-muted-foreground/50" />
-            }
+            {isSavingStatus ? (
+              <Spinner className="size-3 text-muted-foreground/50" />
+            ) : translation?.is_completed ? (
+              <Icon name="check" className="size-3 text-green-600 dark:text-green-400" />
+            ) : (
+              <Icon name="block" className="size-2.25 text-muted-foreground/50" />
+            )}
 
             <span className="text-[10px] uppercase font-medium text-muted-foreground">{translation?.is_completed ? 'Done' : 'To do'}</span>
           </button>

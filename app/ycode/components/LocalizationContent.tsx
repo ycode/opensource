@@ -65,6 +65,8 @@ export default function LocalizationContent({ children }: LocalizationContentPro
   const getTranslationByKey = useLocalisationStore((state) => state.getTranslationByKey);
   const createTranslation = useLocalisationStore((state) => state.createTranslation);
   const updateTranslation = useLocalisationStore((state) => state.updateTranslation);
+  const updateTranslationValue = useLocalisationStore((state) => state.updateTranslationValue);
+  const updateTranslationStatus = useLocalisationStore((state) => state.updateTranslationStatus);
   const deleteTranslation = useLocalisationStore((state) => state.deleteTranslation);
 
   // Pages store
@@ -669,6 +671,8 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                       getTranslationByKey={getTranslationByKey}
                                       createTranslation={createTranslation}
                                       updateTranslation={updateTranslation}
+                                      updateTranslationValue={updateTranslationValue}
+                                      updateTranslationStatus={updateTranslationStatus}
                                       deleteTranslation={deleteTranslation}
                                       pageFields={pageFields}
                                       fieldSourceLabel={collection?.name}
@@ -747,6 +751,8 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                   getTranslationByKey={getTranslationByKey}
                                   createTranslation={createTranslation}
                                   updateTranslation={updateTranslation}
+                                  updateTranslationValue={updateTranslationValue}
+                                  updateTranslationStatus={updateTranslationStatus}
                                   deleteTranslation={deleteTranslation}
                                   pages={storePages}
                                   folders={storeFolders}
@@ -808,6 +814,8 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                   getTranslationByKey={getTranslationByKey}
                                   createTranslation={createTranslation}
                                   updateTranslation={updateTranslation}
+                                  updateTranslationValue={updateTranslationValue}
+                                  updateTranslationStatus={updateTranslationStatus}
                                   deleteTranslation={deleteTranslation}
                                 />
                               ))}
@@ -884,6 +892,8 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                     getTranslationByKey={getTranslationByKey}
                                     createTranslation={createTranslation}
                                     updateTranslation={updateTranslation}
+                                    updateTranslationValue={updateTranslationValue}
+                                    updateTranslationStatus={updateTranslationStatus}
                                     deleteTranslation={deleteTranslation}
                                     pageFields={[]}
                                     allFields={allFields}

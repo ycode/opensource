@@ -32,6 +32,8 @@ interface LoadingState {
   loadTranslations: boolean;
   createTranslation: boolean;
   updateTranslation: boolean;
+  updateTranslationValue: boolean;
+  updateTranslationStatus: boolean;
   deleteTranslation: boolean;
 }
 
@@ -71,6 +73,8 @@ interface LocalisationActions {
   // Translation CRUD
   createTranslation: (data: CreateTranslationData) => Promise<Translation | null>;
   updateTranslation: (translation: Translation | { locale_id: string; source_type: string; source_id: string; content_key: string }, updates: UpdateTranslationData) => Promise<void>;
+  updateTranslationValue: (translation: Translation | { locale_id: string; source_type: string; source_id: string; content_key: string }, contentValue: string) => Promise<void>;
+  updateTranslationStatus: (translation: Translation | { locale_id: string; source_type: string; source_id: string; content_key: string }, isCompleted: boolean) => Promise<void>;
   deleteTranslation: (translation: Translation | { locale_id: string; source_type: string; source_id: string; content_key: string }) => Promise<void>;
   upsertTranslations: (translations: CreateTranslationData[]) => Promise<void>;
 
@@ -98,6 +102,8 @@ const initialLoadingState: LoadingState = {
   loadTranslations: false,
   createTranslation: false,
   updateTranslation: false,
+  updateTranslationValue: false,
+  updateTranslationStatus: false,
   deleteTranslation: false,
 };
 
@@ -555,6 +561,151 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
       }
       console.error('Failed to update translation:', error);
       set({ error: 'Failed to update translation', isLoading: initialLoadingState });
+    }
+  },
+
+  // Update translation value only (optimistic for value)
+  updateTranslationValue: async (translation, contentValue) => {
+    const localeId = translation.locale_id;
+    const key = getTranslatableKey(translation);
+    const existingTranslation = get().translations[localeId]?.[key];
+
+    if (!existingTranslation) {
+      set({ error: 'Translation not found', isLoading: initialLoadingState });
+      return;
+    }
+
+    // Optimistically update content_value
+    set((state) => {
+      const localeTranslations = state.translations[localeId] || {};
+      const existingTranslation = localeTranslations[key];
+
+      if (existingTranslation) {
+        return {
+          translations: {
+            ...state.translations,
+            [localeId]: {
+              ...localeTranslations,
+              [key]: {
+                ...existingTranslation,
+                content_value: contentValue,
+                deleted_at: null,
+              },
+            },
+          },
+        };
+      }
+
+      return state;
+    });
+
+    set({ isLoading: { ...initialLoadingState, updateTranslationValue: true }, error: null });
+
+    try {
+      const result = await localisationApi.updateTranslation(existingTranslation.id, { content_value: contentValue });
+
+      if (result.error) {
+        // Revert optimistic update on error
+        set((state) => {
+          const localeTranslations = state.translations[localeId] || {};
+          return {
+            translations: {
+              ...state.translations,
+              [localeId]: {
+                ...localeTranslations,
+                [key]: existingTranslation,
+              },
+            },
+            error: result.error,
+            isLoading: initialLoadingState,
+          };
+        });
+        return;
+      }
+
+      if (!result.data) {
+        set({ error: 'No translation data returned', isLoading: initialLoadingState });
+        return;
+      }
+
+      const updatedTranslation: Translation = result.data;
+      const updatedKey = getTranslatableKey(updatedTranslation);
+      const updatedLocaleId = updatedTranslation.locale_id;
+
+      // Update with server response
+      set((state) => ({
+        translations: {
+          ...state.translations,
+          [updatedLocaleId]: {
+            ...(state.translations[updatedLocaleId] || {}),
+            [updatedKey]: updatedTranslation,
+          },
+        },
+        isLoading: initialLoadingState,
+      }));
+    } catch (error) {
+      // Revert optimistic update on error
+      set((state) => {
+        const localeTranslations = state.translations[localeId] || {};
+        return {
+          translations: {
+            ...state.translations,
+            [localeId]: {
+              ...localeTranslations,
+              [key]: existingTranslation,
+            },
+          },
+          error: 'Failed to update translation value',
+          isLoading: initialLoadingState,
+        };
+      });
+    }
+  },
+
+  // Update translation status only (no optimistic update)
+  updateTranslationStatus: async (translation, isCompleted) => {
+    const localeId = translation.locale_id;
+    const key = getTranslatableKey(translation);
+    const existingTranslation = get().translations[localeId]?.[key];
+
+    if (!existingTranslation) {
+      set({ error: 'Translation not found', isLoading: initialLoadingState });
+      return;
+    }
+
+    set({ isLoading: { ...initialLoadingState, updateTranslationStatus: true }, error: null });
+
+    try {
+      const result = await localisationApi.updateTranslation(existingTranslation.id, { is_completed: isCompleted });
+
+      if (result.error) {
+        set({ error: result.error, isLoading: initialLoadingState });
+        return;
+      }
+
+      if (!result.data) {
+        set({ error: 'No translation data returned', isLoading: initialLoadingState });
+        return;
+      }
+
+      const updatedTranslation: Translation = result.data;
+      const updatedKey = getTranslatableKey(updatedTranslation);
+      const updatedLocaleId = updatedTranslation.locale_id;
+
+      // Update with server response
+      set((state) => ({
+        translations: {
+          ...state.translations,
+          [updatedLocaleId]: {
+            ...(state.translations[updatedLocaleId] || {}),
+            [updatedKey]: updatedTranslation,
+          },
+        },
+        isLoading: initialLoadingState,
+      }));
+    } catch (error) {
+      console.error('Failed to update translation status:', error);
+      set({ error: 'Failed to update translation status', isLoading: initialLoadingState });
     }
   },
 
