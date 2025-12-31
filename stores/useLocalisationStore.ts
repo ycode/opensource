@@ -6,6 +6,7 @@
  */
 
 import { create } from 'zustand';
+import { localisationApi } from '@/lib/api';
 import { getTranslatableKey } from '@/lib/localisation-utils';
 import type { Locale, CreateLocaleData, UpdateLocaleData, Translation, CreateTranslationData, UpdateTranslationData } from '@/types';
 
@@ -126,8 +127,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     set({ isLoading: { ...initialLoadingState, load: true }, error: null });
 
     try {
-      const response = await fetch('/api/locales');
-      const result = await response.json();
+      const result = await localisationApi.getLocales();
 
       if (result.error) {
         set({ error: result.error, isLoading: initialLoadingState });
@@ -151,16 +151,10 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     set({ isLoading: { ...initialLoadingState, create: true }, error: null });
 
     try {
-      const response = await fetch('/api/locales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      const result = await localisationApi.createLocale(data);
 
-      const result = await response.json();
-
-      if (result.error) {
-        set({ error: result.error, isLoading: initialLoadingState });
+      if (result.error || !result.data) {
+        set({ error: result.error || 'Failed to create locale', isLoading: initialLoadingState });
         return null;
       }
 
@@ -190,16 +184,10 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     set({ isLoading: { ...initialLoadingState, update: true }, error: null });
 
     try {
-      const response = await fetch(`/api/locales/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
+      const result = await localisationApi.updateLocale(id, updates);
 
-      const result = await response.json();
-
-      if (result.error) {
-        set({ error: result.error, isLoading: initialLoadingState });
+      if (result.error || !result.data) {
+        set({ error: result.error || 'Failed to update locale', isLoading: initialLoadingState });
         return;
       }
 
@@ -223,11 +211,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     set({ isLoading: { ...initialLoadingState, delete: true }, error: null });
 
     try {
-      const response = await fetch(`/api/locales/${id}`, {
-        method: 'DELETE',
-      });
-
-      const result = await response.json();
+      const result = await localisationApi.deleteLocale(id);
 
       if (result.error) {
         set({ error: result.error, isLoading: initialLoadingState });
@@ -263,11 +247,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     set({ isLoading: { ...initialLoadingState, setDefault: true }, error: null });
 
     try {
-      const response = await fetch(`/api/locales/${id}/default`, {
-        method: 'POST',
-      });
-
-      const result = await response.json();
+      const result = await localisationApi.setDefaultLocale(id);
 
       if (result.error) {
         set({ error: result.error, isLoading: initialLoadingState });
@@ -322,8 +302,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     set({ isLoading: { ...initialLoadingState, loadTranslations: true }, error: null });
 
     try {
-      const response = await fetch(`/api/translations?locale_id=${localeId}&is_published=false`);
-      const result = await response.json();
+      const result = await localisationApi.getTranslations(localeId);
 
       if (result.error) {
         set({ error: result.error, isLoading: initialLoadingState });
@@ -402,13 +381,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     }));
 
     try {
-      const response = await fetch('/api/translations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      const result = await response.json();
+      const result = await localisationApi.createTranslation(data);
 
       if (result.error) {
         // Revert optimistic update on error
@@ -428,6 +401,11 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
             isLoading: initialLoadingState,
           };
         });
+        return null;
+      }
+
+      if (!result.data) {
+        set({ error: 'No translation data returned', isLoading: initialLoadingState });
         return null;
       }
 
@@ -511,13 +489,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     set({ isLoading: { ...initialLoadingState, updateTranslation: true }, error: null });
 
     try {
-      const response = await fetch(`/api/translations/${existingTranslation.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-
-      const result = await response.json();
+      const result = await localisationApi.updateTranslation(existingTranslation.id, updates);
 
       if (result.error) {
         // Revert optimistic update on error
@@ -539,6 +511,11 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
           return;
         }
         set({ error: result.error, isLoading: initialLoadingState });
+        return;
+      }
+
+      if (!result.data) {
+        set({ error: 'No translation data returned', isLoading: initialLoadingState });
         return;
       }
 
@@ -595,11 +572,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     }
 
     try {
-      const response = await fetch(`/api/translations/${existingTranslation.id}`, {
-        method: 'DELETE',
-      });
-
-      const result = await response.json();
+      const result = await localisationApi.deleteTranslation(existingTranslation.id);
 
       if (result.error) {
         set({ error: result.error, isLoading: initialLoadingState });

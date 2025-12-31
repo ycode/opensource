@@ -41,3 +41,16 @@ export async function invalidatePages(routePaths: string[]): Promise<boolean> {
 
   return results.every((result) => result);
 }
+
+/**
+ * Clear all cache (full site invalidation)
+ * Invalidates the root layout which cascades to all pages
+ */
+export async function clearAllCache(): Promise<void> {
+  try {
+    revalidatePath('/', 'layout');
+  } catch (error) {
+    console.error('❌ [Cache] Clear all error:', error);
+    throw new Error('Failed to clear all cache');
+  }
+}

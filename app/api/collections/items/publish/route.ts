@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publishValues } from '@/lib/repositories/collectionItemValueRepository';
 import { hardDeleteItem, getItemById } from '@/lib/repositories/collectionItemRepository';
-import { cleanupDeletedCollections } from '@/lib/services/collectionPublishingService';
+import { cleanupDeletedCollections } from '@/lib/services/collectionService';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route

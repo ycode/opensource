@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { publishCollectionWithItems, cleanupDeletedCollections } from '@/lib/services/collectionPublishingService';
+import { publishCollectionWithItems, cleanupDeletedCollections } from '@/lib/services/collectionService';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route

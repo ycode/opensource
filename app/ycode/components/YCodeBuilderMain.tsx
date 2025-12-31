@@ -668,11 +668,11 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     // Check if this is a pagination wrapper - if so, disable pagination on the collection
     const layerToDelete = findLayerById(layers, selectedLayerId);
     const paginationFor = layerToDelete?.attributes?.['data-pagination-for'];
-    
+
     if (editingComponentId) {
       // Delete from component draft
       let newLayers = layers;
-      
+
       // If deleting a pagination wrapper, disable pagination on the collection layer
       if (paginationFor) {
         const collectionLayer = findLayerById(layers, paginationFor);
@@ -690,7 +690,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
               return layer;
             });
           };
-          
+
           newLayers = updateInTree(newLayers, paginationFor, (layer) => ({
             ...layer,
             variables: {
@@ -708,7 +708,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           }));
         }
       }
-      
+
       newLayers = removeLayerById(newLayers, selectedLayerId);
       updateCurrentLayers(newLayers);
       setSelectedLayerId(nextLayerId);
@@ -1149,7 +1149,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                 // Delete multiple from component
                 const layers = getCurrentLayers();
                 let newLayers = layers;
-                
+
                 // Helper to update layer in tree
                 const updateInTree = (tree: Layer[], targetId: string, updater: (l: Layer) => Layer): Layer[] => {
                   return tree.map(layer => {
@@ -1162,7 +1162,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                     return layer;
                   });
                 };
-                
+
                 // Check each layer for pagination wrappers and disable pagination on collection
                 for (const layerId of selectedLayerIds) {
                   const layerToDelete = findLayerById(layers, layerId);
@@ -1189,7 +1189,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                     }
                   }
                 }
-                
+
                 for (const layerId of selectedLayerIds) {
                   newLayers = removeLayerById(newLayers, layerId);
                 }

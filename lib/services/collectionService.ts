@@ -832,3 +832,49 @@ export async function needsPublishing(collectionId: string): Promise<boolean> {
 
   return false;
 }
+
+/**
+ * Group collection item IDs by their collection ID
+ * Queries the database to find which collection each item belongs to
+ *
+ * @param itemIds - Array of collection item IDs
+ * @returns Map of collection ID to array of item IDs
+ */
+export async function groupItemsByCollection(
+  itemIds: string[]
+): Promise<Map<string, string[]>> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  if (itemIds.length === 0) {
+    return new Map();
+  }
+
+  const { data: items, error } = await client
+    .from('collection_items')
+    .select('id, collection_id')
+    .eq('is_published', false)
+    .in('id', itemIds);
+
+  if (error) {
+    throw new Error(`Failed to fetch collection items: ${error.message}`);
+  }
+
+  if (!items) {
+    return new Map();
+  }
+
+  // Group items by collection
+  const itemsByCollection = new Map<string, string[]>();
+  
+  items.forEach((item: any) => {
+    const existing = itemsByCollection.get(item.collection_id) || [];
+    existing.push(item.id);
+    itemsByCollection.set(item.collection_id, existing);
+  });
+
+  return itemsByCollection;
+}

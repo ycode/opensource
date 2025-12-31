@@ -315,22 +315,44 @@ function extractLayerTranslatableItems(
       });
     }
 
-    // Extract alt text from attributes (for images)
-    const alt = layer.attributes?.alt;
-    if (alt && typeof alt === 'string' && alt.trim()) {
-      items.push({
-        key: `${sourceType}:${sourceId}:layer:${layer.id}:alt`,
-        source_type: sourceType,
-        source_id: sourceId,
-        content_key: `layer:${layer.id}:alt`,
-        content_type: 'text',
-        content_value: alt.trim(),
-        info: {
-          icon: 'image',
-          label: `${getLayerName(layer)} (alt text)`,
-        },
-      });
-    }
+    // @todo: Extract alt text from layer.alt property (for images)
+    // const alt = layer.alt;
+    // if (alt && typeof alt === 'string' && alt.trim()) {
+    //   items.push({
+    //     key: `${sourceType}:${sourceId}:layer:${layer.id}:alt`,
+    //     source_type: sourceType,
+    //     source_id: sourceId,
+    //     content_key: `layer:${layer.id}:alt`,
+    //     content_type: 'text',
+    //     content_value: alt.trim(),
+    //     info: {
+    //       icon: 'image',
+    //       label: `${getLayerName(layer)} (alt text)`,
+    //     },
+    //   });
+    // }
+
+    // @todo: Extract static asset ID from image layers
+    // if (layer.name === 'image' && layer.[...]) {
+    //   const url = layer.url.trim();
+    //   // Check if it's an asset URL (starts with /uploads/ or /api/assets/ or is a full asset URL)
+    //   const isAssetUrl = true
+
+    //   if (isAssetUrl && url) {
+    //     items.push({
+    //       key: `${sourceType}:${sourceId}:layer:${layer.id}:image_src`,
+    //       source_type: sourceType,
+    //       source_id: sourceId,
+    //       content_key: `layer:${layer.id}:image_src`,
+    //       content_type: 'asset_id',
+    //       content_value: url,
+    //       info: {
+    //         icon: 'image',
+    //         label: getLayerName(layer),
+    //       },
+    //     });
+    //   }
+    // }
 
     // Recursively process children
     if (layer.children && Array.isArray(layer.children) && layer.children.length > 0) {

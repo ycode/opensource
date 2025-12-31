@@ -74,9 +74,6 @@ interface PagesActions {
   updateComponentOnLayers: (componentId: string, newLayers: Layer[]) => void;
   detachComponentFromAllLayers: (componentId: string) => void;
 
-  // Publish actions
-  publishPages: (pageIds: string[]) => Promise<{ success: boolean; count?: number; error?: string }>;
-
   // Page collection item actions (for dynamic pages)
   updatePageCollectionItem: (pageId: string, updatedItem: CollectionItemWithValues) => void;
   refetchPageCollectionItem: (pageId: string) => Promise<void>;
@@ -491,7 +488,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         // Sections can only be added at Body level
         // Find the Body layer (root container)
         const bodyLayer = draft.layers.find(l => l.id === 'body' || l.name === 'body');
-        
+
         if (bodyLayer) {
           // Add Section as a child of Body
           newLayers = updateLayerInTree(draft.layers, bodyLayer.id, (body) => ({
@@ -2645,35 +2642,11 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     set({ draftsByPageId: updatedDrafts });
   },
 
-  publishPages: async (pageIds: string[]) => {
-    set({ isLoading: true, error: null });
-
-    try {
-      const response = await pagesApi.publishPages(pageIds);
-
-      if (response.error) {
-        set({ error: response.error, isLoading: false });
-        return { success: false, error: response.error };
-      }
-
-      // Reload pages to reflect published status
-      await get().loadPages();
-
-      set({ isLoading: false });
-      return { success: true, count: response.data?.count || 0 };
-    } catch (error) {
-      console.error('[usePagesStore.publishPages] Exception:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to publish pages';
-      set({ error: errorMsg, isLoading: false });
-      return { success: false, error: errorMsg };
-    }
-  },
-
   updatePageCollectionItem: (pageId, updatedItem) => {
     set((state) => {
       const draft = state.draftsByPageId[pageId];
       if (!draft) return state;
-      
+
       return {
         draftsByPageId: {
           ...state.draftsByPageId,
@@ -2689,24 +2662,24 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   refetchPageCollectionItem: async (pageId) => {
     const state = get();
     const page = state.pages.find(p => p.id === pageId);
-    
+
     if (!page?.is_dynamic || !page.settings?.cms?.collection_id) {
       return;
     }
-    
+
     // Get the current collection item from the draft
     const draft = state.draftsByPageId[pageId];
     const currentItem = (draft as any)?.collectionItem as CollectionItemWithValues | undefined;
-    
+
     if (!currentItem) {
       return; // No item to refetch
     }
-    
+
     try {
       // Fetch fresh collection item data
       const response = await fetch(`/api/pages/${pageId}/collection-item?itemId=${currentItem.id}`);
       const result = await response.json();
-      
+
       if (result.data) {
         state.updatePageCollectionItem(pageId, result.data);
       }

@@ -157,8 +157,8 @@ export default function LocalizationContent({ children }: LocalizationContentPro
       params.delete('search');
     }
 
-    // Update or remove locale param
-    if (selectedLocale?.code) {
+    // Update or remove locale param (don't add for default locale)
+    if (selectedLocale && !selectedLocale.is_default) {
       params.set('locale', selectedLocale.code);
     } else {
       params.delete('locale');

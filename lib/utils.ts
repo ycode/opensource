@@ -196,7 +196,7 @@ export function formatDate(date: string | Date | null | undefined, format: strin
  * formatRelativeTime(new Date()) // 'just now'
  * formatRelativeTime('2025-11-11T09:38:45.000Z') // '2 hours ago'
  */
-export function formatRelativeTime(date: string | Date | null | undefined): string {
+export function formatRelativeTime(date: string | Date | null | undefined, showSeconds: boolean = true): string {
   if (!date) return '-';
 
   const dateObj = typeof date === 'string' ? new Date(date) : date;
@@ -213,7 +213,7 @@ export function formatRelativeTime(date: string | Date | null | undefined): stri
   const diffYears = Math.floor(diffDays / 365);
 
   if (diffSecs < 10) return 'just now';
-  if (diffSecs < 60) return `${diffSecs} seconds ago`;
+  if (diffSecs < 60) return showSeconds ? `${diffSecs} seconds ago` : 'a few seconds ago';
   if (diffMins === 1) return '1 minute ago';
   if (diffMins < 60) return `${diffMins} minutes ago`;
   if (diffHours === 1) return '1 hour ago';

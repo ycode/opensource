@@ -65,6 +65,7 @@ async function loadTranslationsForLocale(
       .from('locales')
       .select('*')
       .eq('code', localeCode)
+      .eq('is_published', isPublished)
       .is('deleted_at', null)
       .single();
 

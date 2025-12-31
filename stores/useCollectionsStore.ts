@@ -51,9 +51,6 @@ interface CollectionsActions {
 
   // Utility
   clearError: () => void;
-
-  // Publish
-  publishCollections: (collectionIds: string[]) => Promise<{ success: boolean; published?: Record<string, number>; error?: string }>;
 }
 
 type CollectionsStore = CollectionsState & CollectionsActions;
@@ -731,31 +728,6 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
     } catch (error) {
       console.error('Failed to get dropdown items:', error);
       return [];
-    }
-  },
-
-  // Publish
-  publishCollections: async (collectionIds: string[]) => {
-    set({ isLoading: true, error: null });
-
-    try {
-      const response = await collectionsApi.publishCollections(collectionIds);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      // Reload items for affected collections
-      for (const collectionId of collectionIds) {
-        await get().loadItems(collectionId);
-      }
-
-      set({ isLoading: false });
-      return { success: true, published: response.data?.published || {} };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to publish collections';
-      set({ error: errorMessage, isLoading: false });
-      return { success: false, error: errorMessage };
     }
   },
 }));

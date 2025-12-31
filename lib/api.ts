@@ -4,7 +4,7 @@
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData, Locale } from '../types';
+import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData, Locale, Translation, CreateLocaleData, UpdateLocaleData, CreateTranslationData, UpdateTranslationData } from '../types';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -107,14 +107,6 @@ export const pagesApi = {
   async getUnpublished(): Promise<ApiResponse<Page[]>> {
     return apiRequest<Page[]>('/api/pages/unpublished');
   },
-
-  // Publish pages
-  async publishPages(pageIds: string[]): Promise<ApiResponse<{ count: number }>> {
-    return apiRequest<{ count: number }>('/api/pages/publish', {
-      method: 'POST',
-      body: JSON.stringify({ page_ids: pageIds }),
-    });
-  },
 };
 
 // Folders API
@@ -186,18 +178,37 @@ export const pageLayersApi = {
   },
 };
 
-// Publish API
+// Publish API - Global publishing endpoint
 export const publishApi = {
-  // Publish all draft records (pages, folders, layers, etc.)
-  async publishAll(): Promise<ApiResponse<{
-    published: Array<{ page: Page; layers: PageLayers }>;
-    publishedFolders: PageFolder[];
-    created: number;
-    updated: number;
-    unchanged: number;
+  /**
+   * Publish all unpublished items or specific selected items
+   * @param options - Publishing options
+   */
+  async publish(options: {
+    folderIds?: string[];
+    pageIds?: string[];
+    collectionIds?: string[];
+    collectionItemIds?: string[];
+    componentIds?: string[];
+    layerStyleIds?: string[];
+    publishLocales?: boolean;
+    publishAll?: boolean;
+  } = {}): Promise<ApiResponse<{
+    changes: {
+      folders: number;
+      pages: number;
+      collectionItems: number;
+      components: number;
+      layerStyles: number;
+      locales: number;
+      translations: number;
+      css: boolean;
+    };
+    published_at_setting: Setting;
   }>> {
-    return apiRequest(`/api/publish`, {
+    return apiRequest('/api/publish', {
       method: 'POST',
+      body: JSON.stringify(options),
     });
   },
 };
@@ -374,40 +385,6 @@ export const collectionsApi = {
     return apiRequest<Record<string, number>>('/api/collections/publishable-counts');
   },
 
-  async publishCollections(collectionIds: string[]): Promise<ApiResponse<{ published: Record<string, number> }>> {
-    return apiRequest<{ published: Record<string, number> }>('/api/collections/publish', {
-      method: 'POST',
-      body: JSON.stringify({ collection_ids: collectionIds }),
-    });
-  },
-
-  // Publish collections with selective items (new composite key architecture)
-  async publishCollectionsWithItems(
-    publishes: Array<{ collectionId: string; itemIds?: string[] }>
-  ): Promise<ApiResponse<{
-    results: Array<{
-      success: boolean;
-      collectionId: string;
-      published: {
-        collection: boolean;
-        fieldsCount: number;
-        itemsCount: number;
-        valuesCount: number;
-      };
-      errors?: string[];
-    }>;
-    summary: {
-      total: number;
-      succeeded: number;
-      failed: number;
-    };
-  }>> {
-    return apiRequest('/api/collections/publish', {
-      method: 'POST',
-      body: JSON.stringify({ publishes }),
-    });
-  },
-
   // Items (with values)
   async getTopItemsPerCollection(
     collectionIds: string[],
@@ -528,14 +505,6 @@ export const componentsApi = {
   async getUnpublished(): Promise<ApiResponse<Component[]>> {
     return apiRequest<Component[]>('/api/components/unpublished');
   },
-
-  // Publish components
-  async publishComponents(componentIds: string[]): Promise<ApiResponse<{ count: number }>> {
-    return apiRequest<{ count: number }>('/api/components/publish', {
-      method: 'POST',
-      body: JSON.stringify({ component_ids: componentIds }),
-    });
-  },
 };
 
 // Layer Styles API
@@ -543,14 +512,6 @@ export const layerStylesApi = {
   // Get unpublished layer styles
   async getUnpublished(): Promise<ApiResponse<LayerStyle[]>> {
     return apiRequest<LayerStyle[]>('/api/layer-styles/unpublished');
-  },
-
-  // Publish layer styles
-  async publishLayerStyles(styleIds: string[]): Promise<ApiResponse<{ count: number }>> {
-    return apiRequest<{ count: number }>('/api/layer-styles/publish', {
-      method: 'POST',
-      body: JSON.stringify({ style_ids: styleIds }),
-    });
   },
 };
 
@@ -568,6 +529,69 @@ export const editorApi = {
     locales: Locale[];
   }>> {
     return apiRequest('/api/editor/init');
+  },
+};
+
+// Localisation API
+export const localisationApi = {
+  // Locales
+  async getLocales(): Promise<ApiResponse<Locale[]>> {
+    return apiRequest<Locale[]>('/api/locales');
+  },
+
+  async getLocaleById(id: string): Promise<ApiResponse<Locale>> {
+    return apiRequest<Locale>(`/api/locales/${id}`);
+  },
+
+  async createLocale(data: CreateLocaleData): Promise<ApiResponse<{ locale: Locale; locales: Locale[] }>> {
+    return apiRequest<{ locale: Locale; locales: Locale[] }>('/api/locales', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateLocale(id: string, data: UpdateLocaleData): Promise<ApiResponse<{ locale: Locale; locales: Locale[] }>> {
+    return apiRequest<{ locale: Locale; locales: Locale[] }>(`/api/locales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteLocale(id: string): Promise<ApiResponse<void>> {
+    return apiRequest<void>(`/api/locales/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async setDefaultLocale(id: string): Promise<ApiResponse<Locale>> {
+    return apiRequest<Locale>(`/api/locales/${id}/default`, {
+      method: 'POST',
+    });
+  },
+
+  // Translations
+  async getTranslations(localeId: string): Promise<ApiResponse<Translation[]>> {
+    return apiRequest<Translation[]>(`/api/translations?locale_id=${localeId}`);
+  },
+
+  async createTranslation(data: CreateTranslationData): Promise<ApiResponse<Translation>> {
+    return apiRequest<Translation>('/api/translations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateTranslation(id: string, data: UpdateTranslationData): Promise<ApiResponse<Translation>> {
+    return apiRequest<Translation>(`/api/translations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteTranslation(id: string): Promise<ApiResponse<void>> {
+    return apiRequest<void>(`/api/translations/${id}`, {
+      method: 'DELETE',
+    });
   },
 };
 

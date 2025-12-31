@@ -4,6 +4,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import { findHomepage } from '@/lib/page-utils';
+import { formatRelativeTime } from '@/lib/utils';
 import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,11 +28,11 @@ import { FileManagerDialog } from './FileManagerDialog';
 
 // 4. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
-import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import { pagesApi, collectionsApi, componentsApi, layerStylesApi, cacheApi } from '@/lib/api';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { pagesApi, collectionsApi, componentsApi, layerStylesApi, publishApi } from '@/lib/api';
 import { buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 
 // 5. Types
@@ -87,10 +88,11 @@ export default function HeaderBar({
   const router = useRouter();
   const pathname = usePathname();
   const pageDropdownRef = useRef<HTMLDivElement>(null);
-  const { editingComponentId, returnToPageId, currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode } = useEditorStore();
+  const { currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode } = useEditorStore();
   const { folders, pages: storePages } = usePagesStore();
   const { items, fields } = useCollectionsStore();
   const { locales, selectedLocaleId, setSelectedLocaleId, translations } = useLocalisationStore();
+  const { getSettingByKey, updateSetting } = useSettingsStore();
   const { navigateToLayers, updateQueryParams } = useEditorUrl();
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [showPublishPopover, setShowPublishPopover] = useState(false);
@@ -105,6 +107,9 @@ export default function HeaderBar({
     return 'dark';
   });
   const [baseUrl, setBaseUrl] = useState<string>('');
+
+  // Get published_at from settings store (loaded on builder init)
+  const publishedAt = getSettingByKey('published_at');
 
   // Get current host after mount
   useEffect(() => {
@@ -313,70 +318,17 @@ export default function HeaderBar({
     try {
       setIsPublishing(true);
 
-      // Get all unpublished items
-      const [pagesResponse, collectionsResponse, componentsResponse, stylesResponse] = await Promise.all([
-        pagesApi.getUnpublished(),
-        collectionsApi.getAll(),
-        componentsApi.getUnpublished(),
-        layerStylesApi.getUnpublished(),
-      ]);
+      // Use global publish API to publish all unpublished items
+      const result = await publishApi.publish({ publishAll: true });
 
-      // Publish pages
-      if (pagesResponse.data && pagesResponse.data.length > 0) {
-        const pageIds = pagesResponse.data.map(p => p.id);
-        await pagesApi.publishPages(pageIds);
+      if (result.error) {
+        throw new Error(result.error);
       }
 
-      // Publish collections with all their unpublished items
-      if (collectionsResponse.data) {
-        const collectionPublishes = [];
-
-        for (const collection of collectionsResponse.data) {
-          const itemsResponse = await collectionsApi.getUnpublishedItems(collection.id);
-          if (itemsResponse.data && itemsResponse.data.length > 0) {
-            collectionPublishes.push({
-              collectionId: collection.id,
-              itemIds: itemsResponse.data.map(item => item.id),
-            });
-          }
-        }
-
-        if (collectionPublishes.length > 0) {
-          await collectionsApi.publishCollectionsWithItems(collectionPublishes);
-        }
+      // Sync published timestamp to store from response
+      if (result.data?.published_at_setting?.value) {
+        updateSetting('published_at', result.data.published_at_setting.value);
       }
-
-      // Publish components
-      if (componentsResponse.data && componentsResponse.data.length > 0) {
-        const componentIds = componentsResponse.data.map(c => c.id);
-        await componentsApi.publishComponents(componentIds);
-      }
-
-      // Publish layer styles
-      if (stylesResponse.data && stylesResponse.data.length > 0) {
-        const styleIds = stylesResponse.data.map(s => s.id);
-        await layerStylesApi.publishLayerStyles(styleIds);
-      }
-
-      // Copy draft CSS to published CSS
-      try {
-        const draftCssResponse = await fetch('/api/settings/draft_css');
-        if (draftCssResponse.ok) {
-          const draftCssResult = await draftCssResponse.json();
-          if (draftCssResult.data) {
-            await fetch('/api/settings/published_css', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ value: draftCssResult.data }),
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Failed to publish CSS:', error);
-      }
-
-      // Clear cache
-      await cacheApi.clearAll();
 
       // Success callback
       onPublishSuccess();
@@ -538,7 +490,7 @@ export default function HeaderBar({
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={() => router.push('/ycode/localization/languages')}
+                  onClick={() => router.push('/ycode/localization')}
                 >
                   Manage locales
                 </DropdownMenuItem>
@@ -621,11 +573,11 @@ export default function HeaderBar({
           <PopoverTrigger asChild>
             <Button size="sm" disabled={isSettingsRoute}>Publish</Button>
           </PopoverTrigger>
-          <PopoverContent className="mr-4 mt-0.5">
 
+          <PopoverContent className="mr-4 mt-0.5">
             <div>
               <Label>{baseUrl}</Label>
-              <span className="text-popover-foreground text-[10px]">Updated 5 minutes ago</span>
+              <span className="text-popover-foreground text-[10px]">{publishedAt ? `Published ${formatRelativeTime(publishedAt, false)}` : 'Never published'}</span>
             </div>
 
             <hr className="my-3" />
@@ -636,9 +588,15 @@ export default function HeaderBar({
               <PublishDialog
                 isOpen={showPublishDialog}
                 onClose={() => setShowPublishDialog(false)}
-                onSuccess={() => {
+                onSuccess={(publishedAtValue) => {
                   setShowPublishDialog(false);
                   setShowPublishPopover(false);
+
+                  // Sync published timestamp to store from response
+                  if (publishedAtValue) {
+                    updateSetting('published_at', publishedAtValue);
+                  }
+
                   onPublishSuccess();
                   loadChangesCount();
                 }}
@@ -686,7 +644,6 @@ export default function HeaderBar({
                 'Publish'
               )}
             </Button>
-
           </PopoverContent>
         </Popover>
 

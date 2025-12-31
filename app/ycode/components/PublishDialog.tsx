@@ -11,8 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-import Icon from '@/components/ui/icon';
-import { pagesApi, collectionsApi, componentsApi, layerStylesApi, cacheApi } from '@/lib/api';
+import { pagesApi, collectionsApi, componentsApi, layerStylesApi, publishApi } from '@/lib/api';
 import type { Page, Collection, Component, LayerStyle, CollectionItemWithValues } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -20,7 +19,7 @@ import { Label } from '@/components/ui/label';
 interface PublishDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (publishedAt?: string) => void;
 }
 
 export default function PublishDialog({
@@ -132,96 +131,22 @@ export default function PublishDialog({
     setError(null);
 
     try {
-      let totalPublished = 0;
+      // Use global publish API with selected items
+      const result = await publishApi.publish({
+        pageIds: selectedPageIds.size > 0 ? Array.from(selectedPageIds) : undefined,
+        collectionItemIds: selectedItemIds.size > 0 ? Array.from(selectedItemIds) : undefined,
+        componentIds: selectedComponentIds.size > 0 ? Array.from(selectedComponentIds) : undefined,
+        layerStyleIds: selectedLayerStyleIds.size > 0 ? Array.from(selectedLayerStyleIds) : undefined,
+        publishLocales: true,
+      });
 
-      // Publish selected pages
-      if (selectedPageIds.size > 0) {
-        const pagesResponse = await pagesApi.publishPages(Array.from(selectedPageIds));
-        if (pagesResponse.error) {
-          throw new Error(pagesResponse.error);
-        }
-        totalPublished += pagesResponse.data?.count || 0;
+      if (result.error) {
+        throw new Error(result.error);
       }
-
-      // Publish selected collection items
-      // Group items by collection and publish collections with their selected items
-      if (selectedItemIds.size > 0) {
-        // Build a map of collection ID -> selected item IDs
-        const collectionItemsMap = new Map<string, string[]>();
-
-        collectionsWithItems.forEach(({ collection, items }) => {
-          const selectedItemsInCollection = items
-            .filter(item => selectedItemIds.has(item.id))
-            .map(item => item.id);
-
-          if (selectedItemsInCollection.length > 0) {
-            collectionItemsMap.set(collection.id, selectedItemsInCollection);
-          }
-        });
-
-        // Publish each collection with its selected items
-        const collectionPublishes = Array.from(collectionItemsMap.entries()).map(
-          ([collectionId, itemIds]) => ({
-            collectionId,
-            itemIds,
-          })
-        );
-
-        if (collectionPublishes.length > 0) {
-          const collectionsResponse = await collectionsApi.publishCollectionsWithItems(collectionPublishes);
-          if (collectionsResponse.error) {
-            throw new Error(collectionsResponse.error);
-          }
-          // Count items from results
-          if (collectionsResponse.data?.results) {
-            collectionsResponse.data.results.forEach(result => {
-              totalPublished += result.published?.itemsCount || 0;
-            });
-          }
-        }
-      }
-
-      // Publish selected components
-      if (selectedComponentIds.size > 0) {
-        const componentsResponse = await componentsApi.publishComponents(Array.from(selectedComponentIds));
-        if (componentsResponse.error) {
-          throw new Error(componentsResponse.error);
-        }
-        totalPublished += componentsResponse.data?.count || 0;
-      }
-
-      // Publish selected layer styles
-      if (selectedLayerStyleIds.size > 0) {
-        const stylesResponse = await layerStylesApi.publishLayerStyles(Array.from(selectedLayerStyleIds));
-        if (stylesResponse.error) {
-          throw new Error(stylesResponse.error);
-        }
-        totalPublished += stylesResponse.data?.count || 0;
-      }
-
-      // Copy draft CSS to published CSS
-      try {
-        const draftCssResponse = await fetch('/api/settings/draft_css');
-        if (draftCssResponse.ok) {
-          const draftCssResult = await draftCssResponse.json();
-          if (draftCssResult.data) {
-            await fetch('/api/settings/published_css', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ value: draftCssResult.data }),
-            });
-          }
-        }
-      } catch {
-        throw new Error('Failed to publish the CSS contents');
-      }
-
-      // Invalidate all cache via API
-      await cacheApi.clearAll();
 
       // Show success and close
       if (onSuccess) {
-        onSuccess();
+        onSuccess(result.data?.published_at_setting?.value);
       }
 
       // Reset selections
