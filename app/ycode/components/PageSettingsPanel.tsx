@@ -2,83 +2,1139 @@
 
 /**
  * Page Settings Panel
- * 
+ *
  * Slide-out panel for creating and editing pages
  */
 
-import { useState, useEffect } from 'react';
-import type { Page } from '../../../types';
+import React, { useState, useEffect, useMemo, useRef, useImperativeHandle, useCallback } from 'react';
+import Image from 'next/image';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import type { Page, PageSettings, Asset, FieldVariable } from '@/types';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { usePagesStore } from '@/stores/usePagesStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldSet
+} from '@/components/ui/field';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import * as SelectPrimitive from '@radix-ui/react-select';
+import { Switch } from '@/components/ui/switch';
+import { Spinner } from '@/components/ui/spinner';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import Icon from '@/components/ui/icon';
+import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug, sanitizeSlug } from '@/lib/page-utils';
+import { isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
+import { Textarea } from '@/components/ui/textarea';
+import { uploadFileApi, deleteAssetApi } from '@/lib/api';
+import { useAsset } from '@/hooks/use-asset';
+import { useAssetsStore } from '@/stores/useAssetsStore';
+import InputWithInlineVariables from './InputWithInlineVariables';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
+
+export interface PageSettingsPanelHandle {
+  checkUnsavedChanges: () => Promise<boolean>;
+}
 
 interface PageSettingsPanelProps {
   isOpen: boolean;
-  onClose: () => void;
   page?: Page | null;
+  onClose: () => void;
   onSave: (pageData: PageFormData) => Promise<void>;
 }
 
 export interface PageFormData {
-  title: string;
+  name: string;
   slug: string;
-  status: 'draft' | 'published';
+  page_folder_id?: string | null;
+  is_published?: boolean;
+  order?: number;
+  depth?: number;
+  is_index?: boolean;
+  is_dynamic?: boolean;
+  error_page?: number | null;
+  settings?: PageSettings;
 }
 
-export default function PageSettingsPanel({
+// Helper to check if image is a FieldVariable
+const isSeoImageFieldVariable = (image: string | FieldVariable | null): image is FieldVariable => {
+  return image !== null && typeof image === 'object' && 'type' in image && image.type === 'field';
+};
+
+// Helper to compare seoImage values (handles FieldVariable deep comparison)
+const compareSeoImage = (
+  a: string | FieldVariable | null,
+  b: string | FieldVariable | null
+): boolean => {
+  // Both null or both same string
+  if (a === b) return true;
+
+  // One is null, other is not
+  if (a === null || b === null) return false;
+
+  // Both are strings
+  if (typeof a === 'string' && typeof b === 'string') return a === b;
+
+  // Both are FieldVariables - compare field_id
+  if (isSeoImageFieldVariable(a) && isSeoImageFieldVariable(b)) {
+    return a.data.field_id === b.data.field_id;
+  }
+
+  // Different types
+  return false;
+};
+
+const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettingsPanelProps>(({
   isOpen,
   onClose,
   page,
   onSave,
-}: PageSettingsPanelProps) {
-  const [activeTab, setActiveTab] = useState<'general' | 'seo' | 'social' | 'code'>('general');
-  const [title, setTitle] = useState('');
+}, ref) => {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [pageFolderId, setPageFolderId] = useState<string | null>(null);
+  const [isIndex, setIsIndex] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize form when page changes
+  const [seoTitle, setSeoTitle] = useState('');
+  const [seoDescription, setSeoDescription] = useState('');
+  const [seoImage, setSeoImage] = useState<string | FieldVariable | null>(null);
+  const [seoNoindex, setSeoNoindex] = useState(false);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [customCodeHead, setCustomCodeHead] = useState('');
+  const [customCodeBody, setCustomCodeBody] = useState('');
+  const [headVariableSelectKey, setHeadVariableSelectKey] = useState(0);
+  const [bodyVariableSelectKey, setBodyVariableSelectKey] = useState(0);
+  const customCodeHeadRef = useRef<HTMLTextAreaElement | null>(null);
+  const customCodeBodyRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const [authEnabled, setAuthEnabled] = useState(false);
+  const [authPassword, setAuthPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [slugFieldId, setSlugFieldId] = useState<string | null>(null);
+
+  const { collections, fields } = useCollectionsStore();
+
+  const [uploadedAssetCache, setUploadedAssetCache] = useState<Asset | null>(null);
+  // Only use asset hook if seoImage is a string (asset ID)
+  const seoImageId = typeof seoImage === 'string' ? seoImage : null;
+  const seoImageAsset = useAsset(seoImageId);
+  const { addAsset, removeAsset } = useAssetsStore();
+  const displayAsset = uploadedAssetCache || seoImageAsset;
+
+  // Check if there's any image displayed (including temp preview)
+  const hasImage = seoImage !== null || imagePreviewUrl !== null || displayAsset !== null;
+  // Check if there's an uploaded asset (not a field variable)
+  const hasUploadedAsset = (imagePreviewUrl || displayAsset) && !isSeoImageFieldVariable(seoImage);
+
+  const [currentPage, setCurrentPage] = useState<Page | null | undefined>(page);
+
+  // Initialize active tab from URL or default to general
+  const [activeTab, setActiveTab] = useState<'general' | 'seo' | 'custom-code'>(() => {
+    const editParam = searchParams?.get('edit');
+    if (['seo', 'custom-code', 'general'].includes(editParam || '')) {
+      return editParam as 'general' | 'seo' | 'custom-code';
+    }
+    return 'general';
+  });
+
+  // Update URL when panel opens or activeTab changes
   useEffect(() => {
-    if (page) {
-      setTitle(page.title);
-      setSlug(page.slug);
+    // Reset URL ref when panel closes (so URL can be updated when panel opens again)
+    if (!isOpen || !currentPage?.id) {
+      lastUrlRef.current = null;
+      return;
+    }
+
+    // If the panel was opened or activeTab changed, build the target URL
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('edit', activeTab || 'general');
+    const query = params.toString();
+    const targetUrl = `${pathname}${query ? `?${query}` : ''}`;
+
+    // Only navigate if URL is actually different from what we last set
+    if (lastUrlRef.current !== targetUrl) {
+      lastUrlRef.current = targetUrl;
+      router.replace(targetUrl);
+    }
+  }, [isOpen, activeTab, currentPage?.id, router, pathname, searchParams]);
+
+  // Handle tab changes - update local state
+  // URL is updated by the effect below when activeTab changes
+  const handleTabChange = useCallback((value: string) => {
+    const newTab = value as 'general' | 'seo' | 'custom-code';
+    setActiveTab(newTab);
+  }, []);
+
+  useEffect(() => {
+    if (uploadedAssetCache && seoImageAsset && uploadedAssetCache.id === seoImageAsset.id) {
+      setUploadedAssetCache(null);
+    }
+  }, [uploadedAssetCache, seoImageAsset]);
+
+  const [saveCounter, setSaveCounter] = useState(0);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'close' | 'navigate' | 'external' | null>(null);
+
+  const [pendingPageChange, setPendingPageChange] = useState<Page | null | undefined>(null);
+  const rejectedPageRef = useRef<Page | null | undefined>(null);
+  const confirmationResolverRef = useRef<((value: boolean) => void) | null>(null);
+  const skipNextInitializationRef = useRef(false);
+  const lastUrlRef = useRef<string | null>(null);
+  const initialValuesRef = useRef<{
+    name: string;
+    slug: string;
+    pageFolderId: string | null;
+    isIndex: boolean;
+    seoTitle: string;
+    seoDescription: string;
+    seoImage: string | FieldVariable | null;
+    seoNoindex: boolean;
+    customCodeHead: string;
+    customCodeBody: string;
+    authEnabled: boolean;
+    authPassword: string;
+    collectionId: string | null;
+    slugFieldId: string | null;
+  } | null>(null);
+
+  const pages = usePagesStore((state) => state.pages);
+  const folders = usePagesStore((state) => state.folders);
+
+  const isErrorPage = useMemo(() => currentPage?.error_page !== null, [currentPage]);
+  const isDynamicPage = useMemo(() => currentPage?.is_dynamic === true, [currentPage]);
+
+  // Get collection fields for variable insertion
+  const collectionFields = useMemo(() => {
+    if (!isDynamicPage) return [];
+    const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+    return fields[activeCollectionId] || [];
+  }, [isDynamicPage, collectionId, currentPage?.settings?.cms?.collection_id, fields]);
+
+  // Get available field variables for the selected collection
+  const customCodeVariables = useMemo(() => {
+    return collectionFields.map(field => `{{${field.name}}}`).join(', ');
+  }, [collectionFields]);
+
+  // Helper function to insert text at cursor position in textarea
+  const insertTextAtCursor = useCallback((textarea: HTMLTextAreaElement | null, text: string, setValue: (value: string) => void, currentValue: string) => {
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const newValue = currentValue.substring(0, start) + text + currentValue.substring(end);
+
+    setValue(newValue);
+
+    // Set cursor position after inserted text
+    setTimeout(() => {
+      const newCursorPos = start + text.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      textarea.focus();
+    }, 0);
+  }, []);
+
+  // Handle field variable insertion
+  const handleFieldVariableInsert = useCallback((fieldName: string, textareaRef: React.RefObject<HTMLTextAreaElement | null>, setValue: (value: string) => void, currentValue: string) => {
+    const variableText = `{{${fieldName}}}`;
+    insertTextAtCursor(textareaRef.current, variableText, setValue, currentValue);
+  }, [insertTextAtCursor]);
+
+  // Reusable field variable select component
+  const renderCustomCodeFieldSelector = useCallback(({
+    textareaRef,
+    value,
+    setValue,
+    selectKey,
+    setSelectKey,
+  }: {
+    textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+    value: string;
+    setValue: (value: string) => void;
+    selectKey: number;
+    setSelectKey: (updater: (prev: number) => number) => void;
+  }) => {
+    if (!isDynamicPage || collectionFields.length === 0) return null;
+
+    return (
+      <Select
+        key={selectKey}
+        onValueChange={(fieldName) => {
+          handleFieldVariableInsert(fieldName, textareaRef, setValue, value);
+          setSelectKey(prev => prev + 1);
+        }}
+      >
+        <SelectPrimitive.Trigger asChild>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-6 w-6 p-0"
+          >
+            <Icon name="database" className="size-2.5" />
+          </Button>
+        </SelectPrimitive.Trigger>
+        <SelectContent>
+          {collectionFields.map((field) => (
+            <SelectItem key={field.id} value={field.name}>
+              {field.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }, [isDynamicPage, collectionFields, handleFieldVariableInsert]);
+
+  // Check if there's a URL conflict warning: dynamic page + non-index pages in same folder
+  const urlConflictWarning = useMemo(() => {
+    if (!currentPage) return null;
+
+    const targetFolderId = pageFolderId !== undefined ? pageFolderId : currentPage.page_folder_id;
+    const currentPageIsPublished = currentPage?.is_published || false;
+
+    // Check if there are non-index pages in this folder
+    const hasNonIndexPages = pages.some(
+      (p) =>
+        p.page_folder_id === targetFolderId &&
+        !p.is_index &&
+        !p.is_dynamic &&
+        !p.error_page &&
+        p.is_published === currentPageIsPublished &&
+        p.id !== currentPage?.id
+    );
+
+    if (isDynamicPage && hasNonIndexPages) {
+      return 'The parent folder contains regular pages with custom slugs which could conflict with CMS slugs (regular pages would be displayed in priority).';
+    }
+
+    return null;
+  }, [currentPage, pageFolderId, pages, isDynamicPage]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!initialValuesRef.current) return false;
+
+    const initial = initialValuesRef.current;
+
+    const hasChanges = (
+      name !== initial.name ||
+      slug !== initial.slug ||
+      pageFolderId !== initial.pageFolderId ||
+      isIndex !== initial.isIndex ||
+      seoTitle !== initial.seoTitle ||
+      seoDescription !== initial.seoDescription ||
+      !compareSeoImage(seoImage, initial.seoImage) ||
+      seoNoindex !== initial.seoNoindex ||
+      customCodeHead !== initial.customCodeHead ||
+      customCodeBody !== initial.customCodeBody ||
+      authEnabled !== initial.authEnabled ||
+      authPassword !== initial.authPassword ||
+      collectionId !== initial.collectionId ||
+      slugFieldId !== initial.slugFieldId ||
+      pendingImageFile !== null
+    );
+
+    // Clear rejected page when user makes changes (allows them to try navigating again)
+    if (hasChanges && rejectedPageRef.current !== null) {
+      rejectedPageRef.current = null;
+    }
+
+    return hasChanges;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImage, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, pendingImageFile, saveCounter]);
+
+  // Expose method to check for unsaved changes externally
+  useImperativeHandle(ref, () => ({
+    checkUnsavedChanges: async () => {
+      // If currently saving, allow the change (save is in progress)
+      if (isSaving) {
+        return true;
+      }
+
+      // If no unsaved changes, allow immediately
+      if (!hasUnsavedChanges) {
+        return true;
+      }
+
+      // Show dialog and wait for user decision
+      return new Promise<boolean>((resolve) => {
+        confirmationResolverRef.current = resolve;
+        setPendingAction('external');
+        setShowUnsavedDialog(true);
+      });
+    }
+  }), [hasUnsavedChanges, isSaving]);
+
+  // Intercept incoming page prop changes
+  useEffect(() => {
+    // If the incoming page is the same object reference as current, nothing to do
+    if (page === currentPage) {
+      return;
+    }
+
+    // Don't intercept while saving (the page prop might update with fresh data from the server)
+    if (isSaving) {
+      return;
+    }
+
+    // If this page change was already rejected, ignore it
+    if (page === rejectedPageRef.current) {
+      return;
+    }
+
+    // If we just saved, accept the page update and sync initial values from the new page data
+    if (skipNextInitializationRef.current) {
+      setCurrentPage(page);
+      rejectedPageRef.current = null;
+      // Sync initial values from the updated page to ensure they match what was saved
+      if (page && initialValuesRef.current) {
+        const settings = page.settings as PageSettings | undefined;
+        const isPageErrorPage = page.error_page !== null;
+        const isPageDynamic = page.is_dynamic === true;
+        const isPageIndex = isPageDynamic ? false : page.is_index;
+
+        initialValuesRef.current.name = page.name;
+        initialValuesRef.current.slug = isPageErrorPage || isPageIndex ? '' : (isPageDynamic ? '*' : page.slug || '');
+        initialValuesRef.current.pageFolderId = page.page_folder_id;
+        initialValuesRef.current.isIndex = isPageIndex;
+        initialValuesRef.current.seoTitle = settings?.seo?.title || '';
+        initialValuesRef.current.seoDescription = settings?.seo?.description || '';
+        initialValuesRef.current.seoImage = settings?.seo?.image || null;
+        initialValuesRef.current.seoNoindex = isPageErrorPage ? true : (settings?.seo?.noindex || false);
+        initialValuesRef.current.customCodeHead = settings?.custom_code?.head || '';
+        initialValuesRef.current.customCodeBody = settings?.custom_code?.body || '';
+        initialValuesRef.current.authEnabled = settings?.auth?.enabled || false;
+        initialValuesRef.current.authPassword = settings?.auth?.password || '';
+        initialValuesRef.current.collectionId = settings?.cms?.collection_id || null;
+        initialValuesRef.current.slugFieldId = settings?.cms?.slug_field_id || null;
+      }
+      return;
+    }
+
+    // If we have unsaved changes, show confirmation dialog BEFORE changing
+    if (hasUnsavedChanges && initialValuesRef.current !== null) {
+      setPendingPageChange(page);
+      setPendingAction('navigate');
+      setShowUnsavedDialog(true);
+      return;
+    }
+
+    // No unsaved changes, safe to change
+    setCurrentPage(page);
+    rejectedPageRef.current = null; // Clear rejected page since we're accepting a change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, currentPage, isSaving]);
+
+  // Initialize form when currentPage changes (after confirmation or when no unsaved changes)
+  useEffect(() => {
+    // Skip initialization if we just saved (to prevent overwriting with stale data from parent)
+    if (skipNextInitializationRef.current) {
+      skipNextInitializationRef.current = false;
+      return;
+    }
+
+    if (currentPage) {
+      const settings = currentPage.settings as PageSettings | undefined;
+      const initialName = currentPage.name;
+      const initialIsIndex = currentPage.is_dynamic ? false : currentPage.is_index;
+      const initialSlug = isErrorPage || initialIsIndex ? '' : (currentPage.is_dynamic ? '*' : currentPage.slug || '');
+      const initialFolderId = currentPage.page_folder_id;
+      const initialSeoTitle = settings?.seo?.title || '';
+      const initialSeoDescription = settings?.seo?.description || '';
+      const initialSeoImage = settings?.seo?.image || null; // Asset ID or FieldVariable
+      const initialSeoNoindex = isErrorPage ? true : (settings?.seo?.noindex || false);
+      const initialCustomCodeHead = settings?.custom_code?.head || '';
+      const initialCustomCodeBody = settings?.custom_code?.body || '';
+      const initialAuthEnabled = settings?.auth?.enabled || false;
+      const initialAuthPassword = settings?.auth?.password || '';
+      const initialCollectionId = settings?.cms?.collection_id || null;
+      const initialSlugFieldId = settings?.cms?.slug_field_id || null;
+
+      setName(initialName);
+      setSlug(initialSlug);
+      setPageFolderId(initialFolderId);
+      setIsIndex(initialIsIndex);
+      setSeoTitle(initialSeoTitle);
+      setSeoDescription(initialSeoDescription);
+      setSeoImage(initialSeoImage);
+      setSeoNoindex(initialSeoNoindex);
+      setCustomCodeHead(initialCustomCodeHead);
+      setCustomCodeBody(initialCustomCodeBody);
+      setAuthEnabled(initialAuthEnabled);
+      setAuthPassword(initialAuthPassword);
+      setCollectionId(initialCollectionId);
+      setSlugFieldId(initialSlugFieldId);
+      setPendingImageFile(null);
+      setUploadedAssetCache(null); // Clear cache when switching pages
+
+      // Clean up preview URL
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+        setImagePreviewUrl(null);
+      }
+
+      // Save initial values for comparison
+      initialValuesRef.current = {
+        name: initialName,
+        slug: initialSlug,
+        pageFolderId: initialFolderId,
+        isIndex: initialIsIndex,
+        seoTitle: initialSeoTitle,
+        seoDescription: initialSeoDescription,
+        seoImage: initialSeoImage,
+        seoNoindex: initialSeoNoindex,
+        customCodeHead: initialCustomCodeHead,
+        customCodeBody: initialCustomCodeBody,
+        authEnabled: initialAuthEnabled,
+        authPassword: initialAuthPassword,
+        collectionId: initialCollectionId,
+        slugFieldId: initialSlugFieldId,
+      };
     } else {
-      setTitle('');
+      setName('');
       setSlug('');
+      setPageFolderId(null);
+      setIsIndex(false);
+      setSeoTitle('');
+      setSeoDescription('');
+      setSeoImage(null);
+      setSeoNoindex(false);
+      setCustomCodeHead('');
+      setCustomCodeBody('');
+      setAuthEnabled(false);
+      setAuthPassword('');
+      setCollectionId(null);
+      setSlugFieldId(null);
+      setPendingImageFile(null);
+      setUploadedAssetCache(null); // Clear cache for new page
+
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+        setImagePreviewUrl(null);
+      }
+
+      // Reset initial values for new page
+      initialValuesRef.current = {
+        name: '',
+        slug: '',
+        pageFolderId: null,
+        isIndex: false,
+        seoTitle: '',
+        seoDescription: '',
+        seoImage: null,
+        seoNoindex: false,
+        customCodeHead: '',
+        customCodeBody: '',
+        authEnabled: false,
+        authPassword: '',
+        collectionId: null,
+        slugFieldId: null,
+      };
     }
     setError(null);
-  }, [page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, isErrorPage]);
 
-  // Auto-generate slug from title for new pages
+  // Cleanup preview URL when component unmounts or when preview changes
   useEffect(() => {
-    if (!page && title) {
-      const autoSlug = title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
-      setSlug(autoSlug);
+    return () => {
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
+
+  // Auto-generate slug from name for new pages (only if not index or error page)
+  useEffect(() => {
+    if (!currentPage && name && !isIndex && !isErrorPage) {
+      const uniqueSlug = generateUniqueSlug(name, pages, pageFolderId, false);
+      setSlug(uniqueSlug);
     }
-  }, [title, page]);
+  }, [name, currentPage, isIndex, isErrorPage, pageFolderId, pages]);
+
+  // When isIndex, isErrorPage, or isDynamicPage changes, update slug accordingly
+  useEffect(() => {
+    if (isIndex || isErrorPage) {
+      setSlug(''); // Index pages and error pages must have empty slug
+    } else if (isDynamicPage) {
+      setSlug('*'); // Dynamic pages use '*' as slug placeholder
+    } else if (currentPage && !slug && name) {
+      // If switching to non-index/non-error/non-dynamic and slug is empty, generate one
+      const uniqueSlug = generateUniqueSlug(name, pages, pageFolderId, currentPage.is_published, currentPage.id);
+      setSlug(uniqueSlug);
+    }
+  }, [isIndex, isErrorPage, isDynamicPage, currentPage, name, slug, pageFolderId, pages]);
+
+  // When folder changes for new pages, regenerate slug to avoid duplicates in new folder
+  useEffect(() => {
+    if (!currentPage && name && slug && !isIndex && !isErrorPage) {
+      const uniqueSlug = generateUniqueSlug(name, pages, pageFolderId, false);
+      // Only update if it would be different (to avoid unnecessary re-renders)
+      if (uniqueSlug !== slug) {
+        setSlug(uniqueSlug);
+      }
+    }
+  }, [pageFolderId, pages, name, slug, isIndex, isErrorPage, currentPage]);
+
+  // Build hierarchical folder list for select dropdown
+  const folderOptions = useMemo(() => {
+    return folders
+      .map(folder => ({
+        id: folder.id,
+        name: folder.name,
+        path: buildFolderPath(folder, folders, false) as string,
+        depth: folder.depth,
+        disabled: isIndex && folderHasIndexPage(folder.id, pages, currentPage?.id), // Disable if this page is index and folder already has an index
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }, [folders, pages, currentPage, isIndex]);
+
+  // Check if this is the last index page in root folder
+  // If so, disable the switch to prevent removing it
+  const isLastRootIndexPage = useMemo(() => {
+    if (!currentPage?.is_index || pageFolderId !== null) {
+      return false;
+    }
+
+    // Count other index pages in root folder
+    const otherRootIndexPages = pages.filter(
+      (p) =>
+        p.id !== currentPage?.id &&
+        p.is_index &&
+        p.page_folder_id === null
+    );
+
+    return otherRootIndexPages.length === 0;
+  }, [currentPage, pageFolderId, pages]);
+
+  const isOnRootFolder = useMemo(() => currentPage?.page_folder_id === null, [currentPage]);
+
+  // Build the slug path preview based on current form values
+  const slugPathPreview = useMemo(() => {
+    // Error pages don't have a path
+    if (isErrorPage) {
+      return '';
+    }
+
+    // Create a temporary page object with current form values
+    const tempPage: Partial<Page> = {
+      slug: slug,
+      page_folder_id: pageFolderId,
+      is_index: isIndex,
+      is_dynamic: isDynamicPage,
+    };
+
+    let slugFieldKey = '';
+
+    if (isDynamicPage) {
+      const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+      const activeSlugFieldId = slugFieldId || currentPage?.settings?.cms?.slug_field_id || '';
+      const collectionFields = fields[activeCollectionId] || [];
+      const selectedSlugField = collectionFields.find(field => field.id === activeSlugFieldId);
+
+      slugFieldKey = `{${selectedSlugField?.key}}`;
+    }
+
+    const basePath = buildSlugPath(tempPage as Page, folders, 'page', slugFieldKey);
+
+    return basePath;
+  }, [pageFolderId, slug, isIndex, folders, isErrorPage, isDynamicPage, collectionId, slugFieldId, currentPage, fields]);
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!isAssetOfType(file.type, ASSET_CATEGORIES.IMAGES)) {
+      setError('Only image files are allowed');
+      return;
+    }
+
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File size must be less than 10MB');
+      return;
+    }
+
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreviewUrl(previewUrl);
+    setPendingImageFile(file);
+    setError(null);
+  };
+
+  const handleRemoveImage = () => {
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+      setImagePreviewUrl(null);
+    }
+
+    setPendingImageFile(null);
+    setSeoImage(null);
+    setUploadedAssetCache(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Render Select component for image field variables
+  const renderImageFieldSelect = (clearAsset: boolean = false) => {
+    if (!isDynamicPage) return null;
+
+    const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+    const activeCollection = collections.find(c => c.id === activeCollectionId);
+    const activeCollectionName = activeCollection?.name || 'this collection';
+    const collectionFields = fields[activeCollectionId] || [];
+    const imageFields = collectionFields // .filter(field => field.type === 'image');
+    const hasImageFields = imageFields.length > 0;
+
+    // Get the selected field name if a field variable is selected
+    const selectedField = isSeoImageFieldVariable(seoImage)
+      ? imageFields.find(f => f.id === seoImage.data.field_id)
+      : null;
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div>
+            <Select
+              key={isSeoImageFieldVariable(seoImage) ? seoImage.data.field_id : 'none'}
+              value={isSeoImageFieldVariable(seoImage) ? seoImage.data.field_id : undefined}
+              onValueChange={(fieldId) => {
+                setSeoImage({
+                  type: 'field',
+                  data: {
+                    field_id: fieldId,
+                    relationships: [],
+                  },
+                });
+
+                // Clear uploaded file if switching to field variable
+                if (pendingImageFile) {
+                  setPendingImageFile(null);
+                  if (imagePreviewUrl) {
+                    URL.revokeObjectURL(imagePreviewUrl);
+                    setImagePreviewUrl(null);
+                  }
+                }
+
+                // Clear asset cache and delete asset if needed
+                if (clearAsset) {
+                  setUploadedAssetCache(null);
+                  // Delete asset if it was a string
+                  if (typeof seoImage === 'string' && seoImage) {
+                    deleteAssetApi(seoImage).catch(console.error);
+                    removeAsset(seoImage);
+                  }
+                }
+              }}
+              disabled={!hasImageFields}
+            >
+              <SelectTrigger variant={hasUploadedAsset ? 'overlay' : 'default'} className="w-auto">
+                <span className="flex items-center gap-2">
+                  <Icon name="database" className="size-3" />
+                  {selectedField ? selectedField.name : 'Select field'}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                {hasImageFields && (
+                  <>
+                    {imageFields.map((field) => (
+                      <SelectItem key={field.id} value={field.id}>
+                        {field.name}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </TooltipTrigger>
+        {!hasImageFields && (
+          <TooltipContent>
+            <p>No image fields available in &quot;{activeCollectionName}&quot;</p>
+          </TooltipContent>
+        )}
+      </Tooltip>
+    );
+  };
+
+  const handleCollectionChange = (value: string) => {
+    setCollectionId(value);
+    // Find the slug field for the selected collection
+    const collectionFields = fields[value] || [];
+    const slugField = collectionFields.find(field => field.key === 'slug');
+    if (slugField) {
+      setSlugFieldId(slugField.id);
+    } else {
+      setSlugFieldId(null);
+    }
+  };
+
+  const handleClose = () => {
+    if (hasUnsavedChanges) {
+      setPendingAction('close');
+      setShowUnsavedDialog(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleConfirmDiscard = () => {
+    setShowUnsavedDialog(false);
+
+    if (pendingAction === 'close') {
+      // Reset to initial values before closing to ensure clean state on reopen
+      if (initialValuesRef.current) {
+        setName(initialValuesRef.current.name);
+        setSlug(initialValuesRef.current.slug);
+        setPageFolderId(initialValuesRef.current.pageFolderId);
+        setIsIndex(initialValuesRef.current.isIndex);
+        setSeoTitle(initialValuesRef.current.seoTitle);
+        setSeoDescription(initialValuesRef.current.seoDescription);
+        setSeoImage(initialValuesRef.current.seoImage);
+        setSeoNoindex(initialValuesRef.current.seoNoindex);
+        setCustomCodeHead(initialValuesRef.current.customCodeHead);
+        setCustomCodeBody(initialValuesRef.current.customCodeBody);
+        setAuthEnabled(initialValuesRef.current.authEnabled);
+        setAuthPassword(initialValuesRef.current.authPassword);
+        setCollectionId(initialValuesRef.current.collectionId);
+        setSlugFieldId(initialValuesRef.current.slugFieldId);
+        setPendingImageFile(null);
+
+        // Clean up preview URL
+        if (imagePreviewUrl) {
+          URL.revokeObjectURL(imagePreviewUrl);
+          setImagePreviewUrl(null);
+        }
+      }
+
+      rejectedPageRef.current = null;
+      onClose();
+    } else if (pendingAction === 'navigate' && pendingPageChange !== undefined) {
+      // Discard changes and proceed to load the new page
+      setCurrentPage(pendingPageChange);
+      setPendingPageChange(null);
+      rejectedPageRef.current = null; // Clear rejected since we're accepting the change
+    } else if (pendingAction === 'external' && confirmationResolverRef.current) {
+      // External check - user confirmed to discard
+      // Reset to initial values to clear unsaved changes flag
+      if (initialValuesRef.current) {
+        setName(initialValuesRef.current.name);
+        setSlug(initialValuesRef.current.slug);
+        setPageFolderId(initialValuesRef.current.pageFolderId);
+        setIsIndex(initialValuesRef.current.isIndex);
+        setSeoTitle(initialValuesRef.current.seoTitle);
+        setSeoDescription(initialValuesRef.current.seoDescription);
+        setSeoImage(initialValuesRef.current.seoImage);
+        setSeoNoindex(initialValuesRef.current.seoNoindex);
+        setCustomCodeHead(initialValuesRef.current.customCodeHead);
+        setCustomCodeBody(initialValuesRef.current.customCodeBody);
+        setAuthEnabled(initialValuesRef.current.authEnabled);
+        setAuthPassword(initialValuesRef.current.authPassword);
+        setCollectionId(initialValuesRef.current.collectionId);
+        setSlugFieldId(initialValuesRef.current.slugFieldId);
+        setPendingImageFile(null);
+
+        // Clean up preview URL
+        if (imagePreviewUrl) {
+          URL.revokeObjectURL(imagePreviewUrl);
+          setImagePreviewUrl(null);
+        }
+      }
+
+      rejectedPageRef.current = null;
+      confirmationResolverRef.current(true);
+      confirmationResolverRef.current = null;
+    }
+
+    setPendingAction(null);
+  };
+
+  // Handle canceling discard - stay on current page with unsaved changes
+  const handleCancelDiscard = () => {
+    setShowUnsavedDialog(false);
+
+    if (pendingAction === 'navigate') {
+      // Mark this page change as rejected so we don't show the dialog again
+      rejectedPageRef.current = pendingPageChange;
+      setPendingPageChange(null);
+    } else if (pendingAction === 'external' && confirmationResolverRef.current) {
+      // External check - user canceled
+      confirmationResolverRef.current(false);
+      confirmationResolverRef.current = null;
+    }
+
+    setPendingAction(null);
+    // Don't change currentPage - stay on the current page with unsaved changes
+  };
+
+  // Handle saving changes from the unsaved changes dialog
+  const handleSaveFromDialog = async () => {
+    setShowUnsavedDialog(false);
+
+    // Save changes first
+    await handleSave();
+
+    // After save, proceed with the pending action
+    if (pendingAction === 'close') {
+      onClose();
+    } else if (pendingAction === 'navigate' && pendingPageChange !== undefined) {
+      // Proceed to load the new page
+      setCurrentPage(pendingPageChange);
+      setPendingPageChange(null);
+      rejectedPageRef.current = null;
+    } else if (pendingAction === 'external' && confirmationResolverRef.current) {
+      // External check - resolve with true (changes saved)
+      confirmationResolverRef.current(true);
+      confirmationResolverRef.current = null;
+    }
+
+    setPendingAction(null);
+  };
 
   const handleSave = async () => {
     // Validation
-    if (!title.trim()) {
+    if (!name.trim()) {
       setError('Page name is required');
       return;
     }
 
-    if (!slug.trim()) {
-      setError('Slug is required');
+    // Error pages have different rules
+    if (isErrorPage) {
+      // Error pages must have empty slug and no parent folder
+      // These are enforced by the UI, but we validate here too
+      if (slug.trim()) {
+        setError('Error pages must have an empty slug');
+        return;
+      }
+      // Note: We allow saving even if parent folder is set, backend should handle this
+    } else if (isDynamicPage && isIndex) {
+      // Dynamic pages cannot be set as index
+      setError(`CMS pages cannot be set as ${isOnRootFolder ? 'homepage' : 'index page'}`);
       return;
+    } else if (isIndex) {
+      // Index page rules
+      // Index pages must have empty slug
+      if (slug.trim()) {
+        setError('Index pages must have an empty slug');
+        return;
+      }
+
+      // Note: We don't check for existing index pages anymore
+      // The backend will automatically transfer the index status
+    } else {
+      // Non-index pages must have a non-empty slug
+      if (!slug.trim()) {
+        setError('Slug is required for non-index pages');
+        return;
+      }
+
+      // Check if this is the only index page in root folder (pageFolderId === null)
+      // Root folder must always have an index page
+      if (currentPage?.is_index && pageFolderId === null) {
+        const otherRootIndexPages = pages.filter(
+          (p) =>
+            p.id !== currentPage?.id &&
+            p.is_index &&
+            p.page_folder_id === null
+        );
+
+        if (otherRootIndexPages.length === 0) {
+          setError('The root folder must have an index page. Please set another page as index first.');
+          return;
+        }
+      }
+
+      // Check for duplicate slug within the same folder and published state
+      // The database has a unique constraint on (slug, is_published, page_folder_id)
+      // Skip slug validation for dynamic pages (they use "*" as slug placeholder)
+      if (!isDynamicPage) {
+        // Sanitize slug (remove trailing dashes) for comparison
+        const trimmedSlug = sanitizeSlug(slug.trim(), false);
+        const duplicateSlug = pages.find(
+          (p) =>
+            p.id !== currentPage?.id && // Exclude current page
+            p.slug === trimmedSlug &&
+            p.is_published === (currentPage?.is_published || false) && // Same published state
+            p.page_folder_id === pageFolderId // Same folder (including null for root)
+        );
+
+        if (duplicateSlug) {
+          setError('This slug is already used by another page in this folder');
+          return;
+        }
+      }
+
+      // Check if trying to make a page dynamic or move a dynamic page to a folder that already has one
+      const targetFolderId = pageFolderId;
+      const willBeDynamic = isDynamicPage;
+      const isBecomingDynamic = isDynamicPage && !currentPage?.is_dynamic;
+      const isMovingDynamicPage = currentPage?.is_dynamic && pageFolderId !== currentPage?.page_folder_id;
+
+      if (willBeDynamic && (isBecomingDynamic || isMovingDynamicPage)) {
+        const existingDynamicPage = pages.find(
+          (p) =>
+            p.id !== currentPage?.id && // Exclude current page
+            p.is_dynamic &&
+            p.page_folder_id === targetFolderId &&
+            p.is_published === (currentPage?.is_published || false) // Same published state
+        );
+
+        if (existingDynamicPage) {
+          const folderName = targetFolderId ? 'this folder' : 'the root folder';
+          setError(`A dynamic page already exists in ${folderName}. Each folder can only contain one dynamic page.`);
+          return;
+        }
+      }
     }
 
     setIsSaving(true);
     setError(null);
 
     try {
+      let finalSeoImage: string | FieldVariable | null = seoImage;
+
+      if (pendingImageFile) {
+        const uploadedAsset = await uploadFileApi(pendingImageFile, 'page-settings', 'images');
+
+        if (!uploadedAsset) {
+          throw new Error('Failed to upload image');
+        }
+
+        finalSeoImage = uploadedAsset.id;
+        setUploadedAssetCache(uploadedAsset);
+        addAsset(uploadedAsset);
+
+        // Delete old asset if it was a string (asset ID) and different from new one
+        if (typeof seoImage === 'string' && seoImage !== uploadedAsset.id) {
+          await deleteAssetApi(seoImage);
+          removeAsset(seoImage);
+        }
+      } else if (!seoImage && currentPage?.settings?.seo?.image) {
+        // Delete existing asset if it was a string (asset ID)
+        const existingImage = currentPage.settings.seo.image;
+        if (typeof existingImage === 'string') {
+          await deleteAssetApi(existingImage);
+          removeAsset(existingImage);
+        }
+      }
+
+      const existingSettings = currentPage?.settings as PageSettings | undefined;
+
+      const settings: PageSettings = {
+        ...existingSettings,
+        auth: {
+          enabled: authEnabled,
+          password: authPassword.trim(),
+        },
+        seo: {
+          title: seoTitle.trim(),
+          description: seoDescription.trim(),
+          image: isErrorPage ? null : finalSeoImage,
+          noindex: isErrorPage ? true : seoNoindex,
+        },
+        custom_code: {
+          head: customCodeHead.trim(),
+          body: customCodeBody.trim(),
+        },
+        // Explicitly set or clear cms property
+        cms: collectionId && slugFieldId ? {
+          collection_id: collectionId,
+          slug_field_id: slugFieldId,
+        } : undefined,
+      };
+
+      // Sanitize slug and remove trailing dashes before saving
+      const finalSlug = isErrorPage || isIndex ? '' : sanitizeSlug(slug.trim(), false);
+
       await onSave({
-        title: title.trim(),
-        slug: slug.trim(),
-        status: 'draft',
+        name: name.trim(),
+        slug: finalSlug,
+        page_folder_id: pageFolderId,
+        is_index: isIndex,
+        is_published: false,
+        settings,
       });
-      onClose();
+
+      setPendingImageFile(null);
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+        setImagePreviewUrl(null);
+      }
+
+      const trimmedName = name.trim();
+      const trimmedSlug = isErrorPage || isIndex ? '' : sanitizeSlug(slug.trim(), false);
+      const trimmedSeoTitle = seoTitle.trim();
+      const trimmedSeoDescription = seoDescription.trim();
+      const normalizedSeoNoindex = isErrorPage ? true : seoNoindex;
+      const trimmedCustomCodeHead = customCodeHead.trim();
+      const trimmedCustomCodeBody = customCodeBody.trim();
+      const trimmedAuthPassword = authPassword.trim();
+
+      setName(trimmedName);
+      setSlug(trimmedSlug);
+      setSeoTitle(trimmedSeoTitle);
+      setSeoDescription(trimmedSeoDescription);
+      setSeoNoindex(normalizedSeoNoindex);
+      setSeoImage(finalSeoImage);
+      setCustomCodeHead(trimmedCustomCodeHead);
+      setCustomCodeBody(trimmedCustomCodeBody);
+      setAuthPassword(trimmedAuthPassword);
+      // Update collection values - normalize to null if either is missing
+      const savedCollectionId = collectionId && slugFieldId ? collectionId : null;
+      const savedSlugFieldId = collectionId && slugFieldId ? slugFieldId : null;
+      setCollectionId(savedCollectionId);
+      setSlugFieldId(savedSlugFieldId);
+
+      initialValuesRef.current = {
+        name: trimmedName,
+        slug: trimmedSlug,
+        pageFolderId,
+        isIndex,
+        seoTitle: trimmedSeoTitle,
+        seoDescription: trimmedSeoDescription,
+        seoImage: finalSeoImage,
+        seoNoindex: normalizedSeoNoindex,
+        customCodeHead: trimmedCustomCodeHead,
+        customCodeBody: trimmedCustomCodeBody,
+        authEnabled,
+        authPassword: trimmedAuthPassword,
+        collectionId: savedCollectionId,
+        slugFieldId: savedSlugFieldId,
+      };
+
+      rejectedPageRef.current = null;
+      skipNextInitializationRef.current = true;
+      setSaveCounter(prev => prev + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save page');
     } finally {
@@ -91,239 +1147,590 @@ export default function PageSettingsPanel({
   return (
     <>
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/50 z-40"
-        onClick={onClose}
+      <div
+        className="fixed inset-0 left-64 z-40"
+        onClick={handleClose}
       />
 
       {/* Panel */}
-      <div className="fixed top-0 right-0 bottom-0 w-[500px] bg-zinc-900 border-l border-zinc-800 z-50 flex flex-col">
+      <div className="fixed top-14 left-64 bottom-0 w-[500px] bg-background border-r z-50 flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-          <h2 className="text-lg font-semibold text-white">
-            {page ? page.title : 'New Page'}
-          </h2>
+        <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex items-center justify-center gap-1.5">
+            <Icon name={currentPage ? getPageIcon(currentPage) : 'page'} className="size-3" />
+            <Label>{currentPage ? currentPage.name : 'New Page'}</Label>
+          </div>
+
           <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors"
-            >
-              Close
-            </button>
-            <button
+            <Button
+              onClick={handleClose} size="sm"
+              variant="secondary"
+            >Close</Button>
+            <Button
               onClick={handleSave}
-              disabled={isSaving}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white text-sm rounded font-medium transition-colors"
+              disabled={isSaving || !hasUnsavedChanges}
+              size="sm"
             >
-              {isSaving ? 'Saving...' : 'Save'}
-            </button>
+              {isSaving && <Spinner />}
+              Save
+            </Button>
           </div>
         </div>
 
+        <hr className="mx-5" />
+
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800">
-          <button
-            onClick={() => setActiveTab('general')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'general'
-                ? 'text-white border-b-2 border-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            General
-          </button>
-          <button
-            onClick={() => setActiveTab('seo')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'seo'
-                ? 'text-white border-b-2 border-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            SEO settings
-          </button>
-          <button
-            onClick={() => setActiveTab('social')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'social'
-                ? 'text-white border-b-2 border-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Social share
-          </button>
-          <button
-            onClick={() => setActiveTab('code')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'code'
-                ? 'text-white border-b-2 border-white'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            Custom code
-          </button>
-        </div>
+        <Tabs
+          value={activeTab}
+          onValueChange={handleTabChange}
+          className="flex-1 flex flex-col px-5 py-3.5"
+        >
+          <TabsList className="w-full">
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="seo">SEO</TabsTrigger>
+            <TabsTrigger value="custom-code">Custom code</TabsTrigger>
+          </TabsList>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">
-              {error}
-            </div>
-          )}
+          <hr className="my-2" />
 
-          {activeTab === 'general' && (
-            <div className="space-y-6">
-              {/* Page Name */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-2">
-                  Page name
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Homepage"
-                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto">
+            {error && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">
+                {error}
               </div>
+            )}
 
-              {/* Slug */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-2">
-                  Slug
-                </label>
-                <div className="flex items-center gap-2">
-                  <span className="text-zinc-500 text-sm flex items-center gap-1">
-                    <svg
-                      className="w-4 h-4" fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"
-                        clipRule="evenodd"
+            <TabsContent value="general">
+              {urlConflictWarning && (
+                <Alert variant="warning" className="mb-4">
+                  <AlertDescription>{urlConflictWarning}</AlertDescription>
+                </Alert>
+              )}
+              <FieldGroup>
+                <FieldSet>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel>Page name</FieldLabel>
+                      <Input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Homepage"
                       />
-                    </svg>
-                    /
-                  </span>
-                  <input
-                    type="text"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    placeholder="index"
-                    className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <p className="text-xs text-zinc-500 mt-1">
-                  The URL path for this page
-                </p>
-              </div>
+                    </Field>
 
-              {/* Parent Folder - Coming Soon */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-2">
-                  Parent folder
-                </label>
-                <div className="px-3 py-2 bg-zinc-800/50 border border-zinc-700/50 rounded text-zinc-500 text-sm flex items-center gap-2 cursor-not-allowed">
-                  <svg
-                    className="w-4 h-4" fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                  </svg>
-                  None
-                </div>
-                <p className="text-xs text-zinc-500 mt-1">
-                  Folder support coming soon
-                </p>
-              </div>
+                    {isDynamicPage && (
+                      <Field>
+                        <div className="flex items-center gap-2">
+                          <div className="w-full space-y-2">
+                            <FieldLabel>Collection</FieldLabel>
+                            <Select
+                              value={collectionId || currentPage?.settings?.cms?.collection_id || ''}
+                              onValueChange={handleCollectionChange}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select a collection" />
+                              </SelectTrigger>
 
-              {/* Password Protected - Coming Soon */}
-              <div>
-                <label className="flex items-start gap-3 cursor-not-allowed opacity-50">
-                  <input
-                    type="checkbox"
-                    disabled
-                    className="mt-0.5 w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-blue-600 focus:ring-blue-500 cursor-not-allowed"
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-zinc-300">
-                      Password protected
-                    </div>
-                    <div className="text-xs text-zinc-500 mt-1">
-                      Restrict access to this page. Setting a password will override any password set on a parent folder. Passwords are case-sensitive.
-                    </div>
-                  </div>
-                </label>
-              </div>
+                              <SelectContent>
+                                {collections.length > 0 ? (
+                                  collections.map((collection) => (
+                                    <SelectItem key={collection.id} value={collection.id}>
+                                      {collection.name}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                    No collections available
+                                  </div>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-              {/* Make Homepage - Coming Soon */}
-              <div>
-                <label className="flex items-start gap-3 cursor-not-allowed opacity-50">
-                  <input
-                    type="checkbox"
-                    disabled
-                    className="mt-0.5 w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-blue-600 focus:ring-blue-500 cursor-not-allowed"
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-zinc-300">
-                      Make this page the homepage
-                    </div>
-                  </div>
-                </label>
-              </div>
-            </div>
-          )}
+                          <div className="w-full space-y-2">
+                            <FieldLabel>Slug field</FieldLabel>
+                            <Select
+                              value={slugFieldId || currentPage?.settings?.cms?.slug_field_id || ''}
+                              onValueChange={setSlugFieldId}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select a slug field" />
+                              </SelectTrigger>
 
-          {activeTab === 'seo' && (
-            <div className="text-center py-12 text-zinc-500">
-              <svg
-                className="w-12 h-12 mx-auto mb-3 text-zinc-600" fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                <path
-                  fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <p className="text-sm">SEO settings coming soon</p>
-              <p className="text-xs mt-1">Configure meta tags, descriptions, and more</p>
-            </div>
-          )}
+                              <SelectContent>
+                                {(() => {
+                                  const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+                                  const collectionFields = fields[activeCollectionId] || [];
+                                  const availableFields = collectionFields.filter(field => field.key === 'id' || field.key === 'slug');
 
-          {activeTab === 'social' && (
-            <div className="text-center py-12 text-zinc-500">
-              <svg
-                className="w-12 h-12 mx-auto mb-3 text-zinc-600" fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
-              </svg>
-              <p className="text-sm">Social share settings coming soon</p>
-              <p className="text-xs mt-1">Customize Open Graph and Twitter Card metadata</p>
-            </div>
-          )}
+                                  if (availableFields.length > 0) {
+                                    return availableFields.map((field) => (
+                                      <SelectItem key={field.id} value={field.id}>
+                                        {field.name}
+                                      </SelectItem>
+                                    ));
+                                  }
 
-          {activeTab === 'code' && (
-            <div className="text-center py-12 text-zinc-500">
-              <svg
-                className="w-12 h-12 mx-auto mb-3 text-zinc-600" fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <p className="text-sm">Custom code coming soon</p>
-              <p className="text-xs mt-1">Add custom HTML, CSS, and JavaScript</p>
-            </div>
-          )}
-        </div>
+                                  return (
+                                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                      No slug fields available
+                                    </div>
+                                  );
+                                })()}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <FieldDescription>
+                          {slugPathPreview}
+                        </FieldDescription>
+                      </Field>
+                    )}
+
+                    {!isDynamicPage && (
+                      <Field>
+                        <div className="flex items-center gap-3">
+                          <FieldLabel>Slug</FieldLabel>
+
+                          {isErrorPage && (
+                            <FieldDescription>
+                              Error pages do not have a slug
+                            </FieldDescription>
+                          )}
+
+                          {isIndex && (
+                            <FieldDescription>
+                              {isOnRootFolder ? 'Homepages' : 'Index pages'} do not have a slug
+                            </FieldDescription>
+                          )}
+                        </div>
+
+                        <Input
+                          type="text"
+                          value={slug}
+                          disabled={isIndex || isErrorPage}
+                          onChange={(e) => {
+                            // Prevent slug changes for error pages and index pages
+                            if (!isErrorPage && !isIndex) {
+                              const sanitized = sanitizeSlug(e.target.value, true); // Allow trailing dash during input
+                              setSlug(sanitized);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            // Remove trailing dashes on blur
+                            if (!isErrorPage && !isIndex) {
+                              const sanitized = sanitizeSlug(e.target.value, false); // Remove trailing dashes
+                              setSlug(sanitized);
+                            }
+                          }}
+                          placeholder={
+                            isErrorPage
+                              ? 'None'
+                              : isIndex
+                                ? 'None'
+                                : 'Add a slug (displayed in the URL)'
+                          }
+                        />
+
+                        {!isErrorPage && (
+                          <FieldDescription>
+                            {slugPathPreview}
+                          </FieldDescription>
+                        )}
+                      </Field>
+                    )}
+
+                    <Field>
+                      <div className="flex items-center gap-3">
+                        <FieldLabel>Parent folder</FieldLabel>
+                        {currentPage && isHomepage(currentPage) && !isErrorPage && (
+                          <FieldDescription className="text-xs text-muted-foreground">
+                            Homepages cannot be moved
+                          </FieldDescription>
+                        )}
+                        {isErrorPage && (
+                          <FieldDescription className="text-xs text-muted-foreground">
+                            Error pages cannot be moved
+                          </FieldDescription>
+                        )}
+                      </div>
+
+                      <Select
+                        value={pageFolderId || 'root'}
+                        onValueChange={(value) => setPageFolderId(value === 'root' ? null : value)}
+                        disabled={currentPage ? (isHomepage(currentPage) || isErrorPage) : false}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="None" />
+                        </SelectTrigger>
+
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem
+                              value="root"
+                              disabled={isIndex && folderHasIndexPage(null, pages, currentPage?.id)}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Icon name="folder" className="size-3" />
+                                None
+                                {isIndex && folderHasIndexPage(null, pages, currentPage?.id) && (
+                                  <span>(has a homepage)</span>
+                                )}
+                              </div>
+                            </SelectItem>
+
+                            {folderOptions.map((folder) => (
+                              <SelectItem
+                                key={folder.id} value={folder.id}
+                                disabled={folder.disabled}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Icon name="folder" className="size-3" />
+                                  <span>{folder.path}</span>
+                                  {folder.disabled && (
+                                    <span>(has a index page)</span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+
+                    <Field orientation="horizontal" className="flex !flex-row-reverse">
+                      <FieldContent>
+                        <FieldLabel htmlFor="passwordProtected">
+                          Password protected
+                        </FieldLabel>
+                        <FieldDescription>
+                          Restrict access to this page. Setting a password will override any password set on a parent folder. Passwords are case-sensitive.
+                        </FieldDescription>
+                      </FieldContent>
+                      <Switch
+                        id="passwordProtected"
+                        checked={authEnabled}
+                        onCheckedChange={setAuthEnabled}
+                        disabled={isErrorPage}
+                      />
+                    </Field>
+
+                    {authEnabled && (
+                      <Field>
+                        <FieldLabel>Password</FieldLabel>
+                        <div className="flex gap-1.5">
+                          <Input
+                            type={showPassword ? 'text' : 'password'}
+                            value={authPassword}
+                            onChange={(e) => setAuthPassword(e.target.value)}
+                            placeholder="Enter password"
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="w-18"
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? 'Hide' : 'Show'}
+                          </Button>
+                        </div>
+                      </Field>
+                    )}
+
+                    <Field orientation="horizontal" className="flex !flex-row-reverse">
+                      <FieldContent>
+                        <FieldLabel htmlFor="homepage">
+                          {isOnRootFolder ? 'Homepage' : 'Index page'}
+                        </FieldLabel>
+                        <FieldDescription>
+                          {
+                            isErrorPage
+                              ? 'Error pages cannot be set as index page.'
+                              : isDynamicPage
+                                ? `CMS pages cannot be set as ${isOnRootFolder ? 'homepage' : 'index page'}.`
+                                : isLastRootIndexPage
+                                  ? 'The root folder must have an homepage. Please open the settings of another page at this level and set it as homepage to change this.'
+                                  : `Set this page as the ${isOnRootFolder ? 'homepage of the website' : 'index (default) page for its parent folder'}. If another ${isOnRootFolder ? 'homepage' : 'index page'} exists, it will converted to a regular page with a slug.`
+                          }
+                        </FieldDescription>
+                      </FieldContent>
+
+                      <Switch
+                        id="homepage"
+                        checked={isIndex}
+                        disabled={isLastRootIndexPage || isErrorPage || isDynamicPage}
+                        onCheckedChange={setIsIndex}
+                      />
+                    </Field>
+                  </FieldGroup>
+                </FieldSet>
+              </FieldGroup>
+            </TabsContent>
+
+            <TabsContent value="seo">
+              <FieldGroup>
+                <FieldSet>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel>Page title</FieldLabel>
+                      <FieldDescription>
+                        Appears in search results and browser tabs. Page name is used when empty.
+                      </FieldDescription>
+                      {isDynamicPage ? (
+                        <InputWithInlineVariables
+                          value={seoTitle}
+                          onChange={setSeoTitle}
+                          placeholder={name || 'Page title'}
+                          fields={(() => {
+                            const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+                            return fields[activeCollectionId] || [];
+                          })()}
+                        />
+                      ) : (
+                        <Input
+                          type="text"
+                          value={seoTitle}
+                          onChange={(e) => setSeoTitle(e.target.value)}
+                          placeholder={name || 'Page title'}
+                        />
+                      )}
+                    </Field>
+
+                    <Field>
+                      <FieldLabel>Meta description</FieldLabel>
+                      <FieldDescription>
+                        Brief description for search engines (generally 150 to 160 characters).
+                      </FieldDescription>
+                      {isDynamicPage ? (
+                        <InputWithInlineVariables
+                          value={seoDescription}
+                          onChange={setSeoDescription}
+                          className="min-h-18"
+                          placeholder={
+                            isErrorPage
+                              ? 'Describe in more detail what error occurred on this page and why.'
+                              : 'Describe your business and/or the content of this page.'
+                          }
+                          fields={(() => {
+                            const activeCollectionId = collectionId || currentPage?.settings?.cms?.collection_id || '';
+                            return fields[activeCollectionId] || [];
+                          })()}
+                        />
+                      ) : (
+                        <Textarea
+                          value={seoDescription}
+                          onChange={(e) => setSeoDescription(e.target.value)}
+                          placeholder={
+                            isErrorPage
+                              ? 'Describe in more detail what error occurred on this page and why.'
+                              : 'Describe your business and/or the content of this page.'
+                          }
+                        />
+                      )}
+                    </Field>
+
+                    {!isErrorPage && (
+                      <>
+                        <Field>
+                          <FieldLabel>Social preview</FieldLabel>
+                          <FieldDescription>Recommended image size is at least 1,200 x 630 pixels.</FieldDescription>
+                          <div>
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleFileSelect}
+                            />
+                            <div className="bg-input rounded-lg w-full aspect-[1.91/1] flex items-center justify-center overflow-hidden relative">
+                              {isSeoImageFieldVariable(seoImage) ? null : (imagePreviewUrl || displayAsset) ? (
+                                <Image
+                                  className="object-cover"
+                                  src={imagePreviewUrl || displayAsset?.public_url || ''}
+                                  alt="Social preview"
+                                  fill
+                                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                />
+                              ) : null}
+
+                              {(() => {
+                                const hasFieldVariable = isSeoImageFieldVariable(seoImage);
+
+                                return (
+                                  <div className="flex items-center gap-2 relative z-10">
+                                    {hasUploadedAsset ? (
+                                      <Button
+                                        variant="overlay"
+                                        size="sm"
+                                        onClick={() => fileInputRef.current?.click()}
+                                      >
+                                        <Icon name="refresh" />
+                                        Replace
+                                      </Button>
+                                    ) : (
+                                      <>
+                                        {!hasFieldVariable && (
+                                          <Button
+                                            variant={hasImage ? 'overlay' : 'secondary'}
+                                            size="sm"
+                                            onClick={() => fileInputRef.current?.click()}
+                                          >
+                                            Upload image
+                                          </Button>
+                                        )}
+
+                                        {isDynamicPage && !hasFieldVariable && !hasUploadedAsset && <span className="text-muted-foreground">or</span>}
+
+                                        {!hasUploadedAsset && renderImageFieldSelect(hasFieldVariable)}
+                                      </>
+                                    )}
+
+                                    {(hasUploadedAsset || hasFieldVariable) && (
+                                      <Button
+                                        variant={hasUploadedAsset ? 'overlay' : 'secondary'}
+                                        size="sm"
+                                        onClick={handleRemoveImage}
+                                      >
+                                        <Icon name="trash" />
+                                        Remove
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </Field>
+
+                        <Field orientation="horizontal" className="flex !flex-row-reverse">
+                          <FieldContent>
+                            <FieldLabel htmlFor="noindex" className="cursor-pointer">
+                              Exclude this page from search engine results
+                            </FieldLabel>
+                            <FieldDescription>
+                              Prevent search engines like Google from indexing this page.
+                            </FieldDescription>
+                          </FieldContent>
+
+                          <Switch
+                            id="noindex"
+                            checked={seoNoindex}
+                            onCheckedChange={setSeoNoindex}
+                          />
+                        </Field>
+                      </>
+                    )}
+                  </FieldGroup>
+                </FieldSet>
+              </FieldGroup>
+            </TabsContent>
+
+            <TabsContent value="custom-code">
+              <FieldGroup>
+                <FieldSet>
+                  <FieldGroup>
+                    {isDynamicPage && (
+                      <Field>
+                        <FieldLabel>Dynamic variables</FieldLabel>
+
+                        <FieldDescription className="flex flex-col gap-2.5">
+                          <span>
+                            The page CMS item values can be added to your custom codes (for example to improve SEO with JSON-LD) by adding
+                            field names like <span className="text-foreground">{'{{Name}}'}</span>, which will be replaced with the value
+                            of the <span className="text-foreground">Name</span> field on each generated page.
+                          </span>
+                        </FieldDescription>
+                      </Field>
+                    )}
+
+                    <Field>
+                      <FieldLabel>Header</FieldLabel>
+                      <FieldDescription>
+                        Add custom code to the &lt;head&gt; section of the page. It can be useful when you want to add custom meta tags, analytics, or custom CSS.
+                      </FieldDescription>
+                      <div className="relative">
+                        <Textarea
+                          ref={(el) => { customCodeHeadRef.current = el; }}
+                          value={customCodeHead}
+                          onChange={(e) => setCustomCodeHead(e.target.value)}
+                          placeholder="<script>...</script>"
+                          className="min-h-48 w-full"
+                        />
+                        {isDynamicPage && (
+                          <div className="absolute top-1 right-1 pointer-events-none">
+                            <div className="pointer-events-auto">
+                              {renderCustomCodeFieldSelector({
+                                textareaRef: customCodeHeadRef,
+                                value: customCodeHead,
+                                setValue: setCustomCodeHead,
+                                selectKey: headVariableSelectKey,
+                                setSelectKey: setHeadVariableSelectKey,
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </Field>
+
+                    <Field>
+                      <FieldLabel>Body</FieldLabel>
+                      <FieldDescription>
+                        Add custom code before the closing &lt;/body&gt; tag. It can be useful when you want to add custom scripts that need to run after the page loads.
+                      </FieldDescription>
+                      <div className="relative">
+                        <Textarea
+                          ref={(el) => { customCodeBodyRef.current = el; }}
+                          value={customCodeBody}
+                          onChange={(e) => setCustomCodeBody(e.target.value)}
+                          placeholder="<script>...</script>"
+                          className="min-h-48 w-full"
+                        />
+
+                        {isDynamicPage && (
+                          <div className="absolute top-1 right-1 pointer-events-none">
+                            <div className="pointer-events-auto">
+                              {renderCustomCodeFieldSelector({
+                                textareaRef: customCodeBodyRef,
+                                value: customCodeBody,
+                                setValue: setCustomCodeBody,
+                                selectKey: bodyVariableSelectKey,
+                                setSelectKey: setBodyVariableSelectKey,
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </Field>
+                  </FieldGroup>
+                </FieldSet>
+              </FieldGroup>
+            </TabsContent>
+          </div>
+        </Tabs>
       </div>
+
+      {/* Unsaved changes confirmation dialog */}
+      <ConfirmDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        title="Unsaved Changes"
+        description="You have unsaved changes. Are you sure you want to discard them?"
+        confirmLabel="Discard changes"
+        cancelLabel="Stay on settings"
+        confirmVariant="destructive"
+        onConfirm={handleConfirmDiscard}
+        onCancel={handleCancelDiscard}
+        saveLabel="Save changes"
+        onSave={handleSaveFromDialog}
+      />
     </>
   );
-}
+});
 
+PageSettingsPanel.displayName = 'PageSettingsPanel';
 
+export default PageSettingsPanel;

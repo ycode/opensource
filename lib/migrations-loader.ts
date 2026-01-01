@@ -1,6 +1,6 @@
 /**
  * Automatic Migration Loader for Next.js
- * 
+ *
  * Uses webpack's require.context to automatically load all migration files
  * No need to manually add imports when creating new migrations!
  */
@@ -46,11 +46,10 @@ export const migrations: Migration[] = migrationFiles
     const migration = migrationFiles(fileName);
     // Extract just the filename without the './' prefix
     const name = fileName.replace('./', '');
-    
+
     return {
       name,
       up: migration.up,
       down: migration.down,
     };
   });
-

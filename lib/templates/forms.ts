@@ -2,17 +2,11 @@
  * Form Elements Templates
  */
 
-import { Layer } from '@/types';
-
-interface BlockTemplate {
-  icon: string;
-  name: string;
-  template: Omit<Layer, 'id'>;
-}
+import { BlockTemplate } from '@/types';
 
 export const formTemplates: Record<string, BlockTemplate> = {
   form: {
-    icon: 'block',
+    icon: 'form',
     name: 'Form',
     template: {
       name: 'form',
@@ -29,13 +23,13 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   input: {
-    icon: 'block',
+    icon: 'input',
     name: 'Input',
     template: {
       name: 'input',
-      classes: ['w-full', 'px-4', 'py-2', 'border', 'border-gray-300', 'rounded-lg', 'focus:ring-2', 'focus:ring-blue-500', 'focus:border-transparent'],
+      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent'],
       attributes: {
         type: 'text',
         placeholder: 'Enter text...'
@@ -61,13 +55,13 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   textarea: {
-    icon: 'block',
+    icon: 'textarea',
     name: 'Textarea',
     template: {
       name: 'textarea',
-      classes: ['w-full', 'px-4', 'py-2', 'border', 'border-gray-300', 'rounded-lg', 'focus:ring-2', 'focus:ring-blue-500', 'focus:border-transparent'],
+      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent'],
       attributes: {
         placeholder: 'Enter text...',
         rows: 4
@@ -93,13 +87,13 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   select: {
-    icon: 'block',
+    icon: 'select',
     name: 'Select',
     template: {
       name: 'select',
-      classes: ['w-full', 'px-4', 'py-2', 'border', 'border-gray-300', 'rounded-lg', 'focus:ring-2', 'focus:ring-blue-500', 'focus:border-transparent', 'bg-white'],
+      classes: ['w-full', 'px-4', 'py-2', 'border', 'border-[#d1d5db]', 'rounded-lg', 'focus:ring-2', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'bg-white'],
       children: [
         {
           name: 'option',
@@ -133,9 +127,9 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   checkbox: {
-    icon: 'block',
+    icon: 'checkbox',
     name: 'Checkbox',
     template: {
       name: 'div',
@@ -147,7 +141,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             type: 'checkbox',
             id: 'checkbox'
           },
-          classes: ['w-4', 'h-4', 'text-blue-600', 'border-gray-300', 'rounded', 'focus:ring-blue-500']
+          classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'rounded-[0.25rem]', 'focus:ring-[#3b82f6]']
         },
         {
           name: 'label',
@@ -156,7 +150,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
           attributes: {
             for: 'checkbox'
           },
-          classes: ['text-sm', 'text-gray-700']
+          classes: ['text-[0.875rem]', 'text-[#111827]']
         }
       ] as any[],
       design: {
@@ -169,9 +163,9 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   radio: {
-    icon: 'block',
+    icon: 'radio',
     name: 'Radio',
     template: {
       name: 'div',
@@ -184,7 +178,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             id: 'radio',
             name: 'radio-group'
           },
-          classes: ['w-4', 'h-4', 'text-blue-600', 'border-gray-300', 'focus:ring-blue-500']
+          classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'focus:ring-[#3b82f6]']
         },
         {
           name: 'label',
@@ -193,7 +187,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
           attributes: {
             for: 'radio'
           },
-          classes: ['text-sm', 'text-gray-700']
+          classes: ['text-[0.875rem]', 'text-[#111827]']
         }
       ] as any[],
       design: {
@@ -206,13 +200,13 @@ export const formTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   label: {
-    icon: 'block',
+    icon: 'text',
     name: 'Label',
     template: {
       name: 'label',
-      classes: ['block', 'text-sm', 'font-medium', 'text-gray-700', 'mb-1'],
+      classes: ['block', 'text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'mb-[0.25rem]'],
       text: 'Label',
       children: [], // Labels can wrap inputs
       design: {
@@ -220,45 +214,9 @@ export const formTemplates: Record<string, BlockTemplate> = {
           isActive: true,
           fontSize: '0.875rem',
           fontWeight: '500',
-          color: '#374151'
+          color: '#111827'
         }
       }
     }
   },
-  
-  submit: {
-    icon: 'block',
-    name: 'Submit',
-    template: {
-      name: 'button',
-      classes: ['px-6', 'py-2', 'bg-blue-600', 'text-white', 'rounded-lg', 'hover:bg-blue-700', 'transition-colors'],
-      text: 'Submit',
-      children: [], // Buttons can contain icons, text
-      attributes: {
-        type: 'submit'
-      },
-      design: {
-        typography: {
-          isActive: true,
-          color: '#ffffff'
-        },
-        spacing: {
-          isActive: true,
-          paddingLeft: '1.5rem',
-          paddingRight: '1.5rem',
-          paddingTop: '0.5rem',
-          paddingBottom: '0.5rem'
-        },
-        borders: {
-          isActive: true,
-          borderRadius: '0.5rem'
-        },
-        backgrounds: {
-          isActive: true,
-          backgroundColor: '#2563eb'
-        }
-      }
-    }
-  }
 };
-

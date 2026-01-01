@@ -2,36 +2,33 @@
  * Action Elements Templates
  */
 
-import { Layer } from '@/types';
-
-interface BlockTemplate {
-  icon: string;
-  name: string;
-  template: Omit<Layer, 'id'>;
-}
+import { getTemplateRef } from '@/lib/templates/blocks';
+import { BlockTemplate } from '@/types';
 
 export const actionTemplates: Record<string, BlockTemplate> = {
   button: {
-    icon: 'block',
+    icon: 'cursor-default',
     name: 'Button',
     template: {
       name: 'button',
-      classes: ['px-6', 'py-2', 'bg-blue-600', 'text-white', 'rounded-lg', 'hover:bg-blue-700', 'transition-colors'],
-      text: 'Button',
-      children: [], // Can contain icons, spans, etc.
+      classes: ['flex', 'flex-row', 'items-center', 'justify-center', 'text-[#FFFFFF]', 'pr-[20px]', 'pl-[20px]', 'pt-[10px]', 'pb-[10px]', 'text-[16px]', 'rounded-[12px]', 'bg-[#171717]'],
+      children: [
+        getTemplateRef('span'),
+      ],
       attributes: {
         type: 'button'
       },
       settings: {
         linkSettings: {
-          url: '',
+          href: '',
           target: '_self'
         }
       },
       design: {
         typography: {
           isActive: true,
-          color: '#ffffff'
+          color: '#ffffff',
+          fontSize: '16px',
         },
         spacing: {
           isActive: true,
@@ -51,13 +48,13 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   link: {
     icon: 'link',
     name: 'Link',
     template: {
       name: 'a',
-      classes: ['text-blue-600', 'hover:underline'],
+      classes: ['text-[#2563eb]', 'hover:underline'],
       text: 'Link text',
       children: [], // Can contain icons, images, text
       attributes: {
@@ -66,7 +63,7 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       },
       settings: {
         linkSettings: {
-          url: '#',
+          href: '#',
           target: '_self'
         }
       },
@@ -80,4 +77,3 @@ export const actionTemplates: Record<string, BlockTemplate> = {
     }
   }
 };
-

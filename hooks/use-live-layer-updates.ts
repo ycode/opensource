@@ -27,7 +27,7 @@ function findLayerInDraft(layers: Layer[], layerId: string): Layer | null {
 
 interface UseLiveLayerUpdatesReturn {
   broadcastLayerUpdate: (layerId: string, changes: Partial<Layer>) => void;
-  broadcastLayerAdd: (pageId: string, parentLayerId: string | null, layerType: Layer['type'], newLayer: Layer) => void;
+  broadcastLayerAdd: (pageId: string, parentLayerId: string | null, layerName: string, newLayer: Layer) => void;
   broadcastLayerDelete: (pageId: string, layerId: string) => void;
   broadcastLayerMove: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => void;
   isReceivingUpdates: boolean;
@@ -92,7 +92,6 @@ export function useLiveLayerUpdates(
       try {
         const supabase = await createClient();
         const channel = supabase.channel(`page:${pageId}:updates`);
-        
         
         // Listen for layer updates
         channel.on('broadcast', { event: 'layer_update' }, (payload) => {
@@ -376,7 +375,7 @@ export function useLiveLayerUpdates(
     }
   }, [currentUserId, updateUser]);
 
-  const broadcastLayerAdd = useCallback((pageId: string, parentLayerId: string | null, layerType: Layer['type'], newLayer: Layer) => {
+  const broadcastLayerAdd = useCallback((pageId: string, parentLayerId: string | null, layerName: string, newLayer: Layer) => {
     if (!channelRef.current || !currentUserId) {
       return;
     }
@@ -388,7 +387,7 @@ export function useLiveLayerUpdates(
       payload: {
         page_id: pageId,
         parent_layer_id: parentLayerId,
-        layer_type: layerType,
+        layer_name: layerName,
         new_layer: newLayer,
         user_id: currentUserId,
         timestamp: Date.now()

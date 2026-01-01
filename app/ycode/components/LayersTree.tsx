@@ -2,7 +2,7 @@
 
 /**
  * LayersTree Component - Advanced Hierarchical Tree with Smart Drop Zones
- * 
+ *
  * Custom @dnd-kit implementation with:
  * - Smart 25/50/25 drop zone detection
  * - Container-aware drop behavior
@@ -17,21 +17,26 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 
 // 2. External libraries
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
-import { Box, Type, Heading, Image as ImageIcon, Square, ChevronRight, Layout, FileText, Link, Video, Music, Film, Code, CheckSquare, Circle, Tag, Check, File, Folder } from 'lucide-react';
+import { Layers as LayersIcon, Component as ComponentIcon, EyeOff } from 'lucide-react';
 
 // 4. Internal components
 import LayerContextMenu from './LayerContextMenu';
 
 // 5. Stores
-import { useEditorStore } from '../../../stores/useEditorStore';
+import { useEditorStore } from '@/stores/useEditorStore';
+import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 
 // 6. Utils/lib
-import { cn } from '../../../lib/utils';
-import { flattenTree, type FlattenedItem } from '../../../lib/tree-utilities';
-import { canHaveChildren } from '../../../lib/layer-utils';
+import { cn } from '@/lib/utils';
+import { flattenTree, type FlattenedItem } from '@/lib/tree-utilities';
+import { canHaveChildren, getLayerIcon, getLayerName, getCollectionVariable } from '@/lib/layer-utils';
+import { hasStyleOverrides } from '@/lib/layer-style-utils';
 
 // 7. Types
-import type { Layer } from '../../../types';
+import type { Layer } from '@/types';
+import Icon from '@/components/ui/icon';
 
 interface LayersTreeProps {
   layers: Layer[];
@@ -48,103 +53,17 @@ interface LayerRowProps {
   isChildOfSelected: boolean; // New: indicates this is a child of selected parent
   isLastVisibleDescendant: boolean; // New: last visible descendant of selected parent
   hasVisibleChildren: boolean; // New: has visible children
+  canHaveChildren: boolean; // Pre-calculated from node.canHaveChildren
   isOver: boolean;
   isDragging: boolean;
   isDragActive: boolean;
   dropPosition: 'above' | 'below' | 'inside' | null;
+  highlightedDepths: Set<number>; // Depths that should be highlighted
   onSelect: (id: string) => void;
   onMultiSelect: (id: string, modifiers: { meta: boolean; shift: boolean }) => void;
   onToggle: (id: string) => void;
   pageId: string;
-}
-
-// Element icon mapping - Now supports both old 'type' and new 'name' properties
-const elementIcons: Record<string, React.ElementType> = {
-  // Old system
-  container: Box,
-  text: Type,
-  image: ImageIcon,
-  
-  // New system - Structure
-  div: Box,
-  section: Layout,
-  hr: Square,
-  columns: Layout,
-  rows: Layout,
-  grid: Layout,
-  
-  // Content
-  heading: Heading, // New consolidated heading
-  h1: Heading,
-  h2: Heading,
-  h3: Heading,
-  h4: Heading,
-  h5: Heading,
-  h6: Heading,
-  p: Type,
-  span: Type,
-  richtext: FileText,
-  
-  // Actions
-  button: Square,
-  a: Link,
-  link: Link,
-  
-  // Media
-  img: ImageIcon,
-  icon: Square,
-  video: Video,
-  audio: Music,
-  youtube: Film,
-  iframe: Code,
-  
-  // Forms
-  form: FileText,
-  input: Type,
-  textarea: FileText,
-  select: Square,
-  checkbox: CheckSquare,
-  radio: Circle,
-  label: Tag,
-  submit: Check,
-
-  // Pages & Folders
-  page: File,
-  folder: Folder,
-};
-
-// Helper function to get display name for layer
-function getLayerDisplayName(layer: Layer): string {
-  // Special case for Body layer
-  if (layer.id === 'body') {
-    return 'Body';
-  }
-  
-  // Use custom name if available
-  if (layer.customName) {
-    return layer.customName;
-  }
-  
-  // Use name property (new system)
-  if (layer.name) {
-    const name = layer.name;
-    // Capitalize first letter
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  }
-  
-  // Fallback to type property (old system)
-  if (layer.type) {
-    const typeLabel = layer.type.charAt(0).toUpperCase() + layer.type.slice(1);
-    return typeLabel;
-  }
-  
-  return 'Element';
-}
-
-// Helper function to get icon key for a layer
-function getIconKey(layer: Layer): string {
-  // Use name property (new system) or fallback to type (old system)
-  return layer.name || layer.type || 'div';
+  selectedLayerId: string | null; // Added for context menu
 }
 
 // Helper to check if a node is a descendant of another
@@ -154,10 +73,10 @@ function isDescendant(
   allNodes: FlattenedItem[]
 ): boolean {
   if (node.id === target.id) return true;
-  
+
   const parent = allNodes.find((n) => n.id === target.parentId);
   if (!parent) return false;
-  
+
   return isDescendant(node, parent, allNodes);
 }
 
@@ -168,15 +87,29 @@ function LayerRow({
   isChildOfSelected,
   isLastVisibleDescendant,
   hasVisibleChildren,
+  canHaveChildren,
   isOver,
   isDragging,
   isDragActive,
   dropPosition,
+  highlightedDepths,
   onSelect,
   onMultiSelect,
   onToggle,
   pageId,
+  selectedLayerId,
 }: LayerRowProps) {
+  const { getStyleById } = useLayerStylesStore();
+  const { getComponentById } = useComponentsStore();
+  const { collections } = useCollectionsStore();
+  const {
+    editingComponentId,
+    interactionTriggerLayerIds,
+    interactionTargetLayerIds,
+    activeInteractionTriggerLayerId,
+    activeInteractionTargetLayerIds,
+    setHoveredLayerId,
+  } = useEditorStore();
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
   });
@@ -193,8 +126,32 @@ function LayerRow({
 
   const hasChildren = node.layer.children && node.layer.children.length > 0;
   const isCollapsed = node.collapsed || false;
-  
-  const ElementIcon = elementIcons[getIconKey(node.layer)] || Square;
+
+  // Check if this is a component instance
+  const appliedComponent = node.layer.componentId ? getComponentById(node.layer.componentId) : null;
+  const isComponentInstance = !!appliedComponent;
+
+  // Get collection name if this is a collection layer
+  const collectionName = node.layer.collection?.id
+    ? collections.find(c => c.id === node.layer.collection?.id)?.name
+    : undefined;
+
+  // Also check new variables structure
+  const collectionVariable = getCollectionVariable(node.layer);
+  const finalCollectionName = collectionVariable?.id
+    ? collections.find(c => c.id === collectionVariable.id)?.name
+    : collectionName;
+
+  // Component instances should not show children in the tree (unless editing master)
+  // Children can only be edited via "Edit master component"
+  const shouldHideChildren = isComponentInstance && !editingComponentId;
+  const effectiveHasChildren = hasChildren && !shouldHideChildren;
+
+  // Use purple for component instances OR when editing a component
+  const usePurpleStyle = isComponentInstance || !!editingComponentId;
+
+  // Get icon name from blocks template system
+  const layerIcon = getLayerIcon(node.layer);
 
   // Check if this is the Body layer (locked)
   const isLocked = node.layer.id === 'body' || node.layer.locked === true;
@@ -205,46 +162,77 @@ function LayerRow({
       pageId={pageId}
       isLocked={isLocked}
       onLayerSelect={onSelect}
+      selectedLayerId={selectedLayerId}
     >
       <div className="relative">
-        {/* Vertical connector line */}
+        {/* Vertical connector lines - one for each depth level */}
         {node.depth > 0 && (
-          <div
-            className={cn(
-              'absolute z-10 top-0 bottom-0 w-px ',
-              isSelected && 'bg-white/10',
-              !isSelected && 'bg-secondary',
-              !isSelected && isChildOfSelected && 'bg-white/10',
-            )}
-            style={{
-              left: `${node.depth * 18 - 2}px`,
-            }}
-          />
+          <>
+            {Array.from({ length: node.depth }).map((_, i) => {
+              const shouldHighlight = (isSelected || isChildOfSelected) && highlightedDepths.has(i);
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    'absolute z-10 top-0 bottom-0 w-px ',
+                    shouldHighlight && 'bg-white/30',
+                    isSelected && '!bg-white/10',
+                    isChildOfSelected && 'dark:bg-white/10 bg-neutral-900/10',
+                    !shouldHighlight && !isChildOfSelected && 'dark:bg-secondary bg-neutral-900/10',
+                  )}
+                  style={{
+                    left: `${i * 14 + 16}px`,
+                  }}
+                />
+              );
+            })}
+          </>
         )}
 
         {/* Drop Indicators */}
         {isOver && dropPosition === 'above' && (
-          <div 
-            className="absolute top-0 left-0 right-0 h-[1.5px] bg-primary z-50"
+          <div
+            className={cn(
+              'absolute top-0 left-0 right-0 h-[1.5px] z-50',
+              editingComponentId ? 'bg-purple-500' : 'bg-primary'
+            )}
             style={{
-              marginLeft: `${node.depth * 18}px`,
+              marginLeft: `${node.depth * 14 + 8}px`,
             }}
           >
-            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border border-[1.5px] bg-neutral-950 border-primary" />
+            <div
+              className={cn(
+                'absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950',
+                editingComponentId ? 'border-purple-500' : 'border-primary'
+              )}
+            />
           </div>
         )}
         {isOver && dropPosition === 'below' && (
-          <div 
-            className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-primary z-50"
+          <div
+            className={cn(
+              'absolute bottom-0 left-0 right-0 h-[1.5px] z-50',
+              editingComponentId ? 'bg-purple-500' : 'bg-primary'
+            )}
             style={{
-              marginLeft: `${node.depth * 18}px`,
+              marginLeft: `${node.depth * 14 + 8}px`,
             }}
           >
-            <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border border-[1.5px] bg-neutral-950 border-primary" />
+            <div
+              className={cn(
+                'absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950',
+                editingComponentId ? 'border-purple-500' : 'border-primary'
+              )}
+            />
           </div>
         )}
         {isOver && dropPosition === 'inside' && (
-          <div className="absolute inset-0 border-[1.5px] border-primary rounded-lg z-40 pointer-events-none" />
+          <div
+            className={cn(
+              'absolute inset-0 border-[1.5px] rounded-lg z-40 pointer-events-none',
+              editingComponentId ? 'border-purple-500' : 'border-primary'
+            )}
+          />
         )}
 
         {/* Main Row */}
@@ -255,7 +243,7 @@ function LayerRow({
           data-drag-active={isDragActive}
           data-layer-id={node.id}
           className={cn(
-            'group relative flex items-center h-8 text-muted-foreground outline-none focus:outline-none',
+            'group relative flex items-center h-8 outline-none focus:outline-none cursor-pointer',
             // Conditional rounding based on position in selected group
             // Selected parent: rounded top, rounded bottom ONLY if no visible children
             isSelected && !hasVisibleChildren && 'rounded-lg', // No children: fully rounded
@@ -264,56 +252,176 @@ function LayerRow({
             !isSelected && isChildOfSelected && !isLastVisibleDescendant && 'rounded-none',
             !isSelected && isChildOfSelected && isLastVisibleDescendant && 'rounded-b-lg',
             // Not in group: fully rounded
-            !isSelected && !isChildOfSelected && 'rounded-lg',
+            !isSelected && !isChildOfSelected && 'rounded-lg text-secondary-foreground/80 dark:text-muted-foreground',
             // Background colors
             !isDragActive && !isDragging && 'hover:bg-secondary/50',
-            isSelected && 'bg-primary text-primary-foreground hover:bg-primary',
-            !isSelected && isChildOfSelected && 'bg-primary/20 text-primary-foreground/80 hover:bg-primary/40',
+            // Component instances OR component edit mode use purple, regular layers use blue
+            isSelected && !usePurpleStyle && 'bg-primary text-primary-foreground hover:bg-primary',
+            isSelected && usePurpleStyle && 'bg-purple-500 text-white hover:bg-purple-500',
+            !isSelected && isChildOfSelected && !usePurpleStyle && 'dark:bg-primary/15 bg-primary/10 text-current/70 hover:bg-primary/15 dark:hover:bg-primary/20',
+            !isSelected && isChildOfSelected && usePurpleStyle && 'dark:bg-purple-500/10 bg-purple-500/10 text-current/70 hover:bg-purple-500/15 dark:hover:bg-purple-500/20',
             isSelected && !isDragActive && !isDragging && '',
             isDragging && '',
             !isDragActive && ''
           )}
-          style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
-          onClick={(e) => {
-            // Multi-select support
-            if (e.metaKey || e.ctrlKey) {
-              // Cmd/Ctrl+Click: Toggle this layer in selection
-              onMultiSelect(node.id, { meta: true, shift: false });
-            } else if (e.shiftKey) {
-              // Shift+Click: Select range
-              onMultiSelect(node.id, { meta: false, shift: true });
-            } else {
-              // Normal click: Select only this layer
-              onSelect(node.id);
+          style={{ paddingLeft: `${node.depth * 14 + 8}px` }}
+          onMouseEnter={() => {
+            if (!isDragging) {
+              setHoveredLayerId(node.id);
             }
           }}
+          onMouseLeave={() => {
+            setHoveredLayerId(null);
+          }}
+          onClick={(e) => {
+            // Normal click: Select only this layer
+            onSelect(node.id);
+          }}
         >
-          {/* Expand/Collapse Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggle(node.id);
-            }}
-            className={cn(
-              'w-4 h-4 flex items-center justify-center flex-shrink-0',
-              hasChildren ? '' : 'invisible',
-              isCollapsed ? '' : 'rotate-90'
-            )}
-          >
-            <ChevronRight className="w-3 h-3 text-zinc-400" />
-          </button>
+          {/* Expand/Collapse Button - only show for elements that can have children */}
+          {node.canHaveChildren ? (
+            effectiveHasChildren ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!shouldHideChildren) {
+                    onToggle(node.id);
+                  }
+                }}
+                className={cn(
+                  'w-4 h-4 flex items-center justify-center flex-shrink-0',
+                  isCollapsed ? '' : 'rotate-90',
+                  shouldHideChildren && 'opacity-30 cursor-not-allowed'
+                )}
+                disabled={shouldHideChildren}
+              >
+                <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isSelected && 'opacity-80')} />
+              </button>
+            ) : (
+              <div className="w-4 h-4 flex-shrink-0" />
+            )
+          ) : (
+            <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
+              <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-0', isSelected && 'opacity-0')} />
+            </div>
+          )}
 
           {/* Layer Icon */}
-          {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400 mx-1.5" />*/}
-          <div className="size-3 bg-white/10 rounded mx-1.5" />
+          {isComponentInstance ? (
+            <Icon name="component" className="size-3 mx-1.5" />
+          ) : layerIcon ? (
+            <Icon
+              name={layerIcon}
+              className={cn(
+                'size-3 mx-1.5 opacity-50',
+                isSelected && 'opacity-100',
+              )}
+            />
+          ) : (
+            <div
+              className={cn(
+                'size-3 bg-secondary rounded mx-1.5',
+                isSelected && 'opacity-10 dark:bg-white'
+              )}
+            />
+          )}
 
           {/* Label */}
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
-            {getLayerDisplayName(node.layer)}
+            {getLayerName(node.layer, {
+              component_name: appliedComponent?.name,
+              collection_name: finalCollectionName,
+            })}
           </span>
+
+          {/* Style Indicator */}
+          {node.layer.styleId && (
+            <div className="flex items-center gap-1 mr-2 flex-shrink-0">
+              <LayersIcon className="w-3 h-3 text-purple-400" />
+              {(() => {
+                const appliedStyle = getStyleById(node.layer.styleId);
+                return appliedStyle && hasStyleOverrides(node.layer, appliedStyle) && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-orange-400" title="Style overridden" />
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Interaction trigger indicator */}
+          {interactionTriggerLayerIds.includes(node.id) && (
+            <Icon
+              name="zap"
+              className={cn(
+                'size-3 mr-2 flex-shrink-0',
+                activeInteractionTriggerLayerId === node.id ? 'text-white/80' : 'text-white/40'
+              )}
+            />
+          )}
+
+          {/* Interaction target indicator */}
+          {interactionTargetLayerIds.includes(node.id) && !interactionTriggerLayerIds.includes(node.id) && (
+            <Icon
+              name="zap-outline"
+              className={cn(
+                'size-3 mr-2 flex-shrink-0',
+                activeInteractionTargetLayerIds.includes(node.id) ? 'text-white/70' : 'text-white/40'
+              )}
+            />
+          )}
+
+          {/* Hidden indicator */}
+          {node.layer.settings?.hidden && (
+            <Icon
+              name="eye-off"
+              className={cn(
+                'size-3 mr-3 opacity-50',
+                isSelected && 'opacity-100',
+              )}
+            />
+          )}
         </div>
       </div>
     </LayerContextMenu>
+  );
+}
+
+// EndDropZone Component - Drop target for adding layers at the end (bottom of Body)
+function EndDropZone({
+  isDragActive,
+  isOver,
+  editingComponentId,
+}: {
+  isDragActive: boolean;
+  isOver: boolean;
+  editingComponentId: string | null;
+}) {
+  const { setNodeRef } = useDroppable({
+    id: 'end-drop-zone',
+  });
+
+  if (!isDragActive) return null;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="relative h-8 flex items-center"
+    >
+      {isOver && (
+        <div
+          className={cn(
+            'absolute top-0 left-0 right-0 h-[1.5px] z-50 ml-2',
+            editingComponentId ? 'bg-purple-500' : 'bg-primary'
+          )}
+        >
+          <div
+            className={cn(
+              'absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950',
+              editingComponentId ? 'border-purple-500' : 'border-primary'
+            )}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -334,22 +442,105 @@ export default function LayersTree({
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Pull multi-select state from editor store
-  const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange } = useEditorStore();
-  
+  const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange, editingComponentId } = useEditorStore();
+
+  // Get component by ID function for drag overlay
+  const { getComponentById } = useComponentsStore();
+
+  // Get collections from store
+  const { collections } = useCollectionsStore();
+
   // Use prop or store state (prop takes precedence for compatibility)
   const selectedLayerIds = propSelectedLayerIds ?? storeSelectedLayerIds;
 
   // Flatten the tree for rendering
   const flattenedNodes = useMemo(
-    () => flattenTree(layers, null, 0, collapsedIds),
+    () => {
+      const flattened = flattenTree(layers, null, 0, collapsedIds);
+
+      // Validate no duplicate IDs in flattened array
+      if (process.env.NODE_ENV === 'development') {
+        const seenIds = new Map<string, { parentId: string | null; depth: number; index: number }>();
+        const duplicates: Array<{ id: string; locations: Array<{ parentId: string | null; depth: number; index: number }> }> = [];
+
+        flattened.forEach((node, idx) => {
+          if (seenIds.has(node.id)) {
+            // Find existing duplicate entry or create new one
+            let dupEntry = duplicates.find(d => d.id === node.id);
+            if (!dupEntry) {
+              dupEntry = {
+                id: node.id,
+                locations: [seenIds.get(node.id)!]
+              };
+              duplicates.push(dupEntry);
+            }
+            dupEntry.locations.push({ parentId: node.parentId, depth: node.depth, index: node.index });
+          }
+          seenIds.set(node.id, { parentId: node.parentId, depth: node.depth, index: node.index });
+        });
+
+        if (duplicates.length > 0) {
+          console.error('❌ DUPLICATE IDs IN FLATTENED NODES:');
+          duplicates.forEach(dup => {
+            console.error(`  ID: ${dup.id}`);
+            console.error(`  Found at:`, dup.locations);
+          });
+          console.error('Full layers structure:', JSON.stringify(layers, null, 2));
+
+          // Also check the source layers structure for duplicates
+          const layerIds = new Set<string>();
+          function checkLayerDuplicates(layerList: Layer[], path: string = 'root'): void {
+            layerList.forEach((layer, idx) => {
+              const currentPath = `${path}[${idx}]`;
+              if (layerIds.has(layer.id)) {
+                console.error(`  Also found in source at: ${currentPath}`);
+              }
+              layerIds.add(layer.id);
+              if (layer.children) {
+                checkLayerDuplicates(layer.children, `${currentPath}.children`);
+              }
+            });
+          }
+          checkLayerDuplicates(layers);
+        }
+      }
+
+      return flattened;
+    },
     [layers, collapsedIds]
   );
+
+  // Calculate which depth levels should be highlighted (selected containers)
+  const highlightedDepths = useMemo(() => {
+    const depths = new Set<number>();
+    const selectedIds = selectedLayerId ? [selectedLayerId, ...selectedLayerIds] : selectedLayerIds;
+
+    selectedIds.forEach(id => {
+      const node = flattenedNodes.find(n => n.id === id);
+      if (node && node.canHaveChildren) {
+        depths.add(node.depth);
+      }
+    });
+
+    return depths;
+  }, [flattenedNodes, selectedLayerId, selectedLayerIds]);
 
   // Get the currently active node being dragged
   const activeNode = useMemo(
     () => flattenedNodes.find((node) => node.id === activeId),
     [activeId, flattenedNodes]
   );
+
+  // Get collection name for active node (for drag overlay)
+  const activeNodeCollectionName = useMemo(() => {
+    if (!activeNode) return undefined;
+    const collectionVariable = getCollectionVariable(activeNode.layer);
+    return collectionVariable?.id
+      ? collections.find(c => c.id === collectionVariable.id)?.name
+      : activeNode.layer.collection?.id
+        ? collections.find(c => c.id === activeNode.layer.collection?.id)?.name
+        : undefined;
+  }, [activeNode, collections]);
 
   // Configure sensors for drag detection
   const sensors = useSensors(
@@ -394,6 +585,9 @@ export default function LayersTree({
     return () => window.removeEventListener('expandLayer', handleExpandLayer as EventListener);
   }, [collapsedIds]);
 
+  // Pull hover state management from editor store
+  const { setHoveredLayerId: setHoveredLayerIdFromStore } = useEditorStore();
+
   // Handle drag start
   const handleDragStart = useCallback((event: DragStartEvent) => {
     // Prevent starting a new drag while processing the previous one
@@ -403,7 +597,10 @@ export default function LayersTree({
 
     const draggedId = event.active.id as string;
     const draggedNode = flattenedNodes.find(n => n.id === draggedId);
-    
+
+    // Clear hover state when dragging starts
+    setHoveredLayerIdFromStore(null);
+
     // Calculate where user clicked within the element
     const activeRect = event.active.rect.current.initial;
     if (activeRect && event.activatorEvent) {
@@ -414,29 +611,39 @@ export default function LayersTree({
     } else if (activeRect) {
       setCursorOffsetY(activeRect.height / 2); // Fallback to middle
     }
-    
+
     setActiveId(draggedId);
     onLayerSelect(draggedId);
-  }, [flattenedNodes, onLayerSelect, isProcessing]);
+  }, [flattenedNodes, onLayerSelect, isProcessing, setHoveredLayerIdFromStore]);
 
   // Handle drag over - standard 25/50/25 drop zone detection
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const overId = event.over?.id as string | null;
-    
+
     if (!overId || !event.over?.rect) {
       setOverId(null);
       setDropPosition(null);
       return;
     }
 
+    // Handle drop at the end of the list (after all layers)
+    if (overId === 'end-drop-zone') {
+      const activeNode = activeId ? flattenedNodes.find((n) => n.id === activeId) : null;
+
+      // For Sections, allow dropping at end (will be placed as last child of Body)
+      // For other layers, also allow (will be placed as last child of Body)
+      setOverId(overId);
+      setDropPosition('below'); // Will be treated as "after last item"
+      return;
+    }
+
     const overNode = flattenedNodes.find((n) => n.id === overId);
     const activeNode = activeId ? flattenedNodes.find((n) => n.id === activeId) : null;
-    
+
     if (!overNode) {
       setDropPosition(null);
       return;
     }
-
 
     // CRITICAL: Prevent dropping outside Body layer
     // If hovering over Body itself, only allow "inside" drops
@@ -454,36 +661,38 @@ export default function LayersTree({
       setDropPosition(null);
       return;
     }
-    
+
     const pointerY = activeRect.translated?.top ?? activeRect.initial.top;
     const { top, height } = event.over.rect;
-    
+
     // Use the ACTUAL cursor offset captured on drag start
     const actualPointerY = pointerY + cursorOffsetY;
-    
+
     const offsetY = actualPointerY - top;
     const relativeY = offsetY / height;
-    
-    // Check if node can have children using the shared utility
-    const nodeCanHaveChildren = canHaveChildren(overNode.layer);
-    
-    // Container types strongly prefer "inside" drops
-    // Check both old type property and new name property
-    const isContainerType = overNode.layer.type === 'container' || 
-                           overNode.layer.name === 'div' ||
-                           overNode.layer.name === 'section' ||
-                           overNode.layer.name === 'form';
-    
+
+    // Use pre-calculated canHaveChildren from the node
+    const nodeCanHaveChildren = overNode.canHaveChildren;
+
+    // Special case: When dragging Section, disable "inside" drop for all containers except Body
+    // Sections can only be at Body level, never nested inside other containers
+    const isDraggingSection = activeNode && activeNode.layer.name === 'section';
+    const isOverBody = overNode.id === 'body' || overNode.layer.name === 'body';
+    const shouldDisableInsideDrop = isDraggingSection && !isOverBody;
+
+    // Layers that can have children strongly prefer "inside" drops
+    const isContainerType = nodeCanHaveChildren && !shouldDisableInsideDrop;
+
     // Determine drop position based on pointer position
     let position: 'above' | 'below' | 'inside';
-    
+
     // Check if node has visible children
-    const hasVisibleChildren = overNode.layer.children && 
-                                overNode.layer.children.length > 0 && 
+    const hasVisibleChildren = overNode.layer.children &&
+                                overNode.layer.children.length > 0 &&
                                 !collapsedIds.has(overNode.id);
-    
+
     // Clearer, more predictable drop zones
-    if (nodeCanHaveChildren) {
+    if (nodeCanHaveChildren && !shouldDisableInsideDrop) {
       // Elements that can have children use generous inside zone
       if (isContainerType) {
         // Containers (Block, Section, Container, Form)
@@ -521,6 +730,24 @@ export default function LayersTree({
       position = relativeY < 0.5 ? 'above' : 'below';
     }
 
+    // CRITICAL: When dragging a Section, prevent it from being dropped inside ANY container except Body
+    // Check if the target node's parent is NOT Body (Section can only be at Body level)
+    if (isDraggingSection && (position === 'above' || position === 'below')) {
+      const targetParentId = overNode.parentId;
+
+      // If the parent is not Body, don't allow Section to be dropped here
+      if (targetParentId && targetParentId !== 'body') {
+        const parentNode = flattenedNodes.find(n => n.id === targetParentId);
+        const parentIsBody = parentNode?.id === 'body' || parentNode?.layer.name === 'body';
+
+        if (!parentIsBody) {
+          // Hovering over a child of a non-Body container - don't show drop indicator
+          setOverId(null);
+          setDropPosition(null);
+          return;
+        }
+      }
+    }
 
     // CRITICAL: Prevent reordering within same parent from moving outside parent
     // If dragging an element within its own parent, "above/below" should only reorder
@@ -528,17 +755,17 @@ export default function LayersTree({
     if (activeNode && (position === 'above' || position === 'below')) {
       const targetParentId = overNode.parentId;
       const currentParentId = activeNode.parentId;
-      
+
       // Check if hovering over a container that IS the current parent
       // This would place element outside its own container
-      if (overNode.id === currentParentId && overNode.layer.type === 'container') {
+      if (overNode.id === currentParentId && canHaveChildren(overNode.layer)) {
         // Dragging over the container that contains the dragged element
         // "above" or "below" would escape to the grandparent level
         setOverId(null);
         setDropPosition(null);
         return;
       }
-      
+
       // ADDITIONAL CHECK: If both are siblings but the target's parent is different from
       // what the drop would result in, block it
       // This catches the edge case where "above" first child would place at parent level
@@ -546,30 +773,30 @@ export default function LayersTree({
         // Same parent - check if this would actually change the parent
         // For "above" on first child or "below" on last child, the actual placement
         // would be at parent level (escaping the container)
-        
+
         // Find all siblings in this container
         const siblingsInParent = flattenedNodes.filter(n => n.parentId === currentParentId);
-        
+
         // Check if target is first child and we're going "above"
         // OR if target is last child and we're going "below"
         const isFirstSibling = overNode.index === 0;
         const isLastSibling = overNode.index === siblingsInParent.length - 1;
-        
+
         // CRITICAL: Check what the actual resulting parent would be
         // If position is "above" first child, it would use overNode.parentId which might escape
         // We need to ensure this doesn't change the parent level
-        
+
         if (position === 'above' && isFirstSibling) {
           // This would place ABOVE the first child
           // In the tree, this means same parent (which is fine)
           // But we need to make sure the depth stays the same
         }
-        
+
         if (position === 'below' && isLastSibling) {
           // This would place BELOW the last child
           // Should stay at same level
         }
-        
+
         // Allow reordering within same parent
       } else if (currentParentId !== targetParentId) {
         // Different parents - this is a cross-container move
@@ -583,7 +810,6 @@ export default function LayersTree({
         // Otherwise allow cross-container move - show indicator
       }
     }
-
 
     setOverId(overId);
     setDropPosition(position);
@@ -606,6 +832,47 @@ export default function LayersTree({
       setIsProcessing(true);
 
       const activeNode = flattenedNodes.find((n) => n.id === active.id);
+
+      // Handle drop at the end of the list
+      if (over.id === 'end-drop-zone') {
+        if (!activeNode) {
+          setActiveId(null);
+          setOverId(null);
+          setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
+          return;
+        }
+
+        // Find the Body layer to add as its last child
+        const bodyLayer = flattenedNodes.find(n => n.id === 'body' || n.layer.name === 'body');
+
+        if (bodyLayer) {
+          // Get all current children of Body
+          const bodyChildren = flattenedNodes.filter(n => n.parentId === bodyLayer.id);
+          const maxIndex = bodyChildren.length > 0
+            ? Math.max(...bodyChildren.map(n => n.index))
+            : -1;
+
+          // Place as last child of Body
+          const newLayers = rebuildTree(
+            flattenedNodes,
+            activeNode.id,
+            bodyLayer.id,
+            maxIndex + 1
+          );
+
+          onReorder(newLayers);
+        }
+
+        setActiveId(null);
+        setOverId(null);
+        setDropPosition(null);
+        setCursorOffsetY(0);
+        setTimeout(() => setIsProcessing(false), 0);
+        return;
+      }
+
       const overNode = flattenedNodes.find((n) => n.id === over.id);
 
       if (!activeNode || !overNode) {
@@ -635,7 +902,7 @@ export default function LayersTree({
         // Drop above the target - same parent, same order as target
         newParentId = overNode.parentId;
         newOrder = overNode.index;
-        
+
         // CRITICAL: Prevent placement at root level (parentId: null)
         // Everything must be inside Body
         if (newParentId === null) {
@@ -646,10 +913,26 @@ export default function LayersTree({
           setIsProcessing(false);
           return;
         }
+
+        // Prevent Section from being placed outside Body
+        // BUT allow reordering Sections when both are already at Body level
+        if (activeNode.layer.name === 'section') {
+          const parentNode = flattenedNodes.find(n => n.id === newParentId);
+          const isParentBody = parentNode?.layer.name === 'body' || parentNode?.id === 'body';
+
+          if (!isParentBody) {
+            setActiveId(null);
+            setOverId(null);
+            setDropPosition(null);
+            setCursorOffsetY(0);
+            setIsProcessing(false);
+            return;
+          }
+        }
       } else if (dropPosition === 'inside') {
         // Drop inside the target - target becomes parent
         // Validate that target can accept children
-        if (!canHaveChildren(overNode.layer)) {
+        if (!overNode.canHaveChildren) {
           setActiveId(null);
           setOverId(null);
           setDropPosition(null);
@@ -657,20 +940,40 @@ export default function LayersTree({
           setIsProcessing(false);
           return;
         }
-        
+
+        // Prevent dropping Section inside another Section
+        if (activeNode.layer.name === 'section' && overNode.layer.name === 'section') {
+          setActiveId(null);
+          setOverId(null);
+          setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
+          return;
+        }
+
+        // Prevent dropping Section inside any layer that's not Body
+        if (activeNode.layer.name === 'section' && overNode.layer.name !== 'body') {
+          setActiveId(null);
+          setOverId(null);
+          setDropPosition(null);
+          setCursorOffsetY(0);
+          setIsProcessing(false);
+          return;
+        }
+
         // Target container becomes the new parent
         newParentId = overNode.id;
-        
+
         // Place as LAST child (at the end of the container's children)
         const childrenOfOver = flattenedNodes.filter(n => n.parentId === overNode.id);
-        newOrder = childrenOfOver.length > 0 
-          ? Math.max(...childrenOfOver.map(n => n.index)) + 1 
+        newOrder = childrenOfOver.length > 0
+          ? Math.max(...childrenOfOver.map(n => n.index)) + 1
           : 0;
       } else {
         // Drop below the target (default)
         newParentId = overNode.parentId;
         newOrder = overNode.index + 1;
-        
+
         // CRITICAL: Prevent placement at root level (parentId: null)
         // Everything must be inside Body
         if (newParentId === null) {
@@ -681,33 +984,37 @@ export default function LayersTree({
           setIsProcessing(false);
           return;
         }
-      }
-      
-      // Helper function to get target parent name
-      const getTargetParentName = (): string => {
-        if (!newParentId) return 'ROOT';
-        
-        const parentNode = flattenedNodes.find(n => n.id === newParentId);
-        if (parentNode) {
-          return getLayerDisplayName(parentNode.layer);
+
+        // Prevent Section from being placed outside Body
+        // BUT allow reordering Sections when both are already at Body level
+        if (activeNode.layer.name === 'section') {
+          const parentNode = flattenedNodes.find(n => n.id === newParentId);
+          const isParentBody = parentNode?.layer.name === 'body' || parentNode?.id === 'body';
+
+          if (!isParentBody) {
+            setActiveId(null);
+            setOverId(null);
+            setDropPosition(null);
+            setCursorOffsetY(0);
+            setIsProcessing(false);
+            return;
+          }
         }
-        
-        return 'NOT FOUND!';
-      };
-      
+      }
+
       // Rebuild the tree structure
       const newLayers = rebuildTree(flattenedNodes, activeNode.id, newParentId, newOrder);
-      onReorder(newLayers);
 
+      onReorder(newLayers);
       setActiveId(null);
       setOverId(null);
       setDropPosition(null);
       setCursorOffsetY(0);
-      
+
       // Use setTimeout to reset processing flag after state updates complete
       setTimeout(() => setIsProcessing(false), 0);
     },
-    [flattenedNodes, dropPosition, onReorder, collapsedIds]
+    [flattenedNodes, dropPosition, onReorder]
   );
 
   // Handle drag cancel
@@ -751,8 +1058,8 @@ export default function LayersTree({
       <div className="space-y-0">
         {flattenedNodes.map((node, nodeIndex) => {
           // Check if this node has visible children
-          const hasVisibleChildren = !!(node.layer.children && 
-                                        node.layer.children.length > 0 && 
+          const hasVisibleChildren = !!(node.layer.children &&
+                                        node.layer.children.length > 0 &&
                                         !collapsedIds.has(node.id));
 
           // Check if this node is a child/descendant of any selected layer
@@ -761,7 +1068,7 @@ export default function LayersTree({
             // Find the selected node
             const selectedNode = flattenedNodes.find(n => n.id === selectedId);
             if (!selectedNode || node.id === selectedId) return false;
-            
+
             // Check if node's parentId chain leads to selectedId
             let currentNode: FlattenedItem | undefined = node;
             while (currentNode && currentNode.parentId) {
@@ -776,21 +1083,21 @@ export default function LayersTree({
 
           // Determine if this is the last visible descendant of selected parent
           let isLastVisibleDescendant = false;
-          
+
           if (isChildOfSelected && parentSelectedId) {
             // Find ALL visible descendants of the selected parent
             const allDescendants: FlattenedItem[] = [];
-            
+
             for (let i = 0; i < flattenedNodes.length; i++) {
               const checkNode = flattenedNodes[i];
-              
+
               // Skip the selected parent itself
               if (checkNode.id === parentSelectedId) continue;
-              
+
               // Check if this node is a descendant of parentSelectedId
               let current: FlattenedItem | undefined = checkNode;
               let isDescendant = false;
-              
+
               while (current && current.parentId) {
                 if (current.parentId === parentSelectedId) {
                   isDescendant = true;
@@ -798,12 +1105,12 @@ export default function LayersTree({
                 }
                 current = flattenedNodes.find(n => n.id === current!.parentId);
               }
-              
+
               if (isDescendant && !selectedLayerIds.includes(checkNode.id)) {
                 allDescendants.push(checkNode);
               }
             }
-            
+
             if (allDescendants.length > 0) {
               isLastVisibleDescendant = allDescendants[allDescendants.length - 1].id === node.id;
             }
@@ -817,36 +1124,65 @@ export default function LayersTree({
               isChildOfSelected={isChildOfSelected}
               isLastVisibleDescendant={isLastVisibleDescendant}
               hasVisibleChildren={hasVisibleChildren}
+              canHaveChildren={node.canHaveChildren}
               isOver={overId === node.id}
               isDragging={activeId === node.id}
               isDragActive={!!activeId}
               dropPosition={overId === node.id ? dropPosition : null}
+              highlightedDepths={highlightedDepths}
               onSelect={handleSelect}
               onMultiSelect={handleMultiSelect}
               onToggle={handleToggle}
               pageId={pageId}
+              selectedLayerId={selectedLayerId}
             />
           );
         })}
+
+        {/* Drop zone at the end for dropping layers at the bottom */}
+        <EndDropZone
+          isDragActive={!!activeId}
+          isOver={overId === 'end-drop-zone'}
+          editingComponentId={editingComponentId}
+        />
       </div>
 
       {/* Drag Overlay - custom ghost element with 40px offset */}
       <DragOverlay dropAnimation={null}>
         {activeNode ? (
-          <div 
+          <div
             className="flex items-center text-white text-xs h-8 rounded-lg"
             style={{ transform: 'translateX(40px)' }}
           >
             {(() => {
-              const ElementIcon = elementIcons[getIconKey(activeNode.layer)] || Square;
+              const draggedComponent = activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId) : null;
+              const layerIcon = getLayerIcon(activeNode.layer);
+              const isActiveNodeSelected = selectedLayerIds.includes(activeNode.id) || selectedLayerId === activeNode.id;
+
               return (
                 <>
-                  {/*<ElementIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" />*/}
-                  <div className="size-3 bg-white/10 rounded mx-1.5" />
+                  {draggedComponent ? (
+                    <ComponentIcon className="w-3 h-3 flex-shrink-0 mx-1.5 opacity-75" />
+                  ) : layerIcon ? (
+                    <Icon
+                      name={layerIcon}
+                      className={cn(
+                        'size-3 mx-1.5 opacity-50',
+                        isActiveNodeSelected && 'opacity-100',
+                      )}
+                    />
+                  ) : (
+                    <div className="size-3 bg-white/10 rounded mx-1.5" />
+                  )}
                 </>
               );
             })()}
-            <span className="pointer-events-none">{getLayerDisplayName(activeNode.layer)}</span>
+            <span className="pointer-events-none">
+              {getLayerName(activeNode.layer, {
+                component_name: activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId)?.name : null,
+                collection_name: activeNodeCollectionName,
+              })}
+            </span>
           </div>
         ) : null}
       </DragOverlay>
@@ -861,20 +1197,29 @@ function rebuildTree(
   newParentId: string | null,
   newOrder: number
 ): Layer[] {
-  // Create a copy of all nodes
-  const nodeCopy = flattenedNodes.map(n => ({ ...n, layer: { ...n.layer } }));
-  
-  // Find and update the moved node
+  // Create a copy of all nodes - deep copy layer but clear children references
+  // since we'll rebuild them from scratch
+  const nodeCopy = flattenedNodes.map(n => ({
+    ...n,
+    layer: {
+      ...n.layer,
+      children: undefined // Clear children - we'll rebuild from byParent map
+    }
+  }));
+
+  // Find the moved node and store its original parent
   const movedNode = nodeCopy.find(n => n.id === movedId);
   if (!movedNode) {
     console.error('❌ REBUILD ERROR: Moved node not found!');
     return [];
   }
-  
+
+  const originalParentId = movedNode.parentId;
+
   // Update moved node's parent and index
   movedNode.parentId = newParentId;
   movedNode.index = newOrder;
-  
+
   // Group nodes by parent
   const byParent = new Map<string | null, FlattenedItem[]>();
   nodeCopy.forEach(node => {
@@ -884,19 +1229,19 @@ function rebuildTree(
     }
     byParent.get(parent)!.push(node);
   });
-  
+
   // Sort each group by index and reassign indices
   byParent.forEach((children, parentId) => {
     // Sort by current index first
     children.sort((a, b) => a.index - b.index);
-    
+
     // If this group contains the moved node, reorder it
     const movedNodeInGroup = children.find(n => n.id === movedId);
     if (movedNodeInGroup) {
       // Remove moved node from its current position
       const movedIndex = children.findIndex(n => n.id === movedId);
       children.splice(movedIndex, 1);
-      
+
       // Insert at new position
       // Find insertion index based on newOrder
       let insertIndex = 0;
@@ -907,34 +1252,74 @@ function rebuildTree(
           break;
         }
       }
-      
+
       children.splice(insertIndex, 0, movedNodeInGroup);
     }
-    
+
     // Reassign sequential indices
     children.forEach((child, idx) => {
       child.index = idx;
     });
   });
-  
+
   // Build tree recursively
   function buildNode(nodeId: string): Layer {
     const node = nodeCopy.find(n => n.id === nodeId)!;
     const childNodes = byParent.get(nodeId) || [];
-    
+
     const result: Layer = { ...node.layer };
-    
+
+    // Always set children based on byParent map, even if empty
+    // This ensures old children references are removed
     if (childNodes.length > 0) {
       result.children = childNodes.map(child => buildNode(child.id));
+    } else {
+      // Explicitly remove children property if no children
+      delete result.children;
     }
-    
+
     return result;
   }
-  
+
   // Build root level
   const rootNodes = byParent.get(null) || [];
   const result = rootNodes.map(node => buildNode(node.id));
-  
+
+  // Validate no duplicate IDs in the rebuilt tree
+  if (process.env.NODE_ENV === 'development') {
+    const allIds = new Set<string>();
+    const duplicateInfo: Array<{ id: string; paths: string[] }> = [];
+
+    function validateNoDuplicates(layers: Layer[], path: string = 'root'): void {
+      layers.forEach((layer, idx) => {
+        const currentPath = `${path}[${idx}]`;
+        if (allIds.has(layer.id)) {
+          let dupEntry = duplicateInfo.find(d => d.id === layer.id);
+          if (!dupEntry) {
+            dupEntry = { id: layer.id, paths: [] };
+            duplicateInfo.push(dupEntry);
+          }
+          dupEntry.paths.push(currentPath);
+        }
+        allIds.add(layer.id);
+        if (layer.children) {
+          validateNoDuplicates(layer.children, `${currentPath}.children`);
+        }
+      });
+    }
+
+    validateNoDuplicates(result);
+
+    if (duplicateInfo.length > 0) {
+      console.error('❌ DUPLICATE IDs IN REBUILT TREE:');
+      duplicateInfo.forEach(dup => {
+        console.error(`  ID: ${dup.id} found at paths:`, dup.paths);
+      });
+      console.error('  movedId:', movedId);
+      console.error('  newParentId:', newParentId);
+      console.error('  originalParentId:', originalParentId);
+    }
+  }
+
   return result;
 }
-

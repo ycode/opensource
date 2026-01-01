@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteAsset } from '@/lib/repositories/assetRepository';
+import { getAssetById } from '@/lib/repositories/assetRepository';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -7,29 +7,34 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
- * DELETE /api/assets/[id]
+ * GET /api/assets/[id]
  * 
- * Delete an asset
+ * Get a single asset by ID
  */
-export async function DELETE(
+export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    await deleteAsset(id);
+    const asset = await getAssetById(id);
+
+    if (!asset) {
+      return noCache(
+        { error: 'Asset not found' },
+        404
+      );
+    }
 
     return noCache({
-      success: true,
-      message: 'Asset deleted successfully',
+      data: asset,
     });
   } catch (error) {
-    console.error('Failed to delete asset:', error);
+    console.error('Failed to fetch asset:', error);
     
     return noCache(
-      { error: error instanceof Error ? error.message : 'Failed to delete asset' },
+      { error: error instanceof Error ? error.message : 'Failed to fetch asset' },
       500
     );
   }
 }
-

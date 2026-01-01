@@ -14,7 +14,11 @@ export const Cursor = ({
 }) => {
   return (
     <div className={cn('pointer-events-none', className)} style={style}>
-      <MousePointer2 color={color} fill={color} size={30} />
+      <MousePointer2
+        color={color}
+        fill={color}
+        size={30}
+      />
 
       <div
         className="mt-1 px-2 py-1 rounded text-xs font-bold text-white text-center"

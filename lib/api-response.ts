@@ -30,4 +30,3 @@ export function noCache<T = Record<string, unknown>>(data: T, status = 200) {
     },
   });
 }
-

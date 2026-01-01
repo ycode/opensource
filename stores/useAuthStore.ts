@@ -36,12 +36,22 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   /**
    * Initialize auth state and listen for auth changes
+   * Gracefully handles missing Supabase config (expected during setup)
    */
   initialize: async () => {
     if (get().initialized) return;
 
     try {
       const supabase = await createBrowserClient();
+
+      // If Supabase is not configured, skip initialization (expected during setup)
+      if (!supabase) {
+        set({
+          initialized: true,
+          error: null,
+        });
+        return;
+      }
 
       // Get initial session
       const { data: { session } } = await supabase.auth.getSession();
@@ -76,6 +86,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
     try {
       const supabase = await createBrowserClient();
+      
+      if (!supabase) {
+        set({ loading: false, error: 'Supabase not configured. Please complete setup first.' });
+        return { error: 'Supabase not configured. Please complete setup first.' };
+      }
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -123,6 +138,11 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     try {
       const supabase = await createBrowserClient();
       
+      if (!supabase) {
+        set({ loading: false, error: 'Supabase not configured. Please complete setup first.' });
+        return { error: 'Supabase not configured. Please complete setup first.' };
+      }
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -156,6 +176,16 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     try {
       const supabase = await createBrowserClient();
       
+      if (!supabase) {
+        // If Supabase is not configured, just clear local state
+        set({
+          user: null,
+          session: null,
+          loading: false,
+        });
+        return;
+      }
+      
       const { error } = await supabase.auth.signOut();
 
       if (error) {
@@ -181,6 +211,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     try {
       const supabase = await createBrowserClient();
       
+      if (!supabase) {
+        return;
+      }
+      
       const { data: { session } } = await supabase.auth.getSession();
 
       set({
@@ -199,4 +233,3 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     set({ error });
   },
 }));
-

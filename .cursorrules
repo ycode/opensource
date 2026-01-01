@@ -47,10 +47,10 @@ import { Icon } from '@/components/ui/icon';
 
 export function SearchBar({ onSearch }: SearchBarProps) {
   const [query, setQuery] = useState('');
-  
+
   return (
     <div className="flex gap-2">
-      <Input 
+      <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search pages..."
@@ -159,12 +159,12 @@ Move reusable logic into custom hooks:
 // ✅ GOOD: Reusable hook
 export function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
-  
+
   useEffect(() => {
     const handler = setTimeout(() => setDebouncedValue(value), delay);
     return () => clearTimeout(handler);
   }, [value, delay]);
-  
+
   return debouncedValue;
 }
 
@@ -172,7 +172,7 @@ export function useDebounce<T>(value: T, delay: number): T {
 function SearchInput() {
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 500);
-  
+
   useEffect(() => {
     if (debouncedQuery) {
       performSearch(debouncedQuery);
@@ -286,7 +286,7 @@ import { cn } from '@/lib/utils';
 import { findLayerById } from '@/lib/layer-utils';
 
 // 7. Types (always last, alphabetical)
-import type { Layer, Page, PageVersion, Asset } from '@/types';
+import type { Layer, Page, PageLayers, Asset } from '@/types';
 ```
 
 ---
@@ -395,11 +395,11 @@ export async function GET(
 ) {
   try {
     const page = await getPageById(params.id);
-    
+
     if (!page) {
       return NextResponse.json({ error: 'Page not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({ data: page });
   } catch (error) {
     console.error('Error fetching page:', error);
@@ -434,7 +434,7 @@ export async function getAllPages(): Promise<Page[]> {
     .from('pages')
     .select('*')
     .order('created_at', { ascending: false });
-  
+
   if (error) throw new Error(`Failed to fetch pages: ${error.message}`);
   return data || [];
 }
@@ -446,11 +446,11 @@ export async function getPageById(id: string): Promise<Page | null> {
     .select('*')
     .eq('id', id)
     .single();
-  
+
   if (error && error.code !== 'PGRST116') {
     throw new Error(`Failed to fetch page: ${error.message}`);
   }
-  
+
   return data;
 }
 
@@ -461,11 +461,56 @@ export async function createPage(pageData: Omit<Page, 'id' | 'created_at' | 'upd
     .insert(pageData)
     .select()
     .single();
-  
+
   if (error) throw new Error(`Failed to create page: ${error.message}`);
   return data;
 }
 ```
+
+### ALWAYS Use Upsert for Database Operations
+
+**NEVER execute queries in loops or use Promise.all for individual database operations.**
+
+Use batch operations with `upsert` instead of separate insert/update operations.
+
+```typescript
+// ✅ CORRECT: Batch upsert operation
+const itemsToUpsert = items.map(item => ({
+  id: item.id,
+  name: item.name,
+  is_published: true,
+  updated_at: new Date().toISOString(),
+}));
+
+await client
+  .from('table_name')
+  .upsert(itemsToUpsert, {
+    onConflict: 'id,is_published', // Composite key
+  });
+
+// ❌ WRONG: Queries in loops
+for (const item of items) {
+  const existing = await getItemById(item.id);
+  if (existing) {
+    await client.from('table_name').update(item).eq('id', item.id);
+  } else {
+    await client.from('table_name').insert(item);
+  }
+}
+
+// ❌ WRONG: Promise.all with individual queries
+const updates = items.map(item =>
+  client.from('table_name').update(item).eq('id', item.id)
+);
+await Promise.all(updates);
+```
+
+### Rules
+1. **ALWAYS** use `upsert` for insert/update operations
+2. **NEVER** execute queries inside loops
+3. **NEVER** use `Promise.all` with individual update queries
+4. **ALWAYS** batch operations when possible
+5. Use `onConflict` parameter to specify composite keys for upsert operations
 
 ---
 
@@ -477,17 +522,17 @@ Use the `ApiResponse<T>` type from `/types/index.ts`:
 
 ```typescript
 // ✅ Success response
-return NextResponse.json({ 
-  data: result 
+return NextResponse.json({
+  data: result
 }, { status: 200 });
 
 // ✅ Error response
-return NextResponse.json({ 
-  error: 'Descriptive error message' 
+return NextResponse.json({
+  error: 'Descriptive error message'
 }, { status: 400 });
 
 // ✅ With optional message
-return NextResponse.json({ 
+return NextResponse.json({
   data: result,
   message: 'Page published successfully'
 }, { status: 200 });
@@ -513,9 +558,9 @@ const handleAction = async () => {
   try {
     setLoading(true);
     setError(null); // Clear previous errors
-    
+
     const result = await apiCall();
-    
+
     // Success handling
     setData(result);
   } catch (error) {
@@ -534,7 +579,7 @@ function PageEditor({ pageId }: PageEditorProps) {
   const [page, setPage] = useState<Page | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   useEffect(() => {
     const loadPage = async () => {
       try {
@@ -547,14 +592,14 @@ function PageEditor({ pageId }: PageEditorProps) {
         setLoading(false);
       }
     };
-    
+
     loadPage();
   }, [pageId]);
-  
+
   if (loading) return <Spinner />;
   if (error) return <ErrorMessage error={error} />;
   if (!page) return null;
-  
+
   return <div>{/* Render page */}</div>;
 }
 ```
@@ -570,26 +615,26 @@ function PageEditor({ pageId }: PageEditorProps) {
 function PageList() {
   const [pages, setPages] = useState<Page[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     fetchPages().then(setPages).finally(() => setLoading(false));
   }, []);
-  
+
   if (loading) {
     return <Spinner />;
   }
-  
+
   return <div>{/* Render pages */}</div>;
 }
 
 // ❌ WRONG: No loading state
 function PageList() {
   const [pages, setPages] = useState<Page[]>([]);
-  
+
   useEffect(() => {
     fetchPages().then(setPages);
   }, []);
-  
+
   return <div>{/* Flashes empty state, then content */}</div>;
 }
 ```
@@ -617,19 +662,19 @@ if (loading) return (
 // ✅ GOOD: Early returns (clean, readable)
 function PageEditor({ pageId }: PageEditorProps) {
   const { page, loading, error } = usePageData(pageId);
-  
+
   if (loading) {
     return <Spinner />;
   }
-  
+
   if (error) {
     return <ErrorMessage error={error} />;
   }
-  
+
   if (!page) {
     return <EmptyState message="Page not found" />;
   }
-  
+
   return (
     <div>
       <h1>{page.title}</h1>
@@ -641,7 +686,7 @@ function PageEditor({ pageId }: PageEditorProps) {
 // ❌ BAD: Nested ternaries (hard to read, hard to maintain)
 function PageEditor({ pageId }: PageEditorProps) {
   const { page, loading, error } = usePageData(pageId);
-  
+
   return loading ? (
     <Spinner />
   ) : error ? (
@@ -701,7 +746,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   currentPageId: null,
   isLoading: false,
   isSaving: false,
-  
+
   setSelectedLayerId: (id) => set({ selectedLayerId: id }),
   setCurrentPageId: (id) => set({ currentPageId: id }),
   setLoading: (value) => set({ isLoading: value }),
@@ -751,7 +796,7 @@ function LayersList({ layers }: LayersListProps) {
   const handleSelect = useCallback((id: string) => {
     console.log('Selected:', id);
   }, []); // Empty deps - function never changes
-  
+
   return (
     <>
       {layers.map(layer => (
@@ -768,14 +813,14 @@ function LayersList({ layers }: LayersListProps) {
 // ✅ useMemo caches expensive computations
 function PageEditor({ pageId }: PageEditorProps) {
   const { draftsByPageId } = usePagesStore();
-  
+
   // Expensive: traverse tree structure
   const layersForCurrentPage = useMemo(() => {
     if (!pageId) return [];
     const draft = draftsByPageId[pageId];
     return draft ? draft.layers : [];
   }, [pageId, draftsByPageId]);
-  
+
   return <LayerRenderer layers={layersForCurrentPage} />;
 }
 ```
@@ -866,7 +911,141 @@ export function findLayerById(layers: Layer[], id: string): Layer | null {
 
 ---
 
-## 🌍 16. Environment Variables
+## 🧹 16. Input Sanitization (MANDATORY for Design Properties)
+
+### ALWAYS Sanitize User Input for Tailwind Classes
+
+Design property inputs (fontSize, width, padding, etc.) MUST be sanitized to prevent invalid Tailwind classes. Spaces break Tailwind syntax.
+
+### Use Centralized Utilities
+
+**Location**: `/lib/utils.ts`
+
+```typescript
+import { removeSpaces, sanitizeInput } from '@/lib/utils';
+
+// ✅ CORRECT: Use removeSpaces for Tailwind values
+const handleFontSizeChange = (value: string) => {
+  const sanitized = removeSpaces(value); // "10 rem" → "10rem"
+  updateDesignProperty('typography', 'fontSize', sanitized || null);
+};
+
+// ✅ CORRECT: Use controlled input hook (auto-sanitizes)
+const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize);
+// Spaces automatically stripped at input level - never appear in the field
+
+// ❌ WRONG: No sanitization
+const handleChange = (value: string) => {
+  updateDesignProperty('typography', 'fontSize', value); // "10 rem" creates invalid class!
+};
+```
+
+### useControlledInput Hook
+
+The `useControlledInput` hook automatically sanitizes input values by default:
+
+```typescript
+import { useControlledInput } from '@/hooks/use-controlled-input';
+
+// Auto-sanitizes by default (removes spaces)
+const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize);
+
+// Opt-out of sanitization if needed (rare)
+const [customInput, setCustomInput] = useControlledInput(value, undefined, false);
+```
+
+### Available Sanitization Functions
+
+```typescript
+// Quick helper: Remove all spaces
+removeSpaces('10 rem')  // '10rem'
+
+// Advanced: Custom sanitization
+sanitizeInput('  100px  ', {
+  removeSpaces: false,
+  trim: true  // '100px'
+})
+
+sanitizeInput('#FF 00 00', {
+  removeSpaces: true  // '#FF0000'
+})
+```
+
+### Rules
+
+1. **ALWAYS** use `removeSpaces()` from `@/lib/utils` for design property handlers
+2. **NEVER** create duplicate `const sanitize =` helpers in components
+3. **USE** `useControlledInput` hook for design property inputs (auto-sanitizes)
+4. **IMPORT** from `@/lib/utils`, not inline implementations
+
+### Defense in Depth
+
+We use **two layers** of protection:
+
+1. **Hook Level**: `useControlledInput` strips spaces before they appear in the input field
+2. **Handler Level**: `removeSpaces()` ensures spaces don't get saved
+
+### Example: Complete Implementation
+
+```typescript
+import { useControlledInput } from '@/hooks/use-controlled-input';
+import { removeSpaces } from '@/lib/utils';
+import { extractMeasurementValue } from '@/lib/measurement-utils';
+
+export default function TypographyControls({ layer, onLayerUpdate }) {
+  const { updateDesignProperty, getDesignProperty } = useDesignSync({
+    layer,
+    onLayerUpdate,
+    activeBreakpoint,
+    activeUIState,
+  });
+
+  const fontSize = getDesignProperty('typography', 'fontSize') || '';
+
+  // Hook automatically strips spaces
+  const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize, extractMeasurementValue);
+
+  const handleFontSizeChange = (value: string) => {
+    setFontSizeInput(value); // Spaces never appear in input
+    const sanitized = removeSpaces(value); // Extra safety layer
+    updateDesignProperty('typography', 'fontSize', sanitized || null);
+  };
+
+  return (
+    <Input
+      value={fontSizeInput}
+      onChange={(e) => handleFontSizeChange(e.target.value)}
+    />
+  );
+}
+```
+
+### Why This Matters
+
+```typescript
+// ❌ WITHOUT sanitization:
+User types: "10 rem"
+Creates class: "text-[10 rem]"  // INVALID Tailwind!
+Result: Broken styling, compilation errors
+
+// ✅ WITH sanitization:
+User types: "10 rem"
+Sanitized to: "10rem"
+Creates class: "text-[10rem]"  // VALID Tailwind!
+Result: Perfect styling ✓
+```
+
+### Checklist for Design Property Inputs
+
+- [ ] Import `removeSpaces` from `@/lib/utils`
+- [ ] Use `useControlledInput` hook for state management
+- [ ] Call `removeSpaces()` in change handlers
+- [ ] Never create local `const sanitize =` helpers
+- [ ] Test that spaces don't appear when typing
+
+---
+
+## 🌍 17. Environment Variables
 
 ### Client vs Server
 
@@ -889,7 +1068,7 @@ const secret = process.env.SECRET_KEY; // Undefined in browser!
 
 ---
 
-## 🧪 17. TypeScript Standards
+## 🧪 18. TypeScript Standards
 
 ### NEVER Use `any`
 
@@ -941,7 +1120,7 @@ const [data, setData] = useState<Page | null>(null);
 
 ---
 
-## ✅ 18. ESLint & Code Quality
+## ✅ 19. ESLint & Code Quality
 
 ### Always Run Before Committing
 
@@ -1076,7 +1255,276 @@ const debouncedValue = useDebounce(value, 500);
 - [ ] Consistent API response format?
 - [ ] Event handlers named `handleX`?
 - [ ] Boolean props named `isX`, `hasX`, `shouldX`?
+- [ ] **Null check after `getSupabaseAdmin()` in ALL cases?**
+- [ ] **New icons added to BOTH type definition AND ICONS object?**
+- [ ] **Repository functions use dedicated `CreateXData` / `UpdateXData` interfaces?**
+- [ ] **Zod schemas use `message` parameter (not `required_error`)?**
 - [ ] Run `npm run lint:fix` and `npm run type-check`?
+- [ ] Sanitize design property inputs with `removeSpaces`?
+- [ ] Use `useControlledInput` for input state management?
+
+---
+
+## 🔧 20. Supabase Client Null Checking (CRITICAL)
+
+### ALWAYS Check for Null After getSupabaseAdmin()
+
+The `getSupabaseAdmin()` function can return `null` if Supabase is not configured. **ALWAYS** add a null check immediately after calling it.
+
+```typescript
+// ✅ CORRECT: Always check for null
+export async function getPageById(id: string): Promise<Page | null> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  const { data, error } = await client
+    .from('pages')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Failed to fetch page: ${error.message}`);
+  }
+
+  return data;
+}
+
+// ❌ WRONG: No null check - TypeScript error
+export async function getPageById(id: string): Promise<Page | null> {
+  const client = await getSupabaseAdmin();
+
+  // TypeScript error: 'client' is possibly 'null'
+  const { data, error } = await client
+    .from('pages')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  return data;
+}
+```
+
+### In API Routes
+
+```typescript
+// ✅ CORRECT: Return error response if client is null
+export async function GET(request: NextRequest) {
+  try {
+    const client = await getSupabaseAdmin();
+
+    if (!client) {
+      return NextResponse.json(
+        { error: 'Supabase not configured' },
+        { status: 500 }
+      );
+    }
+
+    // Use client safely
+    const { data } = await client.from('pages').select('*');
+    return NextResponse.json({ data });
+  } catch (error) {
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+```
+
+### Rules
+1. **ALWAYS** check `if (!client)` after `await getSupabaseAdmin()`
+2. In repository functions: **throw an error** with descriptive message
+3. In API routes: **return error response** with status 500
+4. **NEVER** use the client without checking for null first
+
+---
+
+## 🎨 21. Icon Component Extension
+
+### Adding New Icons
+
+When you need to add a new icon to the `Icon` component, follow these steps:
+
+**Step 1: Update the TypeScript Union Type**
+
+```typescript
+// components/ui/icon.tsx
+export interface IconProps extends React.SVGProps<SVGSVGElement> {
+  name: (
+    'x' | 'layers' | 'database' | 'plus' | /* ...existing icons... */
+    | 'pencil' | 'eye' | 'eye-off' | 'trash' | 'upload' // Add your new icons here
+  );
+}
+```
+
+**Step 2: Add SVG Definition to ICONS Object**
+
+```typescript
+// components/ui/icon.tsx
+const ICONS: Record<IconProps['name'], React.ReactNode> = {
+  // ...existing icons...
+
+  pencil: (
+    <>
+      <path d="M8.85355339,0.146446609 C9.04881554..." />
+    </>
+  ),
+
+  trash: (
+    <>
+      <path d="M4.5,1 L7.5,1 L7.5,2..." />
+    </>
+  ),
+
+  // Add more icons here
+};
+```
+
+### Rules
+1. **ALWAYS** update both the type definition AND the ICONS object
+2. Use **kebab-case** for icon names (e.g., `eye-off`, not `eyeOff`)
+3. Get SVG paths from **Lucide icons** or **Heroicons** for consistency
+4. Set `viewBox="0 0 12 12"` for all icons (they're scaled to 12x12)
+5. Test the icon renders correctly before committing
+
+### ❌ Common Mistake
+
+```typescript
+// ❌ WRONG: Added icon to ICONS but forgot to update type
+<Icon name="new-icon" /> // TypeScript error: Type '"new-icon"' is not assignable
+```
+
+---
+
+## 🗄️ 22. Repository Input Type Patterns
+
+### Create Dedicated Input Interfaces for Repository Functions
+
+Instead of using complex `Omit<>` types, create clear input interfaces for create/update operations.
+
+```typescript
+// ✅ CORRECT: Dedicated input interface
+import type { Component, Layer } from '@/types';
+
+export interface CreateComponentData {
+  name: string;
+  layers: Layer[];
+}
+
+export async function createComponent(
+  componentData: CreateComponentData
+): Promise<Component> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // The repository sets is_published, publish_key, etc.
+  const { data, error } = await client
+    .from('components')
+    .insert({
+      name: componentData.name,
+      layers: componentData.layers,
+      is_published: false,
+      publish_key: generateKey(),
+      // ...other auto-generated fields
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to create: ${error.message}`);
+  return data;
+}
+
+// ❌ WRONG: Using Omit includes fields that should be auto-set
+export async function createComponent(
+  componentData: Omit<Component, 'id' | 'created_at' | 'updated_at'>
+): Promise<Component> {
+  // This requires is_published and publish_key to be passed in,
+  // but they should be set automatically!
+}
+```
+
+### Pattern for Update Functions
+
+```typescript
+// ✅ CORRECT: Update interface with all optional fields
+export interface UpdateComponentData {
+  name?: string;
+  layers?: Layer[];
+  // Only fields that can actually be updated
+}
+
+export async function updateComponent(
+  id: string,
+  componentData: UpdateComponentData
+): Promise<Component> {
+  // Implementation
+}
+```
+
+### Rules
+1. **CREATE**: Define `CreateXData` interface with only required input fields
+2. **UPDATE**: Define `UpdateXData` interface with all optional fields
+3. **NEVER** use `Omit<FullType, ...>` for input types
+4. Auto-generated fields (`id`, `created_at`, `is_published`, `publish_key`) should NOT be in input interfaces
+5. The repository layer is responsible for setting auto-generated fields
+
+---
+
+## 🔍 23. Zod Validation Best Practices
+
+### Use Correct Parameter Names
+
+When defining Zod schemas, use the correct parameter names for your validation library version.
+
+```typescript
+// ✅ CORRECT: Use 'message' for error messages
+const formSchema = z.object({
+  name: z.string().min(2, {
+    message: 'Name must be at least 2 characters.',
+  }),
+  type: z.enum(['text', 'number', 'boolean', 'date', 'reference'], {
+    message: 'Please select a field type.',
+  }),
+});
+
+// ❌ WRONG: Using 'required_error' (deprecated/invalid parameter)
+const formSchema = z.object({
+  type: z.enum(['text', 'number'], {
+    required_error: 'Please select a type.', // TypeScript error
+  }),
+});
+```
+
+### Common Zod Patterns
+
+```typescript
+// String with constraints
+z.string().min(1, { message: 'Required' }).max(100)
+
+// Optional field
+z.string().optional()
+
+// Nullable field
+z.string().nullable()
+
+// Enum with message
+z.enum(['draft', 'published'], { message: 'Invalid status' })
+
+// Number with range
+z.number().min(0).max(100)
+
+// Email validation
+z.string().email({ message: 'Invalid email' })
+
+// Custom validation
+z.string().refine((val) => val.startsWith('test'), {
+  message: 'Must start with "test"',
+})
+```
 
 ---
 

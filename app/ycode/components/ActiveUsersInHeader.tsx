@@ -73,7 +73,11 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="secondary" size="sm" className={`flex items-center gap-2 ${className}`}>
+        <Button
+          variant="secondary"
+          size="sm"
+          className={`flex items-center gap-2 ${className}`}
+        >
           {/* User avatars */}
           <div className="flex -space-x-1">
             {displayUsers.slice(0, 3).map((user) => (

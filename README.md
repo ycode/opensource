@@ -109,42 +109,42 @@ You'll see:
 3. Click **"Settings"** (top menu)
 4. Click **"Environment Variables"** (left sidebar)
 
-### Part B: Add the Connection Details (Do This 3 Times)
+### Part B: Add the Connection Details (Do This 4 Times)
 
-**Variable 1: Project URL**
-1. In **"Key"**, type: `SUPABASE_URL`
-2. In **"Value"**, go to your Supabase tab and copy your **Project URL**
-3. Make sure **all three checkboxes** are checked (Production, Preview, Development)
-4. Click **"Save"**
+Make sure **all Environments** is selected when adding new keys.
 
-**Variable 2: Public Key**
-1. Click **"Add Another"**
-2. In **"Key"**, type: `SUPABASE_ANON_KEY`
-3. In **"Value"**, copy the **anon public** key from Supabase
-4. Make sure **all three checkboxes** are checked
-5. Click **"Save"**
+**Variable 1: Anon Key**
+1. In **"Key"**, type: `SUPABASE_ANON_KEY`
+2. In **"Value"**, go to your Supabase tab and copy the **anon public** key
 
-**Variable 3: Secret Key**
+**Variable 2: Service Role Key**
 1. Click **"Add Another"**
 2. In **"Key"**, type: `SUPABASE_SERVICE_ROLE_KEY`
 3. In **"Value"**, click **"Reveal"** next to service_role in Supabase, then copy it
-4. Make sure **all three checkboxes** are checked
-5. Click **"Save"**
 
-**Variable 4: Database password**
+**Variable 3: Connection URL**
+1. Click **"Add Another"**
+2. In **"Key"**, type: `SUPABASE_CONNECTION_URL`
+3. In **"Value"**, you need to get your PostgreSQL connection string:
+   - Go to Supabase → Click **"Connect"** (top navbar)
+   - Go to the **"Connection String"** tab (if not already open)
+   - Select the **"Transaction Pooler"** option for the **Method** filter
+   - Copy/Paste the entire connection string **as-is** (no need to update anything)
+   - Example: `postgresql://postgres.xxxxxxxxxxxx:[YOUR-PASSWORD]@aws-x-xx-xxxx-x.pooler.supabase.com:6543/postgres`
+
+**Variable 4: Database Password**
 1. Click **"Add Another"**
 2. In **"Key"**, type: `SUPABASE_DB_PASSWORD`
-3. Add your Supabase database password (set up when you created your Supabase project, can be reset in Supabase database settings)
-4. Make sure **all three checkboxes** are checked
-5. Click **"Save"**
+3. In **"Value"**, paste your actual database password
+4. Click **"Save"** to save all variables
 
 ### Part C: Restart Your Site
 
-6. Click **"Deployments"** (top menu)
-7. Click the **"..."** menu on your latest deployment
-8. Click **"Redeploy"**
-9. Click **"Redeploy"** again to confirm
-10. Wait 1 minute ☕
+1. Click **"Deployments"** (top menu)
+2. Click the **"..."** menu on your latest deployment
+3. Click **"Redeploy"**
+4. Click **"Redeploy"** again to confirm
+5.  Wait 1 minute ☕
 
 **Done!** Your website can now talk to your database!
 
@@ -279,7 +279,7 @@ Your pages and settings will stay safe - only YCode itself gets updated!
 ### "My website shows an error"
 
 1. **Check Vercel** - Go to your Vercel project → Deployments → Click latest → Look for errors
-2. **Check environment variables** - Make sure all 3 variables are set correctly (Step 4)
+2. **Check environment variables** - Make sure all 5 variables are set correctly (Step 4)
 3. **Redeploy** - Sometimes a fresh deploy fixes issues
 
 ### "I can't log in"

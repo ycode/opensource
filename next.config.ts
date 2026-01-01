@@ -1,6 +1,19 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
+
+  // Ensure sharp works properly in serverless environments (Vercel)
+  serverExternalPackages: ['sharp'],
+
   async headers() {
     return [
       {
@@ -9,16 +22,15 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            // s-maxage=3600: CDN can cache for 1 hour
             // stale-while-revalidate=86400: Serve stale while updating in background
             // must-revalidate: Browser must check with CDN before using cache
-            value: 's-maxage=3600, stale-while-revalidate=86400, must-revalidate',
+            value: 's-maxage=0, stale-while-revalidate=0, max-age=0, must-revalidate',
           },
         ],
       },
     ];
   },
-  
+
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Ignore optional dependencies that Knex tries to load
@@ -34,6 +46,16 @@ const nextConfig: NextConfig = {
         'pg-query-stream': 'commonjs pg-query-stream',
       });
     }
+
+    // Suppress Knex migration warnings (we don't use migrations in Next.js runtime)
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      {
+        module: /node_modules\/knex\/lib\/migrations\/util\/import-file\.js/,
+        message: /Critical dependency: the request of a dependency is an expression/,
+      },
+    ];
+
     return config;
   },
 };

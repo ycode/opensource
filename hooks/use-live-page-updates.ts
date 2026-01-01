@@ -153,7 +153,7 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
       user_name: 'User',
       page_id: page.id,
       timestamp: Date.now(),
-      message: `New page "${page.title}" was created`
+      message: `New page "${page.name}" was created`
     });
   }, [addPage, addNotification]);
   
@@ -188,7 +188,7 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
     if (!update) return;
     
     // Get fresh state from store
-    const { pages: freshPages, updatePage: freshUpdatePage } = usePagesStore.getState();
+    const { pages: freshPages, updatePageLocal: freshUpdatePage } = usePagesStore.getState();
     const currentPage = freshPages.find(p => p.id === update.page_id);
     
     if (!currentPage) {

@@ -2,20 +2,17 @@
  * Media Elements Templates
  */
 
-import { Layer } from '@/types';
-
-interface BlockTemplate {
-  icon: string;
-  name: string;
-  template: Omit<Layer, 'id'>;
-}
+import { BlockTemplate } from '@/types';
 
 export const mediaTemplates: Record<string, BlockTemplate> = {
   image: {
     icon: 'image',
     name: 'Image',
     template: {
-      name: 'img',
+      name: 'image',
+      settings: {
+        tag: 'img'
+      },
       classes: ['w-full', 'h-auto'],
       url: '',
       alt: 'Image description',
@@ -31,12 +28,12 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   icon: {
     icon: 'icon',
     name: 'Icon',
     template: {
-      name: 'div',
+      name: 'icon',
       classes: ['w-6', 'h-6'],
       icon: {
         name: 'star',
@@ -51,7 +48,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   video: {
     icon: 'video',
     name: 'Video',
@@ -73,9 +70,9 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   audio: {
-    icon: 'block',
+    icon: 'audio',
     name: 'Audio',
     template: {
       name: 'audio',
@@ -94,12 +91,16 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   youtube: {
     icon: 'video',
     name: 'YouTube',
     template: {
-      name: 'iframe',
+      name: 'youtube',
+      settings: {
+        tag: 'iframe',
+        embedUrl: ''
+      },
       classes: ['w-full', 'aspect-video'],
       url: '',
       children: [], // Can contain fallback content
@@ -109,9 +110,6 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
         allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture',
         allowfullscreen: true
       },
-      settings: {
-        embedUrl: ''
-      },
       design: {
         sizing: {
           isActive: true,
@@ -120,7 +118,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       }
     }
   },
-  
+
   iframe: {
     icon: 'block',
     name: 'Iframe',
@@ -143,4 +141,3 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
     }
   }
 };
-

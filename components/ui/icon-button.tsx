@@ -41,4 +41,3 @@ export function IconButton({
 }
 
 export default IconButton;
-

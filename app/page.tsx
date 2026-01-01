@@ -1,115 +1,120 @@
-'use client';
+import { unstable_cache, unstable_noStore } from 'next/cache';
+import Link from 'next/link';
+import { fetchHomepage, PaginationContext } from '@/lib/page-fetcher';
+import PageRenderer from '@/components/PageRenderer';
+import { getSettingByKey } from '@/lib/repositories/settingsRepository';
+import { generatePageMetadata } from '@/lib/generate-page-metadata';
+import type { Metadata } from 'next';
+
+// Static by default for performance, dynamic only when pagination is requested
+export const revalidate = 3600; // Revalidate every hour
 
 /**
- * Homepage
- * 
- * Checks setup status and redirects to welcome wizard if not configured
- * Otherwise renders the published homepage from database
+ * Fetch homepage data from database
+ * Cached with tag-based revalidation (no time-based stale cache)
  */
+async function fetchPublishedHomepage(paginationContext?: PaginationContext) {
+  // Include pagination params in cache key for per-collection pagination support
+  // Sort keys for consistent cache key regardless of param order
+  const paginationKey = paginationContext?.pageNumbers 
+    ? Object.entries(paginationContext.pageNumbers)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, page]) => `${id}:${page}`)
+      .join(',')
+    : '';
+  return unstable_cache(
+    async () => fetchHomepage(true, paginationContext),
+    ['data-for-route-/', `pagination-${paginationKey}`],
+    {
+      tags: ['route-/'], // Tag for on-demand revalidation via revalidateTag()
+      revalidate: 3600,
+    }
+  )();
+}
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { checkSetupStatus } from '@/lib/api/setup';
-import { pagesApi, pageVersionsApi } from '@/lib/api';
-import LayerRenderer from '@/components/layers/LayerRenderer';
-import type { Page, PageVersion } from '@/types';
+interface HomeProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
 
-export default function Home() {
-  const router = useRouter();
-  const [isRedirecting, setIsRedirecting] = useState(false);
-  const [homepage, setHomepage] = useState<{ page: Page; version: PageVersion } | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    async function checkSetup() {
-      try {
-        const status = await checkSetupStatus();
-
-        if (! status.is_configured) {
-          // Not configured yet - redirect to welcome wizard
-          setIsRedirecting(true);
-          router.push('/welcome');
-          return;
-        }
-
-        // Try to load homepage (slug: "home" or "index")
-        let pageResponse = await pagesApi.getBySlug('home');
-        
-        if (pageResponse.error || !pageResponse.data) {
-          // Try "index" as fallback
-          pageResponse = await pagesApi.getBySlug('index');
-        }
-
-        if (pageResponse.data && pageResponse.data.published_version_id) {
-          // Fetch published version
-          const versionResponse = await pageVersionsApi.getPublished(pageResponse.data.id);
-          
-          if (versionResponse.data) {
-            setHomepage({
-              page: pageResponse.data,
-              version: versionResponse.data,
-            });
-          }
-        }
-
-        setIsLoaded(true);
-      } catch (error) {
-        console.error('Failed to check setup status:', error);
-        // Assume not configured if check fails
-        setIsRedirecting(true);
-        router.push('/welcome');
+export default async function Home({ searchParams }: HomeProps) {
+  // Await searchParams (Next.js 15 requirement)
+  const resolvedSearchParams = await searchParams;
+  
+  // Parse layer-specific pagination params (p_LAYER_ID=N)
+  // This enables independent pagination for multiple collections on the same page
+  const pageNumbers: Record<string, number> = {};
+  for (const [key, value] of Object.entries(resolvedSearchParams)) {
+    if (key.startsWith('p_') && typeof value === 'string') {
+      const layerId = key.slice(2); // Remove 'p_' prefix
+      const pageNum = parseInt(value, 10);
+      if (!isNaN(pageNum) && pageNum >= 1) {
+        pageNumbers[layerId] = pageNum;
       }
     }
+  }
+  
+  // Only opt out of caching when pagination is requested
+  // This keeps default page visits fast and cached
+  if (Object.keys(pageNumbers).length > 0) {
+    unstable_noStore();
+  }
+  
+  const paginationContext: PaginationContext = {
+    pageNumbers,
+    defaultPage: 1,
+  };
 
-    checkSetup();
-  }, [router]);
+  // Fetch homepage data with pagination context
+  const data = await fetchPublishedHomepage(paginationContext);
 
-  // Only show loading spinner if we're redirecting to setup
-  if (isRedirecting) {
+  // If no published homepage exists, show default landing page
+  if (!data || !data.pageLayers) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Redirecting to setup...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center p-8">
+          <h1 className="text-6xl font-bold text-gray-900 mb-4">
+            YCode
+          </h1>
+          <p className="text-xl text-gray-600 mb-8">
+            Your website is ready! Create pages in the builder.
+          </p>
+          <Link
+            href="/ycode"
+            className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
+          >
+            Open Builder →
+          </Link>
         </div>
       </div>
     );
   }
 
-  // Don't render anything until loaded (prevents flash)
-  if (!isLoaded) {
-    return null;
-  }
+  // Load published CSS from settings
+  const publishedCSS = await getSettingByKey('published_css');
 
-  // Render homepage if it exists
-  if (homepage && homepage.version.layers && homepage.version.layers.length > 0) {
-    return (
-      <div className="min-h-screen bg-white">
-        <LayerRenderer 
-          layers={homepage.version.layers} 
-          isEditMode={false}
-        />
-      </div>
-    );
-  }
-
-  // Default landing page if no homepage
+  // Render homepage
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="text-center p-8">
-        <h1 className="text-6xl font-bold text-gray-900 mb-4">
-          YCode
-        </h1>
-        <p className="text-xl text-gray-600 mb-8">
-          Your website is ready! Create pages in the builder.
-        </p>
-        <a
-          href="/ycode"
-          className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
-        >
-          Open Builder →
-        </a>
-      </div>
-    </div>
+    <PageRenderer
+      page={data.page}
+      layers={data.pageLayers.layers || []}
+      components={[]}
+      generatedCss={publishedCSS}
+    />
   );
+}
+
+// Generate metadata
+export async function generateMetadata(): Promise<Metadata> {
+  const data = await fetchPublishedHomepage();
+
+  if (!data) {
+    return {
+      title: 'YCode',
+      description: 'Built with YCode',
+    };
+  }
+
+  return generatePageMetadata(data.page, {
+    fallbackTitle: 'Home',
+  });
 }

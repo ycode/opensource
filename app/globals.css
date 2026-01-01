@@ -41,6 +41,17 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --animate-shimmer: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 :root {
@@ -60,8 +71,8 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: oklch(14.5% 0 0 / 5%);
+  --input: oklch(14.5% 0 0 / 5%);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
@@ -79,7 +90,7 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.2046 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
@@ -87,15 +98,15 @@
   --popover-foreground: oklch(0.708 0 0);
   --primary: oklch(0.61 0.21 256.78);
   --primary-foreground: oklch(0.97 0.014 254.604);
-  --secondary: oklch(0.269 0 0);
+  --secondary: oklch(1 0 0 / 10%);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.32 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: oklch(1 0 0 / 5%);
+  --input: oklch(1 0 0 / 5%);
   --ring: oklch(0.556 0 0);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
@@ -119,27 +130,36 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Remove focus outline from iframes */
+  iframe:focus {
+    outline: none;
+  }
 }
 
-/* YCode Editor - Empty Element Placeholders */
-#ybody [data-layer-id][data-is-empty="true"]::before {
-  content: '';
-  display: block;
-  background-color: rgb(191 219 254 / 0.1);
-  border: 1px dashed rgb(59 130 246 / 0.5);
-  border-radius: 0.125rem;
-  color: rgb(59 130 246);
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* InputWithInlineVariables Placeholder Styles */
+.input-with-inline-variables .ProseMirror p.is-editor-empty:first-child {
+  position: relative;
+}
+
+.input-with-inline-variables .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: currentColor;
+  opacity: 0.25;
+  pointer-events: none;
   font-size: 0.75rem;
-  padding: 2rem;
-  text-align: center;
-  min-height: 3rem;
+  line-height: 1.375rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
-/* Special handling for void elements (img, input, hr) - they should never show placeholder */
-#ybody img[data-layer-id]::before,
-#ybody input[data-layer-id]::before,
-#ybody hr[data-layer-id]::before,
-#ybody br[data-layer-id]::before {
-  content: none;
-  display: none;
-}

@@ -1,10 +1,15 @@
 /**
  * Storage for Supabase credentials.
  * Uses environment variables on Vercel, file-based storage locally.
+ * 
+ * SERVER-ONLY: This module uses Node.js fs module and should never be imported in client code.
  */
+
+import 'server-only';
 
 import fs from 'fs/promises';
 import path from 'path';
+import type { SupabaseConfig } from '@/types';
 
 const STORAGE_FILE = path.join(process.cwd(), '.credentials.json');
 const IS_VERCEL = process.env.VERCEL === '1';
@@ -14,39 +19,40 @@ interface StorageData {
 }
 
 /**
+ * Get Supabase config from environment variables
+ */
+function getSupabaseConfigFromEnv(): SupabaseConfig | null {
+  const { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_CONNECTION_URL, SUPABASE_DB_PASSWORD } = process.env;
+
+  if (SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY && SUPABASE_CONNECTION_URL && SUPABASE_DB_PASSWORD) {
+    return {
+      anonKey: SUPABASE_ANON_KEY,
+      serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+      connectionUrl: SUPABASE_CONNECTION_URL,
+      dbPassword: SUPABASE_DB_PASSWORD,
+    };
+  }
+
+  console.error('[Storage] ✗ Missing required environment variables');
+  return null;
+}
+
+/**
  * Get a value from storage
  * Uses environment variables on Vercel, file-based storage locally
  */
 export async function get<T = unknown>(key: string): Promise<T | null> {
   try {
-    // On Vercel, use environment variables
+    // On Vercel, use environment variables for Supabase config
     if (IS_VERCEL && key === 'supabase_config') {
-      console.log(`[Storage] Getting key "${key}" from Vercel environment variables`);
-      const url = process.env.SUPABASE_URL;
-      const anonKey = process.env.SUPABASE_ANON_KEY;
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      const dbPassword = process.env.SUPABASE_DB_PASSWORD;
-      
-      if (url && anonKey && serviceRoleKey && dbPassword) {
-        console.log('[Storage] Using environment variables (Vercel)');
-        return {
-          url,
-          anonKey,
-          serviceRoleKey,
-          dbPassword,
-        } as T;
-      }
-      
-      console.log('[Storage] Environment variables not set or incomplete');
-      return null;
+      return getSupabaseConfigFromEnv() as T;
     }
-    
+
     // Locally, use file-based storage
-    console.log(`[Storage] Using file storage: ${STORAGE_FILE}`);
     const data = await readStorage();
-    const value = data[key] as T || null;
-    console.log(`[Storage] Key "${key}" ${value ? 'found' : 'not found'}`);
-    return value;
+    const value = data[key];
+
+    return (value as T) || null;
   } catch (error) {
     console.error(`[Storage] Error getting key "${key}":`, error);
     return null;
@@ -63,16 +69,14 @@ export async function set(key: string, value: unknown): Promise<void> {
     throw new Error(
       'Cannot write to file system on Vercel. Please set environment variables instead:\n' +
       '1. Go to Vercel Dashboard → Project Settings → Environment Variables\n' +
-      '2. Add: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_PASSWORD\n' +
+      '2. Add: SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_CONNECTION_URL, SUPABASE_DB_PASSWORD\n' +
       '3. Redeploy your application'
     );
   }
-  
-  console.log(`[Storage] Setting key "${key}" in ${STORAGE_FILE}`);
+
   const data = await readStorage();
   data[key] = value;
   await writeStorage(data);
-  console.log(`[Storage] Key "${key}" saved successfully`);
 }
 
 /**
@@ -125,4 +129,3 @@ export const storage = {
   del,
   exists,
 };
-

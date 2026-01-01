@@ -29,9 +29,9 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        'bg-muted text-muted-foreground rounded-lg p-[2px]',
-        orientation === 'horizontal' 
-          ? 'inline-flex h-8 w-fit items-center justify-center' 
+        'bg-input text-muted-foreground rounded-lg p-[2px]',
+        orientation === 'horizontal'
+          ? 'inline-flex h-8 w-fit items-center justify-center'
           : 'flex flex-col w-fit h-fit',
         className
       )}
@@ -48,7 +48,7 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring/0 focus-visible:ring-ring/0 focus-visible:outline-ring dark:data-[state=active]:border-input/0 dark:data-[state=active]:bg-input/60 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[0px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
+        "data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring/0 focus-visible:ring-ring/0 focus-visible:outline-ring dark:data-[state=active]:border-input/0 dark:data-[state=active]:bg-secondary data-[state=active]:text-foreground text-muted-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1 py-1 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[0px] focus-visible:outline-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
         className
       )}
       {...props}
@@ -58,12 +58,19 @@ function TabsTrigger({
 
 function TabsContent({
   className,
+  forceMount,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Content>) {
+}: React.ComponentProps<typeof TabsPrimitive.Content> & { forceMount?: true }) {
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn('flex-1 outline-none', className)}
+      className={cn(
+        'flex-1 outline-none',
+        // When forceMount is used, hide inactive tabs with CSS (!important to override flex)
+        forceMount && 'data-[state=inactive]:!hidden',
+        className
+      )}
+      forceMount={forceMount}
       {...props}
     />
   )

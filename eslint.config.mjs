@@ -13,7 +13,9 @@ const eslintConfig = [
   {
     ignores: ['**/node_modules/**', '**/.next/**'],
   },
+
   ...compat.extends('next/core-web-vitals', 'next/typescript'),
+
   {
     rules: {
       'indent': ['error', 2, {
@@ -39,6 +41,8 @@ const eslintConfig = [
       'react/jsx-tag-spacing': ['error', { 'beforeSelfClosing': 'always' }],
       'object-curly-spacing': ['error', 'always'],
       'max-len': 'off',
+      'eol-last': ['error', 'always'], // Enforce exactly one newline at end of file
+      'no-multiple-empty-lines': ['error', { 'max': 1, 'maxEOF': 0 }], // Remove multiple empty lines, including at end of file
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-asserted-optional-chain': 'warn',

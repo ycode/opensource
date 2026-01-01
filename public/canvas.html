@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YCode Canvas</title>
+
+  <!-- Tailwind CSS Browser CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <!-- GSAP for animations (now free thanks to Webflow) -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/SplitText.min.js"></script>
+  <script>
+    // Register SplitText plugin in iframe context
+    if (typeof gsap !== 'undefined' && typeof SplitText !== 'undefined') {
+      gsap.registerPlugin(SplitText);
+    }
+  </script>
+
+  <!-- Tailwind v4 Configuration (CSS-based) -->
+  <style type="text/tailwindcss">
+    @theme {
+      /* Custom max-width breakpoints */
+      --breakpoint-max-lg: 1023px;
+      --breakpoint-max-md: 767px;
+    }
+  </style>
+
+  <style>
+    html, body {
+      height: 100%;
+      background: white;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    /* Remove focus outline from body when focused for keyboard events */
+    body:focus {
+      outline: none;
+    }
+
+    /* Editor-specific styles - using outline to prevent conflicts with user box-shadow */
+    .ycode-selected {
+      outline: 1px solid #0b7efd !important;
+      outline-offset: -1px;
+    }
+
+    .ycode-selected-purple {
+      outline: 2px solid #a855f7 !important;
+      outline-offset: -2px;
+    }
+
+    .ycode-hover {
+      outline: 1px solid #0b7efd !important;
+      outline-offset: -1px;
+    }
+
+    .ycode-hover-purple {
+      outline: 1px solid rgba(168, 85, 247, 0.3) !important;
+      outline-offset: -1px;
+    }
+
+    .ycode-component-hover {
+      outline: 2px solid rgba(168, 85, 247, 0.5) !important;
+      outline-offset: -2px;
+    }
+
+    .ycode-editing {
+      outline: 1px solid #0b7efd !important;
+      outline-offset: -1px;
+    }
+
+    .ycode-drop-target {
+      outline: 2px solid #3b82f6 !important;
+      outline-offset: -2px;
+      background-color: rgba(59, 130, 246, 0.05) !important;
+    }
+
+    .ycode-layer {
+      position: relative;
+    }
+
+    .ycode-layer:hover {
+      /*cursor: pointer;*/
+    }
+
+    /* Selection badge */
+    .ycode-selection-badge {
+      position: absolute;
+      top: -28px;
+      left: 0;
+      background-color: #3b82f6;
+      color: white;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .ycode-selection-badge-purple {
+      position: absolute;
+      top: -28px;
+      left: 0;
+      background-color: #a855f7;
+      color: white;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Text editing input */
+    .ycode-text-editor {
+      width: 100%;
+      outline: 1px solid #0b7efd !important;
+      outline-offset: 0 !important;
+    }
+
+    /* Empty element styling (exclude Body layer) */
+    .ycode-layer:empty:not([data-layer-id="body"])::before {
+      content: ' ';
+      display: block;
+      background-color: rgb(191 219 254 / 0.1);
+      border: 1px dashed rgb(59 130 246 / 0.5);
+      border-radius: 0.125rem;
+      color: rgb(59 130 246);
+      font-size: 0.75rem;
+      padding: 2rem;
+      text-align: center;
+      width: 100%;
+      height: 100%;
+      min-height: 3rem;
+    }
+
+    /* GSAP animation hidden state */
+    [data-gsap-hidden] {
+      display: none !important;
+    }
+  </style>
+</head>
+<body id="canvas-root">
+  <!-- Layers will be dynamically rendered here -->
+
+  <!-- Canvas Renderer Script -->
+  <script src="/canvas-renderer.js"></script>
+</body>
+</html>
+

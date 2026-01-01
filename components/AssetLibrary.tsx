@@ -1,18 +1,24 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { assetsApi } from '../lib/api';
+import { formatFileSize, isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 import type { Asset } from '../types';
 import AssetUpload from './AssetUpload';
 
 interface AssetLibraryProps {
   onAssetSelect?: (asset: Asset) => void;
   className?: string;
+  accept?: string;
+  maxSize?: number;
 }
 
 export default function AssetLibrary({
   onAssetSelect,
   className = '',
+  accept = '*/*',
+  maxSize = 50,
 }: AssetLibraryProps) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,8 +90,8 @@ export default function AssetLibrary({
         <AssetUpload
           onUploadSuccess={handleUploadSuccess}
           onUploadError={handleUploadError}
-          accept="image/*"
-          maxSize={10}
+          accept={accept}
+          maxSize={maxSize}
         />
       </div>
 
@@ -101,12 +107,14 @@ export default function AssetLibrary({
             key={asset.id}
             className="group relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
           >
-            <div className="aspect-square bg-gray-100 flex items-center justify-center">
-              {asset.mime_type?.startsWith('image/') ? (
-                <img
+            <div className="aspect-square bg-gray-100 flex items-center justify-center relative">
+              {isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES) ? (
+                <Image
                   src={asset.public_url}
                   alt={asset.filename}
-                  className="w-full h-full object-cover"
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 50vw, 33vw"
                 />
               ) : (
                 <div className="text-gray-400">
@@ -132,7 +140,7 @@ export default function AssetLibrary({
                 {asset.width && asset.height ? `${asset.width}×${asset.height}` : ''}
                 {asset.file_size && (
                   <span className="ml-1">
-                    ({Math.round(asset.file_size / 1024)}KB)
+                    ({formatFileSize(asset.file_size)})
                   </span>
                 )}
               </p>
