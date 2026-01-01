@@ -50,6 +50,9 @@ interface PagesActions {
   initDraft: (page: Page, initialLayers?: Layer[]) => void;
   updateLayerClasses: (pageId: string, layerId: string, classes: string) => void;
   saveDraft: (pageId: string) => Promise<void>;
+  publishPage: (pageId: string) => Promise<void>;
+  addLayer: (pageId: string, parentLayerId: string | null, layerName: string) => void;
+  addLayerWithId: (pageId: string, parentLayerId: string | null, layer: Layer) => void;
 
   // Layer Operations
   addLayerFromTemplate: (pageId: string, parentLayerId: string | null, templateId: string) => { newLayerId: string; parentToExpand: string | null } | null;
@@ -57,6 +60,9 @@ interface PagesActions {
   deleteLayers: (pageId: string, layerIds: string[]) => void; // New batch delete
   updateLayer: (pageId: string, layerId: string, updates: Partial<Layer>) => void;
   moveLayer: (pageId: string, layerId: string, targetParentId: string | null, targetIndex: number) => boolean;
+  addPage: (page: Page) => void;
+  updatePageLocal: (pageId: string, updates: Partial<Page>) => void;
+  removePage: (pageId: string) => void;
   setDraftLayers: (pageId: string, layers: Layer[]) => void;
   copyLayer: (pageId: string, layerId: string) => Layer | null;
   copyLayers: (pageId: string, layerIds: string[]) => Layer[]; // New batch copy
@@ -420,6 +426,74 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   },
 
   setError: (error) => set({ error }),
+
+  publishPage: async (pageId) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await fetch('/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageIds: [pageId] }),
+      });
+      const result = await response.json();
+      if (!response.ok || result.error) {
+        set({ error: result.error || 'Failed to publish page', isLoading: false });
+        return;
+      }
+      // Reload pages to update published status
+      await get().loadPages();
+      set({ isLoading: false });
+    } catch (error) {
+      set({ error: 'Failed to publish page', isLoading: false });
+    }
+  },
+
+  addLayer: (pageId, parentLayerId, layerName) => {
+    const { draftsByPageId, pages } = get();
+    let draft = draftsByPageId[pageId];
+    
+    // Initialize draft if it doesn't exist
+    if (!draft) {
+      const page = pages.find(p => p.id === pageId);
+      if (!page) return;
+      
+      draft = {
+        id: `draft-${pageId}`,
+        page_id: pageId,
+        layers: [],
+        is_published: false,
+        created_at: new Date().toISOString(),
+        deleted_at: null,
+      };
+    }
+
+    const newLayer: Layer = {
+      id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: layerName,
+      classes: '',
+      children: layerName === 'div' || layerName === 'section' || layerName === 'container' ? [] : undefined,
+    };
+
+    let newLayers: Layer[];
+    
+    if (!parentLayerId) {
+      // Add to root
+      newLayers = [...draft.layers, newLayer];
+    } else {
+      // Add as child to parent
+      newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
+        ...parent,
+        children: [...(parent.children || []), newLayer],
+      }));
+    }
+
+    set({ 
+      draftsByPageId: { 
+        ...draftsByPageId, 
+        [pageId]: { ...draft, layers: newLayers }
+      } 
+    });
+  },
 
   addLayerFromTemplate: (pageId, parentLayerId, templateId) => {
     const { draftsByPageId, pages } = get();
@@ -896,6 +970,69 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     });
 
     return true;
+  },
+
+  addLayerWithId: (pageId, parentLayerId, layer) => {
+    const { pages, draftsByPageId } = get();
+    let draft = draftsByPageId[pageId];
+
+    // Initialize draft if it doesn't exist
+    if (!draft) {
+      const page = pages.find(p => p.id === pageId);
+      if (!page) return;
+
+      draft = {
+        id: `draft-${pageId}`,
+        page_id: pageId,
+        layers: [],
+        is_published: false,
+        created_at: new Date().toISOString(),
+        deleted_at: null,
+      };
+    }
+
+    let newLayers: Layer[];
+
+    if (! parentLayerId) {
+      // Add to root
+      newLayers = [...draft.layers, layer];
+    } else {
+      // Add as child to parent
+      newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
+        ...parent,
+        children: [...(parent.children || []), layer],
+      }));
+    }
+
+    set({
+      draftsByPageId: {
+        ...draftsByPageId,
+        [pageId]: { ...draft, layers: newLayers }
+      }
+    });
+  },
+
+  addPage: (page: Page) => {
+    const { pages } = get();
+    set({ pages: [...pages, page] });
+  },
+
+  updatePageLocal: (pageId: string, updates: Partial<Page>) => {
+    const { pages } = get();
+    const updatedPages = pages.map(page =>
+      page.id === pageId ? { ...page, ...updates } : page
+    );
+    set({ pages: updatedPages });
+  },
+
+  removePage: (pageId: string) => {
+    const { pages, draftsByPageId } = get();
+    const updatedPages = pages.filter(page => page.id !== pageId);
+    const { [pageId]: removedDraft, ...remainingDrafts } = draftsByPageId;
+    set({
+      pages: updatedPages,
+      draftsByPageId: remainingDrafts
+    });
   },
 
   setDraftLayers: (pageId, layers) => {

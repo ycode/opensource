@@ -10,7 +10,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { cn } from '@/lib/utils';
 
 // 4. Internal components
-import AssetLibrary from '@/components/AssetLibrary';
 import LayersTree from './LayersTree';
 import LeftSidebarPages from './LeftSidebarPages';
 
@@ -26,12 +25,11 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 // 5.5 Hooks
 import { useEditorUrl, useEditorActions } from '@/hooks/use-editor-url';
 import type { EditorTab } from '@/hooks/use-editor-url';
+import { useLayerLocks } from '@/hooks/use-layer-locks';
 
 // 6. Types
 import type { Layer } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
-
-// Helper function to find layer with parent context
 
 interface LeftSidebarProps {
   selectedLayerId: string | null;
@@ -90,6 +88,9 @@ const LeftSidebar = React.memo(function LeftSidebar({
   const updateCollection = useCollectionsStore((state) => state.updateCollection);
   const deleteCollection = useCollectionsStore((state) => state.deleteCollection);
 
+  // Collaboration hooks
+  const layerLocks = useLayerLocks();
+
   // Use local state for immediate tab switching
   const activeTab = localActiveTab;
 
@@ -113,6 +114,21 @@ const LeftSidebar = React.memo(function LeftSidebar({
     window.addEventListener('toggleElementLibrary', handleToggleElementLibrary);
     return () => window.removeEventListener('toggleElementLibrary', handleToggleElementLibrary);
   }, []);
+
+  // Lock-aware layer selection handler
+  const handleLayerSelect = useCallback((layerId: string) => {
+    // Check if layer is locked by another user
+    const isLocked = layerLocks.isLayerLocked(layerId);
+    const canEdit = layerLocks.canEditLayer(layerId);
+
+    if (isLocked && !canEdit) {
+      console.warn(`Layer ${layerId} is locked by another user - cannot select`);
+      return;
+    }
+
+    // Call the original onLayerSelect if not locked
+    onLayerSelect(layerId);
+  }, [onLayerSelect, layerLocks]);
 
   const layersForCurrentPage = useMemo(() => {
     // If editing a component, show component layers instead
@@ -387,6 +403,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
                   </Button>
                 </div>
               </header>
+
               <div className="flex flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar pb-4">
                 {!currentPageId && !editingComponentId ? (
                   <Empty>
@@ -403,7 +420,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
                     layers={layersForCurrentPage}
                     selectedLayerId={selectedLayerId}
                     selectedLayerIds={selectedLayerIds}
-                    onLayerSelect={onLayerSelect}
+                    onLayerSelect={handleLayerSelect}
                     onReorder={handleLayersReorder}
                     pageId={currentPageId || ''}
                   />

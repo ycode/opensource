@@ -19,6 +19,7 @@ import { canHaveChildren } from '@/lib/layer-utils';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
+import { useLiveLayerUpdates } from '@/hooks/use-live-layer-updates';
 
 interface ElementLibraryProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
   const { addLayerFromTemplate, updateLayer, setDraftLayers, draftsByPageId } = usePagesStore();
   const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId } = useEditorStore();
   const { components, componentDrafts, updateComponentDraft } = useComponentsStore();
+  const liveLayerUpdates = useLiveLayerUpdates(currentPageId);
   const [activeTab, setActiveTab] = React.useState<'elements' | 'layouts' | 'components'>(defaultTab);
 
   // Update active tab when defaultTab changes (e.g., when opening with a specific tab)
@@ -181,6 +183,28 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     // Select the newly added layer
     if (result) {
       setSelectedLayerId(result.newLayerId);
+
+      // Broadcast layer add to other collaborators
+      if (liveLayerUpdates && currentPageId) {
+        // Get the newly created layer from the store
+        const draft = draftsByPageId[currentPageId];
+        if (draft) {
+          const findLayer = (layers: any[], id: string): any | null => {
+            for (const layer of layers) {
+              if (layer.id === id) return layer;
+              if (layer.children) {
+                const found = findLayer(layer.children, id);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+          const newLayer = findLayer(draft.layers, result.newLayerId);
+          if (newLayer) {
+            liveLayerUpdates.broadcastLayerAdd(currentPageId, parentId, elementType, newLayer);
+          }
+        }
+      }
 
       // Note: parentToExpand is handled by LayersTree component
       // We dispatch a custom event for LayersTree to listen to
@@ -390,6 +414,11 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     // Update the draft with the new layers
     usePagesStore.getState().setDraftLayers(currentPageId, newLayers);
 
+    // Broadcast layout add to other collaborators
+    if (liveLayerUpdates) {
+      liveLayerUpdates.broadcastLayerAdd(currentPageId, parentId, layoutKey, newLayer);
+    }
+
     // Select the root layer of the layout
     setSelectedLayerId(newLayer.id);
 
@@ -503,6 +532,11 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
 
     // Update the draft with the new layers (this should trigger autosave)
     usePagesStore.getState().setDraftLayers(currentPageId, newLayers);
+
+    // Broadcast component add to other collaborators
+    if (liveLayerUpdates) {
+      liveLayerUpdates.broadcastLayerAdd(currentPageId, parentId, `component:${componentId}`, componentInstanceLayer);
+    }
 
     // Select the new layer
     setSelectedLayerId(componentInstanceLayer.id);

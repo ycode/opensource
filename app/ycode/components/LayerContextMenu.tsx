@@ -20,6 +20,7 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useClipboardStore } from '@/stores/useClipboardStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { canHaveChildren, findLayerById, getClassesString, regenerateIdsWithInteractionRemapping, regenerateInteractionIds } from '@/lib/layer-utils';
+import { useLiveLayerUpdates } from '@/hooks/use-live-layer-updates';
 import type { Layer } from '@/types';
 import CreateComponentDialog from './CreateComponentDialog';
 
@@ -42,6 +43,9 @@ export default function LayerContextMenu({
 }: LayerContextMenuProps) {
   const [isComponentDialogOpen, setIsComponentDialogOpen] = useState(false);
   const [layerName, setLayerName] = useState('');
+
+  // Collaboration hooks
+  const liveLayerUpdates = useLiveLayerUpdates(pageId);
 
   const copyLayer = usePagesStore((state) => state.copyLayer);
   const deleteLayer = usePagesStore((state) => state.deleteLayer);
@@ -108,6 +112,12 @@ export default function LayerContextMenu({
     if (layer) {
       cutToClipboard(layer, pageId);
       deleteLayer(pageId, layerId);
+
+      // Broadcast delete to other collaborators
+      if (liveLayerUpdates) {
+        liveLayerUpdates.broadcastLayerDelete(pageId, layerId);
+      }
+
       // Clear selection after cut to match keyboard shortcut behavior
       if (onLayerSelect) {
         onLayerSelect(null as any);
@@ -132,6 +142,12 @@ export default function LayerContextMenu({
   const handleDelete = () => {
     if (isLocked) return;
     deleteLayer(pageId, layerId);
+
+    // Broadcast delete to other collaborators
+    if (liveLayerUpdates) {
+      liveLayerUpdates.broadcastLayerDelete(pageId, layerId);
+    }
+
     // Clear selection after delete to match keyboard shortcut behavior
     if (onLayerSelect) {
       onLayerSelect(null as any);

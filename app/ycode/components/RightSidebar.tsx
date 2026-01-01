@@ -51,6 +51,9 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
 
+// 5.5 Hooks
+import { useLayerLocks } from '@/hooks/use-layer-locks';
+
 // 6. Utils, APIs, lib
 import { classesToDesign, mergeDesign, removeConflictsForClass } from '@/lib/tailwind-class-mapper';
 import { cn } from '@/lib/utils';
@@ -142,6 +145,9 @@ const RightSidebar = React.memo(function RightSidebar({
   const setActiveInteraction = useEditorStore((state) => state.setActiveInteraction);
   const clearActiveInteraction = useEditorStore((state) => state.clearActiveInteraction);
 
+  // Collaboration hooks
+  const layerLocks = useLayerLocks();
+
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const pages = usePagesStore((state) => state.pages);
 
@@ -196,10 +202,10 @@ const RightSidebar = React.memo(function RightSidebar({
   // If so, we hide the pagination option entirely (not just disable it)
   const isNestedInCollection: boolean = useMemo(() => {
     if (!selectedLayer || !selectedLayerId) return false;
-    
+
     const collectionVar = getCollectionVariable(selectedLayer);
     if (!collectionVar) return false;
-    
+
     const parentCollection = findParentCollectionLayer(allLayers, selectedLayerId);
     return !!parentCollection;
   }, [selectedLayer, selectedLayerId, allLayers]);
@@ -207,10 +213,10 @@ const RightSidebar = React.memo(function RightSidebar({
   // Check if pagination should be disabled (only for root-level case where we show a message)
   const isPaginationDisabled: boolean = useMemo(() => {
     if (!selectedLayer) return true;
-    
+
     const collectionVar = getCollectionVariable(selectedLayer);
     if (!collectionVar) return true;
-    
+
     // If at root level (no parent container at all), pagination is disabled (need a container for sibling)
     return isSelectedLayerAtRoot;
   }, [selectedLayer, isSelectedLayerAtRoot]);
@@ -218,14 +224,14 @@ const RightSidebar = React.memo(function RightSidebar({
   // Get the reason why pagination is disabled (only for actionable messages)
   const paginationDisabledReason: string | null = useMemo(() => {
     if (!selectedLayer) return null;
-    
+
     const collectionVar = getCollectionVariable(selectedLayer);
     if (!collectionVar) return null;
-    
+
     if (isSelectedLayerAtRoot) {
       return 'Wrap collection in a container to enable pagination';
     }
-    
+
     return null;
   }, [selectedLayer, isSelectedLayerAtRoot]);
 
@@ -362,7 +368,7 @@ const RightSidebar = React.memo(function RightSidebar({
   // Control visibility rules based on layer type
   const shouldShowControl = (controlName: string, layer: Layer | null): boolean => {
     if (!layer) return false;
-    
+
     switch (controlName) {
       case 'layout':
         // Layout controls: show for containers, hide for text-only elements
@@ -400,6 +406,38 @@ const RightSidebar = React.memo(function RightSidebar({
         return true;
     }
   };
+
+  // Check if the selected layer is locked by another user
+  const isLayerLocked = selectedLayerId ? layerLocks.isLayerLocked(selectedLayerId) : false;
+  const canEditLayer = selectedLayerId ? layerLocks.canEditLayer(selectedLayerId) : false;
+  const isLockedByOther = isLayerLocked && !canEditLayer;
+
+  // Track previous layer ID to handle lock release
+  const previousLayerIdRef = useRef<string | null>(null);
+
+  // Acquire lock when layer is selected, release when deselected
+  useEffect(() => {
+    const prevLayerId = previousLayerIdRef.current;
+    
+    // Release lock on previously selected layer
+    if (prevLayerId && prevLayerId !== selectedLayerId) {
+      layerLocks.releaseLock(prevLayerId);
+    }
+    
+    // Acquire lock on newly selected layer (only if not editing a component)
+    if (selectedLayerId && !editingComponentId) {
+      layerLocks.acquireLock(selectedLayerId);
+    }
+    
+    previousLayerIdRef.current = selectedLayerId;
+    
+    // Release lock on unmount
+    return () => {
+      if (previousLayerIdRef.current) {
+        layerLocks.releaseLock(previousLayerIdRef.current);
+      }
+    };
+  }, [selectedLayerId, editingComponentId, layerLocks]);
 
   // Get default heading tag based on layer type/name
   const getDefaultHeadingTag = (layer: Layer | null): string => {
@@ -443,7 +481,16 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   }, [selectedLayer]);
 
-  // Parse classes into array for badge display
+  // Lock-aware update function
+  const handleLayerUpdate = useCallback((layerId: string, updates: Partial<Layer>) => {
+    if (isLockedByOther) {
+      console.warn('Cannot update layer - locked by another user');
+      return;
+    }
+    onLayerUpdate(layerId, updates);
+  }, [isLockedByOther, onLayerUpdate]);
+
+  // Parse classes into array
   const classesArray = useMemo(() => {
     return classesInput.split(' ').filter(cls => cls.trim() !== '');
   }, [classesInput]);
@@ -462,19 +509,20 @@ const RightSidebar = React.memo(function RightSidebar({
   const debouncedUpdate = useMemo(
     () =>
       debounce((layerId: string, classes: string) => {
-        onLayerUpdate(layerId, { classes });
+        handleLayerUpdate(layerId, { classes });
       }, 500),
-    [onLayerUpdate]
+    [handleLayerUpdate]
   );
 
-  const handleClassesChange = useCallback((value: string) => {
-    setClassesInput(value);
+  // Handle classes change
+  const handleClassesChange = useCallback((newClasses: string) => {
+    setClassesInput(newClasses);
     if (selectedLayerId) {
-      debouncedUpdate(selectedLayerId, value);
+      debouncedUpdate(selectedLayerId, newClasses);
     }
-  }, [debouncedUpdate, selectedLayerId]);
+  }, [selectedLayerId, debouncedUpdate]);
 
-  // Add a new class
+  // Add class function
   const addClass = useCallback((newClass: string) => {
     if (!newClass.trim() || !selectedLayer) return;
     const trimmedClass = newClass.trim();
@@ -490,20 +538,19 @@ const RightSidebar = React.memo(function RightSidebar({
     const updatedDesign = mergeDesign(selectedLayer.design, parsedDesign);
 
     // Add the new class (after removing conflicts)
-    // Note: Use join instead of cn() here because removeConflictsForClass
-    // already handles property-aware conflict resolution
     const newClasses = [...classesWithoutConflicts, trimmedClass].join(' ');
 
     // Update layer with both classes AND design object
-    onLayerUpdate(selectedLayer.id, {
+    handleLayerUpdate(selectedLayer.id, {
       classes: newClasses,
       design: updatedDesign
     });
 
+    setClassesInput(newClasses);
     setCurrentClassInput('');
-  }, [classesArray, onLayerUpdate, selectedLayer]);
+  }, [classesArray, handleLayerUpdate, selectedLayer]);
 
-  // Remove a class
+  // Remove class function
   const removeClass = useCallback((classToRemove: string) => {
     if (!selectedLayer) return;
     const newClasses = classesArray.filter(cls => cls !== classToRemove).join(' ');
@@ -511,28 +558,32 @@ const RightSidebar = React.memo(function RightSidebar({
     handleClassesChange(newClasses);
   }, [classesArray, handleClassesChange, selectedLayer]);
 
-  // Handle Enter key press
-  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
+  // Handle key press for adding classes
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       addClass(currentClassInput);
     }
-  }, [currentClassInput, addClass]);
+  }, [addClass, currentClassInput]);
 
-  const addClasses = (newClasses: string) => {
-    if (!selectedLayerId) return;
-    const currentClasses = classesInput;
-    // Use cn() to ensure proper merging and avoid duplicates
-    const updated = cn(currentClasses, newClasses);
-    onLayerUpdate(selectedLayerId, { classes: updated });
-  };
+  // Add classes function
+  const addClasses = useCallback((classes: string[]) => {
+    setClassesInput(prev => {
+      const currentClasses = prev.split(' ').filter(cls => cls.trim() !== '');
+      const updatedClasses = [...currentClasses, ...classes].join(' ');
+      if (selectedLayerId) {
+        handleLayerUpdate(selectedLayerId, { classes: updatedClasses });
+      }
+      return updatedClasses;
+    });
+  }, [selectedLayerId, handleLayerUpdate]);
 
   // Handle custom ID change
   const handleIdChange = (value: string) => {
     setCustomId(value);
     if (selectedLayerId) {
       const currentSettings = selectedLayer?.settings || {};
-      onLayerUpdate(selectedLayerId, {
+      handleLayerUpdate(selectedLayerId, {
         settings: { ...currentSettings, id: value }
       });
     }
@@ -543,7 +594,7 @@ const RightSidebar = React.memo(function RightSidebar({
     setIsHidden(hidden);
     if (selectedLayerId) {
       const currentSettings = selectedLayer?.settings || {};
-      onLayerUpdate(selectedLayerId, {
+      handleLayerUpdate(selectedLayerId, {
         settings: { ...currentSettings, hidden }
       });
     }
@@ -554,7 +605,7 @@ const RightSidebar = React.memo(function RightSidebar({
     setHeadingTag(tag);
     if (selectedLayerId) {
       const currentSettings = selectedLayer?.settings || {};
-      onLayerUpdate(selectedLayerId, {
+      handleLayerUpdate(selectedLayerId, {
         settings: { ...currentSettings, tag }
       });
     }
@@ -565,7 +616,7 @@ const RightSidebar = React.memo(function RightSidebar({
     setContainerTag(tag);
     if (selectedLayerId) {
       const currentSettings = selectedLayer?.settings || {};
-      onLayerUpdate(selectedLayerId, {
+      handleLayerUpdate(selectedLayerId, {
         settings: { ...currentSettings, tag }
       });
     }
@@ -581,14 +632,14 @@ const RightSidebar = React.memo(function RightSidebar({
     const onlyVariables = hasInlineVariables &&
       value.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '').trim() === '';
 
-    onLayerUpdate(selectedLayerId, {
+    handleLayerUpdate(selectedLayerId, {
       text: hasInlineVariables ? (onlyVariables ? undefined : value) : value,
       variables: {
         ...selectedLayer?.variables,
         text: hasInlineVariables ? value : undefined,
       },
     });
-  }, [selectedLayerId, selectedLayer, onLayerUpdate]);
+  }, [selectedLayerId, selectedLayer, handleLayerUpdate]);
 
   // Get content value for display
   const getContentValue = useCallback((layer: Layer | null): string => {
@@ -611,7 +662,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const handleCollectionChange = (collectionId: string) => {
     if (selectedLayerId && selectedLayer) {
       const currentCollectionVariable = getCollectionVariable(selectedLayer);
-      onLayerUpdate(selectedLayerId, {
+      handleLayerUpdate(selectedLayerId, {
         variables: {
           ...selectedLayer?.variables,
           collection: collectionId ? {
@@ -630,7 +681,7 @@ const RightSidebar = React.memo(function RightSidebar({
     if (selectedLayerId && selectedLayer) {
       const currentCollectionVariable = getCollectionVariable(selectedLayer);
       if (currentCollectionVariable) {
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
             collection: {
@@ -652,7 +703,7 @@ const RightSidebar = React.memo(function RightSidebar({
       // Find the selected field to get its reference_collection_id and type
       const selectedField = parentCollectionFields.find(f => f.id === fieldId);
       if (selectedField?.reference_collection_id) {
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
             collection: {
@@ -676,7 +727,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
     if (value === 'none' || !value) {
       // Clear collection binding
-      onLayerUpdate(selectedLayerId, {
+      handleLayerUpdate(selectedLayerId, {
         variables: {
           ...selectedLayer?.variables,
           collection: {
@@ -694,7 +745,7 @@ const RightSidebar = React.memo(function RightSidebar({
       const fieldId = value.replace('field:', '');
       const selectedField = dynamicPageReferenceFields.find(f => f.id === fieldId);
       if (selectedField?.reference_collection_id) {
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
             collection: {
@@ -709,7 +760,7 @@ const RightSidebar = React.memo(function RightSidebar({
     } else if (value.startsWith('collection:')) {
       // Direct collection selection
       const collectionId = value.replace('collection:', '');
-      onLayerUpdate(selectedLayerId, {
+      handleLayerUpdate(selectedLayerId, {
         variables: {
           ...selectedLayer?.variables,
           collection: {
@@ -729,12 +780,12 @@ const RightSidebar = React.memo(function RightSidebar({
     if (!selectedLayer) return 'none';
     const collectionVariable = getCollectionVariable(selectedLayer);
     if (!collectionVariable?.id) return 'none';
-    
+
     // If source_field_id is set, it's a field reference
     if (collectionVariable.source_field_id) {
       return `field:${collectionVariable.source_field_id}`;
     }
-    
+
     // Otherwise it's a direct collection
     return `collection:${collectionVariable.id}`;
   }, [selectedLayer]);
@@ -744,7 +795,7 @@ const RightSidebar = React.memo(function RightSidebar({
     if (selectedLayerId && selectedLayer) {
       const currentCollectionVariable = getCollectionVariable(selectedLayer);
       if (currentCollectionVariable) {
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
             collection: {
@@ -763,7 +814,7 @@ const RightSidebar = React.memo(function RightSidebar({
       const currentCollectionVariable = getCollectionVariable(selectedLayer);
       if (currentCollectionVariable) {
         const limit = value === '' ? undefined : parseInt(value, 10);
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
             collection: {
@@ -782,7 +833,7 @@ const RightSidebar = React.memo(function RightSidebar({
       const currentCollectionVariable = getCollectionVariable(selectedLayer);
       if (currentCollectionVariable) {
         const offset = value === '' ? undefined : parseInt(value, 10);
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
             collection: {
@@ -913,25 +964,25 @@ const RightSidebar = React.memo(function RightSidebar({
     const currentLayers = getCurrentLayersFromStore();
     const parentResult = findLayerWithParent(currentLayers, collectionLayerId);
     const parentLayer = parentResult?.parent;
-    
+
     if (!parentLayer) {
       console.warn('Pagination at root level not yet supported - collection layer should be inside a container');
       return;
     }
-    
+
     const paginationWrapperId = `${collectionLayerId}-pagination-wrapper`;
-    const paginationWrapper = mode === 'pages' 
+    const paginationWrapper = mode === 'pages'
       ? createPagesWrapper(collectionLayerId)
       : createLoadMoreWrapper(collectionLayerId);
-    
+
     // Get parent's CURRENT children from fresh lookup
     const freshParentResult = findLayerWithParent(currentLayers, parentLayer.id);
     const freshParent = freshParentResult?.layer || parentLayer;
     const parentChildren = freshParent.children || [];
-    
+
     const collectionIndex = parentChildren.findIndex(c => c.id === collectionLayerId);
     const existingPaginationIndex = parentChildren.findIndex(c => c.id === paginationWrapperId);
-    
+
     let newChildren: Layer[];
     if (existingPaginationIndex === -1) {
       // Add new wrapper after collection
@@ -944,8 +995,8 @@ const RightSidebar = React.memo(function RightSidebar({
       // Replace existing wrapper
       newChildren = parentChildren.map(c => c.id === paginationWrapperId ? paginationWrapper : c);
     }
-    
-    onLayerUpdate(parentLayer.id, { children: newChildren });
+
+    handleLayerUpdate(parentLayer.id, { children: newChildren });
   };
 
   // Helper: Remove pagination wrapper
@@ -953,16 +1004,16 @@ const RightSidebar = React.memo(function RightSidebar({
     const currentLayers = getCurrentLayersFromStore();
     const parentResult = findLayerWithParent(currentLayers, collectionLayerId);
     const parentLayer = parentResult?.parent;
-    
+
     if (!parentLayer) return;
-    
+
     const paginationWrapperId = `${collectionLayerId}-pagination-wrapper`;
     const freshParentResult = findLayerWithParent(currentLayers, parentLayer.id);
     const freshParent = freshParentResult?.layer || parentLayer;
     const parentChildren = freshParent.children || [];
-    
+
     const newChildren = parentChildren.filter(c => c.id !== paginationWrapperId);
-    onLayerUpdate(parentLayer.id, { children: newChildren });
+    handleLayerUpdate(parentLayer.id, { children: newChildren });
   };
 
   // Handle pagination enabled toggle
@@ -971,7 +1022,7 @@ const RightSidebar = React.memo(function RightSidebar({
       const currentCollectionVariable = getCollectionVariable(selectedLayer);
       if (currentCollectionVariable) {
         const mode = currentCollectionVariable.pagination?.mode || 'pages';
-        
+
         if (checked) {
           addOrReplacePaginationWrapper(selectedLayerId, mode);
         } else {
@@ -979,12 +1030,12 @@ const RightSidebar = React.memo(function RightSidebar({
         }
 
         // Update the collection layer's pagination config
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
             collection: {
               ...currentCollectionVariable,
-              pagination: checked 
+              pagination: checked
                 ? { enabled: true, mode, items_per_page: 10 }
                 : undefined,
             }
@@ -1001,7 +1052,7 @@ const RightSidebar = React.memo(function RightSidebar({
       if (currentCollectionVariable?.pagination) {
         const itemsPerPage = parseInt(value, 10);
         if (!isNaN(itemsPerPage) && itemsPerPage > 0) {
-          onLayerUpdate(selectedLayerId, {
+          handleLayerUpdate(selectedLayerId, {
             variables: {
               ...selectedLayer?.variables,
               collection: {
@@ -1025,9 +1076,9 @@ const RightSidebar = React.memo(function RightSidebar({
       if (currentCollectionVariable?.pagination) {
         // Recreate the pagination wrapper with the new mode
         addOrReplacePaginationWrapper(selectedLayerId, mode);
-        
+
         // Update the collection layer's pagination config
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           variables: {
             ...selectedLayer?.variables,
             collection: {
@@ -1047,7 +1098,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const handleFieldBindingChange = (fieldId: string) => {
     if (selectedLayerId) {
       if (fieldId && fieldId !== 'none') {
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           text: {
             type: 'field',
             data: {
@@ -1058,7 +1109,7 @@ const RightSidebar = React.memo(function RightSidebar({
         });
       } else {
         // Clear field binding
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           text: undefined
         });
       }
@@ -1069,7 +1120,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const handleImageFieldBindingChange = (fieldId: string) => {
     if (selectedLayerId) {
       if (fieldId && fieldId !== 'none') {
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           url: {
             type: 'field',
             data: {
@@ -1080,7 +1131,7 @@ const RightSidebar = React.memo(function RightSidebar({
         });
       } else {
         // Clear field binding
-        onLayerUpdate(selectedLayerId, {
+        handleLayerUpdate(selectedLayerId, {
           url: undefined
         });
       }
@@ -1161,14 +1212,14 @@ const RightSidebar = React.memo(function RightSidebar({
     // Recursively find all referenced collection IDs
     const findReferencedCollections = (collectionFields: CollectionField[], visited: Set<string>): string[] => {
       const referencedIds: string[] = [];
-      
+
       collectionFields.forEach(field => {
         if (field.type === 'reference' && field.reference_collection_id) {
           const refId = field.reference_collection_id;
           if (!visited.has(refId)) {
             visited.add(refId);
             referencedIds.push(refId);
-            
+
             // Recursively check the referenced collection's fields if we have them
             const refFields = fields[refId];
             if (refFields) {
@@ -1177,7 +1228,7 @@ const RightSidebar = React.memo(function RightSidebar({
           }
         }
       });
-      
+
       return referencedIds;
     };
 
@@ -1185,10 +1236,10 @@ const RightSidebar = React.memo(function RightSidebar({
     if (parentCollectionFields.length > 0) {
       const visited = new Set<string>();
       const referencedIds = findReferencedCollections(parentCollectionFields, visited);
-      
+
       // Check if any referenced collections are missing fields
       const missingFieldsCollections = referencedIds.filter(id => !fields[id] || fields[id].length === 0);
-      
+
       // Load missing fields - loadFields(null) loads all fields at once
       if (missingFieldsCollections.length > 0) {
         loadFields(null);
@@ -1220,7 +1271,7 @@ const RightSidebar = React.memo(function RightSidebar({
     if (selectedLayerId && newAttributeName.trim()) {
       const currentSettings = selectedLayer?.settings || {};
       const currentAttributes = currentSettings.customAttributes || {};
-      onLayerUpdate(selectedLayerId, {
+      handleLayerUpdate(selectedLayerId, {
         settings: {
           ...currentSettings,
           customAttributes: { ...currentAttributes, [newAttributeName.trim()]: newAttributeValue }
@@ -1239,7 +1290,7 @@ const RightSidebar = React.memo(function RightSidebar({
       const currentSettings = selectedLayer?.settings || {};
       const currentAttributes = { ...currentSettings.customAttributes };
       delete currentAttributes[name];
-      onLayerUpdate(selectedLayerId, {
+      handleLayerUpdate(selectedLayerId, {
         settings: {
           ...currentSettings,
           customAttributes: currentAttributes
@@ -1248,10 +1299,10 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   };
 
-  if (! selectedLayerId || ! selectedLayer) {
+  if (!selectedLayerId || !selectedLayer) {
     return (
       <div className="w-64 shrink-0 bg-background border-l flex items-center justify-center h-screen">
-        <span className="text-xs text-white/50">Select layer</span>
+        <span className="text-xs text-muted-foreground">Select layer</span>
       </div>
     );
   }
@@ -1264,16 +1315,16 @@ const RightSidebar = React.memo(function RightSidebar({
   if (isComponentInstance && component && !editingComponentId) {
     const handleEditMasterComponent = () => {
       const { loadComponentDraft } = useComponentsStore.getState();
-      const { setSelectedLayerId } = useEditorStore.getState();
+      const { setSelectedLayerId: setLayerId } = useEditorStore.getState();
 
       // Load the component's layers into draft
       loadComponentDraft(component.id);
 
       // Select the first layer of the component
       if (component.layers && component.layers.length > 0) {
-        setSelectedLayerId(component.layers[0].id);
+        setLayerId(component.layers[0].id);
       } else {
-        setSelectedLayerId(null);
+        setLayerId(null);
       }
 
       // Open component (updates state + URL)
@@ -1305,7 +1356,6 @@ const RightSidebar = React.memo(function RightSidebar({
 
   return (
     <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
-
       {/* Tabs */}
       <Tabs
         value={activeTab}
@@ -1328,7 +1378,7 @@ const RightSidebar = React.memo(function RightSidebar({
           <LayerStylesPanel
             layer={selectedLayer}
             pageId={currentPageId}
-            onLayerUpdate={onLayerUpdate}
+            onLayerUpdate={handleLayerUpdate}
           />
 
           {/* Field Binding Panel - show for text/image layers inside a collection */}
@@ -1374,35 +1424,35 @@ const RightSidebar = React.memo(function RightSidebar({
           )}
 
           {shouldShowControl('layout', selectedLayer) && (
-            <LayoutControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+            <LayoutControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
           {shouldShowControl('spacing', selectedLayer) && (
-            <SpacingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+            <SpacingControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
           {shouldShowControl('sizing', selectedLayer) && (
-            <SizingControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+            <SizingControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
           {shouldShowControl('typography', selectedLayer) && (
-            <TypographyControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+            <TypographyControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
           {shouldShowControl('backgrounds', selectedLayer) && (
-            <BackgroundsControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+            <BackgroundsControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
           {shouldShowControl('borders', selectedLayer) && (
-            <BorderControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+            <BorderControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
           {shouldShowControl('effects', selectedLayer) && (
-            <EffectControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+            <EffectControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
           {shouldShowControl('position', selectedLayer) && (
-            <PositionControls layer={selectedLayer} onLayerUpdate={onLayerUpdate} />
+            <PositionControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
           <SettingsPanel
@@ -1416,6 +1466,8 @@ const RightSidebar = React.memo(function RightSidebar({
                 onChange={(e) => setCurrentClassInput(e.target.value)}
                 onKeyDown={handleKeyPress}
                 placeholder="Type class and press Enter..."
+                disabled={isLockedByOther}
+                className={isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''}
               />
               <div className="flex flex-wrap gap-1.5">
                 {classesArray.length === 0 ? (
@@ -1428,8 +1480,10 @@ const RightSidebar = React.memo(function RightSidebar({
                     >
                       <span>{cls}</span>
                       <Button
-                        onClick={() => removeClass(cls)} className="!size-4 !p-0 -mr-1"
+                        onClick={() => removeClass(cls)}
+                        className="!size-4 !p-0 -mr-1"
                         variant="outline"
+                        disabled={isLockedByOther}
                       >
                         <Icon name="x" className="size-2" />
                       </Button>
@@ -1457,6 +1511,7 @@ const RightSidebar = React.memo(function RightSidebar({
                     value={customId}
                     onChange={(e) => handleIdChange(e.target.value)}
                     placeholder="Identifier"
+                    disabled={isLockedByOther}
                   />
                 </div>
               </div>
@@ -1505,26 +1560,26 @@ const RightSidebar = React.memo(function RightSidebar({
                   <Label variant="muted">Tag</Label>
                   <div className="col-span-2 *:w-full">
                     <Select value={containerTag} onValueChange={handleContainerTagChange}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="div">Div</SelectItem>
-                        <SelectItem value="nav">Nav</SelectItem>
-                        <SelectItem value="main">Main</SelectItem>
-                        <SelectItem value="aside">Aside</SelectItem>
-                        <SelectItem value="header">Header</SelectItem>
-                        <SelectItem value="figure">Figure</SelectItem>
-                        <SelectItem value="footer">Footer</SelectItem>
-                        <SelectItem value="article">Article</SelectItem>
-                        <SelectItem value="section">Section</SelectItem>
-                        <SelectItem value="figcaption">Figcaption</SelectItem>
-                        <SelectItem value="details">Details</SelectItem>
-                        <SelectItem value="summary">Summary</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="div">Div</SelectItem>
+                          <SelectItem value="nav">Nav</SelectItem>
+                          <SelectItem value="main">Main</SelectItem>
+                          <SelectItem value="aside">Aside</SelectItem>
+                          <SelectItem value="header">Header</SelectItem>
+                          <SelectItem value="figure">Figure</SelectItem>
+                          <SelectItem value="footer">Footer</SelectItem>
+                          <SelectItem value="article">Article</SelectItem>
+                          <SelectItem value="section">Section</SelectItem>
+                          <SelectItem value="figcaption">Figcaption</SelectItem>
+                          <SelectItem value="details">Details</SelectItem>
+                          <SelectItem value="summary">Summary</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               )}
@@ -1899,7 +1954,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
             <ImageSettings
               layer={selectedLayer}
-              onLayerUpdate={onLayerUpdate}
+              onLayerUpdate={handleLayerUpdate}
               fields={parentCollectionFields}
               fieldSourceLabel={fieldSourceLabel}
               allFields={fields}
@@ -1910,14 +1965,14 @@ const RightSidebar = React.memo(function RightSidebar({
             {selectedLayer && getCollectionVariable(selectedLayer)?.id && (
               <CollectionFiltersSettings
                 layer={selectedLayer}
-                onLayerUpdate={onLayerUpdate}
+                onLayerUpdate={handleLayerUpdate}
                 collectionId={getCollectionVariable(selectedLayer)!.id}
               />
             )}
 
             <ConditionalVisibilitySettings
               layer={selectedLayer}
-              onLayerUpdate={onLayerUpdate}
+              onLayerUpdate={handleLayerUpdate}
               fields={parentCollectionFields}
               fieldSourceLabel={fieldSourceLabel}
             />
@@ -1930,7 +1985,7 @@ const RightSidebar = React.memo(function RightSidebar({
             <InteractionsPanel
               triggerLayer={interactionOwnerLayer}
               allLayers={allLayers}
-              onLayerUpdate={onLayerUpdate}
+              onLayerUpdate={handleLayerUpdate}
               selectedLayerId={selectedLayerId}
               resetKey={interactionResetKey}
               activeBreakpoint={activeBreakpoint}

@@ -38,9 +38,15 @@ const RightSidebar = lazy(() => import('../components/RightSidebar'));
 const CMS = lazy(() => import('../components/CMS'));
 const CollectionItemSheet = lazy(() => import('../components/CollectionItemSheet'));
 
+// Collaboration components (lazy-loaded)
+const RealtimeCursors = lazy(() => import('@/components/realtime-cursors').then(m => ({ default: m.RealtimeCursors })));
+const ActivityNotifications = lazy(() => import('@/components/collaboration/ActivityNotifications').then(m => ({ default: m.ActivityNotifications })));
+
 // 3. Hooks
 // useCanvasCSS removed - now handled by iframe with Tailwind JIT CDN
 import { useEditorUrl } from '@/hooks/use-editor-url';
+import { useLiveLayerUpdates } from '@/hooks/use-live-layer-updates';
+import { useLivePageUpdates } from '@/hooks/use-live-page-updates';
 
 // 4. Stores
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -54,6 +60,7 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { useMigrationStore } from '@/stores/useMigrationStore';
+import { useCollaborationPresenceStore } from '@/stores/useCollaborationPresenceStore';
 
 // 6. Utils/lib
 import { findHomepage } from '@/lib/page-utils';
@@ -140,6 +147,21 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const hasInitializedLayerFromUrlRef = useRef(false);
   const lastUrlLayerIdRef = useRef<string | null>(null);
   const previousIsEditingRef = useRef<boolean | undefined>(undefined);
+
+  // Collaboration hooks - enable realtime sync for layers and pages
+  const liveLayerUpdates = useLiveLayerUpdates(currentPageId);
+  // useLivePageUpdates initializes page sync subscriptions by being called
+  const _livePageUpdates = useLivePageUpdates();
+
+  // Collaboration presence
+  const setCurrentCollaborationUser = useCollaborationPresenceStore((state) => state.setCurrentUser);
+
+  // Initialize collaboration presence when user is available
+  useEffect(() => {
+    if (user) {
+      setCurrentCollaborationUser(user.id, user.email || '');
+    }
+  }, [user, setCurrentCollaborationUser]);
 
   // Sidebar tab is inferred from route type
   const activeTab = sidebarTab;
@@ -716,8 +738,13 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       // Delete from page (pagination sync handled in usePagesStore.deleteLayer)
       deleteLayer(currentPageId, selectedLayerId);
       setSelectedLayerId(nextLayerId);
+
+      // Broadcast delete to other collaborators
+      if (liveLayerUpdates) {
+        liveLayerUpdates.broadcastLayerDelete(currentPageId, selectedLayerId);
+      }
     }
-  }, [selectedLayerId, editingComponentId, currentPageId, getCurrentLayers, updateCurrentLayers, deleteLayer, setSelectedLayerId]);
+  }, [selectedLayerId, editingComponentId, currentPageId, getCurrentLayers, updateCurrentLayers, deleteLayer, setSelectedLayerId, liveLayerUpdates]);
 
   // Immediate save function (bypasses debouncing)
   const saveImmediately = useCallback(async (pageId: string) => {
@@ -1101,6 +1128,13 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                 cutToClipboard(layers[0], currentPageId);
                 deleteLayers(currentPageId, selectedLayerIds);
                 clearSelection();
+
+                // Broadcast deletes to other collaborators
+                if (liveLayerUpdates) {
+                  selectedLayerIds.forEach(id => {
+                    liveLayerUpdates.broadcastLayerDelete(currentPageId, id);
+                  });
+                }
               }
             } else if (selectedLayerId) {
               // Single select
@@ -1109,6 +1143,11 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                 cutToClipboard(layer, currentPageId);
                 deleteLayer(currentPageId, selectedLayerId);
                 setSelectedLayerId(null);
+
+                // Broadcast delete to other collaborators
+                if (liveLayerUpdates) {
+                  liveLayerUpdates.broadcastLayerDelete(currentPageId, selectedLayerId);
+                }
               }
             }
           }
@@ -1198,9 +1237,16 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
               } else if (currentPageId) {
                 deleteLayers(currentPageId, selectedLayerIds);
                 clearSelection();
+
+                // Broadcast deletes to other collaborators
+                if (liveLayerUpdates) {
+                  selectedLayerIds.forEach(id => {
+                    liveLayerUpdates.broadcastLayerDelete(currentPageId, id);
+                  });
+                }
               }
             } else if (selectedLayerId) {
-              // Single select
+              // Single select (deleteSelectedLayer already handles broadcasting)
               deleteSelectedLayer();
             }
           }
@@ -1506,6 +1552,11 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                         } else if (currentPageId) {
                           // Regular page mode
                           updateLayer(currentPageId, layerId, updates);
+
+                          // Broadcast to other collaborators
+                          if (liveLayerUpdates) {
+                            liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
+                          }
                         }
                       }}
                     />
@@ -1532,6 +1583,28 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             // Close sheet after successful save
             closeCollectionItemSheet();
           }}
+        />
+      </Suspense>
+    )}
+
+    {/* Collaboration: Realtime Cursors */}
+    {user && currentPageId && routeType !== 'settings' && routeType !== 'localization' && (
+      <Suspense fallback={null}>
+        <RealtimeCursors
+          roomName={`page-${currentPageId}`}
+          username={user.user_metadata?.full_name || user.email?.split('@')[0] || 'Anonymous'}
+        />
+      </Suspense>
+    )}
+
+    {/* Collaboration: Activity Notifications */}
+    {user && (
+      <Suspense fallback={null}>
+        <ActivityNotifications
+          position="bottom-right"
+          maxNotifications={5}
+          autoHide={true}
+          hideDelay={5000}
         />
       </Suspense>
     )}

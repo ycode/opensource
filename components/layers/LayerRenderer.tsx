@@ -3,6 +3,9 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import LayerLockIndicator from '../collaboration/LayerLockIndicator';
+import EditingIndicator from '../collaboration/EditingIndicator';
+import { useLayerLocks } from '../../hooks/use-layer-locks';
 import type { Layer } from '../../types';
 import { getLayerHtmlTag, getClassesString, getText, getImageUrl, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '../../lib/layer-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
@@ -53,14 +56,14 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
     // Fragment layers: render children directly without wrapper element
     if (layer.name === '_fragment' && layer.children) {
       const renderedChildren = layer.children.map((child: Layer) => renderLayer(child));
-      
+
       // If this fragment has pagination metadata and we're in published mode,
       // wrap it with the appropriate pagination component
       if (layer._paginationMeta && isPublished) {
         // Extract the original layer ID from the fragment ID (remove -fragment suffix)
         const originalLayerId = layer.id.replace(/-fragment$/, '');
         const paginationMode = layer._paginationMeta.mode || 'pages';
-        
+
         if (paginationMode === 'load_more') {
           // Use LoadMoreCollection for "Load More" mode
           return (
@@ -76,7 +79,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
             </Suspense>
           );
         }
-        
+
         // Default: Use PaginatedCollection for "Pages" mode
         return (
           <Suspense key={layer.id} fallback={<div className="animate-pulse bg-gray-200 rounded h-32" />}>
@@ -89,7 +92,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
           </Suspense>
         );
       }
-      
+
       return renderedChildren;
     }
 
@@ -167,6 +170,11 @@ const LayerItem: React.FC<{
   const isDragging = activeLayerId === layer.id;
   const textEditable = isTextEditable(layer);
   const htmlTag = getLayerHtmlTag(layer);
+
+  // Get layer lock status (collaboration feature)
+  const { isLayerLocked, canEditLayer } = useLayerLocks();
+  const isLockedByOther = isLayerLocked(layer.id) && !canEditLayer(layer.id);
+
   const classesString = getClassesString(layer);
   const effectiveCollectionItemData = collectionItemData || pageCollectionItemData || undefined;
 
@@ -176,7 +184,7 @@ const LayerItem: React.FC<{
     const textWithVariables = layer.variables?.text || layer.text;
     if (textWithVariables && typeof textWithVariables === 'string') {
       if (textWithVariables.includes('<ycode-inline-variable>')) {
-      // Use the embedded JSON resolver (client-safe)
+        // Use the embedded JSON resolver (client-safe)
         if (effectiveCollectionItemData) {
           const mockItem: any = {
             id: 'temp',
@@ -287,7 +295,6 @@ const LayerItem: React.FC<{
   // For component instances in edit mode, use the component's layers as children
   // For published pages, children are already resolved server-side
   const children = (isEditMode && component && component.layers) ? component.layers : layer.children;
-  const hasChildren = (children && children.length > 0) || false;
 
   // Use sortable for drag and drop
   const {
@@ -298,14 +305,14 @@ const LayerItem: React.FC<{
     transition,
   } = useSortable({
     id: layer.id,
-    disabled: !enableDragDrop || isEditing,
+    disabled: !enableDragDrop || isEditing || isLockedByOther,
     data: {
       layer,
     },
   });
 
   const startEditing = () => {
-    if (textEditable && isEditMode) {
+    if (textEditable && isEditMode && !isLockedByOther) {
       setEditingLayerId(layer.id);
       setEditingContent(textContent || '');
     }
@@ -335,11 +342,12 @@ const LayerItem: React.FC<{
     'relative',
     'transition-all',
     'duration-100',
-    !isEditing && !isDragging && 'cursor-pointer hover:outline hover:outline-1 hover:outline-blue-400/30 hover:outline-offset-0',
-    enableDragDrop && !isEditing && 'cursor-grab active:cursor-grabbing',
-    isSelected && 'outline outline-2 outline-blue-500 outline-offset-1',
+    !isEditing && !isDragging && !isLockedByOther && 'cursor-pointer hover:outline hover:outline-1 hover:outline-blue-400/30 hover:outline-offset-0',
+    enableDragDrop && !isEditing && !isLockedByOther && 'cursor-grab active:cursor-grabbing',
+    isSelected && !isLockedByOther && 'outline outline-2 outline-blue-500 outline-offset-1',
     isDragging && 'opacity-30 outline-none',
-    showProjection && 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10'
+    showProjection && 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10',
+    isLockedByOther && 'opacity-50 grayscale-[50%] pointer-events-none select-none filter brightness-90'
   ) : classesString;
 
   // Check if layer should be hidden (hide completely in both edit mode and public pages)
@@ -407,7 +415,7 @@ const LayerItem: React.FC<{
       'data-layer-id': layer.id,
       'data-layer-type': htmlTag,
       'data-is-empty': isEmpty ? 'true' : 'false',
-      ...(enableDragDrop && !isEditing ? { ...otherAttributes, ...listeners } : otherAttributes),
+      ...(enableDragDrop && !isEditing && !isLockedByOther ? { ...otherAttributes, ...listeners } : otherAttributes),
     };
 
     // Add data-gsap-hidden attribute for elements that should start hidden
@@ -431,6 +439,13 @@ const LayerItem: React.FC<{
     if (isEditMode && !isEditing) {
       const originalOnClick = elementProps.onClick as ((e: React.MouseEvent) => void) | undefined;
       elementProps.onClick = (e: React.MouseEvent) => {
+        // Block click if locked by another user
+        if (isLockedByOther) {
+          e.stopPropagation();
+          e.preventDefault();
+          console.warn(`Layer ${layer.id} is locked by another user`);
+          return;
+        }
         // Only handle if not a context menu trigger
         if (e.button !== 2) {
           e.stopPropagation();
@@ -441,6 +456,7 @@ const LayerItem: React.FC<{
         }
       };
       elementProps.onDoubleClick = (e: React.MouseEvent) => {
+        if (isLockedByOther) return;
         e.stopPropagation();
         startEditing();
       };
@@ -557,6 +573,14 @@ const LayerItem: React.FC<{
         // Show empty state with the layer design
         return (
           <Tag {...elementProps}>
+            {/* Layer Lock Indicator */}
+            {isLockedByOther && (
+              <LayerLockIndicator
+                layerId={layer.id}
+                layerName={layer.name || htmlTag}
+                className="absolute inset-0 z-10"
+              />
+            )}
             {/* Selection Badge */}
             {isSelected && !isEditing && (
               <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
@@ -580,6 +604,14 @@ const LayerItem: React.FC<{
               data-collection-item-id={item.id}
               data-layer-id={layer.id} // Keep same layer ID for all instances
             >
+              {/* Layer Lock Indicator - only show on first item */}
+              {index === 0 && isLockedByOther && (
+                <LayerLockIndicator
+                  layerId={layer.id}
+                  layerName={layer.name || htmlTag}
+                  className="absolute inset-0 z-10"
+                />
+              )}
               {/* Selection Badge - only show on first item */}
               {index === 0 && isSelected && !isEditing && (
                 <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
@@ -615,6 +647,23 @@ const LayerItem: React.FC<{
     // Regular elements with text and/or children
     return (
       <Tag {...elementProps}>
+        {/* Layer Lock Indicator */}
+        {isLockedByOther && (
+          <LayerLockIndicator
+            layerId={layer.id}
+            layerName={layer.name || htmlTag}
+            className="absolute inset-0 z-10"
+          />
+        )}
+
+        {/* Editing Indicator for text layers */}
+        {textEditable && isEditMode && (
+          <EditingIndicator
+            layerId={layer.id}
+            className="absolute top-1 left-1 z-20"
+          />
+        )}
+
         {/* Selection Badge */}
         {isEditMode && isSelected && !isEditing && (
           <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">

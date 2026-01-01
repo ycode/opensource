@@ -75,6 +75,8 @@ interface CenterCanvasProps {
   currentPageId: string | null;
   viewportMode: ViewportMode;
   setViewportMode: (mode: ViewportMode) => void;
+  onLayerSelect?: (layerId: string) => void;
+  onLayerDeselect?: () => void;
 }
 
 const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: string }> = {
@@ -88,6 +90,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
   currentPageId,
   viewportMode,
   setViewportMode,
+  onLayerSelect,
+  onLayerDeselect,
 }: CenterCanvasProps) {
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
   const [iframeReady, setIframeReady] = useState(false);
@@ -540,7 +544,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         if (localeTranslations && slugValue) {
           const collectionFields = collectionFieldsFromStore[collectionId] || [];
           const slugField = collectionFields.find(f => f.id === slugFieldId);
-          
+
           if (slugField) {
             // Build translation key: field:key:{key} or field:id:{id}
             const contentKey = slugField.key
@@ -1059,8 +1063,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 return layers.map(layer => {
                   if (layer.id === layerId) {
                     // Get current classes
-                    const currentClasses = Array.isArray(layer.classes) 
-                      ? layer.classes.join(' ') 
+                    const currentClasses = Array.isArray(layer.classes)
+                      ? layer.classes.join(' ')
                       : (layer.classes || '');
 
                     // Remove existing gap classes
@@ -1092,7 +1096,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
           if (message.payload.layerId && message.payload.page) {
             const { layerId, page, collectionId, itemsPerPage } = message.payload;
             console.log('[CenterCanvas] Pagination page change:', { layerId, page, collectionId, itemsPerPage });
-            
+
             // Initialize pagination meta if not exists (for first-time pagination clicks)
             const store = useCollectionLayerStore.getState();
             if (!store.paginationMeta[layerId] && collectionId) {
@@ -1115,7 +1119,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 }));
               }
             }
-            
+
             // Fetch new page data
             fetchPage(layerId, page).then((result) => {
               if (result && iframeRef.current) {

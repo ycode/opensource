@@ -14,6 +14,7 @@ const FolderSettingsPanel = lazy(() => import('./FolderSettingsPanel'));
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
+import { useLivePageUpdates } from '@/hooks/use-live-page-updates';
 import type { Page, PageFolder, PageSettings } from '@/types';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { Separator } from '@/components/ui/separator';
@@ -106,6 +107,9 @@ export default function LeftSidebarPages({
   // Get store actions
   const { createPage, updatePage, duplicatePage, deletePage, createFolder, updateFolder, duplicateFolder, deleteFolder, batchReorderPagesAndFolders } = usePagesStore();
   const { collections, fields } = useCollectionsStore();
+
+  // Collaboration hooks
+  const livePageUpdates = useLivePageUpdates();
 
   // Sync selection with current page when it changes externally
   useEffect(() => {
@@ -354,18 +358,25 @@ export default function LeftSidebarPages({
   const handleSavePage = async (data: PageFormData) => {
     if (!editingPage) return;
 
-    // Update in background
-    const result = await updatePage(editingPage.id, {
+    const pageUpdates = {
       name: data.name,
       slug: data.slug,
       page_folder_id: data.page_folder_id,
       is_index: data.is_index,
       settings: data.settings,
-    });
+    };
+
+    // Update in background
+    const result = await updatePage(editingPage.id, pageUpdates);
 
     if (result.error) {
       console.error('Failed to save page:', result.error);
       // Could show a toast notification here
+    } else {
+      // Broadcast page update to other collaborators
+      if (livePageUpdates) {
+        livePageUpdates.broadcastPageUpdate(editingPage.id, pageUpdates);
+      }
     }
   };
 
