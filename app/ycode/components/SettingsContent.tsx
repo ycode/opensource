@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 const SETTINGS_ITEMS = [
   { id: 'general', label: 'General', path: '/ycode/settings/general' },
   { id: 'redirects', label: 'Redirects', path: '/ycode/settings/redirects' },
+  { id: 'api-keys', label: 'API keys', path: '/ycode/settings/api-keys' },
 ];
 
 interface SettingsContentProps {
