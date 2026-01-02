@@ -196,10 +196,10 @@ const RightSidebar = React.memo(function RightSidebar({
   // If so, we hide the pagination option entirely (not just disable it)
   const isNestedInCollection: boolean = useMemo(() => {
     if (!selectedLayer || !selectedLayerId) return false;
-    
+
     const collectionVar = getCollectionVariable(selectedLayer);
     if (!collectionVar) return false;
-    
+
     const parentCollection = findParentCollectionLayer(allLayers, selectedLayerId);
     return !!parentCollection;
   }, [selectedLayer, selectedLayerId, allLayers]);
@@ -207,10 +207,10 @@ const RightSidebar = React.memo(function RightSidebar({
   // Check if pagination should be disabled (only for root-level case where we show a message)
   const isPaginationDisabled: boolean = useMemo(() => {
     if (!selectedLayer) return true;
-    
+
     const collectionVar = getCollectionVariable(selectedLayer);
     if (!collectionVar) return true;
-    
+
     // If at root level (no parent container at all), pagination is disabled (need a container for sibling)
     return isSelectedLayerAtRoot;
   }, [selectedLayer, isSelectedLayerAtRoot]);
@@ -218,14 +218,14 @@ const RightSidebar = React.memo(function RightSidebar({
   // Get the reason why pagination is disabled (only for actionable messages)
   const paginationDisabledReason: string | null = useMemo(() => {
     if (!selectedLayer) return null;
-    
+
     const collectionVar = getCollectionVariable(selectedLayer);
     if (!collectionVar) return null;
-    
+
     if (isSelectedLayerAtRoot) {
       return 'Wrap collection in a container to enable pagination';
     }
-    
+
     return null;
   }, [selectedLayer, isSelectedLayerAtRoot]);
 
@@ -362,7 +362,7 @@ const RightSidebar = React.memo(function RightSidebar({
   // Control visibility rules based on layer type
   const shouldShowControl = (controlName: string, layer: Layer | null): boolean => {
     if (!layer) return false;
-    
+
     switch (controlName) {
       case 'layout':
         // Layout controls: show for containers, hide for text-only elements
@@ -575,17 +575,16 @@ const RightSidebar = React.memo(function RightSidebar({
   const handleContentChange = useCallback((value: string) => {
     if (!selectedLayerId) return;
 
-    const hasInlineVariables = value.includes('<ycode-inline-variable>');
-
-    // Check if content is ONLY variables (no plain text after removing variable tags)
-    const onlyVariables = hasInlineVariables &&
-      value.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '').trim() === '';
+    // Always create a DynamicTextVariable (even for plain text)
+    const textVariable = value ? {
+      type: 'dynamic_text' as const,
+      data: { content: value },
+    } : undefined;
 
     onLayerUpdate(selectedLayerId, {
-      text: hasInlineVariables ? (onlyVariables ? undefined : value) : value,
       variables: {
         ...selectedLayer?.variables,
-        text: hasInlineVariables ? value : undefined,
+        text: textVariable,
       },
     });
   }, [selectedLayerId, selectedLayer, onLayerUpdate]);
@@ -594,14 +593,9 @@ const RightSidebar = React.memo(function RightSidebar({
   const getContentValue = useCallback((layer: Layer | null): string => {
     if (!layer) return '';
 
-    // Priority 1: Check layer.variables.text (now a simple string with embedded JSON)
-    if (layer.variables?.text) {
-      return layer.variables.text;
-    }
-
-    // Priority 2: Check layer.text (legacy)
-    if (layer.text && typeof layer.text === 'string') {
-      return layer.text;
+    // Check layer.variables.text (DynamicTextVariable with embedded JSON)
+    if (layer.variables?.text && layer.variables.text.type === 'dynamic_text') {
+      return layer.variables.text.data.content;
     }
 
     return '';
@@ -729,12 +723,12 @@ const RightSidebar = React.memo(function RightSidebar({
     if (!selectedLayer) return 'none';
     const collectionVariable = getCollectionVariable(selectedLayer);
     if (!collectionVariable?.id) return 'none';
-    
+
     // If source_field_id is set, it's a field reference
     if (collectionVariable.source_field_id) {
       return `field:${collectionVariable.source_field_id}`;
     }
-    
+
     // Otherwise it's a direct collection
     return `collection:${collectionVariable.id}`;
   }, [selectedLayer]);
@@ -822,7 +816,12 @@ const RightSidebar = React.memo(function RightSidebar({
             name: 'span',
             customName: 'Previous Text',
             classes: '',
-            text: 'Previous',
+            variables: {
+              text: {
+                type: 'dynamic_text',
+                data: { content: 'Previous' }
+              }
+            }
           } as Layer,
         ],
       } as Layer,
@@ -831,7 +830,12 @@ const RightSidebar = React.memo(function RightSidebar({
         name: 'span',
         customName: 'Page Info',
         classes: 'text-sm text-[#4b5563]',
-        text: 'Page 1 of 1',
+        variables: {
+          text: {
+            type: 'dynamic_text',
+            data: { content: 'Page 1 of 1' }
+          }
+        }
       } as Layer,
       {
         id: `${collectionLayerId}-pagination-next`,
@@ -849,7 +853,12 @@ const RightSidebar = React.memo(function RightSidebar({
             name: 'span',
             customName: 'Next Text',
             classes: '',
-            text: 'Next',
+            variables: {
+              text: {
+                type: 'dynamic_text',
+                data: { content: 'Next' }
+              }
+            }
           } as Layer,
         ],
       } as Layer,
@@ -883,7 +892,12 @@ const RightSidebar = React.memo(function RightSidebar({
             name: 'span',
             customName: 'Load More Text',
             classes: '',
-            text: 'Load More',
+            variables: {
+              text: {
+                type: 'dynamic_text',
+                data: { content: 'Load More' }
+              }
+            }
           } as Layer,
         ],
       } as Layer,
@@ -892,7 +906,12 @@ const RightSidebar = React.memo(function RightSidebar({
         name: 'span',
         customName: 'Items Count',
         classes: 'text-sm text-[#4b5563]',
-        text: 'Showing items',
+        variables: {
+          text: {
+            type: 'dynamic_text',
+            data: { content: 'Showing items' }
+          }
+        }
       } as Layer,
     ],
   });
@@ -913,25 +932,25 @@ const RightSidebar = React.memo(function RightSidebar({
     const currentLayers = getCurrentLayersFromStore();
     const parentResult = findLayerWithParent(currentLayers, collectionLayerId);
     const parentLayer = parentResult?.parent;
-    
+
     if (!parentLayer) {
       console.warn('Pagination at root level not yet supported - collection layer should be inside a container');
       return;
     }
-    
+
     const paginationWrapperId = `${collectionLayerId}-pagination-wrapper`;
-    const paginationWrapper = mode === 'pages' 
+    const paginationWrapper = mode === 'pages'
       ? createPagesWrapper(collectionLayerId)
       : createLoadMoreWrapper(collectionLayerId);
-    
+
     // Get parent's CURRENT children from fresh lookup
     const freshParentResult = findLayerWithParent(currentLayers, parentLayer.id);
     const freshParent = freshParentResult?.layer || parentLayer;
     const parentChildren = freshParent.children || [];
-    
+
     const collectionIndex = parentChildren.findIndex(c => c.id === collectionLayerId);
     const existingPaginationIndex = parentChildren.findIndex(c => c.id === paginationWrapperId);
-    
+
     let newChildren: Layer[];
     if (existingPaginationIndex === -1) {
       // Add new wrapper after collection
@@ -944,7 +963,7 @@ const RightSidebar = React.memo(function RightSidebar({
       // Replace existing wrapper
       newChildren = parentChildren.map(c => c.id === paginationWrapperId ? paginationWrapper : c);
     }
-    
+
     onLayerUpdate(parentLayer.id, { children: newChildren });
   };
 
@@ -953,14 +972,14 @@ const RightSidebar = React.memo(function RightSidebar({
     const currentLayers = getCurrentLayersFromStore();
     const parentResult = findLayerWithParent(currentLayers, collectionLayerId);
     const parentLayer = parentResult?.parent;
-    
+
     if (!parentLayer) return;
-    
+
     const paginationWrapperId = `${collectionLayerId}-pagination-wrapper`;
     const freshParentResult = findLayerWithParent(currentLayers, parentLayer.id);
     const freshParent = freshParentResult?.layer || parentLayer;
     const parentChildren = freshParent.children || [];
-    
+
     const newChildren = parentChildren.filter(c => c.id !== paginationWrapperId);
     onLayerUpdate(parentLayer.id, { children: newChildren });
   };
@@ -971,7 +990,7 @@ const RightSidebar = React.memo(function RightSidebar({
       const currentCollectionVariable = getCollectionVariable(selectedLayer);
       if (currentCollectionVariable) {
         const mode = currentCollectionVariable.pagination?.mode || 'pages';
-        
+
         if (checked) {
           addOrReplacePaginationWrapper(selectedLayerId, mode);
         } else {
@@ -984,7 +1003,7 @@ const RightSidebar = React.memo(function RightSidebar({
             ...selectedLayer?.variables,
             collection: {
               ...currentCollectionVariable,
-              pagination: checked 
+              pagination: checked
                 ? { enabled: true, mode, items_per_page: 10 }
                 : undefined,
             }
@@ -1025,7 +1044,7 @@ const RightSidebar = React.memo(function RightSidebar({
       if (currentCollectionVariable?.pagination) {
         // Recreate the pagination wrapper with the new mode
         addOrReplacePaginationWrapper(selectedLayerId, mode);
-        
+
         // Update the collection layer's pagination config
         onLayerUpdate(selectedLayerId, {
           variables: {
@@ -1048,18 +1067,24 @@ const RightSidebar = React.memo(function RightSidebar({
     if (selectedLayerId) {
       if (fieldId && fieldId !== 'none') {
         onLayerUpdate(selectedLayerId, {
-          text: {
-            type: 'field',
-            data: {
-              field_id: fieldId,
-              relationships: [],
-            }
-          } as any
+          variables: {
+            ...selectedLayer?.variables,
+            text: {
+              type: 'field',
+              data: {
+                field_id: fieldId,
+                relationships: [],
+              }
+            } as any
+          }
         });
       } else {
         // Clear field binding
         onLayerUpdate(selectedLayerId, {
-          text: undefined
+          variables: {
+            ...selectedLayer?.variables,
+            text: undefined
+          }
         });
       }
     }
@@ -1070,18 +1095,39 @@ const RightSidebar = React.memo(function RightSidebar({
     if (selectedLayerId) {
       if (fieldId && fieldId !== 'none') {
         onLayerUpdate(selectedLayerId, {
-          url: {
-            type: 'field',
-            data: {
-              field_id: fieldId,
-              relationships: [],
+          variables: {
+            ...selectedLayer?.variables,
+            image: {
+              src: {
+                type: 'field',
+                data: {
+                  field_id: fieldId,
+                  relationships: [],
+                }
+              } as any,
+              alt: selectedLayer?.variables?.image?.alt || {
+                type: 'dynamic_text',
+                data: { content: '' }
+              }
             }
-          } as any
+          }
         });
       } else {
         // Clear field binding
         onLayerUpdate(selectedLayerId, {
-          url: undefined
+          variables: {
+            ...selectedLayer?.variables,
+            image: {
+              src: {
+                type: 'dynamic_text',
+                data: { content: '' }
+              },
+              alt: selectedLayer?.variables?.image?.alt || {
+                type: 'dynamic_text',
+                data: { content: '' }
+              }
+            }
+          }
         });
       }
     }
@@ -1161,14 +1207,14 @@ const RightSidebar = React.memo(function RightSidebar({
     // Recursively find all referenced collection IDs
     const findReferencedCollections = (collectionFields: CollectionField[], visited: Set<string>): string[] => {
       const referencedIds: string[] = [];
-      
+
       collectionFields.forEach(field => {
         if (field.type === 'reference' && field.reference_collection_id) {
           const refId = field.reference_collection_id;
           if (!visited.has(refId)) {
             visited.add(refId);
             referencedIds.push(refId);
-            
+
             // Recursively check the referenced collection's fields if we have them
             const refFields = fields[refId];
             if (refFields) {
@@ -1177,7 +1223,7 @@ const RightSidebar = React.memo(function RightSidebar({
           }
         }
       });
-      
+
       return referencedIds;
     };
 
@@ -1185,10 +1231,10 @@ const RightSidebar = React.memo(function RightSidebar({
     if (parentCollectionFields.length > 0) {
       const visited = new Set<string>();
       const referencedIds = findReferencedCollections(parentCollectionFields, visited);
-      
+
       // Check if any referenced collections are missing fields
       const missingFieldsCollections = referencedIds.filter(id => !fields[id] || fields[id].length === 0);
-      
+
       // Load missing fields - loadFields(null) loads all fields at once
       if (missingFieldsCollections.length > 0) {
         loadFields(null);
@@ -1342,7 +1388,10 @@ const RightSidebar = React.memo(function RightSidebar({
                 <div className="flex flex-col gap-2">
                   <Label>Image Field</Label>
                   <Select
-                    value={isFieldVariable(selectedLayer.url) ? selectedLayer.url.data.field_id : 'none'}
+                    value={(() => {
+                      const imageSrc = selectedLayer.variables?.image?.src;
+                      return (imageSrc && typeof imageSrc === 'object' && imageSrc.type === 'field') ? imageSrc.data.field_id : 'none';
+                    })()}
                     onValueChange={handleImageFieldBindingChange}
                   >
                     <SelectTrigger>
