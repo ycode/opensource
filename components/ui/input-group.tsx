@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 const InputGroupContext = React.createContext<{ size: 'xs' | 'sm' }>({ size: 'xs' });
 
@@ -26,7 +27,7 @@ function InputGroup({ className, size = 'xs', ...props }: InputGroupProps) {
         data-slot="input-group"
         role="group"
         className={cn(
-          'group/input-group border-transparent bg-input relative flex w-full items-center border transition-[color,box-shadow] outline-none',
+          'group/input-group group border-transparent bg-input relative flex w-full items-center border transition-[color,box-shadow] outline-none',
           'min-w-0 has-[>textarea]:h-auto',
 
           // Variants based on alignment.
@@ -142,24 +143,94 @@ function InputGroupText({ className, ...props }: React.ComponentProps<'span'>) {
   )
 }
 
+interface InputGroupInputProps extends React.ComponentProps<typeof Input> {
+  stepper?: boolean;
+  onStepperChange?: (value: string) => void;
+}
+
 function InputGroupInput({
   className,
   size: sizeProp,
+  stepper = false,
+  onStepperChange,
+  value,
+  min,
+  max,
+  step = '1',
+  onChange,
   ...props
-}: React.ComponentProps<typeof Input>) {
+}: InputGroupInputProps) {
   const context = React.useContext(InputGroupContext);
   const size = sizeProp ?? context.size;
 
+  const handleIncrement = () => {
+    const currentValue = Number(value) || 0;
+    const stepValue = Number(step);
+    const maxValue = max ? Number(max) : Infinity;
+    const newValue = Math.min(currentValue + stepValue, maxValue);
+
+    if (onStepperChange) {
+      onStepperChange(String(newValue));
+    } else if (onChange) {
+      onChange({ target: { value: String(newValue) } } as React.ChangeEvent<HTMLInputElement>);
+    }
+  };
+
+  const handleDecrement = () => {
+    const currentValue = Number(value) || 0;
+    const stepValue = Number(step);
+    const minValue = min ? Number(min) : -Infinity;
+    const newValue = Math.max(currentValue - stepValue, minValue);
+
+    if (onStepperChange) {
+      onStepperChange(String(newValue));
+    } else if (onChange) {
+      onChange({ target: { value: String(newValue) } } as React.ChangeEvent<HTMLInputElement>);
+    }
+  };
+
   return (
-    <Input
-      data-slot="input-group-control"
-      size={size}
-      className={cn(
-        'flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-input/0',
-        className
+    <>
+      <Input
+        data-slot="input-group-control"
+        size={size}
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onChange={onChange}
+        className={cn(
+          'flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-input/0',
+          stepper && 'pr-0',
+          className
+        )}
+        {...props}
+      />
+      {stepper && (
+        <InputGroupAddon align="inline-end" className="p-0 px-1.5 hidden group-hover:flex absolute right-0 top-0 bg-gradient-to-l from-input backdrop-blur h-full items-center rounded-r-[10px]">
+          <div className="flex flex-col">
+            <InputGroupButton
+              size="icon-xs"
+              variant="ghost"
+              onClick={handleIncrement}
+              className="size-2.5"
+              tabIndex={-1}
+            >
+              <ChevronUp />
+            </InputGroupButton>
+            <InputGroupButton
+              size="icon-xs"
+              variant="ghost"
+              onClick={handleDecrement}
+              className="size-2.5"
+              tabIndex={-1}
+            >
+              <ChevronDown />
+            </InputGroupButton>
+          </div>
+        </InputGroupAddon>
       )}
-      {...props}
-    />
+    </>
   )
 }
 

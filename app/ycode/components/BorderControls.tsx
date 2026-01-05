@@ -15,6 +15,7 @@ import { useModeToggle } from '@/hooks/use-mode-toggle';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
 import { removeSpaces } from '@/lib/utils';
+import ColorPicker from '@/app/ycode/components/ColorPicker';
 import type { Layer } from '@/types';
 
 interface BorderControlsProps {
@@ -30,7 +31,7 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
     activeBreakpoint,
     activeUIState,
   });
-  
+
   // Get current values from layer (with inheritance)
   const borderRadius = getDesignProperty('borders', 'borderRadius') || '';
   const borderTopLeftRadius = getDesignProperty('borders', 'borderTopLeftRadius') || '';
@@ -44,9 +45,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
   const borderLeftWidth = getDesignProperty('borders', 'borderLeftWidth') || '';
   const borderStyle = getDesignProperty('borders', 'borderStyle') || 'solid';
   const borderColor = getDesignProperty('borders', 'borderColor') || '';
-  
+
   const hasBorder = !!(borderWidth || borderTopWidth || borderRightWidth || borderBottomWidth || borderLeftWidth);
-  
+
   // Local controlled inputs (prevents repopulation bug)
   const inputs = useControlledInputs({
     borderRadius,
@@ -71,7 +72,7 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
   const [borderRightWidthInput, setBorderRightWidthInput] = inputs.borderRightWidth;
   const [borderBottomWidthInput, setBorderBottomWidthInput] = inputs.borderBottomWidth;
   const [borderLeftWidthInput, setBorderLeftWidthInput] = inputs.borderLeftWidth;
-  
+
   // Use mode toggle hooks for radius and width
   const radiusModeToggle = useModeToggle({
     category: 'borders',
@@ -82,7 +83,7 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
     getCurrentValue: (prop: string) => getDesignProperty('borders', prop) || '',
   });
-  
+
   const widthModeToggle = useModeToggle({
     category: 'borders',
     unifiedProperty: 'borderWidth',
@@ -92,76 +93,76 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
     getCurrentValue: (prop: string) => getDesignProperty('borders', prop) || '',
   });
-  
+
   // Handle radius changes (debounced for text input)
   const handleRadiusChange = (value: string) => {
     setBorderRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderRadius', sanitized || null);
   };
-  
+
   const handleTopLeftRadiusChange = (value: string) => {
     setBorderTopLeftRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderTopLeftRadius', sanitized || null);
   };
-  
+
   const handleTopRightRadiusChange = (value: string) => {
     setBorderTopRightRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderTopRightRadius', sanitized || null);
   };
-  
+
   const handleBottomRightRadiusChange = (value: string) => {
     setBorderBottomRightRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderBottomRightRadius', sanitized || null);
   };
-  
+
   const handleBottomLeftRadiusChange = (value: string) => {
     setBorderBottomLeftRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderBottomLeftRadius', sanitized || null);
   };
-  
+
   // Handle border width changes (debounced for text input)
   const handleBorderWidthChange = (value: string) => {
     setBorderWidthInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderWidth', sanitized || null);
   };
-  
+
   const handleTopWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderTopWidth', sanitized || null);
   };
-  
+
   const handleRightWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderRightWidth', sanitized || null);
   };
-  
+
   const handleBottomWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderBottomWidth', sanitized || null);
   };
-  
+
   const handleLeftWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderLeftWidth', sanitized || null);
   };
-  
+
   // Handle border style change (immediate - dropdown selection)
   const handleBorderStyleChange = (value: string) => {
     updateDesignProperty('borders', 'borderStyle', value);
   };
-  
+
   // Handle border color change (debounced for text input)
   const handleBorderColorChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderColor', sanitized || null);
   };
-  
+
   // Add border
   const handleAddBorder = () => {
     updateDesignProperties([
@@ -170,7 +171,7 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
       { category: 'borders', property: 'borderColor', value: '#000000' },
     ]);
   };
-  
+
   // Remove border
   const handleRemoveBorder = () => {
     updateDesignProperties([
@@ -197,14 +198,17 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
           <div className="col-span-2 flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <Input
+                stepper
+                min="0"
+                step="1"
                 className="flex-1"
                 disabled={radiusModeToggle.mode === 'individual-borders'}
                 value={borderRadiusInput}
                 onChange={(e) => handleRadiusChange(e.target.value)}
                 placeholder="0"
               />
-              <Button 
-                variant={radiusModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'} 
+              <Button
+                variant={radiusModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={radiusModeToggle.handleToggle}
               >
@@ -218,7 +222,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                     <Icon name="borderTopLeft" className="size-3" />
                   </InputGroupAddon>
                   <InputGroupInput
-                    className="!pr-0"
+                    stepper
+                    min="0"
+                    step="1"
                     value={borderTopLeftRadiusInput}
                     onChange={(e) => handleTopLeftRadiusChange(e.target.value)}
                     placeholder="0"
@@ -229,7 +235,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                     <Icon name="borderTopLeft" className="size-3 rotate-90" />
                   </InputGroupAddon>
                   <InputGroupInput
-                    className="!pr-0"
+                    stepper
+                    min="0"
+                    step="1"
                     value={borderTopRightRadiusInput}
                     onChange={(e) => handleTopRightRadiusChange(e.target.value)}
                     placeholder="0"
@@ -240,7 +248,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                     <Icon name="borderTopLeft" className="size-3 rotate-270" />
                   </InputGroupAddon>
                   <InputGroupInput
-                    className="!pr-0"
+                    stepper
+                    min="0"
+                    step="1"
                     value={borderBottomLeftRadiusInput}
                     onChange={(e) => handleBottomLeftRadiusChange(e.target.value)}
                     placeholder="0"
@@ -251,7 +261,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                     <Icon name="borderTopLeft" className="size-3 rotate-180" />
                   </InputGroupAddon>
                   <InputGroupInput
-                    className="!pr-0"
+                    stepper
+                    min="0"
+                    step="1"
                     value={borderBottomRightRadiusInput}
                     onChange={(e) => handleBottomRightRadiusChange(e.target.value)}
                     placeholder="0"
@@ -303,14 +315,17 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                     <div className="col-span-2 flex flex-col gap-2">
                       <div className="flex items-center gap-2">
                         <Input
+                          stepper
+                          min="0"
+                          step="1"
                           className="flex-1"
                           disabled={widthModeToggle.mode === 'individual-borders'}
                           value={borderWidthInput}
                           onChange={(e) => handleBorderWidthChange(e.target.value)}
                           placeholder="1"
                         />
-                        <Button 
-                          variant={widthModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'} 
+                        <Button
+                          variant={widthModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
                           size="sm"
                           onClick={widthModeToggle.handleToggle}
                         >
@@ -318,9 +333,12 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                         </Button>
                       </div>
                       {widthModeToggle.mode === 'individual-borders' && (
-                          <div className="grid grid-cols-4 gap-2">
-                            <div className="flex flex-col items-center gap-1">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="flex flex-col items-start gap-1">
                               <Input
+                                stepper
+                                min="0"
+                                step="1"
                                 value={borderTopWidthInput}
                                 onChange={(e) => handleTopWidthChange(e.target.value)}
                                 placeholder="1"
@@ -329,6 +347,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                             </div>
                             <div className="flex flex-col items-center gap-1">
                               <Input
+                                stepper
+                                min="0"
+                                step="1"
                                 value={borderRightWidthInput}
                                 onChange={(e) => handleRightWidthChange(e.target.value)}
                                 placeholder="1"
@@ -337,6 +358,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                             </div>
                             <div className="flex flex-col items-center gap-1">
                               <Input
+                                stepper
+                                min="0"
+                                step="1"
                                 value={borderBottomWidthInput}
                                 onChange={(e) => handleBottomWidthChange(e.target.value)}
                                 placeholder="1"
@@ -345,6 +369,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                             </div>
                             <div className="flex flex-col items-center gap-1">
                               <Input
+                                stepper
+                                min="0"
+                                step="1"
                                 value={borderLeftWidthInput}
                                 onChange={(e) => handleLeftWidthChange(e.target.value)}
                                 placeholder="1"
@@ -378,10 +405,10 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                   <div className="grid grid-cols-3">
                     <Label variant="muted">Color</Label>
                     <div className="col-span-2 *:w-full">
-                      <Input
-                        type="color"
+                      <ColorPicker 
+                        solidOnly
                         value={borderColor || '#000000'}
-                        onChange={(e) => handleBorderColorChange(e.target.value)}
+                        onChange={handleBorderColorChange}
                       />
                     </div>
                   </div>

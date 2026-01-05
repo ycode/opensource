@@ -71,7 +71,6 @@ export async function up(knex: Knex): Promise<void> {
     name: 'body',
     classes: '',
     children: [],
-    locked: true,
   }];
 
   // Calculate content_hash for homepage

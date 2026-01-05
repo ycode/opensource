@@ -3,19 +3,21 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import LayerLockIndicator from '../collaboration/LayerLockIndicator';
-import EditingIndicator from '../collaboration/EditingIndicator';
-import { useLayerLocks } from '../../hooks/use-layer-locks';
-import type { Layer } from '../../types';
-import { getLayerHtmlTag, getClassesString, getText, getImageUrl, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '../../lib/layer-utils';
+import LayerLockIndicator from '@/components/collaboration/LayerLockIndicator';
+import EditingIndicator from '@/components/collaboration/EditingIndicator';
+import { useLayerLocks } from '@/hooks/use-layer-locks';
+import type { Layer, Locale } from '@/types';
+import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
+import { isFieldVariable, isAssetVariable, isDynamicTextVariable, getVariableStringValue, getDynamicTextContent } from '@/lib/variable-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
-import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
-import { useComponentsStore } from '../../stores/useComponentsStore';
-import { useCollectionLayerStore } from '../../stores/useCollectionLayerStore';
+import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
+import { useComponentsStore } from '@/stores/useComponentsStore';
+import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { cn } from '@/lib/utils';
 import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
+import LocaleSelector from '@/components/layers/LocaleSelector';
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -31,6 +33,9 @@ interface LayerRendererProps {
   collectionItemData?: Record<string, string>; // Collection item field values (field_id -> value)
   pageCollectionItemData?: Record<string, string> | null;
   hiddenLayerIds?: string[]; // Layer IDs that should start hidden for animations
+  currentLocale?: Locale | null;
+  availableLocales?: Locale[];
+  localeSelectorFormat?: 'locale' | 'code'; // Format for locale selector label (inherited from parent)
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -47,6 +52,9 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   collectionItemData,
   pageCollectionItemData,
   hiddenLayerIds,
+  currentLocale,
+  availableLocales = [],
+  localeSelectorFormat,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -116,6 +124,9 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         collectionItemData={collectionItemData}
         pageCollectionItemData={pageCollectionItemData}
         hiddenLayerIds={hiddenLayerIds}
+        currentLocale={currentLocale}
+        availableLocales={availableLocales}
+        localeSelectorFormat={localeSelectorFormat}
       />
     );
   };
@@ -146,6 +157,9 @@ const LayerItem: React.FC<{
   collectionItemData?: Record<string, string>;
   pageCollectionItemData?: Record<string, string> | null;
   hiddenLayerIds?: string[];
+  currentLocale?: Locale | null;
+  availableLocales?: Locale[];
+  localeSelectorFormat?: 'locale' | 'code';
 }> = ({
   layer,
   isEditMode,
@@ -164,26 +178,49 @@ const LayerItem: React.FC<{
   collectionItemData,
   pageCollectionItemData,
   hiddenLayerIds,
+  currentLocale,
+  availableLocales,
+  localeSelectorFormat,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isEditing = editingLayerId === layer.id;
   const isDragging = activeLayerId === layer.id;
   const textEditable = isTextEditable(layer);
-  const htmlTag = getLayerHtmlTag(layer);
+  // Force locale selector to render as 'div' instead of 'localeSelector'
+  let htmlTag = getLayerHtmlTag(layer);
+  if (layer.name === 'localeSelector') {
+    htmlTag = 'div';
+  }
 
   // Get layer lock status (collaboration feature)
   const { isLayerLocked, canEditLayer } = useLayerLocks();
   const isLockedByOther = isLayerLocked(layer.id) && !canEditLayer(layer.id);
-
   const classesString = getClassesString(layer);
   const effectiveCollectionItemData = collectionItemData || pageCollectionItemData || undefined;
 
   // Resolve text and image URLs with field binding support
   const textContent = (() => {
-    // Check for inline variables in embedded JSON format
-    const textWithVariables = layer.variables?.text || layer.text;
-    if (textWithVariables && typeof textWithVariables === 'string') {
-      if (textWithVariables.includes('<ycode-inline-variable>')) {
+    // Special handling for locale selector label
+    if (layer.key === 'localeSelectorLabel' && !isEditMode) {
+      // Get default locale if no locale is detected
+      const defaultLocale = availableLocales?.find(l => l.is_default) || availableLocales?.[0];
+      const displayLocale = currentLocale || defaultLocale;
+
+      // Fallback if no locale data available
+      if (!displayLocale) {
+        return 'English';
+      }
+
+      // Use format from parent localeSelector layer (passed as prop)
+      const format = localeSelectorFormat || 'locale';
+      return format === 'code' ? displayLocale.code.toUpperCase() : displayLocale.label;
+    }
+
+    // Check for inline variables in DynamicTextVariable format
+    const textVariable = layer.variables?.text;
+    if (textVariable && textVariable.type === 'dynamic_text') {
+      const content = textVariable.data.content;
+      if (content.includes('<ycode-inline-variable>')) {
         // Use the embedded JSON resolver (client-safe)
         if (effectiveCollectionItemData) {
           const mockItem: any = {
@@ -196,30 +233,35 @@ const LayerItem: React.FC<{
             is_published: true,
             values: effectiveCollectionItemData,
           };
-          return resolveInlineVariables(textWithVariables, mockItem);
+          return resolveInlineVariables(content, mockItem);
         }
         // No collection data - remove variables
-        return textWithVariables.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+        return content.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
       }
-      // No inline variables, treat as plain text stored in variables
-      return textWithVariables;
+      // No inline variables, return plain content
+      return content;
     }
     const text = getText(layer);
     if (text) return text;
-    if (typeof layer.text === 'object') {
-      return resolveFieldValue(layer.text, effectiveCollectionItemData);
-    }
     return undefined;
   })();
 
   const imageUrl = (() => {
-    const url = getImageUrl(layer);
-    if (url) return url;
-    if (typeof layer.url === 'object') {
-      return resolveFieldValue(layer.url, effectiveCollectionItemData);
+    const src = layer.variables?.image?.src;
+    if (!src) return undefined;
+    if (isFieldVariable(src)) {
+      return resolveFieldValue(src, effectiveCollectionItemData);
+    }
+    if (isDynamicTextVariable(src)) {
+      return src.data.content;
+    }
+    if (isAssetVariable(src)) {
+      return src.data.asset_id;
     }
     return undefined;
   })();
+
+  const imageAlt = getDynamicTextContent(layer.variables?.image?.alt) || 'Image';
 
   // Handle component instances - only fetch from store in edit mode
   // In published pages, components are pre-resolved server-side via resolveComponents()
@@ -321,7 +363,15 @@ const LayerItem: React.FC<{
   const finishEditing = () => {
     if (editingLayerId === layer.id && onLayerUpdate) {
       // Update text content
-      onLayerUpdate(layer.id, { text: editingContent });
+      onLayerUpdate(layer.id, {
+        variables: {
+          ...layer.variables,
+          text: {
+            type: 'dynamic_text',
+            data: { content: editingContent }
+          }
+        }
+      });
       setEditingLayerId(null);
     }
   };
@@ -405,7 +455,7 @@ const LayerItem: React.FC<{
     const isEmpty = !textContent && (!children || children.length === 0);
 
     // Check if this is the Body layer (locked)
-    const isLocked = layer.id === 'body' || layer.locked === true;
+    const isLocked = layer.id === 'body';
 
     // Build props for the element
     const elementProps: Record<string, unknown> = {
@@ -472,7 +522,7 @@ const LayerItem: React.FC<{
         <Tag
           {...elementProps}
           src={imageUrl || ''}
-          alt={layer.alt || 'Image'}
+          alt={imageAlt}
         />
       );
     }
@@ -485,20 +535,44 @@ const LayerItem: React.FC<{
       return <Tag {...elementProps} />;
     }
 
-    if (htmlTag === 'icon' || layer.icon) {
+    // Handle icon layers (check layer.name, not htmlTag since settings.tag might be 'div')
+    if (layer.name === 'icon') {
+      // Check variables.icon.src (asset ID, field variable, or static text with SVG code)
+      const iconSrc = layer.variables?.icon?.src;
+      const iconHtml = iconSrc ? getVariableStringValue(iconSrc) : '';
       return (
         <Tag
           {...elementProps}
-          dangerouslySetInnerHTML={{ __html: layer.icon?.svg_code || '' }}
+          data-icon="true"
+          dangerouslySetInnerHTML={{ __html: iconHtml }}
         />
       );
     }
 
     if (htmlTag === 'video' || htmlTag === 'audio') {
+      // For video/audio, use variables.video.src or variables.audio.src
+      const mediaSrc = (() => {
+        if (htmlTag === 'video' && layer.variables?.video?.src) {
+          const src = layer.variables.video.src;
+          if (isFieldVariable(src)) {
+            return resolveFieldValue(src, effectiveCollectionItemData) || '';
+          }
+          return getVariableStringValue(src);
+        }
+        if (htmlTag === 'audio' && layer.variables?.audio?.src) {
+          const src = layer.variables.audio.src;
+          if (isFieldVariable(src)) {
+            return resolveFieldValue(src, effectiveCollectionItemData) || '';
+          }
+          return getVariableStringValue(src);
+        }
+        return imageUrl || '';
+      })();
+
       return (
         <Tag
           {...elementProps}
-          src={imageUrl || layer.url || ''}
+          src={mediaSrc}
         >
           {textContent && textContent}
           {children && children.length > 0 && (
@@ -516,6 +590,9 @@ const LayerItem: React.FC<{
               collectionItemData={effectiveCollectionItemData}
               pageCollectionItemData={pageCollectionItemData}
               hiddenLayerIds={hiddenLayerIds}
+              currentLocale={currentLocale}
+              availableLocales={availableLocales}
+              localeSelectorFormat={localeSelectorFormat}
             />
           )}
         </Tag>
@@ -523,10 +600,11 @@ const LayerItem: React.FC<{
     }
 
     if (htmlTag === 'iframe') {
+      const iframeSrc = getDynamicTextContent(layer.variables?.iframe?.src) || (otherAttributes as Record<string, string>).src || '';
       return (
         <Tag
           {...elementProps}
-          src={layer.url || (otherAttributes as Record<string, string>).src || ''}
+          src={iframeSrc}
         />
       );
     }
@@ -636,11 +714,60 @@ const LayerItem: React.FC<{
                   collectionItemData={item.values}
                   pageCollectionItemData={pageCollectionItemData}
                   hiddenLayerIds={hiddenLayerIds}
+                  currentLocale={currentLocale}
+                  availableLocales={availableLocales}
                 />
               )}
             </Tag>
           ))}
         </>
+      );
+    }
+
+    // Special handling for locale selector wrapper (name='localeSelector')
+    if (layer.name === 'localeSelector' && !isEditMode && availableLocales && availableLocales.length > 0) {
+      // Extract current page slug from URL (LocaleSelector handles this internally)
+      const currentPageSlug = typeof window !== 'undefined'
+        ? window.location.pathname.slice(1).replace(/^ycode\/preview\/?/, '')
+        : '';
+
+      // Get format setting from this layer to pass to children
+      const format = layer.settings?.locale?.format || 'locale';
+
+      return (
+        <Tag {...elementProps} style={{ ...mergedStyle, position: 'relative' }}>
+          {textContent && textContent}
+
+          {/* Render children with format prop */}
+          {children && children.length > 0 && (
+            <LayerRenderer
+              layers={children}
+              onLayerClick={onLayerClick}
+              onLayerUpdate={onLayerUpdate}
+              selectedLayerId={selectedLayerId}
+              isEditMode={isEditMode}
+              isPublished={isPublished}
+              enableDragDrop={enableDragDrop}
+              activeLayerId={activeLayerId}
+              projected={projected}
+              pageId={pageId}
+              collectionItemData={effectiveCollectionItemData}
+              pageCollectionItemData={pageCollectionItemData}
+              hiddenLayerIds={hiddenLayerIds}
+              currentLocale={currentLocale}
+              availableLocales={availableLocales}
+              localeSelectorFormat={format}
+            />
+          )}
+
+          {/* Locale selector overlay */}
+          <LocaleSelector
+            currentLocale={currentLocale}
+            availableLocales={availableLocales}
+            currentPageSlug={currentPageSlug}
+            isPublished={isPublished}
+          />
+        </Tag>
       );
     }
 
@@ -690,6 +817,9 @@ const LayerItem: React.FC<{
             collectionItemData={effectiveCollectionItemData}
             pageCollectionItemData={pageCollectionItemData}
             hiddenLayerIds={hiddenLayerIds}
+            currentLocale={currentLocale}
+            availableLocales={availableLocales}
+            localeSelectorFormat={localeSelectorFormat}
           />
         )}
       </Tag>
@@ -700,7 +830,7 @@ const LayerItem: React.FC<{
   const content = renderContent();
 
   if (isEditMode && pageId && !isEditing) {
-    const isLocked = layer.id === 'body' || layer.locked === true;
+    const isLocked = layer.id === 'body';
 
     return (
       <LayerContextMenu

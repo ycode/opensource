@@ -53,13 +53,56 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
       customName: 'Locales',
       name: 'localeSelector',
       open: true,
+      settings: {
+        tag: 'div',
+        locale: {
+          format: 'locale',
+        },
+      },
       children: [
+        // Locale text
         getTemplateRef('span', {
-          text: 'English',
+          key: 'localeSelectorLabel',
           customName: 'Locale',
+          restrictions: {
+            copy: false,
+            delete: false,
+            editText: false,
+            ancestor: 'localeSelector',
+          },
+          variables: {
+            text: {
+              type: 'dynamic_text',
+              data: {
+                content: 'English'
+              }
+            }
+          }
         }),
+        // Locale icon (chevron down)
         getTemplateRef('icon', {
           customName: 'Icon',
+          variables: {
+            icon: {
+              src: {
+                type: 'static_text',
+                data: {
+                  content: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd"></path></svg>'
+                }
+              }
+            }
+          },
+          classes: [
+            'w-[18px]',
+            'h-[18px]'
+          ],
+          design: {
+            sizing: {
+              isActive: true,
+              width: '18px',
+              height: '18px'
+            }
+          }
         }),
       ],
       attributes: {
@@ -68,16 +111,13 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
       classes: [
         'flex',
         'items-center',
-        'pt-[10px]',
-        'pb-[10px]',
+        'pt-[8px]',
+        'pb-[8px]',
         'relative',
-        'border-[1px]',
-        'pl-[12px]',
-        'pr-[12px]',
+        'pl-[14px]',
+        'pr-[14px]',
         'bg-opacity-[100%]',
         'bg-[#F5F5F5]',
-        'border-opacity-[0%]',
-        'border-[#000000]',
         'w-[max-content]',
         'text-[16px]',
         'rounded-[12px]',
@@ -100,10 +140,10 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
         },
         spacing: {
           isActive: true,
-          paddingLeft: '12px',
-          paddingRight: '12px',
-          paddingBottom: '10px',
-          paddingTop: '10px',
+          paddingLeft: '14px',
+          paddingRight: '14px',
+          paddingBottom: '8px',
+          paddingTop: '8px',
         },
         backgrounds: {
           isActive: true,
@@ -115,12 +155,6 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
           letterSpacing: '-0.025em',
           color: '#171717',
           fontWeight: '500',
-        },
-        borders: {
-          isActive: true,
-          borderColor: '#000000',
-          borderRadius: '12px',
-          borderWidth: '1px',
         },
       },
     }),

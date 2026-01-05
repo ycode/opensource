@@ -64,7 +64,7 @@ import { useCollaborationPresenceStore } from '@/stores/useCollaborationPresence
 
 // 6. Utils/lib
 import { findHomepage } from '@/lib/page-utils';
-import { findLayerById, getClassesString, removeLayerById } from '@/lib/layer-utils';
+import { findLayerById, getClassesString, removeLayerById, canCopyLayer, canDeleteLayer } from '@/lib/layer-utils';
 import { pagesApi, collectionsApi } from '@/lib/api';
 
 // 5. Types
@@ -685,10 +685,16 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
     // Find the next layer to select before deleting
     const layers = getCurrentLayers();
+    const layerToDelete = findLayerById(layers, selectedLayerId);
+
+    // Check if layer can be deleted
+    if (layerToDelete && !canDeleteLayer(layerToDelete)) {
+      return;
+    }
+
     const nextLayerId = findNextLayerToSelect(layers, selectedLayerId);
 
     // Check if this is a pagination wrapper - if so, disable pagination on the collection
-    const layerToDelete = findLayerById(layers, selectedLayerId);
     const paginationFor = layerToDelete?.attributes?.['data-pagination-for'];
 
     if (editingComponentId) {
@@ -1100,17 +1106,31 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           if (!isInputFocused && currentPageId) {
             e.preventDefault();
             if (selectedLayerIds.length > 1) {
-              // Multi-select: copy all
-              const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
-              // Store first layer in clipboard store for compatibility
-              if (layers.length > 0) {
-                copyToClipboard(layers[0], currentPageId);
+              // Multi-select: copy all (check restrictions)
+              const draft = draftsByPageId[currentPageId];
+              if (draft) {
+                const layersToCheck = selectedLayerIds.map(id => findLayerById(draft.layers, id)).filter(Boolean) as Layer[];
+                const canCopyAll = layersToCheck.every(layer => canCopyLayer(layer));
+
+                if (canCopyAll) {
+                  const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
+                  // Store first layer in clipboard store for compatibility
+                  if (layers.length > 0) {
+                    copyToClipboard(layers[0], currentPageId);
+                  }
+                }
               }
             } else if (selectedLayerId) {
-              // Single select - use clipboard store
-              const layer = copyLayerFromStore(currentPageId, selectedLayerId);
-              if (layer) {
-                copyToClipboard(layer, currentPageId);
+              // Single select - check restrictions
+              const draft = draftsByPageId[currentPageId];
+              if (draft) {
+                const layer = findLayerById(draft.layers, selectedLayerId);
+                if (layer && canCopyLayer(layer)) {
+                  const copiedLayer = copyLayerFromStore(currentPageId, selectedLayerId);
+                  if (copiedLayer) {
+                    copyToClipboard(copiedLayer, currentPageId);
+                  }
+                }
               }
             }
           }
@@ -1121,32 +1141,46 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           if (!isInputFocused && currentPageId) {
             e.preventDefault();
             if (selectedLayerIds.length > 1) {
-              // Multi-select: cut all (copy then delete)
-              const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
-              if (layers.length > 0) {
-                // Store first layer in clipboard for compatibility
-                cutToClipboard(layers[0], currentPageId);
-                deleteLayers(currentPageId, selectedLayerIds);
-                clearSelection();
+              // Multi-select: cut all (check restrictions)
+              const draft = draftsByPageId[currentPageId];
+              if (draft) {
+                const layersToCheck = selectedLayerIds.map(id => findLayerById(draft.layers, id)).filter(Boolean) as Layer[];
+                const canCutAll = layersToCheck.every(layer => canCopyLayer(layer) && canDeleteLayer(layer));
 
-                // Broadcast deletes to other collaborators
-                if (liveLayerUpdates) {
-                  selectedLayerIds.forEach(id => {
-                    liveLayerUpdates.broadcastLayerDelete(currentPageId, id);
-                  });
+                if (canCutAll) {
+                  const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
+                  if (layers.length > 0) {
+                    // Store first layer in clipboard for compatibility
+                    cutToClipboard(layers[0], currentPageId);
+                    deleteLayers(currentPageId, selectedLayerIds);
+                    clearSelection();
+
+                    // Broadcast deletes to other collaborators
+                    if (liveLayerUpdates) {
+                      selectedLayerIds.forEach(id => {
+                        liveLayerUpdates.broadcastLayerDelete(currentPageId, id);
+                      });
+                    }
+                  }
                 }
               }
             } else if (selectedLayerId) {
-              // Single select
-              const layer = copyLayerFromStore(currentPageId, selectedLayerId);
-              if (layer && layer.id !== 'body' && !layer.locked) {
-                cutToClipboard(layer, currentPageId);
-                deleteLayer(currentPageId, selectedLayerId);
-                setSelectedLayerId(null);
+              // Single select - check restrictions
+              const draft = draftsByPageId[currentPageId];
+              if (draft) {
+                const layer = findLayerById(draft.layers, selectedLayerId);
+                if (layer && layer.id !== 'body' && canCopyLayer(layer) && canDeleteLayer(layer)) {
+                  const copiedLayer = copyLayerFromStore(currentPageId, selectedLayerId);
+                  if (copiedLayer) {
+                    cutToClipboard(copiedLayer, currentPageId);
+                    deleteLayer(currentPageId, selectedLayerId);
+                    setSelectedLayerId(null);
 
-                // Broadcast delete to other collaborators
-                if (liveLayerUpdates) {
-                  liveLayerUpdates.broadcastLayerDelete(currentPageId, selectedLayerId);
+                    // Broadcast delete to other collaborators
+                    if (liveLayerUpdates) {
+                      liveLayerUpdates.broadcastLayerDelete(currentPageId, selectedLayerId);
+                    }
+                  }
                 }
               }
             }
@@ -1187,6 +1221,15 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
               if (editingComponentId) {
                 // Delete multiple from component
                 const layers = getCurrentLayers();
+
+                // Filter out layers that cannot be deleted
+                const deletableLayerIds = selectedLayerIds.filter(layerId => {
+                  const layer = findLayerById(layers, layerId);
+                  return layer && canDeleteLayer(layer);
+                });
+
+                if (deletableLayerIds.length === 0) return;
+
                 let newLayers = layers;
 
                 // Helper to update layer in tree
@@ -1203,7 +1246,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                 };
 
                 // Check each layer for pagination wrappers and disable pagination on collection
-                for (const layerId of selectedLayerIds) {
+                for (const layerId of deletableLayerIds) {
                   const layerToDelete = findLayerById(layers, layerId);
                   const paginationFor = layerToDelete?.attributes?.['data-pagination-for'];
                   if (paginationFor) {
@@ -1229,13 +1272,22 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                   }
                 }
 
-                for (const layerId of selectedLayerIds) {
+                for (const layerId of deletableLayerIds) {
                   newLayers = removeLayerById(newLayers, layerId);
                 }
                 updateCurrentLayers(newLayers);
                 clearSelection();
               } else if (currentPageId) {
-                deleteLayers(currentPageId, selectedLayerIds);
+                // Filter out layers that cannot be deleted
+                const layers = getCurrentLayers();
+                const deletableLayerIds = selectedLayerIds.filter(layerId => {
+                  const layer = findLayerById(layers, layerId);
+                  return layer && canDeleteLayer(layer);
+                });
+
+                if (deletableLayerIds.length === 0) return;
+
+                deleteLayers(currentPageId, deletableLayerIds);
                 clearSelection();
 
                 // Broadcast deletes to other collaborators
@@ -1335,7 +1387,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     pasteStyleFromClipboard,
     deleteSelectedLayer,
     handleUndo,
-    handleRedo
+    handleRedo,
+    liveLayerUpdates
   ]);
 
   // Show loading screen while checking Supabase config

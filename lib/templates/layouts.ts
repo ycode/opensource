@@ -42,8 +42,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                         tag: 'h1',
                       },
                       classes: ['text-[48px]', 'font-[700]', 'leading-[1]', 'text-center'],
-                      text: 'Heading',
-                      formattable: true,
+                      restrictions: { editText: true },
                       children: [],
                       design: {
                         typography: {
@@ -56,8 +55,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       },
                       variables: {
                         text: {
-                          data: 'Experience content management reimagined',
-                          variables: {},
+                          type: 'dynamic_text',
+                          data: {
+                            content: 'Experience content management reimagined'
+                          }
                         },
                       },
                     },
@@ -65,8 +66,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       name: 'p',
                       customName: 'Paragraph',
                       classes: ['text-[16px]', 'text-center'],
-                      text: 'Text',
-                      formattable: true,
+                      restrictions: { editText: true },
                       children: [],
                       design: {
                         typography: {
@@ -77,8 +77,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       },
                       variables: {
                         text: {
-                          data: 'Let copywriters easily work with content via content management system or visually on canvas without breaking design.',
-                          variables: {},
+                          type: 'dynamic_text',
+                          data: {
+                            content: 'Let copywriters easily work with content via content management system or visually on canvas without breaking design.'
+                          }
                         },
                       },
                     },

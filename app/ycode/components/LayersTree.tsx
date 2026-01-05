@@ -31,7 +31,7 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 // 6. Utils/lib
 import { cn } from '@/lib/utils';
 import { flattenTree, type FlattenedItem } from '@/lib/tree-utilities';
-import { canHaveChildren, getLayerIcon, getLayerName, getCollectionVariable } from '@/lib/layer-utils';
+import { canHaveChildren, getLayerIcon, getLayerName, getCollectionVariable, canMoveLayer } from '@/lib/layer-utils';
 import { hasStyleOverrides } from '@/lib/layer-style-utils';
 
 // 7. Types
@@ -154,7 +154,7 @@ function LayerRow({
   const layerIcon = getLayerIcon(node.layer);
 
   // Check if this is the Body layer (locked)
-  const isLocked = node.layer.id === 'body' || node.layer.locked === true;
+  const isLocked = node.layer.id === 'body';
 
   return (
     <LayerContextMenu
@@ -811,9 +811,22 @@ export default function LayersTree({
       }
     }
 
+    // Check ancestor restrictions
+    if (activeNode && position) {
+      const targetParentId = position === 'inside' ? overNode.id : overNode.parentId;
+      
+      // Check if the layer can be moved to the new parent based on ancestor restrictions
+      if (!canMoveLayer(layers, activeNode.id, targetParentId)) {
+        // Cannot move due to ancestor restrictions - don't show drop indicator
+        setOverId(null);
+        setDropPosition(null);
+        return;
+      }
+    }
+
     setOverId(overId);
     setDropPosition(position);
-  }, [flattenedNodes, collapsedIds, activeId, cursorOffsetY]);
+  }, [flattenedNodes, collapsedIds, activeId, cursorOffsetY, layers]);
 
   // Handle drag end - perform the actual reorder
   const handleDragEnd = useCallback(
@@ -886,6 +899,25 @@ export default function LayersTree({
 
       // Prevent moving into self or descendant
       if (isDescendant(activeNode, overNode, flattenedNodes)) {
+        setActiveId(null);
+        setOverId(null);
+        setDropPosition(null);
+        setCursorOffsetY(0);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Calculate target parent based on drop position
+      let targetParentId: string | null;
+      if (dropPosition === 'inside') {
+        targetParentId = overNode.id;
+      } else {
+        targetParentId = overNode.parentId;
+      }
+
+      // Check ancestor restrictions before allowing the move
+      if (!canMoveLayer(layers, activeNode.id, targetParentId)) {
+        console.warn(`Cannot move layer ${activeNode.id} - ancestor restriction violated`);
         setActiveId(null);
         setOverId(null);
         setDropPosition(null);
@@ -1014,7 +1046,7 @@ export default function LayersTree({
       // Use setTimeout to reset processing flag after state updates complete
       setTimeout(() => setIsProcessing(false), 0);
     },
-    [flattenedNodes, dropPosition, onReorder]
+    [flattenedNodes, dropPosition, onReorder, layers]
   );
 
   // Handle drag cancel

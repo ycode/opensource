@@ -19,7 +19,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useClipboardStore } from '@/stores/useClipboardStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
-import { canHaveChildren, findLayerById, getClassesString, regenerateIdsWithInteractionRemapping, regenerateInteractionIds } from '@/lib/layer-utils';
+import { canHaveChildren, findLayerById, getClassesString, regenerateIdsWithInteractionRemapping, regenerateInteractionIds, canCopyLayer, canDeleteLayer } from '@/lib/layer-utils';
 import { useLiveLayerUpdates } from '@/hooks/use-live-layer-updates';
 import type { Layer } from '@/types';
 import CreateComponentDialog from './CreateComponentDialog';
@@ -99,7 +99,19 @@ export default function LayerContextMenu({
     return canHaveChildren(layer);
   }, [draftsByPageId, pageId, layerId]);
 
+  // Check layer restrictions
+  const canCopy = useMemo(() => {
+    if (!layer) return false;
+    return canCopyLayer(layer);
+  }, [layer]);
+
+  const canDelete = useMemo(() => {
+    if (!layer) return false;
+    return canDeleteLayer(layer);
+  }, [layer]);
+
   const handleCopy = () => {
+    if (!canCopy) return;
     const layer = copyLayer(pageId, layerId);
     if (layer) {
       copyToClipboard(layer, pageId);
@@ -107,7 +119,7 @@ export default function LayerContextMenu({
   };
 
   const handleCut = () => {
-    if (isLocked) return;
+    if (isLocked || !canCopy || !canDelete) return;
     const layer = copyLayer(pageId, layerId);
     if (layer) {
       cutToClipboard(layer, pageId);
@@ -136,11 +148,12 @@ export default function LayerContextMenu({
   };
 
   const handleDuplicate = () => {
+    if (!canCopy) return;
     duplicateLayer(pageId, layerId);
   };
 
   const handleDelete = () => {
-    if (isLocked) return;
+    if (isLocked || !canDelete) return;
     deleteLayer(pageId, layerId);
 
     // Broadcast delete to other collaborators
@@ -328,12 +341,12 @@ export default function LayerContextMenu({
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className="w-44">
-        <ContextMenuItem onClick={handleCut} disabled={isLocked}>
+        <ContextMenuItem onClick={handleCut} disabled={isLocked || !canCopy || !canDelete}>
           Cut
           <ContextMenuShortcut>⌘X</ContextMenuShortcut>
         </ContextMenuItem>
 
-        <ContextMenuItem onClick={handleCopy}>
+        <ContextMenuItem onClick={handleCopy} disabled={!canCopy}>
           Copy
           <ContextMenuShortcut>⌘C</ContextMenuShortcut>
         </ContextMenuItem>
@@ -355,14 +368,14 @@ export default function LayerContextMenu({
 
         <ContextMenuSeparator />
 
-        <ContextMenuItem onClick={handleDuplicate}>
+        <ContextMenuItem onClick={handleDuplicate} disabled={!canCopy}>
           Duplicate
           <ContextMenuShortcut>⌘D</ContextMenuShortcut>
         </ContextMenuItem>
 
         <ContextMenuItem
           onClick={handleDelete}
-          disabled={isLocked}
+          disabled={isLocked || !canDelete}
         >
           Delete
           <ContextMenuShortcut>⌫</ContextMenuShortcut>

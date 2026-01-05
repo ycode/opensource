@@ -14,7 +14,8 @@ import SettingsPanel from './SettingsPanel';
 import InputWithInlineVariables from './InputWithInlineVariables';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
 import type { Layer, CollectionField, Collection } from '@/types';
-import { getCollectionVariable, isFieldVariable } from '@/lib/layer-utils';
+import { getCollectionVariable } from '@/lib/layer-utils';
+import { createDynamicTextVariable, getDynamicTextContent, createAssetVariable, isFieldVariable, isAssetVariable, isDynamicTextVariable, getVariableStringValue } from '@/lib/variable-utils';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import Icon from '@/components/ui/icon';
@@ -47,26 +48,42 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
   const handleUrlChange = useCallback((value: string) => {
     if (!layer) return;
 
-    // Convert the value to proper format (string or FieldVariable)
+    // Convert the value to proper format (string with embedded variables)
     const convertedValue = convertContentToValue(value);
 
+    // Create DynamicTextVariable from the content
+    const srcVariable = createDynamicTextVariable(convertedValue);
+
+    // Update variables.image.src
     onLayerUpdate(layer.id, {
-      url: convertedValue,
+      variables: {
+        ...layer.variables,
+        image: {
+          src: srcVariable,
+          alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+        },
+      },
     });
   }, [layer, onLayerUpdate]);
 
   const handleAltChange = useCallback((value: string) => {
     if (!layer) return;
 
-    // Convert content format to value - extract text content only
-    // Since alt is string only, we extract just the text (field variables are ignored)
+    // Convert content format to value - extract text content
     const convertedValue = convertContentToValue(value);
 
-    // Remove any field variable markers since alt doesn't support them
-    const altText = convertedValue.replace(/<ycode-inline-variable>.*?<\/ycode-inline-variable>/g, '').trim();
+    // Create DynamicTextVariable from the content
+    const altVariable = createDynamicTextVariable(convertedValue);
 
+    // Update variables.image.alt
     onLayerUpdate(layer.id, {
-      alt: altText,
+      variables: {
+        ...layer.variables,
+        image: {
+          src: layer.variables?.image?.src || createDynamicTextVariable(''),
+          alt: altVariable,
+        },
+      },
     });
   }, [layer, onLayerUpdate]);
 
@@ -75,14 +92,17 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
     return null;
   }
 
-  // Get current URL value (convert FieldVariable to content format for InputWithInlineVariables)
-  const urlValue = layer.url
-    ? (typeof layer.url === 'string'
-      ? layer.url
-      : `<ycode-inline-variable>${JSON.stringify(layer.url)}</ycode-inline-variable>`)
-    : '';
+  // Get current URL value from variables.image.src
+  const urlValue = (() => {
+    const src = layer.variables?.image?.src;
+    if (!src) return '';
 
-  const altValue = layer.alt || '';
+    // Extract content from the variable
+    return getVariableStringValue(src);
+  })();
+
+  // Get current alt value from variables.image.alt
+  const altValue = getDynamicTextContent(layer.variables?.image?.alt);
 
   // Placeholder fields for UI (just for display purposes)
   const placeholderFields: CollectionField[] = [
@@ -139,9 +159,6 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
     },
   ];
 
-  // Get current alt value - alt is always a string
-  const altValueFormatted = altValue || '';
-
   return (
     <>
     <SettingsPanel
@@ -160,14 +177,19 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
             <div className="flex-1 flex gap-2">
 
               <div className="bg-input rounded-lg h-8 flex-1 overflow-hidden">
-                <img src="https://app.ycode.com/images/placeholder-image.jpg?34ab150cb5cb6da2ef250e33f3a2d802" className="w-full h-full object-contain" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="https://app.ycode.com/images/placeholder-image.jpg?34ab150cb5cb6da2ef250e33f3a2d802"
+                  alt="Placeholder"
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div className="shrink-0 flex items-center gap-2">
 
                 <ButtonGroup className="divide-x">
 
-                  <Button 
-                    variant="secondary" 
+                  <Button
+                    variant="secondary"
                     size="sm"
                     onClick={() => setShowFileManagerDialog(true)}
                   >
@@ -232,7 +254,7 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
           <Label variant="muted">ALT</Label>
           <div className="col-span-2 *:w-full">
             <InputWithInlineVariables
-              value={altValueFormatted}
+              value={altValue}
               onChange={handleAltChange}
               placeholder="Image description"
               fields={placeholderFields}

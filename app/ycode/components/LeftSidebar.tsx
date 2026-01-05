@@ -331,9 +331,20 @@ const LeftSidebar = React.memo(function LeftSidebar({
       return;
     }
 
-    // Update the layer's url
+    // Update the layer's image src
     updateLayer(currentPageId, selectedLayerId, {
-      url: asset.public_url,
+      variables: {
+        image: {
+          src: {
+            type: 'asset',
+            data: { asset_id: asset.id }
+          },
+          alt: {
+            type: 'dynamic_text',
+            data: { content: asset.filename }
+          }
+        }
+      }
     });
 
     setAssetMessage(`✅ Image set: ${asset.filename}`);

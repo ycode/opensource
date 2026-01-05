@@ -342,9 +342,11 @@ export function propertyToClass(
       case 'rowGap':
         return formatMeasurementClass(value, 'gap-y');
       case 'gridTemplateColumns':
-        return `grid-cols-[${value}]`;
+        // Replace spaces with underscores for Tailwind arbitrary value syntax
+        return `grid-cols-[${value.replace(/\s+/g, '_')}]`;
       case 'gridTemplateRows':
-        return `grid-rows-[${value}]`;
+        // Replace spaces with underscores for Tailwind arbitrary value syntax
+        return `grid-rows-[${value.replace(/\s+/g, '_')}]`;
     }
   }
 
@@ -783,11 +785,13 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     // Grid
     if (cls.startsWith('grid-cols-[')) {
       const value = extractArbitraryValue(cls);
-      if (value) design.layout!.gridTemplateColumns = value;
+      // Convert underscores back to spaces (Tailwind arbitrary value syntax)
+      if (value) design.layout!.gridTemplateColumns = value.replace(/_/g, ' ');
     }
     if (cls.startsWith('grid-rows-[')) {
       const value = extractArbitraryValue(cls);
-      if (value) design.layout!.gridTemplateRows = value;
+      // Convert underscores back to spaces (Tailwind arbitrary value syntax)
+      if (value) design.layout!.gridTemplateRows = value.replace(/_/g, ' ');
     }
 
     // ===== TYPOGRAPHY =====

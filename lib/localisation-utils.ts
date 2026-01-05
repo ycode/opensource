@@ -264,21 +264,12 @@ export interface TranslatableItem {
  * Extract text from a layer (includes text with inline variables)
  */
 export function extractLayerText(layer: Layer): string | null {
-  let text: string | null = null;
-
-  if (layer.variables?.text && typeof layer.variables.text === 'string') {
-    // Check variables.text for inline variables
-    text = layer.variables.text;
-  } else if (typeof layer.text === 'string') {
-    // Check legacy text property
-    text = layer.text;
-  } else if (typeof layer.content === 'string') {
-    // Check legacy content property
-    text = layer.content;
-  } else if (layer.text && typeof layer.text === 'object' && layer.text.type === 'field') {
-    // Skip if text is a FieldVariable object (not inline)
+  // Only use variables.text (DynamicTextVariable)
+  if (!layer.variables?.text || layer.variables.text.type !== 'dynamic_text') {
     return null;
   }
+
+  const text = layer.variables.text.data.content;
 
   if (!text || !text.trim()) {
     return null;
@@ -297,6 +288,9 @@ function extractLayerTranslatableItems(
   items: TranslatableItem[]
 ): void {
   for (const layer of layers) {
+    // Skip locale selector label as it is dynamically generated based on locale
+    if (layer.key === 'localeSelectorLabel') continue;
+
     // Extract text from this layer (including inline variables)
     const text = extractLayerText(layer);
 

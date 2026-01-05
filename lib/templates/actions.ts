@@ -18,12 +18,6 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       attributes: {
         type: 'button'
       },
-      settings: {
-        linkSettings: {
-          href: '',
-          target: '_self'
-        }
-      },
       design: {
         typography: {
           isActive: true,
@@ -55,23 +49,24 @@ export const actionTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'a',
       classes: ['text-[#2563eb]', 'hover:underline'],
-      text: 'Link text',
       children: [], // Can contain icons, images, text
       attributes: {
         href: '#',
         target: '_self'
-      },
-      settings: {
-        linkSettings: {
-          href: '#',
-          target: '_self'
-        }
       },
       design: {
         typography: {
           isActive: true,
           color: '#2563eb',
           textDecoration: 'none'
+        }
+      },
+      variables: {
+        text: {
+          type: 'dynamic_text',
+          data: {
+            content: 'Link text'
+          }
         }
       }
     }

@@ -5,7 +5,7 @@ import type { Layer, Page, PageLayers, PageFolder, PageItemDuplicateResult, Coll
 import { pagesApi, pageLayersApi, foldersApi } from '../lib/api';
 import { getLayerFromTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
-import { canHaveChildren, regenerateIdsWithInteractionRemapping } from '../lib/layer-utils';
+import { canHaveChildren, regenerateIdsWithInteractionRemapping, canMoveLayer } from '../lib/layer-utils';
 import { getDescendantFolderIds, isHomepage, findHomepage, findNextSelection } from '../lib/page-utils';
 import { updateLayersWithStyle, detachStyleFromLayers } from '../lib/layer-style-utils';
 import { updateLayersWithComponent, detachComponentFromLayers } from '../lib/component-utils';
@@ -650,9 +650,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     const layerToDelete = findLayer(draft.layers, layerId);
 
-    // Prevent deleting locked layers
-    if (layerToDelete?.locked) {
-      console.warn('Cannot delete locked layer');
+    // Prevent deleting body layer
+    if (layerToDelete?.id === 'body') {
+      console.warn('Cannot delete body layer');
       return;
     }
 
@@ -745,7 +745,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     for (const layerId of layerIds) {
       if (layerId === 'body') continue; // Skip body
       const layer = findLayer(draft.layers, layerId);
-      if (layer && !layer.locked) {
+      if (layer && layer.id !== 'body') {
         validIds.add(layerId);
       }
     }
@@ -902,6 +902,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       }
       return false;
     };
+
+    // Validation: Check ancestor restrictions
+    if (!canMoveLayer(draft.layers, layerId, targetParentId)) {
+      console.warn('Cannot move layer - ancestor restriction violated');
+      return false;
+    }
 
     // Validation: Cannot move into self or descendants (circular reference)
     if (targetParentId === layerId || isDescendant(layerId, targetParentId || '')) {
@@ -1184,7 +1190,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     for (const layerId of layerIds) {
       if (layerId === 'body') continue; // Skip body
       const layer = findLayer(draft.layers, layerId);
-      if (layer && !layer.locked) {
+      if (layer && layer.id !== 'body') {
         validIds.push(layerId);
       }
     }
@@ -1369,7 +1375,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         name: 'body',
         classes: '',
         children: [],
-        locked: true,
       }],
       is_published: false,
       created_at: new Date().toISOString(),

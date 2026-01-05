@@ -16,6 +16,109 @@ export function isFieldVariable(value: any): value is FieldVariable {
 }
 
 /**
+ * Check if a layer can be copied based on its restrictions
+ */
+export function canCopyLayer(layer: Layer): boolean {
+  return layer.restrictions?.copy !== false;
+}
+
+/**
+ * Check if a layer can be deleted based on its restrictions
+ */
+export function canDeleteLayer(layer: Layer): boolean {
+  return layer.restrictions?.delete !== false;
+}
+
+/**
+ * Get the ancestor layer matching a callback condition
+ * Traverses up the tree from the given layer until a matching ancestor is found
+ * Uses a flat map for efficient O(1) parent lookups
+ */
+export function findAncestor(
+  layers: Layer[],
+  layerId: string,
+  predicate: (layer: Layer) => boolean
+): Layer | null {
+  // Build flat maps for efficient lookups
+  const layerMap = new Map<string, Layer>();
+  const parentMap = new Map<string, string>();
+
+  const buildMaps = (nodes: Layer[], parentId: string | null = null) => {
+    for (const node of nodes) {
+      layerMap.set(node.id, node);
+      if (parentId) {
+        parentMap.set(node.id, parentId);
+      }
+      if (node.children) {
+        buildMaps(node.children, node.id);
+      }
+    }
+  };
+
+  buildMaps(layers);
+
+  // Check if the layer exists
+  const currentLayer = layerMap.get(layerId);
+  if (!currentLayer) return null;
+
+  // Traverse up the tree using the parent map
+  let parentId = parentMap.get(layerId);
+  while (parentId) {
+    const parent = layerMap.get(parentId);
+    if (parent && predicate(parent)) {
+      return parent;
+    }
+    parentId = parentMap.get(parentId);
+  }
+
+  return null;
+}
+
+/**
+ * Find the ancestor layer with a specific name
+ */
+export function findAncestorByName(layers: Layer[], layerId: string, ancestorName: string): Layer | null {
+  return findAncestor(layers, layerId, (layer) => layer.name === ancestorName);
+}
+
+/**
+ * Check if a layer can be moved to a new parent based on ancestor restrictions
+ */
+export function canMoveLayer(layers: Layer[], layerId: string, newParentId: string | null): boolean {
+  const layer = findLayerById(layers, layerId);
+  if (!layer) return false;
+
+  // No ancestor restriction - can move anywhere
+  if (!layer.restrictions?.ancestor) return true;
+
+  const requiredAncestor = layer.restrictions.ancestor;
+
+  // Find current ancestor with the required name
+  const currentAncestor = findAncestorByName(layers, layerId, requiredAncestor);
+
+  // If moving to root (newParentId is null), check if we need an ancestor
+  if (newParentId === null) {
+    // Can only move to root if no ancestor is required
+    return !currentAncestor;
+  }
+
+  // Find the ancestor in the new location
+  const newParent = findLayerById(layers, newParentId);
+  if (!newParent) return false;
+
+  // Check if new parent is the required ancestor
+  if (newParent.name === requiredAncestor) {
+    return true;
+  }
+
+  // Check if new parent is a descendant of the required ancestor
+  const newParentAncestor = findAncestorByName(layers, newParentId, requiredAncestor);
+
+  // Can move if both current and new location share the same ancestor
+  return currentAncestor?.id === newParentAncestor?.id;
+}
+
+/**
  * Get collection variable from layer (checks variables first, then fallback)
  */
 export function getCollectionVariable(layer: Layer): CollectionVariable | null {
@@ -116,7 +219,7 @@ export function findParentCollectionLayer(layers: Layer[], layerId: string): Lay
  * @returns True if the layer is text-editable
  */
 export function isTextEditable(layer: Layer): boolean {
-  return layer.formattable ?? false;
+  return layer.restrictions?.editText ?? false;
 }
 
 /**
@@ -149,21 +252,14 @@ export function getClassesString(layer: Layer): string {
 }
 
 /**
- * Get text content from layer
+ * Get text content from layer (from variables.text)
  */
 export function getText(layer: Layer): string | undefined {
-  const text = layer.text;
-  // Return only if it's a string (not a FieldVariable)
-  return typeof text === 'string' ? text : undefined;
-}
-
-/**
- * Get image URL from layer
- */
-export function getImageUrl(layer: Layer): string | undefined {
-  const url = layer.url;
-  // Return only if it's a string (not a FieldVariable)
-  return typeof url === 'string' ? url : undefined;
+  const textVariable = layer.variables?.text;
+  if (textVariable && textVariable.type === 'dynamic_text') {
+    return textVariable.data.content;
+  }
+  return undefined;
 }
 
 /**
@@ -228,17 +324,17 @@ export function resolveFieldValue(
 
 /**
  * Get text content with field binding resolution
- * If layer.text is a FieldVariable, resolve from collectionItemData
- * Otherwise return static text
+ * Uses variables.text (DynamicTextVariable) with inline variables
  */
 export function getTextWithBinding(
   layer: Layer,
   collectionItemData?: Record<string, string>
 ): string | undefined {
-  // Priority 1: Check variables.text (embedded JSON inline variables)
-  const textWithVariables = layer.variables?.text;
-  if (textWithVariables && typeof textWithVariables === 'string') {
-    if (textWithVariables.includes('<ycode-inline-variable>')) {
+  // Check variables.text (DynamicTextVariable with inline variables)
+  const textVariable = layer.variables?.text;
+  if (textVariable && textVariable.type === 'dynamic_text') {
+    const content = textVariable.data.content;
+    if (content.includes('<ycode-inline-variable>')) {
       if (collectionItemData) {
         const mockItem: any = {
           id: 'temp',
@@ -250,48 +346,15 @@ export function getTextWithBinding(
           is_published: true,
           values: collectionItemData,
         };
-        return resolveInlineVariables(textWithVariables, mockItem);
+        return resolveInlineVariables(content, mockItem);
       }
       // No collection data - remove variables
-      return textWithVariables.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+      return content.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
     }
-    return textWithVariables;
+    return content;
   }
 
-  // Priority 2: Check if text is a FieldVariable (existing structure)
-  const text = layer.text;
-  if (isFieldVariable(text)) {
-    const resolved = resolveFieldValue(text, collectionItemData);
-    if (resolved !== undefined) {
-      return resolved;
-    }
-  }
-
-  // Priority 3: Fall back to static text
-  return typeof text === 'string' ? text : undefined;
-}
-
-/**
- * Get image URL with field binding resolution
- * If layer.url is a FieldVariable, resolve from collectionItemData
- * Otherwise return static URL
- */
-export function getImageUrlWithBinding(
-  layer: Layer,
-  collectionItemData?: Record<string, string>
-): string | undefined {
-  const url = layer.url;
-
-  // Check if url is a FieldVariable
-  if (isFieldVariable(url)) {
-    const resolved = resolveFieldValue(url, collectionItemData);
-    if (resolved !== undefined) {
-      return resolved;
-    }
-  }
-
-  // Fall back to static URL
-  return typeof url === 'string' ? url : undefined;
+  return undefined;
 }
 
 /**
@@ -472,22 +535,24 @@ export function applyLimitOffset(
  * @returns True if layer has exactly one inline variable and no other text
  */
 export function hasSingleInlineVariable(layer: Layer): boolean {
-  const text = layer.variables?.text;
+  const textVariable = layer.variables?.text;
 
-  if (!text || typeof text !== 'string') {
+  if (!textVariable || textVariable.type !== 'dynamic_text') {
     return false;
   }
 
+  const content = textVariable.data.content;
+
   // Match all inline variable tags
   const regex = /<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g;
-  const matches = text.match(regex);
+  const matches = content.match(regex);
 
   if (!matches || matches.length !== 1) {
     return false; // Not exactly one variable
   }
 
   // Remove the variable tag and check if only whitespace remains
-  const withoutVariable = text.replace(regex, '').trim();
+  const withoutVariable = content.replace(regex, '').trim();
   return withoutVariable === '';
 }
 

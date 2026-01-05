@@ -6,8 +6,8 @@
 
 // UI State Types (for state-specific styling: hover, focus, etc.)
 export type UIState = 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current';
-
 export type Breakpoint = 'mobile' | 'tablet' | 'desktop';
+export type StringAssetId = string;
 
 // Design Property Interfaces
 export interface LayoutDesign {
@@ -113,13 +113,9 @@ export interface LayerSettings {
   hidden?: boolean; // Element visibility in canvas
   tag?: string; // HTML tag override (e.g., 'h1', 'h2', etc.)
   customAttributes?: Record<string, string>; // Custom HTML attributes { attributeName: attributeValue }
-  linkSettings?: { // For link/button elements
-    href?: string;
-    target?: '_self' | '_blank' | '_parent' | '_top';
-    rel?: string;
+  locale?: {
+    format?: 'locale' | 'code'; // Display format for locale selector ('locale' => "English", 'code' => "EN")
   };
-  embedUrl?: string;     // For embedded content (videos, iframes, etc.)
-  // Future settings can be added here
 }
 
 // Layer Style Types
@@ -184,16 +180,26 @@ export type TweenProperties = {
 
 export interface Layer {
   id: string;
+  key?: string; // Optional internal ID for the layer (i.e. "localeSelectorLabel")
   name: string; // Element type name: 'div', 'section', 'heading', 'youtube', etc.
-  customName?: string; // User-defined name
+  customName?: string; // User-defined name for display in the UI
 
-  // Content
-  text?: string | FieldVariable; // Text content (can be static or bound to a field)
-  classes: string | string[]; // Tailwind CSS classes (support both formats)
+  // Restrictions (for layer actions)
+  restrictions?: {
+    copy?: boolean; // Whether the layer can be copied / duplicated
+    delete?: boolean; // Whether the layer can be deleted
+    ancestor?: string; // The ancestor `layer.name` that the layer should be a child of
+    editText?: boolean; // Whether the layer text contents can be edited
+  };
+
+  classes: string | string[]; // Tailwind CSS classes (support arrays and strings)
 
   // Children
   children?: Layer[];
+
+  // Special properties
   open?: boolean; // Collapsed/expanded state in tree
+  hidden?: boolean;
 
   // Attributes (for HTML elements)
   attributes?: Record<string, any>;
@@ -215,16 +221,6 @@ export interface Layer {
   componentId?: string; // Reference to applied Component
   componentOverrides?: Record<string, never>; // Reserved for future use - local modifications to component instances
 
-  // Special properties
-  locked?: boolean;
-  hidden?: boolean;
-  formattable?: boolean; // For text elements
-  icon?: { name: string; svg_code: string }; // For icon elements
-
-  // Image-specific
-  url?: string | FieldVariable; // Image URL (can be static or bound to a field)
-  alt?: string;
-
   // Collection binding (for collection layers)
   collection?: {
     id: string; // Collection ID
@@ -233,10 +229,8 @@ export interface Layer {
   // Layer variables (new structured approach)
   variables?: LayerVariables;
 
-  // Legacy properties (deprecated)
-  style?: string; // Style preset name (legacy)
-  content?: string; // For text/heading layers (use text instead)
-  src?: string;     // For image layers (use url instead)
+  // Interactions / Animations (new structured approach)
+  interactions?: LayerInteraction[];
 
   // SSR-only property for resolved collection items
   _collectionItems?: CollectionItemWithValues[];
@@ -246,8 +240,40 @@ export interface Layer {
   _masterComponentId?: string;
   // SSR-only property for pagination metadata (when pagination is enabled)
   _paginationMeta?: CollectionPaginationMeta;
-  // Interactions / Animations (new structured approach)
-  interactions?: LayerInteraction[];
+}
+
+export interface LayerVariables {
+  // Collection data
+  collection?: CollectionVariable;
+  conditionalVisibility?: ConditionalVisibility;
+
+  // Variables by type
+  text?: DynamicTextVariable;
+  icon?: {
+    src?: AssetVariable | FieldVariable | StaticTextVariable; // Static Asset ID | Field Variable | Static Text (SVG code, internal use only)
+  };
+  image?: {
+    src: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL that allows inline variables)
+    alt: DynamicTextVariable; // Image alt text with inline variables
+    width?: number;
+    height?: number;
+    lazy?: boolean;
+  };
+  audio?: {
+    src: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL that allows inline variables)
+  };
+  video?: {
+    src?: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL that allows inline variables)
+  };
+  iframe?: {
+    src: DynamicTextVariable; // Embed URL (allow inline variables)
+  };
+  link?: {
+    href: FieldVariable | DynamicTextVariable; // Link href (allow inline variables)
+    target?: '_self' | '_blank' | '_parent' | '_top';
+    rel?: string;
+    download?: boolean;
+  };
 }
 
 // Essentially a layer without ID (that can have children without IDs)
@@ -311,7 +337,7 @@ export interface PageSettings {
     password: string;
   };
   seo?: {
-    image: string | FieldVariable | null; // Asset ID or Field Variable (image field)
+    image: StringAssetId | FieldVariable | null; // Asset ID or Field Variable (image field)
     title: string;
     description: string;
     noindex: boolean; // Prevent search engines from indexing the page
@@ -658,13 +684,42 @@ export interface Setting {
   updated_at: string;
 }
 
-// CMS Field Variables, used for inline variables (text contents) and layer dynamic variables (images, files, links)
-export interface FieldVariable {
+export interface VariableType {
+  type: 'field' | 'asset' | 'dynamic_text' | 'static_text';
+  data: object;
+}
+
+// CMS Field Variable, used for inline variables (text contents)
+export interface FieldVariable extends VariableType {
   type: 'field';
   data: {
     field_id: string;
     relationships: string[];
     format?: string;
+  };
+}
+
+// Asset ID Variable, used for image, audio, video, etc.
+export interface AssetVariable extends VariableType {
+  type: 'asset';
+  data: {
+    asset_id: StringAssetId;
+  };
+}
+
+// Dynamic Text Variable, contains text with inline variables
+export interface DynamicTextVariable extends VariableType {
+  type: 'dynamic_text';
+  data: {
+    content: string; // String with inline variables
+  };
+}
+
+// Static Text Variable, contains text without inline variables
+export interface StaticTextVariable extends VariableType {
+  type: 'static_text';
+  data: {
+    content: string; // Text without inline variables
   };
 }
 
@@ -711,13 +766,6 @@ export interface CollectionPaginationMeta {
   mode?: 'pages' | 'load_more'; // Pagination mode
   itemIds?: string[]; // For multi-reference filtering in load_more mode
   layerTemplate?: Layer[]; // Layer template for rendering new items in load_more mode
-}
-
-export interface LayerVariables {
-  collection?: CollectionVariable;
-  text?: string; // Text with embedded JSON inline variables: "Hello <ycode-inline-variable>{JSON}</ycode-inline-variable>"
-  conditionalVisibility?: ConditionalVisibility;
-  // Future: image, link, etc.
 }
 
 // Conditional Visibility Types

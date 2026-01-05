@@ -132,6 +132,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const [collectionBindingOpen, setCollectionBindingOpen] = useState(true);
   const [fieldBindingOpen, setFieldBindingOpen] = useState(true);
   const [contentOpen, setContentOpen] = useState(true);
+  const [localeLabelOpen, setLocaleLabelOpen] = useState(true);
   const [interactionOwnerLayerId, setInteractionOwnerLayerId] = useState<string | null>(null);
   const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
   const [interactionResetKey, setInteractionResetKey] = useState(0);
@@ -418,19 +419,19 @@ const RightSidebar = React.memo(function RightSidebar({
   // Acquire lock when layer is selected, release when deselected
   useEffect(() => {
     const prevLayerId = previousLayerIdRef.current;
-    
+
     // Release lock on previously selected layer
     if (prevLayerId && prevLayerId !== selectedLayerId) {
       layerLocks.releaseLock(prevLayerId);
     }
-    
+
     // Acquire lock on newly selected layer (only if not editing a component)
     if (selectedLayerId && !editingComponentId) {
       layerLocks.acquireLock(selectedLayerId);
     }
-    
+
     previousLayerIdRef.current = selectedLayerId;
-    
+
     // Release lock on unmount
     return () => {
       if (previousLayerIdRef.current) {
@@ -626,17 +627,16 @@ const RightSidebar = React.memo(function RightSidebar({
   const handleContentChange = useCallback((value: string) => {
     if (!selectedLayerId) return;
 
-    const hasInlineVariables = value.includes('<ycode-inline-variable>');
-
-    // Check if content is ONLY variables (no plain text after removing variable tags)
-    const onlyVariables = hasInlineVariables &&
-      value.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '').trim() === '';
+    // Always create a DynamicTextVariable (even for plain text)
+    const textVariable = value ? {
+      type: 'dynamic_text' as const,
+      data: { content: value },
+    } : undefined;
 
     handleLayerUpdate(selectedLayerId, {
-      text: hasInlineVariables ? (onlyVariables ? undefined : value) : value,
       variables: {
         ...selectedLayer?.variables,
-        text: hasInlineVariables ? value : undefined,
+        text: textVariable,
       },
     });
   }, [selectedLayerId, selectedLayer, handleLayerUpdate]);
@@ -645,14 +645,9 @@ const RightSidebar = React.memo(function RightSidebar({
   const getContentValue = useCallback((layer: Layer | null): string => {
     if (!layer) return '';
 
-    // Priority 1: Check layer.variables.text (now a simple string with embedded JSON)
-    if (layer.variables?.text) {
-      return layer.variables.text;
-    }
-
-    // Priority 2: Check layer.text (legacy)
-    if (layer.text && typeof layer.text === 'string') {
-      return layer.text;
+    // Check layer.variables.text (DynamicTextVariable with embedded JSON)
+    if (layer.variables?.text && layer.variables.text.type === 'dynamic_text') {
+      return layer.variables.text.data.content;
     }
 
     return '';
@@ -873,7 +868,12 @@ const RightSidebar = React.memo(function RightSidebar({
             name: 'span',
             customName: 'Previous Text',
             classes: '',
-            text: 'Previous',
+            variables: {
+              text: {
+                type: 'dynamic_text',
+                data: { content: 'Previous' }
+              }
+            }
           } as Layer,
         ],
       } as Layer,
@@ -882,7 +882,12 @@ const RightSidebar = React.memo(function RightSidebar({
         name: 'span',
         customName: 'Page Info',
         classes: 'text-sm text-[#4b5563]',
-        text: 'Page 1 of 1',
+        variables: {
+          text: {
+            type: 'dynamic_text',
+            data: { content: 'Page 1 of 1' }
+          }
+        }
       } as Layer,
       {
         id: `${collectionLayerId}-pagination-next`,
@@ -900,7 +905,12 @@ const RightSidebar = React.memo(function RightSidebar({
             name: 'span',
             customName: 'Next Text',
             classes: '',
-            text: 'Next',
+            variables: {
+              text: {
+                type: 'dynamic_text',
+                data: { content: 'Next' }
+              }
+            }
           } as Layer,
         ],
       } as Layer,
@@ -934,7 +944,12 @@ const RightSidebar = React.memo(function RightSidebar({
             name: 'span',
             customName: 'Load More Text',
             classes: '',
-            text: 'Load More',
+            variables: {
+              text: {
+                type: 'dynamic_text',
+                data: { content: 'Load More' }
+              }
+            }
           } as Layer,
         ],
       } as Layer,
@@ -943,7 +958,12 @@ const RightSidebar = React.memo(function RightSidebar({
         name: 'span',
         customName: 'Items Count',
         classes: 'text-sm text-[#4b5563]',
-        text: 'Showing items',
+        variables: {
+          text: {
+            type: 'dynamic_text',
+            data: { content: 'Showing items' }
+          }
+        }
       } as Layer,
     ],
   });
@@ -1099,18 +1119,24 @@ const RightSidebar = React.memo(function RightSidebar({
     if (selectedLayerId) {
       if (fieldId && fieldId !== 'none') {
         handleLayerUpdate(selectedLayerId, {
-          text: {
-            type: 'field',
-            data: {
-              field_id: fieldId,
-              relationships: [],
-            }
-          } as any
+          variables: {
+            ...selectedLayer?.variables,
+            text: {
+              type: 'field',
+              data: {
+                field_id: fieldId,
+                relationships: [],
+              }
+            } as any
+          }
         });
       } else {
         // Clear field binding
         handleLayerUpdate(selectedLayerId, {
-          text: undefined
+          variables: {
+            ...selectedLayer?.variables,
+            text: undefined
+          }
         });
       }
     }
@@ -1121,18 +1147,39 @@ const RightSidebar = React.memo(function RightSidebar({
     if (selectedLayerId) {
       if (fieldId && fieldId !== 'none') {
         handleLayerUpdate(selectedLayerId, {
-          url: {
-            type: 'field',
-            data: {
-              field_id: fieldId,
-              relationships: [],
+          variables: {
+            ...selectedLayer?.variables,
+            image: {
+              src: {
+                type: 'field',
+                data: {
+                  field_id: fieldId,
+                  relationships: [],
+                }
+              } as any,
+              alt: selectedLayer?.variables?.image?.alt || {
+                type: 'dynamic_text',
+                data: { content: '' }
+              }
             }
-          } as any
+          }
         });
       } else {
         // Clear field binding
         handleLayerUpdate(selectedLayerId, {
-          url: undefined
+          variables: {
+            ...selectedLayer?.variables,
+            image: {
+              src: {
+                type: 'dynamic_text',
+                data: { content: '' }
+              },
+              alt: selectedLayer?.variables?.image?.alt || {
+                type: 'dynamic_text',
+                data: { content: '' }
+              }
+            }
+          }
         });
       }
     }
@@ -1392,7 +1439,10 @@ const RightSidebar = React.memo(function RightSidebar({
                 <div className="flex flex-col gap-2">
                   <Label>Image Field</Label>
                   <Select
-                    value={isFieldVariable(selectedLayer.url) ? selectedLayer.url.data.field_id : 'none'}
+                    value={(() => {
+                      const imageSrc = selectedLayer.variables?.image?.src;
+                      return (imageSrc && typeof imageSrc === 'object' && imageSrc.type === 'field') ? imageSrc.data.field_id : 'none';
+                    })()}
                     onValueChange={handleImageFieldBindingChange}
                   >
                     <SelectTrigger>
@@ -1602,6 +1652,62 @@ const RightSidebar = React.memo(function RightSidebar({
                     allFields={fields}
                     collections={collections}
                   />
+                </div>
+              </SettingsPanel>
+            )}
+
+            {/* Locale Label Panel - only show for localeSelector layers */}
+            {selectedLayer && selectedLayer.name === 'localeSelector' && (
+              <SettingsPanel
+                title="Locale selector"
+                isOpen={localeLabelOpen}
+                onToggle={() => setLocaleLabelOpen(!localeLabelOpen)}
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-3">
+                    <Label variant="muted">Display</Label>
+                    <div className="col-span-2 *:w-full">
+                      <ToggleGroup
+                        options={[
+                          { label: 'English', value: 'locale' },
+                          { label: 'EN', value: 'code' },
+                        ]}
+                        value={selectedLayer.settings?.locale?.format || 'locale'}
+                        onChange={(value) => {
+                          const format = value as 'locale' | 'code';
+
+                          // Update the localeSelector settings
+                          onLayerUpdate(selectedLayerId!, {
+                            settings: {
+                              ...selectedLayer.settings,
+                              locale: {
+                                format,
+                              },
+                            },
+                          });
+
+                          // Find and update the label child's text
+                          const labelChild = selectedLayer.children?.find(
+                            child => child.key === 'localeSelectorLabel'
+                          );
+
+                          if (labelChild) {
+                            onLayerUpdate(labelChild.id, {
+                              variables: {
+                                ...labelChild.variables,
+                                text: {
+                                  type: 'dynamic_text',
+                                  data: {
+                                    content: format === 'code' ? 'EN' : 'English'
+                                  }
+                                }
+                              }
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </SettingsPanel>
             )}
