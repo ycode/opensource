@@ -266,15 +266,113 @@ export default function ApiKeysSettingsPage() {
 
           {/* Query Parameters */}
           <section>
-            <h3 className="font-medium mb-2">Query Parameters (GET items)</h3>
-            <div className="bg-secondary p-3 rounded-lg text-xs space-y-2">
-              <div><code className="text-blue-400">page</code> - Page number (default: 1)</div>
-              <div><code className="text-blue-400">per_page</code> - Items per page (default: 100)</div>
-              <div><code className="text-blue-400">limit</code> - Limit total records</div>
-              <div><code className="text-blue-400">sort_by</code> - Field slug to sort by</div>
-              <div><code className="text-blue-400">order_by</code> - Sort order: asc or desc</div>
-              <div><code className="text-blue-400">filter[field_slug]</code> - Filter by exact field value</div>
+            <h3 className="font-medium mb-2">Query Parameters</h3>
+            <p className="text-muted-foreground mb-3">
+              Use these parameters with GET requests. Field names are case-insensitive.
+            </p>
+            <div className="bg-secondary p-3 rounded-lg text-xs space-y-3">
+              <div>
+                <div className="font-medium text-foreground mb-1">Pagination</div>
+                <div className="space-y-1 text-muted-foreground">
+                  <div><code className="text-blue-400">page</code> - Page number (default: 1)</div>
+                  <div><code className="text-blue-400">per_page</code> - Items per page (default: 100, max: 1000)</div>
+                  <div><code className="text-blue-400">limit</code> - Limit total records (max: 1000)</div>
+                </div>
+              </div>
+              <div>
+                <div className="font-medium text-foreground mb-1">Sorting</div>
+                <div className="space-y-1 text-muted-foreground">
+                  <div><code className="text-blue-400">sort_by</code> - Field name to sort by</div>
+                  <div><code className="text-blue-400">order_by</code> - Sort order: <code className="text-green-400">asc</code> or <code className="text-green-400">desc</code></div>
+                </div>
+              </div>
+              <div>
+                <div className="font-medium text-foreground mb-1">Filtering</div>
+                <div className="space-y-1 text-muted-foreground">
+                  <div><code className="text-blue-400">filter[FieldName]</code> - Filter by exact field value</div>
+                </div>
+              </div>
+              <div>
+                <div className="font-medium text-foreground mb-1">Field Projection</div>
+                <div className="space-y-1 text-muted-foreground">
+                  <div><code className="text-blue-400">fields[CollectionName]</code> - Limit returned fields</div>
+                  <div><code className="text-blue-400">fields[CollectionName.RefField]</code> - Limit nested reference fields</div>
+                </div>
+              </div>
             </div>
+            <p className="text-muted-foreground mt-3 text-xs">
+              Example: <code className="bg-secondary px-1 py-0.5 rounded">?sort_by=Name&amp;order_by=desc&amp;filter[Status]=active&amp;fields[Posts]=Name,Author</code>
+            </p>
+          </section>
+
+          {/* Field Projections */}
+          <section>
+            <h3 className="font-medium mb-2">Field Projections</h3>
+            <p className="text-muted-foreground mb-3">
+              Limit which fields are returned to reduce payload size. Use the collection name for root fields, and dot notation for nested references.
+            </p>
+            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`// Only return Name and Author from Blog Posts
+?fields[Blog Posts]=Name,Author
+
+// Also limit Author to just Name and Email
+?fields[Blog Posts]=Name,Author&fields[Blog Posts.Author]=Name,Email
+
+// Deep nesting supported
+?fields[People]=Name,Hometown&fields[People.Hometown]=Name,Country`}
+            </pre>
+            <p className="text-muted-foreground mt-3 text-xs">
+              Note: <code className="bg-secondary px-1 py-0.5 rounded">_id</code> is always included. Reference fields must be listed to be resolved.
+            </p>
+          </section>
+
+          {/* Creating Items */}
+          <section>
+            <h3 className="font-medium mb-2">Creating Items</h3>
+            <p className="text-muted-foreground mb-3">
+              Send field values directly in the request body. Field names are case-insensitive.
+            </p>
+            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`POST /api/v1/collections/{collection_id}/items
+Content-Type: application/json
+
+{
+  "Name": "My Blog Post",
+  "Slug": "my-blog-post",
+  "Author": "author-uuid-here",
+  "Categories": "[\\"cat-uuid-1\\", \\"cat-uuid-2\\"]"
+}`}
+            </pre>
+            <p className="text-muted-foreground mt-3 text-xs">
+              Reference fields accept the item UUID. Multi-reference fields accept a JSON array string of UUIDs.
+            </p>
+          </section>
+
+          {/* Updating Items */}
+          <section>
+            <h3 className="font-medium mb-2">Updating Items</h3>
+            <div className="space-y-3">
+              <div>
+                <div className="font-medium text-xs mb-2">PUT - Full Replace</div>
+                <p className="text-muted-foreground text-xs mb-2">
+                  Replaces all field values. Fields not included are cleared (except protected fields).
+                </p>
+              </div>
+              <div>
+                <div className="font-medium text-xs mb-2">PATCH - Partial Update</div>
+                <p className="text-muted-foreground text-xs mb-2">
+                  Only updates the fields you send. Other fields remain unchanged.
+                </p>
+              </div>
+            </div>
+            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto mt-3">
+{`PATCH /api/v1/collections/{collection_id}/items/{item_id}
+Content-Type: application/json
+
+{
+  "Name": "Updated Title"
+}`}
+            </pre>
           </section>
 
           {/* Reference Fields */}
@@ -284,14 +382,14 @@ export default function ApiKeysSettingsPage() {
               Reference fields are automatically resolved to include the full referenced item data:
             </p>
             <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
-{`// Single reference field returns an object:
+{`// Single reference returns an object:
 "Author": {
   "_id": "abc-123",
   "Name": "John Doe",
   "Email": "john@example.com"
 }
 
-// Multi-reference field returns an array:
+// Multi-reference returns an array:
 "Categories": [
   { "_id": "cat-1", "Name": "Technology" },
   { "_id": "cat-2", "Name": "Design" }
@@ -303,14 +401,16 @@ export default function ApiKeysSettingsPage() {
           <section>
             <h3 className="font-medium mb-2">Response Format</h3>
             <p className="text-muted-foreground mb-3">
-              Collection item responses include <code className="text-xs bg-secondary px-1 py-0.5 rounded">_id</code> (database UUID) and field values using exact field names:
+              Responses include <code className="text-xs bg-secondary px-1 py-0.5 rounded">_id</code> (database UUID) and field values using exact field names:
             </p>
             <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
 {`{
   "_id": "550e8400-e29b-41d4-a716-446655440000",
+  "ID": "1",
   "Name": "My Blog Post",
   "Slug": "my-blog-post",
-  "Content": "...",
+  "Created Date": "2026-01-05T10:00:00.000Z",
+  "Updated Date": "2026-01-05T12:30:00.000Z",
   "Author": { "_id": "...", "Name": "John Doe" }
 }`}
             </pre>
@@ -319,14 +419,34 @@ export default function ApiKeysSettingsPage() {
           {/* Protected Fields */}
           <section>
             <h3 className="font-medium mb-2">Protected Fields</h3>
-            <p className="text-muted-foreground">
-              The following auto-generated fields cannot be modified via the API:
+            <p className="text-muted-foreground mb-3">
+              These auto-generated fields cannot be set or modified via the API:
             </p>
-            <ul className="list-disc list-inside text-muted-foreground mt-2 space-y-1">
-              <li><code className="text-xs bg-secondary px-1 py-0.5 rounded">id</code> - Auto-incrementing ID</li>
-              <li><code className="text-xs bg-secondary px-1 py-0.5 rounded">created_at</code> - Creation timestamp</li>
-              <li><code className="text-xs bg-secondary px-1 py-0.5 rounded">updated_at</code> - Last update timestamp</li>
-            </ul>
+            <div className="bg-secondary p-3 rounded-lg text-xs space-y-2">
+              <div><code className="text-blue-400">ID</code> - Auto-incrementing number, assigned on creation</div>
+              <div><code className="text-blue-400">Created Date</code> - Set automatically when item is created</div>
+              <div><code className="text-blue-400">Updated Date</code> - Updated automatically on every change</div>
+            </div>
+          </section>
+
+          {/* Error Responses */}
+          <section>
+            <h3 className="font-medium mb-2">Error Responses</h3>
+            <p className="text-muted-foreground mb-3">
+              Errors return a JSON object with <code className="text-xs bg-secondary px-1 py-0.5 rounded">error</code> and <code className="text-xs bg-secondary px-1 py-0.5 rounded">code</code> fields:
+            </p>
+            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`{
+  "error": "Collection not found",
+  "code": "NOT_FOUND"
+}`}
+            </pre>
+            <div className="mt-3 text-xs text-muted-foreground space-y-1">
+              <div><code className="text-yellow-400">401</code> - Invalid or missing API key</div>
+              <div><code className="text-yellow-400">404</code> - Collection or item not found</div>
+              <div><code className="text-yellow-400">400</code> - Invalid request body</div>
+              <div><code className="text-yellow-400">500</code> - Internal server error</div>
+            </div>
           </section>
 
         </div>
