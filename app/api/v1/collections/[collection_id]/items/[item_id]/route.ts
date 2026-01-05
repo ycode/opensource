@@ -5,7 +5,7 @@ import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepos
 import { getItemWithValues, deleteItem } from '@/lib/repositories/collectionItemRepository';
 import { setValues } from '@/lib/repositories/collectionItemValueRepository';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { transformItemToPublicWithRefs } from '../../../../reference-resolver';
+import { transformItemToPublicWithRefs, parseFieldProjections } from '../../../../reference-resolver';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -28,6 +28,11 @@ export async function GET(
   try {
     const { collection_id, item_id } = await params;
 
+    // Parse field projections from query params
+    const { searchParams } = new URL(request.url);
+    const fieldProjections = parseFieldProjections(searchParams);
+    const hasProjections = Object.keys(fieldProjections).length > 0;
+
     // Verify collection exists (published)
     const collection = await getCollectionById(collection_id, true);
     if (!collection) {
@@ -49,8 +54,14 @@ export async function GET(
     // Get published fields for reference resolution
     const fields = await getFieldsByCollectionId(collection_id, true);
 
-    // Transform with resolved references
-    const response = await transformItemToPublicWithRefs(item, fields, true);
+    // Transform with resolved references and optional field projections
+    const response = await transformItemToPublicWithRefs(
+      item, 
+      fields, 
+      true,
+      hasProjections ? fieldProjections : undefined,
+      hasProjections ? collection.name : undefined
+    );
     return NextResponse.json(response);
   } catch (error) {
     console.error('Error fetching collection item:', error);
@@ -83,6 +94,11 @@ export async function PUT(
 
   try {
     const { collection_id, item_id } = await params;
+
+    // Parse field projections from query params (for response filtering)
+    const { searchParams } = new URL(request.url);
+    const fieldProjections = parseFieldProjections(searchParams);
+    const hasProjections = Object.keys(fieldProjections).length > 0;
 
     // Verify collection exists (published)
     const collection = await getCollectionById(collection_id, true);
@@ -168,7 +184,13 @@ export async function PUT(
 
     // Get updated item and transform with resolved references
     const updatedItem = await getItemWithValues(item_id, true);
-    const response = await transformItemToPublicWithRefs(updatedItem!, fields, true);
+    const response = await transformItemToPublicWithRefs(
+      updatedItem!, 
+      fields, 
+      true,
+      hasProjections ? fieldProjections : undefined,
+      hasProjections ? collection.name : undefined
+    );
     return NextResponse.json(response);
   } catch (error) {
     console.error('Error updating collection item:', error);
@@ -200,6 +222,11 @@ export async function PATCH(
 
   try {
     const { collection_id, item_id } = await params;
+
+    // Parse field projections from query params (for response filtering)
+    const { searchParams } = new URL(request.url);
+    const fieldProjections = parseFieldProjections(searchParams);
+    const hasProjections = Object.keys(fieldProjections).length > 0;
 
     // Verify collection exists (published)
     const collection = await getCollectionById(collection_id, true);
@@ -278,7 +305,13 @@ export async function PATCH(
 
     // Get updated item and transform with resolved references
     const updatedItem = await getItemWithValues(item_id, true);
-    const response = await transformItemToPublicWithRefs(updatedItem!, fields, true);
+    const response = await transformItemToPublicWithRefs(
+      updatedItem!, 
+      fields, 
+      true,
+      hasProjections ? fieldProjections : undefined,
+      hasProjections ? collection.name : undefined
+    );
     return NextResponse.json(response);
   } catch (error) {
     console.error('Error patching collection item:', error);

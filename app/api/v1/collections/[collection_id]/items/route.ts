@@ -4,7 +4,7 @@ import { getCollectionById } from '@/lib/repositories/collectionRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import { getItemsWithValues, createItem, getMaxIdValue } from '@/lib/repositories/collectionItemRepository';
 import { setValues } from '@/lib/repositories/collectionItemValueRepository';
-import { transformItemToPublicWithRefs } from '../../../reference-resolver';
+import { transformItemToPublicWithRefs, parseFieldProjections } from '../../../reference-resolver';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -87,6 +87,9 @@ export async function GET(
       }
     });
 
+    // Parse field projections for limiting returned fields
+    const fieldProjections = parseFieldProjections(searchParams);
+
     // If sorting or filtering is requested, we need to fetch all items first,
     // then apply filter/sort, then paginate client-side
     const needsClientPagination = sortByParam || Object.keys(filterParams).length > 0;
@@ -150,8 +153,16 @@ export async function GET(
     }
 
     // Transform items to public format with resolved references
+    // Pass field projections and collection name for field filtering
+    const hasProjections = Object.keys(fieldProjections).length > 0;
     const publicItems = await Promise.all(
-      items.map(item => transformItemToPublicWithRefs(item, fields, true))
+      items.map(item => transformItemToPublicWithRefs(
+        item, 
+        fields, 
+        true,
+        hasProjections ? fieldProjections : undefined,
+        hasProjections ? collection.name : undefined
+      ))
     );
 
     return NextResponse.json({
@@ -196,6 +207,11 @@ export async function POST(
 
   try {
     const { collection_id } = await params;
+
+    // Parse field projections from query params (for response filtering)
+    const { searchParams } = new URL(request.url);
+    const fieldProjections = parseFieldProjections(searchParams);
+    const hasProjections = Object.keys(fieldProjections).length > 0;
 
     // Verify collection exists (published)
     const collection = await getCollectionById(collection_id, true);
@@ -321,7 +337,13 @@ export async function POST(
       );
     }
 
-    const response = await transformItemToPublicWithRefs(createdItem, fields, true);
+    const response = await transformItemToPublicWithRefs(
+      createdItem, 
+      fields, 
+      true,
+      hasProjections ? fieldProjections : undefined,
+      hasProjections ? collection.name : undefined
+    );
     return NextResponse.json(response, { status: 201 });
   } catch (error) {
     console.error('Error creating collection item:', error);
