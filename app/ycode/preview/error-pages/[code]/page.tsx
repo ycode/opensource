@@ -34,7 +34,7 @@ export default async function ErrorPagePreview({ params }: ErrorPagePreviewProps
     );
   }
 
-  const { page, pageLayers, components } = pageData;
+  const { page, pageLayers, components, locale, availableLocales } = pageData;
 
   // Get the draft CSS
   const generatedCss = await getSettingByKey('draft_css');
@@ -45,6 +45,8 @@ export default async function ErrorPagePreview({ params }: ErrorPagePreviewProps
       layers={pageLayers.layers || []}
       components={components}
       generatedCss={generatedCss}
+      locale={locale}
+      availableLocales={availableLocales}
     />
   );
 }

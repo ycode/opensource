@@ -302,12 +302,13 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
               <div className="col-span-2 grid grid-cols-2 items-center gap-2">
                   <InputGroup>
                       <InputGroupInput
-                        className="!pr-0"
+                        stepper
                         value={opacityValue}
                         onChange={(e) => handleOpacityChange(e.target.value)}
-                        type="number"
+                    
                         min="0"
                         max="100"
+                        step="1"
                       />
                       <InputGroupAddon align="inline-end">
                           <Label variant="muted" className="text-xs">%</Label>
@@ -366,7 +367,11 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
                             <Label variant="muted">X</Label>
                             <div className="col-span-2 grid grid-cols-2 items-center gap-2">
                               <Input
-                                type="number"
+                                stepper
+                              
+                                min={-100}
+                                max={100}
+                                step={1}
                                 value={editingShadow.x}
                                 onChange={(e) => handleShadowXChange(parseInt(e.target.value) || 0)}
                               />
@@ -385,7 +390,11 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
                             <Label variant="muted">Y</Label>
                             <div className="col-span-2 grid grid-cols-2 items-center gap-2">
                               <Input
-                                type="number"
+                                stepper
+                                
+                                min={-100}
+                                max={100}
+                                step={1}
                                 value={editingShadow.y}
                                 onChange={(e) => handleShadowYChange(parseInt(e.target.value) || 0)}
                               />
@@ -404,7 +413,11 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
                             <Label variant="muted">Blur</Label>
                             <div className="col-span-2 grid grid-cols-2 items-center gap-2">
                               <Input
-                                type="number"
+                                stepper
+                                
+                                min={0}
+                                max={100}
+                                step={1}
                                 value={editingShadow.blur}
                                 onChange={(e) => handleShadowBlurChange(parseInt(e.target.value) || 0)}
                               />
@@ -423,7 +436,11 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
                             <Label variant="muted">Spread</Label>
                             <div className="col-span-2 grid grid-cols-2 items-center gap-2">
                               <Input
-                                type="number"
+                                stepper
+                                
+                                min={0}
+                                max={100}
+                                step={1}
                                 value={editingShadow.spread}
                                 onChange={(e) => handleShadowSpreadChange(parseInt(e.target.value) || 0)}
                               />

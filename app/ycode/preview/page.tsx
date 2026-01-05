@@ -45,6 +45,8 @@ export default async function Home() {
       layers={data.pageLayers.layers || []}
       components={[]}
       generatedCss={draftCSS}
+      locale={data.locale}
+      availableLocales={data.availableLocales}
     />
   );
 }

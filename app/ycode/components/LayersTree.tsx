@@ -154,7 +154,7 @@ function LayerRow({
   const layerIcon = getLayerIcon(node.layer);
 
   // Check if this is the Body layer (locked)
-  const isLocked = node.layer.id === 'body' || node.layer.locked === true;
+  const isLocked = node.layer.id === 'body';
 
   return (
     <LayerContextMenu

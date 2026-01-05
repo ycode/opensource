@@ -32,6 +32,7 @@ interface ColorPickerProps {
   onChange: (value: string) => void;
   defaultValue?: string;
   placeholder?: string;
+  solidOnly?: boolean; // Show only solid color tab (hide gradients and image)
   // Additional props for background image mode
   backgroundImageProps?: {
     backgroundImage?: string;
@@ -735,6 +736,7 @@ export default function ColorPicker({
   onChange,
   defaultValue = '#ffffff',
   placeholder = '#ffffff',
+  solidOnly = false,
   backgroundImageProps,
 }: ColorPickerProps) {
   const [open, setOpen] = useState(false);
@@ -1521,20 +1523,22 @@ export default function ColorPicker({
           value={activeTab} onValueChange={handleTabChange}
           className="!gap-3"
         >
-          <TabsList className="w-full">
-            <TabsTrigger value="solid">
-              <Icon name="color" />
-            </TabsTrigger>
-            <TabsTrigger value="linear">
-              <Icon name="linear" />
-            </TabsTrigger>
-            <TabsTrigger value="radial">
-              <Icon name="radial" />
-            </TabsTrigger>
-            <TabsTrigger value="image">
-              <Icon name="fill-image" />
-            </TabsTrigger>
-          </TabsList>
+          {!solidOnly && (
+            <TabsList className="w-full">
+              <TabsTrigger value="solid">
+                <Icon name="color" />
+              </TabsTrigger>
+              <TabsTrigger value="linear">
+                <Icon name="linear" />
+              </TabsTrigger>
+              <TabsTrigger value="radial">
+                <Icon name="radial" />
+              </TabsTrigger>
+              <TabsTrigger value="image">
+                <Icon name="fill-image" />
+              </TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="solid" className="gap-3">
             <div className="flex flex-col gap-3">

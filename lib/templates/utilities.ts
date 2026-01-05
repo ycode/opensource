@@ -53,13 +53,21 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
       customName: 'Locales',
       name: 'localeSelector',
       open: true,
+      settings: {
+        tag: 'div',
+        locale: {
+          format: 'locale',
+        },
+      },
       children: [
         // Locale text
         getTemplateRef('span', {
+          key: 'localeSelectorLabel',
           customName: 'Locale',
           restrictions: {
             copy: false,
             delete: false,
+            editText: false,
             ancestor: 'localeSelector',
           },
           variables: {
@@ -84,7 +92,10 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
               }
             }
           },
-          classes: ['w-[18px]', 'h-[18px]'],
+          classes: [
+            'w-[18px]',
+            'h-[18px]'
+          ],
           design: {
             sizing: {
               isActive: true,
@@ -100,11 +111,11 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
       classes: [
         'flex',
         'items-center',
-        'pt-[10px]',
-        'pb-[10px]',
+        'pt-[8px]',
+        'pb-[8px]',
         'relative',
-        'pl-[12px]',
-        'pr-[12px]',
+        'pl-[14px]',
+        'pr-[14px]',
         'bg-opacity-[100%]',
         'bg-[#F5F5F5]',
         'w-[max-content]',
@@ -129,10 +140,10 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
         },
         spacing: {
           isActive: true,
-          paddingLeft: '12px',
-          paddingRight: '12px',
-          paddingBottom: '10px',
-          paddingTop: '10px',
+          paddingLeft: '14px',
+          paddingRight: '14px',
+          paddingBottom: '8px',
+          paddingTop: '8px',
         },
         backgrounds: {
           isActive: true,

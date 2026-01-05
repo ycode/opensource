@@ -576,9 +576,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     const layerToDelete = findLayer(draft.layers, layerId);
 
-    // Prevent deleting locked layers
-    if (layerToDelete?.locked) {
-      console.warn('Cannot delete locked layer');
+    // Prevent deleting body layer
+    if (layerToDelete?.id === 'body') {
+      console.warn('Cannot delete body layer');
       return;
     }
 
@@ -671,7 +671,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     for (const layerId of layerIds) {
       if (layerId === 'body') continue; // Skip body
       const layer = findLayer(draft.layers, layerId);
-      if (layer && !layer.locked) {
+      if (layer && layer.id !== 'body') {
         validIds.add(layerId);
       }
     }
@@ -1053,7 +1053,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     for (const layerId of layerIds) {
       if (layerId === 'body') continue; // Skip body
       const layer = findLayer(draft.layers, layerId);
-      if (layer && !layer.locked) {
+      if (layer && layer.id !== 'body') {
         validIds.push(layerId);
       }
     }
@@ -1238,7 +1238,6 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         name: 'body',
         classes: '',
         children: [],
-        locked: true,
       }],
       is_published: false,
       created_at: new Date().toISOString(),

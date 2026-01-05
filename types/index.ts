@@ -113,12 +113,9 @@ export interface LayerSettings {
   hidden?: boolean; // Element visibility in canvas
   tag?: string; // HTML tag override (e.g., 'h1', 'h2', etc.)
   customAttributes?: Record<string, string>; // Custom HTML attributes { attributeName: attributeValue }
-  linkSettings?: { // @todo: For link/button elements, should be moved to `variables.link`
-    href?: string;
-    target?: '_self' | '_blank' | '_parent' | '_top';
-    rel?: string;
+  locale?: {
+    format?: 'locale' | 'code'; // Display format for locale selector ('locale' => "English", 'code' => "EN")
   };
-  embedUrl?: string; // @todo: For embedded content (videos, iframes, etc.), should be moved to `variables.iframe_src`
 }
 
 // Layer Style Types
@@ -183,21 +180,26 @@ export type TweenProperties = {
 
 export interface Layer {
   id: string;
+  key?: string; // Optional internal ID for the layer (i.e. "localeSelectorLabel")
   name: string; // Element type name: 'div', 'section', 'heading', 'youtube', etc.
-  customName?: string; // User-defined name
+  customName?: string; // User-defined name for display in the UI
 
   // Restrictions (for layer actions)
   restrictions?: {
     copy?: boolean; // Whether the layer can be copied / duplicated
     delete?: boolean; // Whether the layer can be deleted
     ancestor?: string; // The ancestor `layer.name` that the layer should be a child of
+    editText?: boolean; // Whether the layer text contents can be edited
   };
 
-  classes: string | string[]; // Tailwind CSS classes (support both formats)
+  classes: string | string[]; // Tailwind CSS classes (support arrays and strings)
 
   // Children
   children?: Layer[];
+
+  // Special properties
   open?: boolean; // Collapsed/expanded state in tree
+  hidden?: boolean;
 
   // Attributes (for HTML elements)
   attributes?: Record<string, any>;
@@ -218,11 +220,6 @@ export interface Layer {
   // Components (reusable layer trees)
   componentId?: string; // Reference to applied Component
   componentOverrides?: Record<string, never>; // Reserved for future use - local modifications to component instances
-
-  // Special properties
-  locked?: boolean;
-  hidden?: boolean;
-  formattable?: boolean; // For text elements
 
   // Collection binding (for collection layers)
   collection?: {

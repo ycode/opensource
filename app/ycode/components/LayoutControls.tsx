@@ -342,8 +342,9 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                               </div>
                           </InputGroupAddon>
                           <InputGroupInput
-                            className="!pr-0"
+                            stepper
                             min="1"
+                            step="1"
                             value={gridColsInput}
                             onChange={(e) => handleGridColsChange(e.target.value)}
                           />
@@ -362,8 +363,9 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                               </div>
                           </InputGroupAddon>
                           <InputGroupInput
-                            className="!pr-0"
+                            stepper
                             min="1"
+                            step="1"
                             value={gridRowsInput}
                             onChange={(e) => handleGridRowsChange(e.target.value)}
                           />
@@ -396,6 +398,9 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                   <div className="flex items-center gap-2">
                       <InputGroup className="flex-1">
                           <InputGroupInput
+                            stepper
+                            min="0"
+                            step="1"
                             disabled={gapModeToggle.mode === 'individual-borders'}
                             value={gapInput}
                             onChange={(e) => handleGapChange(e.target.value)}
@@ -425,7 +430,9 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                </div>
                            </InputGroupAddon>
                            <InputGroupInput
-                             className="!pr-0"
+                             stepper
+                             min="0"
+                             step="1"
                              value={columnGapInput}
                              onChange={(e) => handleColumnGapChange(e.target.value)}
                            />
@@ -444,7 +451,9 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                </div>
                            </InputGroupAddon>
                            <InputGroupInput
-                             className="!pr-0"
+                             stepper
+                             min="0"
+                             step="1"
                              value={rowGapInput}
                              onChange={(e) => handleRowGapChange(e.target.value)}
                            />
@@ -460,6 +469,9 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                   <div className="flex items-center gap-2">
                       <InputGroup className="flex-1">
                           <InputGroupInput
+                            stepper
+                            min="0"
+                            step="1"
                             disabled={paddingModeToggle.mode === 'individual-borders'}
                             value={paddingInput}
                             onChange={(e) => handlePaddingChange(e.target.value)}
@@ -489,7 +501,9 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                   </div>
                               </InputGroupAddon>
                               <InputGroupInput
-                                className="!pr-0"
+                                stepper
+                                min="0"
+                                step="1"
                                 value={paddingLeftInput}
                                 onChange={(e) => handlePaddingLeftChange(e.target.value)}
                               />
@@ -508,7 +522,9 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                   </div>
                               </InputGroupAddon>
                               <InputGroupInput
-                                className="!pr-0"
+                                stepper
+                                min="0"
+                                step="1"
                                 value={paddingTopInput}
                                 onChange={(e) => handlePaddingTopChange(e.target.value)}
                               />
@@ -527,7 +543,9 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                   </div>
                               </InputGroupAddon>
                               <InputGroupInput
-                                className="!pr-0"
+                                stepper
+                                min="0"
+                                step="1"
                                 value={paddingRightInput}
                                 onChange={(e) => handlePaddingRightChange(e.target.value)}
                               />
@@ -546,7 +564,9 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                   </div>
                               </InputGroupAddon>
                               <InputGroupInput
-                                className="!pr-0"
+                                stepper
+                                min="0"
+                                step="1"
                                 value={paddingBottomInput}
                                 onChange={(e) => handlePaddingBottomChange(e.target.value)}
                               />

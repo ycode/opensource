@@ -675,7 +675,7 @@
    * Check if a layer is text-editable
    */
   function isTextEditable(layer) {
-    return layer.formattable ?? false;
+    return layer.restrictions?.editText ?? false;
   }
 
   /**
@@ -1814,7 +1814,7 @@
         startTextEditing(layer.id, layer, element, itemData, collectionId);
       });
     } else {
-      console.log('[addEventListeners] Layer not text-editable:', layer.id, 'formattable:', layer.formattable);
+      console.log('[addEventListeners] Layer not text-editable:', layer.id, 'editText:', layer.restrictions?.editText);
     }
 
     // Right-click for context menu
