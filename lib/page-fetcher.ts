@@ -1799,13 +1799,13 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
         attrs.push(`href="${escapeHtml(hrefValue)}"`);
       }
     }
-    const linkTarget = layer.variables?.link?.target;
+    const linkTarget = layer.attributes?.target;
     if (linkTarget) {
-      attrs.push(`target="${escapeHtml(linkTarget)}"`);
+      attrs.push(`target="${escapeHtml(linkTarget as string)}"`);
     }
-    const linkRel = layer.variables?.link?.rel;
+    const linkRel = layer.attributes?.rel;
     if (linkRel) {
-      attrs.push(`rel="${escapeHtml(linkRel)}"`);
+      attrs.push(`rel="${escapeHtml(linkRel as string)}"`);
     }
   }
 

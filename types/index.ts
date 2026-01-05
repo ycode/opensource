@@ -114,7 +114,7 @@ export interface LayerSettings {
   tag?: string; // HTML tag override (e.g., 'h1', 'h2', etc.)
   customAttributes?: Record<string, string>; // Custom HTML attributes { attributeName: attributeValue }
   locale?: {
-    format?: 'locale' | 'code'; // Display format for locale selector ('locale' => "English", 'code' => "EN")
+    format?: 'locale' | 'code'; // Display format for locale selector (`locale` => 'English', `code` => 'EN')
   };
 }
 
@@ -146,7 +146,6 @@ export interface InteractionTimeline {
   breakpoints: Breakpoint[];
   repeat: number; // -1 = infinite, 0 = none, n = repeat n times
   yoyo: boolean; // reverse direction on each repeat
-  // Scroll trigger settings (for scroll-into-view and while-scrolling)
   scrollStart?: string; // e.g., 'top 80%', 'top center' - when trigger enters viewport
   scrollEnd?: string; // e.g., 'bottom top' - when trigger leaves viewport (while-scrolling only)
   scrub?: boolean | number; // while-scrolling: true for direct link, number for smoothing (seconds)
@@ -226,7 +225,7 @@ export interface Layer {
     id: string; // Collection ID
   };
 
-  // Layer variables (new structured approach)
+  // Layer variables (layer collection data & dynamic data for texts, assets, links)
   variables?: LayerVariables;
 
   // Interactions / Animations (new structured approach)
@@ -255,9 +254,6 @@ export interface LayerVariables {
   image?: {
     src: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL that allows inline variables)
     alt: DynamicTextVariable; // Image alt text with inline variables
-    width?: number;
-    height?: number;
-    lazy?: boolean;
   };
   audio?: {
     src: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL that allows inline variables)
@@ -270,9 +266,6 @@ export interface LayerVariables {
   };
   link?: {
     href: FieldVariable | DynamicTextVariable; // Link href (allow inline variables)
-    target?: '_self' | '_blank' | '_parent' | '_top';
-    rel?: string;
-    download?: boolean;
   };
 }
 

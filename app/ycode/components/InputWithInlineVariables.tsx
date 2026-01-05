@@ -469,7 +469,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
             </PopoverTrigger>
 
             <PopoverContent
-              className="w-56 p-0 max-h-80 overflow-y-auto"
+              className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
               align="end"
               sideOffset={4}
             >
