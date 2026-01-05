@@ -4,33 +4,11 @@ import { getCollectionById } from '@/lib/repositories/collectionRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import { getItemsWithValues, createItem, getMaxIdValue } from '@/lib/repositories/collectionItemRepository';
 import { setValues } from '@/lib/repositories/collectionItemValueRepository';
+import { transformItemToPublicWithRefs } from '../../../reference-resolver';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-/**
- * Transform internal item format to public API format
- * Maps field IDs to exact field names and flattens the response
- */
-function transformItemToPublic(
-  item: any,
-  fieldIdToName: Record<string, string>
-): any {
-  const result: Record<string, any> = {
-    _id: item.id,  // Database UUID for API operations
-  };
-  
-  // Flatten field values directly onto the item using exact field names
-  for (const [fieldId, value] of Object.entries(item.values || {})) {
-    const fieldName = fieldIdToName[fieldId];
-    if (fieldName) {
-      result[fieldName] = value;
-    }
-  }
-
-  return result;
-}
 
 /**
  * GET /api/v1/collections/{collection_id}/items
@@ -88,13 +66,11 @@ export async function GET(
       );
     }
 
-    // Get published fields for mapping
+    // Get published fields for reference resolution and filtering
     const fields = await getFieldsByCollectionId(collection_id, true);
-    const fieldIdToName: Record<string, string> = {};  // For output (exact field names)
-    const fieldSlugToId: Record<string, string> = {};  // For input (case-insensitive matching)
+    const fieldSlugToId: Record<string, string> = {};
     fields.forEach(field => {
-      const slug = (field.key || field.name).toLowerCase().replace(/\s+/g, '-');
-      fieldIdToName[field.id] = field.name;  // Exact field name for output
+      const slug = field.key || field.name.toLowerCase().replace(/\s+/g, '-');
       fieldSlugToId[slug] = field.id;
     });
 
@@ -143,8 +119,10 @@ export async function GET(
       }
     }
 
-    // Transform items to public format (flattened)
-    const publicItems = items.map(item => transformItemToPublic(item, fieldIdToName));
+    // Transform items to public format with resolved references
+    const publicItems = await Promise.all(
+      items.map(item => transformItemToPublicWithRefs(item, fields, true))
+    );
 
     return NextResponse.json({
       items: publicItems,
@@ -208,39 +186,28 @@ export async function POST(
       );
     }
 
-    // Get published fields for mapping
+    // Get published fields for mapping slugs to IDs
     const fields = await getFieldsByCollectionId(collection_id, true);
-    const fieldSlugToId: Record<string, string> = {};  // For input (case-insensitive matching)
-    const fieldIdToName: Record<string, string> = {};  // For output (exact field names)
-    
-    // Protected field keys that cannot be set by user
-    const protectedKeys = new Set(['id', 'created_at', 'updated_at']);
+    const fieldSlugToId: Record<string, string> = {};
     
     fields.forEach(field => {
-      const slug = (field.key || field.name).toLowerCase().replace(/\s+/g, '-');
+      const slug = field.key || field.name.toLowerCase().replace(/\s+/g, '-');
       fieldSlugToId[slug] = field.id;
-      fieldIdToName[field.id] = field.name;  // Exact field name for output
     });
 
-    // Map field slugs to IDs (case-insensitive matching, excluding protected fields)
+    // Map field slugs to IDs (case-insensitive matching)
     const valuesToSet: Record<string, string | null> = {};
     for (const [key, value] of Object.entries(body)) {
       const slug = key.toLowerCase().replace(/\s+/g, '-');
       const fieldId = fieldSlugToId[slug];
       if (fieldId) {
-        // Find the field to check if it's protected
-        const field = fields.find(f => f.id === fieldId);
-        if (field && protectedKeys.has(field.key || '')) {
-          // Skip protected fields - they are auto-generated
-          continue;
-        }
         valuesToSet[fieldId] = value as string | null;
       }
     }
 
-    // Auto-generate ID field if exists
+    // Auto-generate ID field if exists and not provided
     const idField = fields.find(f => f.key === 'id');
-    if (idField) {
+    if (idField && !valuesToSet[idField.id]) {
       const maxId = await getMaxIdValue(collection_id, true);
       valuesToSet[idField.id] = String(maxId + 1);
     }
@@ -248,7 +215,7 @@ export async function POST(
     // Auto-generate timestamps if fields exist
     const now = new Date().toISOString();
     const createdAtField = fields.find(f => f.key === 'created_at');
-    if (createdAtField) {
+    if (createdAtField && !valuesToSet[createdAtField.id]) {
       valuesToSet[createdAtField.id] = now;
     }
     const updatedAtField = fields.find(f => f.key === 'updated_at');
@@ -307,18 +274,18 @@ export async function POST(
       }
     }
 
-    // Build flattened response (_id + field values with exact names)
-    const response: Record<string, any> = {
-      _id: item.id,  // Database UUID for API operations
-    };
-
-    for (const [fieldId, value] of Object.entries(valuesToSet)) {
-      const fieldName = fieldIdToName[fieldId];
-      if (fieldName && value !== null) {
-        response[fieldName] = value;
-      }
+    // Get the created item with values and transform with resolved references
+    const { getItemWithValues } = await import('@/lib/repositories/collectionItemRepository');
+    const createdItem = await getItemWithValues(item.id, true);
+    
+    if (!createdItem) {
+      return NextResponse.json(
+        { error: 'Failed to retrieve created item', code: 'INTERNAL_ERROR' },
+        { status: 500 }
+      );
     }
 
+    const response = await transformItemToPublicWithRefs(createdItem, fields, true);
     return NextResponse.json(response, { status: 201 });
   } catch (error) {
     console.error('Error creating collection item:', error);

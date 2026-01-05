@@ -219,166 +219,115 @@ export default function ApiKeysSettingsPage() {
         </div>
 
         {/* API Documentation */}
-        <header className="pt-8 pb-3">
-          <span className="text-base font-medium">Documentation</span>
+        <header className="pt-10 pb-3">
+          <span className="text-base font-medium">API Documentation</span>
         </header>
 
-        <div className="flex flex-col gap-6 bg-secondary/20 p-8 rounded-lg">
+        <div className="flex flex-col gap-8 bg-secondary/20 p-8 rounded-lg text-sm">
           
           {/* Authentication */}
-          <div>
-            <FieldLegend>Authentication</FieldLegend>
-            <FieldDescription className="mb-3">
-              All API requests require authentication using a Bearer token in the Authorization header.
-            </FieldDescription>
-            <pre className="bg-secondary p-4 rounded-lg text-sm font-mono overflow-x-auto">
-              Authorization: Bearer your_api_key_here
+          <section>
+            <h3 className="font-medium mb-2">Authentication</h3>
+            <p className="text-muted-foreground mb-3">
+              All API requests require a valid API key passed in the <code className="text-xs bg-secondary px-1 py-0.5 rounded">Authorization</code> header:
+            </p>
+            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`Authorization: Bearer YOUR_API_KEY`}
             </pre>
-          </div>
+          </section>
 
-          {/* Collections Endpoints */}
-          <div className="border-t pt-6">
-            <FieldLegend>Collections</FieldLegend>
-            <div className="mt-3 space-y-3">
-              <div className="flex items-start gap-3">
-                <code className="bg-secondary px-2 py-1 rounded text-xs font-medium shrink-0">GET</code>
-                <div>
-                  <code className="text-sm">/api/v1/collections</code>
-                  <p className="text-xs text-muted-foreground mt-1">List all collections</p>
+          {/* Endpoints */}
+          <section>
+            <h3 className="font-medium mb-2">Endpoints</h3>
+            <div className="space-y-4">
+              
+              <div>
+                <h4 className="text-muted-foreground mb-1">Collections</h4>
+                <div className="bg-secondary p-3 rounded-lg space-y-1 text-xs font-mono">
+                  <div><span className="text-green-500">GET</span> /api/v1/collections</div>
+                  <div><span className="text-green-500">GET</span> /api/v1/collections/{'{collection_id}'}</div>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <code className="bg-secondary px-2 py-1 rounded text-xs font-medium shrink-0">GET</code>
-                <div>
-                  <code className="text-sm">/api/v1/collections/&#123;collection_id&#125;</code>
-                  <p className="text-xs text-muted-foreground mt-1">Get a collection with its fields</p>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          {/* Collection Items Endpoints */}
-          <div className="border-t pt-6">
-            <FieldLegend>Collection Items</FieldLegend>
-            <div className="mt-3 space-y-3">
-              <div className="flex items-start gap-3">
-                <code className="bg-secondary px-2 py-1 rounded text-xs font-medium shrink-0">GET</code>
-                <div>
-                  <code className="text-sm">/api/v1/collections/&#123;collection_id&#125;/items</code>
-                  <p className="text-xs text-muted-foreground mt-1">List items with pagination, filtering, and sorting</p>
+              <div>
+                <h4 className="text-muted-foreground mb-1">Collection Items</h4>
+                <div className="bg-secondary p-3 rounded-lg space-y-1 text-xs font-mono">
+                  <div><span className="text-green-500">GET</span> /api/v1/collections/{'{collection_id}'}/items</div>
+                  <div><span className="text-blue-500">POST</span> /api/v1/collections/{'{collection_id}'}/items</div>
+                  <div><span className="text-green-500">GET</span> /api/v1/collections/{'{collection_id}'}/items/{'{item_id}'}</div>
+                  <div><span className="text-yellow-500">PUT</span> /api/v1/collections/{'{collection_id}'}/items/{'{item_id}'}</div>
+                  <div><span className="text-yellow-500">PATCH</span> /api/v1/collections/{'{collection_id}'}/items/{'{item_id}'}</div>
+                  <div><span className="text-red-500">DELETE</span> /api/v1/collections/{'{collection_id}'}/items/{'{item_id}'}</div>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <code className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded text-xs font-medium shrink-0">POST</code>
-                <div>
-                  <code className="text-sm">/api/v1/collections/&#123;collection_id&#125;/items</code>
-                  <p className="text-xs text-muted-foreground mt-1">Create a new item</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <code className="bg-secondary px-2 py-1 rounded text-xs font-medium shrink-0">GET</code>
-                <div>
-                  <code className="text-sm">/api/v1/collections/&#123;collection_id&#125;/items/&#123;_id&#125;</code>
-                  <p className="text-xs text-muted-foreground mt-1">Get a single item</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <code className="bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-1 rounded text-xs font-medium shrink-0">PUT</code>
-                <div>
-                  <code className="text-sm">/api/v1/collections/&#123;collection_id&#125;/items/&#123;_id&#125;</code>
-                  <p className="text-xs text-muted-foreground mt-1">Full update (replaces all fields)</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <code className="bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-1 rounded text-xs font-medium shrink-0">PATCH</code>
-                <div>
-                  <code className="text-sm">/api/v1/collections/&#123;collection_id&#125;/items/&#123;_id&#125;</code>
-                  <p className="text-xs text-muted-foreground mt-1">Partial update (only provided fields)</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <code className="bg-red-500/20 text-red-600 dark:text-red-400 px-2 py-1 rounded text-xs font-medium shrink-0">DELETE</code>
-                <div>
-                  <code className="text-sm">/api/v1/collections/&#123;collection_id&#125;/items/&#123;_id&#125;</code>
-                  <p className="text-xs text-muted-foreground mt-1">Delete an item</p>
-                </div>
-              </div>
+
             </div>
-          </div>
+          </section>
 
           {/* Query Parameters */}
-          <div className="border-t pt-6">
-            <FieldLegend>Query Parameters</FieldLegend>
-            <FieldDescription className="mb-3">
-              Available for <code className="text-xs bg-secondary px-1 py-0.5 rounded">GET /items</code> requests.
-            </FieldDescription>
-            <div className="space-y-2 text-sm">
-              <div className="flex gap-3">
-                <code className="text-muted-foreground w-32 shrink-0">page</code>
-                <span>Page number (default: 1)</span>
-              </div>
-              <div className="flex gap-3">
-                <code className="text-muted-foreground w-32 shrink-0">per_page</code>
-                <span>Items per page (default: 100)</span>
-              </div>
-              <div className="flex gap-3">
-                <code className="text-muted-foreground w-32 shrink-0">sort_by</code>
-                <span>Field name to sort by</span>
-              </div>
-              <div className="flex gap-3">
-                <code className="text-muted-foreground w-32 shrink-0">order_by</code>
-                <span>Sort order: asc or desc</span>
-              </div>
-              <div className="flex gap-3">
-                <code className="text-muted-foreground w-32 shrink-0">filter[field]</code>
-                <span>Filter by field value</span>
-              </div>
+          <section>
+            <h3 className="font-medium mb-2">Query Parameters (GET items)</h3>
+            <div className="bg-secondary p-3 rounded-lg text-xs space-y-2">
+              <div><code className="text-blue-400">page</code> - Page number (default: 1)</div>
+              <div><code className="text-blue-400">per_page</code> - Items per page (default: 100)</div>
+              <div><code className="text-blue-400">limit</code> - Limit total records</div>
+              <div><code className="text-blue-400">sort_by</code> - Field slug to sort by</div>
+              <div><code className="text-blue-400">order_by</code> - Sort order: asc or desc</div>
+              <div><code className="text-blue-400">filter[field_slug]</code> - Filter by exact field value</div>
             </div>
-          </div>
+          </section>
 
-          {/* Request/Response Examples */}
-          <div className="border-t pt-6">
-            <FieldLegend>Example Request</FieldLegend>
-            <FieldDescription className="mb-3">
-              Creating a new item with POST. Field names are case-insensitive.
-            </FieldDescription>
-            <pre className="bg-secondary p-4 rounded-lg text-sm font-mono overflow-x-auto whitespace-pre">{`POST /api/v1/collections/{collection_id}/items
-Content-Type: application/json
-Authorization: Bearer your_api_key
-
-{
+          {/* Reference Fields */}
+          <section>
+            <h3 className="font-medium mb-2">Reference Fields</h3>
+            <p className="text-muted-foreground mb-3">
+              Reference fields are automatically resolved to include the full referenced item data:
+            </p>
+            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`// Single reference field returns an object:
+"Author": {
+  "_id": "abc-123",
   "Name": "John Doe",
   "Email": "john@example.com"
-}`}</pre>
-          </div>
+}
 
-          <div className="border-t pt-6">
-            <FieldLegend>Example Response</FieldLegend>
-            <FieldDescription className="mb-3">
-              Response includes <code className="text-xs bg-secondary px-1 py-0.5 rounded">_id</code> (database UUID) and all field values with exact names.
-            </FieldDescription>
-            <pre className="bg-secondary p-4 rounded-lg text-sm font-mono overflow-x-auto whitespace-pre">{`{
+// Multi-reference field returns an array:
+"Categories": [
+  { "_id": "cat-1", "Name": "Technology" },
+  { "_id": "cat-2", "Name": "Design" }
+]`}
+            </pre>
+          </section>
+
+          {/* Response Format */}
+          <section>
+            <h3 className="font-medium mb-2">Response Format</h3>
+            <p className="text-muted-foreground mb-3">
+              Collection item responses include <code className="text-xs bg-secondary px-1 py-0.5 rounded">_id</code> (database UUID) and field values using exact field names:
+            </p>
+            <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`{
   "_id": "550e8400-e29b-41d4-a716-446655440000",
-  "ID": "1",
-  "Name": "John Doe",
-  "Email": "john@example.com",
-  "Created Date": "2026-01-01T12:00:00.000Z",
-  "Updated Date": "2026-01-01T12:00:00.000Z"
-}`}</pre>
-          </div>
+  "Name": "My Blog Post",
+  "Slug": "my-blog-post",
+  "Content": "...",
+  "Author": { "_id": "...", "Name": "John Doe" }
+}`}
+            </pre>
+          </section>
 
           {/* Protected Fields */}
-          <div className="border-t pt-6">
-            <FieldLegend>Protected Fields</FieldLegend>
-            <FieldDescription>
-              The following fields are auto-managed and cannot be set or modified via API:
-            </FieldDescription>
-            <ul className="mt-3 space-y-1 text-sm">
-              <li><code className="bg-secondary px-1.5 py-0.5 rounded text-xs">id</code> — Auto-incrementing ID</li>
-              <li><code className="bg-secondary px-1.5 py-0.5 rounded text-xs">created_at</code> — Created timestamp</li>
-              <li><code className="bg-secondary px-1.5 py-0.5 rounded text-xs">updated_at</code> — Updated timestamp</li>
+          <section>
+            <h3 className="font-medium mb-2">Protected Fields</h3>
+            <p className="text-muted-foreground">
+              The following auto-generated fields cannot be modified via the API:
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground mt-2 space-y-1">
+              <li><code className="text-xs bg-secondary px-1 py-0.5 rounded">id</code> - Auto-incrementing ID</li>
+              <li><code className="text-xs bg-secondary px-1 py-0.5 rounded">created_at</code> - Creation timestamp</li>
+              <li><code className="text-xs bg-secondary px-1 py-0.5 rounded">updated_at</code> - Last update timestamp</li>
             </ul>
-          </div>
+          </section>
 
         </div>
 

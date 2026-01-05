@@ -142,7 +142,7 @@ export async function validateApiKey(apiKey: string): Promise<ApiKey | null> {
   }
 
   // Update last_used_at (fire and forget - don't wait for it)
-  void (async () => {
+  (async () => {
     try {
       await client
         .from('api_keys')
