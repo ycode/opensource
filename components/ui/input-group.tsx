@@ -207,7 +207,7 @@ function InputGroupInput({
         {...props}
       />
       {stepper && (
-        <InputGroupAddon align="inline-end" className="p-0 pr-1.5 hidden group-hover:flex absolute right-0 top-0 bg-gradient-to-l from-input backdrop-blur h-full items-center rounded-r-[10px]">
+        <InputGroupAddon align="inline-end" className="p-0 px-1.5 hidden group-hover:flex absolute right-0 top-0 bg-gradient-to-l from-input backdrop-blur h-full items-center rounded-r-[10px]">
           <div className="flex flex-col">
             <InputGroupButton
               size="icon-xs"

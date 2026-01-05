@@ -302,12 +302,13 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
               <div className="col-span-2 grid grid-cols-2 items-center gap-2">
                   <InputGroup>
                       <InputGroupInput
-                        className="!pr-0"
+                        stepper
                         value={opacityValue}
                         onChange={(e) => handleOpacityChange(e.target.value)}
-                        type="number"
+                    
                         min="0"
                         max="100"
+                        step="1"
                       />
                       <InputGroupAddon align="inline-end">
                           <Label variant="muted" className="text-xs">%</Label>
