@@ -3,7 +3,8 @@ import { buildSlugPath, detectLocaleFromPath, matchPageWithTranslatedSlugs, matc
 import { getItemWithValues, getItemsWithValues } from '@/lib/repositories/collectionItemRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer, CollectionPaginationMeta, Translation, Locale } from '@/types';
-import { getCollectionVariable, resolveFieldValue, isFieldVariable, evaluateVisibility } from '@/lib/layer-utils';
+import { getCollectionVariable, resolveFieldValue, evaluateVisibility } from '@/lib/layer-utils';
+import { isFieldVariable, createDynamicTextVariable, getDynamicTextContent, getVariableStringValue } from '@/lib/variable-utils';
 import { resolveComponents } from '@/lib/resolve-components';
 
 // Pagination context passed through to resolveCollectionLayers
@@ -644,17 +645,11 @@ function injectTranslatedText(
 
     // If translation exists and has content, use it
     if (translation && translation.content_value && translation.content_value.trim() !== '') {
-      // Check if text is in variables.text (inline variables) or direct text property
-      if (layer.variables?.text && typeof layer.variables.text === 'string') {
-        updates.variables = {
-          ...layer.variables,
-          text: translation.content_value,
-        };
-      } else if (typeof layer.text === 'string') {
-        updates.text = translation.content_value;
-      } else if (typeof layer.content === 'string') {
-        updates.content = translation.content_value;
-      }
+      // Update variables.text with translated content
+      updates.variables = {
+        ...layer.variables,
+        text: createDynamicTextVariable(translation.content_value),
+      };
     }
 
     // Recursively process children
@@ -844,37 +839,45 @@ async function injectCollectionData(
 
   const updates: Partial<Layer> = {};
 
-  // Resolve inline variables (embedded JSON format)
-  const textContent = layer.variables?.text || layer.text;
-  if (textContent && typeof textContent === 'string' && textContent.includes('<ycode-inline-variable>')) {
-    const mockItem: CollectionItemWithValues = {
-      id: 'temp',
-      collection_id: 'temp',
-      created_at: '',
-      updated_at: '',
-      deleted_at: null,
-      manual_order: 0,
-      is_published: true,
-      values: enhancedValues,
-    };
-    const resolved = resolveInlineVariablesWithRelationships(textContent, mockItem);
+  // Resolve inline variables (DynamicTextVariable format)
+  const textVariable = layer.variables?.text;
+  if (textVariable && textVariable.type === 'dynamic_text') {
+    const textContent = textVariable.data.content;
+    if (textContent.includes('<ycode-inline-variable>')) {
+      const mockItem: CollectionItemWithValues = {
+        id: 'temp',
+        collection_id: 'temp',
+        created_at: '',
+        updated_at: '',
+        deleted_at: null,
+        manual_order: 0,
+        is_published: true,
+        values: enhancedValues,
+      };
+      const resolved = resolveInlineVariablesWithRelationships(textContent, mockItem);
 
-    updates.text = resolved;
+      updates.variables = {
+        ...layer.variables,
+        text: {
+          type: 'dynamic_text',
+          data: { content: resolved }
+        }
+      };
+    }
+  }
+
+  // Image src field binding (variables structure)
+  const imageSrc = layer.variables?.image?.src;
+  if (imageSrc && isFieldVariable(imageSrc)) {
+    const resolvedUrl = resolveFieldValueWithRelationships(imageSrc, enhancedValues);
+    // Update variables.image.src with resolved URL as DynamicTextVariable
     updates.variables = {
       ...layer.variables,
-      text: undefined,
+      image: {
+        src: resolvedUrl ? createDynamicTextVariable(resolvedUrl) : imageSrc,
+        alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+      },
     };
-  }
-  // Direct field binding (non-inline)
-  else if (layer.text && isFieldVariable(layer.text)) {
-    const resolvedValue = resolveFieldValueWithRelationships(layer.text, enhancedValues);
-    updates.text = resolvedValue || layer.text;
-  }
-
-  // Image URL field binding
-  if (layer.url && isFieldVariable(layer.url)) {
-    const resolvedUrl = resolveFieldValueWithRelationships(layer.url, enhancedValues);
-    updates.url = resolvedUrl;
   }
 
   // Recursively process children, but SKIP collection layers
@@ -1390,13 +1393,25 @@ function updatePaginationLayerWithMeta(layer: Layer, meta: CollectionPaginationM
   function updateLayerRecursive(l: Layer): void {
     // Update page info text (for 'pages' mode)
     if (l.id?.endsWith('-pagination-info')) {
-      l.text = `Page ${currentPage} of ${totalPages}`;
+      l.variables = {
+        ...l.variables,
+        text: {
+          type: 'dynamic_text',
+          data: { content: `Page ${currentPage} of ${totalPages}` }
+        }
+      };
     }
 
     // Update items count text (for 'load_more' mode)
     if (l.id?.endsWith('-pagination-count')) {
       const shownItems = Math.min(itemsPerPage, totalItems);
-      l.text = `Showing ${shownItems} of ${totalItems}`;
+      l.variables = {
+        ...l.variables,
+        text: {
+          type: 'dynamic_text',
+          data: { content: `Showing ${shownItems} of ${totalItems}` }
+        }
+      };
     }
 
     // Update previous button state
@@ -1483,7 +1498,13 @@ export function generatePaginationWrapper(
           {
             id: `${collectionLayerId}-pagination-prev-text`,
             name: 'span',
-            text: 'Previous',
+            classes: '',
+            variables: {
+              text: {
+                type: 'dynamic_text',
+                data: { content: 'Previous' }
+              }
+            }
           } as Layer,
         ],
       } as Layer,
@@ -1492,7 +1513,12 @@ export function generatePaginationWrapper(
         id: `${collectionLayerId}-pagination-info`,
         name: 'span',
         classes: 'text-sm text-[#4b5563]',
-        text: `Page ${currentPage} of ${totalPages}`,
+        variables: {
+          text: {
+            type: 'dynamic_text',
+            data: { content: `Page ${currentPage} of ${totalPages}` }
+          }
+        }
       } as Layer,
       // Next Button
       {
@@ -1512,7 +1538,13 @@ export function generatePaginationWrapper(
           {
             id: `${collectionLayerId}-pagination-next-text`,
             name: 'span',
-            text: 'Next',
+            classes: '',
+            variables: {
+              text: {
+                type: 'dynamic_text',
+                data: { content: 'Next' }
+              }
+            }
           } as Layer,
         ],
       } as Layer,
@@ -1597,40 +1629,49 @@ async function injectCollectionDataForHtml(
 
   const updates: Partial<Layer> = {};
 
-  // Resolve inline variables (embedded JSON format)
-  const textContent = layer.variables?.text || layer.text;
-  if (textContent && typeof textContent === 'string' && textContent.includes('<ycode-inline-variable>')) {
-    const mockItem: CollectionItemWithValues = {
-      id: 'temp',
-      collection_id: 'temp',
-      created_at: '',
-      updated_at: '',
-      deleted_at: null,
-      manual_order: 0,
-      is_published: true,
-      values: enhancedValues,
-    };
-    const resolved = resolveInlineVariables(textContent, mockItem);
-    updates.text = resolved;
-  }
-  // Direct field binding (non-inline)
-  else if (layer.text && isFieldVariable(layer.text)) {
-    const fieldId = layer.text.data.field_id;
-    const relationships = layer.text.data.relationships || [];
-    const fullPath = relationships.length > 0
-      ? [fieldId, ...relationships].join('.')
-      : fieldId;
-    updates.text = enhancedValues[fullPath] || '';
+  // Resolve inline variables (DynamicTextVariable format)
+  const textVariable = layer.variables?.text;
+  if (textVariable && textVariable.type === 'dynamic_text') {
+    const textContent = textVariable.data.content;
+    if (textContent.includes('<ycode-inline-variable>')) {
+      const mockItem: CollectionItemWithValues = {
+        id: 'temp',
+        collection_id: 'temp',
+        created_at: '',
+        updated_at: '',
+        deleted_at: null,
+        manual_order: 0,
+        is_published: true,
+        values: enhancedValues,
+      };
+      const resolved = resolveInlineVariables(textContent, mockItem);
+      updates.variables = {
+        ...layer.variables,
+        text: {
+          type: 'dynamic_text',
+          data: { content: resolved }
+        }
+      };
+    }
   }
 
-  // Image URL field binding
-  if (layer.url && isFieldVariable(layer.url)) {
-    const fieldId = layer.url.data.field_id;
-    const relationships = layer.url.data.relationships || [];
+  // Image src field binding (variables structure)
+  const imageSrc = layer.variables?.image?.src;
+  if (imageSrc && isFieldVariable(imageSrc)) {
+    const fieldId = imageSrc.data.field_id;
+    const relationships = imageSrc.data.relationships || [];
     const fullPath = relationships.length > 0
       ? [fieldId, ...relationships].join('.')
       : fieldId;
-    updates.url = enhancedValues[fullPath] || '';
+    const resolvedUrl = enhancedValues[fullPath] || '';
+    // Update variables.image.src with resolved URL as DynamicTextVariable
+    updates.variables = {
+      ...layer.variables,
+      image: {
+        src: resolvedUrl ? createDynamicTextVariable(resolvedUrl) : imageSrc,
+        alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+      },
+    };
   }
 
   // Recursively process children
@@ -1686,20 +1727,58 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
     attrs.push(`id="${escapeHtml(layer.settings.id)}"`);
   }
 
-  // Handle images
-  if (tag === 'img' && layer.url) {
-    const src = typeof layer.url === 'string' ? layer.url : '';
-    attrs.push(`src="${escapeHtml(src)}"`);
-    if (layer.alt) {
-      attrs.push(`alt="${escapeHtml(layer.alt)}"`);
+  // Handle images (variables structure)
+  if (tag === 'img') {
+    const imageSrc = layer.variables?.image?.src;
+    if (imageSrc) {
+      // Extract string value from variable (AssetVariable, FieldVariable, or DynamicTextVariable)
+      let srcValue = '';
+      if (imageSrc.type === 'asset') {
+        srcValue = imageSrc.data.asset_id;
+      } else if (imageSrc.type === 'dynamic_text') {
+        srcValue = imageSrc.data.content;
+      }
+      if (srcValue) {
+        attrs.push(`src="${escapeHtml(srcValue)}"`);
+      }
+    }
+    const imageAlt = layer.variables?.image?.alt;
+    if (imageAlt && imageAlt.type === 'dynamic_text') {
+      attrs.push(`alt="${escapeHtml(imageAlt.data.content)}"`);
     }
   }
 
-  // Handle links
-  if (tag === 'a' && layer.settings?.linkSettings?.href) {
-    attrs.push(`href="${escapeHtml(layer.settings.linkSettings.href)}"`);
-    if (layer.settings.linkSettings.target) {
-      attrs.push(`target="${escapeHtml(layer.settings.linkSettings.target)}"`);
+  // Handle icons (variables structure)
+  let iconHtml = '';
+  if (layer.name === 'icon') {
+    const iconSrc = layer.variables?.icon?.src;
+    if (iconSrc) {
+      iconHtml = getVariableStringValue(iconSrc) || '';
+    }
+    // Add data-icon attribute to trigger CSS styling
+    attrs.push('data-icon="true"');
+  }
+
+  // Handle links (variables structure)
+  if (tag === 'a') {
+    const linkHref = layer.variables?.link?.href;
+    if (linkHref) {
+      // Extract string value from variable (FieldVariable or DynamicTextVariable)
+      let hrefValue = '';
+      if (linkHref.type === 'dynamic_text') {
+        hrefValue = linkHref.data.content;
+      }
+      if (hrefValue) {
+        attrs.push(`href="${escapeHtml(hrefValue)}"`);
+      }
+    }
+    const linkTarget = layer.variables?.link?.target;
+    if (linkTarget) {
+      attrs.push(`target="${escapeHtml(linkTarget)}"`);
+    }
+    const linkRel = layer.variables?.link?.rel;
+    if (linkRel) {
+      attrs.push(`rel="${escapeHtml(linkRel)}"`);
     }
   }
 
@@ -1712,13 +1791,14 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
     }
   }
 
-  // Get text content
-  const textContent = typeof layer.text === 'string' ? layer.text : '';
-
   // Render children
   const childrenHtml = layer.children
     ? layer.children.map(child => layerToHtml(child, collectionItemId)).join('')
     : '';
+
+  // Get text content from variables.text
+  const textVariable = layer.variables?.text;
+  const textContent = (textVariable && textVariable.type === 'dynamic_text') ? textVariable.data.content : '';
 
   // Handle self-closing tags
   const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link'];
@@ -1728,6 +1808,12 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
 
   // Render the element
   const attrsStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
+
+  // For icon layers, use raw iconHtml (don't escape SVG content)
+  if (layer.name === 'icon' && iconHtml) {
+    return `<${tag}${attrsStr}>${iconHtml}${childrenHtml}</${tag}>`;
+  }
+
   return `<${tag}${attrsStr}>${escapeHtml(textContent)}${childrenHtml}</${tag}>`;
 }
 

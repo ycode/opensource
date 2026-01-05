@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
@@ -47,6 +47,36 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   const paddingRight = getDesignProperty('spacing', 'paddingRight') || '';
   const paddingBottom = getDesignProperty('spacing', 'paddingBottom') || '';
   const paddingLeft = getDesignProperty('spacing', 'paddingLeft') || '';
+
+  // Extract number from grid template: "repeat(2, 1fr)" → "2"
+  const extractGridNumber = (value: string): string => {
+    if (!value) return '';
+    // Match repeat(N, 1fr) pattern (with space or underscore)
+    const match = value.match(/^repeat\((\d+),[\s_]*1fr\)$/);
+    return match ? match[1] : '';
+  };
+
+  // Convert number to grid template: "2" → "repeat(2, 1fr)"
+  const numberToGridTemplate = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    // Only accept numbers
+    if (!/^\d+$/.test(trimmed)) return null;
+    return `repeat(${trimmed}, 1fr)`;
+  };
+
+  // Local state for grid inputs (number only)
+  const [gridColsInput, setGridColsInput] = useState(extractGridNumber(gridCols));
+  const [gridRowsInput, setGridRowsInput] = useState(extractGridNumber(gridRows));
+
+  // Sync local state when layer values change
+  useEffect(() => {
+    setGridColsInput(extractGridNumber(gridCols));
+  }, [gridCols]);
+
+  useEffect(() => {
+    setGridRowsInput(extractGridNumber(gridRows));
+  }, [gridRows]);
 
   // Local controlled inputs (prevents repopulation bug)
   const inputs = useControlledInputs({
@@ -191,16 +221,24 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     debouncedUpdateDesignProperty('spacing', 'paddingLeft', sanitized || null);
   };
 
-  // Handle grid template changes (debounced for text input)
+  // Handle grid columns change (number input only)
   const handleGridColsChange = (value: string) => {
-    const sanitized = removeSpaces(value);
-    debouncedUpdateDesignProperty('layout', 'gridTemplateColumns', sanitized || null);
+    // Only allow numbers and empty string
+    if (value !== '' && !/^\d+$/.test(value)) return;
+
+    setGridColsInput(value);
+    const converted = numberToGridTemplate(value);
+    debouncedUpdateDesignProperty('layout', 'gridTemplateColumns', converted);
   };
 
-  // Handle grid rows change (debounced for text input)
+  // Handle grid rows change (number input only)
   const handleGridRowsChange = (value: string) => {
-    const sanitized = removeSpaces(value);
-    debouncedUpdateDesignProperty('layout', 'gridTemplateRows', sanitized || null);
+    // Only allow numbers and empty string
+    if (value !== '' && !/^\d+$/.test(value)) return;
+
+    setGridRowsInput(value);
+    const converted = numberToGridTemplate(value);
+    debouncedUpdateDesignProperty('layout', 'gridTemplateRows', converted);
   };
 
   // Extract numeric value from design property
@@ -305,7 +343,8 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                           </InputGroupAddon>
                           <InputGroupInput
                             className="!pr-0"
-                            value={gridCols}
+                            min="1"
+                            value={gridColsInput}
                             onChange={(e) => handleGridColsChange(e.target.value)}
                           />
                       </InputGroup>
@@ -324,7 +363,8 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                           </InputGroupAddon>
                           <InputGroupInput
                             className="!pr-0"
-                            value={gridRows}
+                            min="1"
+                            value={gridRowsInput}
                             onChange={(e) => handleGridRowsChange(e.target.value)}
                           />
                       </InputGroup>

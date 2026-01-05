@@ -141,6 +141,18 @@
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
+/* Icon SVG styling */
+[data-icon] {
+  display: inline-block;
+}
+
+[data-icon] svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+}
+
 /* InputWithInlineVariables Placeholder Styles */
 .input-with-inline-variables .ProseMirror p.is-editor-empty:first-child {
   position: relative;
@@ -162,4 +174,3 @@
   text-overflow: ellipsis;
   max-width: 100%;
 }
-

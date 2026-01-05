@@ -14,7 +14,6 @@ export const contentTemplates: Record<string, BlockTemplate> = {
         tag: 'h1',
       },
       classes: ['text-[48px]', 'font-[700]'],
-      text: 'Heading',
       formattable: true,
       children: [], // Can contain inline elements
       design: {
@@ -22,6 +21,14 @@ export const contentTemplates: Record<string, BlockTemplate> = {
           isActive: true,
           fontSize: '48px',
           fontWeight: '700',
+        }
+      },
+      variables: {
+        text: {
+          type: 'dynamic_text',
+          data: {
+            content: 'Heading'
+          }
         }
       }
     }
@@ -33,13 +40,20 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'p',
       classes: ['text-[16px]'],
-      text: 'Text',
       formattable: true,
       children: [], // Can contain inline elements
       design: {
         typography: {
           isActive: true,
           fontSize: '16px',
+        }
+      },
+      variables: {
+        text: {
+          type: 'dynamic_text',
+          data: {
+            content: 'Text'
+          }
         }
       }
     }
@@ -51,13 +65,20 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'span',
       classes: ['text-[16px]'],
-      text: 'Text',
       formattable: true,
       children: [], // Can contain inline elements
       design: {
         typography: {
           isActive: true,
           fontSize: '16px',
+        }
+      },
+      variables: {
+        text: {
+          type: 'dynamic_text',
+          data: {
+            content: 'Text'
+          }
         }
       }
     }
@@ -69,12 +90,19 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'richtext',
       classes: ['prose', 'max-w-none'],
-      text: '<p>This is rich text content. You can format it with <strong>bold</strong>, <em>italic</em>, and more.</p>',
       formattable: true,
       children: [], // Can contain any elements
       design: {
         typography: {
           isActive: true
+        }
+      },
+      variables: {
+        text: {
+          type: 'dynamic_text',
+          data: {
+            content: '<p>This is rich text content. You can format it with <strong>bold</strong>, <em>italic</em>, and more.</p>'
+          }
         }
       }
     }

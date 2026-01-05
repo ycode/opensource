@@ -55,7 +55,6 @@ export const actionTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'a',
       classes: ['text-[#2563eb]', 'hover:underline'],
-      text: 'Link text',
       children: [], // Can contain icons, images, text
       attributes: {
         href: '#',
@@ -72,6 +71,14 @@ export const actionTemplates: Record<string, BlockTemplate> = {
           isActive: true,
           color: '#2563eb',
           textDecoration: 'none'
+        }
+      },
+      variables: {
+        text: {
+          type: 'dynamic_text',
+          data: {
+            content: 'Link text'
+          }
         }
       }
     }

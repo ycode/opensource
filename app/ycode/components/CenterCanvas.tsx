@@ -44,7 +44,7 @@ import type { IframeToParentMessage } from '@/lib/iframe-bridge';
 import { buildPageTree, getNodeIcon, findHomepage, buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
-import { getCollectionVariable } from '@/lib/layer-utils';
+import { getCollectionVariable, canDeleteLayer, findLayerById } from '@/lib/layer-utils';
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
 
 // 7. Types
@@ -942,14 +942,24 @@ const CenterCanvas = React.memo(function CenterCanvas({
             };
 
             const updatedLayers = updateLayerInTree(currentDraft, message.payload.layerId, {
-              text: message.payload.text,
+              variables: {
+                text: {
+                  type: 'dynamic_text',
+                  data: { content: message.payload.text }
+                }
+              }
             });
 
             updateComponentDraft(editingComponentId, updatedLayers);
           } else if (currentPageId) {
             // Update layer in page draft
             updateLayer(currentPageId, message.payload.layerId, {
-              text: message.payload.text,
+              variables: {
+                text: {
+                  type: 'dynamic_text',
+                  data: { content: message.payload.text }
+                }
+              }
             });
           }
           break;
@@ -990,13 +1000,28 @@ const CenterCanvas = React.memo(function CenterCanvas({
           if (selectedLayerId && currentPageId) {
             // Check if multi-select
             if (selectedLayerIds.length > 1) {
-              // Delete all selected layers
-              deleteLayers(currentPageId, selectedLayerIds);
-              clearSelection();
-            } else {
-              // Single layer deletion
+              // Check restrictions for all layers
               const draft = draftsByPageId[currentPageId];
               if (draft) {
+                const layersToCheck = selectedLayerIds.map(id => findLayerById(draft.layers, id)).filter(Boolean) as Layer[];
+                const canDeleteAll = layersToCheck.every(layer => canDeleteLayer(layer));
+                
+                if (canDeleteAll) {
+                  // Delete all selected layers
+                  deleteLayers(currentPageId, selectedLayerIds);
+                  clearSelection();
+                }
+              }
+            } else {
+              // Single layer deletion - check restrictions
+              const draft = draftsByPageId[currentPageId];
+              if (draft) {
+                const layer = findLayerById(draft.layers, selectedLayerId);
+                if (!layer || !canDeleteLayer(layer)) {
+                  // Cannot delete due to restrictions
+                  break;
+                }
+                
                 // Helper to find next layer to select
                 const findNextLayerToSelect = (layers: Layer[], layerIdToDelete: string): string | null => {
                   const findLayerContext = (

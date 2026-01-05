@@ -21,7 +21,7 @@
   let collectionLayerData = {}; // Collection items by layer ID (for collection layers)
   let pageCollectionItem = null; // Collection item for dynamic page preview
   let pageCollectionFields = [];
-  
+
   // Pagination state for collection layers
   let paginationState = {}; // { layerId: { page: number, loading: boolean, meta: {...} } }
   let paginationDataCache = {}; // { layerId: CollectionItemWithValues[] } - current page data
@@ -398,7 +398,7 @@
 
     if (condition.source === 'page_collection') {
       const count = pageCollectionCounts?.[condition.collectionLayerId] ?? 0;
-      
+
       switch (condition.operator) {
         case 'has_items':
           return count > 0;
@@ -443,35 +443,35 @@
             return parseFloat(value) === parseFloat(compareValue);
           }
           return value === compareValue;
-        
+
         case 'is_not':
           if (fieldType === 'number') {
             return parseFloat(value) !== parseFloat(compareValue);
           }
           return value !== compareValue;
-        
+
         case 'contains':
           return value.toLowerCase().includes(compareValue.toLowerCase());
-        
+
         case 'does_not_contain':
           return !value.toLowerCase().includes(compareValue.toLowerCase());
-        
+
         case 'is_present':
           return isPresent;
-        
+
         case 'is_empty':
           return !isPresent;
 
         // Number operators
         case 'lt':
           return parseFloat(value) < parseFloat(compareValue);
-        
+
         case 'lte':
           return parseFloat(value) <= parseFloat(compareValue);
-        
+
         case 'gt':
           return parseFloat(value) > parseFloat(compareValue);
-        
+
         case 'gte':
           return parseFloat(value) >= parseFloat(compareValue);
 
@@ -481,20 +481,20 @@
           const compareDateValue = new Date(compareValue);
           return dateValue < compareDateValue;
         }
-        
+
         case 'is_after': {
           const dateValue = new Date(value);
           const compareDateValue = new Date(compareValue);
           return dateValue > compareDateValue;
         }
-        
+
         case 'is_between': {
           const dateValue = new Date(value);
           const startDate = new Date(compareValue);
           const endDate = new Date(condition.value2 ?? '');
           return dateValue >= startDate && dateValue <= endDate;
         }
-        
+
         case 'is_not_empty':
           return isPresent;
 
@@ -577,7 +577,7 @@
               valueIds = value ? [value] : [];
             }
             // Check exact match (same items, regardless of order)
-            return requiredIds.length === valueIds.length && 
+            return requiredIds.length === valueIds.length &&
                    requiredIds.every(id => valueIds.includes(id));
           } catch {
             return false;
@@ -684,138 +684,66 @@
    * If collectionId is provided, validates that referenced fields still exist
    */
   function getText(layer, collectionItemData, collectionId) {
-    const text = layer.text || '';
-
-    // Check if text is a field variable
-    if (text && typeof text === 'object' && text.type === 'field' && text.data && text.data.field_id) {
-      // Resolve field variable from collection item data
-      if (collectionItemData) {
-        const fieldId = text.data.field_id;
-        const relationships = text.data.relationships || [];
-        const itemValues = collectionItemData.values || collectionItemData;
-        
-        // If there are relationships, resolve the reference path
-        if (relationships.length > 0) {
-          const resolvedValue = resolveReferenceFieldValue(
-            fieldId,
-            relationships,
-            itemValues,
-            collectionId
-          );
-          if (resolvedValue !== null) {
-            return resolvedValue;
-          }
-          return '';
-        }
-        
-        // No relationships - direct field access
-        const value = itemValues[fieldId];
-        if (value !== undefined && value !== null) {
-          return value;
-        }
-      }
-      return ''; // No data to resolve
+    // Get text from variables.text (DynamicTextVariable)
+    if (!layer.variables?.text) {
+      return '';
     }
 
-    // Check if it's inline variable content (variables.text structure)
-    if (layer.variables && layer.variables.text) {
-      const inlineContent = layer.variables.text;
+    const textVariable = layer.variables.text;
 
-      // New format: simple string with embedded JSON variables
-      if (typeof inlineContent === 'string') {
-        let resolvedText = inlineContent;
+    // Only support DynamicTextVariable format: { type: 'dynamic_text', data: { content: '...' } }
+    if (textVariable.type !== 'dynamic_text' || !textVariable.data?.content) {
+      return '';
+    }
 
-        const jsonRegex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+    let resolvedText = textVariable.data.content;
 
-        if (resolvedText.includes('<ycode-inline-variable>')) {
-          if (collectionItemData) {
-            resolvedText = resolvedText.replace(jsonRegex, function(match, jsonContent) {
-              try {
-                const variable = JSON.parse(jsonContent.trim());
-                if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
-                  const fieldId = variable.data.field_id;
-                  const relationships = variable.data.relationships || [];
-                  
-                  // Get the current item's values
-                  const itemValues = collectionItemData.values || collectionItemData;
-                  
-                  // If there are relationships, resolve the reference path
-                  if (relationships.length > 0) {
-                    const resolvedValue = resolveReferenceFieldValue(
-                      fieldId,
-                      relationships,
-                      itemValues,
-                      collectionId
-                    );
-                    if (resolvedValue !== null) {
-                      return resolvedValue;
-                    }
-                    return '';
-                  }
-                  
-                  // No relationships - direct field access
-                  const value = itemValues[fieldId];
-                  if (value !== undefined && value !== null) {
-                    return value;
-                  }
+    // Handle inline variables (embedded JSON format)
+    const jsonRegex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+
+    if (resolvedText.includes('<ycode-inline-variable>')) {
+      if (collectionItemData) {
+        resolvedText = resolvedText.replace(jsonRegex, function(match, jsonContent) {
+          try {
+            const variable = JSON.parse(jsonContent.trim());
+            if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
+              const fieldId = variable.data.field_id;
+              const relationships = variable.data.relationships || [];
+
+              // Get the current item's values
+              const itemValues = collectionItemData.values || collectionItemData;
+
+              // If there are relationships, resolve the reference path
+              if (relationships.length > 0) {
+                const resolvedValue = resolveReferenceFieldValue(
+                  fieldId,
+                  relationships,
+                  itemValues,
+                  collectionId
+                );
+                if (resolvedValue !== null) {
+                  return resolvedValue;
                 }
-              } catch (error) {
-                console.warn('[getText] Failed to parse inline variable JSON:', jsonContent, error);
+                return '';
               }
-              return '';
-            });
-          } else {
-            resolvedText = resolvedText.replace(jsonRegex, '');
-          }
-        }
 
-        return resolvedText;
-      }
-
-      // Legacy format: { data, variables } map
-      const inlineData = inlineContent.data || '';
-      let resolvedText = inlineData;
-
-      const idRegex = /<ycode-inline-variable id="([^"]+)"><\/ycode-inline-variable>/g;
-
-      if (collectionItemData && inlineContent.variables) {
-        let fieldsForCollection = [];
-        if (collectionId && collectionFields[collectionId]) {
-          fieldsForCollection = collectionFields[collectionId];
-        } else if (pageCollectionFields && pageCollectionFields.length > 0) {
-          fieldsForCollection = pageCollectionFields;
-        }
-
-        resolvedText = resolvedText.replace(idRegex, function(match, variableId) {
-          const variable = inlineContent.variables[variableId];
-          if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
-            const fieldId = variable.data.field_id;
-            const fieldExists = fieldsForCollection.some(f => f.id === fieldId);
-            if (!fieldExists) {
-              return '';
+              // No relationships - direct field access
+              const value = itemValues[fieldId];
+              if (value !== undefined && value !== null) {
+                return value;
+              }
             }
-
-            const value = collectionItemData[fieldId];
-            if (value !== undefined && value !== null) {
-              return value;
-            }
+          } catch (error) {
+            console.warn('[getText] Failed to parse inline variable JSON:', jsonContent, error);
           }
           return '';
         });
       } else {
-        resolvedText = resolvedText.replace(idRegex, '');
+        resolvedText = resolvedText.replace(jsonRegex, '');
       }
-
-      return resolvedText;
     }
 
-    // Check if text is a string but contains variable tags (shouldn't happen, but handle it)
-    if (typeof text === 'string' && text.includes('<ycode-inline-variable')) {
-      // Strip out variable tags completely for display
-      return text.replace(/<ycode-inline-variable[^>]*>.*?<\/ycode-inline-variable>/g, '');
-    }
-
-    return text;
+    return resolvedText;
   }
 
   /**
@@ -831,38 +759,38 @@
     let currentFields = collectionFields[currentCollectionId] || pageCollectionFields || [];
     let currentValues = currentItemValues;
     let currentFieldId = rootFieldId;
-    
+
     // Traverse the relationship path
     const pathToTraverse = [rootFieldId, ...relationships];
-    
+
     for (let i = 0; i < pathToTraverse.length; i++) {
       const fieldId = pathToTraverse[i];
       const isLastField = i === pathToTraverse.length - 1;
-      
+
       if (isLastField) {
         // Last field in path - return its value
         const value = currentValues?.[fieldId];
         return value !== undefined && value !== null ? value : null;
       }
-      
+
       // Not the last field - it's a reference field, follow it
       const field = currentFields.find(f => f.id === fieldId);
       if (!field || field.type !== 'reference' || !field.reference_collection_id) {
         console.warn('[resolveReferenceFieldValue] Field not found or not a reference:', fieldId);
         return null;
       }
-      
+
       // Get the referenced item ID
       const referencedItemId = currentValues?.[fieldId];
       if (!referencedItemId) {
         return null;
       }
-      
+
       // Look up the referenced item in the collection's data
       const referencedCollectionId = field.reference_collection_id;
       const referencedItems = collectionItems[referencedCollectionId] || [];
       const referencedItem = referencedItems.find(item => item.id === referencedItemId);
-      
+
       // Also check collection layer data (items loaded for layers)
       let foundItem = referencedItem;
       if (!foundItem) {
@@ -873,17 +801,17 @@
           if (foundItem) break;
         }
       }
-      
+
       if (!foundItem) {
         console.warn('[resolveReferenceFieldValue] Referenced item not found:', referencedItemId);
         return null;
       }
-      
+
       // Update current context for next iteration
       currentValues = foundItem.values || {};
       currentFields = collectionFields[referencedCollectionId] || [];
     }
-    
+
     return null;
   }
 
@@ -1227,22 +1155,22 @@
         const handleMouseDown = function(e) {
           e.preventDefault();
           e.stopPropagation();
-          
+
           isDragging = true;
           isDraggingAny = true;
           isCurrentlyDragging = true; // Prevent re-rendering during drag
           updateIndicatorVisibility();
-          
+
           startY = e.clientY;
           lastUpdateTime = 0;
-          
+
           // Parse current gap value to pixels
           startGapValue = parseGapValueToPixels(gapValue);
-          
+
           // Change cursor to indicate dragging
           document.body.style.cursor = 'ns-resize';
           document.body.style.userSelect = 'none';
-          
+
           // Add document listeners for move and up
           document.addEventListener('mousemove', handleMouseMove);
           document.addEventListener('mouseup', handleMouseUp);
@@ -1250,16 +1178,16 @@
 
         const handleMouseMove = function(e) {
           if (!isDragging) return;
-          
+
           const deltaY = e.clientY - startY;
           const newGapValue = Math.max(0, startGapValue + deltaY);
-          
+
           // Throttle updates to parent (send at most every 16ms)
           const now = Date.now();
           if (now - lastUpdateTime >= updateThrottle) {
             lastUpdateTime = now;
             const newGapString = Math.round(newGapValue) + 'px';
-            
+
             // Send real-time update to parent
             sendToParent('UPDATE_GAP', {
               layerId: selectedLayerId,
@@ -1270,31 +1198,31 @@
 
         const handleMouseUp = function(e) {
           if (!isDragging) return;
-          
+
           const deltaY = e.clientY - startY;
           const newGapValue = Math.max(0, startGapValue + deltaY);
-          
+
           // Convert to appropriate unit and send final update
           const newGapString = Math.round(newGapValue) + 'px';
-          
+
           // Send final update to parent
           sendToParent('UPDATE_GAP', {
             layerId: selectedLayerId,
             gapValue: newGapString
           });
-          
+
           // Reset cursor and dragging state
           isDragging = false;
           isDraggingAny = false;
           updateIndicatorVisibility();
-          
+
           document.body.style.cursor = '';
           document.body.style.userSelect = '';
-          
+
           // Remove document listeners
           document.removeEventListener('mousemove', handleMouseMove);
           document.removeEventListener('mouseup', handleMouseUp);
-          
+
           // Re-render gap indicators after drag completes
           // Delay allowing re-renders until after the update settles
           setTimeout(() => {
@@ -1331,7 +1259,7 @@
     prevButton.setAttribute('data-pagination-action', 'prev');
     prevButton.setAttribute('data-collection-layer-id', layerId);
     if (isFirstPage) prevButton.disabled = true;
-    
+
     prevButton.addEventListener('click', function(e) {
       e.stopPropagation();
       if (!isFirstPage) {
@@ -1351,7 +1279,7 @@
     nextButton.setAttribute('data-pagination-action', 'next');
     nextButton.setAttribute('data-collection-layer-id', layerId);
     if (isLastPage) nextButton.disabled = true;
-    
+
     nextButton.addEventListener('click', function(e) {
       e.stopPropagation();
       if (!isLastPage) {
@@ -1373,21 +1301,21 @@
     // Get current pagination state for this layer
     const state = paginationState[layerId];
     const meta = state?.meta;
-    
+
     // Update local state for immediate feedback
     if (state) {
       state.loading = true;
     }
-    
+
     // Send message to parent with full context for fetching
-    sendToParent('PAGINATION_PAGE_CHANGE', { 
-      layerId, 
+    sendToParent('PAGINATION_PAGE_CHANGE', {
+      layerId,
       page,
       // Include context so parent doesn't need pre-existing state
       collectionId: meta?.collectionId,
       itemsPerPage: meta?.itemsPerPage || 10,
     });
-    
+
     // Re-render to show loading state
     render();
   }
@@ -1398,23 +1326,23 @@
   function updatePaginationLayerMeta(layer, meta) {
     const { currentPage, totalPages, totalItems, itemsPerPage, mode } = meta;
     const layerId = layer.id;
-    
+
     // Deep clone the layer to avoid mutating the original
     const updatedLayer = JSON.parse(JSON.stringify(layer));
-    
+
     // Helper to recursively update layers
     function updateLayerRecursive(l) {
       // Update page info text (for 'pages' mode)
       if (l.id && l.id.endsWith('-pagination-info')) {
         l.text = `Page ${currentPage} of ${totalPages}`;
       }
-      
+
       // Update items count text (for 'load_more' mode)
       if (l.id && l.id.endsWith('-pagination-count')) {
         const shownItems = Math.min(itemsPerPage, totalItems);
         l.text = `Showing ${shownItems} of ${totalItems}`;
       }
-      
+
       // Update previous button state
       if (l.id && l.id.endsWith('-pagination-prev')) {
         const isFirstPage = currentPage <= 1;
@@ -1430,7 +1358,7 @@
           }
         }
       }
-      
+
       // Update next button state
       if (l.id && l.id.endsWith('-pagination-next')) {
         const isLastPage = currentPage >= totalPages;
@@ -1446,7 +1374,7 @@
           }
         }
       }
-      
+
       // Hide load more button when all items shown (in load_more mode)
       if (l.id && l.id.endsWith('-pagination-loadmore')) {
         const allItemsShown = itemsPerPage >= totalItems;
@@ -1459,13 +1387,13 @@
           }
         }
       }
-      
+
       // Recursively update children
       if (l.children) {
         l.children.forEach(updateLayerRecursive);
       }
     }
-    
+
     updateLayerRecursive(updatedLayer);
     return updatedLayer;
   }
@@ -1591,15 +1519,54 @@
 
     // Handle special elements
     if (tag === 'img') {
-      element.src = layer.url || '';
-      element.alt = layer.alt || 'Image';
-    } else if (tag === 'a' && layer.settings && layer.settings.linkSettings) {
-      element.href = layer.settings.linkSettings.href || '#';
-      if (layer.settings.linkSettings.target) {
-        element.target = layer.settings.linkSettings.target;
+      const imageSrc = layer.variables?.image?.src;
+      if (imageSrc) {
+        // Extract string value from variable
+        if (imageSrc.type === 'asset') {
+          element.src = imageSrc.data.asset_id || '';
+        } else if (imageSrc.type === 'dynamic_text') {
+          element.src = imageSrc.data.content || '';
+        }
       }
-      if (layer.settings.linkSettings.rel) {
-        element.rel = layer.settings.linkSettings.rel;
+      const imageAlt = layer.variables?.image?.alt;
+      element.alt = (imageAlt && imageAlt.type === 'dynamic_text' ? imageAlt.data.content : '') || 'Image';
+    }
+
+    // Handle icon layers - extract SVG code from variables.icon.src
+    if (layer.name === 'icon') {
+      const iconSrc = layer.variables?.icon?.src;
+      let iconHtml = '';
+      if (iconSrc) {
+        if (iconSrc.type === 'static_text') {
+          iconHtml = iconSrc.data.content || '';
+        } else if (iconSrc.type === 'asset') {
+          iconHtml = iconSrc.data.asset_id || '';
+        } else if (iconSrc.type === 'dynamic_text') {
+          iconHtml = iconSrc.data.content || '';
+        } else if (iconSrc.type === 'field' && inheritedCollectionItemData) {
+          // Resolve field variable
+          const fieldId = iconSrc.data.field_id;
+          iconHtml = inheritedCollectionItemData[fieldId] || '';
+        }
+      }
+      if (iconHtml) {
+        // Add data-icon attribute to trigger CSS styling
+        element.setAttribute('data-icon', 'true');
+        // Insert SVG content
+        element.innerHTML = iconHtml;
+      }
+    } else if (tag === 'a' && layer.variables?.link) {
+      const linkHref = layer.variables.link.href;
+      if (linkHref && linkHref.type === 'dynamic_text') {
+        element.href = linkHref.data.content || '#';
+      } else {
+        element.href = '#';
+      }
+      if (layer.variables.link.target) {
+        element.target = layer.variables.link.target;
+      }
+      if (layer.variables.link.rel) {
+        element.rel = layer.variables.link.rel;
       }
     }
 
@@ -1616,11 +1583,11 @@
       if (isCollectionLayer && collectionId) {
         // Collection layer: repeat the element itself for each item (not a wrapper)
         let items = collectionLayerData[layer.id] || [];
-        
+
         // Filter items by reference field if source_field_id is set
         const sourceFieldId = collectionVariable?.source_field_id;
         const sourceFieldType = collectionVariable?.source_field_type;
-        
+
         if (sourceFieldId && collectionItemData) {
           const refValue = collectionItemData[sourceFieldId];
           if (refValue) {
@@ -1647,7 +1614,7 @@
         // Apply collection filters (evaluate against each item's own values)
         const collectionFilters = collectionVariable?.filters;
         if (collectionFilters?.groups?.length) {
-          items = items.filter(item => 
+          items = items.filter(item =>
             evaluateVisibility(collectionFilters, {
               collectionItemData: item.values,
               pageCollectionCounts: {},
@@ -1659,12 +1626,12 @@
         const paginationConfig = collectionVariable?.pagination;
         const isPaginated = paginationConfig?.enabled && (paginationConfig?.mode === 'pages' || paginationConfig?.mode === 'load_more');
         let paginationMeta = null;
-        
+
         if (isPaginated) {
           // Check if we have cached pagination data from parent
           const cachedState = paginationState[layer.id];
           const cachedItems = paginationDataCache[layer.id];
-          
+
           if (cachedItems) {
             items = cachedItems;
             paginationMeta = cachedState?.meta;
@@ -1675,10 +1642,10 @@
             const offset = (currentPage - 1) * itemsPerPage;
             const totalItems = items.length;
             const totalPages = Math.ceil(totalItems / itemsPerPage);
-            
+
             // Slice items for current page
             items = items.slice(offset, offset + itemsPerPage);
-            
+
             paginationMeta = {
               currentPage,
               totalPages,
@@ -1688,7 +1655,7 @@
               collectionId,
               mode: paginationConfig.mode || 'pages',
             };
-            
+
             // Always update pagination state with latest meta
             // (preserves current page if already set, but updates item counts)
             paginationState[layer.id] = {

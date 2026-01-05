@@ -57,7 +57,7 @@ import { useMigrationStore } from '@/stores/useMigrationStore';
 
 // 6. Utils/lib
 import { findHomepage } from '@/lib/page-utils';
-import { findLayerById, getClassesString, removeLayerById } from '@/lib/layer-utils';
+import { findLayerById, getClassesString, removeLayerById, canCopyLayer, canDeleteLayer } from '@/lib/layer-utils';
 import { pagesApi, collectionsApi } from '@/lib/api';
 
 // 5. Types
@@ -1073,17 +1073,31 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           if (!isInputFocused && currentPageId) {
             e.preventDefault();
             if (selectedLayerIds.length > 1) {
-              // Multi-select: copy all
-              const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
-              // Store first layer in clipboard store for compatibility
-              if (layers.length > 0) {
-                copyToClipboard(layers[0], currentPageId);
+              // Multi-select: copy all (check restrictions)
+              const draft = draftsByPageId[currentPageId];
+              if (draft) {
+                const layersToCheck = selectedLayerIds.map(id => findLayerById(draft.layers, id)).filter(Boolean) as Layer[];
+                const canCopyAll = layersToCheck.every(layer => canCopyLayer(layer));
+
+                if (canCopyAll) {
+                  const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
+                  // Store first layer in clipboard store for compatibility
+                  if (layers.length > 0) {
+                    copyToClipboard(layers[0], currentPageId);
+                  }
+                }
               }
             } else if (selectedLayerId) {
-              // Single select - use clipboard store
-              const layer = copyLayerFromStore(currentPageId, selectedLayerId);
-              if (layer) {
-                copyToClipboard(layer, currentPageId);
+              // Single select - check restrictions
+              const draft = draftsByPageId[currentPageId];
+              if (draft) {
+                const layer = findLayerById(draft.layers, selectedLayerId);
+                if (layer && canCopyLayer(layer)) {
+                  const copiedLayer = copyLayerFromStore(currentPageId, selectedLayerId);
+                  if (copiedLayer) {
+                    copyToClipboard(copiedLayer, currentPageId);
+                  }
+                }
               }
             }
           }
@@ -1094,21 +1108,35 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           if (!isInputFocused && currentPageId) {
             e.preventDefault();
             if (selectedLayerIds.length > 1) {
-              // Multi-select: cut all (copy then delete)
-              const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
-              if (layers.length > 0) {
-                // Store first layer in clipboard for compatibility
-                cutToClipboard(layers[0], currentPageId);
-                deleteLayers(currentPageId, selectedLayerIds);
-                clearSelection();
+              // Multi-select: cut all (check restrictions)
+              const draft = draftsByPageId[currentPageId];
+              if (draft) {
+                const layersToCheck = selectedLayerIds.map(id => findLayerById(draft.layers, id)).filter(Boolean) as Layer[];
+                const canCutAll = layersToCheck.every(layer => canCopyLayer(layer) && canDeleteLayer(layer));
+
+                if (canCutAll) {
+                  const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
+                  if (layers.length > 0) {
+                    // Store first layer in clipboard for compatibility
+                    cutToClipboard(layers[0], currentPageId);
+                    deleteLayers(currentPageId, selectedLayerIds);
+                    clearSelection();
+                  }
+                }
               }
             } else if (selectedLayerId) {
-              // Single select
-              const layer = copyLayerFromStore(currentPageId, selectedLayerId);
-              if (layer && layer.id !== 'body' && !layer.locked) {
-                cutToClipboard(layer, currentPageId);
-                deleteLayer(currentPageId, selectedLayerId);
-                setSelectedLayerId(null);
+              // Single select - check restrictions
+              const draft = draftsByPageId[currentPageId];
+              if (draft) {
+                const layer = findLayerById(draft.layers, selectedLayerId);
+                if (layer && layer.id !== 'body' && !layer.locked && canCopyLayer(layer) && canDeleteLayer(layer)) {
+                  const copiedLayer = copyLayerFromStore(currentPageId, selectedLayerId);
+                  if (copiedLayer) {
+                    cutToClipboard(copiedLayer, currentPageId);
+                    deleteLayer(currentPageId, selectedLayerId);
+                    setSelectedLayerId(null);
+                  }
+                }
               }
             }
           }

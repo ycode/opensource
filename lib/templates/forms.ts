@@ -97,13 +97,27 @@ export const formTemplates: Record<string, BlockTemplate> = {
       children: [
         {
           name: 'option',
-          text: 'Option 1',
-          attributes: { value: 'option1' }
+          attributes: { value: 'option1' },
+          variables: {
+            text: {
+              type: 'dynamic_text',
+              data: {
+                content: 'Option 1'
+              }
+            }
+          }
         },
         {
           name: 'option',
-          text: 'Option 2',
-          attributes: { value: 'option2' }
+          attributes: { value: 'option2' },
+          variables: {
+            text: {
+              type: 'dynamic_text',
+              data: {
+                content: 'Option 2'
+              }
+            }
+          }
         }
       ] as any[],
       design: {
@@ -145,12 +159,19 @@ export const formTemplates: Record<string, BlockTemplate> = {
         },
         {
           name: 'label',
-          text: 'Checkbox label',
           children: [], // Labels can contain elements
           attributes: {
             for: 'checkbox'
           },
-          classes: ['text-[0.875rem]', 'text-[#111827]']
+          classes: ['text-[0.875rem]', 'text-[#111827]'],
+          variables: {
+            text: {
+              type: 'dynamic_text',
+              data: {
+                content: 'Checkbox label'
+              }
+            }
+          }
         }
       ] as any[],
       design: {
@@ -182,12 +203,19 @@ export const formTemplates: Record<string, BlockTemplate> = {
         },
         {
           name: 'label',
-          text: 'Radio label',
           children: [], // Labels can contain elements
           attributes: {
             for: 'radio'
           },
-          classes: ['text-[0.875rem]', 'text-[#111827]']
+          classes: ['text-[0.875rem]', 'text-[#111827]'],
+          variables: {
+            text: {
+              type: 'dynamic_text',
+              data: {
+                content: 'Radio label'
+              }
+            }
+          }
         }
       ] as any[],
       design: {
@@ -207,7 +235,6 @@ export const formTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'label',
       classes: ['block', 'text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'mb-[0.25rem]'],
-      text: 'Label',
       children: [], // Labels can wrap inputs
       design: {
         typography: {
@@ -215,6 +242,14 @@ export const formTemplates: Record<string, BlockTemplate> = {
           fontSize: '0.875rem',
           fontWeight: '500',
           color: '#111827'
+        }
+      },
+      variables: {
+        text: {
+          type: 'dynamic_text',
+          data: {
+            content: 'Label'
+          }
         }
       }
     }

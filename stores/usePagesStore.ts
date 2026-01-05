@@ -5,7 +5,7 @@ import type { Layer, Page, PageLayers, PageFolder, PageItemDuplicateResult, Coll
 import { pagesApi, pageLayersApi, foldersApi } from '../lib/api';
 import { getLayerFromTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
-import { canHaveChildren, regenerateIdsWithInteractionRemapping } from '../lib/layer-utils';
+import { canHaveChildren, regenerateIdsWithInteractionRemapping, canMoveLayer } from '../lib/layer-utils';
 import { getDescendantFolderIds, isHomepage, findHomepage, findNextSelection } from '../lib/page-utils';
 import { updateLayersWithStyle, detachStyleFromLayers } from '../lib/layer-style-utils';
 import { updateLayersWithComponent, detachComponentFromLayers } from '../lib/component-utils';
@@ -828,6 +828,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       }
       return false;
     };
+
+    // Validation: Check ancestor restrictions
+    if (!canMoveLayer(draft.layers, layerId, targetParentId)) {
+      console.warn('Cannot move layer - ancestor restriction violated');
+      return false;
+    }
 
     // Validation: Cannot move into self or descendants (circular reference)
     if (targetParentId === layerId || isDescendant(layerId, targetParentId || '')) {

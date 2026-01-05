@@ -4,7 +4,8 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Layer } from '../../types';
-import { getLayerHtmlTag, getClassesString, getText, getImageUrl, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '../../lib/layer-utils';
+import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '../../lib/layer-utils';
+import { isFieldVariable, isAssetVariable, isDynamicTextVariable, getVariableStringValue, getDynamicTextContent } from '../../lib/variable-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import LayerContextMenu from '../../app/ycode/components/LayerContextMenu';
 import { useComponentsStore } from '../../stores/useComponentsStore';
@@ -53,14 +54,14 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
     // Fragment layers: render children directly without wrapper element
     if (layer.name === '_fragment' && layer.children) {
       const renderedChildren = layer.children.map((child: Layer) => renderLayer(child));
-      
+
       // If this fragment has pagination metadata and we're in published mode,
       // wrap it with the appropriate pagination component
       if (layer._paginationMeta && isPublished) {
         // Extract the original layer ID from the fragment ID (remove -fragment suffix)
         const originalLayerId = layer.id.replace(/-fragment$/, '');
         const paginationMode = layer._paginationMeta.mode || 'pages';
-        
+
         if (paginationMode === 'load_more') {
           // Use LoadMoreCollection for "Load More" mode
           return (
@@ -76,7 +77,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
             </Suspense>
           );
         }
-        
+
         // Default: Use PaginatedCollection for "Pages" mode
         return (
           <Suspense key={layer.id} fallback={<div className="animate-pulse bg-gray-200 rounded h-32" />}>
@@ -89,7 +90,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
           </Suspense>
         );
       }
-      
+
       return renderedChildren;
     }
 
@@ -172,11 +173,12 @@ const LayerItem: React.FC<{
 
   // Resolve text and image URLs with field binding support
   const textContent = (() => {
-    // Check for inline variables in embedded JSON format
-    const textWithVariables = layer.variables?.text || layer.text;
-    if (textWithVariables && typeof textWithVariables === 'string') {
-      if (textWithVariables.includes('<ycode-inline-variable>')) {
-      // Use the embedded JSON resolver (client-safe)
+    // Check for inline variables in DynamicTextVariable format
+    const textVariable = layer.variables?.text;
+    if (textVariable && textVariable.type === 'dynamic_text') {
+      const content = textVariable.data.content;
+      if (content.includes('<ycode-inline-variable>')) {
+        // Use the embedded JSON resolver (client-safe)
         if (effectiveCollectionItemData) {
           const mockItem: any = {
             id: 'temp',
@@ -188,30 +190,35 @@ const LayerItem: React.FC<{
             is_published: true,
             values: effectiveCollectionItemData,
           };
-          return resolveInlineVariables(textWithVariables, mockItem);
+          return resolveInlineVariables(content, mockItem);
         }
         // No collection data - remove variables
-        return textWithVariables.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+        return content.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
       }
-      // No inline variables, treat as plain text stored in variables
-      return textWithVariables;
+      // No inline variables, return plain content
+      return content;
     }
     const text = getText(layer);
     if (text) return text;
-    if (typeof layer.text === 'object') {
-      return resolveFieldValue(layer.text, effectiveCollectionItemData);
-    }
     return undefined;
   })();
 
   const imageUrl = (() => {
-    const url = getImageUrl(layer);
-    if (url) return url;
-    if (typeof layer.url === 'object') {
-      return resolveFieldValue(layer.url, effectiveCollectionItemData);
+    const src = layer.variables?.image?.src;
+    if (!src) return undefined;
+    if (isFieldVariable(src)) {
+      return resolveFieldValue(src, effectiveCollectionItemData);
+    }
+    if (isDynamicTextVariable(src)) {
+      return src.data.content;
+    }
+    if (isAssetVariable(src)) {
+      return src.data.asset_id;
     }
     return undefined;
   })();
+
+  const imageAlt = getDynamicTextContent(layer.variables?.image?.alt) || 'Image';
 
   // Handle component instances - only fetch from store in edit mode
   // In published pages, components are pre-resolved server-side via resolveComponents()
@@ -314,7 +321,15 @@ const LayerItem: React.FC<{
   const finishEditing = () => {
     if (editingLayerId === layer.id && onLayerUpdate) {
       // Update text content
-      onLayerUpdate(layer.id, { text: editingContent });
+      onLayerUpdate(layer.id, {
+        variables: {
+          ...layer.variables,
+          text: {
+            type: 'dynamic_text',
+            data: { content: editingContent }
+          }
+        }
+      });
       setEditingLayerId(null);
     }
   };
@@ -456,7 +471,7 @@ const LayerItem: React.FC<{
         <Tag
           {...elementProps}
           src={imageUrl || ''}
-          alt={layer.alt || 'Image'}
+          alt={imageAlt}
         />
       );
     }
@@ -469,20 +484,42 @@ const LayerItem: React.FC<{
       return <Tag {...elementProps} />;
     }
 
-    if (htmlTag === 'icon' || layer.icon) {
+    if (htmlTag === 'icon') {
+      // Check variables.icon.src (asset ID, field variable, or static text with SVG code)
+      const iconSrc = layer.variables?.icon?.src;
+      const iconHtml = iconSrc ? getVariableStringValue(iconSrc) : '';
       return (
         <Tag
           {...elementProps}
-          dangerouslySetInnerHTML={{ __html: layer.icon?.svg_code || '' }}
+          dangerouslySetInnerHTML={{ __html: iconHtml }}
         />
       );
     }
 
     if (htmlTag === 'video' || htmlTag === 'audio') {
+      // For video/audio, use variables.video.src or variables.audio.src
+      const mediaSrc = (() => {
+        if (htmlTag === 'video' && layer.variables?.video?.src) {
+          const src = layer.variables.video.src;
+          if (isFieldVariable(src)) {
+            return resolveFieldValue(src, effectiveCollectionItemData) || '';
+          }
+          return getVariableStringValue(src);
+        }
+        if (htmlTag === 'audio' && layer.variables?.audio?.src) {
+          const src = layer.variables.audio.src;
+          if (isFieldVariable(src)) {
+            return resolveFieldValue(src, effectiveCollectionItemData) || '';
+          }
+          return getVariableStringValue(src);
+        }
+        return imageUrl || '';
+      })();
+
       return (
         <Tag
           {...elementProps}
-          src={imageUrl || layer.url || ''}
+          src={mediaSrc}
         >
           {textContent && textContent}
           {children && children.length > 0 && (
@@ -507,10 +544,11 @@ const LayerItem: React.FC<{
     }
 
     if (htmlTag === 'iframe') {
+      const iframeSrc = getDynamicTextContent(layer.variables?.iframe?.src) || (otherAttributes as Record<string, string>).src || '';
       return (
         <Tag
           {...elementProps}
-          src={layer.url || (otherAttributes as Record<string, string>).src || ''}
+          src={iframeSrc}
         />
       );
     }

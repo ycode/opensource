@@ -1279,40 +1279,58 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         settings: {
                           tag: 'h1',
                         },
-                        text: '401',
                         design: {
                           typography: { color: '#111827', fontSize: '30', isActive: true, fontWeight: '700' },
                         },
                         classes: 'font-[700] text-[#111827] text-[30px]',
-                        content: '401',
                         children: [],
                         customName: 'Heading',
+                        variables: {
+                          text: {
+                            type: 'dynamic_text',
+                            data: {
+                              content: '401'
+                            }
+                          }
+                        },
                       },
                       {
                         id: 'layer-1762789197005-7z2wy597y',
                         name: 'span',
-                        text: 'Password protected',
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
                         classes: 'text-[12px] text-[#111827]',
-                        content: 'Password protected',
                         children: [],
                         customName: 'Text',
                         formattable: true,
+                        variables: {
+                          text: {
+                            type: 'dynamic_text',
+                            data: {
+                              content: 'Password protected'
+                            }
+                          }
+                        },
                       },
                       {
                         id: 'layer-1762789197006-7z2wy597z',
                         name: 'span',
-                        text: 'To access this page, please enter the required password below.',
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
                         classes: 'text-[12px] text-[#111827]',
-                        content: 'To access this page, please enter the required password below.',
                         children: [],
                         customName: 'Text',
                         formattable: true,
+                        variables: {
+                          text: {
+                            type: 'dynamic_text',
+                            data: {
+                              content: 'To access this page, please enter the required password below.'
+                            }
+                          }
+                        },
                       },
                     ],
                     customName: 'Container',
@@ -1380,40 +1398,58 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         settings: {
                           tag: 'h1',
                         },
-                        text: '404',
                         design: {
                           typography: { color: '#111827', fontSize: '30', isActive: true, fontWeight: '700' },
                         },
                         classes: 'font-[700] text-[#111827] text-[30px]',
-                        content: '404',
                         children: [],
                         customName: 'Heading',
+                        variables: {
+                          text: {
+                            type: 'dynamic_text',
+                            data: {
+                              content: '404'
+                            }
+                          }
+                        },
                       },
                       {
                         id: 'layer-1762789197005-7z2wy597y',
                         name: 'span',
-                        text: 'Page not found',
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
                         classes: 'text-[12px] text-[#111827]',
-                        content: 'Page not found',
                         children: [],
                         customName: 'Text',
                         formattable: true,
+                        variables: {
+                          text: {
+                            type: 'dynamic_text',
+                            data: {
+                              content: 'Page not found'
+                            }
+                          }
+                        },
                       },
                       {
                         id: 'layer-1762789197006-7z2wy597z',
                         name: 'span',
-                        text: 'The page you are looking for does not exist.',
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
                         classes: 'text-[12px] text-[#111827]',
-                        content: 'The page you are looking for does not exist.',
                         children: [],
                         customName: 'Text',
                         formattable: true,
+                        variables: {
+                          text: {
+                            type: 'dynamic_text',
+                            data: {
+                              content: 'The page you are looking for does not exist.'
+                            }
+                          }
+                        },
                       },
                     ],
                     customName: 'Container',
@@ -1481,40 +1517,58 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         settings: {
                           tag: 'h1',
                         },
-                        text: '500',
                         design: {
                           typography: { color: '#111827', fontSize: '30', isActive: true, fontWeight: '700' },
                         },
                         classes: 'font-[700] text-[#111827] text-[30px]',
-                        content: '500',
                         children: [],
                         customName: 'Heading',
+                        variables: {
+                          text: {
+                            type: 'dynamic_text',
+                            data: {
+                              content: '500'
+                            }
+                          }
+                        },
                       },
                       {
                         id: 'layer-1762789197005-7z2wy597y',
                         name: 'span',
-                        text: 'Server error',
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
                         classes: 'text-[12px] text-[#111827]',
-                        content: 'Server error',
                         children: [],
                         customName: 'Text',
                         formattable: true,
+                        variables: {
+                          text: {
+                            type: 'dynamic_text',
+                            data: {
+                              content: 'Server error'
+                            }
+                          }
+                        },
                       },
                       {
                         id: 'layer-1762789197006-7z2wy597z',
                         name: 'span',
-                        text: 'An unexpected error occurred. Please try again later.',
                         design: {
                           typography: { fontSize: '12', color: '#111827', isActive: true },
                         },
                         classes: 'text-[12px] text-[#111827]',
-                        content: 'An unexpected error occurred. Please try again later.',
                         children: [],
                         customName: 'Text',
                         formattable: true,
+                        variables: {
+                          text: {
+                            type: 'dynamic_text',
+                            data: {
+                              content: 'An unexpected error occurred. Please try again later.'
+                            }
+                          }
+                        },
                       },
                     ],
                     customName: 'Container',
