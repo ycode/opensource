@@ -663,10 +663,16 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
     // Find the next layer to select before deleting
     const layers = getCurrentLayers();
+    const layerToDelete = findLayerById(layers, selectedLayerId);
+
+    // Check if layer can be deleted
+    if (layerToDelete && !canDeleteLayer(layerToDelete)) {
+      return;
+    }
+
     const nextLayerId = findNextLayerToSelect(layers, selectedLayerId);
 
     // Check if this is a pagination wrapper - if so, disable pagination on the collection
-    const layerToDelete = findLayerById(layers, selectedLayerId);
     const paginationFor = layerToDelete?.attributes?.['data-pagination-for'];
 
     if (editingComponentId) {
@@ -1129,7 +1135,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
               const draft = draftsByPageId[currentPageId];
               if (draft) {
                 const layer = findLayerById(draft.layers, selectedLayerId);
-                if (layer && layer.id !== 'body' && !layer.locked && canCopyLayer(layer) && canDeleteLayer(layer)) {
+                if (layer && layer.id !== 'body' && canCopyLayer(layer) && canDeleteLayer(layer)) {
                   const copiedLayer = copyLayerFromStore(currentPageId, selectedLayerId);
                   if (copiedLayer) {
                     cutToClipboard(copiedLayer, currentPageId);
@@ -1176,6 +1182,15 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
               if (editingComponentId) {
                 // Delete multiple from component
                 const layers = getCurrentLayers();
+
+                // Filter out layers that cannot be deleted
+                const deletableLayerIds = selectedLayerIds.filter(layerId => {
+                  const layer = findLayerById(layers, layerId);
+                  return layer && canDeleteLayer(layer);
+                });
+
+                if (deletableLayerIds.length === 0) return;
+
                 let newLayers = layers;
 
                 // Helper to update layer in tree
@@ -1192,7 +1207,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                 };
 
                 // Check each layer for pagination wrappers and disable pagination on collection
-                for (const layerId of selectedLayerIds) {
+                for (const layerId of deletableLayerIds) {
                   const layerToDelete = findLayerById(layers, layerId);
                   const paginationFor = layerToDelete?.attributes?.['data-pagination-for'];
                   if (paginationFor) {
@@ -1218,13 +1233,22 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                   }
                 }
 
-                for (const layerId of selectedLayerIds) {
+                for (const layerId of deletableLayerIds) {
                   newLayers = removeLayerById(newLayers, layerId);
                 }
                 updateCurrentLayers(newLayers);
                 clearSelection();
               } else if (currentPageId) {
-                deleteLayers(currentPageId, selectedLayerIds);
+                // Filter out layers that cannot be deleted
+                const layers = getCurrentLayers();
+                const deletableLayerIds = selectedLayerIds.filter(layerId => {
+                  const layer = findLayerById(layers, layerId);
+                  return layer && canDeleteLayer(layer);
+                });
+
+                if (deletableLayerIds.length === 0) return;
+
+                deleteLayers(currentPageId, deletableLayerIds);
                 clearSelection();
               }
             } else if (selectedLayerId) {

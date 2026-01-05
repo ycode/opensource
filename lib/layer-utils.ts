@@ -219,7 +219,7 @@ export function findParentCollectionLayer(layers: Layer[], layerId: string): Lay
  * @returns True if the layer is text-editable
  */
 export function isTextEditable(layer: Layer): boolean {
-  return layer.formattable ?? false;
+  return layer.restrictions?.editText ?? false;
 }
 
 /**

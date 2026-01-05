@@ -14,7 +14,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
         tag: 'h1',
       },
       classes: ['text-[48px]', 'font-[700]'],
-      formattable: true,
+      restrictions: { editText: true },
       children: [], // Can contain inline elements
       design: {
         typography: {
@@ -40,7 +40,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'p',
       classes: ['text-[16px]'],
-      formattable: true,
+      restrictions: { editText: true },
       children: [], // Can contain inline elements
       design: {
         typography: {
@@ -65,7 +65,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'span',
       classes: ['text-[16px]'],
-      formattable: true,
+      restrictions: { editText: true },
       children: [], // Can contain inline elements
       design: {
         typography: {
@@ -90,7 +90,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'richtext',
       classes: ['prose', 'max-w-none'],
-      formattable: true,
+      restrictions: { editText: true },
       children: [], // Can contain any elements
       design: {
         typography: {

@@ -1241,7 +1241,6 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
       {
         id: 'body',
         name: 'body',
-        locked: true,
         classes: '',
         children: [
           {
@@ -1303,7 +1302,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'text-[12px] text-[#111827]',
                         children: [],
                         customName: 'Text',
-                        formattable: true,
+                        restrictions: { editText: true },
                         variables: {
                           text: {
                             type: 'dynamic_text',
@@ -1322,7 +1321,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'text-[12px] text-[#111827]',
                         children: [],
                         customName: 'Text',
-                        formattable: true,
+                        restrictions: { editText: true },
                         variables: {
                           text: {
                             type: 'dynamic_text',
@@ -1360,7 +1359,6 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
       {
         id: 'body',
         name: 'body',
-        locked: true,
         classes: '',
         children: [
           {
@@ -1422,7 +1420,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'text-[12px] text-[#111827]',
                         children: [],
                         customName: 'Text',
-                        formattable: true,
+                        restrictions: { editText: true },
                         variables: {
                           text: {
                             type: 'dynamic_text',
@@ -1441,7 +1439,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'text-[12px] text-[#111827]',
                         children: [],
                         customName: 'Text',
-                        formattable: true,
+                        restrictions: { editText: true },
                         variables: {
                           text: {
                             type: 'dynamic_text',
@@ -1479,7 +1477,6 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
       {
         id: 'body',
         name: 'body',
-        locked: true,
         classes: '',
         children: [
           {
@@ -1541,7 +1538,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'text-[12px] text-[#111827]',
                         children: [],
                         customName: 'Text',
-                        formattable: true,
+                        restrictions: { editText: true },
                         variables: {
                           text: {
                             type: 'dynamic_text',
@@ -1560,7 +1557,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                         classes: 'text-[12px] text-[#111827]',
                         children: [],
                         customName: 'Text',
-                        formattable: true,
+                        restrictions: { editText: true },
                         variables: {
                           text: {
                             type: 'dynamic_text',

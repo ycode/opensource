@@ -288,6 +288,9 @@ function extractLayerTranslatableItems(
   items: TranslatableItem[]
 ): void {
   for (const layer of layers) {
+    // Skip locale selector label as it is dynamically generated based on locale
+    if (layer.key === 'localeSelectorLabel') continue;
+
     // Extract text from this layer (including inline variables)
     const text = extractLayerText(layer);
 

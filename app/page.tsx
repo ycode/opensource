@@ -99,6 +99,8 @@ export default async function Home({ searchParams }: HomeProps) {
       layers={data.pageLayers.layers || []}
       components={[]}
       generatedCss={publishedCSS}
+      locale={data.locale}
+      availableLocales={data.availableLocales}
     />
   );
 }

@@ -18,12 +18,6 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       attributes: {
         type: 'button'
       },
-      settings: {
-        linkSettings: {
-          href: '',
-          target: '_self'
-        }
-      },
       design: {
         typography: {
           isActive: true,
@@ -59,12 +53,6 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       attributes: {
         href: '#',
         target: '_self'
-      },
-      settings: {
-        linkSettings: {
-          href: '#',
-          target: '_self'
-        }
       },
       design: {
         typography: {

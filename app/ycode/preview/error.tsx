@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import LayerRenderer from '@/components/layers/LayerRenderer';
+import LayerRenderer from '@/components/LayerRenderer';
 import type { PageData } from '@/lib/page-fetcher';
 
 interface ErrorProps {
