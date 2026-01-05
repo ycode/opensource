@@ -15,6 +15,7 @@ import { useModeToggle } from '@/hooks/use-mode-toggle';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
 import { removeSpaces } from '@/lib/utils';
+import ColorPicker from '@/app/ycode/components/ColorPicker';
 import type { Layer } from '@/types';
 
 interface BorderControlsProps {
@@ -404,10 +405,10 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                   <div className="grid grid-cols-3">
                     <Label variant="muted">Color</Label>
                     <div className="col-span-2 *:w-full">
-                      <Input
-                        type="color"
+                      <ColorPicker 
+                        solidOnly
                         value={borderColor || '#000000'}
-                        onChange={(e) => handleBorderColorChange(e.target.value)}
+                        onChange={handleBorderColorChange}
                       />
                     </div>
                   </div>
