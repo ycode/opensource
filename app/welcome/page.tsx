@@ -86,6 +86,16 @@ export default function WelcomePage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Ensure dark mode is applied on client-side navigation
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+    
+    // Cleanup: remove dark class when leaving the page
+    return () => {
+      document.documentElement.classList.remove('dark');
+    };
+  }, []);
+
   // Copy to clipboard handler
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const handleCopy = async (text: string, fieldName: string) => {
