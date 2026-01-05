@@ -197,6 +197,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
           <div className="col-span-2 flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <Input
+                stepper
+                min="0"
+                step="1"
                 className="flex-1"
                 disabled={radiusModeToggle.mode === 'individual-borders'}
                 value={borderRadiusInput}
@@ -218,7 +221,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                     <Icon name="borderTopLeft" className="size-3" />
                   </InputGroupAddon>
                   <InputGroupInput
-                    className="!pr-0"
+                    stepper
+                    min="0"
+                    step="1"
                     value={borderTopLeftRadiusInput}
                     onChange={(e) => handleTopLeftRadiusChange(e.target.value)}
                     placeholder="0"
@@ -229,7 +234,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                     <Icon name="borderTopLeft" className="size-3 rotate-90" />
                   </InputGroupAddon>
                   <InputGroupInput
-                    className="!pr-0"
+                    stepper
+                    min="0"
+                    step="1"
                     value={borderTopRightRadiusInput}
                     onChange={(e) => handleTopRightRadiusChange(e.target.value)}
                     placeholder="0"
@@ -240,7 +247,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                     <Icon name="borderTopLeft" className="size-3 rotate-270" />
                   </InputGroupAddon>
                   <InputGroupInput
-                    className="!pr-0"
+                    stepper
+                    min="0"
+                    step="1"
                     value={borderBottomLeftRadiusInput}
                     onChange={(e) => handleBottomLeftRadiusChange(e.target.value)}
                     placeholder="0"
@@ -251,7 +260,9 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                     <Icon name="borderTopLeft" className="size-3 rotate-180" />
                   </InputGroupAddon>
                   <InputGroupInput
-                    className="!pr-0"
+                    stepper
+                    min="0"
+                    step="1"
                     value={borderBottomRightRadiusInput}
                     onChange={(e) => handleBottomRightRadiusChange(e.target.value)}
                     placeholder="0"
