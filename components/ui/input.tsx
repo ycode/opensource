@@ -129,7 +129,7 @@ function Input({
           onKeyDown={handleKeyDown}
           {...props}
         />
-        <div className="absolute right-0 top-0 h-full items-center rounded-r-[10px] bg-gradient-to-l from-input backdrop-blur hidden group-hover:flex pr-1.5">
+        <div className="absolute right-px top-px bottom-px items-center rounded-r-[10px] bg-gradient-to-l from-input backdrop-blur hidden group-hover:flex pr-1.5">
           <div className="flex flex-col">
             <Button
               type="button"
