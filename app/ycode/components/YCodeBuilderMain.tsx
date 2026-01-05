@@ -397,6 +397,13 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  // Ensure dark mode is applied for login screen on client-side navigation
+  useEffect(() => {
+    if (!user) {
+      document.documentElement.classList.add('dark');
+    }
+  }, [user]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
