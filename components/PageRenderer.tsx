@@ -1,10 +1,10 @@
 import AnimationInitializer from '@/components/AnimationInitializer';
 import ContentHeightReporter from '@/components/ContentHeightReporter';
-import LayerRenderer from '@/components/layers/LayerRenderer';
+import LayerRenderer from '@/components/LayerRenderer';
 import { resolveComponents } from '@/lib/resolve-components';
 import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
 import { generateInitialAnimationCSS } from '@/lib/animation-utils';
-import type { Layer, Component, Page, CollectionItemWithValues, CollectionField } from '@/types';
+import type { Layer, Component, Page, CollectionItemWithValues, CollectionField, Locale } from '@/types';
 
 interface PageRendererProps {
   page: Page;
@@ -13,6 +13,8 @@ interface PageRendererProps {
   generatedCss?: string;
   collectionItem?: CollectionItemWithValues;
   collectionFields?: CollectionField[];
+  locale?: Locale | null;
+  availableLocales?: Locale[];
 }
 
 /**
@@ -53,6 +55,8 @@ export default function PageRenderer({
   generatedCss,
   collectionItem,
   collectionFields = [],
+  locale,
+  availableLocales = [],
 }: PageRendererProps) {
   // Resolve component instances in the layer tree before rendering
   const resolvedLayers = resolveComponents(layers || [], components);
@@ -111,6 +115,8 @@ export default function PageRenderer({
           isPublished={page.is_published}
           pageCollectionItemData={collectionItem?.values || undefined}
           hiddenLayerIds={hiddenLayerIds}
+          currentLocale={locale}
+          availableLocales={availableLocales}
         />
       </div>
 

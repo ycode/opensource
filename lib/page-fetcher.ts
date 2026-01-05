@@ -22,6 +22,8 @@ export interface PageData {
   components: Component[];
   collectionItem?: CollectionItemWithValues; // For dynamic pages
   collectionFields?: CollectionField[]; // For dynamic pages
+  locale?: Locale | null; // Current locale (if detected from URL)
+  availableLocales?: Locale[]; // All active locales for locale switcher
 }
 
 /**
@@ -222,12 +224,13 @@ export async function fetchPageByPath(
     }
 
     // Get all active locales from the database
-    const { data: locales } = await supabase
+    const { data: availableLocales } = await supabase
       .from('locales')
-      .select('code')
+      .select('*')
+      .eq('is_published', isPublished)
       .is('deleted_at', null);
 
-    const validLocaleCodes = locales?.map(l => l.code) || [];
+    const validLocaleCodes = availableLocales?.map(l => l.code) || [];
 
     // Detect locale from URL path using database locale codes
     const localeDetection = detectLocaleFromPath(slugPath, validLocaleCodes);
@@ -295,6 +298,8 @@ export async function fetchPageByPath(
             layers: processedLayers,
           },
           components: [],  // Components already resolved into layers
+          locale: detectedLocale,
+          availableLocales: availableLocales as Locale[] || [],
         };
       }
       return null;
@@ -432,6 +437,8 @@ export async function fetchPageByPath(
               components: [],  // Components already resolved into layers
               collectionItem: enhancedCollectionItem, // Include enhanced collection item for dynamic pages
               collectionFields, // Include collection fields for resolving placeholders
+              locale: detectedLocale,
+              availableLocales: availableLocales as Locale[] || [],
             };
           }
         }
@@ -479,6 +486,8 @@ export async function fetchPageByPath(
         layers: resolvedLayers,
       },
       components: [],  // Components already resolved into layers
+      locale: detectedLocale,
+      availableLocales: availableLocales as Locale[] || [],
     };
   } catch (error) {
     console.error('Failed to fetch page:', error);
@@ -501,6 +510,13 @@ export async function fetchErrorPage(
       console.error('Supabase not configured');
       return null;
     }
+
+    // Get all active locales from the database
+    const { data: availableLocales } = await supabase
+      .from('locales')
+      .select('*')
+      .eq('is_published', isPublished)
+      .is('deleted_at', null);
 
     // Get the error page
     const { data: errorPage } = await supabase
@@ -546,6 +562,8 @@ export async function fetchErrorPage(
         layers: resolvedLayers,
       },
       components,
+      locale: null, // Error pages don't have locale context
+      availableLocales: availableLocales as Locale[] || [],
     };
   } catch (error) {
     console.error('Failed to fetch error page:', error);
@@ -562,13 +580,20 @@ export async function fetchErrorPage(
 export async function fetchHomepage(
   isPublished: boolean,
   paginationContext?: PaginationContext
-): Promise<Pick<PageData, 'page' | 'pageLayers'> | null> {
+): Promise<Pick<PageData, 'page' | 'pageLayers' | 'locale' | 'availableLocales'> | null> {
   try {
     const supabase = await getSupabaseAdmin();
 
     if (!supabase) {
       return null;
     }
+
+    // Get all active locales from the database
+    const { data: availableLocales } = await supabase
+      .from('locales')
+      .select('*')
+      .eq('is_published', isPublished)
+      .is('deleted_at', null);
 
     // Get the homepage
     const { data: homepage } = await supabase
@@ -611,6 +636,8 @@ export async function fetchHomepage(
         ...pageLayers,
         layers: resolvedLayers,
       },
+      locale: null, // Homepage accessed without locale prefix
+      availableLocales: availableLocales as Locale[] || [],
     };
   } catch (error) {
     return null;

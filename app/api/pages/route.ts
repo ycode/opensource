@@ -174,7 +174,6 @@ export async function POST(request: NextRequest) {
       name: 'body',
       classes: '',
       children: [],
-      locked: true,
     };
 
     console.log('[POST /api/pages] Creating initial draft with Body layer...');

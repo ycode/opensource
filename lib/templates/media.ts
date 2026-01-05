@@ -132,7 +132,6 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       name: 'youtube',
       settings: {
         tag: 'iframe',
-        embedUrl: ''
       },
       classes: ['w-full', 'aspect-video'],
       children: [], // Can contain fallback content

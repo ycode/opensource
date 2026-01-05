@@ -42,7 +42,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                         tag: 'h1',
                       },
                       classes: ['text-[48px]', 'font-[700]', 'leading-[1]', 'text-center'],
-                      formattable: true,
+                      restrictions: { editText: true },
                       children: [],
                       design: {
                         typography: {
@@ -66,7 +66,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       name: 'p',
                       customName: 'Paragraph',
                       classes: ['text-[16px]', 'text-center'],
-                      formattable: true,
+                      restrictions: { editText: true },
                       children: [],
                       design: {
                         typography: {

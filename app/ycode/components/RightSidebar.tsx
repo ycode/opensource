@@ -129,6 +129,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const [collectionBindingOpen, setCollectionBindingOpen] = useState(true);
   const [fieldBindingOpen, setFieldBindingOpen] = useState(true);
   const [contentOpen, setContentOpen] = useState(true);
+  const [localeLabelOpen, setLocaleLabelOpen] = useState(true);
   const [interactionOwnerLayerId, setInteractionOwnerLayerId] = useState<string | null>(null);
   const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
   const [interactionResetKey, setInteractionResetKey] = useState(0);
@@ -1596,6 +1597,62 @@ const RightSidebar = React.memo(function RightSidebar({
                     allFields={fields}
                     collections={collections}
                   />
+                </div>
+              </SettingsPanel>
+            )}
+
+            {/* Locale Label Panel - only show for localeSelector layers */}
+            {selectedLayer && selectedLayer.name === 'localeSelector' && (
+              <SettingsPanel
+                title="Locale selector"
+                isOpen={localeLabelOpen}
+                onToggle={() => setLocaleLabelOpen(!localeLabelOpen)}
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-3">
+                    <Label variant="muted">Display</Label>
+                    <div className="col-span-2 *:w-full">
+                      <ToggleGroup
+                        options={[
+                          { label: 'English', value: 'locale' },
+                          { label: 'EN', value: 'code' },
+                        ]}
+                        value={selectedLayer.settings?.locale?.format || 'locale'}
+                        onChange={(value) => {
+                          const format = value as 'locale' | 'code';
+
+                          // Update the localeSelector settings
+                          onLayerUpdate(selectedLayerId!, {
+                            settings: {
+                              ...selectedLayer.settings,
+                              locale: {
+                                format,
+                              },
+                            },
+                          });
+
+                          // Find and update the label child's text
+                          const labelChild = selectedLayer.children?.find(
+                            child => child.key === 'localeSelectorLabel'
+                          );
+
+                          if (labelChild) {
+                            onLayerUpdate(labelChild.id, {
+                              variables: {
+                                ...labelChild.variables,
+                                text: {
+                                  type: 'dynamic_text',
+                                  data: {
+                                    content: format === 'code' ? 'EN' : 'English'
+                                  }
+                                }
+                              }
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </SettingsPanel>
             )}
