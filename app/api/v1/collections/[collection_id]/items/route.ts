@@ -51,10 +51,14 @@ export async function GET(
     const sortByParam = searchParams.get('sort_by');
     const orderByParam = searchParams.get('order_by');
     
-    // Pagination
-    const page = pageParam ? Math.max(1, parseInt(pageParam, 10)) : 1;
-    const perPage = perPageParam ? parseInt(perPageParam, 10) : 100;
-    const limit = limitParam ? parseInt(limitParam, 10) : perPage;
+    // Pagination with validation
+    const page = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
+    const perPage = perPageParam 
+      ? Math.min(Math.max(1, parseInt(perPageParam, 10) || 100), 1000) 
+      : 100;
+    const limit = limitParam 
+      ? Math.min(Math.max(1, parseInt(limitParam, 10) || 100), 1000) 
+      : perPage;
     const offset = (page - 1) * perPage;
 
     // Verify collection exists (published)
@@ -74,14 +78,7 @@ export async function GET(
       fieldSlugToId[slug] = field.id;
     });
 
-    // Get published items with values
-    let { items, total } = await getItemsWithValues(collection_id, true, {
-      limit: limitParam ? limit : perPage,
-      offset,
-      deleted: false,
-    });
-
-    // Apply client-side filtering (filter[field_slug]=value)
+    // Parse filter params first to determine if we need client-side pagination
     const filterParams: Record<string, string> = {};
     searchParams.forEach((value, key) => {
       const match = key.match(/^filter\[(.+)\]$/);
@@ -90,9 +87,23 @@ export async function GET(
       }
     });
 
+    // If sorting or filtering is requested, we need to fetch all items first,
+    // then apply filter/sort, then paginate client-side
+    const needsClientPagination = sortByParam || Object.keys(filterParams).length > 0;
+
+    // Get published items with values
+    let { items, total } = await getItemsWithValues(collection_id, true, {
+      limit: needsClientPagination ? undefined : (limitParam ? limit : perPage),
+      offset: needsClientPagination ? undefined : offset,
+      deleted: false,
+    });
+
+    // Apply client-side filtering (filter[field_slug]=value)
     if (Object.keys(filterParams).length > 0) {
       items = items.filter(item => {
-        for (const [slug, filterValue] of Object.entries(filterParams)) {
+        for (const [key, filterValue] of Object.entries(filterParams)) {
+          // Normalize filter key to lowercase slug for case-insensitive matching
+          const slug = key.toLowerCase().replace(/\s+/g, '-');
           const fieldId = fieldSlugToId[slug];
           if (fieldId) {
             const itemValue = item.values[fieldId];
@@ -103,20 +114,39 @@ export async function GET(
         }
         return true;
       });
-      total = items.length;
     }
 
-    // Apply sorting
+    // Apply sorting (case-insensitive field matching)
     if (sortByParam) {
-      const sortFieldId = fieldSlugToId[sortByParam];
+      const normalizedSort = sortByParam.toLowerCase().replace(/\s+/g, '-');
+      const sortFieldId = fieldSlugToId[normalizedSort];
       if (sortFieldId) {
+        // Get field type for proper sorting (numeric vs string)
+        const sortField = fields.find(f => f.id === sortFieldId);
+        const isNumeric = sortField?.type === 'number';
         const order = orderByParam === 'desc' ? -1 : 1;
+        
         items.sort((a, b) => {
           const aVal = a.values[sortFieldId] || '';
           const bVal = b.values[sortFieldId] || '';
-          return aVal.localeCompare(bVal) * order;
+          
+          if (isNumeric) {
+            // Numeric comparison
+            const aNum = parseFloat(aVal) || 0;
+            const bNum = parseFloat(bVal) || 0;
+            return (aNum - bNum) * order;
+          } else {
+            // String comparison
+            return aVal.localeCompare(bVal) * order;
+          }
         });
       }
+    }
+
+    // Apply pagination AFTER filtering and sorting (if needed)
+    if (needsClientPagination) {
+      total = items.length;
+      items = items.slice(offset, offset + (limitParam ? limit : perPage));
     }
 
     // Transform items to public format with resolved references
@@ -190,32 +220,38 @@ export async function POST(
     const fields = await getFieldsByCollectionId(collection_id, true);
     const fieldSlugToId: Record<string, string> = {};
     
+    // Identify protected fields (cannot be set by user)
+    const protectedFieldKeys = ['id', 'created_at', 'updated_at'];
+    const protectedFieldIds = new Set(
+      fields.filter(f => f.key && protectedFieldKeys.includes(f.key)).map(f => f.id)
+    );
+    
     fields.forEach(field => {
       const slug = field.key || field.name.toLowerCase().replace(/\s+/g, '-');
       fieldSlugToId[slug] = field.id;
     });
 
-    // Map field slugs to IDs (case-insensitive matching)
+    // Map field slugs to IDs (case-insensitive matching, exclude protected fields)
     const valuesToSet: Record<string, string | null> = {};
     for (const [key, value] of Object.entries(body)) {
       const slug = key.toLowerCase().replace(/\s+/g, '-');
       const fieldId = fieldSlugToId[slug];
-      if (fieldId) {
+      if (fieldId && !protectedFieldIds.has(fieldId)) {
         valuesToSet[fieldId] = value as string | null;
       }
     }
 
-    // Auto-generate ID field if exists and not provided
+    // Auto-generate ID field (always, user cannot override)
     const idField = fields.find(f => f.key === 'id');
-    if (idField && !valuesToSet[idField.id]) {
+    if (idField) {
       const maxId = await getMaxIdValue(collection_id, true);
       valuesToSet[idField.id] = String(maxId + 1);
     }
 
-    // Auto-generate timestamps if fields exist
+    // Auto-generate timestamps (always, user cannot override)
     const now = new Date().toISOString();
     const createdAtField = fields.find(f => f.key === 'created_at');
-    if (createdAtField && !valuesToSet[createdAtField.id]) {
+    if (createdAtField) {
       valuesToSet[createdAtField.id] = now;
     }
     const updatedAtField = fields.find(f => f.key === 'updated_at');

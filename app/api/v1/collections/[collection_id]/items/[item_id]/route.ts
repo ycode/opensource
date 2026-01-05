@@ -116,24 +116,32 @@ export async function PUT(
     const fields = await getFieldsByCollectionId(collection_id, true);
     const fieldSlugToId: Record<string, string> = {};
     
+    // Identify protected fields (cannot be modified by user)
+    const protectedFieldKeys = ['id', 'created_at', 'updated_at'];
+    const protectedFieldIds = new Set(
+      fields.filter(f => f.key && protectedFieldKeys.includes(f.key)).map(f => f.id)
+    );
+    
     fields.forEach(field => {
       const slug = field.key || field.name.toLowerCase().replace(/\s+/g, '-');
       fieldSlugToId[slug] = field.id;
     });
 
-    // For PUT, we clear existing values and set new ones
+    // For PUT, we clear existing values and set new ones (except protected fields)
     const valuesToSet: Record<string, string | null> = {};
     
-    // First, set all existing fields to null (to clear them)
+    // First, set all NON-protected fields to null (to clear them)
     for (const field of fields) {
-      valuesToSet[field.id] = null;
+      if (!protectedFieldIds.has(field.id)) {
+        valuesToSet[field.id] = null;
+      }
     }
     
-    // Then set the provided values (case-insensitive matching)
+    // Then set the provided values (case-insensitive matching, exclude protected fields)
     for (const [key, value] of Object.entries(body)) {
       const slug = key.toLowerCase().replace(/\s+/g, '-');
       const fieldId = fieldSlugToId[slug];
-      if (fieldId) {
+      if (fieldId && !protectedFieldIds.has(fieldId)) {
         valuesToSet[fieldId] = value as string | null;
       }
     }
@@ -225,17 +233,23 @@ export async function PATCH(
     const fields = await getFieldsByCollectionId(collection_id, true);
     const fieldSlugToId: Record<string, string> = {};
     
+    // Identify protected fields (cannot be modified by user)
+    const protectedFieldKeys = ['id', 'created_at', 'updated_at'];
+    const protectedFieldIds = new Set(
+      fields.filter(f => f.key && protectedFieldKeys.includes(f.key)).map(f => f.id)
+    );
+    
     fields.forEach(field => {
       const slug = field.key || field.name.toLowerCase().replace(/\s+/g, '-');
       fieldSlugToId[slug] = field.id;
     });
 
-    // For PATCH, we only update provided fields (case-insensitive matching)
+    // For PATCH, we only update provided fields (case-insensitive matching, exclude protected fields)
     const valuesToSet: Record<string, string | null> = {};
     for (const [key, value] of Object.entries(body)) {
       const slug = key.toLowerCase().replace(/\s+/g, '-');
       const fieldId = fieldSlugToId[slug];
-      if (fieldId) {
+      if (fieldId && !protectedFieldIds.has(fieldId)) {
         valuesToSet[fieldId] = value as string | null;
       }
     }
