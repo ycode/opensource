@@ -55,7 +55,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
   liveComponentUpdates,
 }: LeftSidebarProps) {
   const { sidebarTab, urlState } = useEditorUrl();
-  const { openCollection, navigateToLayers, navigateToPage, navigateToCollections } = useEditorActions();
+  const { openCollection, navigateToLayers, navigateToPage, navigateToCollections, navigateToCollection } = useEditorActions();
   const [showElementLibrary, setShowElementLibrary] = useState(false);
   const [elementLibraryTab, setElementLibraryTab] = useState<'elements' | 'layouts' | 'components'>('elements');
   const [assetMessage, setAssetMessage] = useState<string | null>(null);
@@ -406,6 +406,15 @@ const LeftSidebar = React.memo(function LeftSidebar({
                 onLayerSelect(null);
               }
 
+              // Set context IDs SYNCHRONOUSLY to ensure cursor room is valid immediately
+              // This prevents cursor component from unmounting during tab transitions
+              if (newTab === 'cms') {
+                const collectionId = selectedCollectionId || (collections.length > 0 ? collections[0].id : null);
+                if (collectionId) {
+                  setSelectedCollectionId(collectionId);
+                }
+              }
+
               // Defer URL navigation to avoid blocking the UI
               // startTransition marks this as a low-priority update
               startTransition(() => {
@@ -422,7 +431,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
                 } else if (newTab === 'cms') {
                   const collectionId = selectedCollectionId || (collections.length > 0 ? collections[0].id : null);
                   if (collectionId) {
-                    openCollection(collectionId);
+                    navigateToCollection(collectionId); // Only URL navigation, ID already set above
                   } else {
                     navigateToCollections();
                   }

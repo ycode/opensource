@@ -686,22 +686,30 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   // Handle page selection
   const handlePageSelect = useCallback((pageId: string) => {
+    // Clear selection FIRST to release locks on the current page's channel
+    // before switching to the new page's channel
+    setSelectedLayerId(null);
+    
+    // Set the page ID immediately for responsive UI
+    // The URL effect in YCodeBuilderMain uses a ref to track when we're navigating
+    // to prevent reverting to the old page before the URL updates
     setCurrentPageId(pageId);
+    
     setPagePopoverOpen(false);
 
     // Navigate to the same route type but with the new page ID
-    // Query params (including preview) are now preserved automatically by the navigation functions
+    // IMPORTANT: Explicitly pass 'body' as the layer to avoid carrying over invalid layer IDs from the old page
     if (routeType === 'layers') {
-      navigateToLayers(pageId);
+      navigateToLayers(pageId, undefined, undefined, 'body');
     } else if (routeType === 'page' && urlState.isEditing) {
       navigateToPageEdit(pageId);
     } else if (routeType === 'page') {
-      navigateToPage(pageId);
+      navigateToPage(pageId, undefined, undefined, 'body');
     } else {
       // Default to layers if no route type
-      navigateToLayers(pageId);
+      navigateToLayers(pageId, undefined, undefined, 'body');
     }
-  }, [setCurrentPageId, routeType, urlState.isEditing, navigateToLayers, navigateToPage, navigateToPageEdit]);
+  }, [setSelectedLayerId, setCurrentPageId, routeType, urlState.isEditing, navigateToLayers, navigateToPage, navigateToPageEdit]);
 
   // Render page tree recursively
   const renderPageTreeNode = useCallback((node: PageTreeNode, depth: number = 0) => {

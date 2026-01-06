@@ -298,26 +298,31 @@ export default function LeftSidebarPages({
       return;
     }
     
+    // Clear layer selection FIRST to release lock on current page's channel
+    // before switching to the new page's channel
+    const { setSelectedLayerId } = useEditorStore.getState();
+    setSelectedLayerId(null);
+    
     // Immediate UI feedback - selection updates instantly
     setSelectedItemId(pageId);
 
     // Preserve current query params (convert null to undefined)
+    // IMPORTANT: Use 'body' as the layer to avoid carrying over invalid layer IDs from the old page
     const view = urlState.view || undefined;
     const rightTab = urlState.rightTab || undefined;
-    const layerId = urlState.layerId || undefined;
 
     // Defer navigation to avoid blocking UI
     startTransition(() => {
       // Navigate to the same route type but with the new page ID
       if (routeType === 'layers') {
-        navigateToLayers(pageId, view, rightTab, layerId);
+        navigateToLayers(pageId, view, rightTab, 'body');
       } else if (routeType === 'page' && urlState.isEditing) {
         navigateToPageEdit(pageId);
       } else if (routeType === 'page') {
-        navigateToPage(pageId, view, rightTab, layerId);
+        navigateToPage(pageId, view, rightTab, 'body');
       } else {
         // Default to layers if no route type (shouldn't happen, but safe fallback)
-        navigateToLayers(pageId, view, rightTab, layerId);
+        navigateToLayers(pageId, view, rightTab, 'body');
       }
     });
   };
@@ -626,17 +631,18 @@ export default function LeftSidebarPages({
 
   /**
    * Navigate to a page based on current route type
+   * Uses 'body' as the layer to ensure a clean slate on the new page
    */
   const navigateToNextPage = (pageId: string) => {
     if (routeType === 'layers') {
-      navigateToLayers(pageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
+      navigateToLayers(pageId, urlState.view || undefined, urlState.rightTab || undefined, 'body');
     } else if (routeType === 'page' && urlState.isEditing) {
       navigateToPageEdit(pageId);
     } else if (routeType === 'page') {
-      navigateToPage(pageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
+      navigateToPage(pageId, urlState.view || undefined, urlState.rightTab || undefined, 'body');
     } else {
       // Default to layers if no route type
-      navigateToLayers(pageId, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
+      navigateToLayers(pageId, urlState.view || undefined, urlState.rightTab || undefined, 'body');
     }
   };
 

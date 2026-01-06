@@ -110,6 +110,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const collectionItemSheet = useEditorStore((state) => state.collectionItemSheet);
   const closeCollectionItemSheet = useEditorStore((state) => state.closeCollectionItemSheet);
 
+  const selectedCollectionId = useCollectionsStore((state) => state.selectedCollectionId);
+
   const updateLayer = usePagesStore((state) => state.updateLayer);
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const deleteLayer = usePagesStore((state) => state.deleteLayer);
@@ -147,6 +149,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLayersByPageRef = useRef<Map<string, string>>(new Map());
   const previousPageIdRef = useRef<string | null>(null);
+  const previousResourceIdRef = useRef<string | null>(null); // Track URL resourceId changes
   const hasInitializedLayerFromUrlRef = useRef(false);
   const lastUrlLayerIdRef = useRef<string | null>(null);
   const previousIsEditingRef = useRef<boolean | undefined>(undefined);
@@ -537,7 +540,12 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     // Handle route types: layers, page, collection, collections-base, component
     if ((routeType === 'layers' || routeType === 'page') && resourceId) {
       const page = pages.find(p => p.id === resourceId);
-      if (page && currentPageId !== resourceId) {
+      // Only update currentPageId if the URL's resourceId actually changed
+      // This prevents reverting when currentPageId was set manually before URL updates
+      const resourceIdChanged = resourceId !== previousResourceIdRef.current;
+      previousResourceIdRef.current = resourceId;
+      
+      if (page && resourceIdChanged && currentPageId !== resourceId) {
         setCurrentPageId(resourceId);
         // Only select body for layers mode if no layer is specified in URL
         if (routeType === 'layers' && !urlState.layerId) {
@@ -886,6 +894,32 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     if (!Array.isArray(pages)) return undefined;
     return pages.find(p => p.id === currentPageId);
   }, [pages, currentPageId]);
+
+  // Build context-aware cursor room name
+  // Cursors are scoped to the same context (tab + page/collection/component)
+  const cursorRoomName = useMemo(() => {
+    // Component editing takes priority - users editing same component see each other
+    if (editingComponentId) {
+      return `component-${editingComponentId}`;
+    }
+    
+    // CMS tab - users viewing same collection see each other
+    if (activeTab === 'cms' && selectedCollectionId) {
+      return `cms-collection-${selectedCollectionId}`;
+    }
+    
+    // Pages tab - users on same page in Pages view see each other
+    if (activeTab === 'pages' && currentPageId) {
+      return `pages-page-${currentPageId}`;
+    }
+    
+    // Layers tab (default) - users on same page in Layers view see each other
+    if (currentPageId) {
+      return `layers-page-${currentPageId}`;
+    }
+    
+    return null;
+  }, [editingComponentId, activeTab, selectedCollectionId, currentPageId]);
 
   // Exit component edit mode handler
   const handleExitComponentEditMode = useCallback(async () => {
@@ -1677,11 +1711,11 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       </Suspense>
     )}
 
-    {/* Collaboration: Realtime Cursors - only show on canvas view, not CMS or settings */}
-    {user && currentPageId && activeTab !== 'cms' && routeType !== 'settings' && routeType !== 'localization' && (
+    {/* Collaboration: Realtime Cursors - scoped to context (tab + page/collection/component) */}
+    {user && cursorRoomName && routeType !== 'settings' && routeType !== 'localization' && (
       <Suspense fallback={null}>
         <RealtimeCursors
-          roomName={`page-${currentPageId}`}
+          roomName={cursorRoomName}
           username={user.user_metadata?.full_name || user.email?.split('@')[0] || 'Anonymous'}
         />
       </Suspense>

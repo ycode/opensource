@@ -267,18 +267,20 @@ export default function LayerContextMenu({
     const { setEditingComponentId, setSelectedLayerId } = useEditorStore.getState();
     const { loadComponentDraft, getComponentById } = useComponentsStore.getState();
 
-    // Enter edit mode
+    // Clear selection FIRST to release lock on current page's channel
+    // before switching to component's channel
+    setSelectedLayerId(null);
+
+    // Enter edit mode (changes lock channel to component)
     setEditingComponentId(layer.componentId, pageId);
 
     // Load component into draft
     loadComponentDraft(layer.componentId);
 
-    // Select the first (top-level) layer of the component
+    // Select the first (top-level) layer of the component (now on component channel)
     const component = getComponentById(layer.componentId);
     if (component && component.layers && component.layers.length > 0) {
       setSelectedLayerId(component.layers[0].id);
-    } else {
-      setSelectedLayerId(null);
     }
   };
 

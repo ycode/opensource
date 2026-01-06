@@ -1371,18 +1371,20 @@ const RightSidebar = React.memo(function RightSidebar({
       const { loadComponentDraft } = useComponentsStore.getState();
       const { setSelectedLayerId: setLayerId } = useEditorStore.getState();
 
+      // Clear selection FIRST to release lock on current page's channel
+      // before switching to component's channel
+      setLayerId(null);
+
       // Load the component's layers into draft
       loadComponentDraft(component.id);
 
-      // Select the first layer of the component
+      // Open component (updates state + URL, changes lock channel)
+      openComponent(component.id, currentPageId);
+
+      // Select the first layer of the component (now on component channel)
       if (component.layers && component.layers.length > 0) {
         setLayerId(component.layers[0].id);
-      } else {
-        setLayerId(null);
       }
-
-      // Open component (updates state + URL)
-      openComponent(component.id, currentPageId);
     };
 
     return (
