@@ -122,17 +122,23 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
 
   // Determine layout type from current values
   const layoutType =
-      display === 'grid' ? 'grid' :
-        flexDirection === 'column' || flexDirection === 'column-reverse' ? 'rows' :
-          'columns';
+      display === 'hidden' ? 'hidden' :
+        display === 'grid' ? 'grid' :
+          flexDirection === 'column' || flexDirection === 'column-reverse' ? 'rows' :
+            'columns';
 
   const wrapMode = flexWrap === 'wrap' ? 'yes' : 'no';
 
   // Handle layout type change
-  const handleLayoutTypeChange = (type: 'columns' | 'rows' | 'grid') => {
+  const handleLayoutTypeChange = (type: 'columns' | 'rows' | 'grid' | 'hidden') => {
     const updates = [];
 
-    if (type === 'grid') {
+    if (type === 'hidden') {
+      updates.push(
+        { category: 'layout' as const, property: 'display', value: 'hidden' },
+        { category: 'layout' as const, property: 'flexDirection', value: null }
+      );
+    } else if (type === 'grid') {
       updates.push(
         { category: 'layout' as const, property: 'display', value: 'grid' },
         { category: 'layout' as const, property: 'flexDirection', value: null }
@@ -255,7 +261,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
               <div className="col-span-2">
                   <Tabs
                     value={layoutType}
-                    onValueChange={(value) => handleLayoutTypeChange(value as 'columns' | 'rows' | 'grid')}
+                    onValueChange={(value) => handleLayoutTypeChange(value as 'columns' | 'rows' | 'grid' | 'hidden')}
                     className="w-full"
                   >
                       <TabsList className="w-full">
@@ -268,12 +274,15 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                           <TabsTrigger value="grid">
                               <Icon name="grid" />
                           </TabsTrigger>
+                          <TabsTrigger value="hidden">
+                            None
+                          </TabsTrigger>
                       </TabsList>
                   </Tabs>
               </div>
           </div>
 
-          {layoutType !== 'grid' && (
+          {layoutType !== 'grid' && layoutType !== 'hidden' && (
               <>
                   <div className="grid grid-cols-3">
                       <Label variant="muted">Align</Label>
@@ -392,76 +401,78 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
               </div>
           )}
 
-          <div className="grid grid-cols-3 items-start">
-              <Label variant="muted" className="h-8">Gap</Label>
-              <div className="col-span-2 flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                      <InputGroup className="flex-1">
-                          <InputGroupInput
-                            stepper
-                            min="0"
-                            step="1"
-                            disabled={gapModeToggle.mode === 'individual-borders'}
-                            value={gapInput}
-                            onChange={(e) => handleGapChange(e.target.value)}
-                          />
-                      </InputGroup>
-                      <Button
-                        variant={gapModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
-                        size="sm"
-                        onClick={gapModeToggle.handleToggle}
-                      >
-                          <Icon name="link" />
-                      </Button>
+          {layoutType !== 'hidden' && (
+              <div className="grid grid-cols-3 items-start">
+                  <Label variant="muted" className="h-8">Gap</Label>
+                  <div className="col-span-2 flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                          <InputGroup className="flex-1">
+                              <InputGroupInput
+                                stepper
+                                min="0"
+                                step="1"
+                                disabled={gapModeToggle.mode === 'individual-borders'}
+                                value={gapInput}
+                                onChange={(e) => handleGapChange(e.target.value)}
+                              />
+                          </InputGroup>
+                          <Button
+                            variant={gapModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
+                            size="sm"
+                            onClick={gapModeToggle.handleToggle}
+                          >
+                              <Icon name="link" />
+                          </Button>
+                      </div>
+                      {gapModeToggle.mode === 'individual-borders' && (
+                           <div className="col-span-2 grid grid-cols-2 gap-2">
+                           <InputGroup>
+                               <InputGroupAddon>
+                                   <div className="flex">
+                                       <Tooltip>
+                                           <TooltipTrigger>
+                                               <Icon name="horizontalGap" className="size-3" />
+                                           </TooltipTrigger>
+                                           <TooltipContent>
+                                               <p>Horizontal gap</p>
+                                           </TooltipContent>
+                                       </Tooltip>
+                                   </div>
+                               </InputGroupAddon>
+                               <InputGroupInput
+                                 stepper
+                                 min="0"
+                                 step="1"
+                                 value={columnGapInput}
+                                 onChange={(e) => handleColumnGapChange(e.target.value)}
+                               />
+                           </InputGroup>
+                           <InputGroup>
+                               <InputGroupAddon>
+                                   <div className="flex">
+                                       <Tooltip>
+                                           <TooltipTrigger>
+                                               <Icon name="verticalGap" className="size-3" />
+                                           </TooltipTrigger>
+                                           <TooltipContent>
+                                               <p>Vertical gap</p>
+                                           </TooltipContent>
+                                       </Tooltip>
+                                   </div>
+                               </InputGroupAddon>
+                               <InputGroupInput
+                                 stepper
+                                 min="0"
+                                 step="1"
+                                 value={rowGapInput}
+                                 onChange={(e) => handleRowGapChange(e.target.value)}
+                               />
+                           </InputGroup>
+                       </div>
+                      )}
                   </div>
-                  {gapModeToggle.mode === 'individual-borders' && (
-                       <div className="col-span-2 grid grid-cols-2 gap-2">
-                       <InputGroup>
-                           <InputGroupAddon>
-                               <div className="flex">
-                                   <Tooltip>
-                                       <TooltipTrigger>
-                                           <Icon name="horizontalGap" className="size-3" />
-                                       </TooltipTrigger>
-                                       <TooltipContent>
-                                           <p>Horizontal gap</p>
-                                       </TooltipContent>
-                                   </Tooltip>
-                               </div>
-                           </InputGroupAddon>
-                           <InputGroupInput
-                             stepper
-                             min="0"
-                             step="1"
-                             value={columnGapInput}
-                             onChange={(e) => handleColumnGapChange(e.target.value)}
-                           />
-                       </InputGroup>
-                       <InputGroup>
-                           <InputGroupAddon>
-                               <div className="flex">
-                                   <Tooltip>
-                                       <TooltipTrigger>
-                                           <Icon name="verticalGap" className="size-3" />
-                                       </TooltipTrigger>
-                                       <TooltipContent>
-                                           <p>Vertical gap</p>
-                                       </TooltipContent>
-                                   </Tooltip>
-                               </div>
-                           </InputGroupAddon>
-                           <InputGroupInput
-                             stepper
-                             min="0"
-                             step="1"
-                             value={rowGapInput}
-                             onChange={(e) => handleRowGapChange(e.target.value)}
-                           />
-                       </InputGroup>
-                   </div>
-                  )}
               </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-3 items-start">
               <Label variant="muted" className="h-8">Padding</Label>
