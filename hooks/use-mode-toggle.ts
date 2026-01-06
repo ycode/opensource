@@ -58,6 +58,10 @@ export function useModeToggle(config: ModeToggleConfig) {
     else if (unifiedValue && individualValues.length === 0) {
       setMode('all-borders');
     }
+    // If no values at all, default to unified mode (reset state when switching to empty layer)
+    else if (!unifiedValue && individualValues.length === 0) {
+      setMode('all-borders');
+    }
   }, [unifiedProperty, individualProperties, getCurrentValue, mode]);
 
   // Helper function to find most common value
