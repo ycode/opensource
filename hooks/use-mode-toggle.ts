@@ -37,8 +37,8 @@ export function useModeToggle(config: ModeToggleConfig) {
     if (pendingModeChangeRef.current) {
       const targetMode = pendingModeChangeRef.current;
       
-      if (targetMode === 'individual-borders' && individualValues.length > 0) {
-        // Properties are ready, switch to individual mode
+      if (targetMode === 'individual-borders') {
+        // Switch to individual mode (with or without values)
         setMode('individual-borders');
         pendingModeChangeRef.current = null;
       } else if (targetMode === 'all-borders' && unifiedValue && individualValues.length === 0) {
@@ -58,8 +58,9 @@ export function useModeToggle(config: ModeToggleConfig) {
     else if (unifiedValue && individualValues.length === 0) {
       setMode('all-borders');
     }
-    // If no values at all, default to unified mode (reset state when switching to empty layer)
-    else if (!unifiedValue && individualValues.length === 0) {
+    // If no values at all and currently in unified mode, stay in unified mode
+    // Don't auto-switch away from individual mode if user manually toggled to it
+    else if (!unifiedValue && individualValues.length === 0 && mode === 'all-borders') {
       setMode('all-borders');
     }
   }, [unifiedProperty, individualProperties, getCurrentValue, mode]);
