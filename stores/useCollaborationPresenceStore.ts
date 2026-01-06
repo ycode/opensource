@@ -1,39 +1,50 @@
 /**
  * Enhanced Collaboration Presence Store
  * 
- * Manages real-time collaboration state including users, locks, and notifications
+ * Manages real-time collaboration state including users, locks, and notifications.
+ * Uses a unified resource locking system for all lockable resources (layers, collection items, etc.)
  */
 
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { 
   CollaborationUser, 
-  LayerLock, 
   CollaborationState, 
   ActivityNotification 
 } from '../types';
 import { 
   generateUserColor, 
-  getDisplayName, 
-  isLayerLocked, 
   generateNotificationId,
-  formatTimeAgo,
   getUserStatus,
-  compressPresenceData,
-  mergePresenceData
 } from '../lib/collaboration-utils';
 
-interface CollaborationPresenceState extends CollaborationState {
+// Generic resource lock - used for all lockable resources (layers, collection items, etc.)
+export interface ResourceLock {
+  resource_type: string; // 'layer' | 'collection_item' | etc.
+  resource_id: string;
+  user_id: string;
+  acquired_at: number;
+  expires_at: number;
+}
+
+// Helper to create a resource lock key
+export const getResourceLockKey = (type: string, id: string) => `${type}:${id}`;
+
+// Resource type constants
+export const RESOURCE_TYPES = {
+  LAYER: 'layer',
+  COLLECTION_ITEM: 'collection_item',
+} as const;
+
+interface CollaborationPresenceState extends Omit<CollaborationState, 'locks'> {
   notifications: ActivityNotification[];
   selectedUsers: string[]; // Users currently selected in UI
+  resourceLocks: Record<string, ResourceLock>; // Unified resource locks (key = "type:id")
   
   // Actions
   setUsers: (users: Record<string, CollaborationUser>) => void;
   updateUser: (userId: string, updates: Partial<CollaborationUser>) => void;
   removeUser: (userId: string) => void;
-  setLocks: (locks: Record<string, LayerLock>) => void;
-  acquireLock: (layerId: string, userId: string) => void;
-  releaseLock: (layerId: string) => void;
   setConnectionStatus: (connected: boolean) => void;
   setCurrentUser: (userId: string, email: string) => void;
   addNotification: (notification: Omit<ActivityNotification, 'id'>) => void;
@@ -43,20 +54,27 @@ interface CollaborationPresenceState extends CollaborationState {
   deselectUser: (userId: string) => void;
   clearSelection: () => void;
   
+  // Unified resource lock actions
+  acquireResourceLock: (type: string, resourceId: string, userId: string) => void;
+  releaseResourceLock: (type: string, resourceId: string) => void;
+  releaseAllUserLocks: (userId: string) => void;
+  getResourceLock: (type: string, resourceId: string) => ResourceLock | null;
+  isResourceLockedByOther: (type: string, resourceId: string, currentUserId: string) => boolean;
+  
   // Computed getters
   getActiveUsers: () => CollaborationUser[];
   getUsersByLayer: (layerId: string) => CollaborationUser[];
-  getLockedLayers: () => string[];
+  getLockedResources: (type: string) => string[];
   getNotificationsByType: (type: ActivityNotification['type']) => ActivityNotification[];
   isUserOnline: (userId: string) => boolean;
-  canEditLayer: (layerId: string, userId: string) => boolean;
+  canEditResource: (type: string, resourceId: string, userId: string) => boolean;
 }
 
 export const useCollaborationPresenceStore = create<CollaborationPresenceState>()(
   subscribeWithSelector((set, get) => ({
     // Initial state
     users: {},
-    locks: {},
+    resourceLocks: {},
     isConnected: false,
     currentUserId: null,
     currentUserColor: '#3b82f6',
@@ -75,39 +93,69 @@ export const useCollaborationPresenceStore = create<CollaborationPresenceState>(
     
     removeUser: (userId) => set((state) => {
       const { [userId]: removed, ...remainingUsers } = state.users;
-      const { [userId]: removedLock, ...remainingLocks } = state.locks;
+      
+      // Note: We intentionally do NOT remove locks here.
+      // Locks should only be removed by:
+      // 1. Explicit releaseLock broadcast (when user switches layers or closes tab)
+      // 2. Lock expiration (1 hour safety fallback)
+      // This prevents transient presence leave events from clearing valid locks.
       
       return {
-        users: remainingUsers,
-        locks: remainingLocks
+        users: remainingUsers
       };
     }),
     
-    setLocks: (locks) => set({ locks }),
-    
-    // Lock management
-    acquireLock: (layerId, userId) => set((state) => {
-      const lock: LayerLock = {
-        layer_id: layerId,
+    // Unified resource lock management
+    acquireResourceLock: (type, resourceId, userId) => set((state) => {
+      const key = getResourceLockKey(type, resourceId);
+      const lock: ResourceLock = {
+        resource_type: type,
+        resource_id: resourceId,
         user_id: userId,
         acquired_at: Date.now(),
-        expires_at: Date.now() + 30000 // 30 seconds
-      };
-      
-      const newLocks = {
-        ...state.locks,
-        [layerId]: lock
+        expires_at: Date.now() + 3600000 // 1 hour safety fallback
       };
       
       return {
-        locks: newLocks
+        resourceLocks: {
+          ...state.resourceLocks,
+          [key]: lock
+        }
       };
     }),
     
-    releaseLock: (layerId) => set((state) => {
-      const { [layerId]: removed, ...remainingLocks } = state.locks;
-      return { locks: remainingLocks };
+    releaseResourceLock: (type, resourceId) => set((state) => {
+      const key = getResourceLockKey(type, resourceId);
+      const { [key]: removed, ...remainingLocks } = state.resourceLocks;
+      return { resourceLocks: remainingLocks };
     }),
+    
+    releaseAllUserLocks: (userId) => set((state) => {
+      const remainingLocks: Record<string, ResourceLock> = {};
+      Object.entries(state.resourceLocks).forEach(([key, lock]) => {
+        if (lock.user_id !== userId) {
+          remainingLocks[key] = lock;
+        }
+      });
+      return { resourceLocks: remainingLocks };
+    }),
+    
+    getResourceLock: (type, resourceId) => {
+      const key = getResourceLockKey(type, resourceId);
+      const { resourceLocks } = get();
+      const lock = resourceLocks[key];
+      if (!lock || Date.now() > lock.expires_at) return null;
+      return lock;
+    },
+    
+    isResourceLockedByOther: (type, resourceId, currentUserId) => {
+      const key = getResourceLockKey(type, resourceId);
+      const { resourceLocks } = get();
+      const lock = resourceLocks[key];
+      if (!lock) return false;
+      if (Date.now() > lock.expires_at) return false;
+      return lock.user_id !== currentUserId;
+    },
     
     setConnectionStatus: (connected) => set({ isConnected: connected }),
     
@@ -159,9 +207,14 @@ export const useCollaborationPresenceStore = create<CollaborationPresenceState>(
       );
     },
     
-    getLockedLayers: () => {
-      const { locks } = get();
-      return Object.keys(locks);
+    getLockedResources: (type) => {
+      const { resourceLocks } = get();
+      const prefix = `${type}:`;
+      return Object.entries(resourceLocks)
+        .filter(([key, lock]) => 
+          key.startsWith(prefix) && Date.now() <= lock.expires_at
+        )
+        .map(([key]) => key.replace(prefix, ''));
     },
     
     getNotificationsByType: (type) => {
@@ -174,10 +227,13 @@ export const useCollaborationPresenceStore = create<CollaborationPresenceState>(
       return userId in users;
     },
     
-    canEditLayer: (layerId, userId) => {
-      const { locks, currentUserId } = get();
-      const lockInfo = isLayerLocked(layerId, locks, userId);
-      return !lockInfo.isLocked;
+    canEditResource: (type, resourceId, userId) => {
+      const { resourceLocks } = get();
+      const key = getResourceLockKey(type, resourceId);
+      const lock = resourceLocks[key];
+      if (!lock) return true;
+      if (Date.now() > lock.expires_at) return true;
+      return lock.user_id === userId;
     }
   }))
 );
@@ -189,12 +245,13 @@ export const startLockExpirationCheck = () => {
   if (lockCheckInterval) return;
   
   lockCheckInterval = setInterval(() => {
-    const { locks, releaseLock } = useCollaborationPresenceStore.getState();
+    const { resourceLocks, releaseResourceLock } = useCollaborationPresenceStore.getState();
     const now = Date.now();
     
-    Object.entries(locks).forEach(([layerId, lock]) => {
+    // Check all resource locks for expiration
+    Object.entries(resourceLocks).forEach(([key, lock]) => {
       if (now > lock.expires_at) {
-        releaseLock(layerId);
+        releaseResourceLock(lock.resource_type, lock.resource_id);
       }
     });
   }, 1000); // Check every second

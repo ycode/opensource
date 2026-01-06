@@ -535,6 +535,7 @@ export interface CollaborationUser {
   page_id: string;
 }
 
+// Legacy type - use ResourceLock from useCollaborationPresenceStore instead
 export interface LayerLock {
   layer_id: string;
   user_id: string;
@@ -549,9 +550,9 @@ export interface LayerUpdate {
   timestamp: number;
 }
 
+// Base collaboration state - extended in useCollaborationPresenceStore
 export interface CollaborationState {
   users: Record<string, CollaborationUser>;
-  locks: Record<string, LayerLock>;
   isConnected: boolean;
   currentUserId: string | null;
   currentUserColor: string;

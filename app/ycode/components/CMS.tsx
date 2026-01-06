@@ -17,6 +17,9 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEn
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { useCollaborationPresenceStore, getResourceLockKey } from '@/stores/useCollaborationPresenceStore';
+import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
+import { useResourceLock } from '@/hooks/use-resource-lock';
 import { collectionsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { slugify } from '@/lib/collection-utils';
@@ -26,6 +29,8 @@ import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
 import FieldFormPopover from './FieldFormPopover';
 import CollectionItemSheet from './CollectionItemSheet';
+import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import type { CollectionItemWithValues, CollectionField } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -76,6 +81,14 @@ function ReferenceFieldCell({ value, field, referenceItemsCache, fields }: Refer
   return <span className="text-muted-foreground">Loading...</span>;
 }
 
+// Lock info for displaying collaborator badge
+interface ItemLockInfo {
+  isLocked: boolean;
+  ownerUserId?: string;
+  ownerEmail?: string;
+  ownerColor?: string;
+}
+
 // Sortable row component for drag and drop
 interface SortableRowProps {
   item: CollectionItemWithValues;
@@ -83,9 +96,10 @@ interface SortableRowProps {
   children: React.ReactNode;
   onDuplicate: () => void;
   onDelete: () => void;
+  lockInfo?: ItemLockInfo;
 }
 
-function SortableRow({ item, isManualMode, children, onDuplicate, onDelete }: SortableRowProps) {
+function SortableRow({ item, isManualMode, children, onDuplicate, onDelete, lockInfo }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -95,11 +109,13 @@ function SortableRow({ item, isManualMode, children, onDuplicate, onDelete }: So
     isDragging,
   } = useSortable({ id: item.id, disabled: !isManualMode });
 
+  const isLockedByOther = lockInfo?.isLocked;
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
-    cursor: isManualMode ? 'grab' : 'pointer',
+    opacity: isDragging ? 0.5 : isLockedByOther ? 0.7 : 1,
+    cursor: isManualMode ? 'grab' : isLockedByOther ? 'not-allowed' : 'pointer',
   };
 
   return (
@@ -112,9 +128,23 @@ function SortableRow({ item, isManualMode, children, onDuplicate, onDelete }: So
         style={style}
         {...attributes}
         {...(isManualMode ? listeners : {})}
-        className="group border-b hover:bg-secondary/50 transition-colors"
+        className={`group border-b hover:bg-secondary/50 transition-colors ${isLockedByOther ? 'bg-secondary/30' : ''}`}
       >
         {children}
+        {/* Lock indicator - as proper table cell */}
+        <td className="w-10 px-2 text-center">
+          {isLockedByOther && lockInfo && (
+            <CollaboratorBadge
+              collaborator={{
+                userId: lockInfo.ownerUserId || '',
+                email: lockInfo.ownerEmail,
+                color: lockInfo.ownerColor,
+              }}
+              size="sm"
+              tooltipPrefix="Editing by"
+            />
+          )}
+        </td>
       </tr>
     </CollectionItemContextMenu>
   );
@@ -141,6 +171,19 @@ const CMS = React.memo(function CMS() {
     reorderItems,
     searchItems,
   } = useCollectionsStore();
+
+  // Collection collaboration sync
+  const liveCollectionUpdates = useLiveCollectionUpdates();
+  
+  // Item locking for collaboration
+  const itemLock = useResourceLock({
+    resourceType: 'collection_item',
+    channelName: selectedCollectionId ? `collection:${selectedCollectionId}:item_locks` : '',
+  });
+  
+  // Subscribe to resource locks to trigger re-renders when locks change
+  const resourceLocks = useCollaborationPresenceStore((state) => state.resourceLocks);
+  const collaborationUsers = useCollaborationPresenceStore((state) => state.users);
 
   const { urlState, navigateToCollection, navigateToCollectionItem, navigateToNewCollectionItem } = useEditorUrl();
 
@@ -483,6 +526,30 @@ const CMS = React.memo(function CMS() {
     return items;
   }, [collectionItems, selectedCollection?.sorting]);
 
+  // Helper to get lock info for an item
+  const getItemLockInfo = (itemId: string): ItemLockInfo => {
+    const lockKey = getResourceLockKey('collection_item', itemId);
+    const lock = resourceLocks[lockKey];
+    
+    if (!lock || Date.now() > lock.expires_at) {
+      return { isLocked: false };
+    }
+    
+    // Check if locked by current user
+    const currentUserId = useCollaborationPresenceStore.getState().currentUserId;
+    if (lock.user_id === currentUserId) {
+      return { isLocked: false }; // Not locked by "other" - current user can edit
+    }
+    
+    const owner = collaborationUsers[lock.user_id];
+    return {
+      isLocked: true,
+      ownerUserId: lock.user_id,
+      ownerEmail: owner?.email,
+      ownerColor: owner?.color,
+    };
+  };
+
   const handleCreateItem = () => {
     if (selectedCollectionId) {
       // Optimistically open sheet immediately for smooth UX
@@ -495,6 +562,13 @@ const CMS = React.memo(function CMS() {
 
   const handleEditItem = (item: CollectionItemWithValues) => {
     if (selectedCollectionId) {
+      // Check if item is locked by another user
+      const lockInfo = getItemLockInfo(item.id);
+      if (lockInfo.isLocked) {
+        // Item is locked - don't open, user will see the visual lock indicator
+        return;
+      }
+      
       // Optimistically open sheet immediately for smooth UX
       setEditingItem(item);
       setShowItemSheet(true);
@@ -509,6 +583,11 @@ const CMS = React.memo(function CMS() {
     if (confirm('Are you sure you want to delete this item?')) {
       try {
         await deleteItem(selectedCollectionId, itemId);
+        
+        // Broadcast item deletion to other collaborators
+        if (liveCollectionUpdates) {
+          liveCollectionUpdates.broadcastItemDelete(selectedCollectionId, itemId);
+        }
       } catch (error) {
         console.error('Failed to delete item:', error);
       }
@@ -519,7 +598,12 @@ const CMS = React.memo(function CMS() {
     if (!selectedCollectionId) return;
 
     try {
-      await duplicateItem(selectedCollectionId, itemId);
+      const newItem = await duplicateItem(selectedCollectionId, itemId);
+      
+      // Broadcast item creation to other collaborators
+      if (liveCollectionUpdates && newItem) {
+        liveCollectionUpdates.broadcastItemCreate(selectedCollectionId, newItem);
+      }
     } catch (error) {
       console.error('Failed to duplicate item:', error);
     }
@@ -939,6 +1023,7 @@ const CMS = React.memo(function CMS() {
                     isManualMode={isManualMode}
                     onDuplicate={() => handleDuplicateItem(item.id)}
                     onDelete={() => handleDeleteItem(item.id)}
+                    lockInfo={getItemLockInfo(item.id)}
                   >
                     <td
                       className="pl-5 pr-3 py-3 w-12"

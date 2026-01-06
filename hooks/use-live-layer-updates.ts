@@ -25,7 +25,7 @@ function findLayerInDraft(layers: Layer[], layerId: string): Layer | null {
   return null;
 }
 
-interface UseLiveLayerUpdatesReturn {
+export interface UseLiveLayerUpdatesReturn {
   broadcastLayerUpdate: (layerId: string, changes: Partial<Layer>) => void;
   broadcastLayerAdd: (pageId: string, parentLayerId: string | null, layerName: string, newLayer: Layer) => void;
   broadcastLayerDelete: (pageId: string, layerId: string) => void;
@@ -39,11 +39,8 @@ export function useLiveLayerUpdates(
 ): UseLiveLayerUpdatesReturn {
   const { user } = useAuthStore();
   const { updateLayer, draftsByPageId } = usePagesStore();
-  const { 
-    addNotification, 
-    updateUser, 
-    currentUserId 
-  } = useCollaborationPresenceStore();
+  const updateUser = useCollaborationPresenceStore((state) => state.updateUser);
+  const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
   
   const channelRef = useRef<any>(null);
   const isReceivingUpdates = useRef(false);
@@ -79,7 +76,7 @@ export function useLiveLayerUpdates(
         event: 'layer_update',
         payload: update
       });
-    }, 200) // 200ms debounce
+    }, 100) // 100ms debounce - faster sync
   );
   
   // Initialize Supabase channel
@@ -160,20 +157,7 @@ export function useLiveLayerUpdates(
     
     // Update last update time
     lastUpdateTime.current = Date.now();
-    
-    // Only show notification for text content changes, not class changes
-    const isTextContentChange = 'content' in update.changes;
-    if (isTextContentChange) {
-      addNotification({
-        type: 'layer_edit_started',
-        user_id: update.user_id,
-        user_name: 'User', // Would get from user store
-        layer_id: update.layer_id,
-        timestamp: Date.now(),
-        message: `User is editing text in layer ${update.layer_id}`
-      });
-    }
-  }, [currentUserId, addNotification]);
+  }, []);
   
   const handleUserActivity = useCallback((activity: any) => {
     if (!currentUserId || activity.user_id === currentUserId) return;
@@ -186,29 +170,9 @@ export function useLiveLayerUpdates(
   }, [currentUserId, updateUser]);
   
   const handleLockChange = useCallback((lockChange: any) => {
-    if (!currentUserId || lockChange.user_id === currentUserId) return;
-    
-    // Handle lock acquisition/release
-    if (lockChange.action === 'acquire') {
-      addNotification({
-        type: 'layer_edit_started',
-        user_id: lockChange.user_id,
-        user_name: 'User',
-        layer_id: lockChange.layer_id,
-        timestamp: Date.now(),
-        message: `User started editing layer ${lockChange.layer_id}`
-      });
-    } else if (lockChange.action === 'release') {
-      addNotification({
-        type: 'layer_edit_ended',
-        user_id: lockChange.user_id,
-        user_name: 'User',
-        layer_id: lockChange.layer_id,
-        timestamp: Date.now(),
-        message: `User finished editing layer ${lockChange.layer_id}`
-      });
-    }
-  }, [currentUserId, addNotification]);
+    // Lock changes are handled silently - no toast notifications
+    // The lock indicator UI shows lock status visually
+  }, []);
 
   const handleIncomingLayerAdd = useCallback((payload: any) => {
     // Get fresh current user ID from store
@@ -237,17 +201,7 @@ export function useLiveLayerUpdates(
       });
       freshAddLayerWithId(pageId, payload.parent_layer_id, payload.new_layer);
     }
-    
-    // Show notification
-    addNotification({
-      type: 'layer_edit_started',
-      user_id: payload.user_id,
-      user_name: 'User',
-      layer_id: payload.new_layer.id,
-      timestamp: Date.now(),
-      message: `User added a new ${payload.layer_type} layer`
-    });
-  }, [pageId, addNotification]);
+  }, [pageId]);
 
   const handleIncomingLayerDelete = useCallback((payload: any) => {
     // Get fresh current user ID from store
@@ -264,17 +218,7 @@ export function useLiveLayerUpdates(
     if (pageId && payload.page_id === pageId) {
       freshDeleteLayer(pageId, payload.layer_id);
     }
-    
-    // Show notification
-    addNotification({
-      type: 'layer_edit_ended',
-      user_id: payload.user_id,
-      user_name: 'User',
-      layer_id: payload.layer_id,
-      timestamp: Date.now(),
-      message: `User deleted a layer`
-    });
-  }, [pageId, addNotification]);
+  }, [pageId]);
 
   const handleIncomingLayerMove = useCallback((payload: any) => {
     // Get fresh current user ID from store
@@ -291,17 +235,7 @@ export function useLiveLayerUpdates(
     if (pageId && payload.page_id === pageId) {
       freshMoveLayer(pageId, payload.layer_id, payload.target_parent_id, payload.target_index);
     }
-    
-    // Show notification
-    addNotification({
-      type: 'layer_edit_started',
-      user_id: payload.user_id,
-      user_name: 'User',
-      layer_id: payload.layer_id,
-      timestamp: Date.now(),
-      message: `User moved a layer`
-    });
-  }, [pageId, addNotification]);
+  }, [pageId]);
   
   const processUpdateQueue = useCallback(() => {
     // Get fresh pageId from the ref (this will be the current value)
@@ -337,7 +271,7 @@ export function useLiveLayerUpdates(
     
     // Process next update
     if (updateQueue.current.length > 0) {
-      setTimeout(processUpdateQueue, 50); // Small delay to prevent overwhelming
+      setTimeout(processUpdateQueue, 16); // Process at 60fps
     }
   }, []); // No dependencies since we use refs
   
@@ -376,7 +310,12 @@ export function useLiveLayerUpdates(
   }, [currentUserId, updateUser]);
 
   const broadcastLayerAdd = useCallback((pageId: string, parentLayerId: string | null, layerName: string, newLayer: Layer) => {
-    if (!channelRef.current || !currentUserId) {
+    if (!channelRef.current) {
+      console.warn('[COLLAB] Cannot broadcast layer add - channel not ready');
+      return;
+    }
+    if (!currentUserId) {
+      console.warn('[COLLAB] Cannot broadcast layer add - currentUserId not set');
       return;
     }
     

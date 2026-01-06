@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState, useCallback, startTransition, Suspense, lazy } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef, startTransition, Suspense, lazy } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
@@ -26,17 +26,23 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useEditorUrl, useEditorActions } from '@/hooks/use-editor-url';
 import type { EditorTab } from '@/hooks/use-editor-url';
 import { useLayerLocks } from '@/hooks/use-layer-locks';
+import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 
 // 6. Types
 import type { Layer } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
+import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
+import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
+
 interface LeftSidebarProps {
   selectedLayerId: string | null;
   selectedLayerIds?: string[]; // New multi-select support
-  onLayerSelect: (layerId: string) => void;
+  onLayerSelect: (layerId: string | null) => void;
   currentPageId: string | null;
   onPageSelect: (pageId: string) => void;
+  liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
+  liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
 }
 
 const LeftSidebar = React.memo(function LeftSidebar({
@@ -45,6 +51,8 @@ const LeftSidebar = React.memo(function LeftSidebar({
   onLayerSelect,
   currentPageId,
   onPageSelect,
+  liveLayerUpdates,
+  liveComponentUpdates,
 }: LeftSidebarProps) {
   const { sidebarTab, urlState } = useEditorUrl();
   const { openCollection, navigateToLayers, navigateToPage, navigateToCollections } = useEditorActions();
@@ -55,14 +63,6 @@ const LeftSidebar = React.memo(function LeftSidebar({
   const [renameValue, setRenameValue] = useState('');
   const [hoveredCollectionId, setHoveredCollectionId] = useState<string | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-
-  // Local state for instant tab switching - syncs with URL but allows immediate UI feedback
-  const [localActiveTab, setLocalActiveTab] = useState<EditorTab>(sidebarTab);
-
-  // Sync local tab with URL when URL changes (e.g., from navigation or page load)
-  useEffect(() => {
-    setLocalActiveTab(sidebarTab);
-  }, [sidebarTab]);
 
   // Optimize store subscriptions - use selective selectors
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
@@ -76,6 +76,16 @@ const LeftSidebar = React.memo(function LeftSidebar({
 
   const setCurrentPageId = useEditorStore((state) => state.setCurrentPageId);
   const editingComponentId = useEditorStore((state) => state.editingComponentId);
+  const setActiveSidebarTab = useEditorStore((state) => state.setActiveSidebarTab);
+
+  // Local state for instant tab switching - syncs with URL but allows immediate UI feedback
+  const [localActiveTab, setLocalActiveTab] = useState<EditorTab>(sidebarTab);
+
+  // Sync local tab with URL when URL changes (e.g., from navigation or page load)
+  useEffect(() => {
+    setLocalActiveTab(sidebarTab);
+    setActiveSidebarTab(sidebarTab);
+  }, [sidebarTab, setActiveSidebarTab]);
 
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
   const getComponentById = useComponentsStore((state) => state.getComponentById);
@@ -88,8 +98,14 @@ const LeftSidebar = React.memo(function LeftSidebar({
   const updateCollection = useCollectionsStore((state) => state.updateCollection);
   const deleteCollection = useCollectionsStore((state) => state.deleteCollection);
 
-  // Collaboration hooks
+  // Collaboration hooks - re-enabled
   const layerLocks = useLayerLocks();
+  // Store in ref to avoid dependency changes triggering infinite loops
+  const layerLocksRef = useRef(layerLocks);
+  layerLocksRef.current = layerLocks;
+
+  // Collection collaboration sync
+  const liveCollectionUpdates = useLiveCollectionUpdates();
 
   // Use local state for immediate tab switching
   const activeTab = localActiveTab;
@@ -118,8 +134,9 @@ const LeftSidebar = React.memo(function LeftSidebar({
   // Lock-aware layer selection handler
   const handleLayerSelect = useCallback((layerId: string) => {
     // Check if layer is locked by another user
-    const isLocked = layerLocks.isLayerLocked(layerId);
-    const canEdit = layerLocks.canEditLayer(layerId);
+    const locks = layerLocksRef.current;
+    const isLocked = locks.isLayerLocked(layerId);
+    const canEdit = locks.canEditLayer(layerId);
 
     if (isLocked && !canEdit) {
       console.warn(`Layer ${layerId} is locked by another user - cannot select`);
@@ -128,7 +145,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
 
     // Call the original onLayerSelect if not locked
     onLayerSelect(layerId);
-  }, [onLayerSelect, layerLocks]);
+  }, [onLayerSelect]);
 
   const layersForCurrentPage = useMemo(() => {
     // If editing a component, show component layers instead
@@ -245,6 +262,11 @@ const LeftSidebar = React.memo(function LeftSidebar({
         order: collections.length,
       });
 
+      // Broadcast collection creation to other collaborators
+      if (liveCollectionUpdates) {
+        liveCollectionUpdates.broadcastCollectionCreate(newCollection);
+      }
+
       // Update tab via URL navigation (will automatically switch tab)
       // Open collection (updates state + URL with inferred tab)
       openCollection(newCollection.id);
@@ -272,7 +294,14 @@ const LeftSidebar = React.memo(function LeftSidebar({
     }
 
     try {
-      await updateCollection(renamingCollectionId, { name: renameValue.trim() });
+      const updatedName = renameValue.trim();
+      await updateCollection(renamingCollectionId, { name: updatedName });
+      
+      // Broadcast collection update to other collaborators
+      if (liveCollectionUpdates) {
+        liveCollectionUpdates.broadcastCollectionUpdate(renamingCollectionId, { name: updatedName });
+      }
+      
       setRenamingCollectionId(null);
       setRenameValue('');
     } catch (error) {
@@ -295,6 +324,11 @@ const LeftSidebar = React.memo(function LeftSidebar({
 
     try {
       await deleteCollection(collectionId);
+      
+      // Broadcast collection deletion to other collaborators
+      if (liveCollectionUpdates) {
+        liveCollectionUpdates.broadcastCollectionDelete(collectionId);
+      }
     } catch (error) {
       console.error('Failed to delete collection:', error);
       alert('Failed to delete collection. Please try again.');
@@ -361,9 +395,16 @@ const LeftSidebar = React.memo(function LeftSidebar({
             onValueChange={(value) => {
               const newTab = value as EditorTab;
 
-              // Immediately update local state for instant UI feedback
+              // Immediately update local state AND store for instant UI feedback
               setLocalActiveTab(newTab);
+              setActiveSidebarTab(newTab);
               setShowElementLibrary(false);
+
+              // Clear layer selection when switching away from Layers tab
+              // This releases the lock so other users can edit
+              if (newTab === 'pages' || newTab === 'cms') {
+                onLayerSelect(null);
+              }
 
               // Defer URL navigation to avoid blocking the UI
               // startTransition marks this as a low-priority update
@@ -434,6 +475,8 @@ const LeftSidebar = React.memo(function LeftSidebar({
                     onLayerSelect={handleLayerSelect}
                     onReorder={handleLayersReorder}
                     pageId={currentPageId || ''}
+                    liveLayerUpdates={liveLayerUpdates}
+                    liveComponentUpdates={liveComponentUpdates}
                   />
                 )}
               </div>
@@ -585,6 +628,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
             isOpen={showElementLibrary}
             onClose={() => setShowElementLibrary(false)}
             defaultTab={elementLibraryTab}
+            liveLayerUpdates={liveLayerUpdates}
           />
         </Suspense>
       )}

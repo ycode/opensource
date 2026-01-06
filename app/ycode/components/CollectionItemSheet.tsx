@@ -6,7 +6,7 @@
  */
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,8 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
+import { useResourceLock } from '@/hooks/use-resource-lock';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
 import type { CollectionItemWithValues } from '@/types';
 
@@ -52,6 +54,23 @@ export default function CollectionItemSheet({
   const { updateItemInLayerData, refetchLayersForCollection } = useCollectionLayerStore();
   const { updatePageCollectionItem, refetchPageCollectionItem, pages } = usePagesStore();
   const { currentPageId } = useEditorStore();
+  
+  // Collection collaboration sync
+  const liveCollectionUpdates = useLiveCollectionUpdates();
+  
+  // Item locking for collaboration
+  const itemLock = useResourceLock({
+    resourceType: 'collection_item',
+    channelName: collectionId ? `collection:${collectionId}:item_locks` : '',
+  });
+  
+  // Stable ref for lock functions to avoid dependency issues in effects
+  const itemLockRef = useRef(itemLock);
+  useEffect(() => {
+    itemLockRef.current = itemLock;
+  }, [itemLock]);
+  
+  const lockedItemIdRef = useRef<string | null>(null);
 
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
 
@@ -80,6 +99,35 @@ export default function CollectionItemSheet({
       setEditingItem(null);
     }
   }, [itemId, collectionItems]);
+
+  // Acquire/release item lock when sheet opens/closes
+  useEffect(() => {
+    const acquireItemLock = async () => {
+      if (open && itemId && itemId !== 'new') {
+        const acquired = await itemLockRef.current.acquireLock(itemId);
+        if (acquired) {
+          lockedItemIdRef.current = itemId;
+        }
+      }
+    };
+    
+    const releaseItemLock = async () => {
+      if (lockedItemIdRef.current) {
+        await itemLockRef.current.releaseLock(lockedItemIdRef.current);
+        lockedItemIdRef.current = null;
+      }
+    };
+    
+    if (open && itemId && itemId !== 'new') {
+      acquireItemLock();
+    } else {
+      releaseItemLock();
+    }
+    
+    return () => {
+      releaseItemLock();
+    };
+  }, [open, itemId]);
 
   // Reset form when editing item changes
   useEffect(() => {
@@ -156,6 +204,11 @@ export default function CollectionItemSheet({
         // 3. Update in main collections store (API call with optimistic update)
         await updateItem(collectionId, editingItem.id, values);
         
+        // Broadcast item update to other collaborators
+        if (liveCollectionUpdates) {
+          liveCollectionUpdates.broadcastItemUpdate(collectionId, editingItem.id, { values } as any);
+        }
+        
         // 4. Background refetch for collection layers
         setTimeout(() => {
           refetchLayersForCollection(collectionId);
@@ -169,7 +222,12 @@ export default function CollectionItemSheet({
         }
       } else {
         // Create new item (store adds to local state optimistically)
-        await createItem(collectionId, values);
+        const newItem = await createItem(collectionId, values);
+        
+        // Broadcast item creation to other collaborators
+        if (liveCollectionUpdates && newItem) {
+          liveCollectionUpdates.broadcastItemCreate(collectionId, newItem);
+        }
         
         // Refetch to show the new item
         setTimeout(() => {

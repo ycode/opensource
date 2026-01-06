@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { slugify } from '@/lib/collection-utils';
 import type { CollectionField, CollectionItemWithValues } from '@/types';
 
@@ -32,6 +33,7 @@ export default function CollectionItemDialog({
   onSuccess,
 }: CollectionItemDialogProps) {
   const { fields, createItem, updateItem, isLoading } = useCollectionsStore();
+  const liveCollectionUpdates = useLiveCollectionUpdates();
   const [values, setValues] = useState<Record<string, any>>({});
   
   const collectionFields = useMemo(
@@ -62,9 +64,19 @@ export default function CollectionItemDialog({
       if (item) {
         // Update existing item (preserves existing status)
         await updateItem(collectionId, item.id, values);
+        
+        // Broadcast item update to other collaborators
+        if (liveCollectionUpdates) {
+          liveCollectionUpdates.broadcastItemUpdate(collectionId, item.id, { values } as any);
+        }
       } else {
         // Create new item (defaults to 'draft' status in API)
-        await createItem(collectionId, values);
+        const newItem = await createItem(collectionId, values);
+        
+        // Broadcast item creation to other collaborators
+        if (liveCollectionUpdates && newItem) {
+          liveCollectionUpdates.broadcastItemCreate(collectionId, newItem);
+        }
       }
       
       // Reset and close

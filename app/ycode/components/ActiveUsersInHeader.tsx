@@ -6,9 +6,8 @@
  * Compact version of active users display integrated into the header bar
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useCollaborationPresenceStore } from '../../../stores/useCollaborationPresenceStore';
-import { useAuthStore } from '../../../stores/useAuthStore';
 import { getUserInitials, getDisplayName, getUserStatus } from '../../../lib/collaboration-utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -23,12 +22,21 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
   className = '',
   onUserClick
 }) => {
-  const { users, currentUserId, getActiveUsers } = useCollaborationPresenceStore();
-  const { user: currentUser } = useAuthStore();
+  // Use targeted selectors to avoid re-renders on unrelated state changes
+  const users = useCollaborationPresenceStore((state) => state.users);
+  const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
   const [isOpen, setIsOpen] = useState(false);
   
-  const activeUsers = getActiveUsers();
-  const displayUsers = activeUsers.slice(0, 5); // Show up to 5 users in header
+  // Memoize active users computation to avoid creating new arrays on every render
+  const activeUsers = useMemo(() => {
+    const now = Date.now();
+    const ACTIVE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+    return Object.values(users).filter(user => 
+      user.last_active && (now - user.last_active) < ACTIVE_THRESHOLD
+    );
+  }, [users]);
+  
+  const displayUsers = useMemo(() => activeUsers.slice(0, 5), [activeUsers]);
   const hasMoreUsers = activeUsers.length > 5;
   
   const handleUserClick = useCallback((userId: string) => {
@@ -80,9 +88,9 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
         >
           {/* User avatars */}
           <div className="flex -space-x-1">
-            {displayUsers.slice(0, 3).map((user) => (
+            {displayUsers.slice(0, 3).map((user, index) => (
               <div
-                key={user.user_id}
+                key={user.user_id || `user-${index}`}
                 className="w-6 h-6 rounded-full border-2 border-neutral-950 flex items-center justify-center text-xs font-medium"
                 style={{ backgroundColor: user.color }}
               >
@@ -117,9 +125,9 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
           
           {/* User List */}
           <div className="max-h-64 overflow-y-auto space-y-2">
-            {activeUsers.map((user) => (
+            {activeUsers.map((user, index) => (
               <div
-                key={user.user_id}
+                key={user.user_id || `user-list-${index}`}
                 className="flex items-center gap-3 p-2 rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
                 onClick={() => handleUserClick(user.user_id)}
               >

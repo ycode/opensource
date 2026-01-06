@@ -200,6 +200,11 @@ export default function LeftSidebarPages({
           // Default to layers if no route type
           navigateToLayers(result.data.id, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
         }
+
+        // Broadcast page creation to other collaborators
+        if (livePageUpdates && result.data) {
+          livePageUpdates.broadcastPageCreate(result.data);
+        }
       } else if (result.error) {
         console.error('Error creating page:', result.error);
       }
@@ -730,6 +735,11 @@ export default function LeftSidebarPages({
         setSelectedItemId(id);
       }
       return;
+    }
+
+    // Broadcast page deletion to other collaborators
+    if (livePageUpdates) {
+      livePageUpdates.broadcastPageDelete(id);
     }
   };
 

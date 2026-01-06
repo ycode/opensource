@@ -40,13 +40,14 @@ const CollectionItemSheet = lazy(() => import('../components/CollectionItemSheet
 
 // Collaboration components (lazy-loaded)
 const RealtimeCursors = lazy(() => import('@/components/realtime-cursors').then(m => ({ default: m.RealtimeCursors })));
-const ActivityNotifications = lazy(() => import('@/components/collaboration/ActivityNotifications').then(m => ({ default: m.ActivityNotifications })));
 
 // 3. Hooks
 // useCanvasCSS removed - now handled by iframe with Tailwind JIT CDN
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import { useLiveLayerUpdates } from '@/hooks/use-live-layer-updates';
 import { useLivePageUpdates } from '@/hooks/use-live-page-updates';
+import { useLiveComponentUpdates } from '@/hooks/use-live-component-updates';
+import { useLiveLayerStyleUpdates } from '@/hooks/use-live-layer-style-updates';
 
 // 4. Stores
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -55,12 +56,14 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
+import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { useMigrationStore } from '@/stores/useMigrationStore';
-import { useCollaborationPresenceStore } from '@/stores/useCollaborationPresenceStore';
+// Collaboration temporarily disabled
+// import { useCollaborationPresenceStore } from '@/stores/useCollaborationPresenceStore';
 
 // 6. Utils/lib
 import { findHomepage } from '@/lib/page-utils';
@@ -152,19 +155,22 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const liveLayerUpdates = useLiveLayerUpdates(currentPageId);
   // useLivePageUpdates initializes page sync subscriptions by being called
   const _livePageUpdates = useLivePageUpdates();
+  // Component and layer style sync hooks
+  const liveComponentUpdates = useLiveComponentUpdates();
+  const liveLayerStyleUpdates = useLiveLayerStyleUpdates();
 
-  // Collaboration presence
+  // Collaboration presence - set current user for syncing
   const setCurrentCollaborationUser = useCollaborationPresenceStore((state) => state.setCurrentUser);
-
-  // Initialize collaboration presence when user is available
   useEffect(() => {
     if (user) {
       setCurrentCollaborationUser(user.id, user.email || '');
     }
   }, [user, setCurrentCollaborationUser]);
 
-  // Sidebar tab is inferred from route type
-  const activeTab = sidebarTab;
+  // Sidebar tab from store - immediately synced when tab changes in LeftSidebar
+  const activeSidebarTab = useEditorStore((state) => state.activeSidebarTab);
+  // Use store-based tab for instant UI feedback, fallback to URL-based for initial load
+  const activeTab = activeSidebarTab || sidebarTab;
 
   // Combined saving state - either page or component
   const isCurrentlySaving = editingComponentId ? componentIsSaving : isSaving;
@@ -575,7 +581,19 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
       // Check if draft is loaded
       if (draftsByPageId[currentPageId] && !urlState.layerId) {
-        setSelectedLayerId('body');
+        // Check if Body layer is locked by another user before auto-selecting
+        const { resourceLocks, currentUserId } = useCollaborationPresenceStore.getState();
+        const bodyLockKey = getResourceLockKey(RESOURCE_TYPES.LAYER, 'body');
+        const bodyLock = resourceLocks[bodyLockKey];
+        const isBodyLockedByOther = bodyLock && 
+          bodyLock.user_id !== currentUserId && 
+          Date.now() <= bodyLock.expires_at;
+        
+        // Only auto-select Body if it's not locked by someone else
+        if (!isBodyLockedByOther) {
+          setSelectedLayerId('body');
+        }
+        // If Body is locked, keep selection as null - user can click on an unlocked layer
       }
       // If urlState.layerId exists, let the URL initialization effect handle it
     }
@@ -890,6 +908,11 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     if (updatedComponent) {
       // Update all instances across pages with the new layers
       await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
+      
+      // Broadcast component layers update to collaborators
+      if (liveComponentUpdates) {
+        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, updatedComponent.layers);
+      }
     }
 
     // Clear component draft
@@ -905,7 +928,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
     // Clear selection
     setSelectedLayerId(null);
-  }, [setCurrentPageId, setSelectedLayerId]);
+  }, [setCurrentPageId, setSelectedLayerId, liveComponentUpdates]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -1204,10 +1227,20 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             e.preventDefault();
             if (selectedLayerIds.length > 1) {
               // Multi-select: duplicate all
-              duplicateLayersFromStore(currentPageId, selectedLayerIds);
+              const duplicatedLayers = duplicateLayersFromStore(currentPageId, selectedLayerIds);
+              // Broadcast each duplicated layer
+              if (liveLayerUpdates && duplicatedLayers) {
+                duplicatedLayers.forEach(layer => {
+                  liveLayerUpdates.broadcastLayerAdd(currentPageId, null, 'duplicate', layer);
+                });
+              }
             } else if (selectedLayerId) {
               // Single select
-              duplicateLayer(currentPageId, selectedLayerId);
+              const duplicatedLayer = duplicateLayer(currentPageId, selectedLayerId);
+              // Broadcast the duplicated layer
+              if (liveLayerUpdates && duplicatedLayer) {
+                liveLayerUpdates.broadcastLayerAdd(currentPageId, null, 'duplicate', duplicatedLayer);
+              }
             }
           }
         }
@@ -1558,6 +1591,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                 onLayerSelect={setSelectedLayerId}
                 currentPageId={currentPageId}
                 onPageSelect={setCurrentPageId}
+                liveLayerUpdates={liveLayerUpdates}
+                liveComponentUpdates={liveComponentUpdates}
               />
             )}
 
@@ -1574,6 +1609,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                   currentPageId={currentPageId}
                   viewportMode={viewportMode}
                   setViewportMode={setViewportMode}
+                  liveLayerUpdates={liveLayerUpdates}
+                  liveComponentUpdates={liveComponentUpdates}
                 />
 
                 {/* Right Sidebar - Properties (lazy loaded, hidden in preview mode) */}
@@ -1640,8 +1677,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       </Suspense>
     )}
 
-    {/* Collaboration: Realtime Cursors */}
-    {user && currentPageId && routeType !== 'settings' && routeType !== 'localization' && (
+    {/* Collaboration: Realtime Cursors - only show on canvas view, not CMS or settings */}
+    {user && currentPageId && activeTab !== 'cms' && routeType !== 'settings' && routeType !== 'localization' && (
       <Suspense fallback={null}>
         <RealtimeCursors
           roomName={`page-${currentPageId}`}
@@ -1650,17 +1687,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       </Suspense>
     )}
 
-    {/* Collaboration: Activity Notifications */}
-    {user && (
-      <Suspense fallback={null}>
-        <ActivityNotifications
-          position="bottom-right"
-          maxNotifications={5}
-          autoHide={true}
-          hideDelay={5000}
-        />
-      </Suspense>
-    )}
     </>
   );
 }

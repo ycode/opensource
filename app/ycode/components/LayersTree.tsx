@@ -27,15 +27,22 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 // 6. Utils/lib
 import { cn } from '@/lib/utils';
 import { flattenTree, type FlattenedItem } from '@/lib/tree-utilities';
 import { canHaveChildren, getLayerIcon, getLayerName, getCollectionVariable, canMoveLayer } from '@/lib/layer-utils';
 import { hasStyleOverrides } from '@/lib/layer-style-utils';
+import { getUserInitials, getDisplayName } from '@/lib/collaboration-utils';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge';
 
 // 7. Types
 import type { Layer } from '@/types';
+import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
+import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import Icon from '@/components/ui/icon';
 
 interface LayersTreeProps {
@@ -45,6 +52,8 @@ interface LayersTreeProps {
   onLayerSelect: (layerId: string) => void;
   onReorder: (newLayers: Layer[]) => void;
   pageId: string;
+  liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
+  liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
 }
 
 interface LayerRowProps {
@@ -64,6 +73,8 @@ interface LayerRowProps {
   onToggle: (id: string) => void;
   pageId: string;
   selectedLayerId: string | null; // Added for context menu
+  liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
+  liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
 }
 
 // Helper to check if a node is a descendant of another
@@ -98,6 +109,8 @@ function LayerRow({
   onToggle,
   pageId,
   selectedLayerId,
+  liveLayerUpdates,
+  liveComponentUpdates,
 }: LayerRowProps) {
   const { getStyleById } = useLayerStylesStore();
   const { getComponentById } = useComponentsStore();
@@ -153,6 +166,15 @@ function LayerRow({
   // Get icon name from blocks template system
   const layerIcon = getLayerIcon(node.layer);
 
+  // Check if layer is locked by another user (using unified resource locks)
+  const currentUserId = useAuthStore((state) => state.user?.id);
+  const lockKey = getResourceLockKey(RESOURCE_TYPES.LAYER, node.id);
+  const lock = useCollaborationPresenceStore((state) => state.resourceLocks[lockKey]);
+  const lockOwnerUser = useCollaborationPresenceStore((state) => 
+    lock?.user_id ? state.users[lock.user_id] : null
+  );
+  const isLockedByOther = !!(lock && lock.user_id !== currentUserId && Date.now() <= lock.expires_at);
+
   // Check if this is the Body layer (locked)
   const isLocked = node.layer.id === 'body';
 
@@ -163,6 +185,8 @@ function LayerRow({
       isLocked={isLocked}
       onLayerSelect={onSelect}
       selectedLayerId={selectedLayerId}
+      liveLayerUpdates={liveLayerUpdates}
+      liveComponentUpdates={liveComponentUpdates}
     >
       <div className="relative">
         {/* Vertical connector lines - one for each depth level */}
@@ -243,7 +267,9 @@ function LayerRow({
           data-drag-active={isDragActive}
           data-layer-id={node.id}
           className={cn(
-            'group relative flex items-center h-8 outline-none focus:outline-none cursor-pointer',
+            'group relative flex items-center h-8 outline-none focus:outline-none',
+            // Locked by another user - show as non-interactive
+            isLockedByOther ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
             // Conditional rounding based on position in selected group
             // Selected parent: rounded top, rounded bottom ONLY if no visible children
             isSelected && !hasVisibleChildren && 'rounded-lg', // No children: fully rounded
@@ -254,7 +280,7 @@ function LayerRow({
             // Not in group: fully rounded
             !isSelected && !isChildOfSelected && 'rounded-lg text-secondary-foreground/80 dark:text-muted-foreground',
             // Background colors
-            !isDragActive && !isDragging && 'hover:bg-secondary/50',
+            !isDragActive && !isDragging && !isLockedByOther && 'hover:bg-secondary/50',
             // Component instances OR component edit mode use purple, regular layers use blue
             isSelected && !usePurpleStyle && 'bg-primary text-primary-foreground hover:bg-primary',
             isSelected && usePurpleStyle && 'bg-purple-500 text-white hover:bg-purple-500',
@@ -274,6 +300,12 @@ function LayerRow({
             setHoveredLayerId(null);
           }}
           onClick={(e) => {
+            // Block click if layer is locked by another user
+            if (isLockedByOther) {
+              e.stopPropagation();
+              e.preventDefault();
+              return;
+            }
             // Normal click: Select only this layer
             onSelect(node.id);
           }}
@@ -333,6 +365,21 @@ function LayerRow({
               collection_name: finalCollectionName,
             })}
           </span>
+
+          {/* Lock Indicator - show when layer is locked by another user */}
+          {isLockedByOther && (
+            <div className="mr-1 flex-shrink-0">
+              <CollaboratorBadge
+                collaborator={{
+                  userId: lockOwnerUser?.user_id || '',
+                  email: lockOwnerUser?.email,
+                  color: lockOwnerUser?.color,
+                }}
+                size="xs"
+                tooltipPrefix="Editing by"
+              />
+            </div>
+          )}
 
           {/* Style Indicator */}
           {node.layer.styleId && (
@@ -433,6 +480,8 @@ export default function LayersTree({
   onLayerSelect,
   onReorder,
   pageId,
+  liveLayerUpdates,
+  liveComponentUpdates,
 }: LayersTreeProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -1167,6 +1216,8 @@ export default function LayersTree({
               onToggle={handleToggle}
               pageId={pageId}
               selectedLayerId={selectedLayerId}
+              liveLayerUpdates={liveLayerUpdates}
+              liveComponentUpdates={liveComponentUpdates}
             />
           );
         })}

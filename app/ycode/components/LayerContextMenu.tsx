@@ -20,7 +20,8 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useClipboardStore } from '@/stores/useClipboardStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { canHaveChildren, findLayerById, getClassesString, regenerateIdsWithInteractionRemapping, regenerateInteractionIds, canCopyLayer, canDeleteLayer } from '@/lib/layer-utils';
-import { useLiveLayerUpdates } from '@/hooks/use-live-layer-updates';
+import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
+import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import type { Layer } from '@/types';
 import CreateComponentDialog from './CreateComponentDialog';
 
@@ -31,6 +32,8 @@ interface LayerContextMenuProps {
   isLocked?: boolean;
   onLayerSelect?: (layerId: string) => void;
   selectedLayerId?: string | null;
+  liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
+  liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
 }
 
 export default function LayerContextMenu({
@@ -40,12 +43,11 @@ export default function LayerContextMenu({
   isLocked = false,
   onLayerSelect,
   selectedLayerId,
+  liveLayerUpdates,
+  liveComponentUpdates,
 }: LayerContextMenuProps) {
   const [isComponentDialogOpen, setIsComponentDialogOpen] = useState(false);
   const [layerName, setLayerName] = useState('');
-
-  // Collaboration hooks
-  const liveLayerUpdates = useLiveLayerUpdates(pageId);
 
   const copyLayer = usePagesStore((state) => state.copyLayer);
   const deleteLayer = usePagesStore((state) => state.deleteLayer);
@@ -139,17 +141,29 @@ export default function LayerContextMenu({
 
   const handlePasteAfter = () => {
     if (!clipboardLayer) return;
-    pasteAfter(pageId, layerId, clipboardLayer);
+    const pastedLayer = pasteAfter(pageId, layerId, clipboardLayer);
+    // Broadcast the pasted layer
+    if (liveLayerUpdates && pastedLayer) {
+      liveLayerUpdates.broadcastLayerAdd(pageId, null, 'paste', pastedLayer);
+    }
   };
 
   const handlePasteInside = () => {
     if (!clipboardLayer || !canPasteInside) return;
-    pasteInside(pageId, layerId, clipboardLayer);
+    const pastedLayer = pasteInside(pageId, layerId, clipboardLayer);
+    // Broadcast the pasted layer
+    if (liveLayerUpdates && pastedLayer) {
+      liveLayerUpdates.broadcastLayerAdd(pageId, layerId, 'paste', pastedLayer);
+    }
   };
 
   const handleDuplicate = () => {
     if (!canCopy) return;
-    duplicateLayer(pageId, layerId);
+    const duplicatedLayer = duplicateLayer(pageId, layerId);
+    // Broadcast the duplicated layer
+    if (liveLayerUpdates && duplicatedLayer) {
+      liveLayerUpdates.broadcastLayerAdd(pageId, null, 'duplicate', duplicatedLayer);
+    }
   };
 
   const handleDelete = () => {
@@ -237,6 +251,14 @@ export default function LayerContextMenu({
   const handleConfirmCreateComponent = async (componentName: string) => {
     const componentId = await createComponentFromLayer(pageId, layerId, componentName);
     // No need to reload components - createComponentFromLayer already adds it to the store
+    
+    // Broadcast component creation to collaborators
+    if (componentId && liveComponentUpdates) {
+      const component = getComponentById(componentId);
+      if (component) {
+        liveComponentUpdates.broadcastComponentCreate(component);
+      }
+    }
   };
 
   const handleEditMasterComponent = () => {

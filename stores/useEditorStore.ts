@@ -10,6 +10,8 @@ interface HistoryEntry {
   timestamp: number;
 }
 
+export type EditorSidebarTab = 'layers' | 'pages' | 'cms';
+
 interface EditorActions {
   setSelectedLayerId: (id: string | null) => void;
   setSelectedLayerIds: (ids: string[]) => void;
@@ -37,6 +39,7 @@ interface EditorActions {
   closeCollectionItemSheet: () => void;
   setHoveredLayerId: (id: string | null) => void;
   setPreviewMode: (enabled: boolean) => void;
+  setActiveSidebarTab: (tab: EditorSidebarTab) => void;
 }
 
 interface EditorStoreWithHistory extends EditorState {
@@ -58,6 +61,7 @@ interface EditorStoreWithHistory extends EditorState {
   } | null;
   hoveredLayerId: string | null;
   isPreviewMode: boolean;
+  activeSidebarTab: EditorSidebarTab;
 }
 
 type EditorStore = EditorStoreWithHistory & EditorActions;
@@ -86,8 +90,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   collectionItemSheet: null,
   hoveredLayerId: null,
   isPreviewMode: false,
+  activeSidebarTab: 'layers' as EditorSidebarTab,
 
   setSelectedLayerId: (id) => {
+    console.log(`[EDITOR] setSelectedLayerId: ${id}`);
     // Legacy support - also update selectedLayerIds
     set({
       selectedLayerId: id,
@@ -264,4 +270,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setHoveredLayerId: (id) => set({ hoveredLayerId: id }),
 
   setPreviewMode: (enabled) => set({ isPreviewMode: enabled }),
+
+  setActiveSidebarTab: (tab) => set({ activeSidebarTab: tab }),
 }));

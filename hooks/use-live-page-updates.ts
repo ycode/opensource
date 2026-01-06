@@ -31,11 +31,8 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
     updatePage, 
     removePage 
   } = usePagesStore();
-  const { 
-    addNotification, 
-    updateUser, 
-    currentUserId 
-  } = useCollaborationPresenceStore();
+  const updateUser = useCollaborationPresenceStore((state) => state.updateUser);
+  const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
   
   const channelRef = useRef<any>(null);
   const isReceivingUpdates = useRef(false);
@@ -65,7 +62,7 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
         event: 'page_update',
         payload: update
       });
-    }, 200) // 200ms debounce
+    }, 100) // 100ms debounce - faster sync
   );
   
   // Initialize Supabase channel for page updates
@@ -145,19 +142,9 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
     
     // Add the new page to the store
     addPage(page);
-    
-    // Show notification
-    addNotification({
-      type: 'page_created',
-      user_id: freshCurrentUserId,
-      user_name: 'User',
-      page_id: page.id,
-      timestamp: Date.now(),
-      message: `New page "${page.name}" was created`
-    });
-  }, [addPage, addNotification]);
+  }, [addPage]);
   
-  const handleIncomingPageDelete = useCallback((pageId: string) => {
+  const handleIncomingPageDelete = useCallback((payload: { pageId: string }) => {
     // Get fresh current user ID from store
     const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
     
@@ -165,19 +152,9 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
       return;
     }
     
-    // Remove the page from the store
-    removePage(pageId);
-    
-    // Show notification
-    addNotification({
-      type: 'page_deleted',
-      user_id: freshCurrentUserId,
-      user_name: 'User',
-      page_id: pageId,
-      timestamp: Date.now(),
-      message: `Page was deleted`
-    });
-  }, [removePage, addNotification]);
+    // Remove the page from the store (extract pageId from payload object)
+    removePage(payload.pageId);
+  }, [removePage]);
   
   const processUpdateQueue = useCallback(() => {
     if (updateQueue.current.length === 0) {
@@ -204,7 +181,7 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
     
     // Process next update
     if (updateQueue.current.length > 0) {
-      setTimeout(processUpdateQueue, 50); // Small delay to prevent overwhelming
+      setTimeout(processUpdateQueue, 16); // Process at 60fps
     }
   }, []);
   

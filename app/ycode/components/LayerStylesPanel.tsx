@@ -37,6 +37,7 @@ import {
 } from '@/lib/layer-style-utils';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
+import { useLiveLayerStyleUpdates } from '@/hooks/use-live-layer-style-updates';
 
 interface LayerStylesPanelProps {
   layer: Layer | null;
@@ -57,6 +58,9 @@ export default function LayerStylesPanel({
     deleteStyle,
     getStyleById,
   } = useLayerStylesStore();
+  
+  // Real-time style sync
+  const liveLayerStyleUpdates = useLiveLayerStyleUpdates();
 
   const { updateStyleOnLayers, detachStyleFromAllLayers } = usePagesStore();
 
@@ -94,8 +98,13 @@ export default function LayerStylesPanel({
       onLayerUpdate(layer.id, updatedLayer);
       setNewStyleName('');
       setIsCreating(false);
+      
+      // Broadcast style creation to collaborators
+      if (liveLayerStyleUpdates) {
+        liveLayerStyleUpdates.broadcastStyleCreate(style);
+      }
     }
-  }, [layer, newStyleName, currentClasses, currentDesign, createStyle, onLayerUpdate]);
+  }, [layer, newStyleName, currentClasses, currentDesign, createStyle, onLayerUpdate, liveLayerStyleUpdates]);
 
   /**
    * Apply a style to the current layer
@@ -166,7 +175,15 @@ export default function LayerStylesPanel({
     onLayerUpdate(layer.id, {
       styleOverrides: undefined,
     });
-  }, [layer, appliedStyle, currentClasses, currentDesign, updateStyle, updateStyleOnLayers, onLayerUpdate]);
+    
+    // Broadcast style update to collaborators
+    if (liveLayerStyleUpdates) {
+      liveLayerStyleUpdates.broadcastStyleUpdate(appliedStyle.id, {
+        classes: currentClasses,
+        design: currentDesign,
+      });
+    }
+  }, [layer, appliedStyle, currentClasses, currentDesign, updateStyle, updateStyleOnLayers, onLayerUpdate, liveLayerStyleUpdates]);
 
   /**
    * Delete a style
@@ -182,7 +199,12 @@ export default function LayerStylesPanel({
     // Update local state to detach style from all layers
     // No need to reload draft - this updates all drafts instantly
     detachStyleFromAllLayers(styleId);
-  }, [deleteStyle, detachStyleFromAllLayers]);
+    
+    // Broadcast style deletion to collaborators
+    if (liveLayerStyleUpdates) {
+      liveLayerStyleUpdates.broadcastStyleDelete(styleId);
+    }
+  }, [deleteStyle, detachStyleFromAllLayers, liveLayerStyleUpdates]);
 
   /**
    * Rename the applied style
@@ -193,7 +215,12 @@ export default function LayerStylesPanel({
     await updateStyle(appliedStyle.id, { name: renameValue.trim() });
     setIsRenaming(false);
     setRenameValue('');
-  }, [appliedStyle, renameValue, updateStyle]);
+    
+    // Broadcast style rename to collaborators
+    if (liveLayerStyleUpdates) {
+      liveLayerStyleUpdates.broadcastStyleUpdate(appliedStyle.id, { name: renameValue.trim() });
+    }
+  }, [appliedStyle, renameValue, updateStyle, liveLayerStyleUpdates]);
 
   if (!layer) {
     return (

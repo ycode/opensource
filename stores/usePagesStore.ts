@@ -66,10 +66,10 @@ interface PagesActions {
   setDraftLayers: (pageId: string, layers: Layer[]) => void;
   copyLayer: (pageId: string, layerId: string) => Layer | null;
   copyLayers: (pageId: string, layerIds: string[]) => Layer[]; // New batch copy
-  duplicateLayer: (pageId: string, layerId: string) => void;
-  duplicateLayers: (pageId: string, layerIds: string[]) => void; // New batch duplicate
-  pasteAfter: (pageId: string, targetLayerId: string, layerToPaste: Layer) => void;
-  pasteInside: (pageId: string, targetLayerId: string, layerToPaste: Layer) => void;
+  duplicateLayer: (pageId: string, layerId: string) => Layer | null;
+  duplicateLayers: (pageId: string, layerIds: string[]) => Layer[]; // New batch duplicate
+  pasteAfter: (pageId: string, targetLayerId: string, layerToPaste: Layer) => Layer | null;
+  pasteInside: (pageId: string, targetLayerId: string, layerToPaste: Layer) => Layer | null;
 
   // Layer Style Actions
   updateStyleOnLayers: (styleId: string, newClasses: string, newDesign?: Layer['design']) => void;
@@ -1085,11 +1085,11 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   duplicateLayer: (pageId, layerId) => {
     const { draftsByPageId, copyLayer } = get();
     const draft = draftsByPageId[pageId];
-    if (!draft) return;
+    if (!draft) return null;
 
     // Copy the layer
     const layerCopy = copyLayer(pageId, layerId);
-    if (!layerCopy) return;
+    if (!layerCopy) return null;
 
     // Regenerate IDs and remap self-targeted interactions
     const newLayer = regenerateIdsWithInteractionRemapping(layerCopy);
@@ -1115,7 +1115,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     };
 
     const result = findParentAndIndex(draft.layers, layerId);
-    if (!result) return;
+    if (!result) return null;
 
     // Insert the duplicate after the original layer
     const insertAfter = (layers: Layer[], parentLayer: Layer | null, insertIndex: number): Layer[] => {
@@ -1151,6 +1151,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         [pageId]: { ...state.draftsByPageId[pageId], layers: newLayers },
       },
     }));
+
+    return newLayer;
   },
 
   copyLayers: (pageId, layerIds) => {
@@ -1171,7 +1173,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   duplicateLayers: (pageId, layerIds) => {
     const { draftsByPageId, copyLayer } = get();
     const draft = draftsByPageId[pageId];
-    if (!draft || layerIds.length === 0) return;
+    if (!draft || layerIds.length === 0) return [];
+    
+    const duplicatedLayers: Layer[] = [];
 
     // Filter out body and locked layers
     const validIds: string[] = [];
@@ -1197,7 +1201,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     if (validIds.length === 0) {
       console.warn('No valid layers to duplicate');
-      return;
+      return [];
     }
 
     // Duplicate each layer
@@ -1258,6 +1262,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       };
 
       newLayers = insertAfter(newLayers, result.parent, result.index);
+      duplicatedLayers.push(newLayer);
     }
 
     // Use functional update to ensure latest state
@@ -1267,12 +1272,14 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         [pageId]: { ...state.draftsByPageId[pageId], layers: newLayers },
       },
     }));
+
+    return duplicatedLayers;
   },
 
   pasteAfter: (pageId, targetLayerId, layerToPaste) => {
     const { draftsByPageId } = get();
     const draft = draftsByPageId[pageId];
-    if (!draft) return;
+    if (!draft) return null;
 
     // Regenerate IDs and remap self-targeted interactions
     const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(layerToPaste));
@@ -1305,7 +1312,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const result = findParentAndIndex(draft.layers, targetLayerId);
     if (!result) {
       console.error('❌ TARGET LAYER NOT FOUND:', targetLayerId);
-      return;
+      return null;
     }
 
     // Insert after the target layer
@@ -1348,6 +1355,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         [pageId]: { ...state.draftsByPageId[pageId], layers: newLayers },
       },
     }));
+
+    return newLayer;
   },
 
   createPage: async (pageData) => {
@@ -2587,7 +2596,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   pasteInside: (pageId, targetLayerId, layerToPaste) => {
     const { draftsByPageId } = get();
     const draft = draftsByPageId[pageId];
-    if (!draft) return;
+    if (!draft) return null;
 
     // Regenerate IDs and remap self-targeted interactions
     const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(layerToPaste));
@@ -2619,6 +2628,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       },
     }));
 
+    return newLayer;
   },
 
   /**

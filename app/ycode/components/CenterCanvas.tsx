@@ -70,6 +70,9 @@ import { Spinner } from '@/components/ui/spinner';
 
 type ViewportMode = 'desktop' | 'tablet' | 'mobile';
 
+import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
+import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
+
 interface CenterCanvasProps {
   selectedLayerId: string | null;
   currentPageId: string | null;
@@ -77,6 +80,8 @@ interface CenterCanvasProps {
   setViewportMode: (mode: ViewportMode) => void;
   onLayerSelect?: (layerId: string) => void;
   onLayerDeselect?: () => void;
+  liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
+  liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
 }
 
 const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: string }> = {
@@ -92,6 +97,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
   setViewportMode,
   onLayerSelect,
   onLayerDeselect,
+  liveLayerUpdates,
+  liveComponentUpdates,
 }: CenterCanvasProps) {
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
   const [iframeReady, setIframeReady] = useState(false);
@@ -620,6 +627,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (updatedComponent) {
       // Update all instances across pages
       await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
+      
+      // Broadcast component layers update to collaborators
+      if (liveComponentUpdates) {
+        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, updatedComponent.layers);
+      }
     }
 
     // Clear component draft
@@ -649,7 +661,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
     // Clear selection
     setSelectedLayerId(null);
-  }, [editingComponentId, returnToPageId, pages, setSelectedLayerId, navigateToLayers]);
+  }, [editingComponentId, returnToPageId, pages, setSelectedLayerId, navigateToLayers, liveComponentUpdates]);
 
   // Initialize all folders as collapsed on mount (including virtual error pages folder)
   useEffect(() => {
@@ -1664,7 +1676,28 @@ const CenterCanvas = React.memo(function CenterCanvas({
                                 <Button
                                   onClick={() => {
                                     // Always add inside Body container
-                                    addLayerFromTemplate(currentPageId, 'body', 'div');
+                                    const result = addLayerFromTemplate(currentPageId, 'body', 'div');
+                                    if (result && liveLayerUpdates) {
+                                      // Get FRESH state and find actual parent
+                                      const freshDraft = usePagesStore.getState().draftsByPageId[currentPageId];
+                                      if (freshDraft) {
+                                        const findLayerWithParent = (layers: Layer[], id: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null => {
+                                          for (const l of layers) {
+                                            if (l.id === id) return { layer: l, parent };
+                                            if (l.children) {
+                                              const found = findLayerWithParent(l.children, id, l);
+                                              if (found) return found;
+                                            }
+                                          }
+                                          return null;
+                                        };
+                                        const found = findLayerWithParent(freshDraft.layers, result.newLayerId);
+                                        if (found?.layer) {
+                                          const actualParentId = found.parent?.id || null;
+                                          liveLayerUpdates.broadcastLayerAdd(currentPageId, actualParentId, 'div', found.layer);
+                                        }
+                                      }
+                                    }
                                     setShowAddBlockPanel(false);
                                   }}
                                   variant="ghost"
@@ -1682,7 +1715,28 @@ const CenterCanvas = React.memo(function CenterCanvas({
                                 <Button
                                   onClick={() => {
                                     // Always add inside Body container
-                                    addLayerFromTemplate(currentPageId, 'body', 'heading');
+                                    const result = addLayerFromTemplate(currentPageId, 'body', 'heading');
+                                    if (result && liveLayerUpdates) {
+                                      // Get FRESH state and find actual parent
+                                      const freshDraft = usePagesStore.getState().draftsByPageId[currentPageId];
+                                      if (freshDraft) {
+                                        const findLayerWithParent = (layers: Layer[], id: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null => {
+                                          for (const l of layers) {
+                                            if (l.id === id) return { layer: l, parent };
+                                            if (l.children) {
+                                              const found = findLayerWithParent(l.children, id, l);
+                                              if (found) return found;
+                                            }
+                                          }
+                                          return null;
+                                        };
+                                        const found = findLayerWithParent(freshDraft.layers, result.newLayerId);
+                                        if (found?.layer) {
+                                          const actualParentId = found.parent?.id || null;
+                                          liveLayerUpdates.broadcastLayerAdd(currentPageId, actualParentId, 'heading', found.layer);
+                                        }
+                                      }
+                                    }
                                     setShowAddBlockPanel(false);
                                   }}
                                   variant="ghost"
@@ -1700,7 +1754,28 @@ const CenterCanvas = React.memo(function CenterCanvas({
                                 <Button
                                   onClick={() => {
                                     // Always add inside Body container
-                                    addLayerFromTemplate(currentPageId, 'body', 'p');
+                                    const result = addLayerFromTemplate(currentPageId, 'body', 'p');
+                                    if (result && liveLayerUpdates) {
+                                      // Get FRESH state and find actual parent
+                                      const freshDraft = usePagesStore.getState().draftsByPageId[currentPageId];
+                                      if (freshDraft) {
+                                        const findLayerWithParent = (layers: Layer[], id: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null => {
+                                          for (const l of layers) {
+                                            if (l.id === id) return { layer: l, parent };
+                                            if (l.children) {
+                                              const found = findLayerWithParent(l.children, id, l);
+                                              if (found) return found;
+                                            }
+                                          }
+                                          return null;
+                                        };
+                                        const found = findLayerWithParent(freshDraft.layers, result.newLayerId);
+                                        if (found?.layer) {
+                                          const actualParentId = found.parent?.id || null;
+                                          liveLayerUpdates.broadcastLayerAdd(currentPageId, actualParentId, 'p', found.layer);
+                                        }
+                                      }
+                                    }
                                     setShowAddBlockPanel(false);
                                   }}
                                   variant="ghost"

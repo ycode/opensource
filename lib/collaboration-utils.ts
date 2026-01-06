@@ -6,19 +6,32 @@
 
 import type { CollaborationUser } from '../types';
 
+// Curated collaboration colors that match the project's design system
+const COLLABORATION_COLORS = [
+  '#8b5cf6', // violet-500 (matches component purple)
+  '#3b82f6', // blue-500 (matches primary/selection)
+  '#14b8a6', // teal-500 (matches interactions)
+  '#10b981', // emerald-500 (fresh green)
+  '#f59e0b', // amber-500 (warm accent)
+  '#ec4899', // pink-500 (vibrant contrast)
+  '#06b6d4', // cyan-500 (cool blue)
+  '#6366f1', // indigo-500 (deep purple-blue)
+];
+
 /**
  * Generate a consistent color for a user based on their ID
+ * Uses a curated palette that matches the project's design
  */
 export function generateUserColor(userId: string): string {
-  // Use a simple hash to generate consistent colors
+  // Use a simple hash to get consistent index
   let hash = 0;
   for (let i = 0; i < userId.length; i++) {
     hash = userId.charCodeAt(i) + ((hash << 5) - hash);
   }
   
-  // Convert to HSL for better color distribution
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 70%, 50%)`;
+  // Pick from curated palette
+  const index = Math.abs(hash) % COLLABORATION_COLORS.length;
+  return COLLABORATION_COLORS[index];
 }
 
 /**

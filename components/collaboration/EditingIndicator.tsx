@@ -4,10 +4,9 @@
  * Shows visual indicators when users are actively editing text layers
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { useCollaborationPresenceStore } from '../../stores/useCollaborationPresenceStore';
 import { getDisplayName } from '../../lib/collaboration-utils';
-import type { CollaborationUser } from '../../types';
 
 interface EditingIndicatorProps {
   layerId: string;
@@ -24,14 +23,15 @@ export const EditingIndicator: React.FC<EditingIndicatorProps> = ({
   showTypingText = true,
   typingText = 'is typing...'
 }) => {
-  const { users, getUsersByLayer } = useCollaborationPresenceStore();
-  const [editingUsers, setEditingUsers] = useState<CollaborationUser[]>([]);
+  // Use targeted selector - only subscribe to users object
+  const users = useCollaborationPresenceStore((state) => state.users);
   
-  useEffect(() => {
-    const usersOnLayer = getUsersByLayer(layerId);
-    const activeEditors = usersOnLayer.filter(user => user.is_editing);
-    setEditingUsers(activeEditors);
-  }, [layerId, getUsersByLayer, users]);
+  // Memoize the editing users computation to avoid creating new arrays on every render
+  const editingUsers = useMemo(() => {
+    return Object.values(users).filter(
+      user => user.selected_layer_id === layerId && user.is_editing
+    );
+  }, [users, layerId]);
   
   const getEditingText = useCallback(() => {
     if (editingUsers.length === 0) return '';
@@ -57,7 +57,7 @@ export const EditingIndicator: React.FC<EditingIndicatorProps> = ({
       <div className="flex -space-x-1">
         {editingUsers.slice(0, 3).map((user, index) => (
           <div
-            key={user.user_id}
+            key={user.user_id || `editor-${index}`}
             className={`w-6 h-6 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-xs font-medium text-white ${
               showPulse ? 'animate-pulse' : ''
             }`}

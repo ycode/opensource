@@ -146,8 +146,11 @@ const RightSidebar = React.memo(function RightSidebar({
   const setActiveInteraction = useEditorStore((state) => state.setActiveInteraction);
   const clearActiveInteraction = useEditorStore((state) => state.clearActiveInteraction);
 
-  // Collaboration hooks
+  // Collaboration hooks - re-enabled
   const layerLocks = useLayerLocks();
+  // Store in ref to avoid dependency changes triggering infinite loops
+  const layerLocksRef = useRef(layerLocks);
+  layerLocksRef.current = layerLocks;
 
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const pages = usePagesStore((state) => state.pages);
@@ -417,28 +420,32 @@ const RightSidebar = React.memo(function RightSidebar({
   const previousLayerIdRef = useRef<string | null>(null);
 
   // Acquire lock when layer is selected, release when deselected
+  // Works for both page layers and component layers
+  // 
+  // Note: We only depend on selectedLayerId, not editingComponentId.
+  // The channelName change is handled internally by useLayerLocks/useResourceLock.
+  // We don't want to release/re-acquire locks just because editingComponentId changed.
   useEffect(() => {
     const prevLayerId = previousLayerIdRef.current;
+    const locks = layerLocksRef.current;
 
     // Release lock on previously selected layer
     if (prevLayerId && prevLayerId !== selectedLayerId) {
-      layerLocks.releaseLock(prevLayerId);
+      locks.releaseLock(prevLayerId);
     }
 
-    // Acquire lock on newly selected layer (only if not editing a component)
-    if (selectedLayerId && !editingComponentId) {
-      layerLocks.acquireLock(selectedLayerId);
+    // Acquire lock on newly selected layer (for both pages and components)
+    if (selectedLayerId) {
+      locks.acquireLock(selectedLayerId);
     }
 
     previousLayerIdRef.current = selectedLayerId;
 
-    // Release lock on unmount
-    return () => {
-      if (previousLayerIdRef.current) {
-        layerLocks.releaseLock(previousLayerIdRef.current);
-      }
-    };
-  }, [selectedLayerId, editingComponentId, layerLocks]);
+    // No cleanup here - locks are released:
+    // 1. When switching to a different layer (handled above)
+    // 2. When switching tabs (handled in LeftSidebar)
+    // 3. When page unloads (handled in useResourceLock)
+  }, [selectedLayerId]); // Only selectedLayerId - channel changes are handled internally
 
   // Get default heading tag based on layer type/name
   const getDefaultHeadingTag = (layer: Layer | null): string => {

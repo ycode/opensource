@@ -5,8 +5,11 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import LayerLockIndicator from '@/components/collaboration/LayerLockIndicator';
 import EditingIndicator from '@/components/collaboration/EditingIndicator';
-import { useLayerLocks } from '@/hooks/use-layer-locks';
+import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 import type { Layer, Locale } from '@/types';
+import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
+import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
 import { isFieldVariable, isAssetVariable, isDynamicTextVariable, getVariableStringValue, getDynamicTextContent } from '@/lib/variable-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
@@ -36,6 +39,8 @@ interface LayerRendererProps {
   currentLocale?: Locale | null;
   availableLocales?: Locale[];
   localeSelectorFormat?: 'locale' | 'code'; // Format for locale selector label (inherited from parent)
+  liveLayerUpdates?: UseLiveLayerUpdatesReturn | null; // For collaboration broadcasts
+  liveComponentUpdates?: UseLiveComponentUpdatesReturn | null; // For component collaboration broadcasts
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -55,6 +60,8 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   currentLocale,
   availableLocales = [],
   localeSelectorFormat,
+  liveLayerUpdates,
+  liveComponentUpdates,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -127,6 +134,8 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         currentLocale={currentLocale}
         availableLocales={availableLocales}
         localeSelectorFormat={localeSelectorFormat}
+        liveLayerUpdates={liveLayerUpdates}
+        liveComponentUpdates={liveComponentUpdates}
       />
     );
   };
@@ -160,6 +169,8 @@ const LayerItem: React.FC<{
   currentLocale?: Locale | null;
   availableLocales?: Locale[];
   localeSelectorFormat?: 'locale' | 'code';
+  liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
+  liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
 }> = ({
   layer,
   isEditMode,
@@ -181,6 +192,8 @@ const LayerItem: React.FC<{
   currentLocale,
   availableLocales,
   localeSelectorFormat,
+  liveLayerUpdates,
+  liveComponentUpdates,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isEditing = editingLayerId === layer.id;
@@ -192,9 +205,12 @@ const LayerItem: React.FC<{
     htmlTag = 'div';
   }
 
-  // Get layer lock status (collaboration feature)
-  const { isLayerLocked, canEditLayer } = useLayerLocks();
-  const isLockedByOther = isLayerLocked(layer.id) && !canEditLayer(layer.id);
+  // Collaboration layer locking - use unified resource lock system
+  const currentUserId = useAuthStore((state) => state.user?.id);
+  const lockKey = getResourceLockKey(RESOURCE_TYPES.LAYER, layer.id);
+  const lock = useCollaborationPresenceStore((state) => state.resourceLocks[lockKey]);
+  // Check if locked by another user (only compute when lock exists)
+  const isLockedByOther = !!(lock && lock.user_id !== currentUserId && Date.now() <= lock.expires_at);
   const classesString = getClassesString(layer);
   const effectiveCollectionItemData = collectionItemData || pageCollectionItemData || undefined;
 
@@ -397,7 +413,7 @@ const LayerItem: React.FC<{
     isSelected && !isLockedByOther && 'outline outline-2 outline-blue-500 outline-offset-1',
     isDragging && 'opacity-30 outline-none',
     showProjection && 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10',
-    isLockedByOther && 'opacity-50 grayscale-[50%] pointer-events-none select-none filter brightness-90'
+    isLockedByOther && 'opacity-90 pointer-events-none select-none'
   ) : classesString;
 
   // Check if layer should be hidden (hide completely in both edit mode and public pages)
@@ -593,6 +609,7 @@ const LayerItem: React.FC<{
               currentLocale={currentLocale}
               availableLocales={availableLocales}
               localeSelectorFormat={localeSelectorFormat}
+              liveLayerUpdates={liveLayerUpdates}
             />
           )}
         </Tag>
@@ -651,14 +668,6 @@ const LayerItem: React.FC<{
         // Show empty state with the layer design
         return (
           <Tag {...elementProps}>
-            {/* Layer Lock Indicator */}
-            {isLockedByOther && (
-              <LayerLockIndicator
-                layerId={layer.id}
-                layerName={layer.name || htmlTag}
-                className="absolute inset-0 z-10"
-              />
-            )}
             {/* Selection Badge */}
             {isSelected && !isEditing && (
               <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
@@ -682,14 +691,6 @@ const LayerItem: React.FC<{
               data-collection-item-id={item.id}
               data-layer-id={layer.id} // Keep same layer ID for all instances
             >
-              {/* Layer Lock Indicator - only show on first item */}
-              {index === 0 && isLockedByOther && (
-                <LayerLockIndicator
-                  layerId={layer.id}
-                  layerName={layer.name || htmlTag}
-                  className="absolute inset-0 z-10"
-                />
-              )}
               {/* Selection Badge - only show on first item */}
               {index === 0 && isSelected && !isEditing && (
                 <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
@@ -716,6 +717,7 @@ const LayerItem: React.FC<{
                   hiddenLayerIds={hiddenLayerIds}
                   currentLocale={currentLocale}
                   availableLocales={availableLocales}
+                  liveLayerUpdates={liveLayerUpdates}
                 />
               )}
             </Tag>
@@ -757,6 +759,7 @@ const LayerItem: React.FC<{
               currentLocale={currentLocale}
               availableLocales={availableLocales}
               localeSelectorFormat={format}
+              liveLayerUpdates={liveLayerUpdates}
             />
           )}
 
@@ -774,29 +777,20 @@ const LayerItem: React.FC<{
     // Regular elements with text and/or children
     return (
       <Tag {...elementProps}>
-        {/* Layer Lock Indicator */}
-        {isLockedByOther && (
-          <LayerLockIndicator
-            layerId={layer.id}
-            layerName={layer.name || htmlTag}
-            className="absolute inset-0 z-10"
-          />
-        )}
-
-        {/* Editing Indicator for text layers */}
-        {textEditable && isEditMode && (
-          <EditingIndicator
-            layerId={layer.id}
-            className="absolute top-1 left-1 z-20"
-          />
-        )}
-
         {/* Selection Badge */}
         {isEditMode && isSelected && !isEditing && (
           <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
             {htmlTag.charAt(0).toUpperCase() + htmlTag.slice(1)} Selected
             {textEditable && <span className="ml-2 opacity-75">• Double-click to edit</span>}
           </span>
+        )}
+
+        {/* Collaboration indicators - only show in edit mode */}
+        {isEditMode && isLockedByOther && (
+          <LayerLockIndicator layerId={layer.id} layerName={layer.name} />
+        )}
+        {isEditMode && isSelected && !isLockedByOther && (
+          <EditingIndicator layerId={layer.id} className="absolute -top-8 right-0 z-20" />
         )}
 
         {textContent && textContent}
@@ -820,6 +814,7 @@ const LayerItem: React.FC<{
             currentLocale={currentLocale}
             availableLocales={availableLocales}
             localeSelectorFormat={localeSelectorFormat}
+            liveLayerUpdates={liveLayerUpdates}
           />
         )}
       </Tag>
@@ -839,6 +834,8 @@ const LayerItem: React.FC<{
         isLocked={isLocked}
         onLayerSelect={onLayerClick}
         selectedLayerId={selectedLayerId}
+        liveLayerUpdates={liveLayerUpdates}
+        liveComponentUpdates={liveComponentUpdates}
       >
         {content}
       </LayerContextMenu>
