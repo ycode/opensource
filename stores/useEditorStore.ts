@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { EditorState, UIState } from '../types';
-import type { Layer, Breakpoint } from '../types';
+import type { Layer, Breakpoint, Asset } from '../types';
 
 interface HistoryEntry {
   pageId: string;
@@ -37,6 +37,8 @@ interface EditorActions {
   closeCollectionItemSheet: () => void;
   setHoveredLayerId: (id: string | null) => void;
   setPreviewMode: (enabled: boolean) => void;
+  openFileManager: (onSelect?: ((asset: Asset) => void) | null) => void;
+  closeFileManager: () => void;
 }
 
 interface EditorStoreWithHistory extends EditorState {
@@ -58,6 +60,10 @@ interface EditorStoreWithHistory extends EditorState {
   } | null;
   hoveredLayerId: string | null;
   isPreviewMode: boolean;
+  fileManager: {
+    open: boolean;
+    onSelect: ((asset: Asset) => void) | null;
+  };
 }
 
 type EditorStore = EditorStoreWithHistory & EditorActions;
@@ -86,6 +92,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   collectionItemSheet: null,
   hoveredLayerId: null,
   isPreviewMode: false,
+  fileManager: {
+    open: false,
+    onSelect: null,
+  },
 
   setSelectedLayerId: (id) => {
     // Legacy support - also update selectedLayerIds
@@ -264,4 +274,18 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setHoveredLayerId: (id) => set({ hoveredLayerId: id }),
 
   setPreviewMode: (enabled) => set({ isPreviewMode: enabled }),
+
+  openFileManager: (onSelect) => set({
+    fileManager: {
+      open: true,
+      onSelect: onSelect ?? null,
+    },
+  }),
+
+  closeFileManager: () => set({
+    fileManager: {
+      open: false,
+      onSelect: null,
+    },
+  }),
 }));

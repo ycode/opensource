@@ -269,11 +269,21 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   useEffect(() => {
     if (!editor) return;
 
-    const proseMirror = editor.view.dom;
-    const paragraph = proseMirror?.querySelector('p');
+    try {
+      // Check if view exists and is accessible
+      if (!editor.view) return;
 
-    if (paragraph) {
-      paragraph.setAttribute('data-placeholder', placeholder);
+      const proseMirror = editor.view.dom;
+      if (!proseMirror) return;
+
+      const paragraph = proseMirror.querySelector('p');
+      if (paragraph) {
+        paragraph.setAttribute('data-placeholder', placeholder);
+      }
+    } catch (error) {
+      // Silently ignore if editor view is not ready
+      // This can happen during React strict mode double-mounting
+      return;
     }
   }, [editor, placeholder]);
 

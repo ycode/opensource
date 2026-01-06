@@ -10,22 +10,34 @@ export interface CreateAssetData {
   mime_type: string;
   width?: number;
   height?: number;
+  asset_folder_id?: string | null;
 }
 
 /**
  * Get all assets
+ * @param folderId - Optional folder ID to filter assets (null for root folder, undefined for all assets)
  */
-export async function getAllAssets(): Promise<Asset[]> {
+export async function getAllAssets(folderId?: string | null): Promise<Asset[]> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
     throw new Error('Supabase not configured');
   }
 
-  const { data, error } = await client
+  let query = client
     .from('assets')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .select('*');
+
+  // Filter by folder if specified
+  if (folderId !== undefined) {
+    if (folderId === null) {
+      query = query.is('asset_folder_id', null);
+    } else {
+      query = query.eq('asset_folder_id', folderId);
+    }
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) {
     throw new Error(`Failed to fetch assets: ${error.message}`);
@@ -78,6 +90,35 @@ export async function createAsset(assetData: CreateAssetData): Promise<Asset> {
 
   if (error) {
     throw new Error(`Failed to create asset: ${error.message}`);
+  }
+
+  return data;
+}
+
+/**
+ * Update asset
+ */
+export interface UpdateAssetData {
+  filename?: string;
+  asset_folder_id?: string | null;
+}
+
+export async function updateAsset(id: string, assetData: UpdateAssetData): Promise<Asset> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  const { data, error } = await client
+    .from('assets')
+    .update(assetData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update asset: ${error.message}`);
   }
 
   return data;

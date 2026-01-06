@@ -7,6 +7,8 @@ import { getAllStyles } from '@/lib/repositories/layerStyleRepository';
 import { getAllSettings } from '@/lib/repositories/settingsRepository';
 import { getAllCollections } from '@/lib/repositories/collectionRepository';
 import { getAllLocales } from '@/lib/repositories/localeRepository';
+import { getAllAssets } from '@/lib/repositories/assetRepository';
+import { getAllAssetFolders } from '@/lib/repositories/assetFolderRepository';
 
 /**
  * GET /api/editor/init
@@ -19,11 +21,13 @@ import { getAllLocales } from '@/lib/repositories/localeRepository';
  * - All settings
  * - All collections
  * - All locales
+ * - All assets
+ * - All asset folders
  */
 export async function GET() {
   try {
     // Load all data in parallel (only drafts for editor)
-    const [pages, drafts, folders, components, styles, settings, collections, locales] = await Promise.all([
+    const [pages, drafts, folders, components, styles, settings, collections, locales, assets, assetFolders] = await Promise.all([
       getAllDraftPages(),
       getAllDraftLayers(),
       getAllPageFolders({ is_published: false }),
@@ -32,6 +36,8 @@ export async function GET() {
       getAllSettings(),
       getAllCollections(),
       getAllLocales(),
+      getAllAssets(),
+      getAllAssetFolders(false),
     ]);
 
     return NextResponse.json({
@@ -44,6 +50,8 @@ export async function GET() {
         settings,
         collections,
         locales,
+        assets,
+        assetFolders,
       },
     });
   } catch (error) {

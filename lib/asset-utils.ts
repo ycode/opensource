@@ -4,16 +4,14 @@
  */
 
 import type { AssetCategory } from '@/types';
+import {
+  ASSET_CATEGORIES,
+  ALLOWED_MIME_TYPES,
+  getAcceptString,
+} from './asset-constants';
 
-/**
- * Asset category constants
- */
-export const ASSET_CATEGORIES = {
-  IMAGES: 'images' as const,
-  VIDEOS: 'videos' as const,
-  AUDIO: 'audio' as const,
-  DOCUMENTS: 'documents' as const,
-} as const satisfies Record<string, AssetCategory>;
+// Re-export constants for backward compatibility
+export { ASSET_CATEGORIES, ALLOWED_MIME_TYPES, getAcceptString };
 
 /**
  * Check if an asset matches the specified category based on MIME type
@@ -71,6 +69,18 @@ export function getAssetTypeLabel(mimeType: string | undefined | null): string {
   if (isAssetOfType(mimeType, ASSET_CATEGORIES.AUDIO)) return 'Audio';
   if (isAssetOfType(mimeType, ASSET_CATEGORIES.DOCUMENTS)) return 'Document';
   return 'File';
+}
+
+/**
+ * Get icon name for an asset type based on MIME type
+ */
+export function getAssetIcon(mimeType: string | undefined | null): string {
+  if (!mimeType) return 'file-text';
+  if (isAssetOfType(mimeType, ASSET_CATEGORIES.IMAGES)) return 'image';
+  if (isAssetOfType(mimeType, ASSET_CATEGORIES.VIDEOS)) return 'video';
+  if (isAssetOfType(mimeType, ASSET_CATEGORIES.AUDIO)) return 'audio';
+  if (isAssetOfType(mimeType, ASSET_CATEGORIES.DOCUMENTS)) return 'file-text';
+  return 'file-text';
 }
 
 /**
@@ -141,3 +151,16 @@ export function getDefaultAssetByType(type: AssetCategory): string {
 
   return '';
 }
+
+// ==========================================
+// Re-export folder utilities for backward compatibility
+// ==========================================
+
+export {
+  flattenAssetFolderTree,
+  hasChildFolders,
+  rebuildAssetFolderTree,
+  buildAssetFolderPath,
+  isDescendantAssetFolder,
+  type FlattenedAssetFolderNode,
+} from './asset-folder-utils';

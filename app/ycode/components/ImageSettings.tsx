@@ -26,7 +26,7 @@ import {
   DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { FileManagerDialog } from './FileManagerDialog';
+import { useEditorStore } from '@/stores/useEditorStore';
 import { getDefaultAssetByType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 
 interface ImageSettingsProps {
@@ -41,7 +41,7 @@ interface ImageSettingsProps {
 export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourceLabel, allFields, collections }: ImageSettingsProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [selectedField, setSelectedField] = useState<string | null>(null);
-  const [showFileManagerDialog, setShowFileManagerDialog] = useState(false);
+  const openFileManager = useEditorStore((state) => state.openFileManager);
 
   const handleUrlChange = useCallback((value: string) => {
     if (!layer) return;
@@ -233,7 +233,12 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => setShowFileManagerDialog(true)}
+                        onClick={() => {
+                          openFileManager((asset) => {
+                            if (!layer) return;
+                            handleUrlChange(asset.public_url);
+                          });
+                        }}
                       >
                         Browse
                       </Button>
@@ -364,12 +369,6 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
           </div>
         </div>
       </SettingsPanel>
-
-      {/* File Manager Dialog */}
-      <FileManagerDialog
-        open={showFileManagerDialog}
-        onOpenChange={setShowFileManagerDialog}
-      />
     </>
   );
 }

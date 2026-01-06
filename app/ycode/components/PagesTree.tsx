@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useMemo, useState, useCallback } from 'react';
-import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
+import { DndContext, DragOverlay, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
 import { buildPageTree, flattenPageTree, rebuildPageTree, getNodeIcon, isHomepage, type PageTreeNode, type FlattenedPageNode } from '@/lib/page-utils';
 import Icon from '@/components/ui/icon';
 import PageContextMenu from './PageContextMenu';
 import type { Page, PageFolder } from '@/types';
 import { cn } from '@/lib/utils';
+import { useTreeDragDrop, type DropPositionCalculation } from '@/hooks/use-tree-drag-drop';
 
 interface PagesTreeProps {
   pages: Page[];
@@ -280,13 +281,7 @@ export default function PagesTree({
   onDuplicate,
   onRename,
 }: PagesTreeProps) {
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [overId, setOverId] = useState<string | null>(null);
-  const [dropPosition, setDropPosition] = useState<'above' | 'below' | 'inside' | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
-  const [cursorOffsetY, setCursorOffsetY] = useState<number>(0);
-  const [isDropNotAllowed, setIsDropNotAllowed] = useState<boolean>(false);
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   // Build tree structure
   const tree = useMemo(
@@ -333,74 +328,54 @@ export default function PagesTree({
     return false;
   }, [flattenedNodes, selectedItemId]);
 
-  // Get the currently active node being dragged
-  const activeNode = useMemo(
-    () => flattenedNodes.find((node) => node.id === activeId),
-    [activeId, flattenedNodes]
-  );
+  // Drag and drop using the reusable hook
+  const {
+    activeId,
+    overId,
+    dropPosition,
+    isDropNotAllowed,
+    sensors,
+    handleDragStart,
+    handleDragOver,
+    handleDragEnd,
+    handleDragCancel,
+  } = useTreeDragDrop({
+    flattenedNodes,
+    
+    canDrag: (node) => {
+      // Error pages and virtual error folder cannot be dragged
+      const isErrorPage = node.type === 'page' && (node.data as Page).error_page !== null;
+      const isVirtualErrorFolder = node.id === 'virtual-error-pages-folder';
+      return !isErrorPage && !isVirtualErrorFolder;
+    },
 
-  // Configure sensors for drag detection
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // 8px movement required to start drag
-      },
-    })
-  );
-
-  // Handle drag start
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      if (isProcessing) return;
-
-      const draggedId = event.active.id as string;
-
+    calculateCursorOffset: (event) => {
       // Calculate where user clicked within the element
       const activeRect = event.active.rect.current.initial;
       if (activeRect && event.activatorEvent) {
         const clickY = (event.activatorEvent as PointerEvent).clientY;
         const elementTop = activeRect.top;
-        const offsetWithinElement = clickY - elementTop;
-        setCursorOffsetY(offsetWithinElement);
+        return clickY - elementTop;
       } else if (activeRect) {
-        setCursorOffsetY(activeRect.height / 2);
+        return activeRect.height / 2;
       }
-
-      // Automatically select the dragged item
-      const draggedNode = flattenedNodes.find((n) => n.id === draggedId);
-      if (draggedNode) {
-        if (draggedNode.type === 'page') {
-          onPageSelect(draggedId);
-        } else if (onFolderSelect) {
-          onFolderSelect(draggedId);
-        }
-      }
-
-      setActiveId(draggedId);
-      setIsDropNotAllowed(false);
+      return 0;
     },
-    [isProcessing, flattenedNodes, onPageSelect, onFolderSelect]
-  );
 
-  // Handle drag over
-  const handleDragOver = useCallback(
-    (event: DragOverEvent) => {
-      const overId = event.over?.id as string | null;
-
-      if (!overId || !event.over?.rect) {
-        setIsDropNotAllowed(false);
-        setOverId(null);
-        setDropPosition(null);
-        return;
+    onDragStart: (event, node) => {
+      // Automatically select the dragged item
+      if (node.type === 'page') {
+        onPageSelect(node.id);
+      } else if (onFolderSelect) {
+        onFolderSelect(node.id);
       }
+    },
 
-      const overNode = flattenedNodes.find((n) => n.id === overId);
-      const activeNode = activeId ? flattenedNodes.find((n) => n.id === activeId) : null;
-
-      // Handle drop at the end of the list
-      if (overId === 'end-drop-zone') {
+    calculateDropPosition: (activeNode, overNode, relativeY, cursorOffsetY): DropPositionCalculation | null => {
+      // Handle end drop zone
+      if (overNode.id === 'end-drop-zone') {
         // Check if dragging a dynamic page to root that already has one
-        if (activeNode && activeNode.type === 'page') {
+        if (activeNode.type === 'page') {
           const activePage = activeNode.data as Page;
           if (activePage.is_dynamic) {
             const rootHasDynamicPage = pages.some(
@@ -412,44 +387,18 @@ export default function PagesTree({
             );
 
             if (rootHasDynamicPage) {
-              setIsDropNotAllowed(true);
-              setOverId(null);
-              setDropPosition(null);
-              return;
+              return null; // Invalid drop
             }
           }
         }
-        setIsDropNotAllowed(false);
-        setOverId(overId);
-        setDropPosition('below'); // Will be treated as "after last item"
-        return;
+        return { position: 'below', targetParentId: null };
       }
 
-      if (!overNode) {
-        setDropPosition(null);
-        return;
-      }
-
-      // Calculate pointer position relative to the hovered element
-      const activeRect = event.active.rect.current;
-      if (!activeRect.initial) {
-        setOverId(overId);
-        setDropPosition(null);
-        return;
-      }
-
-      const pointerY = activeRect.translated?.top ?? activeRect.initial.top;
-      const { top, height } = event.over.rect;
-
-      const actualPointerY = pointerY + cursorOffsetY;
-      const offsetY = actualPointerY - top;
-      const relativeY = offsetY / height;
-
-      // Determine drop position
+      // Determine drop position based on node type
       let position: 'above' | 'below' | 'inside';
 
       if (overNode.type === 'folder') {
-        // Folders can accept children
+        // Folders can accept children - use 3-way split
         if (relativeY < 0.25) {
           position = 'above';
         } else if (relativeY > 0.75) {
@@ -458,305 +407,37 @@ export default function PagesTree({
           position = 'inside';
         }
       } else {
-        // Pages cannot have children
+        // Pages cannot have children - use 2-way split
         position = relativeY < 0.5 ? 'above' : 'below';
       }
 
-      // Prevent showing drop indicator if moving into self or descendant
-      if (activeNode && checkIsDescendant(activeNode, overNode, flattenedNodes)) {
-        setOverId(null);
-        setDropPosition(null);
-        return;
-      }
+      // Calculate target parent
+      const targetParentId = position === 'inside' && overNode.type === 'folder'
+        ? overNode.id
+        : overNode.parentId;
 
-      // Determine the target parent folder for this drop position
-      let targetParentId: string | null;
-      if (position === 'inside' && overNode.type === 'folder') {
-        targetParentId = overNode.id;
-      } else {
-        targetParentId = overNode.parentId;
-      }
-
-      // Prevent showing drop indicator if moving an index page to a folder that already has one
-      if (activeNode && activeNode.type === 'page') {
-        const activePage = activeNode.data as Page;
-
-        // Prevent dragging homepage out of root folder
-        if (isHomepage(activePage)) {
-          if (targetParentId !== null) {
-            setIsDropNotAllowed(true);
-            setOverId(null);
-            setDropPosition(null);
-            return;
-          }
-        }
-
-        if (activePage.is_index) {
-          const targetFolderHasIndex = pages.some(
-            (p) =>
-              p.id !== activePage.id &&
-              p.is_index &&
-              p.page_folder_id === targetParentId
-          );
-
-          if (targetFolderHasIndex) {
-            // Don't show drop indicator for invalid drop
-            setIsDropNotAllowed(true);
-            setOverId(null);
-            setDropPosition(null);
-            return;
-          }
-        }
-
-        // Prevent showing drop indicator if moving a page would create a slug conflict
-        // Pages must have unique (slug, is_published, page_folder_id)
-        const slugConflict = pages.some(
-          (p) =>
-            p.id !== activePage.id &&
-            p.slug === activePage.slug &&
-            p.is_published === activePage.is_published &&
-            p.page_folder_id === targetParentId
-        );
-
-        if (slugConflict) {
-          setIsDropNotAllowed(true);
-          setOverId(null);
-          setDropPosition(null);
-          return;
-        }
-
-        // Check if moving a dynamic page into a folder that already contains a dynamic page
-        if (activePage.is_dynamic) {
-          const targetFolderHasDynamicPage = pages.some(
-            (p) =>
-              p.id !== activePage.id &&
-              p.is_dynamic &&
-              p.page_folder_id === targetParentId &&
-              p.is_published === activePage.is_published
-          );
-
-          if (targetFolderHasDynamicPage) {
-            setIsDropNotAllowed(true);
-            setOverId(null);
-            setDropPosition(null);
-            return;
-          }
-        }
-      }
-
-      // Prevent showing drop indicator if moving a folder would create a slug conflict
-      // Folders must have unique (slug, page_folder_id)
-      if (activeNode && activeNode.type === 'folder') {
-        const activeFolder = activeNode.data as PageFolder;
-        const slugConflict = folders.some(
-          (f) =>
-            f.id !== activeFolder.id &&
-            f.slug === activeFolder.slug &&
-            f.page_folder_id === targetParentId
-        );
-
-        if (slugConflict) {
-          setIsDropNotAllowed(true);
-          setOverId(null);
-          setDropPosition(null);
-          return;
-        }
-      }
-
-      // Reset drop not allowed if we get here (valid drop)
-      setIsDropNotAllowed(false);
-      setOverId(overId);
-      setDropPosition(position);
+      return { position, targetParentId };
     },
-    [flattenedNodes, activeId, cursorOffsetY, pages, folders]
-  );
 
-  // Handle drag end
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
+    canDrop: (activeNode, overNode, position, targetParentId) => {
+      if (!overNode) return false;
 
-      if (!over || active.id === over.id) {
-        setActiveId(null);
-        setOverId(null);
-        setDropPosition(null);
-        setCursorOffsetY(0);
-        return;
-      }
-
-      setIsProcessing(true);
-
-      const activeNode = flattenedNodes.find((n) => n.id === active.id);
-
-      // Handle drop at the end of the list
-      if (over.id === 'end-drop-zone') {
-        if (!activeNode) {
-          setActiveId(null);
-          setOverId(null);
-          setDropPosition(null);
-          setCursorOffsetY(0);
-          setIsProcessing(false);
-          return;
-        }
-
-        // Find the last root-level item and place the dragged item after it
-        const rootItems = flattenedNodes.filter(n => n.depth === 0);
-        const lastRootItem = rootItems[rootItems.length - 1];
-
-        if (!lastRootItem) {
-          setActiveId(null);
-          setOverId(null);
-          setDropPosition(null);
-          setCursorOffsetY(0);
-          setIsProcessing(false);
-          return;
-        }
-
-        // Place at root level (parentId = null), after the last root item
-        const newParentId = null;
-        const newOrder = lastRootItem.index + 1;
-
-        // Validate dynamic page constraint for end-drop-zone
-        if (activeNode.type === 'page') {
-          const activePage = activeNode.data as Page;
-          if (activePage.is_dynamic) {
-            const targetFolderHasDynamicPage = pages.some(
-              (p) =>
-                p.id !== activePage.id &&
-                p.is_dynamic &&
-                p.page_folder_id === newParentId &&
-                p.is_published === activePage.is_published
-            );
-
-            if (targetFolderHasDynamicPage) {
-              console.warn('Cannot move dynamic page: target folder already contains a dynamic page');
-              setActiveId(null);
-              setOverId(null);
-              setDropPosition(null);
-              setCursorOffsetY(0);
-              setIsProcessing(false);
-              return;
-            }
-          }
-        }
-
-        // Rebuild tree with the item moved to the end
-        const newTree = rebuildPageTree(
-          flattenedNodes,
-          activeNode.id,
-          newParentId,
-          newOrder
-        );
-
-        // Extract updated pages and folders from the new tree
-        const extractPagesAndFolders = (
-          nodes: PageTreeNode[],
-          parentId: string | null = null,
-          currentOrder: number = 0,
-          currentDepth: number = 0
-        ): { pages: Page[]; folders: PageFolder[] } => {
-          const updatedPages: Page[] = [];
-          const updatedFolders: PageFolder[] = [];
-
-          nodes.forEach((node, index) => {
-            const orderValue = currentOrder + index;
-
-            if (node.type === 'folder') {
-              const folder = node.data as PageFolder;
-              updatedFolders.push({
-                ...folder,
-                page_folder_id: parentId,
-                order: orderValue,
-                depth: currentDepth,
-              });
-
-              if (node.children) {
-                const childResult = extractPagesAndFolders(
-                  node.children,
-                  folder.id,
-                  0,
-                  currentDepth + 1
-                );
-                updatedPages.push(...childResult.pages);
-                updatedFolders.push(...childResult.folders);
-              }
-            } else {
-              const page = node.data as Page;
-              updatedPages.push({
-                ...page,
-                page_folder_id: parentId,
-                order: orderValue,
-                depth: currentDepth,
-              });
-            }
-          });
-
-          return { pages: updatedPages, folders: updatedFolders };
-        };
-
-        const { pages: updatedPages, folders: updatedFolders } = extractPagesAndFolders(newTree);
-
-        if (onReorder) {
-          onReorder(updatedPages, updatedFolders);
-        }
-
-        setActiveId(null);
-        setOverId(null);
-        setDropPosition(null);
-        setCursorOffsetY(0);
-        setIsProcessing(false);
-        return;
-      }
-
-      const overNode = flattenedNodes.find((n) => n.id === over.id);
-
-      if (!activeNode || !overNode) {
-        setActiveId(null);
-        setOverId(null);
-        setDropPosition(null);
-        setCursorOffsetY(0);
-        setIsProcessing(false);
-        return;
-      }
-
-      // Prevent moving into self or descendant
+      // Prevent dropping into self or descendant
       if (checkIsDescendant(activeNode, overNode, flattenedNodes)) {
-        setActiveId(null);
-        setOverId(null);
-        setDropPosition(null);
-        setCursorOffsetY(0);
-        setIsProcessing(false);
-        return;
+        return false;
       }
 
-      // Determine the target parent folder
-      let targetParentId: string | null;
-      if (dropPosition === 'inside' && overNode.type === 'folder') {
-        targetParentId = overNode.id;
-      } else {
-        targetParentId = overNode.parentId;
-      }
-
-      // Prevent moving an index page to a folder that already has an index page
+      // Page-specific validation
       if (activeNode.type === 'page') {
         const activePage = activeNode.data as Page;
 
-        // Prevent moving homepage out of root folder
-        if (isHomepage(activePage)) {
-          if (targetParentId !== null) {
-            console.warn('Cannot move homepage: homepage must remain in the root folder');
-            setActiveId(null);
-            setOverId(null);
-            setDropPosition(null);
-            setCursorOffsetY(0);
-            setIsDropNotAllowed(false);
-            setIsProcessing(false);
-            return;
-          }
+        // Prevent dragging homepage out of root folder
+        if (isHomepage(activePage) && targetParentId !== null) {
+          return false;
         }
 
+        // Prevent moving index page to folder that already has one
         if (activePage.is_index) {
-          // Check if target folder already has an index page (excluding the one being moved)
           const targetFolderHasIndex = pages.some(
             (p) =>
               p.id !== activePage.id &&
@@ -765,18 +446,11 @@ export default function PagesTree({
           );
 
           if (targetFolderHasIndex) {
-            console.warn('Cannot move index page: target folder already has an index page');
-            setActiveId(null);
-            setOverId(null);
-            setDropPosition(null);
-            setCursorOffsetY(0);
-            setIsProcessing(false);
-            return;
+            return false;
           }
         }
 
-        // Prevent moving a page if it would create a slug conflict
-        // Pages must have unique (slug, is_published, page_folder_id)
+        // Prevent slug conflicts
         const slugConflict = pages.some(
           (p) =>
             p.id !== activePage.id &&
@@ -786,16 +460,10 @@ export default function PagesTree({
         );
 
         if (slugConflict) {
-          console.warn('Cannot move page: slug conflict in target folder');
-          setActiveId(null);
-          setOverId(null);
-          setDropPosition(null);
-          setCursorOffsetY(0);
-          setIsProcessing(false);
-          return;
+          return false;
         }
 
-        // Prevent moving a dynamic page into a folder that already contains a dynamic page
+        // Prevent moving dynamic page to folder that already has one
         if (activePage.is_dynamic) {
           const targetFolderHasDynamicPage = pages.some(
             (p) =>
@@ -806,19 +474,12 @@ export default function PagesTree({
           );
 
           if (targetFolderHasDynamicPage) {
-            console.warn('Cannot move dynamic page: target folder already contains a dynamic page');
-            setActiveId(null);
-            setOverId(null);
-            setDropPosition(null);
-            setCursorOffsetY(0);
-            setIsProcessing(false);
-            return;
+            return false;
           }
         }
       }
 
-      // Prevent moving a folder if it would create a slug conflict
-      // Folders must have unique (slug, page_folder_id)
+      // Folder-specific validation
       if (activeNode.type === 'folder') {
         const activeFolder = activeNode.data as PageFolder;
         const slugConflict = folders.some(
@@ -829,41 +490,24 @@ export default function PagesTree({
         );
 
         if (slugConflict) {
-          console.warn('Cannot move folder: slug conflict in target folder');
-          setActiveId(null);
-          setOverId(null);
-          setDropPosition(null);
-          setCursorOffsetY(0);
-          setIsProcessing(false);
-          return;
+          return false;
         }
       }
 
-      // Handle drop based on dropPosition
-      let newParentId: string | null;
-      let newOrder: number;
+      return true;
+    },
 
-      if (dropPosition === 'above') {
-        newParentId = overNode.parentId;
-        newOrder = overNode.index;
-      } else if (dropPosition === 'inside') {
-        // Can only drop inside folders
-        if (overNode.type !== 'folder') {
-          setActiveId(null);
-          setOverId(null);
-          setDropPosition(null);
-          setCursorOffsetY(0);
-          setIsProcessing(false);
-          return;
+    onRebuild: (activeNode, newParentId, newOrder, dropPosition, overId) => {
+      // Handle end drop zone
+      if (overId === 'end-drop-zone') {
+        // Find the last root item
+        const rootNodes = flattenedNodes.filter(n => n.parentId === null);
+        const lastRootNode = rootNodes[rootNodes.length - 1];
+        
+        if (lastRootNode) {
+          newParentId = null;
+          newOrder = lastRootNode.index + 1;
         }
-
-        newParentId = overNode.id;
-        const childrenOfOver = flattenedNodes.filter((n) => n.parentId === overNode.id);
-        newOrder = childrenOfOver.length > 0 ? Math.max(...childrenOfOver.map((n) => n.index)) + 1 : 0;
-      } else {
-        // Drop below
-        newParentId = overNode.parentId;
-        newOrder = overNode.index + 1;
       }
 
       // Rebuild the tree structure
@@ -879,7 +523,6 @@ export default function PagesTree({
         const updatedPages: Page[] = [];
         const updatedFolders: PageFolder[] = [];
 
-        // Pages and folders at the same depth share continuous order
         nodes.forEach((node, index) => {
           const orderValue = currentOrder + index;
 
@@ -893,7 +536,6 @@ export default function PagesTree({
             });
 
             if (node.children) {
-              // Children start with order 0 within their parent and depth increases by 1
               const childResults = extractPagesAndFolders(node.children, node.id, 0, currentDepth + 1);
               updatedPages.push(...childResults.pages);
               updatedFolders.push(...childResults.folders);
@@ -912,31 +554,29 @@ export default function PagesTree({
         return { pages: updatedPages, folders: updatedFolders };
       };
 
-      const { pages: updatedPages, folders: updatedFolders } = extractPagesAndFolders(newTree);
-
-      if (onReorder) {
-        onReorder(updatedPages, updatedFolders);
-      }
-
-      setActiveId(null);
-      setOverId(null);
-      setDropPosition(null);
-      setCursorOffsetY(0);
-      setIsDropNotAllowed(false);
-
-      setTimeout(() => setIsProcessing(false), 0);
+      return extractPagesAndFolders(newTree);
     },
-    [flattenedNodes, dropPosition, onReorder, pages, folders]
-  );
 
-  // Handle drag cancel
-  const handleDragCancel = useCallback(() => {
-    setActiveId(null);
-    setOverId(null);
-    setDropPosition(null);
-    setCursorOffsetY(0);
-    setIsDropNotAllowed(false);
-  }, []);
+    onReorder: async (result) => {
+      if (onReorder) {
+        onReorder(result.pages, result.folders);
+      }
+    },
+
+    onAutoExpandNode: (nodeId) => {
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(nodeId);
+        return next;
+      });
+    },
+  });
+
+  // Get the currently active node being dragged
+  const activeNode = useMemo(
+    () => flattenedNodes.find((node) => node.id === activeId),
+    [activeId, flattenedNodes]
+  );
 
   // Handle expand/collapse toggle
   const handleToggle = useCallback((id: string) => {

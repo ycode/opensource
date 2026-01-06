@@ -44,12 +44,14 @@ async function getImageDimensions(file: File): Promise<{ width: number; height: 
  * @param file - File to upload
  * @param source - Source identifier (e.g., 'library', 'page-settings', 'components')
  * @param customName - Optional custom name for the file
+ * @param assetFolderId - Optional asset folder ID to organize the asset
  * @returns Asset with metadata or null if upload fails
  */
 export async function uploadFile(
   file: File,
   source: string,
-  customName?: string
+  customName?: string,
+  assetFolderId?: string | null
 ): Promise<Asset | null> {
   try {
     const supabase = await getSupabaseAdmin();
@@ -92,6 +94,7 @@ export async function uploadFile(
       width: dimensions?.width,
       height: dimensions?.height,
       source,
+      asset_folder_id: assetFolderId,
     });
 
     return asset;

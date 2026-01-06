@@ -59,12 +59,16 @@ export default function CreateComponentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent width="320px" className="!gap-3">
+      <DialogContent
+        width="320px"
+        className="gap-0"
+        aria-describedby={undefined}
+      >
         <DialogHeader>
           <DialogTitle>Create Component</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 -mt-3">
+        <div className="flex flex-col gap-4.5">
           <div className="flex flex-col gap-2">
             <Input
               id="component-name"
@@ -75,23 +79,23 @@ export default function CreateComponentDialog({
               autoFocus
             />
           </div>
-        </div>
 
-        <DialogFooter className="grid grid-cols-2">
-          <Button
-            variant="secondary"
-            onClick={handleCancel}
-            disabled={isCreating}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={!componentName.trim() || isCreating}
-          >
-            Create
-          </Button>
-        </DialogFooter>
+          <DialogFooter className="grid grid-cols-2 mt-1">
+            <Button
+              variant="secondary"
+              onClick={handleCancel}
+              disabled={isCreating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirm}
+              disabled={!componentName.trim() || isCreating}
+            >
+              Create
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

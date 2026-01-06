@@ -415,7 +415,37 @@ export interface Asset {
   width?: number | null;
   height?: number | null;
   source: string; // Required: identifies where the asset was uploaded from
+  asset_folder_id?: string | null;
   created_at: string;
+}
+
+export interface AssetFolder {
+  id: string;
+  asset_folder_id: string | null;
+  name: string;
+  depth: number;
+  order: number;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface CreateAssetFolderData {
+  id?: string;
+  name: string;
+  depth?: number;
+  order?: number;
+  is_published?: boolean;
+  asset_folder_id?: string | null;
+}
+
+export interface UpdateAssetFolderData {
+  name?: string;
+  depth?: number;
+  order?: number;
+  is_published?: boolean;
+  asset_folder_id?: string | null;
 }
 
 // Settings Types

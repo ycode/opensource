@@ -37,6 +37,7 @@ import BuilderLoading from '@/components/BuilderLoading';
 const RightSidebar = lazy(() => import('../components/RightSidebar'));
 const CMS = lazy(() => import('../components/CMS'));
 const CollectionItemSheet = lazy(() => import('../components/CollectionItemSheet'));
+const FileManagerDialog = lazy(() => import('../components/FileManagerDialog'));
 
 // 3. Hooks
 // useCanvasCSS removed - now handled by iframe with Tailwind JIT CDN
@@ -61,7 +62,7 @@ import { findLayerById, getClassesString, removeLayerById, canCopyLayer, canDele
 import { pagesApi, collectionsApi } from '@/lib/api';
 
 // 5. Types
-import type { Layer } from '@/types';
+import type { Layer, Asset } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Field } from '@/components/ui/field';
@@ -99,6 +100,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const setBuilderDataPreloaded = useEditorStore((state) => state.setBuilderDataPreloaded);
   const collectionItemSheet = useEditorStore((state) => state.collectionItemSheet);
   const closeCollectionItemSheet = useEditorStore((state) => state.closeCollectionItemSheet);
+  const fileManager = useEditorStore((state) => state.fileManager);
+  const closeFileManager = useEditorStore((state) => state.closeFileManager);
 
   const updateLayer = usePagesStore((state) => state.updateLayer);
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
@@ -445,7 +448,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             const { setStyles } = useLayerStylesStore.getState();
             const { setSettings } = useSettingsStore.getState();
             const { setLocales } = useLocalisationStore.getState();
-            const { loadAssets } = useAssetsStore.getState();
+            const { setAssets, setFolders: setAssetFolders } = useAssetsStore.getState();
             const { preloadCollectionsAndItems } = useCollectionsStore.getState();
 
             // Set synchronous data first
@@ -455,11 +458,11 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             setStyles(response.data.styles);
             setSettings(response.data.settings);
             setLocales(response.data.locales || []);
+            setAssets(response.data.assets || []);
+            setAssetFolders(response.data.assetFolders || []);
 
             // Load async data in parallel
-            const asyncTasks = [
-              loadAssets(),
-            ];
+            const asyncTasks = [];
 
             // Add collections preloading if we have collections
             if (response.data.collections && response.data.collections.length > 0) {
@@ -467,7 +470,9 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             }
 
             // Wait for all async tasks to complete
-            await Promise.all(asyncTasks);
+            if (asyncTasks.length > 0) {
+              await Promise.all(asyncTasks);
+            }
 
             // Mark data as preloaded - NOW UI can render
             setBuilderDataPreloaded(true);
@@ -1590,6 +1595,24 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           onSuccess={() => {
             // Close sheet after successful save
             closeCollectionItemSheet();
+          }}
+        />
+      </Suspense>
+    )}
+
+    {/* File Manager Dialog - Global reusable dialog */}
+    {fileManager.open && (
+      <Suspense fallback={null}>
+        <FileManagerDialog
+          open={fileManager.open}
+          onOpenChange={(open: boolean) => {
+            if (!open) closeFileManager();
+          }}
+          onAssetSelect={(asset: Asset) => {
+            if (fileManager.onSelect) {
+              fileManager.onSelect(asset);
+            }
+            closeFileManager();
           }}
         />
       </Suspense>

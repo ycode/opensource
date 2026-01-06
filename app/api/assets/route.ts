@@ -10,11 +10,21 @@ export const revalidate = 0;
 /**
  * GET /api/assets
  *
- * Get all assets
+ * Get all assets (optionally filtered by folder)
+ * Query params:
+ * - folderId: string | 'null' - Filter by folder ID (use 'null' for root folder)
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const assets = await getAllAssets();
+    const { searchParams } = new URL(request.url);
+    const folderIdParam = searchParams.get('folderId');
+
+    let folderId: string | null | undefined = undefined;
+    if (folderIdParam !== null) {
+      folderId = folderIdParam === 'null' ? null : folderIdParam;
+    }
+
+    const assets = await getAllAssets(folderId);
 
     return noCache({
       data: assets,
