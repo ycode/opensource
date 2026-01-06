@@ -42,11 +42,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   const rowGap = getDesignProperty('layout', 'rowGap') || '';
   const gridCols = getDesignProperty('layout', 'gridTemplateColumns') || '';
   const gridRows = getDesignProperty('layout', 'gridTemplateRows') || '';
-  const padding = getDesignProperty('spacing', 'padding') || '';
-  const paddingTop = getDesignProperty('spacing', 'paddingTop') || '';
-  const paddingRight = getDesignProperty('spacing', 'paddingRight') || '';
-  const paddingBottom = getDesignProperty('spacing', 'paddingBottom') || '';
-  const paddingLeft = getDesignProperty('spacing', 'paddingLeft') || '';
 
   // Extract number from grid template: "repeat(2, 1fr)" → "2"
   const extractGridNumber = (value: string): string => {
@@ -83,23 +78,13 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     gap,
     columnGap,
     rowGap,
-    padding,
-    paddingTop,
-    paddingRight,
-    paddingBottom,
-    paddingLeft,
   }, extractMeasurementValue);
 
   const [gapInput, setGapInput] = inputs.gap;
   const [columnGapInput, setColumnGapInput] = inputs.columnGap;
   const [rowGapInput, setRowGapInput] = inputs.rowGap;
-  const [paddingInput, setPaddingInput] = inputs.padding;
-  const [paddingTopInput, setPaddingTopInput] = inputs.paddingTop;
-  const [paddingRightInput, setPaddingRightInput] = inputs.paddingRight;
-  const [paddingBottomInput, setPaddingBottomInput] = inputs.paddingBottom;
-  const [paddingLeftInput, setPaddingLeftInput] = inputs.paddingLeft;
 
-  // Use mode toggle hooks for gap and padding
+  // Use mode toggle hook for gap
   const gapModeToggle = useModeToggle({
     category: 'layout',
     unifiedProperty: 'gap',
@@ -108,16 +93,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     updateDesignProperties,
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
     getCurrentValue: (prop: string) => getDesignProperty('layout', prop) || '',
-  });
-
-  const paddingModeToggle = useModeToggle({
-    category: 'spacing',
-    unifiedProperty: 'padding',
-    individualProperties: ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'],
-    updateDesignProperty,
-    updateDesignProperties,
-    // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
-    getCurrentValue: (prop: string) => getDesignProperty('spacing', prop) || '',
   });
 
   // Determine layout type from current values
@@ -192,39 +167,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     setRowGapInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('layout', 'rowGap', sanitized || null);
-  };
-
-  // Handle padding changes (debounced for text input)
-  const handlePaddingChange = (value: string) => {
-    setPaddingInput(value);
-    if (paddingModeToggle.mode === 'all-borders') {
-      const sanitized = removeSpaces(value);
-      debouncedUpdateDesignProperty('spacing', 'padding', sanitized || null);
-    }
-  };
-
-  const handlePaddingTopChange = (value: string) => {
-    setPaddingTopInput(value);
-    const sanitized = removeSpaces(value);
-    debouncedUpdateDesignProperty('spacing', 'paddingTop', sanitized || null);
-  };
-
-  const handlePaddingRightChange = (value: string) => {
-    setPaddingRightInput(value);
-    const sanitized = removeSpaces(value);
-    debouncedUpdateDesignProperty('spacing', 'paddingRight', sanitized || null);
-  };
-
-  const handlePaddingBottomChange = (value: string) => {
-    setPaddingBottomInput(value);
-    const sanitized = removeSpaces(value);
-    debouncedUpdateDesignProperty('spacing', 'paddingBottom', sanitized || null);
-  };
-
-  const handlePaddingLeftChange = (value: string) => {
-    setPaddingLeftInput(value);
-    const sanitized = removeSpaces(value);
-    debouncedUpdateDesignProperty('spacing', 'paddingLeft', sanitized || null);
   };
 
   // Handle grid columns change (number input only)
@@ -473,119 +415,6 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                   </div>
               </div>
           )}
-
-          <div className="grid grid-cols-3 items-start">
-              <Label variant="muted" className="h-8">Padding</Label>
-              <div className="col-span-2 flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                      <InputGroup className="flex-1">
-                          <InputGroupInput
-                            stepper
-                            min="0"
-                            step="1"
-                            disabled={paddingModeToggle.mode === 'individual-borders'}
-                            value={paddingInput}
-                            onChange={(e) => handlePaddingChange(e.target.value)}
-                          />
-                      </InputGroup>
-                      <Button
-                        variant={paddingModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
-                        size="sm"
-                        onClick={paddingModeToggle.handleToggle}
-                      >
-                          <Icon name="individualBorders" />
-                      </Button>
-                  </div>
-                  {paddingModeToggle.mode === 'individual-borders' && (
-                      <div className="grid grid-cols-2 gap-2">
-                          <InputGroup>
-                              <InputGroupAddon>
-                                  <div className="flex">
-                                      <Tooltip>
-                                          <TooltipTrigger>
-                                              <Icon name="paddingSide" className="size-3" />
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                              <p>Left padding</p>
-                                          </TooltipContent>
-                                      </Tooltip>
-                                  </div>
-                              </InputGroupAddon>
-                              <InputGroupInput
-                                stepper
-                                min="0"
-                                step="1"
-                                value={paddingLeftInput}
-                                onChange={(e) => handlePaddingLeftChange(e.target.value)}
-                              />
-                          </InputGroup>
-                          <InputGroup>
-                              <InputGroupAddon>
-                                  <div className="flex">
-                                      <Tooltip>
-                                          <TooltipTrigger>
-                                              <Icon name="paddingSide" className="size-3 rotate-90" />
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                              <p>Top padding</p>
-                                          </TooltipContent>
-                                      </Tooltip>
-                                  </div>
-                              </InputGroupAddon>
-                              <InputGroupInput
-                                stepper
-                                min="0"
-                                step="1"
-                                value={paddingTopInput}
-                                onChange={(e) => handlePaddingTopChange(e.target.value)}
-                              />
-                          </InputGroup>
-                          <InputGroup>
-                              <InputGroupAddon>
-                                  <div className="flex">
-                                      <Tooltip>
-                                          <TooltipTrigger>
-                                              <Icon name="paddingSide" className="size-3 rotate-180" />
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                              <p>Right padding</p>
-                                          </TooltipContent>
-                                      </Tooltip>
-                                  </div>
-                              </InputGroupAddon>
-                              <InputGroupInput
-                                stepper
-                                min="0"
-                                step="1"
-                                value={paddingRightInput}
-                                onChange={(e) => handlePaddingRightChange(e.target.value)}
-                              />
-                          </InputGroup>
-                          <InputGroup>
-                              <InputGroupAddon>
-                                  <div className="flex">
-                                      <Tooltip>
-                                          <TooltipTrigger>
-                                              <Icon name="paddingSide" className="size-3 rotate-270" />
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                              <p>Bottom padding</p>
-                                          </TooltipContent>
-                                      </Tooltip>
-                                  </div>
-                              </InputGroupAddon>
-                              <InputGroupInput
-                                stepper
-                                min="0"
-                                step="1"
-                                value={paddingBottomInput}
-                                onChange={(e) => handlePaddingBottomChange(e.target.value)}
-                              />
-                          </InputGroup>
-                      </div>
-                  )}
-              </div>
-          </div>
 
       </div>
     </div>
