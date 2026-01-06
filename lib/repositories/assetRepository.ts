@@ -166,6 +166,95 @@ export async function deleteAsset(id: string): Promise<void> {
 }
 
 /**
+ * Bulk delete assets
+ */
+export async function bulkDeleteAssets(ids: string[]): Promise<{ success: string[]; failed: string[] }> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  if (ids.length === 0) {
+    return { success: [], failed: [] };
+  }
+
+  const success: string[] = [];
+  const failed: string[] = [];
+
+  // Get all assets to find storage paths
+  const { data: assets, error: fetchError } = await client
+    .from('assets')
+    .select('*')
+    .in('id', ids);
+
+  if (fetchError) {
+    throw new Error(`Failed to fetch assets: ${fetchError.message}`);
+  }
+
+  // Collect storage paths for batch deletion
+  const storagePaths = assets
+    ?.filter(asset => asset.storage_path)
+    .map(asset => asset.storage_path as string) || [];
+
+  // Delete from storage in batch (if there are files to delete)
+  if (storagePaths.length > 0) {
+    const { error: storageError } = await client.storage
+      .from('assets')
+      .remove(storagePaths);
+
+    if (storageError) {
+      console.error('Failed to delete some files from storage:', storageError);
+      // Continue with database deletion even if storage deletion fails
+    }
+  }
+
+  // Delete database records in batch
+  const { error: deleteError } = await client
+    .from('assets')
+    .delete()
+    .in('id', ids);
+
+  if (deleteError) {
+    throw new Error(`Failed to delete asset records: ${deleteError.message}`);
+  }
+
+  // All succeeded if we got here
+  return { success: ids, failed: [] };
+}
+
+/**
+ * Bulk update assets (move to folder)
+ */
+export async function bulkUpdateAssets(
+  ids: string[],
+  updates: UpdateAssetData
+): Promise<{ success: string[]; failed: string[] }> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  if (ids.length === 0) {
+    return { success: [], failed: [] };
+  }
+
+  // Update all assets in batch
+  const { error } = await client
+    .from('assets')
+    .update(updates)
+    .in('id', ids);
+
+  if (error) {
+    throw new Error(`Failed to update assets: ${error.message}`);
+  }
+
+  // All succeeded if we got here
+  return { success: ids, failed: [] };
+}
+
+/**
  * Sanitize filename for storage
  * Removes spaces and special characters that might cause issues
  */

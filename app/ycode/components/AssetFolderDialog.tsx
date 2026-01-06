@@ -144,6 +144,7 @@ export default function AssetFolderDialog({
               onKeyDown={handleKeyDown}
               autoFocus
               disabled={isProcessing}
+              autoComplete="off"
             />
           </div>
 

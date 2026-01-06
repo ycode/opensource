@@ -295,6 +295,22 @@ export const assetsApi = {
       method: 'DELETE',
     });
   },
+
+  // Bulk delete assets
+  async bulkDelete(ids: string[]): Promise<ApiResponse<{ success: string[]; failed: string[] }>> {
+    return apiRequest<{ success: string[]; failed: string[] }>('/api/assets/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete', ids }),
+    });
+  },
+
+  // Bulk move assets to folder
+  async bulkMove(ids: string[], asset_folder_id: string | null): Promise<ApiResponse<{ success: string[]; failed: string[] }>> {
+    return apiRequest<{ success: string[]; failed: string[] }>('/api/assets/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'move', ids, asset_folder_id }),
+    });
+  },
 };
 
 // Asset Folders API

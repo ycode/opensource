@@ -6,7 +6,7 @@
  * Dialog for managing files and assets
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -24,6 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -264,6 +265,9 @@ interface FileGridItemProps {
   onDelete?: () => void;
   onEdit?: () => void;
   onPreview?: () => void;
+  // For bulk selection
+  isSelected?: boolean;
+  onSelectChange?: (selected: boolean) => void;
   // For assets
   mimeType?: string | null;
   imageUrl?: string | null;
@@ -280,6 +284,8 @@ function FileGridItem({
   onDelete,
   onEdit,
   onPreview,
+  isSelected = false,
+  onSelectChange,
   mimeType,
   imageUrl,
   content,
@@ -288,6 +294,7 @@ function FileGridItem({
   const showMenu = (type === 'folder' || type === 'asset') && (onDelete || onEdit || onPreview);
   const isUploading = type === 'uploading';
   const isImage = type === 'asset' && mimeType?.startsWith('image/') && (imageUrl || content);
+  const showCheckbox = type === 'asset' && onSelectChange !== undefined;
 
   return (
     <div className={cn('flex flex-col gap-1.5', !isUploading && 'group')}>
@@ -295,9 +302,23 @@ function FileGridItem({
         className={cn(
           'relative aspect-square bg-secondary/30 rounded-md flex items-center justify-center overflow-hidden',
           !isUploading && 'hover:bg-secondary/60 cursor-pointer',
+          isSelected && 'ring-2 ring-primary/75',
         )}
         onClick={!isUploading ? onClick : undefined}
       >
+        {/* Checkbox - top left corner (only for assets) */}
+        {showCheckbox && (
+          <div
+            className="absolute top-1.5 left-1.5 z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={(checked) => onSelectChange?.(checked === true)}
+            />
+          </div>
+        )}
+
         {/* Folder Icon */}
         {type === 'folder' && <Icon name="folder" className="size-10 opacity-50" />}
 
@@ -382,7 +403,7 @@ function FileGridItem({
               <div
                 onClick={(e) => e.stopPropagation()}
                 className={cn(
-                  'absolute top-1.5 right-1.5 size-5.75 opacity-0 group-hover:opacity-80 p-0.5 rounded-sm bg-secondary/80 backdrop-blur-sm hover:bg-secondary/80 cursor-pointer flex items-center justify-center'
+                  'absolute top-1.5 right-1.5 size-5.75 opacity-0 group-hover:opacity-80 p-0.5 rounded-sm bg-secondary/80 backdrop-blur-sm hover:bg-secondary cursor-pointer flex items-center justify-center'
                 )}
               >
                 <Icon name="dotsHorizontal" className="size-3" />
@@ -461,6 +482,10 @@ export default function FileManagerDialog({
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [uploadingAssets, setUploadingAssets] = useState<Array<{ id: string; filename: string; file: File }>>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
+  const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false);
+  const [bulkMoveTargetFolderId, setBulkMoveTargetFolderId] = useState<string | null>(null);
+  const [showBulkDeleteConfirmDialog, setShowBulkDeleteConfirmDialog] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Get folders and assets from store
@@ -646,6 +671,17 @@ export default function FileManagerDialog({
     if (!folder || !folder.asset_folder_id) return 0;
     return 1 + calculateFolderDepth(folder.asset_folder_id);
   };
+
+  // Clear selection when folder changes or dialog closes
+  useEffect(() => {
+    if (!open) {
+      setSelectedAssetIds(new Set());
+    }
+  }, [open]);
+
+  useEffect(() => {
+    setSelectedAssetIds(new Set());
+  }, [selectedFolderId]);
 
   // Build breadcrumb path from root to selected folder
   const breadcrumbPath = useMemo(() => {
@@ -860,6 +896,141 @@ export default function FileManagerDialog({
     }
   };
 
+  // Bulk delete assets
+  const handleBulkDelete = async () => {
+    if (selectedAssetIds.size === 0) return;
+
+    const idsToDelete = Array.from(selectedAssetIds);
+
+    // Save assets for rollback
+    const assetsToDelete = idsToDelete.map((id) => {
+      const asset = storeAssets.find((a) => a.id === id);
+      return { id, asset };
+    }).filter((item) => item.asset) as Array<{ id: string; asset: Asset }>;
+
+    if (assetsToDelete.length === 0) return;
+
+    try {
+      // Optimistically remove from store
+      assetsToDelete.forEach(({ id }) => {
+        removeAsset(id);
+      });
+
+      // Clear selection
+      setSelectedAssetIds(new Set());
+
+      // Make bulk API call
+      const response = await assetsApi.bulkDelete(idsToDelete);
+
+      if (response.error) {
+        console.error('Failed to delete assets:', response.error);
+        // Rollback: add all assets back to store
+        assetsToDelete.forEach(({ asset }) => {
+          addAsset(asset);
+        });
+        toast.error('Failed to delete assets', {
+          description: response.error,
+        });
+        return;
+      }
+
+      if (response.data) {
+        const { success, failed } = response.data;
+
+        // Rollback failed deletions
+        if (failed.length > 0) {
+          failed.forEach((id) => {
+            const item = assetsToDelete.find((a) => a.id === id);
+            if (item) {
+              addAsset(item.asset);
+            }
+          });
+        }
+
+        if (failed.length > 0) {
+          toast.error('Some assets could not be deleted', {
+            description: `${success.length} deleted, ${failed.length} failed`,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete assets:', error);
+      // Rollback: add all assets back to store
+      assetsToDelete.forEach(({ asset }) => {
+        addAsset(asset);
+      });
+      toast.error('Failed to delete assets');
+    }
+  };
+
+  // Bulk move assets
+  const handleBulkMove = async (targetFolderId: string | null) => {
+    if (selectedAssetIds.size === 0) return;
+
+    const idsToMove = Array.from(selectedAssetIds);
+
+    // Save original folder IDs for rollback
+    const assetsToMove = idsToMove.map((id) => {
+      const asset = storeAssets.find((a) => a.id === id);
+      return { id, asset, originalFolderId: asset?.asset_folder_id };
+    }).filter((item) => item.asset) as Array<{ id: string; asset: Asset; originalFolderId: string | null | undefined }>;
+
+    if (assetsToMove.length === 0) return;
+
+    try {
+      // Optimistically update in store
+      assetsToMove.forEach(({ id }) => {
+        updateAsset(id, { asset_folder_id: targetFolderId });
+      });
+
+      // Clear selection
+      setSelectedAssetIds(new Set());
+      setShowBulkMoveDialog(false);
+
+      // Make bulk API call
+      const response = await assetsApi.bulkMove(idsToMove, targetFolderId);
+
+      if (response.error) {
+        console.error('Failed to move assets:', response.error);
+        // Rollback: restore original folders
+        assetsToMove.forEach(({ id, originalFolderId }) => {
+          updateAsset(id, { asset_folder_id: originalFolderId });
+        });
+        toast.error('Failed to move assets', {
+          description: response.error,
+        });
+        return;
+      }
+
+      if (response.data) {
+        const { success, failed } = response.data;
+
+        // Rollback failed moves
+        if (failed.length > 0) {
+          failed.forEach((id) => {
+            const item = assetsToMove.find((a) => a.id === id);
+            if (item) {
+              updateAsset(id, { asset_folder_id: item.originalFolderId });
+            }
+          });
+        }
+
+        if (failed.length > 0) {
+          toast.error('Some assets could not be moved', {
+            description: `${success.length} moved, ${failed.length} failed`,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to move assets:', error);
+      // Rollback: restore original folders
+      assetsToMove.forEach(({ id, originalFolderId }) => {
+        updateAsset(id, { asset_folder_id: originalFolderId });
+      });
+      toast.error('Failed to move assets');
+    }
+  };
+
   // Preview asset (open in new tab)
   const handlePreviewAsset = (imageUrl: string) => {
     window.open(imageUrl, '_blank', 'noopener,noreferrer');
@@ -997,6 +1168,31 @@ export default function FileManagerDialog({
     fileInputRef.current?.click();
   };
 
+  // Selection handlers
+  const handleAssetSelect = (assetId: string, selected: boolean) => {
+    setSelectedAssetIds((prev) => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(assetId);
+      } else {
+        next.delete(assetId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedAssetIds.size === assets.length) {
+      setSelectedAssetIds(new Set());
+    } else {
+      setSelectedAssetIds(new Set(assets.map((asset) => asset.id)));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedAssetIds(new Set());
+  };
+
   // Handle file selection
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -1073,7 +1269,7 @@ export default function FileManagerDialog({
               <div className="w-full">
                 <InputGroup>
                   <InputGroupAddon>
-                    <Icon name="search" />
+                    <Icon name="search" className="size-3" />
                   </InputGroupAddon>
 
                   <InputGroupInput
@@ -1081,6 +1277,7 @@ export default function FileManagerDialog({
                     autoFocus={false}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    autoComplete="off"
                   />
 
                   {searchQuery.trim() && (
@@ -1090,7 +1287,7 @@ export default function FileManagerDialog({
                         className="size-6 transition-opacity flex items-center justify-center cursor-pointer rounded-sm hover:bg-secondary/80"
                         aria-label="Clear search"
                       >
-                        <Icon name="x" />
+                        <Icon name="x" className="size-3" />
                       </button>
                     </InputGroupAddon>
                   )}
@@ -1247,37 +1444,88 @@ export default function FileManagerDialog({
           {/* File Grid */}
           <div className="flex-1 py-5 px-6 overflow-y-auto flex flex-col gap-6">
             {/* Breadcrumb */}
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              {searchQuery.trim() ? (
-                <>
-                  <span className="text-foreground font-medium">
-                    Results for &quot;{searchQuery}&quot;
-                  </span>
-                  <Icon name="chevronRight" className="size-2.5 opacity-50" />
-                  <span className="text-muted-foreground font-medium">
-                    {assets.length} {assets.length === 1 ? 'file' : 'files'}
-                  </span>
-                </>
-              ) : (
-                <>
-                  {breadcrumbPath.map((item, index) => (
-                    <React.Fragment key={item.id || 'root'}>
-                      <button
-                        onClick={() => setSelectedFolderId(item.id)}
-                        className={cn(
-                          'hover:text-foreground transition-colors',
-                          index === breadcrumbPath.length - 1 ? 'text-foreground font-medium' : 'cursor-pointer'
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                {searchQuery.trim() ? (
+                  <>
+                    <span className="text-foreground font-medium">
+                      Results for &quot;{searchQuery}&quot;
+                    </span>
+                    <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                    <span className="text-muted-foreground font-medium">
+                      {assets.length} {assets.length === 1 ? 'file' : 'files'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    {breadcrumbPath.map((item, index) => (
+                      <React.Fragment key={item.id || 'root'}>
+                        <button
+                          onClick={() => setSelectedFolderId(item.id)}
+                          className={cn(
+                            'hover:text-foreground transition-colors',
+                            index === breadcrumbPath.length - 1 ? 'text-foreground font-medium' : 'cursor-pointer'
+                          )}
+                        >
+                          {item.name}
+                        </button>
+                        {index < breadcrumbPath.length - 1 && (
+                          <Icon name="chevronRight" className="size-2.5 opacity-50" />
                         )}
-                      >
-                        {item.name}
-                      </button>
-                      {index < breadcrumbPath.length - 1 && (
-                        <Icon name="chevronRight" className="size-2.5 opacity-50" />
-                      )}
-                    </React.Fragment>
-                  ))}
-                </>
-              )}
+                      </React.Fragment>
+                    ))}
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedAssetIds.size > 0 ? (
+                  <>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedAssetIds.size} selected
+                    </span>
+
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      onClick={() => {
+                        setBulkMoveTargetFolderId(selectedFolderId);
+                        setShowBulkMoveDialog(true);
+                      }}
+                    >
+                      <Icon name="folder" />
+                      Move
+                    </Button>
+
+                    <Button
+                      size="xs"
+                      variant="destructive"
+                      onClick={() => setShowBulkDeleteConfirmDialog(true)}
+                    >
+                      <Icon name="trash" />
+                      Delete
+                    </Button>
+
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      onClick={handleClearSelection}
+                    >
+                      Deselect all
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="xs"
+                    variant="secondary"
+                    onClick={handleSelectAll}
+                    disabled={assets.length === 0}
+                    className="text-xs"
+                  >
+                    Select all
+                  </Button>
+                )}
+              </div>
             </div>
 
             {(searchQuery.trim() ? true : childFolders.length === 0) && assets.length === 0 && currentUploadingAssets.length === 0 ? (
@@ -1346,6 +1594,8 @@ export default function FileManagerDialog({
                     imageUrl={asset.public_url}
                     content={asset.content}
                     onClick={() => onAssetSelect?.(asset)}
+                    isSelected={selectedAssetIds.has(asset.id)}
+                    onSelectChange={(selected) => handleAssetSelect(asset.id, selected)}
                     onPreview={
                       asset.mime_type?.startsWith('image/') && asset.public_url
                         ? () => handlePreviewAsset(asset.public_url!)
@@ -1430,6 +1680,79 @@ export default function FileManagerDialog({
         onConfirm={handleConfirmDeleteAsset}
       />
 
+      {/* Bulk Delete Assets Confirmation Dialog */}
+      <ConfirmDialog
+        open={showBulkDeleteConfirmDialog}
+        onOpenChange={setShowBulkDeleteConfirmDialog}
+        title={`Delete ${selectedAssetIds.size} file${selectedAssetIds.size > 1 ? 's' : ''}`}
+        description={`Are you sure you want to delete ${selectedAssetIds.size} file${selectedAssetIds.size > 1 ? 's' : ''}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        confirmVariant="destructive"
+        onConfirm={() => {
+          handleBulkDelete();
+          setShowBulkDeleteConfirmDialog(false);
+        }}
+      />
+
+      {/* Bulk Move Assets Dialog */}
+      <Dialog
+        open={showBulkMoveDialog}
+        onOpenChange={setShowBulkMoveDialog}
+      >
+        <DialogContent
+          width="320px"
+          aria-describedby={undefined}
+          className="gap-0"
+        >
+          <DialogHeader>
+            <DialogTitle>Move {selectedAssetIds.size} asset{selectedAssetIds.size > 1 ? 's' : ''}</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-4.5">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="bulk-move-folder">Folder</Label>
+              <Select
+                value={bulkMoveTargetFolderId || 'root'}
+                onValueChange={(value) => setBulkMoveTargetFolderId(value === 'root' ? null : value)}
+              >
+                <SelectTrigger id="bulk-move-folder">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="root">All files</SelectItem>
+                  {folders.map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>
+                      {buildFolderPath(folder.id)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter className="grid grid-cols-2 mt-1">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowBulkMoveDialog(false);
+                  setBulkMoveTargetFolderId(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  handleBulkMove(bulkMoveTargetFolderId);
+                  setBulkMoveTargetFolderId(null);
+                }}
+              >
+                Move
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Asset / Create SVG Dialog */}
       <Dialog
         open={showEditAssetDialog}
@@ -1464,6 +1787,7 @@ export default function FileManagerDialog({
                   }
                 }}
                 autoFocus
+                autoComplete="off"
               />
             </div>
 
@@ -1496,6 +1820,7 @@ export default function FileManagerDialog({
                   onChange={(e) => setEditAssetContent(e.target.value)}
                   className="font-mono text-xs min-h-[200px] max-h-[400px]"
                   placeholder="<svg>...</svg>"
+                  autoComplete="off"
                 />
               </div>
             )}
