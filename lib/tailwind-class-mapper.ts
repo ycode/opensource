@@ -137,6 +137,8 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   maxWidth: /^max-w-(\[.+\]|none|xs|sm|md|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|full|min|max|fit|prose|screen-sm|screen-md|screen-lg|screen-xl|screen-2xl)$/,
   maxHeight: /^max-h-(\[.+\]|\d+|px|full|screen|min|max|fit)$/,
   overflow: /^overflow-(visible|hidden|clip|scroll|auto|x-visible|x-hidden|x-clip|x-scroll|x-auto|y-visible|y-hidden|y-clip|y-scroll|y-auto)$/,
+  aspectRatio: /^aspect-(\[.+\]|auto|square|video)$/,
+  objectFit: /^object-(contain|cover|fill|none|scale-down)$/,
 
   // Typography
   fontFamily: /^font-(sans|serif|mono|\[.+\])$/,
@@ -432,6 +434,17 @@ export function propertyToClass(
     // Overflow
     if (property === 'overflow') {
       return `overflow-${value}`; // overflow-visible, overflow-hidden, overflow-scroll, overflow-auto
+    }
+
+    // Aspect Ratio
+    if (property === 'aspectRatio') {
+      // Always stored in bracket format: [16/9], [1/1], etc.
+      return `aspect-${value}`;
+    }
+
+    // Object Fit
+    if (property === 'objectFit') {
+      return `object-${value}`;
     }
   }
 
@@ -937,6 +950,31 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls.startsWith('max-h-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.sizing!.maxHeight = value;
+    }
+
+    // Aspect Ratio
+    if (cls.startsWith('aspect-')) {
+      // Arbitrary values: aspect-[16/9]
+      if (cls.startsWith('aspect-[')) {
+        const value = extractArbitraryValue(cls);
+        if (value) design.sizing!.aspectRatio = `[${value}]`;
+      }
+      // Named values: convert to bracket format for consistency
+      else if (cls === 'aspect-square') {
+        design.sizing!.aspectRatio = '[1/1]';
+      } else if (cls === 'aspect-video') {
+        design.sizing!.aspectRatio = '[16/9]';
+      } else if (cls === 'aspect-auto') {
+        design.sizing!.aspectRatio = null;
+      }
+    }
+
+    // Object Fit
+    if (cls.startsWith('object-')) {
+      const match = cls.match(/^object-(contain|cover|fill|none|scale-down)$/);
+      if (match) {
+        design.sizing!.objectFit = match[1];
+      }
     }
 
     // ===== BORDERS =====

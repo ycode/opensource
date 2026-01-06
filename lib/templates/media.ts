@@ -3,6 +3,7 @@
  */
 
 import { BlockTemplate } from '@/types';
+import { getDefaultAssetByType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 
 export const mediaTemplates: Record<string, BlockTemplate> = {
   image: {
@@ -28,7 +29,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
         image: {
           src: {
             type: 'dynamic_text',
-            data: { content: '' }
+            data: { content: getDefaultAssetByType(ASSET_CATEGORIES.IMAGES) }
           },
           alt: {
             type: 'dynamic_text',

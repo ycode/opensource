@@ -4,16 +4,14 @@
  */
 
 import type { AssetCategory } from '@/types';
+import {
+  ASSET_CATEGORIES,
+  ALLOWED_MIME_TYPES,
+  getAcceptString,
+} from './asset-constants';
 
-/**
- * Asset category constants
- */
-export const ASSET_CATEGORIES = {
-  IMAGES: 'images' as const,
-  VIDEOS: 'videos' as const,
-  AUDIO: 'audio' as const,
-  DOCUMENTS: 'documents' as const,
-} as const satisfies Record<string, AssetCategory>;
+// Re-export constants for backward compatibility
+export { ASSET_CATEGORIES, ALLOWED_MIME_TYPES, getAcceptString };
 
 /**
  * Check if an asset matches the specified category based on MIME type
@@ -74,6 +72,18 @@ export function getAssetTypeLabel(mimeType: string | undefined | null): string {
 }
 
 /**
+ * Get icon name for an asset type based on MIME type
+ */
+export function getAssetIcon(mimeType: string | undefined | null): string {
+  if (!mimeType) return 'file-text';
+  if (isAssetOfType(mimeType, ASSET_CATEGORIES.IMAGES)) return 'image';
+  if (isAssetOfType(mimeType, ASSET_CATEGORIES.VIDEOS)) return 'video';
+  if (isAssetOfType(mimeType, ASSET_CATEGORIES.AUDIO)) return 'audio';
+  if (isAssetOfType(mimeType, ASSET_CATEGORIES.DOCUMENTS)) return 'file-text';
+  return 'file-text';
+}
+
+/**
  * Format file size to human-readable format
  */
 export function formatFileSize(bytes: number): string {
@@ -127,3 +137,66 @@ export function validateImageFile(
 
   return { isValid: true };
 }
+
+/**
+ * Get default base 64 encoded SVG asset placeholder by type
+ * @param type - Asset category type
+ * @returns Default placeholder URL or empty string
+ */
+export function getDefaultAssetByType(type: AssetCategory): string {
+  if (type === ASSET_CATEGORIES.IMAGES) {
+    // https://app.ycode.com/images/placeholder-image.jpg
+    return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNjAwIDkwMCI+PHJlY3Qgd2lkdGg9IjE2MDAiIGhlaWdodD0iOTAwIiBmaWxsPSIjMmYzNDM3Ii8+PHBvbHlnb24gcG9pbnRzPSIwLDkwMCA2MDAsMzAwIDEyMDAsOTAwIiBmaWxsPSIjNGI1MDUyIiBvcGFjaXR5PSIuNiIvPjxwb2x5Z29uIHBvaW50cz0iNzAwLDkwMCAxMTUwLDQ1MCAxNjAwLDkwMCIgZmlsbD0iIzVhNWY2MSIgb3BhY2l0eT0iLjUiLz48L3N2Zz4=';
+  }
+
+  return '';
+}
+
+/**
+ * Generate optimized thumbnail URL for faster loading
+ * Adds image transformation parameters for Supabase Storage URLs to reduce file size
+ * @param url - Original image URL
+ * @param width - Target width in pixels (default: 200)
+ * @param height - Target height in pixels (default: 200)
+ * @param quality - Image quality 0-100 (default: 80)
+ * @returns Optimized URL with transformation parameters or original URL if not a Supabase Storage URL
+ *
+ * @example
+ * getOptimizedImageUrl('https://supabase.co/storage/v1/object/public/assets/image.jpg')
+ * // Returns: 'https://supabase.co/storage/v1/object/public/assets/image.jpg?width=200&height=200&resize=cover&quality=80'
+ */
+export function getOptimizedImageUrl(
+  url: string,
+  width: number = 200,
+  height: number = 200,
+  quality: number = 80
+): string {
+  try {
+    const urlObj = new URL(url);
+    // Check if it's a Supabase Storage URL
+    if (urlObj.hostname.includes('supabase') || urlObj.pathname.includes('/storage/v1/object/public/')) {
+      // Add image transformation parameters for smaller, optimized thumbnails
+      urlObj.searchParams.set('width', width.toString());
+      urlObj.searchParams.set('height', height.toString());
+      urlObj.searchParams.set('resize', 'cover');
+      urlObj.searchParams.set('quality', quality.toString());
+      return urlObj.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
+// ==========================================
+// Re-export folder utilities for backward compatibility
+// ==========================================
+
+export {
+  flattenAssetFolderTree,
+  hasChildFolders,
+  rebuildAssetFolderTree,
+  buildAssetFolderPath,
+  isDescendantAssetFolder,
+  type FlattenedAssetFolderNode,
+} from './asset-folder-utils';

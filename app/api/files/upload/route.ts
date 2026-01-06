@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile } from '@/lib/file-upload';
 import { isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 
+// Force Node.js runtime for sharp compatibility
+export const runtime = 'nodejs';
+
 /**
  * POST /api/files/upload
  * Upload a file to Supabase Storage and create Asset record
@@ -13,6 +16,7 @@ export async function POST(request: NextRequest) {
     const customName = formData.get('name') as string | null;
     const source = formData.get('source') as string | null;
     const category = formData.get('category') as string | null;
+    const assetFolderId = formData.get('asset_folder_id') as string | null;
 
     if (!file) {
       return NextResponse.json(
@@ -64,7 +68,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const asset = await uploadFile(file, source, customName || undefined);
+    const asset = await uploadFile(
+      file,
+      source,
+      customName || undefined,
+      assetFolderId || undefined
+    );
 
     if (!asset) {
       return NextResponse.json(

@@ -28,7 +28,7 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
     activeBreakpoint,
     activeUIState,
   });
-  
+
   // Get current values from layer (with inheritance)
   const fontFamily = getDesignProperty('typography', 'fontFamily') || 'sans';
   const fontWeightRaw = getDesignProperty('typography', 'fontWeight') || 'normal';
@@ -39,12 +39,12 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
   const color = getDesignProperty('typography', 'color') || '';
   const textTransform = getDesignProperty('typography', 'textTransform') || 'none';
   const textDecoration = getDesignProperty('typography', 'textDecoration') || 'none';
-  
+
   // Local controlled inputs (prevents repopulation bug)
   const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize, extractMeasurementValue);
   const [letterSpacingInput, setLetterSpacingInput] = useControlledInput(letterSpacing, extractMeasurementValue);
   const [lineHeightInput, setLineHeightInput] = useControlledInput(lineHeight);
-  
+
   // Map numeric font weights to named values
   const fontWeightMap: Record<string, string> = {
     '100': 'thin',
@@ -57,7 +57,7 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
     '800': 'extrabold',
     '900': 'black',
   };
-  
+
   // Map named font weights to numeric values
   const fontWeightMapReverse: Record<string, string> = {
     'thin': '100',
@@ -70,40 +70,40 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
     'extrabold': '800',
     'black': '900',
   };
-  
+
   // Convert numeric weight to named for the Select
   const fontWeight = fontWeightMap[fontWeightRaw] || fontWeightRaw;
-  
+
   // Handle font family change
   const handleFontFamilyChange = (value: string) => {
     updateDesignProperty('typography', 'fontFamily', value === 'inherit' ? null : value);
   };
-  
+
   // Handle font weight change - convert named back to numeric
   const handleFontWeightChange = (value: string) => {
     const numericWeight = fontWeightMapReverse[value] || value;
     updateDesignProperty('typography', 'fontWeight', numericWeight);
   };
-  
+
   // Handle font size change (debounced for text input)
   const handleFontSizeChange = (value: string) => {
     setFontSizeInput(value); // Update local state immediately (spaces auto-stripped by hook)
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('typography', 'fontSize', sanitized || null);
   };
-  
+
   // Handle text align change (immediate - button toggle)
   const handleTextAlignChange = (value: string) => {
     updateDesignProperty('typography', 'textAlign', value);
   };
-  
+
   // Handle letter spacing change (debounced for text input)
   const handleLetterSpacingChange = (value: string) => {
     setLetterSpacingInput(value); // Update local state immediately (spaces auto-stripped by hook)
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('typography', 'letterSpacing', sanitized || null);
   };
-  
+
   // Handle line height change (debounced for text input)
   const handleLineHeightChange = (value: string) => {
     setLineHeightInput(value); // Update local state immediately (spaces auto-stripped by hook)
@@ -116,7 +116,7 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('typography', 'color', sanitized || null);
   };
-  
+
   return (
     <div className="py-5">
       <header className="py-4 -mt-4">
@@ -174,7 +174,8 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
               <InputGroupInput
                 value={fontSizeInput}
                 onChange={(e) => handleFontSizeChange(e.target.value)}
-                placeholder="16"
+                stepper
+                min="0"
               />
             </InputGroup>
           </div>
@@ -236,7 +237,8 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
                 className="!pr-0"
                 value={letterSpacingInput}
                 onChange={(e) => handleLetterSpacingChange(e.target.value)}
-                placeholder="0"
+                stepper
+                min="0"
               />
             </InputGroup>
             <InputGroup>
@@ -256,7 +258,8 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
                 className="!pr-0"
                 value={lineHeightInput}
                 onChange={(e) => handleLineHeightChange(e.target.value)}
-                placeholder="1.5"
+                stepper
+                min="0"
               />
             </InputGroup>
           </div>

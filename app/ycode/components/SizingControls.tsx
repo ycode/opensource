@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group';
 import Icon from '@/components/ui/icon';
@@ -40,6 +40,18 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
   const maxWidth = getDesignProperty('sizing', 'maxWidth') || '';
   const maxHeight = getDesignProperty('sizing', 'maxHeight') || '';
   const overflow = getDesignProperty('sizing', 'overflow') || 'visible';
+  const aspectRatio = getDesignProperty('sizing', 'aspectRatio') || '';
+  const objectFit = getDesignProperty('sizing', 'objectFit') || '';
+
+  // Extract aspect ratio value for display (remove brackets)
+  const extractAspectRatioValue = (value: string): string => {
+    if (!value) return '';
+    // Remove brackets: [16/9] → 16/9
+    if (value.startsWith('[') && value.endsWith(']')) {
+      return value.slice(1, -1);
+    }
+    return value;
+  };
 
   // Local controlled inputs (prevents repopulation bug)
   const inputs = useControlledInputs({
@@ -57,6 +69,14 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
   const [minHeightInput, setMinHeightInput] = inputs.minHeight;
   const [maxWidthInput, setMaxWidthInput] = inputs.maxWidth;
   const [maxHeightInput, setMaxHeightInput] = inputs.maxHeight;
+
+  // Aspect ratio uses custom extraction to remove brackets
+  const [aspectRatioInput, setAspectRatioInput] = useState(extractAspectRatioValue(aspectRatio));
+
+  // Sync aspect ratio input when prop changes
+  useEffect(() => {
+    setAspectRatioInput(extractAspectRatioValue(aspectRatio));
+  }, [aspectRatio]);
 
   // Handle width changes (debounced for text input)
   const handleWidthChange = (value: string) => {
@@ -209,6 +229,48 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
   // Handle overflow change
   const handleOverflowChange = (value: string) => {
     updateDesignProperty('sizing', 'overflow', value);
+  };
+
+  // Handle aspect ratio changes (debounced for text input)
+  const handleAspectRatioChange = (value: string) => {
+    setAspectRatioInput(value);
+    // Format as [16/9] for arbitrary values
+    const formattedValue = value ? `[${value}]` : null;
+    debouncedUpdateDesignProperty('sizing', 'aspectRatio', formattedValue);
+  };
+
+  // Get current aspect ratio preset value (for Select display)
+  const getAspectRatioPresetValue = () => {
+    if (aspectRatioInput === '16/9') return 'aspect-video';
+    if (aspectRatioInput === '1/1') return 'aspect-square';
+    if (aspectRatioInput === '4/3') return 'aspect-4/3';
+    if (aspectRatioInput === '3/4') return 'aspect-3/4';
+    return '';
+  };
+
+  // Preset changes are immediate (dropdown selection)
+  const handleAspectRatioPresetChange = (value: string) => {
+    if (value === 'aspect-video') {
+      setAspectRatioInput('16/9');
+      updateDesignProperty('sizing', 'aspectRatio', '[16/9]');
+    } else if (value === 'aspect-square') {
+      setAspectRatioInput('1/1');
+      updateDesignProperty('sizing', 'aspectRatio', '[1/1]');
+    } else if (value === 'aspect-4/3') {
+      setAspectRatioInput('4/3');
+      updateDesignProperty('sizing', 'aspectRatio', '[4/3]');
+    } else if (value === 'aspect-3/4') {
+      setAspectRatioInput('3/4');
+      updateDesignProperty('sizing', 'aspectRatio', '[3/4]');
+    } else if (value === 'aspect-auto') {
+      setAspectRatioInput('');
+      updateDesignProperty('sizing', 'aspectRatio', null);
+    }
+  };
+
+  // Handle object-fit change
+  const handleObjectFitChange = (value: string) => {
+    updateDesignProperty('sizing', 'objectFit', value || null);
   };
 
   return (
@@ -422,20 +484,47 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
         <Label variant="muted" className="h-8">Aspect ratio</Label>
         <div className="col-span-2 flex flex-col gap-2">
           <ButtonGroup>
-            <Input />
+            <Input
+              value={aspectRatioInput}
+              onChange={(e) => handleAspectRatioChange(e.target.value)}
+            />
             <ButtonGroupSeparator />
-            <Select>
+            <Select value={getAspectRatioPresetValue()} onValueChange={handleAspectRatioPresetChange}>
               <SelectTrigger />
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="1">Video</SelectItem>
-                  <SelectItem value="2">Square</SelectItem>
+                  <SelectItem value="aspect-square">Square</SelectItem>
+                  <SelectItem value="aspect-video">Video</SelectItem>
+                  <SelectItem value="aspect-4/3">4:3</SelectItem>
+                  <SelectItem value="aspect-3/4">3:4</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
           </ButtonGroup>
         </div>
       </div>
+
+      {layer?.name === 'image' && (
+        <div className="grid grid-cols-3 items-start">
+          <Label variant="muted" className="h-8">Object fit</Label>
+          <div className="col-span-2 flex flex-col gap-2">
+            <Select value={objectFit} onValueChange={handleObjectFitChange}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="contain">Contain</SelectItem>
+                  <SelectItem value="cover">Cover</SelectItem>
+                  <SelectItem value="fill">Fill</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="scale-down">Scale down</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
     </SettingsPanel>
   );
 }

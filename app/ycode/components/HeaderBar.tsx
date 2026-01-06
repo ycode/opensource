@@ -24,7 +24,6 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
 import PublishDialog from './PublishDialog';
-import { FileManagerDialog } from './FileManagerDialog';
 
 // 4. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -89,7 +88,7 @@ export default function HeaderBar({
   const router = useRouter();
   const pathname = usePathname();
   const pageDropdownRef = useRef<HTMLDivElement>(null);
-  const { currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode } = useEditorStore();
+  const { currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode, openFileManager } = useEditorStore();
   const { folders, pages: storePages } = usePagesStore();
   const { items, fields } = useCollectionsStore();
   const { locales, selectedLocaleId, setSelectedLocaleId, translations } = useLocalisationStore();
@@ -99,7 +98,6 @@ export default function HeaderBar({
   const [showPublishPopover, setShowPublishPopover] = useState(false);
   const [changesCount, setChangesCount] = useState(0);
   const [isLoadingCount, setIsLoadingCount] = useState(false);
-  const [showFileManagerDialog, setShowFileManagerDialog] = useState(false);
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme') as 'system' | 'light' | 'dark' | null;
@@ -415,7 +413,7 @@ export default function HeaderBar({
 
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => setShowFileManagerDialog(true)}
+              onClick={() => openFileManager()}
             >
               File manager
             </DropdownMenuItem>
@@ -652,12 +650,6 @@ export default function HeaderBar({
 
       </div>
     </header>
-
-    {/* File Manager Dialog */}
-    <FileManagerDialog
-      open={showFileManagerDialog}
-      onOpenChange={setShowFileManagerDialog}
-    />
     </>
   );
 }

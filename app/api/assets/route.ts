@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllAssets } from '@/lib/repositories/assetRepository';
-import { uploadFile } from '@/lib/file-upload';
+import { getAllAssets, createAsset } from '@/lib/repositories/assetRepository';
+import { uploadFile, cleanSvgContent, isValidSvg } from '@/lib/file-upload';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -10,11 +10,21 @@ export const revalidate = 0;
 /**
  * GET /api/assets
  *
- * Get all assets
+ * Get all assets (optionally filtered by folder)
+ * Query params:
+ * - folderId: string | 'null' - Filter by folder ID (use 'null' for root folder)
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const assets = await getAllAssets();
+    const { searchParams } = new URL(request.url);
+    const folderIdParam = searchParams.get('folderId');
+
+    let folderId: string | null | undefined = undefined;
+    if (folderIdParam !== null) {
+      folderId = folderIdParam === 'null' ? null : folderIdParam;
+    }
+
+    const assets = await getAllAssets(folderId);
 
     return noCache({
       data: assets,
@@ -32,10 +42,55 @@ export async function GET() {
 /**
  * POST /api/assets
  *
- * Upload a new asset
+ * Upload a new asset (file upload) or create SVG asset from code
+ * - FormData: File upload
+ * - JSON: SVG creation from code
  */
 export async function POST(request: NextRequest) {
   try {
+    const contentType = request.headers.get('content-type');
+
+    // Handle JSON request for SVG creation
+    if (contentType?.includes('application/json')) {
+      const body = await request.json();
+      const { filename, content, asset_folder_id, source = 'file-manager' } = body;
+
+      if (!filename || !content) {
+        return noCache(
+          { error: 'Filename and content are required' },
+          400
+        );
+      }
+
+      // Clean SVG content
+      const cleanedContent = cleanSvgContent(content);
+
+      // Validate SVG content
+      if (!isValidSvg(content)) {
+        return noCache(
+          { error: 'Invalid SVG code. Please provide a valid SVG element.' },
+          400
+        );
+      }
+
+      // Create asset record with inline SVG content
+      const asset = await createAsset({
+        filename,
+        source,
+        storage_path: null,
+        public_url: null,
+        file_size: cleanedContent.length,
+        mime_type: 'image/svg+xml',
+        asset_folder_id: asset_folder_id || null,
+        content: cleanedContent,
+      });
+
+      return noCache({
+        data: asset,
+      });
+    }
+
+    // Handle FormData for file upload
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const source = formData.get('source') as string | null;

@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { EditorState, UIState } from '../types';
-import type { Layer, Breakpoint } from '../types';
+import type { Layer, Breakpoint, Asset } from '../types';
 
 interface HistoryEntry {
   pageId: string;
@@ -40,6 +40,8 @@ interface EditorActions {
   setHoveredLayerId: (id: string | null) => void;
   setPreviewMode: (enabled: boolean) => void;
   setActiveSidebarTab: (tab: EditorSidebarTab) => void;
+  openFileManager: (onSelect?: ((asset: Asset) => void) | null) => void;
+  closeFileManager: () => void;
 }
 
 interface EditorStoreWithHistory extends EditorState {
@@ -62,6 +64,10 @@ interface EditorStoreWithHistory extends EditorState {
   hoveredLayerId: string | null;
   isPreviewMode: boolean;
   activeSidebarTab: EditorSidebarTab;
+  fileManager: {
+    open: boolean;
+    onSelect: ((asset: Asset) => void) | null;
+  };
 }
 
 type EditorStore = EditorStoreWithHistory & EditorActions;
@@ -91,6 +97,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   hoveredLayerId: null,
   isPreviewMode: false,
   activeSidebarTab: 'layers' as EditorSidebarTab,
+  fileManager: {
+    open: false,
+    onSelect: null,
+  },
 
   setSelectedLayerId: (id) => {
     console.log(`[EDITOR] setSelectedLayerId: ${id}`);
@@ -272,4 +282,18 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setPreviewMode: (enabled) => set({ isPreviewMode: enabled }),
 
   setActiveSidebarTab: (tab) => set({ activeSidebarTab: tab }),
+
+  openFileManager: (onSelect) => set({
+    fileManager: {
+      open: true,
+      onSelect: onSelect ?? null,
+    },
+  }),
+
+  closeFileManager: () => set({
+    fileManager: {
+      open: false,
+      onSelect: null,
+    },
+  }),
 }));

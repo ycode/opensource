@@ -108,7 +108,7 @@ export default function AssetLibrary({
             className="group relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
           >
             <div className="aspect-square bg-gray-100 flex items-center justify-center relative">
-              {isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES) ? (
+              {isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES) && asset.public_url ? (
                 <Image
                   src={asset.public_url}
                   alt={asset.filename}

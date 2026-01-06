@@ -82,6 +82,7 @@ function InputGroupAddon({
       role="group"
       data-slot="input-group-addon"
       data-align={align}
+      tabIndex={-1}
       className={cn(inputGroupAddonVariants({ align }), className)}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('button')) {
@@ -201,12 +202,12 @@ function InputGroupInput({
         onChange={onChange}
         className={cn(
           'flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-input/0',
-          stepper && 'pr-0',
+          stepper && !props.disabled && 'pr-0',
           className
         )}
         {...props}
       />
-      {stepper && (
+      {stepper && !props.disabled && (
         <InputGroupAddon align="inline-end" className="p-0 px-1.5 hidden group-hover:flex absolute right-0 top-0 bg-gradient-to-l from-input backdrop-blur h-full items-center rounded-r-[10px]">
           <div className="flex flex-col">
             <InputGroupButton

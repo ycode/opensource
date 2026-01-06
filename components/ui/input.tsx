@@ -121,7 +121,7 @@ function Input({
             '',
             'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
             sizeClasses[size],
-            stepper && 'pr-8',
+            stepper && !props.disabled && 'pr-8',
             className
           )}
           value={value}
@@ -129,30 +129,32 @@ function Input({
           onKeyDown={handleKeyDown}
           {...props}
         />
-        <div className="absolute right-px top-px bottom-px items-center rounded-r-[10px] bg-gradient-to-l from-input backdrop-blur hidden group-hover:flex pr-1.5">
-          <div className="flex flex-col">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={handleIncrement}
-              className="size-2.5 h-3.5 w-4"
-              tabIndex={-1}
-            >
-              <ChevronUp className="size-2.5" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={handleDecrement}
-              className="size-2.5 h-3.5 w-4"
-              tabIndex={-1}
-            >
-              <ChevronDown className="size-2.5" />
-            </Button>
+        {!props.disabled && (
+          <div className="absolute right-px top-px bottom-px items-center rounded-r-[10px] bg-gradient-to-l from-input backdrop-blur hidden group-hover:flex pr-1.5">
+            <div className="flex flex-col">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleIncrement}
+                className="size-2.5 h-3.5 w-4"
+                tabIndex={-1}
+              >
+                <ChevronUp className="size-2.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleDecrement}
+                className="size-2.5 h-3.5 w-4"
+                tabIndex={-1}
+              >
+                <ChevronDown className="size-2.5" />
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }

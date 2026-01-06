@@ -12,6 +12,17 @@ export interface FlattenedItem {
 }
 
 /**
+ * Generic flattened tree node (for any tree structure)
+ */
+export interface FlattenedTreeNode<T> {
+  id: string;
+  data: T;
+  depth: number;
+  parentId: string | null;
+  index: number;
+}
+
+/**
  * Flatten a tree structure into a linear array with depth information
  * Supports both 'children' and 'items' properties for nested layers
  */
@@ -275,4 +286,121 @@ export function moveItem(
     projection.parentId,
     insertionIndex
   );
+}
+
+// ==========================================
+// Generic Tree Utilities (for flat parent-reference trees)
+// ==========================================
+
+/**
+ * Flatten a tree structure where items reference their parent via a parentKey
+ * This works with flat arrays where items have a parent reference (e.g., asset_folder_id, page_folder_id)
+ *
+ * @param items - Flat array of items
+ * @param getId - Function to get item ID
+ * @param getParentId - Function to get parent ID (returns null for root items)
+ * @param getOrder - Function to get sort order
+ * @param parentId - Current parent ID to filter by (null for root)
+ * @param collapsedIds - Set of collapsed item IDs
+ * @returns Flattened array with depth and index information
+ */
+export function flattenTreeByParentRef<T extends { id?: string }>(
+  items: T[],
+  getId: (item: T) => string,
+  getParentId: (item: T) => string | null,
+  getOrder: (item: T) => number,
+  parentId: string | null = null,
+  collapsedIds: Set<string> = new Set(),
+  startDepth: number = 0
+): FlattenedTreeNode<T>[] {
+  const buildTree = (currentParentId: string | null, depth: number = startDepth): FlattenedTreeNode<T>[] => {
+    const children = items
+      .filter(item => getParentId(item) === currentParentId)
+      .sort((a, b) => getOrder(a) - getOrder(b));
+
+    const result: FlattenedTreeNode<T>[] = [];
+
+    children.forEach((item, index) => {
+      const itemId = getId(item);
+
+      result.push({
+        id: itemId,
+        data: item,
+        depth,
+        parentId: currentParentId,
+        index,
+      });
+
+      // Add children if not collapsed
+      if (!collapsedIds.has(itemId)) {
+        result.push(...buildTree(itemId, depth + 1));
+      }
+    });
+
+    return result;
+  };
+
+  return buildTree(parentId, startDepth);
+}
+
+/**
+ * Check if an item has children in a parent-reference tree
+ */
+export function hasChildren<T>(
+  itemId: string,
+  items: T[],
+  getParentId: (item: T) => string | null
+): boolean {
+  return items.some(item => getParentId(item) === itemId);
+}
+
+/**
+ * Check if one item is a descendant of another in a parent-reference tree
+ */
+export function isDescendant<T>(
+  itemId: string,
+  potentialAncestorId: string,
+  items: T[],
+  getId: (item: T) => string,
+  getParentId: (item: T) => string | null
+): boolean {
+  const item = items.find(i => getId(i) === itemId);
+  if (!item) return false;
+
+  const parentId = getParentId(item);
+  if (!parentId) return false;
+  if (parentId === potentialAncestorId) return true;
+
+  return isDescendant(parentId, potentialAncestorId, items, getId, getParentId);
+}
+
+/**
+ * Build a hierarchical path string for an item
+ */
+export function buildPath<T>(
+  item: T,
+  items: T[],
+  getId: (item: T) => string,
+  getParentId: (item: T) => string | null,
+  getName: (item: T) => string,
+  asArray: boolean = false
+): string | string[] {
+  const parentId = getParentId(item);
+  const itemName = getName(item);
+
+  if (!parentId) {
+    return asArray ? [itemName] : itemName;
+  }
+
+  const parent = items.find(i => getId(i) === parentId);
+  if (!parent) {
+    return asArray ? [itemName] : itemName;
+  }
+
+  if (asArray) {
+    const parentPath = buildPath(parent, items, getId, getParentId, getName, true) as string[];
+    return [...parentPath, itemName];
+  }
+
+  return `${buildPath(parent, items, getId, getParentId, getName)} / ${itemName}`;
 }

@@ -51,7 +51,7 @@ function FieldItem({
       className={cn(
         'flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded-md',
         'hover:bg-zinc-700/50 transition-colors',
-        'text-zinc-300 hover:text-zinc-100'
+        'text-zinc-300 hover:text-zinc-100 cursor-pointer'
       )}
       style={{ paddingLeft: `${8 + depth * 16}px` }}
     >

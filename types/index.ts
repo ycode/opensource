@@ -56,6 +56,8 @@ export interface SizingDesign {
   minHeight?: string;
   maxWidth?: string;
   maxHeight?: string;
+  aspectRatio?: string | null;
+  objectFit?: string | null;
 }
 
 export interface BordersDesign {
@@ -114,7 +116,7 @@ export interface LayerSettings {
   tag?: string; // HTML tag override (e.g., 'h1', 'h2', etc.)
   customAttributes?: Record<string, string>; // Custom HTML attributes { attributeName: attributeValue }
   locale?: {
-    format?: 'locale' | 'code'; // Display format for locale selector ('locale' => "English", 'code' => "EN")
+    format?: 'locale' | 'code'; // Display format for locale selector (`locale` => 'English', `code` => 'EN')
   };
 }
 
@@ -146,7 +148,6 @@ export interface InteractionTimeline {
   breakpoints: Breakpoint[];
   repeat: number; // -1 = infinite, 0 = none, n = repeat n times
   yoyo: boolean; // reverse direction on each repeat
-  // Scroll trigger settings (for scroll-into-view and while-scrolling)
   scrollStart?: string; // e.g., 'top 80%', 'top center' - when trigger enters viewport
   scrollEnd?: string; // e.g., 'bottom top' - when trigger leaves viewport (while-scrolling only)
   scrub?: boolean | number; // while-scrolling: true for direct link, number for smoothing (seconds)
@@ -226,7 +227,7 @@ export interface Layer {
     id: string; // Collection ID
   };
 
-  // Layer variables (new structured approach)
+  // Layer variables (layer collection data & dynamic data for texts, assets, links)
   variables?: LayerVariables;
 
   // Interactions / Animations (new structured approach)
@@ -255,9 +256,6 @@ export interface LayerVariables {
   image?: {
     src: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL that allows inline variables)
     alt: DynamicTextVariable; // Image alt text with inline variables
-    width?: number;
-    height?: number;
-    lazy?: boolean;
   };
   audio?: {
     src: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL that allows inline variables)
@@ -270,9 +268,6 @@ export interface LayerVariables {
   };
   link?: {
     href: FieldVariable | DynamicTextVariable; // Link href (allow inline variables)
-    target?: '_self' | '_blank' | '_parent' | '_top';
-    rel?: string;
-    download?: boolean;
   };
 }
 
@@ -413,14 +408,45 @@ export type AssetCategory = 'images' | 'videos' | 'audio' | 'documents';
 export interface Asset {
   id: string;
   filename: string;
-  storage_path: string;
-  public_url: string;
+  storage_path: string | null; // Nullable for SVG icons with inline content
+  public_url: string | null; // Nullable for SVG icons with inline content
   file_size: number;
   mime_type: string;
   width?: number | null;
   height?: number | null;
   source: string; // Required: identifies where the asset was uploaded from
+  asset_folder_id?: string | null;
+  content?: string | null; // Inline SVG content for icon assets
   created_at: string;
+}
+
+export interface AssetFolder {
+  id: string;
+  asset_folder_id: string | null;
+  name: string;
+  depth: number;
+  order: number;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface CreateAssetFolderData {
+  id?: string;
+  name: string;
+  depth?: number;
+  order?: number;
+  is_published?: boolean;
+  asset_folder_id?: string | null;
+}
+
+export interface UpdateAssetFolderData {
+  name?: string;
+  depth?: number;
+  order?: number;
+  is_published?: boolean;
+  asset_folder_id?: string | null;
 }
 
 // Settings Types

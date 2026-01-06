@@ -4,7 +4,7 @@
  * Handles communication with Next.js API routes
  */
 
-import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData, Locale, Translation, CreateLocaleData, UpdateLocaleData, CreateTranslationData, UpdateTranslationData } from '../types';
+import type { Page, PageLayers, Layer, Asset, AssetCategory, PageFolder, ApiResponse, Collection, CollectionField, CollectionItemWithValues, Component, LayerStyle, Setting, UpdateCollectionData, CreateCollectionFieldData, UpdateCollectionFieldData, Locale, Translation, CreateLocaleData, UpdateLocaleData, CreateTranslationData, UpdateTranslationData, AssetFolder } from '../types';
 
 // All API routes are now relative (Next.js API routes)
 const API_BASE = '';
@@ -32,6 +32,15 @@ async function apiRequest<T>(
   });
 
   if (!response.ok) {
+    // Try to parse error message from response body
+    try {
+      const json = await response.json();
+      if (json.error) {
+        return { error: json.error };
+      }
+    } catch {
+      // If parsing fails, fall back to status text
+    }
     return {
       error: `HTTP ${response.status}: ${response.statusText}`,
     };
@@ -251,14 +260,85 @@ export const assetsApi = {
     }
   },
 
-  // Get all assets
-  async getAll(): Promise<ApiResponse<Asset[]>> {
-    return apiRequest<Asset[]>('/api/assets');
+  // Get all assets (optionally filtered by folder)
+  async getAll(folderId?: string | null): Promise<ApiResponse<Asset[]>> {
+    const params = new URLSearchParams();
+    if (folderId !== undefined) {
+      params.set('folderId', folderId === null ? 'null' : folderId);
+    }
+    const url = params.toString() ? `/api/assets?${params}` : '/api/assets';
+    return apiRequest<Asset[]>(url);
+  },
+
+  // Create SVG asset from code
+  async create(data: { filename: string; content: string; asset_folder_id?: string | null; source?: string }): Promise<ApiResponse<Asset>> {
+    return apiRequest<Asset>('/api/assets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  // Update asset
+  async update(id: string, data: { filename?: string; asset_folder_id?: string | null; content?: string | null }): Promise<ApiResponse<Asset>> {
+    return apiRequest<Asset>(`/api/assets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   },
 
   // Delete asset
   async delete(id: string): Promise<ApiResponse<void>> {
     return apiRequest<void>(`/api/assets/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Bulk delete assets
+  async bulkDelete(ids: string[]): Promise<ApiResponse<{ success: string[]; failed: string[] }>> {
+    return apiRequest<{ success: string[]; failed: string[] }>('/api/assets/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete', ids }),
+    });
+  },
+
+  // Bulk move assets to folder
+  async bulkMove(ids: string[], asset_folder_id: string | null): Promise<ApiResponse<{ success: string[]; failed: string[] }>> {
+    return apiRequest<{ success: string[]; failed: string[] }>('/api/assets/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'move', ids, asset_folder_id }),
+    });
+  },
+};
+
+// Asset Folders API
+export const assetFoldersApi = {
+  // Get all asset folders
+  async getAll(): Promise<ApiResponse<AssetFolder[]>> {
+    return apiRequest<AssetFolder[]>('/api/asset-folders');
+  },
+
+  // Create new asset folder
+  async create(folder: { name: string; asset_folder_id?: string | null; depth?: number; order?: number; is_published?: boolean }): Promise<ApiResponse<AssetFolder>> {
+    return apiRequest<AssetFolder>('/api/asset-folders', {
+      method: 'POST',
+      body: JSON.stringify(folder),
+    });
+  },
+
+  // Update asset folder
+  async update(id: string, folder: Partial<AssetFolder>): Promise<ApiResponse<AssetFolder>> {
+    return apiRequest<AssetFolder>(`/api/asset-folders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(folder),
+    });
+  },
+
+  // Delete asset folder
+  async delete(id: string): Promise<ApiResponse<void>> {
+    return apiRequest<void>(`/api/asset-folders/${id}`, {
       method: 'DELETE',
     });
   },
@@ -527,6 +607,8 @@ export const editorApi = {
     settings: Setting[];
     collections: Collection[];
     locales: Locale[];
+    assets: Asset[];
+    assetFolders: AssetFolder[];
   }>> {
     return apiRequest('/api/editor/init');
   },
@@ -622,7 +704,8 @@ export async function uploadFileApi(
   file: File,
   source: string,
   category?: AssetCategory | null,
-  customName?: string
+  customName?: string,
+  assetFolderId?: string | null
 ): Promise<Asset | null> {
   try {
     const formData = new FormData();
@@ -633,6 +716,9 @@ export async function uploadFileApi(
     }
     if (customName) {
       formData.append('name', customName);
+    }
+    if (assetFolderId) {
+      formData.append('asset_folder_id', assetFolderId);
     }
 
     const response = await fetch('/api/files/upload', {
