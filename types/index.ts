@@ -57,6 +57,7 @@ export interface SizingDesign {
   maxWidth?: string;
   maxHeight?: string;
   aspectRatio?: string | null;
+  objectFit?: string | null;
 }
 
 export interface BordersDesign {

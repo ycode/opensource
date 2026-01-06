@@ -41,6 +41,7 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
   const maxHeight = getDesignProperty('sizing', 'maxHeight') || '';
   const overflow = getDesignProperty('sizing', 'overflow') || 'visible';
   const aspectRatio = getDesignProperty('sizing', 'aspectRatio') || '';
+  const objectFit = getDesignProperty('sizing', 'objectFit') || '';
 
   // Extract aspect ratio value for display (remove brackets)
   const extractAspectRatioValue = (value: string): string => {
@@ -265,6 +266,11 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
       setAspectRatioInput('');
       updateDesignProperty('sizing', 'aspectRatio', null);
     }
+  };
+
+  // Handle object-fit change
+  const handleObjectFitChange = (value: string) => {
+    updateDesignProperty('sizing', 'objectFit', value || null);
   };
 
   return (
@@ -497,6 +503,28 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
           </ButtonGroup>
         </div>
       </div>
+
+      {layer?.name === 'image' && (
+        <div className="grid grid-cols-3 items-start">
+          <Label variant="muted" className="h-8">Object fit</Label>
+          <div className="col-span-2 flex flex-col gap-2">
+            <Select value={objectFit} onValueChange={handleObjectFitChange}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="contain">Contain</SelectItem>
+                  <SelectItem value="cover">Cover</SelectItem>
+                  <SelectItem value="fill">Fill</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="scale-down">Scale down</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
     </SettingsPanel>
   );
 }
