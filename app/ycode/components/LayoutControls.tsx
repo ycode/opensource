@@ -217,7 +217,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                               <Icon name="grid" />
                           </TabsTrigger>
                           <TabsTrigger value="hidden">
-                            None
+                            Hide
                           </TabsTrigger>
                       </TabsList>
                   </Tabs>
