@@ -24,6 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -42,7 +43,7 @@ import Icon from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
 import { assetFoldersApi, assetsApi, uploadFileApi } from '@/lib/api';
 import type { AssetFolder, Asset } from '@/types';
-import { getAcceptString, getAssetIcon } from '@/lib/asset-utils';
+import { getAcceptString, getAssetIcon, getOptimizedImageUrl } from '@/lib/asset-utils';
 import {
   flattenAssetFolderTree,
   hasChildFolders,
@@ -55,6 +56,7 @@ import { useAssetsStore } from '@/stores/useAssetsStore';
 import AssetFolderDialog from './AssetFolderDialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useTreeDragDrop } from '@/hooks/use-tree-drag-drop';
+import { toast } from 'sonner';
 
 interface FileManagerDialogProps {
   open: boolean;
@@ -71,6 +73,7 @@ interface FolderRowProps {
   isDragging: boolean;
   isDragActive: boolean;
   dropPosition: 'above' | 'below' | 'inside' | null;
+  assetCount: number;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
@@ -86,6 +89,7 @@ function FolderRow({
   isDragging,
   isDragActive,
   dropPosition,
+  assetCount,
   onSelect,
   onToggle,
   onDelete,
@@ -198,13 +202,26 @@ function FolderRow({
           {node.data.name}
         </span>
 
-        {/* Options Menu */}
+        {/* Asset Count - shown when not hovering */}
+        {assetCount > 0 && (
+          <span
+            className={cn(
+              'text-xs mr-3 pointer-events-none flex-shrink-0 group-hover:opacity-0',
+              isSelected ? 'opacity-80' : 'opacity-60'
+            )}
+          >
+            {assetCount}
+          </span>
+        )}
+
+        {/* Options Menu - shown when hovering */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <div
               className={cn(
                 'size-5.75 opacity-0 group-hover:opacity-100 mr-1 p-0.5 rounded-sm backdrop-blur-sm hover:bg-secondary/80 cursor-pointer flex items-center justify-center',
-                isSelected && 'hover:bg-primary-foreground/20'
+                isSelected && 'hover:bg-primary-foreground/20',
+                assetCount > 0 ? 'absolute right-0' : ''
               )}
             >
               <Icon name="dotsHorizontal" className="size-3" />
@@ -249,7 +266,8 @@ interface FileGridItemProps {
   onPreview?: () => void;
   // For assets
   mimeType?: string | null;
-  imageUrl?: string;
+  imageUrl?: string | null;
+  content?: string | null; // For inline SVG content
   // For uploading assets
   file?: File;
 }
@@ -264,19 +282,19 @@ function FileGridItem({
   onPreview,
   mimeType,
   imageUrl,
+  content,
   file,
 }: FileGridItemProps) {
   const showMenu = (type === 'folder' || type === 'asset') && (onDelete || onEdit || onPreview);
   const isUploading = type === 'uploading';
-  const isImage = type === 'asset' && mimeType?.startsWith('image/') && imageUrl;
+  const isImage = type === 'asset' && mimeType?.startsWith('image/') && (imageUrl || content);
 
   return (
     <div className={cn('flex flex-col gap-1.5', !isUploading && 'group')}>
       <div
         className={cn(
-          'relative aspect-square bg-secondary/30 rounded-md overflow-visible flex items-center justify-center',
+          'relative aspect-square bg-secondary/30 rounded-md flex items-center justify-center overflow-hidden',
           !isUploading && 'hover:bg-secondary/60 cursor-pointer',
-          isUploading && 'overflow-hidden'
         )}
         onClick={!isUploading ? onClick : undefined}
       >
@@ -286,14 +304,29 @@ function FileGridItem({
         {/* Asset Content */}
         {type === 'asset' && (
           <>
-            {mimeType?.startsWith('image/') && imageUrl ? (
+            {mimeType?.startsWith('image/') && (imageUrl || content) ? (
               <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  className="w-full h-full object-contain pointer-events-none rounded-md"
-                  src={imageUrl}
-                  alt={name}
-                />
+                {content ? (
+                  // Inline SVG content
+                  <div
+                    data-icon
+                    className="w-full h-full flex items-center justify-center p-5 pointer-events-none text-foreground opacity-60"
+                    dangerouslySetInnerHTML={{ __html: content }}
+                  />
+                ) : imageUrl ? (
+                  // Image URL
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      className="w-full h-full object-contain pointer-events-none rounded-md"
+                      src={getOptimizedImageUrl(imageUrl)}
+                      alt={name}
+                      loading="lazy"
+                      width={110}
+                      height={110}
+                    />
+                  </>
+                ) : null}
               </>
             ) : (
               <Icon name={getAssetIcon(mimeType) as any} className="size-10 opacity-50" />
@@ -304,13 +337,28 @@ function FileGridItem({
         {/* Uploading Asset Content */}
         {isUploading && file && (
           <>
-            {file.type.startsWith('image/') ? (
+            {file.type === 'image/svg+xml' ? (
+              <>
+                <div
+                  className="w-full h-full flex items-center justify-center p-5 pointer-events-none text-foreground opacity-30"
+                >
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Icon name="icon" className="size-15" />
+                  </div>
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center bg-background/20">
+                  <Spinner className="size-10 opacity-60" />
+                </div>
+              </>
+            ) : file.type.startsWith('image/') ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   className="w-full h-full object-contain pointer-events-none opacity-40"
                   src={URL.createObjectURL(file)}
                   alt={name}
+                  width={110}
+                  height={110}
                 />
                 <div className="absolute inset-0 flex items-center justify-center bg-background/20">
                   <Spinner className="size-10 opacity-60" />
@@ -407,9 +455,12 @@ export default function FileManagerDialog({
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
   const [editAssetName, setEditAssetName] = useState('');
   const [editAssetFolderId, setEditAssetFolderId] = useState<string | null>(null);
+  const [editAssetContent, setEditAssetContent] = useState<string | null>(null);
+  const [isCreateSvgMode, setIsCreateSvgMode] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [uploadingAssets, setUploadingAssets] = useState<Array<{ id: string; filename: string; file: File }>>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Get folders and assets from store
@@ -424,14 +475,51 @@ export default function FileManagerDialog({
   const updateAsset = useAssetsStore((state) => state.updateAsset);
   const removeAsset = useAssetsStore((state) => state.removeAsset);
 
-  // Filter assets by selected folder
+  // Get all descendant folder IDs for a folder (including the folder itself)
+  const getAllDescendantFolderIds = useCallback((folderId: string | null): string[] => {
+    if (folderId === null) {
+      // Root: return all folder IDs plus null for root assets
+      return ['root', ...folders.map(f => f.id)];
+    }
+
+    const descendants: string[] = [folderId];
+    const children = folders.filter(f => f.asset_folder_id === folderId);
+
+    for (const child of children) {
+      descendants.push(...getAllDescendantFolderIds(child.id));
+    }
+
+    return descendants;
+  }, [folders]);
+
+  // Filter assets by selected folder and search query
   const assets = useMemo(() => {
-    const filteredAssets = selectedFolderId === null
-      ? storeAssets.filter((asset) => !asset.asset_folder_id)
-      : storeAssets.filter((asset) => asset.asset_folder_id === selectedFolderId);
+    let filteredAssets: typeof storeAssets;
+
+    if (searchQuery.trim()) {
+      // Search mode: include assets from current folder and all descendants
+      const searchLower = searchQuery.toLowerCase().trim();
+      const allowedFolderIds = getAllDescendantFolderIds(selectedFolderId);
+
+      filteredAssets = storeAssets.filter((asset) => {
+        // Check if asset is in current folder or descendants
+        const assetFolderId = asset.asset_folder_id || 'root';
+        const isInScope = allowedFolderIds.includes(assetFolderId);
+
+        // Check if filename matches search query
+        const matchesSearch = asset.filename.toLowerCase().includes(searchLower);
+
+        return isInScope && matchesSearch;
+      });
+    } else {
+      // Normal mode: only show assets in current folder (not descendants)
+      filteredAssets = selectedFolderId === null
+        ? storeAssets.filter((asset) => !asset.asset_folder_id)
+        : storeAssets.filter((asset) => asset.asset_folder_id === selectedFolderId);
+    }
 
     return filteredAssets;
-  }, [storeAssets, selectedFolderId]);
+  }, [storeAssets, selectedFolderId, searchQuery, getAllDescendantFolderIds]);
 
   // Get uploading assets for the current folder
   const currentUploadingAssets = useMemo(() => {
@@ -442,6 +530,19 @@ export default function FileManagerDialog({
   const childFolders = useMemo(() => {
     return folders.filter((folder) => folder.asset_folder_id === selectedFolderId);
   }, [folders, selectedFolderId]);
+
+  // Calculate asset counts for each folder
+  const folderAssetCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+
+    // Count assets per folder (including root)
+    storeAssets.forEach((asset) => {
+      const folderId = asset.asset_folder_id || 'root';
+      counts[folderId] = (counts[folderId] || 0) + 1;
+    });
+
+    return counts;
+  }, [storeAssets]);
 
   // Build flattened folder tree with virtual "All Files" root
   const flattenedFolders = useMemo(() => {
@@ -764,19 +865,72 @@ export default function FileManagerDialog({
     window.open(imageUrl, '_blank', 'noopener,noreferrer');
   };
 
+  // Start creating SVG
+  const handleCreateSvg = () => {
+    setIsCreateSvgMode(true);
+    setEditingAssetId(null);
+    setEditAssetName('');
+    setEditAssetFolderId(selectedFolderId);
+    setEditAssetContent('');
+    setShowEditAssetDialog(true);
+  };
+
   // Start editing asset
   const handleEditAsset = (id: string) => {
+    setIsCreateSvgMode(false);
     const asset = storeAssets.find(a => a.id === id);
     if (asset) {
       setEditingAssetId(id);
       setEditAssetName(asset.filename);
       setEditAssetFolderId(asset.asset_folder_id || null);
+      setEditAssetContent(asset.content || null);
       setShowEditAssetDialog(true);
     }
   };
 
+  // Create SVG asset
+  const handleCreateSvgAsset = async (name: string, folderId: string | null, content: string) => {
+    if (!name.trim() || !content.trim()) return;
+
+    try {
+      const response = await assetsApi.create({
+        filename: name,
+        content,
+        asset_folder_id: folderId,
+        source: 'file-manager',
+      });
+
+      if (response.error) {
+        toast.error('Unable to create SVG icon', {
+          description: response.error,
+        });
+        return;
+      }
+
+      if (response.data) {
+        addAsset(response.data);
+      }
+
+      setShowEditAssetDialog(false);
+      setEditAssetName('');
+      setEditAssetFolderId(null);
+      setEditAssetContent(null);
+      setIsCreateSvgMode(false);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create SVG asset';
+      toast.error('Unable to create SVG icon', {
+        description: errorMessage,
+      });
+    }
+  };
+
   // Confirm asset edit
-  const handleConfirmEditAsset = async (newName: string, newFolderId: string | null) => {
+  const handleConfirmEditAsset = async (newName: string, newFolderId: string | null, newContent?: string | null) => {
+    if (isCreateSvgMode) {
+      await handleCreateSvgAsset(newName, newFolderId, newContent || '');
+      return;
+    }
+
     if (!editingAssetId || !newName.trim()) return;
 
     // Save original asset for rollback
@@ -785,12 +939,15 @@ export default function FileManagerDialog({
 
     try {
       // Build update data
-      const updateData: { filename?: string; asset_folder_id?: string | null } = {};
+      const updateData: { filename?: string; asset_folder_id?: string | null; content?: string | null } = {};
       if (newName !== originalAsset.filename) {
         updateData.filename = newName;
       }
       if (newFolderId !== originalAsset.asset_folder_id) {
         updateData.asset_folder_id = newFolderId;
+      }
+      if (newContent !== undefined && newContent !== originalAsset.content) {
+        updateData.content = newContent;
       }
 
       // Only update if there are changes
@@ -798,6 +955,7 @@ export default function FileManagerDialog({
         setEditingAssetId(null);
         setEditAssetName('');
         setEditAssetFolderId(null);
+        setEditAssetContent(null);
         return;
       }
 
@@ -806,14 +964,17 @@ export default function FileManagerDialog({
       setEditingAssetId(null);
       setEditAssetName('');
       setEditAssetFolderId(null);
+      setEditAssetContent(null);
 
-      // Make API call
+      // Make API call (server will clean SVG content and save it)
       const response = await assetsApi.update(editingAssetId, updateData);
 
       if (response.error) {
-        console.error('Failed to update asset:', response.error);
         // Rollback: restore original values
         updateAsset(editingAssetId, originalAsset);
+        toast.error('Unable to update asset', {
+          description: response.error,
+        });
         return;
       }
 
@@ -822,9 +983,12 @@ export default function FileManagerDialog({
         updateAsset(editingAssetId, response.data);
       }
     } catch (error) {
-      console.error('Failed to update asset:', error);
       // Rollback on error
       updateAsset(editingAssetId, originalAsset);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update asset';
+      toast.error('Unable to update asset', {
+        description: errorMessage,
+      });
     }
   };
 
@@ -908,23 +1072,48 @@ export default function FileManagerDialog({
             <div className="flex items-center justify-between gap-2 pr-7 -ml-2.5">
               <div className="w-full">
                 <InputGroup>
+                  <InputGroupAddon>
+                    <Icon name="search" />
+                  </InputGroupAddon>
+
                   <InputGroupInput
                     placeholder="Search..."
                     autoFocus={false}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                   />
-                  <InputGroupAddon>
-                    <Icon name="search" className="size-3" />
-                  </InputGroupAddon>
-              </InputGroup>
+
+                  {searchQuery.trim() && (
+                    <InputGroupAddon align="inline-end">
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="size-6 transition-opacity flex items-center justify-center cursor-pointer rounded-sm hover:bg-secondary/80"
+                        aria-label="Clear search"
+                      >
+                        <Icon name="x" />
+                      </button>
+                    </InputGroupAddon>
+                  )}
+                </InputGroup>
+              </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleCreateSvg}
+              >
+                <Icon name="icon" />
+                SVG
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleUploadClick}
+                disabled={isUploading}
+              >
+                <Icon name="upload" />
+                Upload
+              </Button>
             </div>
-            <Button
-              size="sm"
-              onClick={handleUploadClick}
-              disabled={isUploading}
-            >
-              <Icon name="upload" className="size-3" />
-              Upload
-            </Button>
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -938,7 +1127,7 @@ export default function FileManagerDialog({
         </DialogHeader>
           <div className="flex-1 flex -my-6 -mx-6 overflow-hidden">
             {/* Folder Sidebar */}
-            <div className="w-60 border-r h-full overflow-y-auto px-4">
+            <div className="w-64 border-r h-full overflow-y-auto px-4">
             <header className="py-5 flex justify-between">
               <span className="font-medium">File manager</span>
               <div className="-my-1">
@@ -1017,6 +1206,18 @@ export default function FileManagerDialog({
                       <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
                         All files
                       </span>
+
+                      {/* Asset Count - shown when not hovering */}
+                      {(folderAssetCounts['root'] || 0) > 0 && (
+                        <span
+                          className={cn(
+                            'text-xs mr-1 pointer-events-none flex-shrink-0 group-hover:opacity-0',
+                            selectedFolderId === null ? 'opacity-70' : 'opacity-40'
+                          )}
+                        >
+                          {folderAssetCounts['root'] || 0}
+                        </span>
+                      )}
                     </div>
                   );
                 }
@@ -1032,6 +1233,7 @@ export default function FileManagerDialog({
                     isDragging={folder.id === activeId}
                     isDragActive={activeId !== null}
                     dropPosition={folder.id === overId ? dropPosition : null}
+                    assetCount={folderAssetCounts[folder.id] || 0}
                     onSelect={setSelectedFolderId}
                     onToggle={handleToggle}
                     onDelete={handleDeleteFolder}
@@ -1046,32 +1248,58 @@ export default function FileManagerDialog({
           <div className="flex-1 py-5 px-6 overflow-y-auto flex flex-col gap-6">
             {/* Breadcrumb */}
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              {breadcrumbPath.map((item, index) => (
-                <React.Fragment key={item.id || 'root'}>
-                  <button
-                    onClick={() => setSelectedFolderId(item.id)}
-                    className={cn(
-                      'hover:text-foreground transition-colors',
-                      index === breadcrumbPath.length - 1 ? 'text-foreground font-medium' : 'cursor-pointer'
-                    )}
-                  >
-                    {item.name}
-                  </button>
-                  {index < breadcrumbPath.length - 1 && (
-                    <Icon name="chevronRight" className="size-2.5 opacity-50" />
-                  )}
-                </React.Fragment>
-              ))}
+              {searchQuery.trim() ? (
+                <>
+                  <span className="text-foreground font-medium">
+                    Results for &quot;{searchQuery}&quot;
+                  </span>
+                  <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                  <span className="text-muted-foreground font-medium">
+                    {assets.length} {assets.length === 1 ? 'file' : 'files'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  {breadcrumbPath.map((item, index) => (
+                    <React.Fragment key={item.id || 'root'}>
+                      <button
+                        onClick={() => setSelectedFolderId(item.id)}
+                        className={cn(
+                          'hover:text-foreground transition-colors',
+                          index === breadcrumbPath.length - 1 ? 'text-foreground font-medium' : 'cursor-pointer'
+                        )}
+                      >
+                        {item.name}
+                      </button>
+                      {index < breadcrumbPath.length - 1 && (
+                        <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                      )}
+                    </React.Fragment>
+                  ))}
+                </>
+              )}
             </div>
 
-            {childFolders.length === 0 && assets.length === 0 && currentUploadingAssets.length === 0 ? (
-              <div className="flex items-center justify-center flex-1 text-muted-foreground">
-                No folders or assets in this folder
+            {(searchQuery.trim() ? true : childFolders.length === 0) && assets.length === 0 && currentUploadingAssets.length === 0 ? (
+              <div className="flex-1 flex flex-col">
+                <div className="flex-1 w-full flex-col flex gap-1 items-center justify-center">
+                  <div>
+                    No files found
+                  </div>
+                  <div className="text-muted-foreground">
+                    {searchQuery.trim()
+                      ? 'No assets found matching your search'
+                      : selectedFolderId === null
+                        ? 'No files'
+                        : 'No folders or assets in this folder'}
+                  </div>
+                </div>
+                <div className="flex-1"></div>
               </div>
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-4">
-                {/* Display child folders */}
-                {childFolders.map((folder) => (
+                {/* Display child folders (hide when searching) */}
+                {!searchQuery.trim() && childFolders.map((folder) => (
                   <FileGridItem
                     key={folder.id}
                     id={folder.id}
@@ -1116,10 +1344,11 @@ export default function FileManagerDialog({
                     type="asset"
                     mimeType={asset.mime_type}
                     imageUrl={asset.public_url}
+                    content={asset.content}
                     onClick={() => onAssetSelect?.(asset)}
                     onPreview={
                       asset.mime_type?.startsWith('image/') && asset.public_url
-                        ? () => handlePreviewAsset(asset.public_url)
+                        ? () => handlePreviewAsset(asset.public_url!)
                         : undefined
                     }
                     onEdit={() => handleEditAsset(asset.id)}
@@ -1201,27 +1430,36 @@ export default function FileManagerDialog({
         onConfirm={handleConfirmDeleteAsset}
       />
 
-      {/* Edit Asset Dialog */}
-      <Dialog open={showEditAssetDialog} onOpenChange={setShowEditAssetDialog}>
+      {/* Edit Asset / Create SVG Dialog */}
+      <Dialog
+        open={showEditAssetDialog}
+        onOpenChange={(open) => {
+          setShowEditAssetDialog(open);
+          if (!open) {
+            setEditAssetContent(null);
+            setIsCreateSvgMode(false);
+          }
+        }}
+      >
         <DialogContent
           width="400px" aria-describedby={undefined}
           className="gap-0"
         >
           <DialogHeader>
-            <DialogTitle>Edit asset</DialogTitle>
+            <DialogTitle>{isCreateSvgMode ? 'New SVG icon' : 'Edit asset'}</DialogTitle>
           </DialogHeader>
 
           <div className="flex flex-col gap-4.5">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="asset-name">Asset name</Label>
+              <Label htmlFor="asset-name">File name</Label>
               <Input
                 id="asset-name"
                 value={editAssetName}
                 onChange={(e) => setEditAssetName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === 'Enter' && !isCreateSvgMode && !editAssetContent) {
                     e.preventDefault();
-                    handleConfirmEditAsset(editAssetName, editAssetFolderId);
+                    handleConfirmEditAsset(editAssetName, editAssetFolderId, editAssetContent);
                     setShowEditAssetDialog(false);
                   }
                 }}
@@ -1249,21 +1487,38 @@ export default function FileManagerDialog({
               </Select>
             </div>
 
+            {(isCreateSvgMode || editAssetContent !== null) && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="svg-code">SVG code</Label>
+                <Textarea
+                  id="svg-code"
+                  value={editAssetContent || ''}
+                  onChange={(e) => setEditAssetContent(e.target.value)}
+                  className="font-mono text-xs min-h-[200px] max-h-[400px]"
+                  placeholder="<svg>...</svg>"
+                />
+              </div>
+            )}
+
             <DialogFooter className="grid grid-cols-2 mt-1">
               <Button
                 variant="secondary"
-                onClick={() => setShowEditAssetDialog(false)}
+                onClick={() => {
+                  setShowEditAssetDialog(false);
+                  setEditAssetContent(null);
+                  setIsCreateSvgMode(false);
+                }}
               >
                 Cancel
               </Button>
               <Button
                 onClick={() => {
-                  handleConfirmEditAsset(editAssetName, editAssetFolderId);
+                  handleConfirmEditAsset(editAssetName, editAssetFolderId, editAssetContent);
                   setShowEditAssetDialog(false);
                 }}
-                disabled={!editAssetName.trim()}
+                disabled={!editAssetName.trim() || (isCreateSvgMode && !editAssetContent?.trim())}
               >
-                Save
+                {isCreateSvgMode ? 'Create' : 'Save'}
               </Button>
             </DialogFooter>
           </div>

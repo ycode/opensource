@@ -129,7 +129,7 @@ export default function AssetFolderDialog({
       >
         <DialogHeader>
           <DialogTitle>
-            {mode === 'create' ? 'New asset folder' : 'Edit asset folder'}
+            {mode === 'create' ? 'New folder' : 'Edit folder'}
           </DialogTitle>
         </DialogHeader>
 

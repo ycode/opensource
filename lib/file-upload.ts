@@ -12,6 +12,86 @@ import type { Asset } from '@/types';
 const STORAGE_BUCKET = 'assets';
 
 /**
+ * Validate SVG content
+ * @param content - SVG content to validate
+ * @returns true if valid, false otherwise
+ */
+export function isValidSvg(content: string): boolean {
+  if (!content || typeof content !== 'string') {
+    return false;
+  }
+
+  const trimmed = content.trim();
+  if (trimmed.length === 0) {
+    return false;
+  }
+
+  // Check for SVG tag (case-insensitive)
+  const svgTagRegex = /<svg[\s>]/i;
+  if (!svgTagRegex.test(trimmed)) {
+    return false;
+  }
+
+  // Check for closing SVG tag or self-closing tag
+  const hasClosingTag = /<\/svg>/i.test(trimmed);
+  const hasSelfClosing = /<svg[^>]*\/>/i.test(trimmed);
+
+  if (!hasClosingTag && !hasSelfClosing) {
+    return false;
+  }
+
+  // Basic structure check: ensure we have at least one SVG element
+  const svgMatch = trimmed.match(/<svg[\s>][\s\S]*<\/svg>/i);
+  if (!svgMatch) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Clean SVG content by removing potentially dangerous elements, attributes, and comments
+ * @param svgContent - Raw SVG string
+ * @returns Cleaned SVG string without classes, IDs, styles, comments, or fixed dimensions
+ */
+export function cleanSvgContent(svgContent: string): string {
+  // Remove XML declarations and DOCTYPE
+  let cleaned = svgContent
+    .replace(/<\?xml[^?]*\?>/gi, '') // Remove <?xml ... ?>
+    .replace(/<!DOCTYPE[^>]*>/gi, ''); // Remove <!DOCTYPE ... >
+
+  // Remove HTML/XML comments
+  cleaned = cleaned.replace(/<!--[\s\S]*?-->/g, '');
+
+  // Remove script tags and event handlers
+  cleaned = cleaned
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, ''); // Remove event handlers like onclick, onload, etc.
+
+  // Remove potentially dangerous tags
+  const dangerousTags = ['script', 'iframe', 'embed', 'object', 'link', 'style'];
+  dangerousTags.forEach(tag => {
+    const regex = new RegExp(`<${tag}\\b[^<]*(?:(?!<\\/${tag}>)<[^<]*)*<\\/${tag}>`, 'gi');
+    cleaned = cleaned.replace(regex, '');
+  });
+
+  // Remove unwanted attributes (class, id, style, width, height)
+  cleaned = cleaned
+    .replace(/\s+class\s*=\s*["'][^"']*["']/gi, '') // Remove class attributes
+    .replace(/\s+id\s*=\s*["'][^"']*["']/gi, '') // Remove id attributes
+    .replace(/\s+style\s*=\s*["'][^"']*["']/gi, '') // Remove style attributes
+    .replace(/(<svg[^>]*)\s+width\s*=\s*["'][^"']*["']/gi, '$1') // Remove width from SVG
+    .replace(/(<svg[^>]*)\s+height\s*=\s*["'][^"']*["']/gi, '$1'); // Remove height from SVG
+
+  // Remove excessive whitespace
+  cleaned = cleaned
+    .replace(/\s+/g, ' ') // Replace multiple spaces/newlines with single space
+    .replace(/>\s+</g, '><'); // Remove spaces between tags
+
+  return cleaned.trim();
+}
+
+/**
  * Extract image dimensions from file buffer using sharp
  */
 async function getImageDimensions(file: File): Promise<{ width: number; height: number } | null> {
@@ -39,7 +119,52 @@ async function getImageDimensions(file: File): Promise<{ width: number; height: 
 }
 
 /**
+ * Convert image to WebP format using sharp
+ * @param file - Original image file
+ * @returns Converted file data and metadata, or null if not an image or conversion fails
+ */
+async function convertImageToWebP(file: File): Promise<{
+  buffer: Buffer;
+  mimeType: string;
+  fileExtension: string;
+  width: number;
+  height: number;
+} | null> {
+  try {
+    // Only convert raster images (skip SVG, GIF with animations, etc.)
+    if (!isAssetOfType(file.type, ASSET_CATEGORIES.IMAGES) ||
+        file.type === 'image/svg+xml' ||
+        file.type === 'image/gif') {
+      return null;
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Convert to WebP with quality 85
+    const webpBuffer = await sharp(buffer)
+      .webp({ quality: 85 })
+      .toBuffer();
+
+    // Get dimensions from the converted image
+    const metadata = await sharp(webpBuffer).metadata();
+
+    return {
+      buffer: webpBuffer,
+      mimeType: 'image/webp',
+      fileExtension: 'webp',
+      width: metadata.width || 0,
+      height: metadata.height || 0,
+    };
+  } catch (error) {
+    console.error('Error converting image to WebP:', error);
+    return null;
+  }
+}
+
+/**
  * Upload a file to Supabase Storage and create Asset record
+ * Automatically converts raster images to WebP format for better performance
  *
  * @param file - File to upload
  * @param source - Source identifier (e.g., 'library', 'page-settings', 'components')
@@ -54,6 +179,48 @@ export async function uploadFile(
   assetFolderId?: string | null
 ): Promise<Asset | null> {
   try {
+    const baseName = file.name.replace(/\.[^/.]+$/, '');
+    const filename = customName || baseName || file.name;
+
+    // Handle SVG files - store content directly without uploading to storage
+    if (file.type === 'image/svg+xml') {
+      const svgText = await file.text();
+      const cleanedContent = cleanSvgContent(svgText);
+
+      // Try to extract dimensions from SVG if possible
+      let dimensions: { width: number; height: number } | null = null;
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const metadata = await sharp(buffer).metadata();
+        if (metadata.width && metadata.height) {
+          dimensions = {
+            width: metadata.width,
+            height: metadata.height,
+          };
+        }
+      } catch (error) {
+        console.log('Could not extract SVG dimensions:', error);
+      }
+
+      // Create asset with inline SVG content
+      const asset = await createAsset({
+        filename,
+        storage_path: null,
+        public_url: null,
+        file_size: cleanedContent.length,
+        mime_type: 'image/svg+xml',
+        width: dimensions?.width,
+        height: dimensions?.height,
+        source,
+        asset_folder_id: assetFolderId,
+        content: cleanedContent,
+      });
+
+      return asset;
+    }
+
+    // For non-SVG files, proceed with storage upload
     const supabase = await getSupabaseAdmin();
 
     if (!supabase) {
@@ -62,18 +229,44 @@ export async function uploadFile(
 
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 15);
-    const fileExtension = file.name.split('.').pop();
-    const baseName = file.name.replace(/\.[^/.]+$/, '');
-    const storagePath = `${timestamp}-${random}.${fileExtension}`;
-    const filename = customName || baseName || file.name;
 
-    const dimensions = await getImageDimensions(file);
+    // Try to convert image to WebP
+    const webpConversion = await convertImageToWebP(file);
+
+    let fileToUpload: File | Buffer;
+    let fileExtension: string;
+    let mimeType: string;
+    let fileSize: number;
+    let dimensions: { width: number; height: number } | null = null;
+
+    if (webpConversion) {
+      // Use converted WebP image
+      fileToUpload = webpConversion.buffer;
+      fileExtension = webpConversion.fileExtension;
+      mimeType = webpConversion.mimeType;
+      fileSize = webpConversion.buffer.length;
+      dimensions = {
+        width: webpConversion.width,
+        height: webpConversion.height,
+      };
+    } else {
+      // Use original file
+      fileToUpload = file;
+      fileExtension = file.name.split('.').pop() || '';
+      mimeType = file.type;
+      fileSize = file.size;
+      // Get dimensions for non-converted images
+      dimensions = await getImageDimensions(file);
+    }
+
+    const storagePath = `${timestamp}-${random}.${fileExtension}`;
 
     const { data, error } = await supabase.storage
       .from(STORAGE_BUCKET)
-      .upload(storagePath, file, {
+      .upload(storagePath, fileToUpload, {
         cacheControl: '3600',
         upsert: false,
+        contentType: mimeType,
       });
 
     if (error) {
@@ -89,8 +282,8 @@ export async function uploadFile(
       filename,
       storage_path: data.path,
       public_url: urlData.publicUrl,
-      file_size: file.size,
-      mime_type: file.type,
+      file_size: fileSize,
+      mime_type: mimeType,
       width: dimensions?.width,
       height: dimensions?.height,
       source,

@@ -408,14 +408,15 @@ export type AssetCategory = 'images' | 'videos' | 'audio' | 'documents';
 export interface Asset {
   id: string;
   filename: string;
-  storage_path: string;
-  public_url: string;
+  storage_path: string | null; // Nullable for SVG icons with inline content
+  public_url: string | null; // Nullable for SVG icons with inline content
   file_size: number;
   mime_type: string;
   width?: number | null;
   height?: number | null;
   source: string; // Required: identifies where the asset was uploaded from
   asset_folder_id?: string | null;
+  content?: string | null; // Inline SVG content for icon assets
   created_at: string;
 }
 

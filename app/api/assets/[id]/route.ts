@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAssetById, updateAsset, deleteAsset } from '@/lib/repositories/assetRepository';
 import { noCache } from '@/lib/api-response';
+import { cleanSvgContent, isValidSvg } from '@/lib/file-upload';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -68,9 +69,48 @@ export async function PUT(
         400
       );
     }
+    if (body.asset_folder_id !== undefined && body.asset_folder_id !== null && typeof body.asset_folder_id !== 'string') {
+      return noCache({ error: 'Invalid asset_folder_id' }, 400);
+    }
+    if (body.content !== undefined && body.content !== null && typeof body.content !== 'string') {
+      return noCache({ error: 'Invalid content field' }, 400);
+    }
+
+    // Validate and clean SVG content if provided
+    const updateData: { filename?: string; asset_folder_id?: string | null; content?: string | null } = {};
+    if (body.filename !== undefined) {
+      updateData.filename = body.filename;
+    }
+    if (body.asset_folder_id !== undefined) {
+      updateData.asset_folder_id = body.asset_folder_id;
+    }
+    if (body.content !== undefined) {
+      // Validate SVG content before cleaning
+      if (body.content !== null && !isValidSvg(body.content)) {
+        return noCache(
+          { error: 'Invalid SVG code. Please provide a valid SVG element.' },
+          400
+        );
+      }
+
+      // Clean SVG content if provided
+      updateData.content = body.content ? cleanSvgContent(body.content) : body.content;
+
+      // Validate cleaned SVG content
+      if (updateData.content && !isValidSvg(updateData.content)) {
+        return noCache(
+          { error: 'SVG code is invalid after cleaning. Please check your SVG structure.' },
+          400
+        );
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return noCache({ error: 'No valid fields to update' }, 400);
+    }
 
     // Update the asset
-    const updatedAsset = await updateAsset(id, body);
+    const updatedAsset = await updateAsset(id, updateData);
 
     return noCache(
       { data: updatedAsset },

@@ -32,6 +32,15 @@ async function apiRequest<T>(
   });
 
   if (!response.ok) {
+    // Try to parse error message from response body
+    try {
+      const json = await response.json();
+      if (json.error) {
+        return { error: json.error };
+      }
+    } catch {
+      // If parsing fails, fall back to status text
+    }
     return {
       error: `HTTP ${response.status}: ${response.statusText}`,
     };
@@ -261,8 +270,19 @@ export const assetsApi = {
     return apiRequest<Asset[]>(url);
   },
 
+  // Create SVG asset from code
+  async create(data: { filename: string; content: string; asset_folder_id?: string | null; source?: string }): Promise<ApiResponse<Asset>> {
+    return apiRequest<Asset>('/api/assets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
   // Update asset
-  async update(id: string, data: { filename?: string; asset_folder_id?: string | null }): Promise<ApiResponse<Asset>> {
+  async update(id: string, data: { filename?: string; asset_folder_id?: string | null; content?: string | null }): Promise<ApiResponse<Asset>> {
     return apiRequest<Asset>(`/api/assets/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),

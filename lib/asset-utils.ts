@@ -152,6 +152,42 @@ export function getDefaultAssetByType(type: AssetCategory): string {
   return '';
 }
 
+/**
+ * Generate optimized thumbnail URL for faster loading
+ * Adds image transformation parameters for Supabase Storage URLs to reduce file size
+ * @param url - Original image URL
+ * @param width - Target width in pixels (default: 200)
+ * @param height - Target height in pixels (default: 200)
+ * @param quality - Image quality 0-100 (default: 80)
+ * @returns Optimized URL with transformation parameters or original URL if not a Supabase Storage URL
+ *
+ * @example
+ * getOptimizedImageUrl('https://supabase.co/storage/v1/object/public/assets/image.jpg')
+ * // Returns: 'https://supabase.co/storage/v1/object/public/assets/image.jpg?width=200&height=200&resize=cover&quality=80'
+ */
+export function getOptimizedImageUrl(
+  url: string,
+  width: number = 200,
+  height: number = 200,
+  quality: number = 80
+): string {
+  try {
+    const urlObj = new URL(url);
+    // Check if it's a Supabase Storage URL
+    if (urlObj.hostname.includes('supabase') || urlObj.pathname.includes('/storage/v1/object/public/')) {
+      // Add image transformation parameters for smaller, optimized thumbnails
+      urlObj.searchParams.set('width', width.toString());
+      urlObj.searchParams.set('height', height.toString());
+      urlObj.searchParams.set('resize', 'cover');
+      urlObj.searchParams.set('quality', quality.toString());
+      return urlObj.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
 // ==========================================
 // Re-export folder utilities for backward compatibility
 // ==========================================

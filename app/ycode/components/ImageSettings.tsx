@@ -235,7 +235,7 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
                         size="sm"
                         onClick={() => {
                           openFileManager((asset) => {
-                            if (!layer) return;
+                            if (!layer || !asset.public_url) return;
                             handleUrlChange(asset.public_url);
                           });
                         }}

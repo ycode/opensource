@@ -4,13 +4,14 @@ import type { Asset } from '../../types';
 export interface CreateAssetData {
   filename: string;
   source: string; // Required: identifies where the asset was uploaded from (e.g., 'library', 'page-settings', 'components')
-  storage_path: string;
-  public_url: string;
+  storage_path?: string | null; // Nullable for SVG icons with inline content
+  public_url?: string | null; // Nullable for SVG icons with inline content
   file_size: number;
   mime_type: string;
   width?: number;
   height?: number;
   asset_folder_id?: string | null;
+  content?: string | null; // Inline SVG content for icon assets
 }
 
 /**
@@ -101,6 +102,7 @@ export async function createAsset(assetData: CreateAssetData): Promise<Asset> {
 export interface UpdateAssetData {
   filename?: string;
   asset_folder_id?: string | null;
+  content?: string | null; // Allow updating SVG content
 }
 
 export async function updateAsset(id: string, assetData: UpdateAssetData): Promise<Asset> {
@@ -141,13 +143,15 @@ export async function deleteAsset(id: string): Promise<void> {
     throw new Error('Asset not found');
   }
 
-  // Delete from storage
-  const { error: storageError } = await client.storage
-    .from('assets')
-    .remove([asset.storage_path]);
+  // Delete from storage (only if it has a storage path - SVG icons with inline content don't)
+  if (asset.storage_path) {
+    const { error: storageError } = await client.storage
+      .from('assets')
+      .remove([asset.storage_path]);
 
-  if (storageError) {
-    throw new Error(`Failed to delete file: ${storageError.message}`);
+    if (storageError) {
+      throw new Error(`Failed to delete file: ${storageError.message}`);
+    }
   }
 
   // Delete database record

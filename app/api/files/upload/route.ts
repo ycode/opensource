@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile } from '@/lib/file-upload';
 import { isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 
+// Force Node.js runtime for sharp compatibility
+export const runtime = 'nodejs';
+
 /**
  * POST /api/files/upload
  * Upload a file to Supabase Storage and create Asset record

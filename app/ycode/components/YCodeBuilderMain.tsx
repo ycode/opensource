@@ -32,6 +32,7 @@ import LocalizationContent from '../components/LocalizationContent';
 import UpdateNotification from '@/components/UpdateNotification';
 import MigrationChecker from '@/components/MigrationChecker';
 import BuilderLoading from '@/components/BuilderLoading';
+import { Toaster } from '@/components/ui/sonner';
 
 // Lazy-loaded components (heavy, not needed on initial render)
 const RightSidebar = lazy(() => import('../components/RightSidebar'));
@@ -1617,6 +1618,9 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         />
       </Suspense>
     )}
+
+    {/* Toast notifications */}
+    <Toaster />
     </>
   );
 }
