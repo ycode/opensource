@@ -170,9 +170,11 @@ function LayerRow({
   const currentUserId = useAuthStore((state) => state.user?.id);
   const lockKey = getResourceLockKey(RESOURCE_TYPES.LAYER, node.id);
   const lock = useCollaborationPresenceStore((state) => state.resourceLocks[lockKey]);
-  const lockOwnerUser = useCollaborationPresenceStore((state) => 
-    lock?.user_id ? state.users[lock.user_id] : null
-  );
+  // Access lock directly from state to avoid stale closure issues
+  const lockOwnerUser = useCollaborationPresenceStore((state) => {
+    const currentLock = state.resourceLocks[lockKey];
+    return currentLock?.user_id ? state.users[currentLock.user_id] : null;
+  });
   const isLockedByOther = !!(lock && lock.user_id !== currentUserId && Date.now() <= lock.expires_at);
 
   // Check if this is the Body layer (locked)
