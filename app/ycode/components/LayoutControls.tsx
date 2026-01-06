@@ -283,7 +283,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                           <InputGroupAddon>
                               <div className="flex">
                                   <Tooltip>
-                                      <TooltipTrigger>
+                                      <TooltipTrigger tabIndex={-1}>
                                           <Icon name="columns" className="size-3" />
                                       </TooltipTrigger>
                                       <TooltipContent>
@@ -304,7 +304,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                           <InputGroupAddon>
                               <div className="flex">
                                   <Tooltip>
-                                      <TooltipTrigger>
+                                      <TooltipTrigger tabIndex={-1}>
                                           <Icon name="columns" className="size-3 rotate-90" />
                                       </TooltipTrigger>
                                       <TooltipContent>
@@ -372,7 +372,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                <InputGroupAddon>
                                    <div className="flex">
                                        <Tooltip>
-                                           <TooltipTrigger>
+                                           <TooltipTrigger tabIndex={-1}>
                                                <Icon name="horizontalGap" className="size-3" />
                                            </TooltipTrigger>
                                            <TooltipContent>
@@ -393,7 +393,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                <InputGroupAddon>
                                    <div className="flex">
                                        <Tooltip>
-                                           <TooltipTrigger>
+                                           <TooltipTrigger tabIndex={-1}>
                                                <Icon name="verticalGap" className="size-3" />
                                            </TooltipTrigger>
                                            <TooltipContent>

@@ -204,7 +204,7 @@ export default function LayerStylesPanel({
   }
 
   return (
-    <div className="flex flex-col gap-2 pb-4 pt-2">
+    <div className="flex flex-col gap-2 pb-2 pt-2">
 
       {/* Style Selector or Rename Input */}
       {!isCreating && (

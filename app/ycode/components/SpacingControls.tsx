@@ -208,7 +208,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   <InputGroupAddon>
                     <div className="flex">
                       <Tooltip>
-                        <TooltipTrigger>
+                        <TooltipTrigger tabIndex={-1}>
                           <Icon name="paddingSide" className="size-3" />
                         </TooltipTrigger>
                         <TooltipContent>
@@ -227,7 +227,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   <InputGroupAddon>
                     <div className="flex">
                       <Tooltip>
-                        <TooltipTrigger>
+                        <TooltipTrigger tabIndex={-1}>
                           <Icon name="paddingSide" className="size-3 rotate-90" />
                         </TooltipTrigger>
                         <TooltipContent>
@@ -246,7 +246,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   <InputGroupAddon>
                     <div className="flex">
                       <Tooltip>
-                        <TooltipTrigger>
+                        <TooltipTrigger tabIndex={-1}>
                           <Icon name="paddingSide" className="size-3 rotate-180" />
                         </TooltipTrigger>
                         <TooltipContent>
@@ -265,7 +265,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   <InputGroupAddon>
                     <div className="flex">
                       <Tooltip>
-                        <TooltipTrigger>
+                        <TooltipTrigger tabIndex={-1}>
                           <Icon name="paddingSide" className="size-3 rotate-270" />
                         </TooltipTrigger>
                         <TooltipContent>
@@ -313,7 +313,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   <InputGroupAddon>
                     <div className="flex">
                       <Tooltip>
-                        <TooltipTrigger>
+                        <TooltipTrigger tabIndex={-1}>
                           <Icon name="paddingSide" className="size-3" />
                         </TooltipTrigger>
                         <TooltipContent>
@@ -334,7 +334,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   <InputGroupAddon>
                     <div className="flex">
                       <Tooltip>
-                        <TooltipTrigger>
+                        <TooltipTrigger tabIndex={-1}>
                           <Icon name="paddingSide" className="size-3 rotate-90" />
                         </TooltipTrigger>
                         <TooltipContent>
@@ -355,7 +355,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   <InputGroupAddon>
                     <div className="flex">
                       <Tooltip>
-                        <TooltipTrigger>
+                        <TooltipTrigger tabIndex={-1}>
                           <Icon name="paddingSide" className="size-3 rotate-180" />
                         </TooltipTrigger>
                         <TooltipContent>
@@ -376,7 +376,7 @@ export default function SpacingControls({ layer, onLayerUpdate }: SpacingControl
                   <InputGroupAddon>
                     <div className="flex">
                       <Tooltip>
-                        <TooltipTrigger>
+                        <TooltipTrigger tabIndex={-1}>
                           <Icon name="paddingSide" className="size-3 rotate-270" />
                         </TooltipTrigger>
                         <TooltipContent>
