@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
-import { getDefaultAssetByType, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
+import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 
@@ -121,7 +121,7 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
     const newAttributes = { ...layer.attributes };
 
     if (checked) {
-      newAttributes.muted = 'true';
+      newAttributes.muted = true;
     } else {
       delete newAttributes.muted;
       // Also remove autoplay if unmuting (autoplay requires muted)
@@ -139,7 +139,7 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
     const newAttributes = { ...layer.attributes };
 
     if (checked) {
-      newAttributes.controls = 'true';
+      newAttributes.controls = true;
     } else {
       delete newAttributes.controls;
     }
@@ -155,7 +155,7 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
     const newAttributes = { ...layer.attributes };
 
     if (checked) {
-      newAttributes.loop = 'true';
+      newAttributes.loop = true;
     } else {
       delete newAttributes.loop;
     }
@@ -171,9 +171,9 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
     const newAttributes = { ...layer.attributes };
 
     if (checked) {
-      newAttributes.autoplay = 'true';
+      newAttributes.autoplay = true;
       // Autoplay requires muted
-      newAttributes.muted = 'true';
+      newAttributes.muted = true;
     } else {
       delete newAttributes.autoplay;
     }
@@ -187,12 +187,6 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
   if (!layer || layer.name !== 'video') {
     return null;
   }
-
-  // Get current video URL from variables.video.src
-  const videoUrl = getVideoUrlFromVariable(
-    videoSrc,
-    getAsset
-  ) || '';
 
   // Check if current src is a field variable
   const isFieldVariableSrc = videoSrc ? isFieldVariable(videoSrc) : false;
@@ -219,10 +213,10 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
   })();
 
   // Get current behavior values from attributes
-  const isMuted = layer.attributes?.muted === 'true';
-  const hasControls = layer.attributes?.controls === 'true';
-  const isLoop = layer.attributes?.loop === 'true';
-  const isAutoplay = layer.attributes?.autoplay === 'true';
+  const isMuted = layer.attributes?.muted === true;
+  const hasControls = layer.attributes?.controls === true;
+  const isLoop = layer.attributes?.loop === true;
+  const isAutoplay = layer.attributes?.autoplay === true;
 
   return (
     <>

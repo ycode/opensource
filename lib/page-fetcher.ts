@@ -1800,6 +1800,13 @@ async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
       if (assetId) assetIds.add(assetId);
     }
 
+    // Collect audio asset IDs
+    const audioSrc = layer.variables?.audio?.src;
+    if (audioSrc && isAssetVariable(audioSrc)) {
+      const assetId = getAssetId(audioSrc);
+      if (assetId) assetIds.add(assetId);
+    }
+
     // Recursively collect from children
     if (layer.children) {
       layer.children.forEach(child => collectAssetIds(child, assetIds));
@@ -1859,6 +1866,19 @@ async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
         ...layer.variables?.video,
         ...videoUpdates,
       };
+    }
+
+    // Resolve AssetVariable in audio src
+    const audioSrc = layer.variables?.audio?.src;
+    if (audioSrc && isAssetVariable(audioSrc)) {
+      const assetId = getAssetId(audioSrc);
+      if (assetId) {
+        const asset = assetMap[assetId];
+        const resolvedUrl = asset?.public_url || '';
+        variableUpdates.audio = {
+          src: createDynamicTextVariable(resolvedUrl),
+        };
+      }
     }
 
     // Apply all variable updates at once

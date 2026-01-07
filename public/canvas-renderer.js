@@ -1482,6 +1482,63 @@
   }
 
   /**
+   * Wrap an element in a div for layer selection (used for media elements that need pointer-events-none)
+   * @param {HTMLElement} element - The element to wrap
+   * @param {Object} layer - The layer object
+   * @returns {HTMLElement} - The wrapper div containing the element
+   */
+  function wrapElementForLayerSelection(element, layer) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'h-fit w-fit';
+
+    // Move layer-specific attributes to wrapper (but not data-layer-type to avoid pointer-events: none)
+    wrapper.setAttribute('data-layer-id', layer.id);
+
+    // Move classes to wrapper
+    const classes = getClassesString(layer);
+    if (classes) {
+      wrapper.className = 'h-fit w-fit ' + classes;
+    }
+
+    // Add editor class to wrapper
+    wrapper.classList.add('ycode-layer');
+
+    // Move custom ID to wrapper if present
+    if (layer.settings && layer.settings.id) {
+      wrapper.id = layer.settings.id;
+    }
+
+    // Move custom attributes to wrapper
+    if (layer.settings && layer.settings.customAttributes) {
+      Object.entries(layer.settings.customAttributes).forEach(([name, value]) => {
+        wrapper.setAttribute(name, value);
+      });
+    }
+
+    // Add pointer-events-none class to prevent clicks on the original element
+    element.classList.add('pointer-events-none');
+
+    // Remove custom ID from original element if it was moved to wrapper
+    if (layer.settings && layer.settings.id) {
+      element.removeAttribute('id');
+    }
+
+    // Append element to wrapper
+    wrapper.appendChild(element);
+
+    // Add event listeners to wrapper
+    addEventListeners(wrapper, layer);
+
+    // Apply selection state to wrapper
+    if (selectedLayerId === layer.id) {
+      const selectionClass = editingComponentId ? 'ycode-selected-purple' : 'ycode-selected';
+      wrapper.classList.add(selectionClass);
+    }
+
+    return wrapper;
+  }
+
+  /**
    * Render a single layer and its children
    */
   function renderLayer(layer, collectionItemData, parentCollectionId, pageCollectionCounts) {
@@ -1534,7 +1591,7 @@
 
     const tag = getLayerHtmlTag(layer);
     const inheritedCollectionItemData = collectionItemData || (pageCollectionItem ? pageCollectionItem.values : undefined);
-    const element = document.createElement(tag);
+    let element = document.createElement(tag);
 
     // Set ID
     element.setAttribute('data-layer-id', layer.id);
@@ -1635,17 +1692,69 @@
 
       // Apply video behavior attributes from layer.attributes
       if (layer.attributes) {
-        if (layer.attributes.muted === 'true') {
+        if (layer.attributes.muted === true) {
           element.muted = true;
         }
-        if (layer.attributes.controls === 'true') {
+        if (layer.attributes.controls === true) {
           element.controls = true;
         }
-        if (layer.attributes.loop === 'true') {
+        if (layer.attributes.loop === true) {
           element.loop = true;
         }
-        if (layer.attributes.autoplay === 'true') {
+        if (layer.attributes.autoplay === true) {
           element.autoplay = true;
+        }
+      }
+    }
+
+    if (tag === 'audio') {
+      const audioSrc = layer.variables?.audio?.src;
+      let audioUrl = null;
+
+      if (audioSrc) {
+        // Resolve audio URL from variable (AssetVariable, FieldVariable, or DynamicTextVariable)
+        if (audioSrc.type === 'asset') {
+          // AssetVariable -> get asset URL from assets map
+          if (assets && audioSrc.data?.asset_id) {
+            const asset = assets[audioSrc.data.asset_id];
+            audioUrl = asset?.public_url;
+          }
+        } else if (audioSrc.type === 'field') {
+          // FieldVariable -> resolve field value from collectionItemData
+          if (inheritedCollectionItemData) {
+            const itemValues = inheritedCollectionItemData.values || inheritedCollectionItemData;
+            const fieldId = audioSrc.data?.field_id;
+            const assetId = itemValues[fieldId];
+            if (assetId && typeof assetId === 'string' && assets) {
+              const asset = assets[assetId];
+              audioUrl = asset?.public_url;
+            }
+          }
+        } else if (audioSrc.type === 'dynamic_text') {
+          // DynamicTextVariable -> use content as URL
+          audioUrl = audioSrc.data?.content;
+        }
+      }
+
+      // Only set src if we have a valid URL (prevents empty src warning)
+      if (audioUrl) {
+        element.src = audioUrl;
+      }
+
+      // Apply audio behavior attributes from layer.attributes
+      if (layer.attributes) {
+        if (layer.attributes.volume) {
+          // Volume is stored as 0-100, but HTML audio expects 0-1
+          element.volume = parseInt(layer.attributes.volume) / 100;
+        }
+        if (layer.attributes.muted === true) {
+          element.muted = true;
+        }
+        if (layer.attributes.controls === true) {
+          element.controls = true;
+        }
+        if (layer.attributes.loop === true) {
+          element.loop = true;
         }
       }
     }
@@ -1727,17 +1836,17 @@
       }
     }
 
-    // Add text content (skip for video elements - they're self-contained media elements)
+    // Add text content (skip for video/audio elements - they're self-contained media elements)
     const textContent = getText(layer, inheritedCollectionItemData, activeCollectionId);
     const hasChildren = layer.children && layer.children.length > 0;
-    const isVideoElement = tag === 'video';
+    const isMediaElement = tag === 'video' || tag === 'audio';
 
-    if (textContent && !hasChildren && !isVideoElement) {
+    if (textContent && !hasChildren && !isMediaElement) {
       element.textContent = textContent;
     }
 
-    // Render children - handle collection layers specially (skip for video elements)
-    if (hasChildren && !isVideoElement) {
+    // Render children - handle collection layers specially (skip for video/audio elements)
+    if (hasChildren && !isMediaElement) {
       if (isCollectionLayer && collectionId) {
         // Collection layer: repeat the element itself for each item (not a wrapper)
         let items = collectionLayerData[layer.id] || [];
@@ -1899,6 +2008,11 @@
           }
         });
       }
+    }
+
+    // Wrap audio elements in a div for layer selection
+    if (tag === 'audio' && editMode) {
+      element = wrapElementForLayerSelection(element, layer);
     }
 
     // Add event listeners in edit mode

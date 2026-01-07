@@ -445,6 +445,27 @@ const LayerItem: React.FC<{
     const Tag = htmlTag as any;
     const { style: attrStyle, ...otherAttributes } = layer.attributes || {};
 
+    // Convert string boolean values to actual booleans
+    const normalizedAttributes = Object.fromEntries(
+      Object.entries(otherAttributes).map(([key, value]) => {
+        // If value is already a boolean, keep it
+        if (typeof value === 'boolean') {
+          return [key, value];
+        }
+        // If value is a string that looks like a boolean, convert it
+        if (typeof value === 'string') {
+          if (value === 'true') {
+            return [key, true];
+          }
+          if (value === 'false') {
+            return [key, false];
+          }
+        }
+        // For all other values, keep them as-is
+        return [key, value];
+      })
+    );
+
     // Parse style string to object if needed (for display: contents from collection wrappers)
     const parsedAttrStyle = typeof attrStyle === 'string'
       ? Object.fromEntries(
@@ -476,7 +497,7 @@ const LayerItem: React.FC<{
       'data-layer-id': layer.id,
       'data-layer-type': htmlTag,
       'data-is-empty': isEmpty ? 'true' : 'false',
-      ...(enableDragDrop && !isEditing && !isLockedByOther ? { ...otherAttributes, ...listeners } : otherAttributes),
+      ...(enableDragDrop && !isEditing && !isLockedByOther ? { ...normalizedAttributes, ...listeners } : normalizedAttributes),
     };
 
     // Add data-gsap-hidden attribute for elements that should start hidden
@@ -541,14 +562,14 @@ const LayerItem: React.FC<{
         const optimizedSrc = getOptimizedImageUrl(imageUrl, 1200, 1200, 85);
         const srcset = generateImageSrcset(imageUrl);
         const sizes = getImageSizes();
-        
+
         imageProps.src = optimizedSrc;
         if (srcset) {
           imageProps.srcSet = srcset;
           imageProps.sizes = sizes;
         }
       }
-      
+
       return (
         <Tag {...imageProps} />
       );
@@ -596,8 +617,12 @@ const LayerItem: React.FC<{
           if (isFieldVariable(src)) {
             return resolveFieldValue(src, effectiveCollectionItemData) || undefined;
           }
-          const value = getVariableStringValue(src);
-          return value || undefined;
+          return getVideoUrlFromVariable(
+            src,
+            getAsset,
+            resolveFieldValue,
+            effectiveCollectionItemData
+          );
         }
         return imageUrl || undefined;
       })();
@@ -615,40 +640,46 @@ const LayerItem: React.FC<{
         return undefined;
       })();
 
-      // Get video behavior attributes
-      const videoAttributes: Record<string, any> = {};
-      if (htmlTag === 'video' && otherAttributes) {
-        if (otherAttributes.muted === 'true') {
-          videoAttributes.muted = true;
-        }
-        if (otherAttributes.controls === 'true') {
-          videoAttributes.controls = true;
-        }
-        if (otherAttributes.loop === 'true') {
-          videoAttributes.loop = true;
-        }
-        if (otherAttributes.autoplay === 'true') {
-          videoAttributes.autoplay = true;
-        }
-      }
-
-      // Always render video element, even without src (for published pages)
+      // Always render media element, even without src (for published pages)
       // Only set src attribute if we have a valid URL
-      const videoProps: Record<string, any> = {
+      const mediaProps: Record<string, any> = {
         ...elementProps,
-        ...videoAttributes,
+        ...normalizedAttributes,
       };
 
       if (mediaSrc) {
-        videoProps.src = mediaSrc;
+        mediaProps.src = mediaSrc;
       }
 
-      if (posterUrl) {
-        videoProps.poster = posterUrl;
+      if (posterUrl && htmlTag === 'video') {
+        mediaProps.poster = posterUrl;
+      }
+
+      // Handle special attributes that need to be set on the DOM element (not as props)
+      // Volume must be set via JavaScript on the DOM element
+      if ((htmlTag === 'audio' || htmlTag === 'video') && normalizedAttributes?.volume) {
+        const originalRef = mediaProps.ref;
+        const volumeValue = parseInt(normalizedAttributes.volume) / 100; // Convert 0-100 to 0-1
+
+        mediaProps.ref = (element: HTMLAudioElement | HTMLVideoElement | null) => {
+          // Call original ref if it exists
+          if (originalRef) {
+            if (typeof originalRef === 'function') {
+              originalRef(element);
+            } else {
+              (originalRef as React.MutableRefObject<HTMLAudioElement | HTMLVideoElement | null>).current = element;
+            }
+          }
+
+          // Set volume on the DOM element
+          if (element) {
+            element.volume = volumeValue;
+          }
+        };
       }
 
       return (
-        <Tag {...videoProps}>
+        <Tag {...mediaProps}>
           {textContent && textContent}
           {children && children.length > 0 && (
             <LayerRenderer
@@ -676,13 +707,13 @@ const LayerItem: React.FC<{
     }
 
     if (htmlTag === 'iframe') {
-      const iframeSrc = getIframeUrlFromVariable(layer.variables?.iframe?.src) || (otherAttributes as Record<string, string>).src || undefined;
-      
+      const iframeSrc = getIframeUrlFromVariable(layer.variables?.iframe?.src) || (normalizedAttributes as Record<string, string>).src || undefined;
+
       // Don't render iframe if no src (prevents empty src warning)
       if (!iframeSrc) {
         return null;
       }
-      
+
       return (
         <Tag
           {...elementProps}

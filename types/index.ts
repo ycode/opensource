@@ -203,7 +203,15 @@ export interface Layer {
   hidden?: boolean;
 
   // Attributes (for HTML elements)
-  attributes?: Record<string, any>;
+  attributes?: Record<string, any> & {
+    // Media element attributes (video/audio)
+    muted?: boolean;
+    controls?: boolean;
+    loop?: boolean;
+    autoplay?: boolean;
+    volume?: string; // Volume as string (0-100)
+    preload?: string; // 'none' | 'metadata' | 'auto'
+  };
 
   // Design system (structured properties)
   design?: DesignProperties;

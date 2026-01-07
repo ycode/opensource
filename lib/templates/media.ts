@@ -75,7 +75,6 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'video',
       classes: ['w-full', 'h-auto'],
-      children: [], // Can contain fallback content (source, track elements)
       attributes: {
         controls: true,
         preload: 'metadata'
@@ -103,17 +102,10 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
     name: 'Audio',
     template: {
       name: 'audio',
-      classes: ['w-full'],
-      children: [], // Can contain fallback content (source elements)
+      classes: [],
       attributes: {
         controls: true,
         preload: 'metadata'
-      },
-      design: {
-        sizing: {
-          isActive: true,
-          width: '100%'
-        }
       },
       variables: {
         audio: {
@@ -135,7 +127,6 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
         tag: 'iframe',
       },
       classes: ['w-full', 'aspect-video'],
-      children: [], // Can contain fallback content
       attributes: {
         src: '',
         frameborder: '0',
@@ -165,7 +156,6 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'iframe',
       classes: ['w-full', 'h-96'],
-      children: [], // Can contain fallback content
       attributes: {
         src: '',
         frameborder: '0'
