@@ -1,6 +1,6 @@
 /**
  * Collaboration Utility Functions
- * 
+ *
  * Helper functions for real-time collaboration features
  */
 
@@ -28,7 +28,7 @@ export function generateUserColor(userId: string): string {
   for (let i = 0; i < userId.length; i++) {
     hash = userId.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
+
   // Pick from curated palette
   const index = Math.abs(hash) % COLLABORATION_COLORS.length;
   return COLLABORATION_COLORS[index];
@@ -46,11 +46,11 @@ export function getUserInitials(email?: string, displayName?: string): string {
       .toUpperCase()
       .slice(0, 2);
   }
-  
+
   if (!email) {
     return 'U'; // Default fallback
   }
-  
+
   return email
     .split('@')[0]
     .slice(0, 2)
@@ -76,19 +76,19 @@ export function rafThrottle<T extends (...args: any[]) => any>(
 ): T {
   let rafId: number | null = null;
   let lastExecTime = 0;
-  
+
   return ((...args: Parameters<T>) => {
     const now = Date.now();
-    
+
     if (now - lastExecTime >= delay) {
       lastExecTime = now;
       return func(...args);
     }
-    
+
     if (rafId) {
       cancelAnimationFrame(rafId);
     }
-    
+
     rafId = requestAnimationFrame(() => {
       lastExecTime = Date.now();
       func(...args);
@@ -104,7 +104,7 @@ export function debounce<T extends (...args: any[]) => any>(
   delay: number
 ): T {
   let timeoutId: NodeJS.Timeout;
-  
+
   return ((...args: Parameters<T>) => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => func(...args), delay);
@@ -120,21 +120,21 @@ export function isLayerLocked(
   currentUserId: string
 ): { isLocked: boolean; lockedBy?: string } {
   const lock = locks[layerId];
-  
+
   if (!lock) {
     return { isLocked: false };
   }
-  
+
   // Check if lock has expired
   if (Date.now() > lock.expires_at) {
     return { isLocked: false };
   }
-  
+
   // Check if current user owns the lock
   if (lock.user_id === currentUserId) {
     return { isLocked: false };
   }
-  
+
   return { isLocked: true, lockedBy: lock.user_id };
 }
 
@@ -151,12 +151,12 @@ export function generateNotificationId(): string {
 export function formatTimeAgo(timestamp: number): string {
   const now = Date.now();
   const diff = now - timestamp;
-  
+
   if (diff < 1000) return 'just now';
   if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  
+
   return `${Math.floor(diff / 86400000)}d ago`;
 }
 
@@ -173,7 +173,7 @@ export function isUserIdle(lastActive: number, idleThreshold: number = 30000): b
 export function getUserStatus(user: CollaborationUser): 'active' | 'idle' | 'away' {
   const now = Date.now();
   const timeSinceActive = now - user.last_active;
-  
+
   if (timeSinceActive < 10000) return 'active';
   if (timeSinceActive < 30000) return 'idle';
   return 'away';
@@ -201,7 +201,7 @@ export function mergePresenceData(
   incoming: Record<string, Partial<CollaborationUser>>
 ): Record<string, CollaborationUser> {
   const merged = { ...existing };
-  
+
   Object.entries(incoming).forEach(([userId, userData]) => {
     if (merged[userId]) {
       merged[userId] = { ...merged[userId], ...userData };
@@ -210,6 +210,6 @@ export function mergePresenceData(
       merged[userId] = userData as CollaborationUser;
     }
   });
-  
+
   return merged;
 }

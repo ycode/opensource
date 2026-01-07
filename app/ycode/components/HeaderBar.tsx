@@ -528,6 +528,7 @@ export default function HeaderBar({
       <div className="flex items-center justify-end gap-2">
         {/* Active Users */}
         <ActiveUsersInHeader />
+
         {/* Save Status Indicator */}
         <div className="flex items-center justify-end w-[64px] text-xs text-white/50">
           {isSaving ? (

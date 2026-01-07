@@ -370,7 +370,7 @@ function LayerRow({
 
           {/* Lock Indicator - show when layer is locked by another user */}
           {isLockedByOther && (
-            <div className="mr-1 flex-shrink-0">
+            <div className="mr-2 flex-shrink-0">
               <CollaboratorBadge
                 collaborator={{
                   userId: lockOwnerUser?.user_id || '',
@@ -865,7 +865,7 @@ export default function LayersTree({
     // Check ancestor restrictions
     if (activeNode && position) {
       const targetParentId = position === 'inside' ? overNode.id : overNode.parentId;
-      
+
       // Check if the layer can be moved to the new parent based on ancestor restrictions
       if (!canMoveLayer(layers, activeNode.id, targetParentId)) {
         // Cannot move due to ancestor restrictions - don't show drop indicator
