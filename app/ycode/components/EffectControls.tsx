@@ -359,7 +359,10 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
                           <div className="grid grid-cols-3">
                             <Label variant="muted">Color</Label>
                             <div className="col-span-2 *:w-full">
-                              <ColorPicker value={editingShadow.color} onChange={handleShadowColorChange} />
+                              <ColorPicker
+                                value={editingShadow.color} onChange={handleShadowColorChange}
+                                solidOnly
+                              />
                             </div>
                           </div>
 
