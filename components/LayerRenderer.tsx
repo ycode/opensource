@@ -11,7 +11,7 @@ import type { Layer, Locale } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
-import { getVariableStringValue, getDynamicTextContent, getImageUrlFromVariable, getIframeUrlFromVariable } from '@/lib/variable-utils';
+import { getVariableStringValue, getDynamicTextContent, getImageUrlFromVariable, getIframeUrlFromVariable, isFieldVariable } from '@/lib/variable-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';

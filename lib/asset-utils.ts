@@ -209,7 +209,7 @@ export function generateImageSrcset(
     const urlObj = new URL(url);
     // Check if it's a Supabase Storage URL
     const isSupabaseUrl = urlObj.hostname.includes('supabase') || urlObj.pathname.includes('/storage/v1/object/public/');
-    
+
     if (!isSupabaseUrl) {
       // For non-Supabase URLs, return empty srcset (browser will use src)
       return '';
