@@ -188,6 +188,65 @@ export function getOptimizedImageUrl(
   }
 }
 
+/**
+ * Generate responsive image srcset with multiple sizes
+ * Creates optimized URLs for different viewport widths
+ * @param url - Original image URL
+ * @param sizes - Array of widths in pixels (default: [400, 800, 1200, 1600])
+ * @param quality - Image quality 0-100 (default: 85)
+ * @returns Srcset string with multiple size options
+ *
+ * @example
+ * generateImageSrcset('https://supabase.co/storage/v1/object/public/assets/image.jpg')
+ * // Returns: 'https://.../image.jpg?width=400&quality=85 400w, https://.../image.jpg?width=800&quality=85 800w, ...'
+ */
+export function generateImageSrcset(
+  url: string,
+  sizes: number[] = [400, 800, 1200, 1600],
+  quality: number = 85
+): string {
+  try {
+    const urlObj = new URL(url);
+    // Check if it's a Supabase Storage URL
+    const isSupabaseUrl = urlObj.hostname.includes('supabase') || urlObj.pathname.includes('/storage/v1/object/public/');
+    
+    if (!isSupabaseUrl) {
+      // For non-Supabase URLs, return empty srcset (browser will use src)
+      return '';
+    }
+
+    // Generate srcset entries for each size
+    const srcsetEntries = sizes.map((width) => {
+      const sizeUrl = new URL(url);
+      sizeUrl.searchParams.set('width', width.toString());
+      sizeUrl.searchParams.set('quality', quality.toString());
+      sizeUrl.searchParams.set('resize', 'cover');
+      return `${sizeUrl.toString()} ${width}w`;
+    });
+
+    return srcsetEntries.join(', ');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Get responsive sizes attribute for images
+ * Provides default sizes based on common viewport breakpoints
+ * @param customSizes - Optional custom sizes string (e.g., "(max-width: 768px) 100vw, 50vw")
+ * @returns Sizes attribute string
+ *
+ * @example
+ * getImageSizes() // Returns: "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+ */
+export function getImageSizes(customSizes?: string): string {
+  if (customSizes) {
+    return customSizes;
+  }
+  // Default responsive sizes: full width on mobile, half on tablet, third on desktop
+  return '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw';
+}
+
 // ==========================================
 // Re-export folder utilities for backward compatibility
 // ==========================================

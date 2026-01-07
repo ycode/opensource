@@ -62,7 +62,8 @@ import { toast } from 'sonner';
 interface FileManagerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAssetSelect?: (asset: Asset) => void;
+  onAssetSelect?: (asset: Asset) => void | false;
+  assetId?: string | null;
 }
 
 interface FolderRowProps {
@@ -460,6 +461,7 @@ export default function FileManagerDialog({
   open,
   onOpenChange,
   onAssetSelect,
+  assetId,
 }: FileManagerDialogProps) {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
@@ -682,6 +684,43 @@ export default function FileManagerDialog({
   useEffect(() => {
     setSelectedAssetIds(new Set());
   }, [selectedFolderId]);
+
+  // When dialog opens with an assetId, navigate to that asset's folder
+  useEffect(() => {
+    if (open && assetId) {
+      const asset = storeAssets.find(a => a.id === assetId);
+      if (asset) {
+        const assetFolderId = asset.asset_folder_id || null;
+
+        // Set the folder as selected
+        setSelectedFolderId(assetFolderId);
+
+        // Expand all parent folders to show the asset's folder
+        if (assetFolderId) {
+          const expandParentFolders = (folderId: string | null) => {
+            if (!folderId) return;
+
+            const folder = folders.find(f => f.id === folderId);
+            if (folder) {
+              // Expand this folder
+              setCollapsedIds((prev) => {
+                const next = new Set(prev);
+                next.delete(folderId);
+                return next;
+              });
+
+              // Recursively expand parent folders
+              if (folder.asset_folder_id) {
+                expandParentFolders(folder.asset_folder_id);
+              }
+            }
+          };
+
+          expandParentFolders(assetFolderId);
+        }
+      }
+    }
+  }, [open, assetId, storeAssets, folders]);
 
   // Build breadcrumb path from root to selected folder
   const breadcrumbPath = useMemo(() => {

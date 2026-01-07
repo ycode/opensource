@@ -1547,15 +1547,18 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                               onChange={handleFileSelect}
                             />
                             <div className="bg-input rounded-lg w-full aspect-[1.91/1] flex items-center justify-center overflow-hidden relative">
-                              {isSeoImageFieldVariable(seoImage) ? null : (imagePreviewUrl || displayAsset) ? (
-                                <Image
-                                  className="object-cover"
-                                  src={imagePreviewUrl || displayAsset?.public_url || ''}
-                                  alt="Social preview"
-                                  fill
-                                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                                />
-                              ) : null}
+                              {isSeoImageFieldVariable(seoImage) ? null : (() => {
+                                const imageUrl = imagePreviewUrl || displayAsset?.public_url;
+                                return imageUrl ? (
+                                  <Image
+                                    className="object-cover"
+                                    src={imageUrl}
+                                    alt="Social preview"
+                                    fill
+                                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                  />
+                                ) : null;
+                              })()}
 
                               {(() => {
                                 const hasFieldVariable = isSeoImageFieldVariable(seoImage);

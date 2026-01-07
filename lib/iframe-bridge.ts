@@ -2,11 +2,11 @@
  * Iframe Bridge - Type-safe postMessage communication between editor and canvas iframe
  */
 
-import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, CollectionPaginationMeta } from '@/types';
+import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, CollectionPaginationMeta, Asset } from '@/types';
 
 // Message types sent FROM parent TO iframe
 export type ParentToIframeMessage =
-  | { type: 'UPDATE_LAYERS'; payload: { layers: Layer[]; selectedLayerId: string | null; componentMap: Record<string, string>; editingComponentId: string | null; collectionItems: Record<string, CollectionItemWithValues[]>; collectionFields: Record<string, CollectionField[]>; pageCollectionItem?: CollectionItemWithValues | null; pageCollectionFields?: CollectionField[] } }
+  | { type: 'UPDATE_LAYERS'; payload: { layers: Layer[]; selectedLayerId: string | null; componentMap: Record<string, string>; editingComponentId: string | null; collectionItems: Record<string, CollectionItemWithValues[]>; collectionFields: Record<string, CollectionField[]>; pageCollectionItem?: CollectionItemWithValues | null; pageCollectionFields?: CollectionField[]; assets?: Record<string, Asset> } }
   | { type: 'UPDATE_SELECTION'; payload: { layerId: string | null } }
   | { type: 'UPDATE_BREAKPOINT'; payload: { breakpoint: Breakpoint } }
   | { type: 'UPDATE_UI_STATE'; payload: { uiState: 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current' } }

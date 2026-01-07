@@ -25,6 +25,7 @@ export const ALLOWED_MIME_TYPES: Record<AssetCategory, string[]> = {
     'image/png',
     'image/gif',
     'image/webp',
+    'image/avif',
     'image/svg+xml',
     'image/bmp',
     'image/tiff',

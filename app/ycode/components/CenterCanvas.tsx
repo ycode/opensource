@@ -37,6 +37,7 @@ import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
+import { useAssetsStore } from '@/stores/useAssetsStore';
 
 // 6. Utils
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
@@ -48,7 +49,7 @@ import { getCollectionVariable, canDeleteLayer, findLayerById } from '@/lib/laye
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
 
 // 7. Types
-import type { Layer, Page, PageFolder, CollectionField } from '@/types';
+import type { Layer, Page, PageFolder, CollectionField, Asset } from '@/types';
 import {
   DropdownMenu,
   DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut,
@@ -144,6 +145,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const setCurrentPageCollectionItemId = useEditorStore((state) => state.setCurrentPageCollectionItemId);
   const hoveredLayerId = useEditorStore((state) => state.hoveredLayerId);
   const isPreviewMode = useEditorStore((state) => state.isPreviewMode);
+  const assets = useAssetsStore((state) => state.assets);
 
   // Reset iframe ready state when switching between preview/editor mode or changing pages
   useEffect(() => {
@@ -789,6 +791,13 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (!iframeReady || !iframeRef.current) return;
 
     const { layers: serializedLayers, componentMap } = serializeLayers(layers, components);
+    
+    // Create assets map for iframe (asset ID -> asset)
+    const assetsMap: Record<string, Asset> = {};
+    assets.forEach(asset => {
+      assetsMap[asset.id] = asset;
+    });
+    
     sendToIframe(iframeRef.current, {
       type: 'UPDATE_LAYERS',
       payload: {
@@ -800,6 +809,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         collectionFields: collectionFieldsFromStore,
         pageCollectionItem,
         pageCollectionFields,
+        assets: assetsMap,
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -813,6 +823,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     collectionFieldsFromStore,
     pageCollectionItem,
     pageCollectionFields,
+    assets,
   ]);
 
   // Send selection updates separately to avoid full re-renders

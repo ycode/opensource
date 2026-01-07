@@ -21,6 +21,7 @@
   let collectionLayerData = {}; // Collection items by layer ID (for collection layers)
   let pageCollectionItem = null; // Collection item for dynamic page preview
   let pageCollectionFields = [];
+  let assets = {}; // Assets map (asset ID -> asset) for resolving asset IDs to URLs
 
   // Pagination state for collection layers
   let paginationState = {}; // { layerId: { page: number, loading: boolean, meta: {...} } }
@@ -56,6 +57,7 @@
         collectionFields = message.payload.collectionFields || {};
         pageCollectionItem = message.payload.pageCollectionItem || null;
         pageCollectionFields = message.payload.pageCollectionFields || [];
+        assets = message.payload.assets || {};
         render();
         break;
 
@@ -1399,6 +1401,50 @@
   }
 
   /**
+   * Track image loads and recalculate canvas size when all images are loaded
+   */
+  function trackImageLoadsAndRecalculate() {
+    // Find all images in the rendered content
+    const images = root.querySelectorAll('img');
+
+    if (images.length === 0) {
+      // No images, report height immediately
+      reportContentHeight();
+      return;
+    }
+
+    let loadedCount = 0;
+    const totalImages = images.length;
+    let hasReported = false;
+
+    const checkAllLoaded = () => {
+      loadedCount++;
+      // Once all images have loaded (or errored), recalculate
+      if (loadedCount >= totalImages && !hasReported) {
+        hasReported = true;
+        // Small delay to ensure layout has updated after images load
+        setTimeout(() => {
+          reportContentHeight();
+        }, 50);
+      }
+    };
+
+    // Add load and error listeners to each image
+    images.forEach(img => {
+      // Check if image is already loaded (cached) or failed to load
+      // img.complete is true when image has finished loading (success or error)
+      // img.naturalHeight === 0 means the image failed to load, but we still count it
+      if (img.complete) {
+        checkAllLoaded();
+      } else {
+        // Wait for load or error
+        img.addEventListener('load', checkAllLoaded, { once: true });
+        img.addEventListener('error', checkAllLoaded, { once: true });
+      }
+    });
+  }
+
+  /**
    * Render layer tree
    */
   function render() {
@@ -1421,8 +1467,13 @@
       }
     });
 
-    // Report content height after render
+    // Report initial content height (before images load)
     reportContentHeight();
+
+    // Track image loads and recalculate when all images are loaded
+    requestAnimationFrame(() => {
+      trackImageLoadsAndRecalculate();
+    });
 
     // Render gap indicators as overlays
     requestAnimationFrame(() => {
@@ -1521,11 +1572,32 @@
     if (tag === 'img') {
       const imageSrc = layer.variables?.image?.src;
       if (imageSrc) {
-        // Extract string value from variable
+        // Resolve image URL from variable (AssetVariable, FieldVariable, or DynamicTextVariable)
+        let imageUrl;
         if (imageSrc.type === 'asset') {
-          element.src = imageSrc.data.asset_id || '';
+          // AssetVariable -> get asset URL from assets map
+          if (assets && imageSrc.data?.asset_id) {
+            const asset = assets[imageSrc.data.asset_id];
+            imageUrl = asset?.public_url;
+          }
+        } else if (imageSrc.type === 'field') {
+          // FieldVariable -> resolve field value from collectionItemData
+          if (inheritedCollectionItemData) {
+            const itemValues = inheritedCollectionItemData.values || inheritedCollectionItemData;
+            const fieldId = imageSrc.data?.field_id;
+            const assetId = itemValues[fieldId];
+            if (assetId && typeof assetId === 'string' && assets) {
+              const asset = assets[assetId];
+              imageUrl = asset?.public_url;
+            }
+          }
         } else if (imageSrc.type === 'dynamic_text') {
-          element.src = imageSrc.data.content || '';
+          // DynamicTextVariable -> use content as URL
+          imageUrl = imageSrc.data?.content;
+        }
+        // Only set src if we have a valid URL (prevents empty src warning)
+        if (imageUrl) {
+          element.src = imageUrl;
         }
       }
       const imageAlt = layer.variables?.image?.alt;

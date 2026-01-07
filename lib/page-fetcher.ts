@@ -4,7 +4,8 @@ import { getItemWithValues, getItemsWithValues } from '@/lib/repositories/collec
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer, CollectionPaginationMeta, Translation, Locale } from '@/types';
 import { getCollectionVariable, resolveFieldValue, evaluateVisibility } from '@/lib/layer-utils';
-import { isFieldVariable, createDynamicTextVariable, getDynamicTextContent, getVariableStringValue } from '@/lib/variable-utils';
+import { isFieldVariable, isAssetVariable, createDynamicTextVariable, getDynamicTextContent, getVariableStringValue, getAssetId } from '@/lib/variable-utils';
+import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveComponents } from '@/lib/resolve-components';
 
 // Pagination context passed through to resolveCollectionLayers
@@ -284,12 +285,15 @@ export async function fetchPageByPath(
       const homepageData = await fetchHomepage(isPublished, paginationContext);
       if (homepageData) {
         // Resolve components and apply translations
-        const processedLayers = applyComponentsAndTranslations(
+        let processedLayers = applyComponentsAndTranslations(
           homepageData.pageLayers.layers || [],
           homepageData.page.id,
           components,
           translations
         );
+
+        // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
+        processedLayers = await resolveAllAssets(processedLayers);
 
         return {
           ...homepageData,
@@ -428,6 +432,9 @@ export async function fetchPageByPath(
               detectedLocale ? translations : undefined
             );
 
+            // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
+            resolvedLayers = await resolveAllAssets(resolvedLayers);
+
             return {
               page: matchingPage,
               pageLayers: {
@@ -478,6 +485,9 @@ export async function fetchPageByPath(
       components,
       detectedLocale ? translations : undefined
     );
+
+    // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
+    resolvedLayers = await resolveAllAssets(resolvedLayers);
 
     return {
       page: matchingPage,
@@ -551,9 +561,12 @@ export async function fetchErrorPage(
 
     // Resolve collection layers server-side (for both draft and published)
     // The isPublished parameter controls which collection items to fetch
-    const resolvedLayers = pageLayers?.layers
+    let resolvedLayers = pageLayers?.layers
       ? await resolveCollectionLayers(pageLayers.layers, isPublished, undefined, undefined, undefined)
       : [];
+
+    // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
+    resolvedLayers = await resolveAllAssets(resolvedLayers);
 
     return {
       page: errorPage,
@@ -626,9 +639,12 @@ export async function fetchHomepage(
     }
 
     // Resolve collection layers server-side (for both draft and published)
-    const resolvedLayers = pageLayers?.layers
+    let resolvedLayers = pageLayers?.layers
       ? await resolveCollectionLayers(pageLayers.layers, isPublished, undefined, paginationContext, undefined)
       : [];
+
+    // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
+    resolvedLayers = await resolveAllAssets(resolvedLayers);
 
     return {
       page: homepage,
@@ -895,16 +911,34 @@ async function injectCollectionData(
 
   // Image src field binding (variables structure)
   const imageSrc = layer.variables?.image?.src;
-  if (imageSrc && isFieldVariable(imageSrc)) {
-    const resolvedUrl = resolveFieldValueWithRelationships(imageSrc, enhancedValues);
-    // Update variables.image.src with resolved URL as DynamicTextVariable
-    updates.variables = {
-      ...layer.variables,
-      image: {
-        src: resolvedUrl ? createDynamicTextVariable(resolvedUrl) : imageSrc,
-        alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
-      },
-    };
+  if (imageSrc) {
+    if (isFieldVariable(imageSrc)) {
+      const resolvedUrl = resolveFieldValueWithRelationships(imageSrc, enhancedValues);
+      // Update variables.image.src with resolved URL as DynamicTextVariable
+      updates.variables = {
+        ...layer.variables,
+        image: {
+          src: resolvedUrl ? createDynamicTextVariable(resolvedUrl) : imageSrc,
+          alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+        },
+      };
+    } else if (isAssetVariable(imageSrc)) {
+      // Resolve AssetVariable to URL (server-side)
+      const { getAssetById } = await import('@/lib/repositories/assetRepository');
+      const assetId = getAssetId(imageSrc);
+      if (assetId) {
+        const asset = await getAssetById(assetId);
+        const resolvedUrl = asset?.public_url || '';
+        // Update variables.image.src with resolved URL as DynamicTextVariable
+        updates.variables = {
+          ...layer.variables,
+          image: {
+            src: createDynamicTextVariable(resolvedUrl),
+            alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+          },
+        };
+      }
+    }
   }
 
   // Recursively process children, but SKIP collection layers
@@ -1684,21 +1718,39 @@ async function injectCollectionDataForHtml(
 
   // Image src field binding (variables structure)
   const imageSrc = layer.variables?.image?.src;
-  if (imageSrc && isFieldVariable(imageSrc)) {
-    const fieldId = imageSrc.data.field_id;
-    const relationships = imageSrc.data.relationships || [];
-    const fullPath = relationships.length > 0
-      ? [fieldId, ...relationships].join('.')
-      : fieldId;
-    const resolvedUrl = enhancedValues[fullPath] || '';
-    // Update variables.image.src with resolved URL as DynamicTextVariable
-    updates.variables = {
-      ...layer.variables,
-      image: {
-        src: resolvedUrl ? createDynamicTextVariable(resolvedUrl) : imageSrc,
-        alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
-      },
-    };
+  if (imageSrc) {
+    if (isFieldVariable(imageSrc)) {
+      const fieldId = imageSrc.data.field_id;
+      const relationships = imageSrc.data.relationships || [];
+      const fullPath = relationships.length > 0
+        ? [fieldId, ...relationships].join('.')
+        : fieldId;
+      const resolvedUrl = enhancedValues[fullPath] || '';
+      // Update variables.image.src with resolved URL as DynamicTextVariable
+      updates.variables = {
+        ...layer.variables,
+        image: {
+          src: resolvedUrl ? createDynamicTextVariable(resolvedUrl) : imageSrc,
+          alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+        },
+      };
+    } else if (isAssetVariable(imageSrc)) {
+      // Resolve AssetVariable to URL (server-side)
+      const { getAssetById } = await import('@/lib/repositories/assetRepository');
+      const assetId = getAssetId(imageSrc);
+      if (assetId) {
+        const asset = await getAssetById(assetId);
+        const resolvedUrl = asset?.public_url || '';
+        // Update variables.image.src with resolved URL as DynamicTextVariable
+        updates.variables = {
+          ...layer.variables,
+          image: {
+            src: createDynamicTextVariable(resolvedUrl),
+            alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+          },
+        };
+      }
+    }
   }
 
   // Recursively process children
@@ -1715,6 +1767,51 @@ async function injectCollectionDataForHtml(
     ...layer,
     ...updates,
   };
+}
+
+/**
+ * Resolve all AssetVariables in layer tree to DynamicTextVariables with public URLs
+ * This ensures assets are resolved server-side before rendering
+ * Should be called after all other layer processing (collections, components, etc.)
+ */
+async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
+  const { getAssetById } = await import('@/lib/repositories/assetRepository');
+
+  const resolveLayer = async (layer: Layer): Promise<Layer> => {
+    const updates: Partial<Layer> = {};
+
+    // Resolve AssetVariable in image src
+    const imageSrc = layer.variables?.image?.src;
+    if (imageSrc && isAssetVariable(imageSrc)) {
+      const assetId = getAssetId(imageSrc);
+      if (assetId) {
+        const asset = await getAssetById(assetId);
+        const resolvedUrl = asset?.public_url || '';
+        updates.variables = {
+          ...layer.variables,
+          image: {
+            src: createDynamicTextVariable(resolvedUrl),
+            alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+          },
+        };
+      }
+    }
+
+    // Recursively resolve children
+    if (layer.children) {
+      const resolvedChildren = await Promise.all(
+        layer.children.map(child => resolveLayer(child))
+      );
+      updates.children = resolvedChildren;
+    }
+
+    return {
+      ...layer,
+      ...updates,
+    };
+  };
+
+  return Promise.all(layers.map(resolveLayer));
 }
 
 /**
@@ -1758,15 +1855,28 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
   if (tag === 'img') {
     const imageSrc = layer.variables?.image?.src;
     if (imageSrc) {
-      // Extract string value from variable (AssetVariable, FieldVariable, or DynamicTextVariable)
-      let srcValue = '';
-      if (imageSrc.type === 'asset') {
-        srcValue = imageSrc.data.asset_id;
-      } else if (imageSrc.type === 'dynamic_text') {
-        srcValue = imageSrc.data.content;
+      // Extract string value from variable (should be DynamicTextVariable after resolution)
+      // AssetVariable should have been resolved to DynamicTextVariable in injectCollectionDataForHtml
+      let srcValue: string | undefined = undefined;
+      if (imageSrc.type === 'dynamic_text') {
+        srcValue = imageSrc.data.content || undefined;
+      } else if (imageSrc.type === 'asset') {
+        // AssetVariable should have been resolved, but if not, skip (don't use asset_id as URL)
+        srcValue = undefined;
       }
-      if (srcValue) {
-        attrs.push(`src="${escapeHtml(srcValue)}"`);
+      // Only add src if we have a valid URL (not empty string)
+      if (srcValue && srcValue.trim()) {
+        // Use optimized URL for src (default size: 1200px for good quality)
+        const optimizedSrc = getOptimizedImageUrl(srcValue, 1200, 1200, 85);
+        attrs.push(`src="${escapeHtml(optimizedSrc)}"`);
+
+        // Generate srcset for responsive images
+        const srcset = generateImageSrcset(srcValue);
+        if (srcset) {
+          attrs.push(`srcset="${escapeHtml(srcset)}"`);
+          // Add sizes attribute for responsive images
+          attrs.push(`sizes="${escapeHtml(getImageSizes())}"`);
+        }
       }
     }
     const imageAlt = layer.variables?.image?.alt;

@@ -11,11 +11,13 @@ import type { Layer, Locale } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
-import { isFieldVariable, isAssetVariable, isDynamicTextVariable, getVariableStringValue, getDynamicTextContent } from '@/lib/variable-utils';
+import { getVariableStringValue, getDynamicTextContent, getImageUrlFromVariable, getIframeUrlFromVariable } from '@/lib/variable-utils';
+import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
+import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { cn } from '@/lib/utils';
 import PaginatedCollection from '@/components/PaginatedCollection';
@@ -213,6 +215,7 @@ const LayerItem: React.FC<{
   const isLockedByOther = !!(lock && lock.user_id !== currentUserId && Date.now() <= lock.expires_at);
   const classesString = getClassesString(layer);
   const effectiveCollectionItemData = collectionItemData || pageCollectionItemData || undefined;
+  const getAsset = useAssetsStore((state) => state.getAsset);
 
   // Resolve text and image URLs with field binding support
   const textContent = (() => {
@@ -262,20 +265,12 @@ const LayerItem: React.FC<{
     return undefined;
   })();
 
-  const imageUrl = (() => {
-    const src = layer.variables?.image?.src;
-    if (!src) return undefined;
-    if (isFieldVariable(src)) {
-      return resolveFieldValue(src, effectiveCollectionItemData);
-    }
-    if (isDynamicTextVariable(src)) {
-      return src.data.content;
-    }
-    if (isAssetVariable(src)) {
-      return src.data.asset_id;
-    }
-    return undefined;
-  })();
+  const imageUrl = getImageUrlFromVariable(
+    layer.variables?.image?.src,
+    getAsset,
+    resolveFieldValue,
+    effectiveCollectionItemData
+  );
 
   const imageAlt = getDynamicTextContent(layer.variables?.image?.alt) || 'Image';
 
@@ -534,10 +529,21 @@ const LayerItem: React.FC<{
 
     // Handle special cases for void/self-closing elements
     if (htmlTag === 'img') {
+      // Don't render image if no URL (prevents empty src warning)
+      if (!imageUrl) {
+        return null;
+      }
+      // Generate optimized src and srcset for responsive images
+      const optimizedSrc = getOptimizedImageUrl(imageUrl, 1200, 1200, 85);
+      const srcset = generateImageSrcset(imageUrl);
+      const sizes = getImageSizes();
+      
       return (
         <Tag
           {...elementProps}
-          src={imageUrl || ''}
+          src={optimizedSrc}
+          srcSet={srcset || undefined}
+          sizes={srcset ? sizes : undefined}
           alt={imageAlt}
         />
       );
@@ -571,19 +577,26 @@ const LayerItem: React.FC<{
         if (htmlTag === 'video' && layer.variables?.video?.src) {
           const src = layer.variables.video.src;
           if (isFieldVariable(src)) {
-            return resolveFieldValue(src, effectiveCollectionItemData) || '';
+            return resolveFieldValue(src, effectiveCollectionItemData) || undefined;
           }
-          return getVariableStringValue(src);
+          const value = getVariableStringValue(src);
+          return value || undefined;
         }
         if (htmlTag === 'audio' && layer.variables?.audio?.src) {
           const src = layer.variables.audio.src;
           if (isFieldVariable(src)) {
-            return resolveFieldValue(src, effectiveCollectionItemData) || '';
+            return resolveFieldValue(src, effectiveCollectionItemData) || undefined;
           }
-          return getVariableStringValue(src);
+          const value = getVariableStringValue(src);
+          return value || undefined;
         }
-        return imageUrl || '';
+        return imageUrl || undefined;
       })();
+
+      // Don't render media element if no src (prevents empty src warning)
+      if (!mediaSrc) {
+        return null;
+      }
 
       return (
         <Tag
@@ -617,7 +630,13 @@ const LayerItem: React.FC<{
     }
 
     if (htmlTag === 'iframe') {
-      const iframeSrc = getDynamicTextContent(layer.variables?.iframe?.src) || (otherAttributes as Record<string, string>).src || '';
+      const iframeSrc = getIframeUrlFromVariable(layer.variables?.iframe?.src) || (otherAttributes as Record<string, string>).src || undefined;
+      
+      // Don't render iframe if no src (prevents empty src warning)
+      if (!iframeSrc) {
+        return null;
+      }
+      
       return (
         <Tag
           {...elementProps}

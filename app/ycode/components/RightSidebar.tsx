@@ -357,12 +357,6 @@ const RightSidebar = React.memo(function RightSidebar({
     return textTypes.includes(layerName) || isHeadingLayer(layer);
   };
 
-  // Helper function to check if layer is an image element
-  const isImageLayer = (layer: Layer | null): boolean => {
-    if (!layer) return false;
-    return layer.name === 'image';
-  };
-
   // Helper function to check if layer is a button element
   const isButtonLayer = (layer: Layer | null): boolean => {
     if (!layer) return false;
@@ -421,7 +415,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
   // Acquire lock when layer is selected, release when deselected
   // Works for both page layers and component layers
-  // 
+  //
   // Note: We only depend on selectedLayerId, not editingComponentId.
   // The channelName change is handled internally by useLayerLocks/useResourceLock.
   // We don't want to release/re-acquire locks just because editingComponentId changed.

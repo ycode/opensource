@@ -557,7 +557,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       // This prevents reverting when currentPageId was set manually before URL updates
       const resourceIdChanged = resourceId !== previousResourceIdRef.current;
       previousResourceIdRef.current = resourceId;
-      
+
       if (page && resourceIdChanged && currentPageId !== resourceId) {
         setCurrentPageId(resourceId);
         // Only select body for layers mode if no layer is specified in URL
@@ -606,10 +606,10 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         const { resourceLocks, currentUserId } = useCollaborationPresenceStore.getState();
         const bodyLockKey = getResourceLockKey(RESOURCE_TYPES.LAYER, 'body');
         const bodyLock = resourceLocks[bodyLockKey];
-        const isBodyLockedByOther = bodyLock && 
-          bodyLock.user_id !== currentUserId && 
+        const isBodyLockedByOther = bodyLock &&
+          bodyLock.user_id !== currentUserId &&
           Date.now() <= bodyLock.expires_at;
-        
+
         // Only auto-select Body if it's not locked by someone else
         if (!isBodyLockedByOther) {
           setSelectedLayerId('body');
@@ -915,22 +915,22 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     if (editingComponentId) {
       return `component-${editingComponentId}`;
     }
-    
+
     // CMS tab - users viewing same collection see each other
     if (activeTab === 'cms' && selectedCollectionId) {
       return `cms-collection-${selectedCollectionId}`;
     }
-    
+
     // Pages tab - users on same page in Pages view see each other
     if (activeTab === 'pages' && currentPageId) {
       return `pages-page-${currentPageId}`;
     }
-    
+
     // Layers tab (default) - users on same page in Layers view see each other
     if (currentPageId) {
       return `layers-page-${currentPageId}`;
     }
-    
+
     return null;
   }, [editingComponentId, activeTab, selectedCollectionId, currentPageId]);
 
@@ -955,7 +955,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     if (updatedComponent) {
       // Update all instances across pages with the new layers
       await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
-      
+
       // Broadcast component layers update to collaborators
       if (liveComponentUpdates) {
         liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, updatedComponent.layers);
@@ -1744,10 +1744,14 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           }}
           onAssetSelect={(asset: Asset) => {
             if (fileManager.onSelect) {
-              fileManager.onSelect(asset);
+              const result = fileManager.onSelect(asset);
+              // Close file manager unless callback returns false
+              if (result !== false) {
+                closeFileManager();
+              }
             }
-            closeFileManager();
           }}
+          assetId={fileManager.assetId}
         />
       </Suspense>
     )}

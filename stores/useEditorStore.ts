@@ -40,7 +40,7 @@ interface EditorActions {
   setHoveredLayerId: (id: string | null) => void;
   setPreviewMode: (enabled: boolean) => void;
   setActiveSidebarTab: (tab: EditorSidebarTab) => void;
-  openFileManager: (onSelect?: ((asset: Asset) => void) | null) => void;
+  openFileManager: (onSelect?: ((asset: Asset) => void | false) | null, assetId?: string | null) => void;
   closeFileManager: () => void;
 }
 
@@ -66,7 +66,8 @@ interface EditorStoreWithHistory extends EditorState {
   activeSidebarTab: EditorSidebarTab;
   fileManager: {
     open: boolean;
-    onSelect: ((asset: Asset) => void) | null;
+    onSelect: ((asset: Asset) => void | false) | null;
+    assetId: string | null;
   };
 }
 
@@ -100,6 +101,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   fileManager: {
     open: false,
     onSelect: null,
+    assetId: null,
   },
 
   setSelectedLayerId: (id) => {
@@ -283,10 +285,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   setActiveSidebarTab: (tab) => set({ activeSidebarTab: tab }),
 
-  openFileManager: (onSelect) => set({
+  openFileManager: (onSelect, assetId) => set({
     fileManager: {
       open: true,
       onSelect: onSelect ?? null,
+      assetId: assetId ?? null,
     },
   }),
 
@@ -294,6 +297,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     fileManager: {
       open: false,
       onSelect: null,
+      assetId: null,
     },
   }),
 }));

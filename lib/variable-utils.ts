@@ -122,3 +122,60 @@ export function getVariableStringValue(
   // FieldVariable needs resolution with collection data
   return '';
 }
+
+/**
+ * Get image URL from image src variable
+ * - AssetVariable -> gets asset URL from store
+ * - FieldVariable -> resolves field value (requires collectionItemData and resolveFieldValue)
+ * - DynamicTextVariable -> returns content as URL
+ * 
+ * @param src - The image src variable (AssetVariable | FieldVariable | DynamicTextVariable)
+ * @param getAsset - Function to get asset by ID (required for AssetVariable)
+ * @param resolveFieldValue - Function to resolve field variable (required for FieldVariable)
+ * @param collectionItemData - Collection item data for field resolution (required for FieldVariable)
+ * @returns Image URL string or undefined
+ */
+export function getImageUrlFromVariable(
+  src: AssetVariable | FieldVariable | DynamicTextVariable | undefined | null,
+  getAsset?: (id: string) => { public_url: string | null } | null,
+  resolveFieldValue?: (variable: FieldVariable, collectionItemData?: Record<string, string>) => string | undefined,
+  collectionItemData?: Record<string, string>
+): string | undefined {
+  if (!src) return undefined;
+
+  if (isAssetVariable(src)) {
+    if (!getAsset) return undefined;
+    const asset = getAsset(src.data.asset_id);
+    return asset?.public_url || undefined;
+  }
+
+  if (isFieldVariable(src)) {
+    if (!resolveFieldValue) return undefined;
+    return resolveFieldValue(src, collectionItemData);
+  }
+
+  if (isDynamicTextVariable(src)) {
+    return src.data.content;
+  }
+
+  return undefined;
+}
+
+/**
+ * Get iframe URL from iframe src variable
+ * - DynamicTextVariable -> returns content as URL
+ * 
+ * @param src - The iframe src variable (DynamicTextVariable)
+ * @returns Iframe URL string or undefined
+ */
+export function getIframeUrlFromVariable(
+  src: DynamicTextVariable | undefined | null
+): string | undefined {
+  if (!src) return undefined;
+
+  if (isDynamicTextVariable(src)) {
+    return src.data.content;
+  }
+
+  return undefined;
+}

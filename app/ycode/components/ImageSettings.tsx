@@ -14,7 +14,7 @@ import SettingsPanel from './SettingsPanel';
 import InputWithInlineVariables from './InputWithInlineVariables';
 import { convertContentToValue } from '@/lib/cms-variables-utils';
 import type { Layer, CollectionField, Collection } from '@/types';
-import { createDynamicTextVariable, getDynamicTextContent, getVariableStringValue } from '@/lib/variable-utils';
+import { createDynamicTextVariable, getDynamicTextContent, createAssetVariable, getImageUrlFromVariable, isAssetVariable, getAssetId } from '@/lib/variable-utils';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import Icon from '@/components/ui/icon';
@@ -27,7 +27,9 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { useEditorStore } from '@/stores/useEditorStore';
-import { getDefaultAssetByType, ASSET_CATEGORIES } from '@/lib/asset-utils';
+import { useAssetsStore } from '@/stores/useAssetsStore';
+import { getDefaultAssetByType, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
+import { toast } from 'sonner';
 
 interface ImageSettingsProps {
   layer: Layer | null;
@@ -42,6 +44,7 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
   const [isOpen, setIsOpen] = useState(true);
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const openFileManager = useEditorStore((state) => state.openFileManager);
+  const getAsset = useAssetsStore((state) => state.getAsset);
 
   const handleUrlChange = useCallback((value: string) => {
     if (!layer) return;
@@ -135,13 +138,10 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
   }
 
   // Get current URL value from variables.image.src
-  const urlValue = (() => {
-    const src = layer.variables?.image?.src;
-    if (!src) return '';
-
-    // Extract content from the variable
-    return getVariableStringValue(src);
-  })();
+  const urlValue = getImageUrlFromVariable(
+    layer.variables?.image?.src,
+    getAsset
+  ) || '';
 
   // Get current alt value from variables.image.alt
   const altValue = getDynamicTextContent(layer.variables?.image?.alt);
@@ -234,10 +234,43 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
                         variant="secondary"
                         size="sm"
                         onClick={() => {
-                          openFileManager((asset) => {
-                            if (!layer || !asset.public_url) return;
-                            handleUrlChange(asset.public_url);
-                          });
+                          // Get current asset ID if image src is an AssetVariable
+                          const currentAssetId = (() => {
+                            const src = layer.variables?.image?.src;
+                            if (isAssetVariable(src)) {
+                              return getAssetId(src);
+                            }
+                            return null;
+                          })();
+
+                          openFileManager(
+                            (asset) => {
+                              if (!layer) return false;
+
+                              // Validate asset type
+                              if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
+                                toast.error('Invalid asset type', {
+                                  description: 'Please select an image file.',
+                                });
+                                return false; // Don't close file manager
+                              }
+
+                              // Create AssetVariable from asset ID
+                              const assetVariable = createAssetVariable(asset.id);
+
+                              // Update layer with AssetVariable
+                              onLayerUpdate(layer.id, {
+                                variables: {
+                                  ...layer.variables,
+                                  image: {
+                                    src: assetVariable,
+                                    alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+                                  },
+                                },
+                              });
+                            },
+                            currentAssetId
+                          );
                         }}
                       >
                         Browse
