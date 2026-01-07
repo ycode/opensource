@@ -1775,33 +1775,103 @@ async function injectCollectionDataForHtml(
  * Should be called after all other layer processing (collections, components, etc.)
  */
 async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
-  const { getAssetById } = await import('@/lib/repositories/assetRepository');
+  const { getAssetsByIds } = await import('@/lib/repositories/assetRepository');
 
-  const resolveLayer = async (layer: Layer): Promise<Layer> => {
+  // Step 1: Collect all asset IDs from the layer tree
+  const collectAssetIds = (layer: Layer, assetIds: Set<string>): void => {
+    // Collect image asset IDs
+    const imageSrc = layer.variables?.image?.src;
+    if (imageSrc && isAssetVariable(imageSrc)) {
+      const assetId = getAssetId(imageSrc);
+      if (assetId) assetIds.add(assetId);
+    }
+
+    // Collect video asset IDs
+    const videoSrc = layer.variables?.video?.src;
+    if (videoSrc && isAssetVariable(videoSrc)) {
+      const assetId = getAssetId(videoSrc);
+      if (assetId) assetIds.add(assetId);
+    }
+
+    // Collect video poster asset IDs
+    const videoPoster = layer.variables?.video?.poster;
+    if (videoPoster && isAssetVariable(videoPoster)) {
+      const assetId = getAssetId(videoPoster);
+      if (assetId) assetIds.add(assetId);
+    }
+
+    // Recursively collect from children
+    if (layer.children) {
+      layer.children.forEach(child => collectAssetIds(child, assetIds));
+    }
+  };
+
+  const assetIds = new Set<string>();
+  layers.forEach(layer => collectAssetIds(layer, assetIds));
+
+  // Step 2: Fetch all assets in a single query
+  const assetMap = await getAssetsByIds(Array.from(assetIds));
+
+  // Step 3: Resolve layer URLs using the fetched asset map
+  const resolveLayer = (layer: Layer): Layer => {
     const updates: Partial<Layer> = {};
+    const variableUpdates: Partial<Layer['variables']> = {};
 
     // Resolve AssetVariable in image src
     const imageSrc = layer.variables?.image?.src;
     if (imageSrc && isAssetVariable(imageSrc)) {
       const assetId = getAssetId(imageSrc);
       if (assetId) {
-        const asset = await getAssetById(assetId);
+        const asset = assetMap[assetId];
         const resolvedUrl = asset?.public_url || '';
-        updates.variables = {
-          ...layer.variables,
-          image: {
-            src: createDynamicTextVariable(resolvedUrl),
-            alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
-          },
+        variableUpdates.image = {
+          src: createDynamicTextVariable(resolvedUrl),
+          alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
         };
       }
     }
 
+    // Resolve AssetVariable in video src and poster
+    const videoSrc = layer.variables?.video?.src;
+    const videoPoster = layer.variables?.video?.poster;
+    const videoUpdates: { src?: any; poster?: any } = {};
+
+    if (videoSrc && isAssetVariable(videoSrc)) {
+      const assetId = getAssetId(videoSrc);
+      if (assetId) {
+        const asset = assetMap[assetId];
+        const resolvedUrl = asset?.public_url || '';
+        videoUpdates.src = createDynamicTextVariable(resolvedUrl);
+      }
+    }
+
+    if (videoPoster && isAssetVariable(videoPoster)) {
+      const assetId = getAssetId(videoPoster);
+      if (assetId) {
+        const asset = assetMap[assetId];
+        const resolvedUrl = asset?.public_url || '';
+        videoUpdates.poster = createDynamicTextVariable(resolvedUrl);
+      }
+    }
+
+    if (Object.keys(videoUpdates).length > 0) {
+      variableUpdates.video = {
+        ...layer.variables?.video,
+        ...videoUpdates,
+      };
+    }
+
+    // Apply all variable updates at once
+    if (Object.keys(variableUpdates).length > 0) {
+      updates.variables = {
+        ...layer.variables,
+        ...variableUpdates,
+      };
+    }
+
     // Recursively resolve children
     if (layer.children) {
-      const resolvedChildren = await Promise.all(
-        layer.children.map(child => resolveLayer(child))
-      );
+      const resolvedChildren = layer.children.map(child => resolveLayer(child));
       updates.children = resolvedChildren;
     }
 
@@ -1811,7 +1881,7 @@ async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
     };
   };
 
-  return Promise.all(layers.map(resolveLayer));
+  return layers.map(resolveLayer);
 }
 
 /**

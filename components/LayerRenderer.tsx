@@ -11,7 +11,7 @@ import type { Layer, Locale } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
-import { getVariableStringValue, getDynamicTextContent, getImageUrlFromVariable, getIframeUrlFromVariable, isFieldVariable } from '@/lib/variable-utils';
+import { getVariableStringValue, getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable } from '@/lib/variable-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
@@ -529,23 +529,28 @@ const LayerItem: React.FC<{
 
     // Handle special cases for void/self-closing elements
     if (htmlTag === 'img') {
-      // Don't render image if no URL (prevents empty src warning)
-      if (!imageUrl) {
-        return null;
+      // Always render image element, even without source (for published pages)
+      // Only set src attributes if we have a valid URL
+      const imageProps: Record<string, any> = {
+        ...elementProps,
+        alt: imageAlt,
+      };
+
+      if (imageUrl) {
+        // Generate optimized src and srcset for responsive images
+        const optimizedSrc = getOptimizedImageUrl(imageUrl, 1200, 1200, 85);
+        const srcset = generateImageSrcset(imageUrl);
+        const sizes = getImageSizes();
+        
+        imageProps.src = optimizedSrc;
+        if (srcset) {
+          imageProps.srcSet = srcset;
+          imageProps.sizes = sizes;
+        }
       }
-      // Generate optimized src and srcset for responsive images
-      const optimizedSrc = getOptimizedImageUrl(imageUrl, 1200, 1200, 85);
-      const srcset = generateImageSrcset(imageUrl);
-      const sizes = getImageSizes();
       
       return (
-        <Tag
-          {...elementProps}
-          src={optimizedSrc}
-          srcSet={srcset || undefined}
-          sizes={srcset ? sizes : undefined}
-          alt={imageAlt}
-        />
+        <Tag {...imageProps} />
       );
     }
 
@@ -579,8 +584,12 @@ const LayerItem: React.FC<{
           if (isFieldVariable(src)) {
             return resolveFieldValue(src, effectiveCollectionItemData) || undefined;
           }
-          const value = getVariableStringValue(src);
-          return value || undefined;
+          return getVideoUrlFromVariable(
+            src,
+            getAsset,
+            resolveFieldValue,
+            effectiveCollectionItemData
+          );
         }
         if (htmlTag === 'audio' && layer.variables?.audio?.src) {
           const src = layer.variables.audio.src;
@@ -593,16 +602,53 @@ const LayerItem: React.FC<{
         return imageUrl || undefined;
       })();
 
-      // Don't render media element if no src (prevents empty src warning)
-      if (!mediaSrc) {
-        return null;
+      // Get poster URL for video elements
+      const posterUrl = (() => {
+        if (htmlTag === 'video' && layer.variables?.video?.poster) {
+          return getImageUrlFromVariable(
+            layer.variables.video.poster,
+            getAsset,
+            resolveFieldValue,
+            effectiveCollectionItemData
+          );
+        }
+        return undefined;
+      })();
+
+      // Get video behavior attributes
+      const videoAttributes: Record<string, any> = {};
+      if (htmlTag === 'video' && otherAttributes) {
+        if (otherAttributes.muted === 'true') {
+          videoAttributes.muted = true;
+        }
+        if (otherAttributes.controls === 'true') {
+          videoAttributes.controls = true;
+        }
+        if (otherAttributes.loop === 'true') {
+          videoAttributes.loop = true;
+        }
+        if (otherAttributes.autoplay === 'true') {
+          videoAttributes.autoplay = true;
+        }
+      }
+
+      // Always render video element, even without src (for published pages)
+      // Only set src attribute if we have a valid URL
+      const videoProps: Record<string, any> = {
+        ...elementProps,
+        ...videoAttributes,
+      };
+
+      if (mediaSrc) {
+        videoProps.src = mediaSrc;
+      }
+
+      if (posterUrl) {
+        videoProps.poster = posterUrl;
       }
 
       return (
-        <Tag
-          {...elementProps}
-          src={mediaSrc}
-        >
+        <Tag {...videoProps}>
           {textContent && textContent}
           {children && children.length > 0 && (
             <LayerRenderer

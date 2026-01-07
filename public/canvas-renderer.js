@@ -1568,12 +1568,94 @@
       });
     }
 
-    // Handle special elements
+    if (tag === 'video') {
+      const videoSrc = layer.variables?.video?.src;
+      let videoUrl = null;
+
+      if (videoSrc) {
+        // Resolve video URL from variable (AssetVariable, FieldVariable, or DynamicTextVariable)
+        if (videoSrc.type === 'asset') {
+          // AssetVariable -> get asset URL from assets map
+          if (assets && videoSrc.data?.asset_id) {
+            const asset = assets[videoSrc.data.asset_id];
+            videoUrl = asset?.public_url;
+          }
+        } else if (videoSrc.type === 'field') {
+          // FieldVariable -> resolve field value from collectionItemData
+          if (inheritedCollectionItemData) {
+            const itemValues = inheritedCollectionItemData.values || inheritedCollectionItemData;
+            const fieldId = videoSrc.data?.field_id;
+            const assetId = itemValues[fieldId];
+            if (assetId && typeof assetId === 'string' && assets) {
+              const asset = assets[assetId];
+              videoUrl = asset?.public_url;
+            }
+          }
+        } else if (videoSrc.type === 'dynamic_text') {
+          // DynamicTextVariable -> use content as URL
+          videoUrl = videoSrc.data?.content;
+        }
+      }
+
+      // Only set src if we have a valid URL (prevents empty src warning)
+      if (videoUrl) {
+        element.src = videoUrl;
+      }
+
+      // Handle video poster image
+      const videoPoster = layer.variables?.video?.poster;
+      if (videoPoster) {
+        let posterUrl;
+        if (videoPoster.type === 'asset') {
+          // AssetVariable -> get asset URL from assets map
+          if (assets && videoPoster.data?.asset_id) {
+            const asset = assets[videoPoster.data.asset_id];
+            posterUrl = asset?.public_url;
+          }
+        } else if (videoPoster.type === 'field') {
+          // FieldVariable -> resolve field value from collectionItemData
+          if (inheritedCollectionItemData) {
+            const itemValues = inheritedCollectionItemData.values || inheritedCollectionItemData;
+            const fieldId = videoPoster.data?.field_id;
+            const assetId = itemValues[fieldId];
+            if (assetId && typeof assetId === 'string' && assets) {
+              const asset = assets[assetId];
+              posterUrl = asset?.public_url;
+            }
+          }
+        } else if (videoPoster.type === 'dynamic_text') {
+          // DynamicTextVariable -> use content as URL
+          posterUrl = videoPoster.data?.content;
+        }
+        // Set poster if we have a valid URL
+        if (posterUrl) {
+          element.poster = posterUrl;
+        }
+      }
+
+      // Apply video behavior attributes from layer.attributes
+      if (layer.attributes) {
+        if (layer.attributes.muted === 'true') {
+          element.muted = true;
+        }
+        if (layer.attributes.controls === 'true') {
+          element.controls = true;
+        }
+        if (layer.attributes.loop === 'true') {
+          element.loop = true;
+        }
+        if (layer.attributes.autoplay === 'true') {
+          element.autoplay = true;
+        }
+      }
+    }
+
     if (tag === 'img') {
       const imageSrc = layer.variables?.image?.src;
+      let imageUrl = null;
+
       if (imageSrc) {
         // Resolve image URL from variable (AssetVariable, FieldVariable, or DynamicTextVariable)
-        let imageUrl;
         if (imageSrc.type === 'asset') {
           // AssetVariable -> get asset URL from assets map
           if (assets && imageSrc.data?.asset_id) {
@@ -1595,11 +1677,14 @@
           // DynamicTextVariable -> use content as URL
           imageUrl = imageSrc.data?.content;
         }
-        // Only set src if we have a valid URL (prevents empty src warning)
-        if (imageUrl) {
-          element.src = imageUrl;
-        }
       }
+
+      // Always render image element, even without source (for canvas preview)
+      // Only set src if we have a valid URL (prevents empty src warning)
+      if (imageUrl) {
+        element.src = imageUrl;
+      }
+
       const imageAlt = layer.variables?.image?.alt;
       element.alt = (imageAlt && imageAlt.type === 'dynamic_text' ? imageAlt.data.content : '') || 'Image';
     }
@@ -1642,16 +1727,17 @@
       }
     }
 
-    // Add text content
+    // Add text content (skip for video elements - they're self-contained media elements)
     const textContent = getText(layer, inheritedCollectionItemData, activeCollectionId);
     const hasChildren = layer.children && layer.children.length > 0;
+    const isVideoElement = tag === 'video';
 
-    if (textContent && !hasChildren) {
+    if (textContent && !hasChildren && !isVideoElement) {
       element.textContent = textContent;
     }
 
-    // Render children - handle collection layers specially
-    if (hasChildren) {
+    // Render children - handle collection layers specially (skip for video elements)
+    if (hasChildren && !isVideoElement) {
       if (isCollectionLayer && collectionId) {
         // Collection layer: repeat the element itself for each item (not a wrapper)
         let items = collectionLayerData[layer.id] || [];

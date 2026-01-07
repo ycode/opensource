@@ -217,10 +217,10 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
           <div className="grid grid-cols-3">
             <Label variant="muted">Image</Label>
 
-            <div className="col-span-2 flex">
+            <div className="col-span-2 flex gap-2">
               {!selectedField && (
-                <div className="flex-1 flex gap-2">
-                  <div className="bg-input rounded-lg h-8 flex-1 overflow-hidden">
+                <>
+                  <div className="bg-input rounded-md h-8 aspect-3/2 overflow-hidden">
                     <img
                       src={urlValue || getDefaultAssetByType(ASSET_CATEGORIES.IMAGES)}
                       className="w-full h-full object-contain"
@@ -228,7 +228,7 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
                     />
                   </div>
 
-                  <div className="shrink-0 flex items-center gap-2">
+                  <div className="shrink-0 flex items-center">
                     <ButtonGroup className="divide-x">
                       <Button
                         variant="secondary"
@@ -279,7 +279,8 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
-                            variant="secondary" size="sm"
+                            variant="secondary"
+                            size="sm"
                             aria-label="More Options"
                           >
                             <Icon name="database" />
@@ -299,7 +300,7 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
                       </DropdownMenu>
                     </ButtonGroup>
                   </div>
-                </div>
+                </>
               )}
 
               {selectedField && (
@@ -388,16 +389,27 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
             </div>
           </div>
 
-          <div className="grid grid-cols-3">
-            <Label variant="muted" htmlFor="image-lazy">
-              Lazy load
-            </Label>
-            <div className="col-span-2 py-2">
-              <Switch
-                id="image-lazy"
-                checked={lazyValue}
-                onCheckedChange={handleLazyChange}
-              />
+          {/* Behavior Section */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="pt-0.5">
+              <Label variant="muted">Behavior</Label>
+            </div>
+
+            <div className="col-span-2 flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="image-lazy"
+                  checked={lazyValue}
+                  onCheckedChange={handleLazyChange}
+                />
+                <Label
+                  variant="muted"
+                  htmlFor="image-lazy"
+                  className="cursor-pointer"
+                >
+                  Lazy load
+                </Label>
+              </div>
             </div>
           </div>
         </div>

@@ -74,6 +74,39 @@ export async function getAssetById(id: string): Promise<Asset | null> {
 }
 
 /**
+ * Get multiple assets by IDs in a single query
+ * Returns a map of asset ID to asset for quick lookup
+ */
+export async function getAssetsByIds(ids: string[]): Promise<Record<string, Asset>> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  if (ids.length === 0) {
+    return {};
+  }
+
+  const { data, error } = await client
+    .from('assets')
+    .select('*')
+    .in('id', ids);
+
+  if (error) {
+    throw new Error(`Failed to fetch assets: ${error.message}`);
+  }
+
+  // Convert array to map for O(1) lookup
+  const assetMap: Record<string, Asset> = {};
+  data?.forEach(asset => {
+    assetMap[asset.id] = asset;
+  });
+
+  return assetMap;
+}
+
+/**
  * Create asset record
  */
 export async function createAsset(assetData: CreateAssetData): Promise<Asset> {

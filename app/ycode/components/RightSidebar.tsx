@@ -32,6 +32,7 @@ import EffectControls from './EffectControls';
 import CollectionFiltersSettings from './CollectionFiltersSettings';
 import ConditionalVisibilitySettings from './ConditionalVisibilitySettings';
 import ImageSettings from './ImageSettings';
+import VideoSettings from './VideoSettings';
 import InputWithInlineVariables from './InputWithInlineVariables';
 import InteractionsPanel from './InteractionsPanel';
 import LayoutControls from './LayoutControls';
@@ -2062,6 +2063,15 @@ const RightSidebar = React.memo(function RightSidebar({
             </SettingsPanel>
 
             <ImageSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+              fields={parentCollectionFields}
+              fieldSourceLabel={fieldSourceLabel}
+              allFields={fields}
+              collections={collections}
+            />
+
+            <VideoSettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
               fields={parentCollectionFields}

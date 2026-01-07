@@ -262,6 +262,7 @@ export interface LayerVariables {
   };
   video?: {
     src?: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL that allows inline variables)
+    poster?: AssetVariable | FieldVariable; // Poster image (asset or field variable)
   };
   iframe?: {
     src: DynamicTextVariable; // Embed URL (allow inline variables)
