@@ -32,18 +32,32 @@ function Input({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Only handle arrow keys for numeric inputs
-    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && value !== undefined) {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       const currentValue = typeof value === 'string' ? value : String(value || '');
 
-      // Check if the value is a valid number
-      const numValue = parseFloat(currentValue);
+      // Check if the value is a valid number or empty (treat empty as 0)
+      const numValue = currentValue === '' ? 0 : parseFloat(currentValue);
       if (!isNaN(numValue) && isFinite(numValue)) {
         e.preventDefault();
 
         const increment = e.shiftKey ? 10 : 1;
-        const newValue = e.key === 'ArrowUp'
+        let newValue = e.key === 'ArrowUp'
           ? numValue + increment
           : numValue - increment;
+
+        // Respect min/max constraints
+        if (min !== undefined) {
+          const minValue = Number(min);
+          if (!isNaN(minValue)) {
+            newValue = Math.max(newValue, minValue);
+          }
+        }
+        if (max !== undefined) {
+          const maxValue = Number(max);
+          if (!isNaN(maxValue)) {
+            newValue = Math.min(newValue, maxValue);
+          }
+        }
 
         // Create a synthetic event to trigger onChange
         if (inputRef.current && onChange) {
