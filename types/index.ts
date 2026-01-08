@@ -63,6 +63,10 @@ export interface SizingDesign {
 export interface BordersDesign {
   isActive?: boolean;
   borderWidth?: string;
+  borderTopWidth?: string;
+  borderRightWidth?: string;
+  borderBottomWidth?: string;
+  borderLeftWidth?: string;
   borderStyle?: string;
   borderColor?: string;
   borderRadius?: string;
@@ -70,6 +74,10 @@ export interface BordersDesign {
   borderTopRightRadius?: string;
   borderBottomLeftRadius?: string;
   borderBottomRightRadius?: string;
+  divideX?: string;
+  divideY?: string;
+  divideStyle?: string;
+  divideColor?: string;
 }
 
 export interface BackgroundsDesign {

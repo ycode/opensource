@@ -17,6 +17,7 @@ import { extractMeasurementValue } from '@/lib/measurement-utils';
 import { removeSpaces } from '@/lib/utils';
 import ColorPicker from '@/app/ycode/components/ColorPicker';
 import type { Layer } from '@/types';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface BorderControlsProps {
   layer: Layer | null;
@@ -45,8 +46,13 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
   const borderLeftWidth = getDesignProperty('borders', 'borderLeftWidth') || '';
   const borderStyle = getDesignProperty('borders', 'borderStyle') || 'solid';
   const borderColor = getDesignProperty('borders', 'borderColor') || '';
+  const divideX = getDesignProperty('borders', 'divideX') || '';
+  const divideY = getDesignProperty('borders', 'divideY') || '';
+  const divideStyle = getDesignProperty('borders', 'divideStyle') || 'solid';
+  const divideColor = getDesignProperty('borders', 'divideColor') || '';
 
   const hasBorder = !!(borderWidth || borderTopWidth || borderRightWidth || borderBottomWidth || borderLeftWidth);
+  const hasDivider = !!(divideX || divideY);
 
   // Local controlled inputs (prevents repopulation bug)
   const inputs = useControlledInputs({
@@ -60,6 +66,8 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
     borderRightWidth,
     borderBottomWidth,
     borderLeftWidth,
+    divideX,
+    divideY,
   }, extractMeasurementValue);
 
   const [borderRadiusInput, setBorderRadiusInput] = inputs.borderRadius;
@@ -72,6 +80,8 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
   const [borderRightWidthInput, setBorderRightWidthInput] = inputs.borderRightWidth;
   const [borderBottomWidthInput, setBorderBottomWidthInput] = inputs.borderBottomWidth;
   const [borderLeftWidthInput, setBorderLeftWidthInput] = inputs.borderLeftWidth;
+  const [divideXInput, setDivideXInput] = inputs.divideX;
+  const [divideYInput, setDivideYInput] = inputs.divideY;
 
   // Use mode toggle hooks for radius and width
   const radiusModeToggle = useModeToggle({
@@ -182,6 +192,49 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
       { category: 'borders', property: 'borderLeftWidth', value: null },
       { category: 'borders', property: 'borderStyle', value: null },
       { category: 'borders', property: 'borderColor', value: null },
+    ]);
+  };
+
+  // Handle divider changes (debounced for text input)
+  const handleDivideXChange = (value: string) => {
+    setDivideXInput(value);
+    const sanitized = removeSpaces(value);
+    debouncedUpdateDesignProperty('borders', 'divideX', sanitized || null);
+  };
+
+  const handleDivideYChange = (value: string) => {
+    setDivideYInput(value);
+    const sanitized = removeSpaces(value);
+    debouncedUpdateDesignProperty('borders', 'divideY', sanitized || null);
+  };
+
+  // Handle divider style change (immediate - dropdown selection)
+  const handleDivideStyleChange = (value: string) => {
+    updateDesignProperty('borders', 'divideStyle', value);
+  };
+
+  // Handle divider color change (debounced for text input)
+  const handleDivideColorChange = (value: string) => {
+    const sanitized = removeSpaces(value);
+    debouncedUpdateDesignProperty('borders', 'divideColor', sanitized || null);
+  };
+
+  // Add divider (default to vertical)
+  const handleAddDivider = () => {
+    updateDesignProperties([
+      { category: 'borders', property: 'divideY', value: '1px' },
+      { category: 'borders', property: 'divideStyle', value: 'solid' },
+      { category: 'borders', property: 'divideColor', value: '#000000' },
+    ]);
+  };
+
+  // Remove divider
+  const handleRemoveDivider = () => {
+    updateDesignProperties([
+      { category: 'borders', property: 'divideX', value: null },
+      { category: 'borders', property: 'divideY', value: null },
+      { category: 'borders', property: 'divideStyle', value: null },
+      { category: 'borders', property: 'divideColor', value: null },
     ]);
   };
 
@@ -408,10 +461,139 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                   <div className="grid grid-cols-3">
                     <Label variant="muted">Color</Label>
                     <div className="col-span-2 *:w-full">
-                      <ColorPicker 
+                      <ColorPicker
                         solidOnly
                         value={borderColor || '#000000'}
                         onChange={handleBorderColorChange}
+                      />
+                    </div>
+                  </div>
+
+                </div>
+
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 items-start">
+          <Label variant="muted" className="h-8">Dividers</Label>
+          <div className="col-span-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                {!hasDivider ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="w-full"
+                    onClick={handleAddDivider}
+                  >
+                    <Icon name="plus" />
+                    Add
+                  </Button>
+                ) : (
+                  <InputGroup>
+                    <div className="w-full flex items-center justify-between gap-1 px-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="size-4 rounded shrink-0" style={{ backgroundColor: divideColor || '#000000' }} />
+                        <Label variant="muted" className="capitalize">{divideStyle || 'Solid'}</Label>
+                      </div>
+                      <Button
+                        size="xs"
+                        className="-mr-1.5"
+                        variant="ghost"
+                        onClick={handleRemoveDivider}
+                      >
+                        <Icon name="x" />
+                      </Button>
+                    </div>
+                  </InputGroup>
+                )}
+              </PopoverTrigger>
+
+              <PopoverContent className="w-[255px] mr-4">
+
+                <div className="flex flex-col gap-2">
+
+                  <div className="grid grid-cols-3 items-start">
+                    <Label variant="muted" className="h-8">Width</Label>
+                    <div className="col-span-2 grid grid-cols-2 gap-2">
+
+                      <InputGroup>
+                        <InputGroupAddon>
+                          <div className="flex">
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Icon name="maxSize" className="size-3 rotate-90" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Vertical</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </InputGroupAddon>
+                        <InputGroupInput
+                          stepper
+                          min="0"
+                          step="1"
+                          value={divideYInput}
+                          onChange={(e) => handleDivideYChange(e.target.value)}
+                          placeholder="1"
+                        />
+                      </InputGroup>
+
+                      <InputGroup>
+                        <InputGroupAddon>
+                          <div className="flex">
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Icon name="maxSize" className="size-3" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Horizontal</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </InputGroupAddon>
+                        <InputGroupInput
+                          stepper
+                          min="0"
+                          step="1"
+                          value={divideXInput}
+                          onChange={(e) => handleDivideXChange(e.target.value)}
+                          placeholder="1"
+                        />
+                      </InputGroup>
+
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3">
+                    <Label variant="muted">Style</Label>
+                    <div className="col-span-2 *:w-full">
+                      <Select value={divideStyle} onValueChange={handleDivideStyleChange}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="solid">Solid</SelectItem>
+                            <SelectItem value="dashed">Dashed</SelectItem>
+                            <SelectItem value="dotted">Dotted</SelectItem>
+                            <SelectItem value="double">Double</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3">
+                    <Label variant="muted">Color</Label>
+                    <div className="col-span-2 *:w-full">
+                      <ColorPicker
+                        solidOnly
+                        value={divideColor || '#000000'}
+                        onChange={handleDivideColorChange}
                       />
                     </div>
                   </div>

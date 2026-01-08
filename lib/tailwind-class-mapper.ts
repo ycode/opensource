@@ -176,6 +176,12 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   borderBottomRightRadius: /^rounded-br(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
   borderBottomLeftRadius: /^rounded-bl(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
 
+  // Dividers
+  divideX: /^divide-x(-\d+|-\[(?!#|rgb).+\])?$/,
+  divideY: /^divide-y(-\d+|-\[(?!#|rgb).+\])?$/,
+  divideStyle: /^divide-(solid|dashed|dotted|double|none)$/,
+  divideColor: /^divide-((\w+)(-\d+)?|\[(?:#|rgb).+\])$/,
+
   // Effects
   opacity: /^opacity-(\d+|\[.+\])$/,
   boxShadow: /^shadow(-none|-sm|-md|-lg|-xl|-2xl|-inner|-\[.+\])?$/,
@@ -480,6 +486,16 @@ export function propertyToClass(
         return formatMeasurementClass(value, 'rounded-br');
       case 'borderBottomLeftRadius':
         return formatMeasurementClass(value, 'rounded-bl');
+      case 'divideX':
+        if (value === '1px') return 'divide-x';
+        return formatMeasurementClass(value, 'divide-x');
+      case 'divideY':
+        if (value === '1px') return 'divide-y';
+        return formatMeasurementClass(value, 'divide-y');
+      case 'divideStyle':
+        return `divide-${value}`;
+      case 'divideColor':
+        return value.match(/^#|^rgb/) ? `divide-[${value}]` : `divide-${value}`;
     }
   }
 
@@ -1015,6 +1031,35 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls.startsWith('border-[#') || cls.startsWith('border-[rgb')) {
       const value = extractArbitraryValue(cls);
       if (value) design.borders!.borderColor = value;
+    }
+
+    // Divide X (horizontal dividers)
+    if (cls.startsWith('divide-x-[') && !cls.includes('#') && !cls.includes('rgb')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.borders!.divideX = value;
+    } else if (cls === 'divide-x') {
+      design.borders!.divideX = '1px';
+    }
+
+    // Divide Y (vertical dividers)
+    if (cls.startsWith('divide-y-[') && !cls.includes('#') && !cls.includes('rgb')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.borders!.divideY = value;
+    } else if (cls === 'divide-y') {
+      design.borders!.divideY = '1px';
+    }
+
+    // Divide Style
+    if (cls === 'divide-solid') design.borders!.divideStyle = 'solid';
+    if (cls === 'divide-dashed') design.borders!.divideStyle = 'dashed';
+    if (cls === 'divide-dotted') design.borders!.divideStyle = 'dotted';
+    if (cls === 'divide-double') design.borders!.divideStyle = 'double';
+    if (cls === 'divide-none') design.borders!.divideStyle = 'none';
+
+    // Divide Color
+    if (cls.startsWith('divide-[#') || cls.startsWith('divide-[rgb')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.borders!.divideColor = value;
     }
 
     // ===== BACKGROUNDS =====
