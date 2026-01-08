@@ -292,7 +292,10 @@ export default function BorderControls({ layer, onLayerUpdate }: BorderControlsP
                 ) : (
                   <InputGroup>
                     <div className="w-full flex items-center justify-between gap-1 px-2.5">
-                      <Label variant="muted">{borderStyle || 'Solid'}</Label>
+                      <div className="flex items-center gap-2">
+                      <div className="size-4 rounded shrink-0" style={{ backgroundColor: borderColor || '#000000' }} />
+                        <Label variant="muted" className="capitalize">{borderStyle || 'Solid'}</Label>
+                      </div>
                       <Button
                         size="xs"
                         className="-mr-1.5"
