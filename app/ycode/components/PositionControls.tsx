@@ -172,7 +172,6 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
                       className="!pr-0"
                       value={leftInput}
                       onChange={(e) => handleLeftChange(e.target.value)}
-                      placeholder="0"
                     />
                   </InputGroup>
                   <InputGroup>
@@ -192,7 +191,6 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
                       className="!pr-0"
                       value={topInput}
                       onChange={(e) => handleTopChange(e.target.value)}
-                      placeholder="0"
                     />
                   </InputGroup>
                   <InputGroup>
@@ -212,7 +210,6 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
                       className="!pr-0"
                       value={rightInput}
                       onChange={(e) => handleRightChange(e.target.value)}
-                      placeholder="0"
                     />
                   </InputGroup>
                   <InputGroup>
@@ -232,7 +229,6 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
                       className="!pr-0"
                       value={bottomInput}
                       onChange={(e) => handleBottomChange(e.target.value)}
-                      placeholder="0"
                     />
                   </InputGroup>
                 </div>
@@ -249,7 +245,6 @@ export default function PositionControls({ layer, onLayerUpdate }: PositionContr
                 type="text"
                 value={zIndexInput}
                 onChange={(e) => handleZIndexChange(e.target.value)}
-                placeholder="auto"
               />
               <Slider
                 value={[parseInt(zIndexInput) || 0]}

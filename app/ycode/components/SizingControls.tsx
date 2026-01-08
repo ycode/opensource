@@ -284,7 +284,6 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
           <ButtonGroup>
             <Input
               value={widthInput} onChange={(e) => handleWidthChange(e.target.value)}
-              placeholder="0"
             />
             <ButtonGroupSeparator />
             <Select value={getWidthPresetValue()} onValueChange={handleWidthPresetChange}>
@@ -377,7 +376,6 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
           <ButtonGroup>
             <Input
               value={heightInput} onChange={(e) => handleHeightChange(e.target.value)}
-              placeholder="0"
             />
             <ButtonGroupSeparator />
             <Select value={getHeightPresetValue()} onValueChange={handleHeightPresetChange}>
