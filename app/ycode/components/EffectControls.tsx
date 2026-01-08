@@ -44,6 +44,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
   const opacity = getDesignProperty('effects', 'opacity') || '100';
   const boxShadow = getDesignProperty('effects', 'boxShadow') || '';
   const blur = getDesignProperty('effects', 'blur') || '';
+  const backdropBlur = getDesignProperty('effects', 'backdropBlur') || '';
 
   // Shadow interface
   interface Shadow {
@@ -178,6 +179,36 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
   // Remove blur effect
   const handleRemoveBlur = () => {
     updateDesignProperty('effects', 'blur', null);
+  };
+
+  // Extract backdrop blur value (in pixels)
+  const extractBackdropBlur = (prop: string): number => {
+    if (!prop) return 0;
+    const match = prop.match(/(\d+)/);
+    return match ? parseInt(match[1]) : 0;
+  };
+
+  const backdropBlurValue = extractBackdropBlur(backdropBlur);
+
+  // Handle backdrop blur change (debounced for text input)
+  const handleBackdropBlurChange = (value: string) => {
+    const numValue = Math.max(0, parseInt(value) || 0);
+    debouncedUpdateDesignProperty('effects', 'backdropBlur', `${numValue}px`);
+  };
+
+  // Handle backdrop blur slider change (immediate - slider interaction)
+  const handleBackdropBlurSliderChange = (values: number[]) => {
+    updateDesignProperty('effects', 'backdropBlur', `${values[0]}px`);
+  };
+
+  // Add backdrop blur effect
+  const handleAddBackdropBlur = () => {
+    updateDesignProperty('effects', 'backdropBlur', '5px');
+  };
+
+  // Remove backdrop blur effect
+  const handleRemoveBackdropBlur = () => {
+    updateDesignProperty('effects', 'backdropBlur', null);
   };
 
   // Handle box shadow change (debounced for text input)
@@ -336,7 +367,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
       <header className="py-4 -mt-4 flex items-center justify-between">
         <Label>Effects</Label>
         <DropdownMenu>
-          <DropdownMenuTrigger>
+          <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="xs">
               <Icon name="plus" />
             </Button>
@@ -347,6 +378,14 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
               <DropdownMenuPortal>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem onClick={handleAddBlur}>Blur</DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Backdrop</DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={handleAddBackdropBlur}>Blur</DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuPortal>
             </DropdownMenuSub>
@@ -587,6 +626,39 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
                 <Button
                   variant="ghost" size="xs"
                   onClick={handleRemoveBlur}
+                >
+                  <Icon name="x" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {backdropBlur && (
+            <div className="grid grid-cols-3">
+              <Label variant="muted">BG Blur</Label>
+              <div className="col-span-2 flex items-center gap-2">
+                <div className="flex-1 grid grid-cols-2 items-center gap-2">
+                  <InputGroup>
+                    <InputGroupInput
+                      stepper
+                      value={backdropBlurValue}
+                      onChange={(e) => handleBackdropBlurChange(e.target.value)}
+                      min="0"
+                      step="1"
+                    />
+                  </InputGroup>
+                  <Slider
+                    className="flex-1"
+                    value={[backdropBlurValue]}
+                    onValueChange={handleBackdropBlurSliderChange}
+                    min={0}
+                    max={100}
+                    step={1}
+                  />
+                </div>
+                <Button
+                  variant="ghost" size="xs"
+                  onClick={handleRemoveBackdropBlur}
                 >
                   <Icon name="x" />
                 </Button>

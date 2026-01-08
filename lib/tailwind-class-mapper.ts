@@ -187,6 +187,7 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   opacity: /^opacity-(\d+|\[.+\])$/,
   boxShadow: /^shadow(-none|-sm|-md|-lg|-xl|-2xl|-inner|-\[.+\])?$/,
   blur: /^blur(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-\[.+\])?$/,
+  backdropBlur: /^backdrop-blur(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-\[.+\])?$/,
 
   // Positioning
   position: /^(static|fixed|absolute|relative|sticky)$/,
@@ -588,6 +589,12 @@ export function propertyToClass(
           return `blur-${value}`;
         }
         return `blur-[${value}]`;
+      case 'backdropBlur':
+        if (value === 'none') return 'backdrop-blur-none';
+        if (['sm', 'md', 'lg', 'xl', '2xl', '3xl'].includes(value)) {
+          return `backdrop-blur-${value}`;
+        }
+        return `backdrop-blur-[${value}]`;
     }
   }
 
@@ -1145,6 +1152,17 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     } else if (cls.match(/^blur-(sm|md|lg|xl|2xl|3xl)$/)) {
       const match = cls.match(/^blur-(.+)$/);
       if (match) design.effects!.blur = match[1];
+    }
+
+    // Backdrop Blur
+    if (cls.startsWith('backdrop-blur-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.effects!.backdropBlur = value;
+    } else if (cls === 'backdrop-blur-none') {
+      design.effects!.backdropBlur = 'none';
+    } else if (cls.match(/^backdrop-blur-(sm|md|lg|xl|2xl|3xl)$/)) {
+      const match = cls.match(/^backdrop-blur-(.+)$/);
+      if (match) design.effects!.backdropBlur = match[1];
     }
 
     // ===== POSITIONING =====

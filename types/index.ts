@@ -94,6 +94,7 @@ export interface EffectsDesign {
   opacity?: string;
   boxShadow?: string;
   blur?: string;
+  backdropBlur?: string;
   filter?: string;
   backdropFilter?: string;
 }
