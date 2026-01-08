@@ -93,6 +93,7 @@ export interface EffectsDesign {
   isActive?: boolean;
   opacity?: string;
   boxShadow?: string;
+  blur?: string;
   filter?: string;
   backdropFilter?: string;
 }

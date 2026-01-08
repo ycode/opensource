@@ -15,6 +15,16 @@ import type { Layer } from '@/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import ColorPicker from '@/app/ycode/components/ColorPicker';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuSub, DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 
 interface EffectControlsProps {
   layer: Layer | null;
@@ -33,6 +43,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
   // Get current values from layer (no inheritance - only exact breakpoint values)
   const opacity = getDesignProperty('effects', 'opacity') || '100';
   const boxShadow = getDesignProperty('effects', 'boxShadow') || '';
+  const blur = getDesignProperty('effects', 'blur') || '';
 
   // Shadow interface
   interface Shadow {
@@ -48,19 +59,19 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
   // Parse existing shadows from boxShadow property
   const parseExistingShadows = (shadowString: string): Shadow[] => {
     if (!shadowString) return [];
-    
+
     try {
       // Split by comma followed by underscore (our separator for multiple shadows)
       const shadowStrings = shadowString.split(',_');
-      
+
       return shadowStrings.map((shadowStr, index) => {
         const isInset = shadowStr.startsWith('inset_');
         const cleanShadow = isInset ? shadowStr.replace('inset_', '') : shadowStr;
-        
+
         // Parse: 0px_9px_4px_0px_rgba(0,0,0,0.25)
         // Match pattern: number+unit, number+unit, number+unit, number+unit, color
         const parts = cleanShadow.split('_');
-        
+
         if (parts.length >= 5) {
           const x = parseInt(parts[0]) || 0;
           const y = parseInt(parts[1]) || 0;
@@ -68,7 +79,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
           const spread = parseInt(parts[3]) || 0;
           // Color is everything after the 4th underscore
           const color = parts.slice(4).join('_');
-          
+
           return {
             id: `shadow-${Date.now()}-${index}`,
             position: isInset ? 'inside' : 'outside',
@@ -79,7 +90,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
             spread,
           };
         }
-        
+
         // Fallback for invalid format
         return {
           id: `shadow-${Date.now()}-${index}`,
@@ -104,7 +115,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
   // Sync shadows when layer changes (not when boxShadow updates during editing)
   useEffect(() => {
     const currentBoxShadow = getDesignProperty('effects', 'boxShadow') || '';
-    
+
     if (currentBoxShadow) {
       // Parse and load existing shadows
       const parsed = parseExistingShadows(currentBoxShadow);
@@ -137,6 +148,36 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
   // Handle opacity slider change (immediate - slider interaction)
   const handleOpacitySliderChange = (values: number[]) => {
     updateDesignProperty('effects', 'opacity', `${values[0]}`);
+  };
+
+  // Extract blur value (in pixels)
+  const extractBlur = (prop: string): number => {
+    if (!prop) return 0;
+    const match = prop.match(/(\d+)/);
+    return match ? parseInt(match[1]) : 0;
+  };
+
+  const blurValue = extractBlur(blur);
+
+  // Handle blur change (debounced for text input)
+  const handleBlurChange = (value: string) => {
+    const numValue = Math.max(0, parseInt(value) || 0);
+    debouncedUpdateDesignProperty('effects', 'blur', `${numValue}px`);
+  };
+
+  // Handle blur slider change (immediate - slider interaction)
+  const handleBlurSliderChange = (values: number[]) => {
+    updateDesignProperty('effects', 'blur', `${values[0]}px`);
+  };
+
+  // Add blur effect
+  const handleAddBlur = () => {
+    updateDesignProperty('effects', 'blur', '5px');
+  };
+
+  // Remove blur effect
+  const handleRemoveBlur = () => {
+    updateDesignProperty('effects', 'blur', null);
   };
 
   // Handle box shadow change (debounced for text input)
@@ -291,8 +332,26 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
 
   return (
     <div className="py-5">
-      <header className="py-4 -mt-4">
+
+      <header className="py-4 -mt-4 flex items-center justify-between">
         <Label>Effects</Label>
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            <Button variant="ghost" size="xs">
+              <Icon name="plus" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Filters</DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={handleAddBlur}>Blur</DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       <div className="flex flex-col gap-2">
@@ -305,7 +364,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
                         stepper
                         value={opacityValue}
                         onChange={(e) => handleOpacityChange(e.target.value)}
-                    
+
                         min="0"
                         max="100"
                         step="1"
@@ -371,7 +430,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
                             <div className="col-span-2 grid grid-cols-2 items-center gap-2">
                               <Input
                                 stepper
-                              
+
                                 min={-100}
                                 max={100}
                                 step={1}
@@ -394,7 +453,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
                             <div className="col-span-2 grid grid-cols-2 items-center gap-2">
                               <Input
                                 stepper
-                                
+
                                 min={-100}
                                 max={100}
                                 step={1}
@@ -417,7 +476,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
                             <div className="col-span-2 grid grid-cols-2 items-center gap-2">
                               <Input
                                 stepper
-                                
+
                                 min={0}
                                 max={100}
                                 step={1}
@@ -440,7 +499,7 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
                             <div className="col-span-2 grid grid-cols-2 items-center gap-2">
                               <Input
                                 stepper
-                                
+
                                 min={0}
                                 max={100}
                                 step={1}
@@ -502,7 +561,41 @@ export default function EffectControls({ layer, onLayerUpdate }: EffectControlsP
               </div>
           </div>
 
+          {blur && (
+            <div className="grid grid-cols-3">
+              <Label variant="muted">Blur</Label>
+              <div className="col-span-2 flex items-center gap-2">
+                <div className="flex-1 grid grid-cols-2 items-center gap-2">
+                  <InputGroup>
+                    <InputGroupInput
+                      stepper
+                      value={blurValue}
+                      onChange={(e) => handleBlurChange(e.target.value)}
+                      min="0"
+                      step="1"
+                    />
+                  </InputGroup>
+                  <Slider
+                    className="flex-1"
+                    value={[blurValue]}
+                    onValueChange={handleBlurSliderChange}
+                    min={0}
+                    max={100}
+                    step={1}
+                  />
+                </div>
+                <Button
+                  variant="ghost" size="xs"
+                  onClick={handleRemoveBlur}
+                >
+                  <Icon name="x" />
+                </Button>
+              </div>
+            </div>
+          )}
+
       </div>
+
     </div>
   );
 }

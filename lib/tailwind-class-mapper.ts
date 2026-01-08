@@ -186,6 +186,7 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   // Effects
   opacity: /^opacity-(\d+|\[.+\])$/,
   boxShadow: /^shadow(-none|-sm|-md|-lg|-xl|-2xl|-inner|-\[.+\])?$/,
+  blur: /^blur(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-\[.+\])?$/,
 
   // Positioning
   position: /^(static|fixed|absolute|relative|sticky)$/,
@@ -581,6 +582,12 @@ export function propertyToClass(
           return `shadow-${value}`;
         }
         return `shadow-[${value}]`;
+      case 'blur':
+        if (value === 'none') return 'blur-none';
+        if (['sm', 'md', 'lg', 'xl', '2xl', '3xl'].includes(value)) {
+          return `blur-${value}`;
+        }
+        return `blur-[${value}]`;
     }
   }
 
@@ -1127,6 +1134,17 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
     if (cls.startsWith('shadow-[')) {
       const value = extractArbitraryValue(cls);
       if (value) design.effects!.boxShadow = value;
+    }
+
+    // Blur
+    if (cls.startsWith('blur-[')) {
+      const value = extractArbitraryValue(cls);
+      if (value) design.effects!.blur = value;
+    } else if (cls === 'blur-none') {
+      design.effects!.blur = 'none';
+    } else if (cls.match(/^blur-(sm|md|lg|xl|2xl|3xl)$/)) {
+      const match = cls.match(/^blur-(.+)$/);
+      if (match) design.effects!.blur = match[1];
     }
 
     // ===== POSITIONING =====
