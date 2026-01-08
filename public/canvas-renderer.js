@@ -1804,15 +1804,28 @@
       let iconHtml = '';
       if (iconSrc) {
         if (iconSrc.type === 'static_text') {
+          // StaticTextVariable - use content directly (SVG code)
           iconHtml = iconSrc.data.content || '';
         } else if (iconSrc.type === 'asset') {
-          iconHtml = iconSrc.data.asset_id || '';
+          // AssetVariable - resolve asset from assets map and get SVG content
+          const assetId = iconSrc.data.asset_id;
+          if (assetId && assets && assets[assetId]) {
+            iconHtml = assets[assetId].content || '';
+          }
         } else if (iconSrc.type === 'dynamic_text') {
+          // DynamicTextVariable - use content directly (SVG code)
           iconHtml = iconSrc.data.content || '';
         } else if (iconSrc.type === 'field' && inheritedCollectionItemData) {
-          // Resolve field variable
+          // FieldVariable - resolve field value (should be an asset ID)
           const fieldId = iconSrc.data.field_id;
-          iconHtml = inheritedCollectionItemData[fieldId] || '';
+          const assetId = inheritedCollectionItemData[fieldId];
+          if (assetId && typeof assetId === 'string' && assets && assets[assetId]) {
+            // Field contains asset ID - get SVG content from assets map
+            iconHtml = assets[assetId].content || '';
+          } else {
+            // Field might contain raw SVG code
+            iconHtml = assetId || '';
+          }
         }
       }
       if (iconHtml) {

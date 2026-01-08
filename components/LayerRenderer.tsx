@@ -11,7 +11,7 @@ import type { Layer, Locale } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
-import { getVariableStringValue, getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable } from '@/lib/variable-utils';
+import { getVariableStringValue, getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent } from '@/lib/variable-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
@@ -585,9 +585,40 @@ const LayerItem: React.FC<{
 
     // Handle icon layers (check layer.name, not htmlTag since settings.tag might be 'div')
     if (layer.name === 'icon') {
-      // Check variables.icon.src (asset ID, field variable, or static text with SVG code)
+      // Resolve icon SVG content from variables.icon.src
       const iconSrc = layer.variables?.icon?.src;
-      const iconHtml = iconSrc ? getVariableStringValue(iconSrc) : '';
+      let iconHtml = '';
+
+      if (iconSrc) {
+        if (isStaticTextVariable(iconSrc)) {
+          // StaticTextVariable - use content directly (SVG code)
+          iconHtml = getStaticTextContent(iconSrc);
+        } else if (isAssetVariable(iconSrc)) {
+          // AssetVariable - resolve asset from store and get SVG content
+          const assetId = getAssetId(iconSrc);
+          if (assetId) {
+            const asset = getAsset(assetId);
+            iconHtml = asset?.content || '';
+          }
+        } else if (isDynamicTextVariable(iconSrc)) {
+          // DynamicTextVariable - use content directly (SVG code)
+          iconHtml = getDynamicTextContent(iconSrc);
+        } else if (isFieldVariable(iconSrc)) {
+          // FieldVariable - resolve field value (should be an asset ID)
+          const assetId = resolveFieldValue(iconSrc, effectiveCollectionItemData);
+          if (assetId && typeof assetId === 'string') {
+            const asset = getAsset(assetId);
+            if (asset?.content) {
+              // Field contains asset ID - get SVG content
+              iconHtml = asset.content;
+            } else {
+              // Field might contain raw SVG code
+              iconHtml = assetId;
+            }
+          }
+        }
+      }
+
       return (
         <Tag
           {...elementProps}
