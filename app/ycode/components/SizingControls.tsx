@@ -502,7 +502,7 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
         </div>
       </div>
 
-      {layer?.name === 'image' && (
+      {(['image', 'video'].includes(layer?.name || '')) && (
         <div className="grid grid-cols-3 items-start">
           <Label variant="muted" className="h-8">Object fit</Label>
           <div className="col-span-2 flex flex-col gap-2">

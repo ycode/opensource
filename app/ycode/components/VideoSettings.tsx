@@ -12,13 +12,11 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
 import InputWithInlineVariables from './InputWithInlineVariables';
-import { convertContentToValue } from '@/lib/cms-variables-utils';
 import type { Layer, CollectionField, Collection, VideoVariable } from '@/types';
-import { createAssetVariable, createDynamicTextVariable, getDynamicTextContent, getVideoUrlFromVariable, isAssetVariable, getAssetId, isFieldVariable, isDynamicTextVariable } from '@/lib/variable-utils';
+import { createAssetVariable, createDynamicTextVariable, getDynamicTextContent, isAssetVariable, getAssetId, isFieldVariable, isDynamicTextVariable } from '@/lib/variable-utils';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ButtonGroup } from '@/components/ui/button-group';
 import {
   Select,
   SelectContent,
@@ -386,207 +384,197 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
         isOpen={isOpen}
         onToggle={() => setIsOpen(!isOpen)}
       >
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2.5">
           {/* Source Section */}
-          <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-3 items-center">
-              <Label variant="muted">Source</Label>
+          <div className="grid grid-cols-3 items-center">
+            <Label variant="muted">Source</Label>
 
-              <div className="col-span-2 flex gap-2">
-                <Select value={videoType} onValueChange={handleTypeChange}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="upload"><Icon name="folder" className="size-3" /> File manager</SelectItem>
-                    <SelectItem value="custom_url"><Icon name="link" className="size-3" /> Custom URL</SelectItem>
-                    <SelectItem value="cms" disabled={videoFields.length === 0}><Icon name="database" className="size-3" /> CMS field</SelectItem>
-                    <SelectSeparator />
-                    <SelectItem value="youtube"><Icon name="video" className="size-3" /> YouTube</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="col-span-2 flex gap-2">
+              <Select value={videoType} onValueChange={handleTypeChange}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="upload"><Icon name="folder" className="size-3" /> File manager</SelectItem>
+                  <SelectItem value="custom_url"><Icon name="link" className="size-3" /> Custom URL</SelectItem>
+                  <SelectItem value="cms" disabled={videoFields.length === 0}><Icon name="database" className="size-3" /> CMS field</SelectItem>
+                  <SelectSeparator />
+                  <SelectItem value="youtube"><Icon name="video" className="size-3" /> YouTube</SelectItem>
+                </SelectContent>
+              </Select>
 
-                {videoType === 'upload' && videoFields.length > 0 && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        aria-label="Select Field"
-                      >
-                        <Icon name="database" />
-                      </Button>
-                    </DropdownMenuTrigger>
+              {videoType === 'upload' && videoFields.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      aria-label="Select Field"
+                    >
+                      <Icon name="database" />
+                    </Button>
+                  </DropdownMenuTrigger>
 
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuGroup>
-                        {videoFields.map((field) => (
-                          <DropdownMenuItem
-                            key={field.id}
-                            onClick={() => handleFieldSelect(field.id)}
-                          >
-                            {field.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuGroup>
+                      {videoFields.map((field) => (
+                        <DropdownMenuItem
+                          key={field.id}
+                          onClick={() => handleFieldSelect(field.id)}
+                        >
+                          {field.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
 
           {/* File / URL / Field / YouTube ID - Based on source */}
           {videoType === 'upload' && (
-            <div className="flex flex-col gap-2">
-              <div className="grid grid-cols-3 items-center">
-                <Label variant="muted">File</Label>
+            <div className="grid grid-cols-3 items-center">
+              <Label variant="muted">File</Label>
 
-                <div className="col-span-2 flex gap-2">
-                  {!selectedField && !currentFieldId && (
-                    <>
-                      <div className="bg-input rounded-md h-8 aspect-3/2 flex items-center justify-center">
-                        <Icon name="video" className="size-4 text-muted-foreground" />
-                      </div>
+              <div className="col-span-2 flex gap-2">
+                {!selectedField && !currentFieldId && (
+                  <>
+                    <div className="bg-input rounded-md h-8 aspect-3/2 flex items-center justify-center">
+                      <Icon name="video" className="size-4 text-muted-foreground" />
+                    </div>
 
-                      <Button
-                        variant="secondary"
-                        className="flex-1"
-                        size="sm"
-                        onClick={() => {
-                          // Get current asset ID if video src is an AssetVariable
-                          const currentAssetId = (() => {
-                            const src = layer.variables?.video?.src;
-                            if (isAssetVariable(src)) {
-                              return getAssetId(src);
-                            }
-                            return null;
-                          })();
-
-                          openFileManager(
-                            (asset) => {
-                              if (!layer) return false;
-
-                              // Validate asset type
-                              if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.VIDEOS)) {
-                                toast.error('Invalid asset type', {
-                                  description: 'Please select a video file.',
-                                });
-                                return false; // Don't close file manager
-                              }
-
-                              handleVideoChange(asset.id);
-                            },
-                            currentAssetId
-                          );
-                        }}
-                      >
-                        Browse
-                      </Button>
-                    </>
-                  )}
-
-                  {(selectedField || currentFieldId) && (
                     <Button
-                      size="sm"
                       variant="secondary"
-                      className="flex-1 justify-start"
-                    >
-                      <Icon name="database" />
-                      <span>
-                        {videoFields.find(f => f.id === (selectedField || currentFieldId))?.name || 'Field'}
-                      </span>
-                      <Button
-                        className="!size-5 !p-0 -mr-1 ml-auto"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedField(null);
-                          // Clear field variable and reset to asset
-                          if (layer) {
-                            onLayerUpdate(layer.id, {
-                              variables: {
-                                ...layer.variables,
-                                video: {
-                                  src: undefined,
-                                  poster: layer.variables?.video?.poster,
-                                },
-                              },
-                            });
+                      className="flex-1"
+                      size="sm"
+                      onClick={() => {
+                        // Get current asset ID if video src is an AssetVariable
+                        const currentAssetId = (() => {
+                          const src = layer.variables?.video?.src;
+                          if (isAssetVariable(src)) {
+                            return getAssetId(src);
                           }
-                        }}
-                      >
-                        <Icon name="x" className="size-2.5" />
-                      </Button>
+                          return null;
+                        })();
+
+                        openFileManager(
+                          (asset) => {
+                            if (!layer) return false;
+
+                            // Validate asset type
+                            if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.VIDEOS)) {
+                              toast.error('Invalid asset type', {
+                                description: 'Please select a video file.',
+                              });
+                              return false; // Don't close file manager
+                            }
+
+                            handleVideoChange(asset.id);
+                          },
+                          currentAssetId
+                        );
+                      }}
+                    >
+                      Browse
                     </Button>
-                  )}
-                </div>
+                  </>
+                )}
+
+                {(selectedField || currentFieldId) && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="flex-1 justify-start"
+                  >
+                    <Icon name="database" />
+                    <span>
+                      {videoFields.find(f => f.id === (selectedField || currentFieldId))?.name || 'Field'}
+                    </span>
+                    <Button
+                      className="!size-5 !p-0 -mr-1 ml-auto"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedField(null);
+                        // Clear field variable and reset to asset
+                        if (layer) {
+                          onLayerUpdate(layer.id, {
+                            variables: {
+                              ...layer.variables,
+                              video: {
+                                src: undefined,
+                                poster: layer.variables?.video?.poster,
+                              },
+                            },
+                          });
+                        }
+                      }}
+                    >
+                      <Icon name="x" className="size-2.5" />
+                    </Button>
+                  </Button>
+                )}
               </div>
             </div>
           )}
 
           {/* YouTube Video ID Section */}
           {videoType === 'youtube' && (
-            <div className="flex flex-col gap-2">
-              <div className="grid grid-cols-3 items-center">
-                <Label variant="muted">Video ID</Label>
+            <div className="grid grid-cols-3 items-center">
+              <Label variant="muted">Video ID</Label>
 
-                <div className="col-span-2">
-                  <Input
-                    value={youtubeVideoId}
-                    onChange={(e) => handleYoutubeVideoIdChange(e.target.value)}
-                    placeholder="i.e. dQw4w9WgXcQ"
-                    className="w-full"
-                  />
-                </div>
+              <div className="col-span-2">
+                <Input
+                  value={youtubeVideoId}
+                  onChange={(e) => handleYoutubeVideoIdChange(e.target.value)}
+                  placeholder="i.e. dQw4w9WgXcQ"
+                  className="w-full"
+                />
               </div>
             </div>
           )}
 
           {/* Custom URL Section */}
           {videoType === 'custom_url' && (
-            <div className="flex flex-col gap-2">
-              <div className="grid grid-cols-3 items-center">
-                <Label variant="muted">URL</Label>
+            <div className="grid grid-cols-3 items-start">
+              <Label variant="muted" className="pt-2">URL</Label>
 
-                <div className="col-span-2">
-                  <InputWithInlineVariables
-                    value={customUrlValue}
-                    onChange={handleCustomUrlChange}
-                    placeholder="https://example.com/video.mp4"
-                    fields={fields}
-                    fieldSourceLabel={fieldSourceLabel}
-                    allFields={allFields}
-                    collections={collections}
-                  />
-                </div>
+              <div className="col-span-2">
+                <InputWithInlineVariables
+                  value={customUrlValue}
+                  onChange={handleCustomUrlChange}
+                  placeholder="https://example.com/video.mp4"
+                  fields={fields}
+                  fieldSourceLabel={fieldSourceLabel}
+                  allFields={allFields}
+                  collections={collections}
+                />
               </div>
             </div>
           )}
 
           {/* CMS Field Section */}
           {videoType === 'cms' && (
-            <div className="flex flex-col gap-2">
-              <div className="grid grid-cols-3 items-center">
-                <Label variant="muted">Field</Label>
+            <div className="grid grid-cols-3 items-center">
+              <Label variant="muted">Field</Label>
 
-                <div className="col-span-2">
-                  <Select
-                    value={selectedField || currentFieldId || ''}
-                    onValueChange={handleFieldSelect}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a field" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {videoFields.map((field) => (
-                        <SelectItem key={field.id} value={field.id}>
-                          {field.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="col-span-2">
+                <Select
+                  value={selectedField || currentFieldId || ''}
+                  onValueChange={handleFieldSelect}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a field" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {videoFields.map((field) => (
+                      <SelectItem key={field.id} value={field.id}>
+                        {field.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
@@ -699,7 +687,6 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
 
           {/* Poster Section - show for Upload, Custom URL, and CMS types (not YouTube) */}
           {(videoType === 'upload' || videoType === 'custom_url' || videoType === 'cms') && (
-            <div className="flex flex-col gap-2">
             <div className="grid grid-cols-3 items-start">
               <Label variant="muted">Poster</Label>
 
@@ -774,7 +761,6 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
                   )}
                 </div>
               </div>
-            </div>
             </div>
           )}
         </div>

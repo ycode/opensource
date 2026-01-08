@@ -12,6 +12,7 @@ import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
 import { getVariableStringValue, getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent } from '@/lib/variable-utils';
+import { DEFAULT_ASSETS } from '@/lib/asset-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
@@ -216,6 +217,9 @@ const LayerItem: React.FC<{
   const classesString = getClassesString(layer);
   const effectiveCollectionItemData = collectionItemData || pageCollectionItemData || undefined;
   const getAsset = useAssetsStore((state) => state.getAsset);
+  // Subscribe to assets store to trigger re-render when assets are loaded
+  // This ensures icon layers update when their assets are loaded asynchronously
+  const assetsById = useAssetsStore((state) => state.assetsById);
 
   // Resolve text and image URLs with field binding support
   const textContent = (() => {
@@ -550,24 +554,23 @@ const LayerItem: React.FC<{
 
     // Handle special cases for void/self-closing elements
     if (htmlTag === 'img') {
-      // Always render image element, even without source (for published pages)
-      // Only set src attributes if we have a valid URL
+      // Use default image if URL is empty or invalid
+      const finalImageUrl = imageUrl && imageUrl.trim() !== '' ? imageUrl : DEFAULT_ASSETS.IMAGE;
+
+      // Generate optimized src and srcset for responsive images
+      const optimizedSrc = getOptimizedImageUrl(finalImageUrl, 1200, 1200, 85);
+      const srcset = generateImageSrcset(finalImageUrl);
+      const sizes = getImageSizes();
+
       const imageProps: Record<string, any> = {
         ...elementProps,
         alt: imageAlt,
+        src: optimizedSrc,
       };
 
-      if (imageUrl) {
-        // Generate optimized src and srcset for responsive images
-        const optimizedSrc = getOptimizedImageUrl(imageUrl, 1200, 1200, 85);
-        const srcset = generateImageSrcset(imageUrl);
-        const sizes = getImageSizes();
-
-        imageProps.src = optimizedSrc;
-        if (srcset) {
-          imageProps.srcSet = srcset;
-          imageProps.sizes = sizes;
-        }
+      if (srcset) {
+        imageProps.srcSet = srcset;
+        imageProps.sizes = sizes;
       }
 
       return (
@@ -585,38 +588,35 @@ const LayerItem: React.FC<{
 
     // Handle icon layers (check layer.name, not htmlTag since settings.tag might be 'div')
     if (layer.name === 'icon') {
-      // Resolve icon SVG content from variables.icon.src
       const iconSrc = layer.variables?.icon?.src;
       let iconHtml = '';
 
       if (iconSrc) {
         if (isStaticTextVariable(iconSrc)) {
-          // StaticTextVariable - use content directly (SVG code)
           iconHtml = getStaticTextContent(iconSrc);
+        } else if (isDynamicTextVariable(iconSrc)) {
+          iconHtml = getDynamicTextContent(iconSrc);
         } else if (isAssetVariable(iconSrc)) {
-          // AssetVariable - resolve asset from store and get SVG content
-          const assetId = getAssetId(iconSrc);
+          const assetId = iconSrc.data?.asset_id;
           if (assetId) {
-            const asset = getAsset(assetId);
+            // Check assetsById first (reactive) then getAsset (may trigger fetch)
+            const asset = assetsById[assetId] || getAsset(assetId);
             iconHtml = asset?.content || '';
           }
-        } else if (isDynamicTextVariable(iconSrc)) {
-          // DynamicTextVariable - use content directly (SVG code)
-          iconHtml = getDynamicTextContent(iconSrc);
         } else if (isFieldVariable(iconSrc)) {
-          // FieldVariable - resolve field value (should be an asset ID)
-          const assetId = resolveFieldValue(iconSrc, effectiveCollectionItemData);
-          if (assetId && typeof assetId === 'string') {
-            const asset = getAsset(assetId);
-            if (asset?.content) {
-              // Field contains asset ID - get SVG content
-              iconHtml = asset.content;
-            } else {
-              // Field might contain raw SVG code
-              iconHtml = assetId;
-            }
+          const resolvedValue = resolveFieldValue(iconSrc, effectiveCollectionItemData);
+          if (resolvedValue && typeof resolvedValue === 'string') {
+            // Try to get as asset first (field contains asset ID)
+            const asset = assetsById[resolvedValue] || getAsset(resolvedValue);
+            // Use asset content if available, otherwise treat as raw SVG code
+            iconHtml = asset?.content || resolvedValue;
           }
         }
+      }
+
+      // If no valid icon content, show default icon
+      if (!iconHtml || iconHtml.trim() === '') {
+        iconHtml = DEFAULT_ASSETS.ICON;
       }
 
       return (

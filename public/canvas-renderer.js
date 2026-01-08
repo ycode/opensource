@@ -23,6 +23,14 @@
   let pageCollectionFields = [];
   let assets = {}; // Assets map (asset ID -> asset) for resolving asset IDs to URLs
 
+  // Default placeholder assets
+  const DEFAULT_ASSETS = {
+    IMAGE: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNjAwIDkwMCI+PHJlY3Qgd2lkdGg9IjE2MDAiIGhlaWdodD0iOTAwIiBmaWxsPSIjMmYzNDM3Ii8+PHBvbHlnb24gcG9pbnRzPSIwLDkwMCA2MDAsMzAwIDEyMDAsOTAwIiBmaWxsPSIjNGI1MDUyIiBvcGFjaXR5PSIuNiIvPjxwb2x5Z29uIHBvaW50cz0iNzAwLDkwMCAxMTUwLDQ1MCAxNjAwLDkwMCIgZmlsbD0iIzVhNWY2MSIgb3BhY2l0eT0iLjUiLz48L3N2Zz4=',
+    ICON: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>',
+    VIDEO: '',
+    AUDIO: '',
+  };
+
   // Pagination state for collection layers
   let paginationState = {}; // { layerId: { page: number, loading: boolean, meta: {...} } }
   let paginationDataCache = {}; // { layerId: CollectionItemWithValues[] } - current page data
@@ -1795,8 +1803,9 @@
             }
           }
         } else if (audioSrc.type === 'dynamic_text') {
-          // DynamicTextVariable -> use content as URL
-          audioUrl = audioSrc.data?.content;
+          // DynamicTextVariable -> use content as URL, resolve inline variables if needed
+          const content = audioSrc.data?.content || '';
+          audioUrl = resolveInlineVariablesInContent(content, inheritedCollectionItemData, parentCollectionId);
         }
       }
 
@@ -1831,9 +1840,12 @@
         // Resolve image URL from variable (AssetVariable, FieldVariable, or DynamicTextVariable)
         if (imageSrc.type === 'asset') {
           // AssetVariable -> get asset URL from assets map
-          if (assets && imageSrc.data?.asset_id) {
+          if (imageSrc.data?.asset_id && assets) {
             const asset = assets[imageSrc.data.asset_id];
             imageUrl = asset?.public_url;
+          } else if (!imageSrc.data?.asset_id) {
+            // asset_id is null - show default image placeholder
+            imageUrl = DEFAULT_ASSETS.IMAGE;
           }
         } else if (imageSrc.type === 'field') {
           // FieldVariable -> resolve field value from collectionItemData
@@ -1847,16 +1859,15 @@
             }
           }
         } else if (imageSrc.type === 'dynamic_text') {
-          // DynamicTextVariable -> use content as URL
-          imageUrl = imageSrc.data?.content;
+          // DynamicTextVariable -> use content as URL, resolve inline variables if needed
+          const content = imageSrc.data?.content || '';
+          imageUrl = resolveInlineVariablesInContent(content, inheritedCollectionItemData, parentCollectionId);
         }
       }
 
-      // Always render image element, even without source (for canvas preview)
-      // Only set src if we have a valid URL (prevents empty src warning)
-      if (imageUrl) {
-        element.src = imageUrl;
-      }
+      // Use default image if URL is empty or invalid
+      const finalImageUrl = imageUrl && imageUrl.trim() !== '' ? imageUrl : DEFAULT_ASSETS.IMAGE;
+      element.src = finalImageUrl;
 
       const imageAlt = layer.variables?.image?.alt;
       element.alt = (imageAlt && imageAlt.type === 'dynamic_text' ? imageAlt.data.content : '') || 'Image';
@@ -1892,12 +1903,16 @@
           }
         }
       }
-      if (iconHtml) {
-        // Add data-icon attribute to trigger CSS styling
-        element.setAttribute('data-icon', 'true');
-        // Insert SVG content
-        element.innerHTML = iconHtml;
+
+      // If no valid icon content, show default icon
+      if (!iconHtml || iconHtml.trim() === '') {
+        iconHtml = DEFAULT_ASSETS.ICON;
       }
+
+      // Add data-icon attribute to trigger CSS styling
+      element.setAttribute('data-icon', 'true');
+      // Insert SVG content
+      element.innerHTML = iconHtml;
     } else if (tag === 'a' && layer.variables?.link) {
       const linkHref = layer.variables.link.href;
       if (linkHref && linkHref.type === 'dynamic_text') {

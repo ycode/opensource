@@ -271,7 +271,7 @@ export interface LayerVariables {
   // Variables by type
   text?: DynamicTextVariable;
   icon?: {
-    src?: AssetVariable | FieldVariable | StaticTextVariable; // Static Asset ID | Field Variable | Static Text (SVG code, internal use only)
+    src?: AssetVariable | StaticTextVariable; // Static Asset ID | Static Text (SVG code, internal use only)
   };
   image?: {
     src: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL that allows inline variables)

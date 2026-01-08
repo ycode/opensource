@@ -2097,10 +2097,6 @@ const RightSidebar = React.memo(function RightSidebar({
             <IconSettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
-              fields={parentCollectionFields}
-              fieldSourceLabel={fieldSourceLabel}
-              allFields={fields}
-              collections={collections}
             />
 
             {/* Collection Filters - only for collection layers */}

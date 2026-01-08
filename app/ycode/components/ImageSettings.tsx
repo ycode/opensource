@@ -7,28 +7,28 @@
  * Settings panel for image layers (URL and alt text)
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 
 import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
 import InputWithInlineVariables from './InputWithInlineVariables';
-import { convertContentToValue } from '@/lib/cms-variables-utils';
 import type { Layer, CollectionField, Collection } from '@/types';
-import { createDynamicTextVariable, getDynamicTextContent, createAssetVariable, getImageUrlFromVariable, isAssetVariable, getAssetId } from '@/lib/variable-utils';
+import { createDynamicTextVariable, getDynamicTextContent, createAssetVariable, getImageUrlFromVariable, isAssetVariable, getAssetId, isDynamicTextVariable, isFieldVariable } from '@/lib/variable-utils';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { ButtonGroup } from '@/components/ui/button-group';
 import {
-  DropdownMenu,
-  DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
-import { getDefaultAssetByType, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
+import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 
 interface ImageSettingsProps {
@@ -46,14 +46,136 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
   const openFileManager = useEditorStore((state) => state.openFileManager);
   const getAsset = useAssetsStore((state) => state.getAsset);
 
+  // Get image source variable
+  const imageSrc = layer?.variables?.image?.src;
+
+  // Filter fields to only show image/asset type fields
+  // Note: Currently using 'text' type fields as image fields don't have a dedicated type
+  const imageFields = useMemo(() => {
+    if (!fields) return [];
+    // For now, show all text fields that could contain image URLs or asset IDs
+    return fields.filter((field) => field.type === 'text');
+  }, [fields]);
+
+  // Detect current field ID if using FieldVariable
+  const currentFieldId = useMemo(() => {
+    if (imageSrc && isFieldVariable(imageSrc)) {
+      return imageSrc.data.field_id;
+    }
+    return null;
+  }, [imageSrc]);
+
+  // Detect current image type from src variable
+  const imageType = useMemo((): 'upload' | 'custom_url' | 'cms' => {
+    if (!imageSrc) return 'upload';
+    if (imageSrc.type === 'field') return 'cms';
+    if (isDynamicTextVariable(imageSrc)) return 'custom_url';
+    return 'upload';
+  }, [imageSrc]);
+
+  // Get custom URL value from DynamicTextVariable
+  const customUrlValue = useMemo(() => {
+    if (imageSrc && isDynamicTextVariable(imageSrc)) {
+      return getDynamicTextContent(imageSrc);
+    }
+    return '';
+  }, [imageSrc]);
+
+  const handleImageChange = useCallback((assetId: string) => {
+    if (!layer) return;
+
+    // Create AssetVariable from asset ID
+    const assetVariable = createAssetVariable(assetId);
+
+    // Update layer with AssetVariable
+    onLayerUpdate(layer.id, {
+      variables: {
+        ...layer.variables,
+        image: {
+          src: assetVariable,
+          alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+        },
+      },
+    });
+  }, [layer, onLayerUpdate]);
+
+  const handleFieldSelect = useCallback((fieldId: string) => {
+    if (!layer) return;
+
+    // Create FieldVariable from field ID
+    const fieldVariable: { type: 'field'; data: { field_id: string; relationships: string[] } } = {
+      type: 'field',
+      data: {
+        field_id: fieldId,
+        relationships: [],
+      },
+    };
+
+    // Update layer with FieldVariable
+    onLayerUpdate(layer.id, {
+      variables: {
+        ...layer.variables,
+        image: {
+          src: fieldVariable,
+          alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+        },
+      },
+    });
+
+    setSelectedField(fieldId);
+  }, [layer, onLayerUpdate]);
+
+  const handleTypeChange = useCallback((type: 'upload' | 'custom_url' | 'cms') => {
+    if (!layer) return;
+
+    if (type === 'custom_url') {
+      // Switch to Custom URL - create DynamicTextVariable
+      const urlVariable = createDynamicTextVariable('');
+
+      onLayerUpdate(layer.id, {
+        variables: {
+          ...layer.variables,
+          image: {
+            src: urlVariable,
+            alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+          },
+        },
+      });
+    } else if (type === 'cms') {
+      // Switch to CMS - create empty AssetVariable as placeholder
+      const placeholderVariable = createAssetVariable('');
+      onLayerUpdate(layer.id, {
+        variables: {
+          ...layer.variables,
+          image: {
+            src: placeholderVariable,
+            alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+          },
+        },
+      });
+      setSelectedField(null);
+    } else {
+      // Switch to Upload - create empty AssetVariable as placeholder
+      const placeholderVariable = createAssetVariable('');
+      onLayerUpdate(layer.id, {
+        variables: {
+          ...layer.variables,
+          image: {
+            src: placeholderVariable,
+            alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+          },
+        },
+      });
+      setSelectedField(null);
+    }
+  }, [layer, onLayerUpdate]);
+
   const handleUrlChange = useCallback((value: string) => {
     if (!layer) return;
 
-    // Convert the value to proper format (string with embedded variables)
-    const convertedValue = convertContentToValue(value);
-
-    // Create DynamicTextVariable from the content
-    const srcVariable = createDynamicTextVariable(convertedValue);
+    // Value is already a string from InputWithInlineVariables (already converted from Tiptap JSON)
+    // Create DynamicTextVariable directly from the string value
+    const srcVariable = createDynamicTextVariable(value);
 
     // Update variables.image.src
     onLayerUpdate(layer.id, {
@@ -70,11 +192,9 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
   const handleAltChange = useCallback((value: string) => {
     if (!layer) return;
 
-    // Convert content format to value - extract text content
-    const convertedValue = convertContentToValue(value);
-
-    // Create DynamicTextVariable from the content
-    const altVariable = createDynamicTextVariable(convertedValue);
+    // Value is already a string from InputWithInlineVariables (already converted from Tiptap JSON)
+    // Create DynamicTextVariable directly from the string value
+    const altVariable = createDynamicTextVariable(value);
 
     // Update variables.image.alt
     onLayerUpdate(layer.id, {
@@ -138,10 +258,14 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
   }
 
   // Get current URL value from variables.image.src
-  const urlValue = getImageUrlFromVariable(
-    layer.variables?.image?.src,
-    getAsset
-  ) || '';
+  const urlValue = (() => {
+    const url = getImageUrlFromVariable(
+      layer.variables?.image?.src,
+      getAsset
+    );
+    // Return default image if URL is empty or invalid
+    return url && url.trim() !== '' ? url : DEFAULT_ASSETS.IMAGE;
+  })();
 
   // Get current alt value from variables.image.alt
   const altValue = getDynamicTextContent(layer.variables?.image?.alt);
@@ -151,61 +275,6 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
   const heightValue = (layer.attributes?.height as string) || '';
   const lazyValue = layer.attributes?.loading === 'lazy';
 
-  // Placeholder fields for UI (just for display purposes)
-  const placeholderFields: CollectionField[] = [
-    {
-      id: 'placeholder-1',
-      name: 'Alt Text',
-      key: null,
-      type: 'text',
-      default: null,
-      fillable: true,
-      order: 0,
-      collection_id: 'placeholder',
-      reference_collection_id: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-      hidden: false,
-      data: {},
-      is_published: true,
-    },
-    {
-      id: 'placeholder-2',
-      name: 'Description',
-      key: null,
-      type: 'text',
-      default: null,
-      fillable: true,
-      order: 1,
-      collection_id: 'placeholder',
-      reference_collection_id: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-      hidden: false,
-      data: {},
-      is_published: true,
-    },
-    {
-      id: 'placeholder-3',
-      name: 'Title',
-      key: null,
-      type: 'text',
-      default: null,
-      fillable: true,
-      order: 2,
-      collection_id: 'placeholder',
-      reference_collection_id: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-      hidden: false,
-      data: {},
-      is_published: true,
-    },
-  ];
-
   return (
     <>
       <SettingsPanel
@@ -213,118 +282,120 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
         isOpen={isOpen}
         onToggle={() => setIsOpen(!isOpen)}
       >
-        <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-3">
-            <Label variant="muted">Image</Label>
+        <div className="flex flex-col gap-2.5">
+          {/* Source Section */}
+          <div className="grid grid-cols-3 items-center">
+            <Label variant="muted">Source</Label>
 
-            <div className="col-span-2 flex gap-2">
-              {!selectedField && (
-                <>
-                  <div className="bg-input rounded-md h-8 aspect-3/2 overflow-hidden">
-                    <img
-                      src={urlValue || getDefaultAssetByType(ASSET_CATEGORIES.IMAGES)}
-                      className="w-full h-full object-contain"
-                      alt="Image preview"
-                    />
-                  </div>
-
-                  <div className="shrink-0 flex items-center">
-                    <ButtonGroup className="divide-x">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          // Get current asset ID if image src is an AssetVariable
-                          const currentAssetId = (() => {
-                            const src = layer.variables?.image?.src;
-                            if (isAssetVariable(src)) {
-                              return getAssetId(src);
-                            }
-                            return null;
-                          })();
-
-                          openFileManager(
-                            (asset) => {
-                              if (!layer) return false;
-
-                              // Validate asset type
-                              if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
-                                toast.error('Invalid asset type', {
-                                  description: 'Please select an image file.',
-                                });
-                                return false; // Don't close file manager
-                              }
-
-                              // Create AssetVariable from asset ID
-                              const assetVariable = createAssetVariable(asset.id);
-
-                              // Update layer with AssetVariable
-                              onLayerUpdate(layer.id, {
-                                variables: {
-                                  ...layer.variables,
-                                  image: {
-                                    src: assetVariable,
-                                    alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
-                                  },
-                                },
-                              });
-                            },
-                            currentAssetId
-                          );
-                        }}
-                      >
-                        Browse
-                      </Button>
-
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            aria-label="More Options"
-                          >
-                            <Icon name="database" />
-                          </Button>
-                        </DropdownMenuTrigger>
-
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuGroup>
-                            <DropdownMenuItem onClick={() => setSelectedField('Name')}>
-                              Name
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setSelectedField('Slug')}>
-                              Slug
-                            </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </ButtonGroup>
-                  </div>
-                </>
-              )}
-
-              {selectedField && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="flex-1 justify-start"
-                >
-                  <Icon name="database" />
-                  <span>{selectedField}</span>
-                  <Button
-                    className="!size-5 !p-0 -mr-1 ml-auto"
-                    variant="outline"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedField(null);
-                    }}
-                  >
-                    <Icon name="x" className="size-2.5" />
-                  </Button>
-                </Button>
-              )}
+            <div className="col-span-2">
+              <Select value={imageType} onValueChange={handleTypeChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="upload"><Icon name="folder" className="size-3" /> File manager</SelectItem>
+                  <SelectItem value="custom_url"><Icon name="link" className="size-3" /> Custom URL</SelectItem>
+                  <SelectItem value="cms" disabled={imageFields.length === 0}><Icon name="database" className="size-3" /> CMS field</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
+
+          {/* File Manager Upload */}
+          {imageType === 'upload' && (
+            <div className="grid grid-cols-3 items-center">
+              <Label variant="muted">File</Label>
+
+              <div className="col-span-2 flex gap-2">
+                <div className="bg-input rounded-md h-8 aspect-3/2 overflow-hidden">
+                  <img
+                    src={urlValue}
+                    className="w-full h-full object-contain"
+                    alt="Image preview"
+                  />
+                </div>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => {
+                    // Get current asset ID if image src is an AssetVariable
+                    const currentAssetId = (() => {
+                      const src = layer.variables?.image?.src;
+                      if (isAssetVariable(src)) {
+                        return getAssetId(src);
+                      }
+                      return null;
+                    })();
+
+                    openFileManager(
+                      (asset) => {
+                        if (!layer) return false;
+
+                        // Validate asset type
+                        if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
+                          toast.error('Invalid asset type', {
+                            description: 'Please select an image file.',
+                          });
+                          return false; // Don't close file manager
+                        }
+
+                        handleImageChange(asset.id);
+                      },
+                      currentAssetId
+                    );
+                  }}
+                >
+                  Browse
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Custom URL Section */}
+          {imageType === 'custom_url' && (
+            <div className="grid grid-cols-3 items-start">
+              <Label variant="muted" className="pt-2">URL</Label>
+
+              <div className="col-span-2">
+                <InputWithInlineVariables
+                  value={customUrlValue}
+                  onChange={handleUrlChange}
+                  placeholder="https://example.com/image.jpg"
+                  fields={fields}
+                  fieldSourceLabel={fieldSourceLabel}
+                  allFields={allFields}
+                  collections={collections}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* CMS Field Section */}
+          {imageType === 'cms' && (
+            <div className="grid grid-cols-3 items-center">
+              <Label variant="muted">Field</Label>
+
+              <div className="col-span-2">
+                <Select
+                  value={selectedField || currentFieldId || ''}
+                  onValueChange={handleFieldSelect}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a field" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {imageFields.map((field) => (
+                      <SelectItem key={field.id} value={field.id}>
+                        {field.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-3">
             <Label variant="muted">ALT</Label>
@@ -334,8 +405,8 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
                 value={altValue}
                 onChange={handleAltChange}
                 placeholder="Image description"
-                fields={placeholderFields}
-                fieldSourceLabel="Fields"
+                fields={fields}
+                fieldSourceLabel={fieldSourceLabel}
                 allFields={allFields}
                 collections={collections}
               />

@@ -10,6 +10,7 @@
 
 import type { AssetVariable, FieldVariable, DynamicTextVariable, StaticTextVariable } from '@/types';
 import { resolveInlineVariables } from '@/lib/inline-variables';
+import { DEFAULT_ASSETS } from '@/lib/asset-constants';
 
 /**
  * Create a DynamicTextVariable from a string (with or without inline variables)
@@ -128,24 +129,32 @@ export function getVariableStringValue(
  * Get image URL from image src variable
  * - AssetVariable -> gets asset URL from store
  * - FieldVariable -> resolves field value (requires collectionItemData and resolveFieldValue)
- * - DynamicTextVariable -> returns content as URL
+ * - DynamicTextVariable -> returns content as URL (resolves inline variables if collectionItemData provided)
  * 
  * @param src - The image src variable (AssetVariable | FieldVariable | DynamicTextVariable)
  * @param getAsset - Function to get asset by ID (required for AssetVariable)
  * @param resolveFieldValue - Function to resolve field variable (required for FieldVariable)
- * @param collectionItemData - Collection item data for field resolution (required for FieldVariable)
+ * @param collectionItemData - Collection item data for field resolution (required for FieldVariable and inline variables)
  * @returns Image URL string or undefined
  */
 export function getImageUrlFromVariable(
   src: AssetVariable | FieldVariable | DynamicTextVariable | undefined | null,
   getAsset?: (id: string) => { public_url: string | null } | null,
   resolveFieldValue?: (variable: FieldVariable, collectionItemData?: Record<string, string>) => string | undefined,
-  collectionItemData?: Record<string, string>
+  collectionItemData?: Record<string, string>,
+  useDefault: boolean = true
 ): string | undefined {
   if (!src) return undefined;
 
   if (isAssetVariable(src)) {
-    if (!getAsset || !src.data.asset_id) return undefined;
+    if (!src.data.asset_id) {
+      // asset_id is null - return default placeholder if enabled
+      if (useDefault) {
+        return DEFAULT_ASSETS.IMAGE;
+      }
+      return undefined;
+    }
+    if (!getAsset) return undefined;
     const asset = getAsset(src.data.asset_id);
     return asset?.public_url || undefined;
   }
@@ -156,7 +165,22 @@ export function getImageUrlFromVariable(
   }
 
   if (isDynamicTextVariable(src)) {
-    return src.data.content;
+    const content = src.data.content;
+    // Resolve inline variables if collectionItemData is available
+    if (content.includes('<ycode-inline-variable>') && collectionItemData) {
+      const mockItem: any = {
+        id: 'temp',
+        collection_id: 'temp',
+        created_at: '',
+        updated_at: '',
+        deleted_at: null,
+        manual_order: 0,
+        is_published: true,
+        values: collectionItemData,
+      };
+      return resolveInlineVariables(content, mockItem);
+    }
+    return content;
   }
 
   return undefined;
@@ -179,7 +203,8 @@ export function getVideoUrlFromVariable(
   src: AssetVariable | FieldVariable | DynamicTextVariable | { type: 'video'; data: any } | undefined | null,
   getAsset?: (id: string) => { public_url: string | null } | null,
   resolveFieldValue?: (variable: FieldVariable, collectionItemData?: Record<string, string>) => string | undefined,
-  collectionItemData?: Record<string, string>
+  collectionItemData?: Record<string, string>,
+  useDefault: boolean = false
 ): string | undefined {
   if (!src) return undefined;
 
@@ -187,7 +212,14 @@ export function getVideoUrlFromVariable(
   if (src.type === 'video') return undefined;
 
   if (isAssetVariable(src)) {
-    if (!getAsset || !src.data.asset_id) return undefined;
+    if (!src.data.asset_id) {
+      // asset_id is null - return default placeholder if enabled (videos typically don't have defaults)
+      if (useDefault) {
+        return DEFAULT_ASSETS.VIDEO;
+      }
+      return undefined;
+    }
+    if (!getAsset) return undefined;
     const asset = getAsset(src.data.asset_id);
     return asset?.public_url || undefined;
   }

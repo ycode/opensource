@@ -52,7 +52,7 @@ export function isValidSvg(content: string): boolean {
 /**
  * Clean SVG content by removing potentially dangerous elements, attributes, and comments
  * @param svgContent - Raw SVG string
- * @returns Cleaned SVG string without classes, IDs, styles, comments, or fixed dimensions
+ * @returns Cleaned SVG string without classes, IDs, comments, or fixed dimensions (preserves inline styles)
  */
 export function cleanSvgContent(svgContent: string): string {
   // Remove XML declarations and DOCTYPE
@@ -75,11 +75,8 @@ export function cleanSvgContent(svgContent: string): string {
     cleaned = cleaned.replace(regex, '');
   });
 
-  // Remove unwanted attributes (class, id, style, width, height)
+  // Remove unwanted attributes (width, height)
   cleaned = cleaned
-    .replace(/\s+class\s*=\s*["'][^"']*["']/gi, '') // Remove class attributes
-    .replace(/\s+id\s*=\s*["'][^"']*["']/gi, '') // Remove id attributes
-    .replace(/\s+style\s*=\s*["'][^"']*["']/gi, '') // Remove style attributes
     .replace(/(<svg[^>]*)\s+width\s*=\s*["'][^"']*["']/gi, '$1') // Remove width from SVG
     .replace(/(<svg[^>]*)\s+height\s*=\s*["'][^"']*["']/gi, '$1'); // Remove height from SVG
 

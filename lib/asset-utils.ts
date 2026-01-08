@@ -7,11 +7,12 @@ import type { AssetCategory } from '@/types';
 import {
   ASSET_CATEGORIES,
   ALLOWED_MIME_TYPES,
+  DEFAULT_ASSETS,
   getAcceptString,
 } from './asset-constants';
 
 // Re-export constants for backward compatibility
-export { ASSET_CATEGORIES, ALLOWED_MIME_TYPES, getAcceptString };
+export { ASSET_CATEGORIES, ALLOWED_MIME_TYPES, DEFAULT_ASSETS, getAcceptString };
 
 /**
  * Check if an asset matches the specified category based on MIME type
@@ -136,20 +137,6 @@ export function validateImageFile(
   }
 
   return { isValid: true };
-}
-
-/**
- * Get default base 64 encoded SVG asset placeholder by type
- * @param type - Asset category type
- * @returns Default placeholder URL or empty string
- */
-export function getDefaultAssetByType(type: AssetCategory): string {
-  if (type === ASSET_CATEGORIES.IMAGES) {
-    // https://app.ycode.com/images/placeholder-image.jpg
-    return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNjAwIDkwMCI+PHJlY3Qgd2lkdGg9IjE2MDAiIGhlaWdodD0iOTAwIiBmaWxsPSIjMmYzNDM3Ii8+PHBvbHlnb24gcG9pbnRzPSIwLDkwMCA2MDAsMzAwIDEyMDAsOTAwIiBmaWxsPSIjNGI1MDUyIiBvcGFjaXR5PSIuNiIvPjxwb2x5Z29uIHBvaW50cz0iNzAwLDkwMCAxMTUwLDQ1MCAxNjAwLDkwMCIgZmlsbD0iIzVhNWY2MSIgb3BhY2l0eT0iLjUiLz48L3N2Zz4=';
-  }
-
-  return '';
 }
 
 /**

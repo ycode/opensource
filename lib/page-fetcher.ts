@@ -1813,6 +1813,13 @@ async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
       if (assetId) assetIds.add(assetId);
     }
 
+    // Collect icon asset IDs
+    const iconSrc = layer.variables?.icon?.src;
+    if (iconSrc && isAssetVariable(iconSrc)) {
+      const assetId = getAssetId(iconSrc);
+      if (assetId) assetIds.add(assetId);
+    }
+
     // Recursively collect from children
     if (layer.children) {
       layer.children.forEach(child => collectAssetIds(child, assetIds));
@@ -1884,6 +1891,26 @@ async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
         variableUpdates.audio = {
           src: createDynamicTextVariable(resolvedUrl),
         };
+      }
+    }
+
+    // Resolve AssetVariable in icon src (convert to StaticTextVariable with SVG content)
+    const iconSrc = layer.variables?.icon?.src;
+    if (iconSrc && isAssetVariable(iconSrc)) {
+      const assetId = getAssetId(iconSrc);
+      if (assetId) {
+        const asset = assetMap[assetId];
+        const svgContent = asset?.content || '';
+        if (svgContent) {
+          variableUpdates.icon = {
+            src: {
+              type: 'static_text' as const,
+              data: {
+                content: svgContent,
+              },
+            },
+          };
+        }
       }
     }
 
