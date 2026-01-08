@@ -273,7 +273,7 @@ export function canHaveChildren(layer: Layer, childLayerType?: string): boolean 
   }
 
   const blocksWithoutChildren = [
-    'icon', 'image', 'audio', 'video', 'youtube', 'iframe',
+    'icon', 'image', 'audio', 'video', 'iframe',
     'heading', 'p', 'span', 'label', 'hr',
     'input', 'textarea', 'select', 'checkbox', 'radio',
   ];
@@ -319,6 +319,9 @@ export function resolveFieldValue(
   }
 
   const fieldId = fieldVariable.data.field_id;
+  if (!fieldId) {
+    return undefined;
+  }
   return collectionItemData[fieldId];
 }
 

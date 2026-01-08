@@ -726,8 +726,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         <TooltipTrigger asChild>
           <div>
             <Select
-              key={isSeoImageFieldVariable(seoImage) ? seoImage.data.field_id : 'none'}
-              value={isSeoImageFieldVariable(seoImage) ? seoImage.data.field_id : undefined}
+              key={isSeoImageFieldVariable(seoImage) ? (seoImage.data.field_id || 'none') : 'none'}
+              value={isSeoImageFieldVariable(seoImage) ? (seoImage.data.field_id || undefined) : undefined}
               onValueChange={(fieldId) => {
                 setSeoImage({
                   type: 'field',

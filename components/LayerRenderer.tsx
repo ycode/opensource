@@ -629,12 +629,89 @@ const LayerItem: React.FC<{
     }
 
     if (htmlTag === 'video' || htmlTag === 'audio') {
-      // For video/audio, use variables.video.src or variables.audio.src
+      // Check if this is a YouTube video (VideoVariable type)
+      if (htmlTag === 'video' && layer.variables?.video?.src) {
+        const videoSrc = layer.variables.video.src;
+
+        // YouTube video - render as iframe
+        if (videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
+          const videoId = videoSrc.data.video_id || '';
+          // Use normalized attributes for consistency (already handles string/boolean conversion)
+          const privacyMode = normalizedAttributes?.youtubePrivacyMode === true;
+          const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';
+
+          // Build YouTube embed URL with parameters
+          const params: string[] = [];
+          if (normalizedAttributes?.autoplay === true) params.push('autoplay=1');
+          if (normalizedAttributes?.muted === true) params.push('mute=1');
+          if (normalizedAttributes?.loop === true) params.push(`loop=1&playlist=${videoId}`);
+          if (normalizedAttributes?.controls !== true) params.push('controls=0');
+
+          const embedUrl = `https://www.${domain}/embed/${videoId}${params.length > 0 ? '?' + params.join('&') : ''}`;
+
+          // Create iframe props - only include essential props to avoid hydration mismatches
+          // Don't spread elementProps as it may contain client-only handlers
+          const iframeProps: Record<string, any> = {
+            'data-layer-id': layer.id,
+            'data-layer-type': 'video',
+            className: fullClassName,
+            style: mergedStyle,
+            src: embedUrl,
+            frameBorder: '0',
+            allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture',
+            allowFullScreen: true,
+          };
+
+          // Apply custom ID from settings
+          if (layer.settings?.id) {
+            iframeProps.id = layer.settings.id;
+          }
+
+          // Apply custom attributes from settings
+          if (layer.settings?.customAttributes) {
+            Object.entries(layer.settings.customAttributes).forEach(([name, value]) => {
+              iframeProps[name] = value;
+            });
+          }
+
+          // Only add editor event handlers in edit mode (client-side only)
+          if (isEditMode && !isEditing) {
+            const originalOnClick = elementProps.onClick as ((e: React.MouseEvent) => void) | undefined;
+            iframeProps.onClick = (e: React.MouseEvent) => {
+              if (isLockedByOther) {
+                e.stopPropagation();
+                e.preventDefault();
+                return;
+              }
+              if (e.button !== 2) {
+                e.stopPropagation();
+                onLayerClick?.(layer.id);
+              }
+              if (originalOnClick) {
+                originalOnClick(e);
+              }
+            };
+            iframeProps.onContextMenu = (e: React.MouseEvent) => {
+              e.stopPropagation();
+            };
+          }
+
+          return (
+            <iframe {...iframeProps} />
+          );
+        }
+      }
+
+      // Regular video/audio - render as media element
       const mediaSrc = (() => {
         if (htmlTag === 'video' && layer.variables?.video?.src) {
           const src = layer.variables.video.src;
           if (isFieldVariable(src)) {
             return resolveFieldValue(src, effectiveCollectionItemData) || undefined;
+          }
+          // Skip VideoVariable type (already handled above)
+          if (src.type === 'video') {
+            return undefined;
           }
           return getVideoUrlFromVariable(
             src,

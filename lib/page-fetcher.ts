@@ -912,7 +912,7 @@ async function injectCollectionData(
   // Image src field binding (variables structure)
   const imageSrc = layer.variables?.image?.src;
   if (imageSrc) {
-    if (isFieldVariable(imageSrc)) {
+    if (isFieldVariable(imageSrc) && imageSrc.data.field_id) {
       const resolvedUrl = resolveFieldValueWithRelationships(imageSrc, enhancedValues);
       // Update variables.image.src with resolved URL as DynamicTextVariable
       updates.variables = {
@@ -1006,10 +1006,13 @@ function resolveInlineVariablesWithRelationships(
  * Resolve field value with support for relationship paths
  */
 function resolveFieldValueWithRelationships(
-  fieldVariable: { type: 'field'; data: { field_id: string; relationships?: string[]; format?: string } },
+  fieldVariable: { type: 'field'; data: { field_id: string | null; relationships?: string[]; format?: string } },
   itemValues: Record<string, string>
 ): string | undefined {
   const { field_id, relationships = [] } = fieldVariable.data;
+  if (!field_id) {
+    return undefined;
+  }
 
   // Build the full path for relationship resolution
   if (relationships.length > 0) {
@@ -1721,6 +1724,9 @@ async function injectCollectionDataForHtml(
   if (imageSrc) {
     if (isFieldVariable(imageSrc)) {
       const fieldId = imageSrc.data.field_id;
+      if (!fieldId) {
+        return { ...layer, ...updates };
+      }
       const relationships = imageSrc.data.relationships || [];
       const fullPath = relationships.length > 0
         ? [fieldId, ...relationships].join('.')

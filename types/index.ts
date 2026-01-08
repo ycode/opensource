@@ -182,7 +182,7 @@ export type TweenProperties = {
 export interface Layer {
   id: string;
   key?: string; // Optional internal ID for the layer (i.e. "localeSelectorLabel")
-  name: string; // Element type name: 'div', 'section', 'heading', 'youtube', etc.
+  name: string; // Element type name: 'div', 'section', 'heading', etc.
   customName?: string; // User-defined name for display in the UI
 
   // Restrictions (for layer actions)
@@ -211,6 +211,8 @@ export interface Layer {
     autoplay?: boolean;
     volume?: string; // Volume as string (0-100)
     preload?: string; // 'none' | 'metadata' | 'auto'
+    // YouTube-specific attributes
+    youtubePrivacyMode?: boolean; // Privacy-enhanced mode (uses youtube-nocookie.com)
   };
 
   // Design system (structured properties)
@@ -269,7 +271,7 @@ export interface LayerVariables {
     src: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL that allows inline variables)
   };
   video?: {
-    src?: AssetVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Field Variable | Dynamic Text (URL that allows inline variables)
+    src?: AssetVariable | VideoVariable | FieldVariable | DynamicTextVariable; // Static Asset ID | Video provider + ID (YouTube) | Field Variable | Dynamic Text (URL that allows inline variables)
     poster?: AssetVariable | FieldVariable; // Poster image (asset or field variable)
   };
   iframe?: {
@@ -721,7 +723,7 @@ export interface Setting {
 }
 
 export interface VariableType {
-  type: 'field' | 'asset' | 'dynamic_text' | 'static_text';
+  type: 'field' | 'asset' | 'video' | 'dynamic_text' | 'static_text';
   data: object;
 }
 
@@ -729,7 +731,7 @@ export interface VariableType {
 export interface FieldVariable extends VariableType {
   type: 'field';
   data: {
-    field_id: string;
+    field_id: string | null;
     relationships: string[];
     format?: string;
   };
@@ -739,7 +741,16 @@ export interface FieldVariable extends VariableType {
 export interface AssetVariable extends VariableType {
   type: 'asset';
   data: {
-    asset_id: StringAssetId;
+    asset_id: StringAssetId | null;
+  };
+}
+
+// Asset ID Variable, used for image, audio, video, etc.
+export interface VideoVariable extends VariableType {
+  type: 'video';
+  data: {
+    provider: 'youtube'; // | 'vimeo'
+    video_id: string;
   };
 }
 

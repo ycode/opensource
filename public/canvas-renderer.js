@@ -685,6 +685,58 @@
    * If collectionItemData is provided, use it for field variable resolution
    * If collectionId is provided, validates that referenced fields still exist
    */
+  /**
+   * Resolve inline variables in DynamicTextVariable content
+   * Reusable helper function for resolving inline variables in any text content
+   */
+  function resolveInlineVariablesInContent(content, collectionItemData, collectionId) {
+    if (!content || !content.includes('<ycode-inline-variable>')) {
+      return content;
+    }
+
+    const jsonRegex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+
+    if (collectionItemData) {
+      return content.replace(jsonRegex, function(match, jsonContent) {
+        try {
+          const variable = JSON.parse(jsonContent.trim());
+          if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
+            const fieldId = variable.data.field_id;
+            const relationships = variable.data.relationships || [];
+
+            // Get the current item's values
+            const itemValues = collectionItemData.values || collectionItemData;
+
+            // If there are relationships, resolve the reference path
+            if (relationships.length > 0) {
+              const resolvedValue = resolveReferenceFieldValue(
+                fieldId,
+                relationships,
+                itemValues,
+                collectionId
+              );
+              if (resolvedValue !== null) {
+                return resolvedValue;
+              }
+              return '';
+            }
+
+            // No relationships - direct field access
+            const value = itemValues[fieldId];
+            if (value !== undefined && value !== null) {
+              return value;
+            }
+          }
+        } catch (error) {
+          console.warn('[resolveInlineVariablesInContent] Failed to parse inline variable JSON:', jsonContent, error);
+        }
+        return '';
+      });
+    } else {
+      return content.replace(jsonRegex, '');
+    }
+  }
+
   function getText(layer, collectionItemData, collectionId) {
     // Get text from variables.text (DynamicTextVariable)
     if (!layer.variables?.text) {
@@ -698,54 +750,8 @@
       return '';
     }
 
-    let resolvedText = textVariable.data.content;
-
-    // Handle inline variables (embedded JSON format)
-    const jsonRegex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
-
-    if (resolvedText.includes('<ycode-inline-variable>')) {
-      if (collectionItemData) {
-        resolvedText = resolvedText.replace(jsonRegex, function(match, jsonContent) {
-          try {
-            const variable = JSON.parse(jsonContent.trim());
-            if (variable && variable.type === 'field' && variable.data && variable.data.field_id) {
-              const fieldId = variable.data.field_id;
-              const relationships = variable.data.relationships || [];
-
-              // Get the current item's values
-              const itemValues = collectionItemData.values || collectionItemData;
-
-              // If there are relationships, resolve the reference path
-              if (relationships.length > 0) {
-                const resolvedValue = resolveReferenceFieldValue(
-                  fieldId,
-                  relationships,
-                  itemValues,
-                  collectionId
-                );
-                if (resolvedValue !== null) {
-                  return resolvedValue;
-                }
-                return '';
-              }
-
-              // No relationships - direct field access
-              const value = itemValues[fieldId];
-              if (value !== undefined && value !== null) {
-                return value;
-              }
-            }
-          } catch (error) {
-            console.warn('[getText] Failed to parse inline variable JSON:', jsonContent, error);
-          }
-          return '';
-        });
-      } else {
-        resolvedText = resolvedText.replace(jsonRegex, '');
-      }
-    }
-
-    return resolvedText;
+    const content = textVariable.data.content;
+    return resolveInlineVariablesInContent(content, collectionItemData, collectionId);
   }
 
   /**
@@ -1482,14 +1488,15 @@
   }
 
   /**
-   * Wrap an element in a div for layer selection (used for media elements that need pointer-events-none)
+   * Wrap an element in a div to ensure layer selection (used for media elements that need pointer-events-none)
    * @param {HTMLElement} element - The element to wrap
    * @param {Object} layer - The layer object
+   * @param {boolean} fit - If true, set wrapper to `h-fit w-fit`
    * @returns {HTMLElement} - The wrapper div containing the element
    */
-  function wrapElementForLayerSelection(element, layer) {
+  function wrapToDisableInnerEvents(element, layer, fit) {
     const wrapper = document.createElement('div');
-    wrapper.className = 'h-fit w-fit';
+    wrapper.className = fit ? 'h-fit w-fit' : '';
 
     // Move layer-specific attributes to wrapper (but not data-layer-type to avoid pointer-events: none)
     wrapper.setAttribute('data-layer-id', layer.id);
@@ -1497,7 +1504,7 @@
     // Move classes to wrapper
     const classes = getClassesString(layer);
     if (classes) {
-      wrapper.className = 'h-fit w-fit ' + classes;
+      wrapper.className = wrapper.className + ' ' + classes;
     }
 
     // Add editor class to wrapper
@@ -1627,82 +1634,139 @@
 
     if (tag === 'video') {
       const videoSrc = layer.variables?.video?.src;
-      let videoUrl = null;
 
-      if (videoSrc) {
-        // Resolve video URL from variable (AssetVariable, FieldVariable, or DynamicTextVariable)
-        if (videoSrc.type === 'asset') {
-          // AssetVariable -> get asset URL from assets map
-          if (assets && videoSrc.data?.asset_id) {
-            const asset = assets[videoSrc.data.asset_id];
-            videoUrl = asset?.public_url;
-          }
-        } else if (videoSrc.type === 'field') {
-          // FieldVariable -> resolve field value from collectionItemData
-          if (inheritedCollectionItemData) {
-            const itemValues = inheritedCollectionItemData.values || inheritedCollectionItemData;
-            const fieldId = videoSrc.data?.field_id;
-            const assetId = itemValues[fieldId];
-            if (assetId && typeof assetId === 'string' && assets) {
-              const asset = assets[assetId];
+      // Check if this is a YouTube video (VideoVariable type)
+      if (videoSrc && videoSrc.type === 'video' && videoSrc.data?.provider === 'youtube') {
+        // YouTube video - render as iframe instead
+        const videoId = videoSrc.data.video_id || '';
+        const privacyMode = layer.attributes?.youtubePrivacyMode === true;
+        const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';
+
+        // Build YouTube embed URL with parameters
+        const params = [];
+        if (layer.attributes?.autoplay === true) params.push('autoplay=1');
+        if (layer.attributes?.muted === true) params.push('mute=1');
+        if (layer.attributes?.loop === true) params.push('loop=1&playlist=' + videoId);
+        if (layer.attributes?.controls !== true) params.push('controls=0');
+
+        const embedUrl = `https://www.${domain}/embed/${videoId}${params.length > 0 ? '?' + params.join('&') : ''}`;
+
+        // Create iframe element
+        const iframeElement = document.createElement('iframe');
+        iframeElement.src = embedUrl;
+        iframeElement.height = '100%';
+        iframeElement.width = '100%';
+        iframeElement.frameBorder = '0';
+        iframeElement.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframeElement.allowFullscreen = true;
+
+        // Apply classes to iframe (not wrapper)
+        if (classes) {
+          iframeElement.className = classes;
+        }
+
+        // Apply custom ID from settings
+        if (layer.settings && layer.settings.id) {
+          iframeElement.id = layer.settings.id;
+        }
+
+        // Apply custom attributes
+        if (layer.settings && layer.settings.customAttributes) {
+          Object.entries(layer.settings.customAttributes).forEach(([name, value]) => {
+            iframeElement.setAttribute(name, value);
+          });
+        }
+
+        if (editMode) {
+          // Wrap iframe in a div for layer selection (similar to audio elements)
+          // Pass fit=false so classes stay on iframe, not wrapper
+          element = wrapToDisableInnerEvents(iframeElement, layer, false);
+        } else {
+          // In non-edit mode, use iframe directly
+          element = iframeElement;
+          element.setAttribute('data-layer-id', layer.id);
+          element.setAttribute('data-layer-type', 'video');
+        }
+      } else {
+        // Regular video (upload or custom URL) - render as video element
+        let videoUrl = null;
+
+        if (videoSrc) {
+          // Resolve video URL from variable (AssetVariable, FieldVariable, or DynamicTextVariable)
+          if (videoSrc.type === 'asset') {
+            // AssetVariable -> get asset URL from assets map
+            if (assets && videoSrc.data?.asset_id) {
+              const asset = assets[videoSrc.data.asset_id];
               videoUrl = asset?.public_url;
             }
+          } else if (videoSrc.type === 'field') {
+            // FieldVariable -> resolve field value from collectionItemData
+            if (inheritedCollectionItemData) {
+              const itemValues = inheritedCollectionItemData.values || inheritedCollectionItemData;
+              const fieldId = videoSrc.data?.field_id;
+              const assetId = itemValues[fieldId];
+              if (assetId && typeof assetId === 'string' && assets) {
+                const asset = assets[assetId];
+                videoUrl = asset?.public_url;
+              }
+            }
+          } else if (videoSrc.type === 'dynamic_text') {
+            // DynamicTextVariable -> use content as URL, resolve inline variables if needed
+            const content = videoSrc.data?.content || '';
+            videoUrl = resolveInlineVariablesInContent(content, inheritedCollectionItemData, parentCollectionId);
           }
-        } else if (videoSrc.type === 'dynamic_text') {
-          // DynamicTextVariable -> use content as URL
-          videoUrl = videoSrc.data?.content;
         }
-      }
 
-      // Only set src if we have a valid URL (prevents empty src warning)
-      if (videoUrl) {
-        element.src = videoUrl;
-      }
+        // Only set src if we have a valid URL (prevents empty src warning)
+        if (videoUrl) {
+          element.src = videoUrl;
+        }
 
-      // Handle video poster image
-      const videoPoster = layer.variables?.video?.poster;
-      if (videoPoster) {
-        let posterUrl;
-        if (videoPoster.type === 'asset') {
-          // AssetVariable -> get asset URL from assets map
-          if (assets && videoPoster.data?.asset_id) {
-            const asset = assets[videoPoster.data.asset_id];
-            posterUrl = asset?.public_url;
-          }
-        } else if (videoPoster.type === 'field') {
-          // FieldVariable -> resolve field value from collectionItemData
-          if (inheritedCollectionItemData) {
-            const itemValues = inheritedCollectionItemData.values || inheritedCollectionItemData;
-            const fieldId = videoPoster.data?.field_id;
-            const assetId = itemValues[fieldId];
-            if (assetId && typeof assetId === 'string' && assets) {
-              const asset = assets[assetId];
+        // Handle video poster image
+        const videoPoster = layer.variables?.video?.poster;
+        if (videoPoster) {
+          let posterUrl;
+          if (videoPoster.type === 'asset') {
+            // AssetVariable -> get asset URL from assets map
+            if (assets && videoPoster.data?.asset_id) {
+              const asset = assets[videoPoster.data.asset_id];
               posterUrl = asset?.public_url;
             }
+          } else if (videoPoster.type === 'field') {
+            // FieldVariable -> resolve field value from collectionItemData
+            if (inheritedCollectionItemData) {
+              const itemValues = inheritedCollectionItemData.values || inheritedCollectionItemData;
+              const fieldId = videoPoster.data?.field_id;
+              const assetId = itemValues[fieldId];
+              if (assetId && typeof assetId === 'string' && assets) {
+                const asset = assets[assetId];
+                posterUrl = asset?.public_url;
+              }
+            }
+          } else if (videoPoster.type === 'dynamic_text') {
+            // DynamicTextVariable -> use content as URL
+            posterUrl = videoPoster.data?.content;
           }
-        } else if (videoPoster.type === 'dynamic_text') {
-          // DynamicTextVariable -> use content as URL
-          posterUrl = videoPoster.data?.content;
+          // Set poster if we have a valid URL
+          if (posterUrl) {
+            element.poster = posterUrl;
+          }
         }
-        // Set poster if we have a valid URL
-        if (posterUrl) {
-          element.poster = posterUrl;
-        }
-      }
 
-      // Apply video behavior attributes from layer.attributes
-      if (layer.attributes) {
-        if (layer.attributes.muted === true) {
-          element.muted = true;
-        }
-        if (layer.attributes.controls === true) {
-          element.controls = true;
-        }
-        if (layer.attributes.loop === true) {
-          element.loop = true;
-        }
-        if (layer.attributes.autoplay === true) {
-          element.autoplay = true;
+        // Apply video behavior attributes from layer.attributes
+        if (layer.attributes) {
+          if (layer.attributes.muted === true) {
+            element.muted = true;
+          }
+          if (layer.attributes.controls === true) {
+            element.controls = true;
+          }
+          if (layer.attributes.loop === true) {
+            element.loop = true;
+          }
+          if (layer.attributes.autoplay === true) {
+            element.autoplay = true;
+          }
         }
       }
     }
@@ -2025,7 +2089,7 @@
 
     // Wrap audio elements in a div for layer selection
     if (tag === 'audio' && editMode) {
-      element = wrapElementForLayerSelection(element, layer);
+      element = wrapToDisableInnerEvents(element, layer, true);
     }
 
     // Add event listeners in edit mode

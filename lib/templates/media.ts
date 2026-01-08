@@ -74,7 +74,7 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
     name: 'Video',
     template: {
       name: 'video',
-      classes: ['w-full', 'h-auto'],
+      classes: ['w-full', 'h-auto', 'aspect-[16/9]', 'overflow-hidden'],
       attributes: {
         controls: true,
         preload: 'metadata'
@@ -83,14 +83,15 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
         sizing: {
           isActive: true,
           width: '100%',
-          height: 'auto'
+          height: 'auto',
+          aspectRatio: '[16/9]',
         }
       },
       variables: {
         video: {
           src: {
-            type: 'dynamic_text',
-            data: { content: '' }
+            type: 'asset',
+            data: { asset_id: null }
           }
         }
       }
@@ -109,38 +110,6 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       },
       variables: {
         audio: {
-          src: {
-            type: 'dynamic_text',
-            data: { content: '' }
-          }
-        }
-      }
-    }
-  },
-
-  youtube: {
-    icon: 'video',
-    name: 'YouTube',
-    template: {
-      name: 'youtube',
-      settings: {
-        tag: 'iframe',
-      },
-      classes: ['w-full', 'aspect-video'],
-      attributes: {
-        src: '',
-        frameborder: '0',
-        allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture',
-        allowfullscreen: true
-      },
-      design: {
-        sizing: {
-          isActive: true,
-          width: '100%'
-        }
-      },
-      variables: {
-        iframe: {
           src: {
             type: 'dynamic_text',
             data: { content: '' }

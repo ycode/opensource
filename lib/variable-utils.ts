@@ -9,6 +9,7 @@
  */
 
 import type { AssetVariable, FieldVariable, DynamicTextVariable, StaticTextVariable } from '@/types';
+import { resolveInlineVariables } from '@/lib/inline-variables';
 
 /**
  * Create a DynamicTextVariable from a string (with or without inline variables)
@@ -78,7 +79,7 @@ export function isFieldVariable(value: any): value is FieldVariable {
  * Check if a value is an AssetVariable
  */
 export function isAssetVariable(value: any): value is AssetVariable {
-  return value && typeof value === 'object' && value.type === 'asset' && value.data?.asset_id;
+  return value && typeof value === 'object' && value.type === 'asset' && value.data !== undefined;
 }
 
 /**
@@ -108,7 +109,7 @@ export function getVariableStringValue(
   if (!variable) return '';
   
   if (isAssetVariable(variable)) {
-    return variable.data.asset_id;
+    return variable.data.asset_id || '';
   }
   
   if (isDynamicTextVariable(variable)) {
@@ -144,7 +145,7 @@ export function getImageUrlFromVariable(
   if (!src) return undefined;
 
   if (isAssetVariable(src)) {
-    if (!getAsset) return undefined;
+    if (!getAsset || !src.data.asset_id) return undefined;
     const asset = getAsset(src.data.asset_id);
     return asset?.public_url || undefined;
   }
@@ -165,24 +166,28 @@ export function getImageUrlFromVariable(
  * Get video URL from video src variable
  * - AssetVariable -> gets asset URL from store
  * - FieldVariable -> resolves field value (requires collectionItemData and resolveFieldValue)
- * - DynamicTextVariable -> returns content as URL
+ * - DynamicTextVariable -> returns content as URL (resolves inline variables if collectionItemData provided)
+ * - VideoVariable -> returns undefined (YouTube videos are handled separately as iframes)
  * 
- * @param src - The video src variable (AssetVariable | FieldVariable | DynamicTextVariable)
+ * @param src - The video src variable (AssetVariable | FieldVariable | DynamicTextVariable | VideoVariable)
  * @param getAsset - Function to get asset by ID (required for AssetVariable)
  * @param resolveFieldValue - Function to resolve field variable (required for FieldVariable)
- * @param collectionItemData - Collection item data for field resolution (required for FieldVariable)
+ * @param collectionItemData - Collection item data for field resolution (required for FieldVariable and inline variables)
  * @returns Video URL string or undefined
  */
 export function getVideoUrlFromVariable(
-  src: AssetVariable | FieldVariable | DynamicTextVariable | undefined | null,
+  src: AssetVariable | FieldVariable | DynamicTextVariable | { type: 'video'; data: any } | undefined | null,
   getAsset?: (id: string) => { public_url: string | null } | null,
   resolveFieldValue?: (variable: FieldVariable, collectionItemData?: Record<string, string>) => string | undefined,
   collectionItemData?: Record<string, string>
 ): string | undefined {
   if (!src) return undefined;
 
+  // VideoVariable (YouTube) - return undefined (handled separately as iframe)
+  if (src.type === 'video') return undefined;
+
   if (isAssetVariable(src)) {
-    if (!getAsset) return undefined;
+    if (!getAsset || !src.data.asset_id) return undefined;
     const asset = getAsset(src.data.asset_id);
     return asset?.public_url || undefined;
   }
@@ -193,7 +198,22 @@ export function getVideoUrlFromVariable(
   }
 
   if (isDynamicTextVariable(src)) {
-    return src.data.content;
+    const content = src.data.content;
+    // Resolve inline variables if collectionItemData is available
+    if (content.includes('<ycode-inline-variable>') && collectionItemData) {
+      const mockItem: any = {
+        id: 'temp',
+        collection_id: 'temp',
+        created_at: '',
+        updated_at: '',
+        deleted_at: null,
+        manual_order: 0,
+        is_published: true,
+        values: collectionItemData,
+      };
+      return resolveInlineVariables(content, mockItem);
+    }
+    return content;
   }
 
   return undefined;

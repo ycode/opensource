@@ -1447,7 +1447,10 @@ const RightSidebar = React.memo(function RightSidebar({
                   <Select
                     value={(() => {
                       const imageSrc = selectedLayer.variables?.image?.src;
-                      return (imageSrc && typeof imageSrc === 'object' && imageSrc.type === 'field') ? imageSrc.data.field_id : 'none';
+                      if (imageSrc && typeof imageSrc === 'object' && imageSrc.type === 'field') {
+                        return imageSrc.data.field_id || 'none';
+                      }
+                      return 'none';
                     })()}
                     onValueChange={handleImageFieldBindingChange}
                   >

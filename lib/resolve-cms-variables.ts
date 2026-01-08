@@ -78,6 +78,9 @@ export async function resolveFieldVariableToAssetUrl(
   }
 
   const fieldId = fieldVariable.data.field_id;
+  if (!fieldId) {
+    return null;
+  }
   const assetId = collectionItem.values[fieldId];
 
   if (!assetId || typeof assetId !== 'string') {
