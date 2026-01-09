@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
-import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
+import { ASSET_CATEGORIES, isAssetOfType, DEFAULT_ASSETS } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -106,6 +106,31 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
   const assetFilename = useMemo(() => {
     return currentAsset?.filename || null;
   }, [currentAsset]);
+
+  // Get current poster asset ID and asset for display
+  const currentPosterAssetId = useMemo(() => {
+    const poster = layer?.variables?.video?.poster;
+    if (isAssetVariable(poster)) {
+      return getAssetId(poster);
+    }
+    return null;
+  }, [layer?.variables?.video?.poster]);
+
+  const currentPosterAsset = useMemo(() => {
+    return currentPosterAssetId ? getAsset(currentPosterAssetId) : null;
+  }, [currentPosterAssetId, getAsset]);
+
+  const posterAssetFilename = useMemo(() => {
+    return currentPosterAsset?.filename || null;
+  }, [currentPosterAsset]);
+
+  // Get current poster URL from variables.video.poster
+  const posterUrl = useMemo(() => {
+    if (currentPosterAsset?.public_url) {
+      return currentPosterAsset.public_url;
+    }
+    return DEFAULT_ASSETS.IMAGE;
+  }, [currentPosterAsset]);
 
   const handleVideoChange = useCallback((assetId: string) => {
     if (!layer) return;
@@ -372,21 +397,6 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
 
   // Get video fields (image type fields can store any asset including videos)
   const videoFields = fields?.filter(f => f.type === 'image') || [];
-
-  // Check if current poster is set
-  const hasPoster = layer.variables?.video?.poster !== undefined;
-
-  // Get current poster URL from variables.video.poster
-  const posterUrl = (() => {
-    const posterVariable = layer.variables?.video?.poster;
-    if (!posterVariable) return '';
-    if (isAssetVariable(posterVariable)) {
-      const assetId = getAssetId(posterVariable);
-      const asset = assetId ? getAsset(assetId) : null;
-      return asset?.public_url || '';
-    }
-    return '';
-  })();
 
   // Get current behavior values from attributes
   const isMuted = layer.attributes?.muted === true;
@@ -697,78 +707,69 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
           {/* Poster Section - show for Upload, Custom URL, and CMS types (not YouTube) */}
           {(videoType === 'upload' || videoType === 'custom_url' || videoType === 'cms') && (
             <div className="grid grid-cols-3 items-start">
-              <Label variant="muted">Poster</Label>
+              <Label variant="muted" className="pt-2">Poster</Label>
 
-              <div className="col-span-2 flex flex-col gap-2">
-                <div className="relative group w-full h-20 aspect-video rounded-lg overflow-hidden bg-input flex items-center justify-center gap-1.5">
-                  {posterUrl && (
-                    <img
-                      src={posterUrl}
-                      className="absolute inset-0 w-full h-full object-cover"
-                      alt="Video poster"
-                    />
-                  )}
+              <div className="col-span-2">
+                <div className="relative group bg-secondary/30 hover:bg-secondary/60 rounded-md w-full aspect-3/2 overflow-hidden">
+                  <img
+                    src={posterUrl}
+                    className="w-full h-full object-contain"
+                    alt="Video poster"
+                  />
 
-                  <Button
-                    variant={hasPoster ? 'overlay' : 'secondary'}
-                    size="sm"
-                    className="relative"
-                    onClick={() => {
-                      // Get current poster asset ID
-                      const currentPosterAssetId = (() => {
-                        const poster = layer.variables?.video?.poster;
-                        if (isAssetVariable(poster)) {
-                          return getAssetId(poster);
-                        }
-                        return null;
-                      })();
+                  <div className="absolute inset-0 bg-black/50 text-white text-xs flex flex-col gap-3 items-center justify-center px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="overlay"
+                        size="sm"
+                        onClick={() => {
+                          openFileManager(
+                            (asset) => {
+                              if (!layer) return false;
 
-                      openFileManager(
-                        (asset) => {
-                          if (!layer) return false;
+                              // Validate asset type
+                              if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
+                                toast.error('Invalid asset type', {
+                                  description: 'Please select an image file.',
+                                });
+                                return false; // Don't close file manager
+                              }
 
-                          // Validate asset type
-                          if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
-                            toast.error('Invalid asset type', {
-                              description: 'Please select an image file.',
-                            });
-                            return false; // Don't close file manager
-                          }
-
-                          handlePosterChange(asset.id);
-                        },
-                        currentPosterAssetId,
-                        ASSET_CATEGORIES.IMAGES
-                      );
-                    }}
-                  >
-                    Browse
-                  </Button>
-
-                  {hasPoster && (
-                    <Button
-                      variant="overlay"
-                      size="sm"
-                      className="relative"
-                      onClick={() => {
-                        if (!layer) return;
-
-                        // Remove poster by setting it to undefined
-                        onLayerUpdate(layer.id, {
-                          variables: {
-                            ...layer.variables,
-                            video: {
-                              ...layer.variables?.video,
-                              src: layer.variables?.video?.src,
-                              poster: undefined,
+                              handlePosterChange(asset.id);
                             },
-                          },
-                        });
-                      }}
-                    >
-                      <Icon name="trash" />
-                    </Button>
-                  )}
+                            currentPosterAssetId,
+                            ASSET_CATEGORIES.IMAGES
+                          );
+                        }}
+                      >
+                        {posterAssetFilename ? 'Change' : 'Choose file'}
+                      </Button>
+                      {posterAssetFilename && (
+                        <Button
+                          variant="overlay"
+                          size="sm"
+                          onClick={() => {
+                            if (!layer) return;
+
+                            // Remove poster by setting it to undefined
+                            onLayerUpdate(layer.id, {
+                              variables: {
+                                ...layer.variables,
+                                video: {
+                                  ...layer.variables?.video,
+                                  src: layer.variables?.video?.src,
+                                  poster: undefined,
+                                },
+                              },
+                            });
+                          }}
+                        >
+                          <Icon name="trash" />
+                        </Button>
+                      )}
+                    </div>
+                    {posterAssetFilename && <div className="max-w-full truncate text-center">{posterAssetFilename}</div>}
+                  </div>
                 </div>
               </div>
             </div>
