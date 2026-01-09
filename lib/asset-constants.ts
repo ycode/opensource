@@ -13,6 +13,7 @@ export const ASSET_CATEGORIES = {
   VIDEOS: 'videos' as const,
   AUDIO: 'audio' as const,
   DOCUMENTS: 'documents' as const,
+  ICONS: 'icons' as const,
 } as const satisfies Record<string, AssetCategory>;
 
 /**
@@ -26,7 +27,6 @@ export const ALLOWED_MIME_TYPES: Record<AssetCategory, string[]> = {
     'image/gif',
     'image/webp',
     'image/avif',
-    'image/svg+xml',
     'image/bmp',
     'image/tiff',
   ],
@@ -56,6 +56,9 @@ export const ALLOWED_MIME_TYPES: Record<AssetCategory, string[]> = {
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'text/plain',
     'text/csv',
+  ],
+  icons: [
+    'image/svg+xml',
   ],
 };
 

@@ -1,9 +1,10 @@
+'use client';
+
 /**
  * CMS Component
  *
  * Content Management System interface for managing collection items with EAV architecture.
  */
-'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';

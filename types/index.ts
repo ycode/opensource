@@ -416,7 +416,7 @@ export interface PageItemDuplicateResult<T> {
 /**
  * Asset categories for validation
  */
-export type AssetCategory = 'images' | 'videos' | 'audio' | 'documents';
+export type AssetCategory = 'images' | 'videos' | 'audio' | 'documents' | 'icons';
 
 /**
  * Asset - Represents any uploaded file (images, videos, documents, etc.)

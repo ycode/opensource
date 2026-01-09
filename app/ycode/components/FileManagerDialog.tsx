@@ -40,11 +40,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Separator } from '@/components/ui/separator';
 import Icon from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
 import { assetFoldersApi, assetsApi, uploadFileApi } from '@/lib/api';
 import type { AssetFolder, Asset } from '@/types';
-import { getAcceptString, getAssetIcon, getOptimizedImageUrl } from '@/lib/asset-utils';
+import { getAcceptString, getAssetIcon, getOptimizedImageUrl, isAssetOfType, getAssetCategoryFromMimeType } from '@/lib/asset-utils';
+import { ASSET_CATEGORIES } from '@/lib/asset-constants';
+import type { AssetCategory } from '@/types';
 import {
   flattenAssetFolderTree,
   hasChildFolders,
@@ -64,6 +67,7 @@ interface FileManagerDialogProps {
   onOpenChange: (open: boolean) => void;
   onAssetSelect?: (asset: Asset) => void | false;
   assetId?: string | null;
+  category?: AssetCategory | 'all' | null;
 }
 
 interface FolderRowProps {
@@ -359,7 +363,7 @@ function FileGridItem({
         {/* Uploading Asset Content */}
         {isUploading && file && (
           <>
-            {file.type === 'image/svg+xml' ? (
+            {isAssetOfType(file.type, ASSET_CATEGORIES.ICONS) ? (
               <>
                 <div
                   className="w-full h-full flex items-center justify-center p-5 pointer-events-none text-foreground opacity-30"
@@ -462,6 +466,7 @@ export default function FileManagerDialog({
   onOpenChange,
   onAssetSelect,
   assetId,
+  category,
 }: FileManagerDialogProps) {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
@@ -484,6 +489,14 @@ export default function FileManagerDialog({
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [uploadingAssets, setUploadingAssets] = useState<Array<{ id: string; filename: string; file: File }>>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<AssetCategory | 'all'>(category || 'all');
+
+  // Update selectedCategory when category prop changes
+  useEffect(() => {
+    if (category !== undefined) {
+      setSelectedCategory(category || 'all');
+    }
+  }, [category]);
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
   const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false);
   const [bulkMoveTargetFolderId, setBulkMoveTargetFolderId] = useState<string | null>(null);
@@ -519,7 +532,7 @@ export default function FileManagerDialog({
     return descendants;
   }, [folders]);
 
-  // Filter assets by selected folder and search query
+  // Filter assets by selected folder, search query, and category
   const assets = useMemo(() => {
     let filteredAssets: typeof storeAssets;
 
@@ -536,17 +549,34 @@ export default function FileManagerDialog({
         // Check if filename matches search query
         const matchesSearch = asset.filename.toLowerCase().includes(searchLower);
 
-        return isInScope && matchesSearch;
+        // Check if asset matches selected category
+        let matchesCategory = false;
+        if (selectedCategory === 'all') {
+          matchesCategory = true;
+        } else {
+          const assetCategory = getAssetCategoryFromMimeType(asset.mime_type);
+          matchesCategory = assetCategory === selectedCategory;
+        }
+
+        return isInScope && matchesSearch && matchesCategory;
       });
     } else {
       // Normal mode: only show assets in current folder (not descendants)
       filteredAssets = selectedFolderId === null
         ? storeAssets.filter((asset) => !asset.asset_folder_id)
         : storeAssets.filter((asset) => asset.asset_folder_id === selectedFolderId);
+
+      // Apply category filter
+      if (selectedCategory !== 'all') {
+        filteredAssets = filteredAssets.filter((asset) => {
+          const assetCategory = getAssetCategoryFromMimeType(asset.mime_type);
+          return assetCategory === selectedCategory;
+        });
+      }
     }
 
     return filteredAssets;
-  }, [storeAssets, selectedFolderId, searchQuery, getAllDescendantFolderIds]);
+  }, [storeAssets, selectedFolderId, searchQuery, selectedCategory, getAllDescendantFolderIds]);
 
   // Get uploading assets for the current folder
   const currentUploadingAssets = useMemo(() => {
@@ -1304,63 +1334,85 @@ export default function FileManagerDialog({
         >
           <DialogHeader>
             <DialogTitle className="sr-only">File Manager</DialogTitle>
+
             <div className="flex items-center justify-between gap-2 pr-7 -ml-2.5">
-              <div className="w-full">
-                <InputGroup>
-                  <InputGroupAddon>
-                    <Icon name="search" className="size-3" />
-                  </InputGroupAddon>
-
-                  <InputGroupInput
-                    placeholder="Search..."
-                    autoFocus={false}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    autoComplete="off"
-                  />
-
-                  {searchQuery.trim() && (
-                    <InputGroupAddon align="inline-end">
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className="size-6 transition-opacity flex items-center justify-center cursor-pointer rounded-sm hover:bg-secondary/80"
-                        aria-label="Clear search"
-                      >
-                        <Icon name="x" className="size-3" />
-                      </button>
+              <div className="flex items-center gap-2 flex-1">
+                <div className="flex-1">
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <Icon name="search" className="size-3" />
                     </InputGroupAddon>
-                  )}
-                </InputGroup>
+
+                    <InputGroupInput
+                      placeholder="Search..."
+                      autoFocus={false}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      autoComplete="off"
+                    />
+
+                    {searchQuery.trim() && (
+                      <InputGroupAddon align="inline-end">
+                        <button
+                          onClick={() => setSearchQuery('')}
+                          className="size-6 transition-opacity flex items-center justify-center cursor-pointer rounded-sm hover:bg-secondary/80"
+                          aria-label="Clear search"
+                        >
+                          <Icon name="x" className="size-3" />
+                        </button>
+                      </InputGroupAddon>
+                    )}
+                  </InputGroup>
+                </div>
+
+                <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as AssetCategory | 'all')}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all"><Icon name="layers" className="size-3" /> All types</SelectItem>
+                    <SelectItem value={ASSET_CATEGORIES.ICONS}><Icon name="icon" className="size-3" /> Icons</SelectItem>
+                    <SelectItem value={ASSET_CATEGORIES.IMAGES}><Icon name="image" className="size-3" /> Images</SelectItem>
+                    <SelectItem value={ASSET_CATEGORIES.VIDEOS}><Icon name="video" className="size-3" /> Videos</SelectItem>
+                    <SelectItem value={ASSET_CATEGORIES.AUDIO}><Icon name="audio" className="size-3" /> Audio</SelectItem>
+                    <SelectItem value={ASSET_CATEGORIES.DOCUMENTS}><Icon name="file-text" className="size-3" /> Documents</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Separator orientation="vertical" className="h-7! shrink-0 mx-0.5" />
               </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={handleCreateSvg}
-              >
-                <Icon name="icon" />
-                SVG
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleUploadClick}
-                disabled={isUploading}
-              >
-                <Icon name="upload" />
-                Upload
-              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleCreateSvg}
+                >
+                  <Icon name="icon" />
+                  SVG
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleUploadClick}
+                  disabled={isUploading}
+                >
+                  <Icon name="upload" />
+                  Upload
+                </Button>
+              </div>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={getAcceptString()}
+                onChange={handleFileChange}
+                className="hidden"
+              />
             </div>
-            {/* Hidden file input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={getAcceptString()}
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </div>
-        </DialogHeader>
+          </DialogHeader>
+
           <div className="flex-1 flex -my-6 -mx-6 overflow-hidden">
             {/* Folder Sidebar */}
             <div className="w-64 border-r h-full overflow-y-auto px-4">
@@ -1527,6 +1579,7 @@ export default function FileManagerDialog({
                     <Button
                       size="xs"
                       variant="secondary"
+                      className="px-2!"
                       onClick={() => {
                         setBulkMoveTargetFolderId(selectedFolderId);
                         setShowBulkMoveDialog(true);
@@ -1539,6 +1592,7 @@ export default function FileManagerDialog({
                     <Button
                       size="xs"
                       variant="destructive"
+                      className="px-2!"
                       onClick={() => setShowBulkDeleteConfirmDialog(true)}
                     >
                       <Icon name="trash" />
@@ -1574,8 +1628,8 @@ export default function FileManagerDialog({
                     No files found
                   </div>
                   <div className="text-muted-foreground">
-                    {searchQuery.trim()
-                      ? 'No assets found matching your search'
+                    {searchQuery.trim() || selectedCategory !== 'all'
+                      ? 'No files were found using the current filters'
                       : selectedFolderId === null
                         ? 'No files'
                         : 'No folders or assets in this folder'}

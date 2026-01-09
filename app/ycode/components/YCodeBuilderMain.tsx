@@ -1752,6 +1752,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
             }
           }}
           assetId={fileManager.assetId}
+          category={fileManager.category}
         />
       </Suspense>
     )}

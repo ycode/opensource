@@ -30,6 +30,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { toast } from 'sonner';
+import { Separator } from '@/components/ui/separator';
 
 interface ImageSettingsProps {
   layer: Layer | null;
@@ -302,56 +303,64 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
           </div>
 
           {/* File Manager Upload */}
-          {imageType === 'upload' && (
-            <div className="grid grid-cols-3 items-center">
-              <Label variant="muted">File</Label>
+          {imageType === 'upload' && (() => {
+            // Get current asset ID and asset for display
+            const currentAssetId = (() => {
+              const src = layer.variables?.image?.src;
+              if (isAssetVariable(src)) {
+                return getAssetId(src);
+              }
+              return null;
+            })();
 
-              <div className="col-span-2 flex gap-2">
-                <div className="bg-input rounded-md h-8 aspect-3/2 overflow-hidden">
-                  <img
-                    src={urlValue}
-                    className="w-full h-full object-contain"
-                    alt="Image preview"
-                  />
+            const currentAsset = currentAssetId ? getAsset(currentAssetId) : null;
+            const assetFilename = currentAsset?.filename || null;
+
+            // Handler to open file manager
+            const handleOpenFileManager = () => {
+              openFileManager(
+                (asset) => {
+                  if (!layer) return false;
+
+                  // Validate asset type
+                  if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
+                    toast.error('Invalid asset type', {
+                      description: 'Please select an image file.',
+                    });
+                    return false; // Don't close file manager
+                  }
+
+                  handleImageChange(asset.id);
+                },
+                currentAssetId,
+                ASSET_CATEGORIES.IMAGES
+              );
+            };
+
+            return (
+              <div className="grid grid-cols-3 items-start">
+                <Label variant="muted" className="pt-2">File</Label>
+
+                <div className="col-span-2">
+                  <div
+                    className="relative group bg-secondary/30 hover:bg-secondary/60 rounded-md w-full aspect-3/2 overflow-hidden cursor-pointer"
+                    onClick={handleOpenFileManager}
+                  >
+                    <img
+                      src={urlValue}
+                      className="w-full h-full object-contain"
+                      alt="Image preview"
+                    />
+
+                    <div className="absolute inset-0 bg-black/50 text-white text-xs flex flex-col gap-3 items-center justify-center px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="overlay" size="sm">{assetFilename ? 'Change file' : 'Choose file'}</Button>
+                      {assetFilename && <div className="max-w-full truncate text-center">{assetFilename}</div>}
+                    </div>
+                  </div>
                 </div>
-
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => {
-                    // Get current asset ID if image src is an AssetVariable
-                    const currentAssetId = (() => {
-                      const src = layer.variables?.image?.src;
-                      if (isAssetVariable(src)) {
-                        return getAssetId(src);
-                      }
-                      return null;
-                    })();
-
-                    openFileManager(
-                      (asset) => {
-                        if (!layer) return false;
-
-                        // Validate asset type
-                        if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
-                          toast.error('Invalid asset type', {
-                            description: 'Please select an image file.',
-                          });
-                          return false; // Don't close file manager
-                        }
-
-                        handleImageChange(asset.id);
-                      },
-                      currentAssetId
-                    );
-                  }}
-                >
-                  Browse
-                </Button>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Custom URL Section */}
           {imageType === 'custom_url' && (

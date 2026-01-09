@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { EditorState, UIState } from '../types';
-import type { Layer, Breakpoint, Asset } from '../types';
+import type { Layer, Breakpoint, Asset, AssetCategory } from '../types';
 
 interface HistoryEntry {
   pageId: string;
@@ -40,7 +40,7 @@ interface EditorActions {
   setHoveredLayerId: (id: string | null) => void;
   setPreviewMode: (enabled: boolean) => void;
   setActiveSidebarTab: (tab: EditorSidebarTab) => void;
-  openFileManager: (onSelect?: ((asset: Asset) => void | false) | null, assetId?: string | null) => void;
+  openFileManager: (onSelect?: ((asset: Asset) => void | false) | null, assetId?: string | null, category?: AssetCategory | 'all' | null) => void;
   closeFileManager: () => void;
 }
 
@@ -68,6 +68,7 @@ interface EditorStoreWithHistory extends EditorState {
     open: boolean;
     onSelect: ((asset: Asset) => void | false) | null;
     assetId: string | null;
+    category: AssetCategory | 'all' | null;
   };
 }
 
@@ -102,6 +103,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     open: false,
     onSelect: null,
     assetId: null,
+    category: null,
   },
 
   setSelectedLayerId: (id) => {
@@ -285,11 +287,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   setActiveSidebarTab: (tab) => set({ activeSidebarTab: tab }),
 
-  openFileManager: (onSelect, assetId) => set({
+  openFileManager: (onSelect, assetId, category) => set({
     fileManager: {
       open: true,
       onSelect: onSelect ?? null,
       assetId: assetId ?? null,
+      category: category ?? null,
     },
   }),
 
@@ -298,6 +301,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       open: false,
       onSelect: null,
       assetId: null,
+      category: null,
     },
   }),
 }));

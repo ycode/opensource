@@ -16,13 +16,15 @@ export { ASSET_CATEGORIES, ALLOWED_MIME_TYPES, DEFAULT_ASSETS, getAcceptString }
 
 /**
  * Check if an asset matches the specified category based on MIME type
+ * Always uses ALLOWED_MIME_TYPES for consistency across all categories
  *
  * @param mimeType - The MIME type to check
- * @param category - The asset category to check against ('images', 'videos', 'audio', 'documents')
+ * @param category - The asset category to check against ('images', 'videos', 'audio', 'documents', 'icons')
  * @returns True if the MIME type matches the specified asset category
  *
  * @example
  * isAssetOfType('image/png', 'images') // true
+ * isAssetOfType('image/svg+xml', 'icons') // true
  * isAssetOfType('video/mp4', 'videos') // true
  * isAssetOfType('application/pdf', 'documents') // true
  */
@@ -31,57 +33,88 @@ export function isAssetOfType(
   category: AssetCategory
 ): boolean {
   if (!mimeType) return false;
-
-  switch (category) {
-    case 'images':
-      return mimeType.startsWith('image/');
-
-    case 'videos':
-      return mimeType.startsWith('video/');
-
-    case 'audio':
-      return mimeType.startsWith('audio/');
-
-    case 'documents':
-      const documentTypes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/vnd.ms-excel',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-powerpoint',
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'text/plain',
-      ];
-      return documentTypes.includes(mimeType);
-
-    default:
-      return false;
-  }
+  return ALLOWED_MIME_TYPES[category].includes(mimeType);
 }
+
+// Category to label mapping
+const CATEGORY_LABELS: Record<AssetCategory, string> = {
+  icons: 'Icon',
+  images: 'Image',
+  videos: 'Video',
+  audio: 'Audio',
+  documents: 'Document',
+};
 
 /**
  * Get a human-readable asset type label
+ * Optimized to use getAssetCategoryFromMimeType instead of multiple isAssetOfType calls
  */
 export function getAssetTypeLabel(mimeType: string | undefined | null): string {
   if (!mimeType) return 'Unknown';
-  if (isAssetOfType(mimeType, ASSET_CATEGORIES.IMAGES)) return 'Image';
-  if (isAssetOfType(mimeType, ASSET_CATEGORIES.VIDEOS)) return 'Video';
-  if (isAssetOfType(mimeType, ASSET_CATEGORIES.AUDIO)) return 'Audio';
-  if (isAssetOfType(mimeType, ASSET_CATEGORIES.DOCUMENTS)) return 'Document';
-  return 'File';
+  const category = getAssetCategoryFromMimeType(mimeType);
+  return category ? CATEGORY_LABELS[category] : 'File';
 }
+
+// Category to icon name mapping
+const CATEGORY_ICONS: Record<AssetCategory, string> = {
+  icons: 'icon',
+  images: 'image',
+  videos: 'video',
+  audio: 'audio',
+  documents: 'file-text',
+};
 
 /**
  * Get icon name for an asset type based on MIME type
+ * Optimized to use getAssetCategoryFromMimeType instead of multiple isAssetOfType calls
  */
 export function getAssetIcon(mimeType: string | undefined | null): string {
   if (!mimeType) return 'file-text';
-  if (isAssetOfType(mimeType, ASSET_CATEGORIES.IMAGES)) return 'image';
-  if (isAssetOfType(mimeType, ASSET_CATEGORIES.VIDEOS)) return 'video';
-  if (isAssetOfType(mimeType, ASSET_CATEGORIES.AUDIO)) return 'audio';
-  if (isAssetOfType(mimeType, ASSET_CATEGORIES.DOCUMENTS)) return 'file-text';
-  return 'file-text';
+  const category = getAssetCategoryFromMimeType(mimeType);
+  return category ? CATEGORY_ICONS[category] : 'file-text';
+}
+
+/**
+ * Get asset category from MIME type
+ * Returns the category that matches the MIME type, or null if no match
+ * Optimized to check categories in order of specificity (icons first, then by prefix, then by ALLOWED_MIME_TYPES)
+ *
+ * @param mimeType - The MIME type to check
+ * @returns The asset category ('images', 'videos', 'audio', 'documents', 'icons') or null if unknown
+ *
+ * @example
+ * getAssetCategoryFromMimeType('image/png') // 'images'
+ * getAssetCategoryFromMimeType('image/svg+xml') // 'icons'
+ * getAssetCategoryFromMimeType('video/mp4') // 'videos'
+ * getAssetCategoryFromMimeType('unknown/type') // null
+ */
+export function getAssetCategoryFromMimeType(
+  mimeType: string | undefined | null
+): AssetCategory | null {
+  if (!mimeType) return null;
+
+  // Check icons first (most specific, uses ALLOWED_MIME_TYPES)
+  if (ALLOWED_MIME_TYPES.icons.includes(mimeType)) {
+    return ASSET_CATEGORIES.ICONS;
+  }
+
+  // Check by prefix for faster matching (images, videos, audio)
+  if (mimeType.startsWith('image/')) {
+    return ASSET_CATEGORIES.IMAGES;
+  }
+  if (mimeType.startsWith('video/')) {
+    return ASSET_CATEGORIES.VIDEOS;
+  }
+  if (mimeType.startsWith('audio/')) {
+    return ASSET_CATEGORIES.AUDIO;
+  }
+
+  // Check documents (requires array lookup in ALLOWED_MIME_TYPES)
+  if (ALLOWED_MIME_TYPES.documents.includes(mimeType)) {
+    return ASSET_CATEGORIES.DOCUMENTS;
+  }
+
+  return null;
 }
 
 /**

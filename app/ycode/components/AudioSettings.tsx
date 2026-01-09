@@ -83,6 +83,23 @@ export default function AudioSettings({ layer, onLayerUpdate, fields, fieldSourc
     return '';
   }, [audioSrc]);
 
+  // Get current asset ID and asset for display
+  const currentAssetId = useMemo(() => {
+    const src = layer?.variables?.audio?.src;
+    if (isAssetVariable(src)) {
+      return getAssetId(src);
+    }
+    return null;
+  }, [layer?.variables?.audio?.src]);
+
+  const currentAsset = useMemo(() => {
+    return currentAssetId ? getAsset(currentAssetId) : null;
+  }, [currentAssetId, getAsset]);
+
+  const assetFilename = useMemo(() => {
+    return currentAsset?.filename || null;
+  }, [currentAsset]);
+
   const handleAudioChange = useCallback((assetId: string) => {
     if (!layer) return;
 
@@ -186,15 +203,6 @@ export default function AudioSettings({ layer, onLayerUpdate, fields, fieldSourc
   }, [layer, onLayerUpdate]);
 
   const handleBrowseAudio = useCallback(() => {
-    // Get current asset ID if it exists
-    const currentAssetId = (() => {
-      const src = layer?.variables?.audio?.src;
-      if (isAssetVariable(src)) {
-        return getAssetId(src);
-      }
-      return null;
-    })();
-
     openFileManager(
       (asset) => {
         if (!layer) return false;
@@ -211,7 +219,7 @@ export default function AudioSettings({ layer, onLayerUpdate, fields, fieldSourc
       },
       currentAssetId
     );
-  }, [openFileManager, handleAudioChange, layer]);
+  }, [openFileManager, handleAudioChange, layer, currentAssetId]);
 
   // Get current volume value (0-100)
   const volume = layer?.attributes?.volume ? parseInt(layer.attributes.volume) : 100;
@@ -315,7 +323,7 @@ export default function AudioSettings({ layer, onLayerUpdate, fields, fieldSourc
                 className="flex-1"
                 onClick={handleBrowseAudio}
               >
-                Browse
+                {assetFilename ? 'Change file' : 'Choose file'}
               </Button>
             </div>
           </div>

@@ -1,10 +1,11 @@
+'use client';
+
 /**
  * Collection Item Sheet
  *
  * Reusable sheet for creating/editing collection items.
  * Can be used from CMS page or triggered from builder canvas.
  */
-'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';

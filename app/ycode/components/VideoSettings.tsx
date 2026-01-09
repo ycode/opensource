@@ -90,6 +90,23 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
     return '';
   }, [videoSrc]);
 
+  // Get current asset ID and asset for display
+  const currentAssetId = useMemo(() => {
+    const src = layer?.variables?.video?.src;
+    if (isAssetVariable(src)) {
+      return getAssetId(src);
+    }
+    return null;
+  }, [layer?.variables?.video?.src]);
+
+  const currentAsset = useMemo(() => {
+    return currentAssetId ? getAsset(currentAssetId) : null;
+  }, [currentAssetId, getAsset]);
+
+  const assetFilename = useMemo(() => {
+    return currentAsset?.filename || null;
+  }, [currentAsset]);
+
   const handleVideoChange = useCallback((assetId: string) => {
     if (!layer) return;
 
@@ -449,15 +466,6 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
                       className="flex-1"
                       size="sm"
                       onClick={() => {
-                        // Get current asset ID if video src is an AssetVariable
-                        const currentAssetId = (() => {
-                          const src = layer.variables?.video?.src;
-                          if (isAssetVariable(src)) {
-                            return getAssetId(src);
-                          }
-                          return null;
-                        })();
-
                         openFileManager(
                           (asset) => {
                             if (!layer) return false;
@@ -472,11 +480,12 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
 
                             handleVideoChange(asset.id);
                           },
-                          currentAssetId
+                          currentAssetId,
+                          ASSET_CATEGORIES.VIDEOS
                         );
                       }}
                     >
-                      Browse
+                      {assetFilename ? 'Change file' : 'Choose file'}
                     </Button>
                   </>
                 )}
@@ -728,7 +737,8 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
 
                           handlePosterChange(asset.id);
                         },
-                        currentPosterAssetId
+                        currentPosterAssetId,
+                        ASSET_CATEGORIES.IMAGES
                       );
                     }}
                   >

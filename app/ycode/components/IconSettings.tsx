@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
 import type { Layer } from '@/types';
 import { createAssetVariable, isAssetVariable, getAssetId, isStaticTextVariable, getStaticTextContent } from '@/lib/variable-utils';
-import { DEFAULT_ASSETS } from '@/lib/asset-utils';
+import { DEFAULT_ASSETS, isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 import { Button } from '@/components/ui/button';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
@@ -65,8 +65,8 @@ export default function IconSettings({ layer, onLayerUpdate }: IconSettingsProps
       (asset) => {
         if (!layer) return false;
 
-        // Validate that it's an SVG file (image/svg+xml)
-        if (!asset.mime_type || asset.mime_type !== 'image/svg+xml') {
+        // Validate that it's an SVG file (icon)
+        if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS)) {
           toast.error('Invalid asset type', {
             description: 'Please select an SVG file.',
           });
@@ -75,7 +75,8 @@ export default function IconSettings({ layer, onLayerUpdate }: IconSettingsProps
 
         handleAssetSelect(asset.id);
       },
-      currentAssetId
+      currentAssetId,
+      ASSET_CATEGORIES.ICONS
     );
   }, [openFileManager, handleAssetSelect, layer]);
 
@@ -102,6 +103,18 @@ export default function IconSettings({ layer, onLayerUpdate }: IconSettingsProps
     return iconContent && iconContent.trim() !== '' ? iconContent : DEFAULT_ASSETS.ICON;
   })();
 
+  // Get current asset ID and asset for display
+  const currentAssetId = (() => {
+    const src = layer?.variables?.icon?.src;
+    if (isAssetVariable(src)) {
+      return getAssetId(src);
+    }
+    return null;
+  })();
+
+  const currentAsset = currentAssetId ? getAsset(currentAssetId) : null;
+  const assetFilename = currentAsset?.filename || null;
+
   return (
     <SettingsPanel
       title="Icon"
@@ -110,30 +123,31 @@ export default function IconSettings({ layer, onLayerUpdate }: IconSettingsProps
     >
       <div className="flex flex-col gap-2.5">
         {/* File Manager Upload */}
-        <div className="grid grid-cols-3 items-center">
-          <Label variant="muted">File</Label>
+        <div className="grid grid-cols-3 items-start">
+          <Label variant="muted" className="pt-2">File</Label>
 
-          <div className="col-span-2 flex gap-2">
-            <div className="bg-input rounded-md h-8 aspect-3/2 flex items-center justify-center">
-              {currentIconSource ? (
-                <div
-                  data-icon="true"
-                  className="w-full h-full flex items-center justify-center p-2"
-                  dangerouslySetInnerHTML={{ __html: currentIconSource }}
-                />
-              ) : (
-                <Icon name="icon" className="size-4 text-muted-foreground" />
-              )}
-            </div>
-
-            <Button
-              variant="secondary"
-              size="sm"
-              className="flex-1"
+          <div className="col-span-2">
+            <div
+              className="relative group bg-secondary/30 hover:bg-secondary/60 rounded-md w-full aspect-3/2 overflow-hidden cursor-pointer"
               onClick={handleBrowseAsset}
             >
-              Browse
-            </Button>
+              <div className="w-full h-full flex items-center justify-center p-4">
+                {currentIconSource ? (
+                  <div
+                    data-icon="true"
+                    className="w-full h-full flex items-center justify-center"
+                    dangerouslySetInnerHTML={{ __html: currentIconSource }}
+                  />
+                ) : (
+                  <Icon name="icon" className="size-4 text-muted-foreground" />
+                )}
+              </div>
+
+              <div className="absolute inset-0 bg-black/50 text-white text-xs flex flex-col gap-3 items-center justify-center px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button variant="overlay" size="sm">{assetFilename ? 'Change file' : 'Choose file'}</Button>
+                {assetFilename && <div className="max-w-full truncate text-center">{assetFilename}</div>}
+              </div>
+            </div>
           </div>
         </div>
       </div>
