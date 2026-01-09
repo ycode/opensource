@@ -1761,7 +1761,7 @@
           }
         }
 
-        // Apply video behavior attributes from layer.attributes
+        // Apply video behavior attributes from layer.attributes (before wrapping)
         if (layer.attributes) {
           if (layer.attributes.muted === true) {
             element.muted = true;
@@ -1775,6 +1775,11 @@
           if (layer.attributes.autoplay === true) {
             element.autoplay = true;
           }
+        }
+
+        // Wrap regular video elements in edit mode to prevent playback on click
+        if (editMode) {
+          element = wrapToDisableInnerEvents(element, layer, false);
         }
       }
     }
