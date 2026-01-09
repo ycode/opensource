@@ -11,6 +11,7 @@
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import Icon from '@/components/ui/icon';
+import { DropdownMenuItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import type { CollectionField, Collection } from '@/types';
 import type { IconProps } from '@/components/ui/icon';
 import { getFieldIcon } from '@/lib/field-types-config';
@@ -45,19 +46,14 @@ function FieldItem({
   depth?: number;
 }) {
   return (
-    <button
-      type="button"
+    <DropdownMenuItem
       onClick={onSelect}
-      className={cn(
-        'flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded-md',
-        'hover:bg-zinc-700/50 transition-colors',
-        'text-zinc-300 hover:text-zinc-100 cursor-pointer'
-      )}
+      className="gap-2"
       style={{ paddingLeft: `${8 + depth * 16}px` }}
     >
-      <Icon name={getFieldIcon(field) as IconProps['name']} className="size-3 text-zinc-500 shrink-0" />
+      {/*<Icon name={getFieldIcon(field) as IconProps['name']} className="size-3 text-zinc-500 shrink-0" />*/}
       <span className="truncate">{field.name}</span>
-    </button>
+    </DropdownMenuItem>
   );
 }
 
@@ -227,9 +223,7 @@ export default function FieldTreeSelect({
   return (
     <div className="py-1">
       {collectionLabel && (
-        <div className="px-3 py-1.5 text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
-          {collectionLabel}
-        </div>
+        <DropdownMenuLabel>{collectionLabel}</DropdownMenuLabel>
       )}
       <FieldTreeSelectInner
         fields={displayableFields}

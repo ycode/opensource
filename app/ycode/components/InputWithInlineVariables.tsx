@@ -24,10 +24,14 @@ import {
   getVariableLabel,
 } from '@/lib/cms-variables-utils';
 import type { FieldVariable } from '@/types';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import FieldTreeSelect from './FieldTreeSelect';
 
 interface InputWithInlineVariablesProps {
@@ -200,7 +204,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   disabled = false,
 }, ref) => {
   const [isFocused, setIsFocused] = useState(false);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const editor = useEditor({
     immediatelyRender: true,
@@ -456,8 +460,8 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
       },
     });
 
-    // Close the popover after selection
-    setIsPopoverOpen(false);
+    // Close the dropdown after selection
+    setIsDropdownOpen(false);
   };
 
   return (
@@ -468,17 +472,17 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
 
       {!disabled && fields && fields.length > 0 && (
         <div className="absolute top-1 right-1">
-          <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-            <PopoverTrigger asChild>
+          <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+            <DropdownMenuTrigger asChild>
               <Button
                 variant="secondary"
                 size="xs"
               >
                 <Icon name="database" className="size-2.5" />
               </Button>
-            </PopoverTrigger>
+            </DropdownMenuTrigger>
 
-            <PopoverContent
+            <DropdownMenuContent
               className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
               align="end"
               sideOffset={4}
@@ -490,8 +494,8 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
                 onSelect={handleFieldSelect}
                 collectionLabel={fieldSourceLabel}
               />
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
     </div>
