@@ -314,12 +314,16 @@ function FileGridItem({
         {/* Checkbox - top left corner (only for assets) */}
         {showCheckbox && (
           <div
-            className="absolute top-1.5 left-1.5 z-10"
+            className="absolute top-1.5 left-1.5 z-20"
             onClick={(e) => e.stopPropagation()}
           >
             <Checkbox
               checked={isSelected}
               onCheckedChange={(checked) => onSelectChange?.(checked === true)}
+              className={cn(
+                'bg-background/90 backdrop-blur border',
+                isSelected ? 'border-primary' : 'border-foreground/10'
+              )}
             />
           </div>
         )}
@@ -330,74 +334,99 @@ function FileGridItem({
         {/* Asset Content */}
         {type === 'asset' && (
           <>
-            {mimeType?.startsWith('image/') && (imageUrl || content) ? (
-              <>
-                {content ? (
-                  // Inline SVG content
-                  <div
-                    data-icon
-                    className="w-full h-full flex items-center justify-center p-5 pointer-events-none text-foreground opacity-60"
-                    dangerouslySetInnerHTML={{ __html: content }}
-                  />
-                ) : imageUrl ? (
-                  // Image URL
+            {(() => {
+              const isIcon = content || (mimeType && isAssetOfType(mimeType, ASSET_CATEGORIES.ICONS));
+              const isImage = mimeType?.startsWith('image/') && !isIcon && imageUrl;
+              const showCheckerboard = isIcon || isImage;
+
+              if (isIcon || (mimeType?.startsWith('image/') && imageUrl)) {
+                return (
                   <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      className="w-full h-full object-contain pointer-events-none rounded-md"
-                      src={getOptimizedImageUrl(imageUrl)}
-                      alt={name}
-                      loading="lazy"
-                      width={110}
-                      height={110}
-                    />
+                    {/* Checkerboard pattern for transparency - only for images and icons */}
+                    {showCheckerboard && (
+                      <div className="absolute inset-0 opacity-10 bg-checkerboard" />
+                    )}
+                    {content ? (
+                      // Inline SVG content (icon)
+                      <div
+                        data-icon
+                        className="relative w-full h-full flex items-center justify-center p-5 pointer-events-none text-foreground z-10"
+                        dangerouslySetInnerHTML={{ __html: content }}
+                      />
+                    ) : imageUrl ? (
+                      // Image URL
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          className="relative w-full h-full object-contain pointer-events-none rounded-md z-10"
+                          src={getOptimizedImageUrl(imageUrl)}
+                          alt={name}
+                          loading="lazy"
+                          width={110}
+                          height={110}
+                        />
+                      </>
+                    ) : null}
                   </>
-                ) : null}
-              </>
-            ) : (
-              <Icon name={getAssetIcon(mimeType) as any} className="size-10 opacity-50" />
-            )}
+                );
+              }
+              return <Icon name={getAssetIcon(mimeType) as any} className="size-10 opacity-50" />;
+            })()}
           </>
         )}
 
         {/* Uploading Asset Content */}
         {isUploading && file && (
           <>
-            {isAssetOfType(file.type, ASSET_CATEGORIES.ICONS) ? (
-              <>
-                <div
-                  className="w-full h-full flex items-center justify-center p-5 pointer-events-none text-foreground opacity-30"
-                >
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Icon name="icon" className="size-15" />
-                  </div>
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center bg-background/20">
-                  <Spinner className="size-10 opacity-60" />
-                </div>
-              </>
-            ) : file.type.startsWith('image/') ? (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  className="w-full h-full object-contain pointer-events-none opacity-40"
-                  src={URL.createObjectURL(file)}
-                  alt={name}
-                  width={110}
-                  height={110}
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-background/20">
-                  <Spinner className="size-10 opacity-60" />
-                </div>
-              </>
-            ) : (
-              <>
-                <Icon name={getAssetIcon(file.type) as any} className="size-10 opacity-30" />
-                <div className="absolute inset-0 flex items-center justify-center bg-background/20">
-                  <Spinner className="size-10 opacity-60" />
-                </div>
-              </>
-            )}
+            {(() => {
+              const isIcon = isAssetOfType(file.type, ASSET_CATEGORIES.ICONS);
+              const isImage = file.type.startsWith('image/') && !isIcon;
+              const showCheckerboard = isIcon || isImage;
+
+              return (
+                <>
+                  {/* Checkerboard pattern for transparency - only for images and icons */}
+                  {showCheckerboard && (
+                    <div className="absolute inset-0 opacity-10 bg-checkerboard" />
+                  )}
+                  {isIcon ? (
+                    <>
+                      <div
+                        className="relative w-full h-full flex items-center justify-center p-5 pointer-events-none text-foreground opacity-30 z-10"
+                      >
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Icon name="icon" className="size-15" />
+                        </div>
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/20 z-20">
+                        <Spinner className="size-10 opacity-60" />
+                      </div>
+                    </>
+                  ) : isImage ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        className="relative w-full h-full object-contain pointer-events-none opacity-40 z-10"
+                        src={URL.createObjectURL(file)}
+                        alt={name}
+                        width={110}
+                        height={110}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/20 z-20">
+                        <Spinner className="size-10 opacity-60" />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Icon name={getAssetIcon(file.type) as any} className="size-10 opacity-30" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/20">
+                        <Spinner className="size-10 opacity-60" />
+                      </div>
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
 
@@ -408,7 +437,7 @@ function FileGridItem({
               <div
                 onClick={(e) => e.stopPropagation()}
                 className={cn(
-                  'absolute top-1.5 right-1.5 size-5.75 opacity-0 group-hover:opacity-80 p-0.5 rounded-sm bg-secondary/80 backdrop-blur-sm hover:bg-secondary cursor-pointer flex items-center justify-center'
+                  'absolute top-1.5 right-1.5 size-5.75 opacity-0 group-hover:opacity-80 p-0.5 rounded-sm bg-secondary/80 backdrop-blur-sm hover:bg-secondary cursor-pointer flex items-center justify-center z-20'
                 )}
               >
                 <Icon name="dotsHorizontal" className="size-3" />

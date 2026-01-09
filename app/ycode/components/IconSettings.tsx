@@ -131,7 +131,9 @@ export default function IconSettings({ layer, onLayerUpdate }: IconSettingsProps
               className="relative group bg-secondary/30 hover:bg-secondary/60 rounded-md w-full aspect-3/2 overflow-hidden cursor-pointer"
               onClick={handleBrowseAsset}
             >
-              <div className="w-full h-full flex items-center justify-center p-4">
+              {/* Checkerboard pattern for transparency */}
+              <div className="absolute inset-0 opacity-10 bg-checkerboard" />
+              <div className="relative w-full h-full flex items-center justify-center p-4 z-10">
                 {currentIconSource ? (
                   <div
                     data-icon="true"
@@ -143,7 +145,7 @@ export default function IconSettings({ layer, onLayerUpdate }: IconSettingsProps
                 )}
               </div>
 
-              <div className="absolute inset-0 bg-black/50 text-white text-xs flex flex-col gap-3 items-center justify-center px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute inset-0 bg-black/50 text-white text-xs flex flex-col gap-3 items-center justify-center px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                 <Button variant="overlay" size="sm">{assetFilename ? 'Change file' : 'Choose file'}</Button>
                 {assetFilename && <div className="max-w-full truncate text-center">{assetFilename}</div>}
               </div>

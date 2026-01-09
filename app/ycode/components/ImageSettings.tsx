@@ -346,13 +346,15 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
                     className="relative group bg-secondary/30 hover:bg-secondary/60 rounded-md w-full aspect-3/2 overflow-hidden cursor-pointer"
                     onClick={handleOpenFileManager}
                   >
+                    {/* Checkerboard pattern for transparency */}
+                    <div className="absolute inset-0 opacity-10 bg-checkerboard" />
                     <img
                       src={urlValue}
-                      className="w-full h-full object-contain"
+                      className="relative w-full h-full object-contain z-10"
                       alt="Image preview"
                     />
 
-                    <div className="absolute inset-0 bg-black/50 text-white text-xs flex flex-col gap-3 items-center justify-center px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute inset-0 bg-black/50 text-white text-xs flex flex-col gap-3 items-center justify-center px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                       <Button variant="overlay" size="sm">{assetFilename ? 'Change file' : 'Choose file'}</Button>
                       {assetFilename && <div className="max-w-full truncate text-center">{assetFilename}</div>}
                     </div>

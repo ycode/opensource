@@ -711,13 +711,15 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
 
               <div className="col-span-2">
                 <div className="relative group bg-secondary/30 hover:bg-secondary/60 rounded-md w-full aspect-3/2 overflow-hidden">
+                  {/* Checkerboard pattern for transparency */}
+                  <div className="absolute inset-0 opacity-10 bg-checkerboard" />
                   <img
                     src={posterUrl}
-                    className="w-full h-full object-contain"
+                    className="relative w-full h-full object-contain z-10"
                     alt="Video poster"
                   />
 
-                  <div className="absolute inset-0 bg-black/50 text-white text-xs flex flex-col gap-3 items-center justify-center px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute inset-0 bg-black/50 text-white text-xs flex flex-col gap-3 items-center justify-center px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                     <div className="flex items-center gap-2">
                       <Button
                         variant="overlay"
