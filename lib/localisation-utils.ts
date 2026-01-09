@@ -309,44 +309,98 @@ function extractLayerTranslatableItems(
       });
     }
 
-    // @todo: Extract alt text from layer.alt property (for images)
-    // const alt = layer.alt;
-    // if (alt && typeof alt === 'string' && alt.trim()) {
-    //   items.push({
-    //     key: `${sourceType}:${sourceId}:layer:${layer.id}:alt`,
-    //     source_type: sourceType,
-    //     source_id: sourceId,
-    //     content_key: `layer:${layer.id}:alt`,
-    //     content_type: 'text',
-    //     content_value: alt.trim(),
-    //     info: {
-    //       icon: 'image',
-    //       label: `${getLayerName(layer)} (alt text)`,
-    //     },
-    //   });
-    // }
+    // Extract asset IDs from media layers
+    // Image layer - extract src asset
+    if (layer.name === 'image' && layer.variables?.image?.src) {
+      const imageSrc = layer.variables.image.src;
+      if (imageSrc.type === 'asset' && imageSrc.data?.asset_id) {
+        items.push({
+          key: `${sourceType}:${sourceId}:layer:${layer.id}:image_src`,
+          source_type: sourceType,
+          source_id: sourceId,
+          content_key: `layer:${layer.id}:image_src`,
+          content_type: 'asset_id',
+          content_value: imageSrc.data.asset_id,
+          info: {
+            icon: 'image',
+            label: `${getLayerName(layer)} (source)`,
+          },
+        });
+      }
+    }
 
-    // @todo: Extract static asset ID from image layers
-    // if (layer.name === 'image' && layer.[...]) {
-    //   const url = layer.url.trim();
-    //   // Check if it's an asset URL (starts with /uploads/ or /api/assets/ or is a full asset URL)
-    //   const isAssetUrl = true
+    // Video layer - extract src and poster assets
+    if (layer.name === 'video' && layer.variables?.video) {
+      const videoSrc = layer.variables.video.src;
+      if (videoSrc && videoSrc.type === 'asset' && videoSrc.data?.asset_id) {
+        items.push({
+          key: `${sourceType}:${sourceId}:layer:${layer.id}:video_src`,
+          source_type: sourceType,
+          source_id: sourceId,
+          content_key: `layer:${layer.id}:video_src`,
+          content_type: 'asset_id',
+          content_value: videoSrc.data.asset_id,
+          info: {
+            icon: 'video',
+            label: `${getLayerName(layer)} (source)`,
+          },
+        });
+      }
 
-    //   if (isAssetUrl && url) {
-    //     items.push({
-    //       key: `${sourceType}:${sourceId}:layer:${layer.id}:image_src`,
-    //       source_type: sourceType,
-    //       source_id: sourceId,
-    //       content_key: `layer:${layer.id}:image_src`,
-    //       content_type: 'asset_id',
-    //       content_value: url,
-    //       info: {
-    //         icon: 'image',
-    //         label: getLayerName(layer),
-    //       },
-    //     });
-    //   }
-    // }
+      const videoPoster = layer.variables.video.poster;
+      if (videoPoster && videoPoster.type === 'asset' && videoPoster.data?.asset_id) {
+        items.push({
+          key: `${sourceType}:${sourceId}:layer:${layer.id}:video_poster`,
+          source_type: sourceType,
+          source_id: sourceId,
+          content_key: `layer:${layer.id}:video_poster`,
+          content_type: 'asset_id',
+          content_value: videoPoster.data.asset_id,
+          info: {
+            icon: 'image',
+            label: `${getLayerName(layer)} (poster)`,
+          },
+        });
+      }
+    }
+
+    // Audio layer - extract src asset
+    if (layer.name === 'audio' && layer.variables?.audio?.src) {
+      const audioSrc = layer.variables.audio.src;
+      if (audioSrc.type === 'asset' && audioSrc.data?.asset_id) {
+        items.push({
+          key: `${sourceType}:${sourceId}:layer:${layer.id}:audio_src`,
+          source_type: sourceType,
+          source_id: sourceId,
+          content_key: `layer:${layer.id}:audio_src`,
+          content_type: 'asset_id',
+          content_value: audioSrc.data.asset_id,
+          info: {
+            icon: 'audio',
+            label: `${getLayerName(layer)} (source)`,
+          },
+        });
+      }
+    }
+
+    // Icon layer - extract src asset
+    if (layer.name === 'icon' && layer.variables?.icon?.src) {
+      const iconSrc = layer.variables.icon.src;
+      if (iconSrc.type === 'asset' && iconSrc.data?.asset_id) {
+        items.push({
+          key: `${sourceType}:${sourceId}:layer:${layer.id}:icon_src`,
+          source_type: sourceType,
+          source_id: sourceId,
+          content_key: `layer:${layer.id}:icon_src`,
+          content_type: 'asset_id',
+          content_value: iconSrc.data.asset_id,
+          info: {
+            icon: 'icon',
+            label: `${getLayerName(layer)} (source)`,
+          },
+        });
+      }
+    }
 
     // Recursively process children
     if (layer.children && Array.isArray(layer.children) && layer.children.length > 0) {
@@ -577,4 +631,37 @@ export function extractLayerContentMap(
   }
 
   return contentMap;
+}
+
+/**
+ * Get translated asset ID if a translation exists
+ * @param originalAssetId - Original asset ID from layer variables
+ * @param contentKey - Content key for translation lookup (e.g., 'layer:layer-id:image_src')
+ * @param translations - Translations map for the current locale (keyed by translatable key)
+ * @param pageId - Page ID for building translation keys
+ * @param masterComponentId - Optional component ID if layer is from a component
+ * @returns Translated asset ID or original if no translation exists
+ */
+export function getTranslatedAssetId(
+  originalAssetId: string | undefined,
+  contentKey: string,
+  translations: Record<string, Translation> | null | undefined,
+  pageId: string | undefined,
+  masterComponentId?: string | undefined
+): string | undefined {
+  if (!originalAssetId || !translations || !pageId) return originalAssetId;
+
+  // Build translation key based on whether this layer is from a component or page
+  const sourcePrefix = masterComponentId
+    ? `component:${masterComponentId}`
+    : `page:${pageId}`;
+  const translationKey = `${sourcePrefix}:${contentKey}`;
+
+  // Look up translation
+  const translation = translations[translationKey];
+  if (translation && translation.content_value && translation.content_value.trim() !== '') {
+    return translation.content_value;
+  }
+
+  return originalAssetId;
 }

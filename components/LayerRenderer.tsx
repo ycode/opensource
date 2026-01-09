@@ -7,11 +7,13 @@ import LayerLockIndicator from '@/components/collaboration/LayerLockIndicator';
 import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import type { Layer, Locale } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
-import { getVariableStringValue, getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent } from '@/lib/variable-utils';
+import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent } from '@/lib/variable-utils';
+import { getTranslatedAssetId } from '@/lib/localisation-utils';
 import { DEFAULT_ASSETS } from '@/lib/asset-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
@@ -202,12 +204,6 @@ const LayerItem: React.FC<{
   const isEditing = editingLayerId === layer.id;
   const isDragging = activeLayerId === layer.id;
   const textEditable = isTextEditable(layer);
-  // Force locale selector to render as 'div' instead of 'localeSelector'
-  let htmlTag = getLayerHtmlTag(layer);
-  if (layer.name === 'localeSelector') {
-    htmlTag = 'div';
-  }
-
   // Collaboration layer locking - use unified resource lock system
   const currentUserId = useAuthStore((state) => state.user?.id);
   const lockKey = getResourceLockKey(RESOURCE_TYPES.LAYER, layer.id);
@@ -217,9 +213,10 @@ const LayerItem: React.FC<{
   const classesString = getClassesString(layer);
   const effectiveCollectionItemData = collectionItemData || pageCollectionItemData || undefined;
   const getAsset = useAssetsStore((state) => state.getAsset);
-  // Subscribe to assets store to trigger re-render when assets are loaded
-  // This ensures icon layers update when their assets are loaded asynchronously
   const assetsById = useAssetsStore((state) => state.assetsById);
+  const allTranslations = useLocalisationStore((state) => state.translations);
+  const translations = isEditMode && currentLocale ? allTranslations[currentLocale.id] : null;
+  const htmlTag = getLayerHtmlTag(layer);
 
   // Resolve text and image URLs with field binding support
   const textContent = (() => {
@@ -269,8 +266,25 @@ const LayerItem: React.FC<{
     return undefined;
   })();
 
+  // Get image asset ID and apply translation if available
+  const originalImageAssetId = layer.variables?.image?.src?.type === 'asset'
+    ? layer.variables.image.src.data?.asset_id
+    : undefined;
+  const translatedImageAssetId = getTranslatedAssetId(
+    originalImageAssetId || undefined,
+    `layer:${layer.id}:image_src`,
+    translations,
+    pageId,
+    layer._masterComponentId
+  );
+
+  // Build image variable with translated asset ID
+  const imageVariable = originalImageAssetId && translatedImageAssetId && translatedImageAssetId !== originalImageAssetId
+    ? { ...layer.variables?.image?.src, type: 'asset' as const, data: { asset_id: translatedImageAssetId } }
+    : layer.variables?.image?.src;
+
   const imageUrl = getImageUrlFromVariable(
-    layer.variables?.image?.src,
+    imageVariable,
     getAsset,
     resolveFieldValue,
     effectiveCollectionItemData
@@ -597,8 +611,18 @@ const LayerItem: React.FC<{
         } else if (isDynamicTextVariable(iconSrc)) {
           iconHtml = getDynamicTextContent(iconSrc);
         } else if (isAssetVariable(iconSrc)) {
-          const assetId = iconSrc.data?.asset_id;
-          if (assetId) {
+          const originalAssetId = iconSrc.data?.asset_id;
+          if (originalAssetId) {
+            // Apply translation if available
+            const translatedAssetId = getTranslatedAssetId(
+              originalAssetId,
+              `layer:${layer.id}:icon_src`,
+              translations,
+              pageId,
+              layer._masterComponentId
+            );
+            const assetId = translatedAssetId || originalAssetId;
+
             // Check assetsById first (reactive) then getAsset (may trigger fetch)
             const asset = assetsById[assetId] || getAsset(assetId);
             iconHtml = asset?.content || '';
@@ -713,8 +737,25 @@ const LayerItem: React.FC<{
           if (src.type === 'video') {
             return undefined;
           }
+
+          // Apply translation for video asset
+          let videoVariable = src;
+          if (src.type === 'asset' && src.data?.asset_id) {
+            const originalAssetId = src.data.asset_id;
+            const translatedAssetId = getTranslatedAssetId(
+              originalAssetId,
+              `layer:${layer.id}:video_src`,
+              translations,
+              pageId,
+              layer._masterComponentId
+            );
+            if (translatedAssetId && translatedAssetId !== originalAssetId) {
+              videoVariable = { ...src, data: { asset_id: translatedAssetId } };
+            }
+          }
+
           return getVideoUrlFromVariable(
-            src,
+            videoVariable,
             getAsset,
             resolveFieldValue,
             effectiveCollectionItemData
@@ -725,8 +766,25 @@ const LayerItem: React.FC<{
           if (isFieldVariable(src)) {
             return resolveFieldValue(src, effectiveCollectionItemData) || undefined;
           }
+
+          // Apply translation for audio asset
+          let audioVariable = src;
+          if (src.type === 'asset' && src.data?.asset_id) {
+            const originalAssetId = src.data.asset_id;
+            const translatedAssetId = getTranslatedAssetId(
+              originalAssetId,
+              `layer:${layer.id}:audio_src`,
+              translations,
+              pageId,
+              layer._masterComponentId
+            );
+            if (translatedAssetId && translatedAssetId !== originalAssetId) {
+              audioVariable = { ...src, data: { asset_id: translatedAssetId } };
+            }
+          }
+
           return getVideoUrlFromVariable(
-            src,
+            audioVariable,
             getAsset,
             resolveFieldValue,
             effectiveCollectionItemData
@@ -738,8 +796,24 @@ const LayerItem: React.FC<{
       // Get poster URL for video elements
       const posterUrl = (() => {
         if (htmlTag === 'video' && layer.variables?.video?.poster) {
+          // Apply translation for video poster
+          let posterVariable = layer.variables.video.poster;
+          if (posterVariable?.type === 'asset' && posterVariable.data?.asset_id) {
+            const originalAssetId = posterVariable.data.asset_id;
+            const translatedAssetId = getTranslatedAssetId(
+              originalAssetId,
+              `layer:${layer.id}:video_poster`,
+              translations,
+              pageId,
+              layer._masterComponentId
+            );
+            if (translatedAssetId && translatedAssetId !== originalAssetId) {
+              posterVariable = { ...posterVariable, data: { asset_id: translatedAssetId } };
+            }
+          }
+
           return getImageUrlFromVariable(
-            layer.variables.video.poster,
+            posterVariable,
             getAsset,
             resolveFieldValue,
             effectiveCollectionItemData

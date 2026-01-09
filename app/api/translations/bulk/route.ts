@@ -18,10 +18,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate all translations have required fields
+    // Validate all translations have required fields (content_value can be empty string to indicate "use original")
     for (const translation of translations) {
       const { locale_id, source_type, source_id, content_key, content_type, content_value } = translation;
-      if (!locale_id || !source_type || !source_id || !content_key || !content_type || !content_value) {
+      if (!locale_id || !source_type || !source_id || !content_key || !content_type || content_value === undefined || content_value === null) {
         return NextResponse.json(
           { error: 'All translations must have: locale_id, source_type, source_id, content_key, content_type, content_value' },
           { status: 400 }

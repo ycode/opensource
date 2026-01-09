@@ -157,6 +157,7 @@ export async function createTranslation(
         content_key: translationData.content_key,
         content_type: translationData.content_type,
         content_value: translationData.content_value,
+        is_completed: translationData.is_completed ?? false,
         is_published: false,
         deleted_at: null, // Restore if previously deleted
       },

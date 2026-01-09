@@ -934,6 +934,7 @@ export interface CreateTranslationData {
   content_key: string;
   content_type: TranslationContentType;
   content_value: string;
+  is_completed?: boolean;
 }
 
 export interface UpdateTranslationData {

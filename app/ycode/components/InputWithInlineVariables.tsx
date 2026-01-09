@@ -261,35 +261,13 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         onBlurProp(currentValue);
       }
     },
-  });
+  }, [placeholder]);
 
   // Update editor editable state when disabled prop changes
   useEffect(() => {
     if (!editor) return;
     editor.setEditable(!disabled);
   }, [editor, disabled]);
-
-  // Update placeholder attribute when placeholder prop changes
-  useEffect(() => {
-    if (!editor) return;
-
-    try {
-      // Check if view exists and is accessible
-      if (!editor.view) return;
-
-      const proseMirror = editor.view.dom;
-      if (!proseMirror) return;
-
-      const paragraph = proseMirror.querySelector('p');
-      if (paragraph) {
-        paragraph.setAttribute('data-placeholder', placeholder);
-      }
-    } catch (error) {
-      // Silently ignore if editor view is not ready
-      // This can happen during React strict mode double-mounting
-      return;
-    }
-  }, [editor, placeholder]);
 
   // Update editor content when value or fields change externally
   useEffect(() => {

@@ -67,7 +67,7 @@ interface LocalisationActions {
   getLocaleByCode: (code: string) => Locale | undefined;
 
   // Translation data loading
-  loadTranslations: (localeId: string) => Promise<void>;
+  loadTranslations: (localeId: string) => void;
   clearTranslations: (localeId?: string) => void;
 
   // Translation CRUD
@@ -303,34 +303,47 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
     return get().locales.find((l) => l.code === code);
   },
 
-  // Load translations for a locale
-  loadTranslations: async (localeId) => {
+  // Load translations for a locale (returns promise but doesn't block)
+  loadTranslations: (localeId) => {
+    const { defaultLocale, translations } = get();
+
+    // Prevent loading translations for the default locale (there will never be any)
+    if (defaultLocale && defaultLocale.id === localeId) {
+      return Promise.resolve(); // Default locale never has translations
+    }
+
+    // If translations for this locale are already loaded, skip the API call
+    if (translations[localeId]) {
+      return Promise.resolve(); // Already loaded
+    }
+
     set({ isLoading: { ...initialLoadingState, loadTranslations: true }, error: null });
 
-    try {
-      const result = await localisationApi.getTranslations(localeId);
+    // Return promise but don't block
+    return localisationApi.getTranslations(localeId)
+      .then((result) => {
+        if (result.error) {
+          set({ error: result.error, isLoading: initialLoadingState });
+          return;
+        }
 
-      if (result.error) {
-        set({ error: result.error, isLoading: initialLoadingState });
-        return;
-      }
+        const translationsData: Translation[] = result.data || [];
+        const translationsMap: Record<string, Translation> = {};
 
-      const translations: Translation[] = result.data || [];
-      const translationsMap: Record<string, Translation> = {};
+        for (const translation of translationsData) {
+          const key = getTranslatableKey(translation);
+          translationsMap[key] = translation;
+        }
 
-      for (const translation of translations) {
-        const key = getTranslatableKey(translation);
-        translationsMap[key] = translation;
-      }
-
-      set((state) => ({
-        translations: { ...state.translations, [localeId]: translationsMap },
-        isLoading: initialLoadingState,
-      }));
-    } catch (error) {
-      console.error('Failed to load translations:', error);
-      set({ error: 'Failed to load translations', isLoading: initialLoadingState });
-    }
+        set((state) => ({
+          translations: { ...state.translations, [localeId]: translationsMap },
+          isLoading: initialLoadingState,
+        }));
+      })
+      .catch((error) => {
+        console.error('Failed to load translations:', error);
+        set({ error: 'Failed to load translations', isLoading: initialLoadingState });
+      });
   },
 
   // Get translation by translation object or key parts
@@ -367,7 +380,7 @@ export const useLocalisationStore = create<LocalisationStore>((set, get) => ({
       content_key: data.content_key,
       content_type: data.content_type,
       content_value: data.content_value,
-      is_completed: false,
+      is_completed: data.is_completed ?? false,
       is_published: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

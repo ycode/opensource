@@ -5,9 +5,17 @@ import { Icon } from '@/components/ui/icon';
 import { Spinner } from '@/components/ui/spinner';
 import { Separator } from '@/components/ui/separator';
 import InputWithInlineVariables from '@/app/ycode/components/InputWithInlineVariables';
+import FileManagerDialog from '@/app/ycode/components/FileManagerDialog';
 import { sanitizeSlug, checkDuplicatePageSlug, checkDuplicateFolderSlug, type ValidationResult } from '@/lib/page-utils';
 import type { TranslatableItem } from '@/lib/localisation-utils';
-import type { Translation, CollectionField, Collection, CreateTranslationData, UpdateTranslationData, Page, PageFolder } from '@/types';
+import type { Translation, CollectionField, Collection, CreateTranslationData, UpdateTranslationData, Page, PageFolder, Asset } from '@/types';
+import { useAsset } from '@/hooks/use-asset';
+import { getAssetIcon, isAssetOfType, getAssetCategoryFromMimeType, ASSET_CATEGORIES } from '@/lib/asset-utils';
+import { buildAssetFolderPath } from '@/lib/asset-folder-utils';
+import { useAssetsStore } from '@/stores/useAssetsStore';
+import { toast } from 'sonner';
+import type { IconProps } from '@/components/ui/icon';
+import type { AssetCategory } from '@/types';
 
 interface TranslationRowProps {
   item: TranslatableItem;
@@ -59,6 +67,9 @@ export default function TranslationRow({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingStatus, setIsSavingStatus] = useState(false);
+  const [isAssetPickerOpen, setIsAssetPickerOpen] = useState(false);
+  const [pendingCompletions, setPendingCompletions] = useState<Record<string, boolean | null>>({});
+  const [isUpdatingCompletion, setIsUpdatingCompletion] = useState(false);
 
   // Get translation from store
   const translation = selectedLocaleId
@@ -70,6 +81,25 @@ export default function TranslationRow({
   const translationValue = localInputValues[item.key] !== undefined
     ? localInputValues[item.key]
     : storeValue;
+
+  // Check if this is an asset
+  const isAsset = item.content_type === 'asset_id';
+
+  // Get asset data for display
+  const sourceAsset = useAsset(isAsset ? item.content_value : null);
+  const translatedAsset = useAsset(isAsset ? translationValue : null);
+
+  // Determine which asset to display (translated if exists, otherwise source)
+  // In asset translation context, we always have at least sourceAsset
+  const displayedAsset = translatedAsset || sourceAsset;
+
+  // Get asset category from source asset for filtering
+  const assetCategory: AssetCategory | null = sourceAsset
+    ? getAssetCategoryFromMimeType(sourceAsset.mime_type)
+    : null;
+
+  // Get asset folders from assets store for building folder paths
+  const assetFolders = useAssetsStore((state) => state.folders);
 
   // Check if this is a slug field (supports both old 'slug' format and new 'field:key:slug' format)
   const isSlugField = item.content_key === 'slug' || item.content_key === 'field:key:slug';
@@ -160,7 +190,49 @@ export default function TranslationRow({
 
     const savePromise = translation
       ? updateTranslationValue(translation, finalValue)
-      : createTranslation(translationData);
+      : (() => {
+        // Start the creation (which creates optimistic translation synchronously)
+        const creationPromise = createTranslation(translationData);
+
+        // Capture temp-id after optimistic translation is created
+        const tempTranslation = getTranslationByKey(selectedLocaleId, item.key);
+        const tempId = tempTranslation?.id.startsWith('temp-') ? tempTranslation.id : null;
+
+        if (tempId) {
+          // Track temp-id with null (no pending completion update)
+          setPendingCompletions((prev) => ({
+            ...prev,
+            [tempId]: null,
+          }));
+        }
+
+        return creationPromise.then((newTranslation) => {
+          if (!newTranslation || !tempId) return;
+
+          // Read the desired completion value and remove from pending list
+          let desiredCompletion: boolean | null | undefined;
+          setPendingCompletions((prev) => {
+            desiredCompletion = prev[tempId];
+            const next = { ...prev };
+            delete next[tempId];
+            return next;
+          });
+
+          // Fire update outside of state setter to avoid render issues
+          if (desiredCompletion !== null && desiredCompletion !== undefined) {
+            setTimeout(() => {
+              setIsUpdatingCompletion(true);
+              updateTranslationStatus(newTranslation, desiredCompletion!)
+                .catch((error) => {
+                  console.error('Failed to update completion status after creation:', error);
+                })
+                .finally(() => {
+                  setIsUpdatingCompletion(false);
+                });
+            }, 0);
+          }
+        });
+      })();
 
     savePromise
       .catch((error) => {
@@ -182,22 +254,194 @@ export default function TranslationRow({
 
   // Toggle completed status
   const handleToggleCompleted = () => {
-    if (!selectedLocaleId || isSavingStatus) return;
+    if (!selectedLocaleId || isUpdatingCompletion) return;
 
     const translation = getTranslationByKey(selectedLocaleId, item.key);
 
-    // Skip if translation has a temporary ID (still being created)
-    if (translation && !translation.id.startsWith('temp-')) {
-      setIsSavingStatus(true);
+    // Fire and forget - don't block UI
+    if (translation) {
+      // Check if this translation is pending creation
+      if (translation.id.startsWith('temp-') && pendingCompletions[translation.id] !== undefined) {
+        // Translation is being created - just update the pending completion value
+        setPendingCompletions((prev) => ({
+          ...prev,
+          [translation.id]: !translation.is_completed,
+        }));
+        return;
+      }
 
-      updateTranslationStatus(translation, !translation.is_completed)
+      // Translation exists with real ID - toggle completion status
+      if (!translation.id.startsWith('temp-')) {
+        setIsUpdatingCompletion(true);
+        updateTranslationStatus(translation, !translation.is_completed)
+          .catch((error) => {
+            console.error('Failed to toggle completion status:', error);
+          })
+          .finally(() => {
+            setIsUpdatingCompletion(false);
+          });
+      }
+    } else {
+      // Check if there's a translation being created (has temp-id)
+      const tempTranslation = getTranslationByKey(selectedLocaleId, item.key);
+      const hasPendingCreation = tempTranslation?.id.startsWith('temp-');
+
+      if (hasPendingCreation && tempTranslation) {
+        // Translation is being created - track completion for when it's created
+        const tempId = tempTranslation.id;
+        setPendingCompletions((prev) => ({
+          ...prev,
+          [tempId]: true,
+        }));
+        return;
+      }
+
+      // No pending creation - create translation with is_completed in single query
+      const translationData: CreateTranslationData = {
+        locale_id: selectedLocaleId,
+        source_type: item.source_type as CreateTranslationData['source_type'],
+        source_id: item.source_id,
+        content_key: item.content_key,
+        content_type: item.content_type as CreateTranslationData['content_type'],
+        content_value: '', // Empty string means "use original"
+        is_completed: true, // Set completion status directly
+      };
+
+      setIsUpdatingCompletion(true);
+      createTranslation(translationData)
         .catch((error) => {
-          console.error('Failed to toggle completion status:', error);
+          console.error('Failed to create translation:', error);
         })
         .finally(() => {
-          setIsSavingStatus(false);
+          setIsUpdatingCompletion(false);
         });
     }
+  };
+
+  // Handle asset selection
+  const handleAssetSelect = (asset: Asset): void | false => {
+    if (!selectedLocaleId) return false;
+
+    // Validate asset type matches source asset category
+    if (assetCategory && asset.mime_type) {
+      if (!isAssetOfType(asset.mime_type, assetCategory)) {
+        const categoryLabels: Record<AssetCategory, string> = {
+          images: 'an image',
+          videos: 'a video',
+          audio: 'an audio file',
+          icons: 'an icon',
+          documents: 'a document',
+        };
+
+        const expectedType = categoryLabels[assetCategory] || 'file with the correct type';
+
+        toast.error('Invalid asset type', {
+          description: `Please select ${expectedType}.`,
+        });
+
+        return false; // Don't close file manager
+      }
+    }
+
+    // Update local value with asset ID
+    onLocalValueChange(item.key, asset.id);
+
+    // Save immediately
+    const translationData: CreateTranslationData = {
+      locale_id: selectedLocaleId,
+      source_type: item.source_type as CreateTranslationData['source_type'],
+      source_id: item.source_id,
+      content_key: item.content_key,
+      content_type: item.content_type as CreateTranslationData['content_type'],
+      content_value: asset.id,
+    };
+
+    setIsSaving(true);
+
+    const savePromise = translation
+      ? updateTranslationValue(translation, asset.id)
+      : createTranslation(translationData);
+
+    savePromise
+      .catch((error) => {
+        console.error('Failed to save asset translation:', error);
+      })
+      .finally(() => {
+        setIsSaving(false);
+        setIsAssetPickerOpen(false);
+      });
+  };
+
+  // Get folder path for an asset
+  const getAssetFolderPath = (asset: Asset | null): string | null => {
+    if (!asset) {
+      return null;
+    }
+
+    // If asset has no folder, show "All files" as root
+    if (!asset.asset_folder_id) {
+      return 'All files';
+    }
+
+    const folder = assetFolders.find((f) => f.id === asset.asset_folder_id);
+    if (!folder) {
+      return 'All files';
+    }
+
+    // Build folder path and prepend "All files / "
+    const folderPath = buildAssetFolderPath(folder, assetFolders) as string;
+    return `All files / ${folderPath}`;
+  };
+
+  // Render asset preview based on type
+  const renderAssetPreview = (asset: Asset) => {
+    const isIcon = asset.content && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS);
+    const isVideo = isAssetOfType(asset.mime_type, ASSET_CATEGORIES.VIDEOS);
+    const isAudio = isAssetOfType(asset.mime_type, ASSET_CATEGORIES.AUDIO);
+    const isImage = isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES) && !isIcon;
+    const folderPath = getAssetFolderPath(asset);
+
+    const showCheckerboard = isIcon || isImage;
+
+    return (
+      <>
+        <div className={`size-8 rounded overflow-hidden flex-shrink-0 flex items-center justify-center relative`}>
+          {/* Checkerboard pattern for transparency - only for images and icons */}
+          {showCheckerboard
+            ? <div className="absolute inset-0 opacity-10 bg-checkerboard" />
+            : <div className="absolute inset-0 bg-secondary" />
+          }
+          {isIcon && asset.content ? (
+            // Render SVG icon content
+            <div
+              data-icon="true"
+              className="relative w-full h-full flex items-center justify-center text-foreground p-1 z-10"
+              dangerouslySetInnerHTML={{ __html: asset.content }}
+            />
+          ) : isVideo || isAudio ? (
+            // Show icon for video/audio
+            <Icon name={getAssetIcon(asset.mime_type) as IconProps['name']} className="size-4 opacity-50 relative z-10" />
+          ) : isImage && asset.public_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={asset.public_url}
+              alt={asset.filename}
+              className="relative w-full h-full object-cover z-10"
+            />
+          ) : (
+            // Fallback icon
+            <Icon name={getAssetIcon(asset.mime_type) as IconProps['name']} className="size-4 opacity-50 relative z-10" />
+          )}
+        </div>
+
+        <div className="flex flex-col min-w-0 flex-1">
+          <span className="text-xs truncate text-foreground/80">{asset.filename}</span>
+          {folderPath && (
+            <span className="text-[11px] text-muted-foreground/70 truncate">{folderPath}</span>
+          )}
+        </div>
+      </>
+    );
   };
 
   return (
@@ -223,19 +467,19 @@ export default function TranslationRow({
         <div className="flex items-center gap-1.5">
           <button
             onClick={handleToggleCompleted}
-            disabled={isSavingStatus || !translation || translation.id.startsWith('temp-')}
-            className={`flex items-center justify-center pl-2 pr-2.5 py-0.75 gap-1.25 rounded-sm transition-colors cursor-pointer ${translation?.is_completed ? 'bg-green-400/6' : 'bg-secondary/50'} disabled:opacity-50 disabled:cursor-not-allowed`}
-            title={isSavingStatus ? 'Saving...' : (translation?.is_completed ? 'Mark as not completed' : 'Mark as completed')}
+            disabled={isUpdatingCompletion}
+            className={`flex items-center justify-center pl-2 pr-2.5 py-0.75 gap-1.25 rounded-sm transition-colors cursor-pointer ${translation?.is_completed === true ? 'bg-green-400/6' : 'bg-secondary/50'} disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={isUpdatingCompletion ? 'Updating...' : (translation?.is_completed === true ? 'Mark as not completed' : 'Mark as completed')}
           >
             {isSavingStatus ? (
               <Spinner className="size-3 text-muted-foreground/50" />
-            ) : translation?.is_completed ? (
+            ) : translation?.is_completed === true ? (
               <Icon name="check" className="size-3 text-green-600 dark:text-green-400" />
             ) : (
               <Icon name="block" className="size-2.25 text-muted-foreground/50" />
             )}
 
-            <span className="text-[10px] uppercase font-medium text-muted-foreground">{translation?.is_completed ? 'Done' : 'To do'}</span>
+            <span className="text-[10px] uppercase font-medium text-muted-foreground">{translation?.is_completed === true ? 'Done' : 'To do'}</span>
           </button>
         </div>
       </div>
@@ -243,40 +487,70 @@ export default function TranslationRow({
       <div className="flex items-center gap-2">
         <div className="w-full grid grid-cols-2 gap-2">
           {/* Left side (default locale value, read-only) */}
-          <div className="text-sm opacity-50">
-            <InputWithInlineVariables
-              value={item.content_value}
-              onChange={() => {}} // Read-only on left side
-              placeholder=""
-              fields={pageFields}
-              fieldSourceLabel={fieldSourceLabel}
-              allFields={allFields}
-              collections={collections}
-              disabled={true}
-            />
-          </div>
+          {isAsset && sourceAsset ? (
+            <div className="flex items-center gap-2 p-2 border border-border/50 rounded-md bg-secondary/20 opacity-80">
+              {renderAssetPreview(sourceAsset)}
+            </div>
+          ) : (
+            <div className="text-sm opacity-50">
+              <InputWithInlineVariables
+                value={item.content_value}
+                onChange={() => {}} // Read-only on left side
+                placeholder=""
+                fields={pageFields}
+                fieldSourceLabel={fieldSourceLabel}
+                allFields={allFields}
+                collections={collections}
+                disabled={true}
+              />
+            </div>
+          )}
 
           {/* Right side (translation value, editable) */}
           <div className="flex flex-col gap-1">
-            <InputWithInlineVariables
-              value={translationValue}
-              onChange={handleTranslationChange}
-              onBlur={handleTranslationBlur}
-              placeholder="Enter translation..."
-              className={`min-h-[28px] [&_.ProseMirror]:py-1 [&_.ProseMirror]:px-2.5 [&_.ProseMirror]:!bg-transparent ${
-                validationError ? '[&_.ProseMirror]:!border-destructive' : ''
-              }`}
-              fields={pageFields}
-              fieldSourceLabel={fieldSourceLabel}
-              allFields={allFields}
-              collections={collections}
-            />
+            {isAsset ? (
+              <div
+                className="flex items-center gap-2 p-2 border border-border/50 rounded-md bg-secondary/20 cursor-pointer hover:bg-secondary/35 transition-colors"
+                onClick={() => setIsAssetPickerOpen(true)}
+              >
+                {displayedAsset && (
+                  <>
+                    {renderAssetPreview(displayedAsset)}
+                  </>
+                )}
+              </div>
+            ) : (
+              <InputWithInlineVariables
+                value={translationValue}
+                onChange={handleTranslationChange}
+                onBlur={handleTranslationBlur}
+                placeholder={translation?.is_completed === true ? item.content_value : 'Enter translation...'}
+                className={`min-h-[28px] [&_.ProseMirror]:py-1 [&_.ProseMirror]:px-2.5 [&_.ProseMirror]:!bg-transparent ${
+                  validationError ? '[&_.ProseMirror]:!border-destructive' : ''
+                }`}
+                fields={pageFields}
+                fieldSourceLabel={fieldSourceLabel}
+                allFields={allFields}
+                collections={collections}
+              />
+            )}
             {validationError && (
               <span className="text-[11px] text-destructive">{validationError}</span>
             )}
           </div>
         </div>
       </div>
+
+      {/* Asset Picker Dialog */}
+      {isAsset && (
+        <FileManagerDialog
+          open={isAssetPickerOpen}
+          onOpenChange={setIsAssetPickerOpen}
+          onAssetSelect={handleAssetSelect}
+          assetId={translationValue || item.content_value || null}
+          category={assetCategory || undefined}
+        />
+      )}
     </li>
   );
 }

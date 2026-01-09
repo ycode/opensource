@@ -39,9 +39,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { locale_id, source_type, source_id, content_key, content_type, content_value } = body;
+    const { locale_id, source_type, source_id, content_key, content_type, content_value, is_completed } = body;
 
-    if (!locale_id || !source_type || !source_id || !content_key || !content_type || !content_value) {
+    // Validate required fields (content_value can be empty string to indicate "use original")
+    if (!locale_id || !source_type || !source_id || !content_key || !content_type || content_value === undefined || content_value === null) {
       return NextResponse.json(
         { error: 'Missing required fields: locale_id, source_type, source_id, content_key, content_type, content_value' },
         { status: 400 }
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       content_key,
       content_type,
       content_value,
+      is_completed: is_completed ?? false,
     });
 
     return NextResponse.json({ data: translation }, { status: 201 });

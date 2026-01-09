@@ -22,6 +22,7 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { buildFolderPath, getPageIcon } from '@/lib/page-utils';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
 import type { Locale, LocaleOption } from '@/types';
 
 interface LocalizationContentProps {
@@ -575,10 +576,20 @@ export default function LocalizationContent({ children }: LocalizationContentPro
               </div>
             </div>
 
-            {/* Default locale selected overlay */}
-            {selectedLocale.is_default ? (
+            {/* Loading state */}
+            {isLoading.loadTranslations ? (
+              <div className="flex items-center justify-center flex-1">
+                <div className="flex flex-col items-center gap-3">
+                  <Spinner />
+                  <p className="text-sm text-muted-foreground">Loading translations...</p>
+                </div>
+              </div>
+            ) : (
               <>
-                <Empty>
+                {/* Default locale selected overlay */}
+                {selectedLocale.is_default ? (
+                  <>
+                    <Empty>
                   <EmptyMedia variant="icon">
                     <Icon name="globe" className="size-4" />
                   </EmptyMedia>
@@ -588,11 +599,11 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                   </EmptyDescription>
                 </Empty>
 
-                <div className="flex-1"></div>
-              </>
-            ) : (
-              <>
-                {selectedContentType === 'pages' && (
+                    <div className="flex-1"></div>
+                  </>
+                ) : (
+                  <>
+                    {selectedContentType === 'pages' && (
                   <div>
                     {sortedPages.length === 0 ? (
                       <div className="p-8 text-center text-muted-foreground text-sm">
@@ -652,7 +663,6 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                             </header>
 
                             {isExpanded && (() => {
-
                               // Get fields for this page's collection (if dynamic)
                               const pageCollectionId = page.settings?.cms?.collection_id;
                               const pageFields = pageCollectionId ? (allFields[pageCollectionId] || []) : [];
@@ -691,28 +701,28 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                       })
                     )}
                   </div>
-                )}
+                    )}
 
                 {selectedContentType === 'folders' && (
-                  <div>
-                    {sortedFolders.length === 0 ? (
+                    <div>
+                      {sortedFolders.length === 0 ? (
                       <div className="p-8 text-center text-muted-foreground text-sm">
                         No folders found
                       </div>
-                    ) : (
-                      sortedFolders.map((folder) => {
-                        const selectedLocale = locales.find(l => l.id === selectedLocaleId);
-                        const translatableItems = extractFolderTranslatableItems(folder, selectedLocale);
-                        const filteredItems = filterTranslatableItems(translatableItems);
+                      ) : (
+                        sortedFolders.map((folder) => {
+                          const selectedLocale = locales.find(l => l.id === selectedLocaleId);
+                          const translatableItems = extractFolderTranslatableItems(folder, selectedLocale);
+                          const filteredItems = filterTranslatableItems(translatableItems);
 
-                        if (filteredItems.length === 0) {
-                          return null;
-                        }
+                          if (filteredItems.length === 0) {
+                            return null;
+                          }
 
-                        // Build full folder path for display
-                        const folderPath = buildFolderPath(folder, storeFolders, true) as string[];
+                          // Build full folder path for display
+                          const folderPath = buildFolderPath(folder, storeFolders, true) as string[];
 
-                        return (
+                          return (
                           <div key={folder.id}>
                             <header className="sticky top-16 z-[5] border-b bg-background">
                               <div className="p-4 flex items-center gap-1.5 bg-secondary/10">
@@ -761,9 +771,9 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                               ))}
                             </ul>
                           </div>
-                        );
-                      })
-                    )}
+                          );
+                        })
+                      )}
                   </div>
                 )}
 
@@ -911,9 +921,11 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                     )}
                   </div>
                 )}
+                  </>
+                )}
               </>
             )}
-          </div>
+            </div>
         ) : (
           children
         )}
