@@ -16,6 +16,7 @@ export interface PaginationContext {
   defaultPage?: number;
 }
 import { resolveInlineVariables } from '@/lib/inline-variables';
+import { buildLayerTranslationKey, getTranslationByKey, hasValidTranslationValue, getTranslationValue } from '@/lib/localisation-utils';
 
 export interface PageData {
   page: Page;
@@ -678,41 +679,48 @@ function injectTranslatedText(
     const updates: Partial<Layer> = {};
     const variableUpdates: Partial<Layer['variables']> = {};
 
-    // Get source prefix (page or component)
-    const sourcePrefix = layer._masterComponentId
-      ? `component:${layer._masterComponentId}`
-      : `page:${pageId}`;
-
     // 1. Inject text translation
-    const textTranslationKey = `${sourcePrefix}:layer:${layer.id}:text`;
-    const textTranslation = translations[textTranslationKey];
+    const textTranslationKey = buildLayerTranslationKey(pageId, `layer:${layer.id}:text`, layer._masterComponentId);
+    const textTranslation = getTranslationByKey(translations, textTranslationKey);
 
-    if (textTranslation && textTranslation.content_value && textTranslation.content_value.trim() !== '') {
-      variableUpdates.text = createDynamicTextVariable(textTranslation.content_value);
+    const textValue = getTranslationValue(textTranslation);
+    if (textValue) {
+      variableUpdates.text = createDynamicTextVariable(textValue);
     }
 
     // 2. Inject asset translations for media layers
-    // Image layer - translate src
+    // Image layer - translate src and alt text
     if (layer.name === 'image') {
-      const imageSrcKey = `${sourcePrefix}:layer:${layer.id}:image_src`;
-      const imageSrcTranslation = translations[imageSrcKey];
-      
-      if (imageSrcTranslation && imageSrcTranslation.content_value) {
-        variableUpdates.image = {
-          ...layer.variables?.image,
-          src: createAssetVariable(imageSrcTranslation.content_value),
-          alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
-        };
+      const imageSrcKey = buildLayerTranslationKey(pageId, `layer:${layer.id}:image_src`, layer._masterComponentId);
+      const imageSrcTranslation = getTranslationByKey(translations, imageSrcKey);
+      const imageAltKey = buildLayerTranslationKey(pageId, `layer:${layer.id}:image_alt`, layer._masterComponentId);
+      const imageAltTranslation = getTranslationByKey(translations, imageAltKey);
+
+      if (imageSrcTranslation || imageAltTranslation) {
+        const imageUpdates: any = { ...layer.variables?.image };
+
+        if (imageSrcTranslation && imageSrcTranslation.content_value) {
+          imageUpdates.src = createAssetVariable(imageSrcTranslation.content_value);
+        }
+
+        const imageAltValue = getTranslationValue(imageAltTranslation);
+        if (imageAltValue) {
+          imageUpdates.alt = createDynamicTextVariable(imageAltValue);
+        } else {
+          // Preserve original alt if no translation
+          imageUpdates.alt = layer.variables?.image?.alt || createDynamicTextVariable('');
+        }
+
+        variableUpdates.image = imageUpdates;
       }
     }
 
     // Video layer - translate src and poster
     if (layer.name === 'video') {
-      const videoSrcKey = `${sourcePrefix}:layer:${layer.id}:video_src`;
-      const videoSrcTranslation = translations[videoSrcKey];
-      
-      const videoPosterKey = `${sourcePrefix}:layer:${layer.id}:video_poster`;
-      const videoPosterTranslation = translations[videoPosterKey];
+      const videoSrcKey = buildLayerTranslationKey(pageId, `layer:${layer.id}:video_src`, layer._masterComponentId);
+      const videoSrcTranslation = getTranslationByKey(translations, videoSrcKey);
+      const videoPosterKey = buildLayerTranslationKey(pageId, `layer:${layer.id}:video_poster`, layer._masterComponentId);
+      const videoPosterTranslation = getTranslationByKey(translations, videoPosterKey);
 
       if (videoSrcTranslation || videoPosterTranslation) {
         const videoUpdates: any = { ...layer.variables?.video };
@@ -731,9 +739,9 @@ function injectTranslatedText(
 
     // Audio layer - translate src
     if (layer.name === 'audio') {
-      const audioSrcKey = `${sourcePrefix}:layer:${layer.id}:audio_src`;
-      const audioSrcTranslation = translations[audioSrcKey];
-      
+      const audioSrcKey = buildLayerTranslationKey(pageId, `layer:${layer.id}:audio_src`, layer._masterComponentId);
+      const audioSrcTranslation = getTranslationByKey(translations, audioSrcKey);
+
       if (audioSrcTranslation && audioSrcTranslation.content_value) {
         variableUpdates.audio = {
           src: createAssetVariable(audioSrcTranslation.content_value),
@@ -743,9 +751,9 @@ function injectTranslatedText(
 
     // Icon layer - translate src
     if (layer.name === 'icon') {
-      const iconSrcKey = `${sourcePrefix}:layer:${layer.id}:icon_src`;
-      const iconSrcTranslation = translations[iconSrcKey];
-      
+      const iconSrcKey = buildLayerTranslationKey(pageId, `layer:${layer.id}:icon_src`, layer._masterComponentId);
+      const iconSrcTranslation = getTranslationByKey(translations, iconSrcKey);
+
       if (iconSrcTranslation && iconSrcTranslation.content_value) {
         variableUpdates.icon = {
           src: createAssetVariable(iconSrcTranslation.content_value),
@@ -845,8 +853,9 @@ function applyCmsTranslations(
     const translationKey = `cms:${itemId}:${contentKey}`;
     const translation = translations[translationKey];
 
-    if (translation && translation.content_value && translation.content_value.trim() !== '') {
-      translatedValues[fieldId] = translation.content_value;
+    const translatedValue = getTranslationValue(translation);
+    if (translatedValue) {
+      translatedValues[fieldId] = translatedValue;
     }
   }
 

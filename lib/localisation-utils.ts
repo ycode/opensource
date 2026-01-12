@@ -279,6 +279,26 @@ export function extractLayerText(layer: Layer): string | null {
 }
 
 /**
+ * Extract alt text from an image layer
+ * @param layer - Layer with image variables
+ * @returns Alt text content or null if not available
+ */
+export function extractImageAltText(layer: Layer): string | null {
+  // Only use variables.image.alt (DynamicTextVariable)
+  if (!layer.variables?.image?.alt || layer.variables.image.alt.type !== 'dynamic_text') {
+    return null;
+  }
+
+  const altText = layer.variables.image.alt.data.content;
+
+  if (!altText || !altText.trim()) {
+    return null;
+  }
+
+  return altText.trim();
+}
+
+/**
  * Recursively extract all translatable text items from layers
  */
 function extractLayerTranslatableItems(
@@ -310,10 +330,11 @@ function extractLayerTranslatableItems(
     }
 
     // Extract asset IDs from media layers
-    // Image layer - extract src asset
-    if (layer.name === 'image' && layer.variables?.image?.src) {
+    // Image layer - extract src asset and alt text
+    if (layer.name === 'image' && layer.variables?.image) {
+      // Extract image src asset
       const imageSrc = layer.variables.image.src;
-      if (imageSrc.type === 'asset' && imageSrc.data?.asset_id) {
+      if (imageSrc && imageSrc.type === 'asset' && imageSrc.data?.asset_id) {
         items.push({
           key: `${sourceType}:${sourceId}:layer:${layer.id}:image_src`,
           source_type: sourceType,
@@ -324,6 +345,23 @@ function extractLayerTranslatableItems(
           info: {
             icon: 'image',
             label: `${getLayerName(layer)} (source)`,
+          },
+        });
+      }
+
+      // Extract image alt text
+      const imageAlt = extractImageAltText(layer);
+      if (imageAlt) {
+        items.push({
+          key: `${sourceType}:${sourceId}:layer:${layer.id}:image_alt`,
+          source_type: sourceType,
+          source_id: sourceId,
+          content_key: `layer:${layer.id}:image_alt`,
+          content_type: 'text',
+          content_value: imageAlt,
+          info: {
+            icon: 'image',
+            label: `${getLayerName(layer)} (alt text)`,
           },
         });
       }
@@ -609,6 +647,60 @@ export function getTranslatableKey(
 }
 
 /**
+ * Build translation key for a layer
+ * Format: {sourcePrefix}:{contentKey}
+ * @param pageId - Page ID
+ * @param contentKey - Content key (e.g., 'layer:layer-id:image_src')
+ * @param masterComponentId - Optional component ID if layer is from a component
+ * @returns Translation key string
+ */
+export function buildLayerTranslationKey(
+  pageId: string,
+  contentKey: string,
+  masterComponentId?: string | undefined
+): string {
+  const sourcePrefix = masterComponentId
+    ? `component:${masterComponentId}`
+    : `page:${pageId}`;
+  return `${sourcePrefix}:${contentKey}`;
+}
+
+/**
+ * Get translation from translations map by key
+ * @param translations - Translations map (keyed by translatable key)
+ * @param translationKey - Full translation key to lookup
+ * @returns Translation object or undefined if not found
+ */
+export function getTranslationByKey(
+  translations: Record<string, Translation> | null | undefined,
+  translationKey: string
+): Translation | undefined {
+  if (!translations) return undefined;
+  return translations[translationKey];
+}
+
+/**
+ * Check if a translation has a valid non-empty text value
+ * @param translation - Translation object or undefined
+ * @returns True if translation exists and has non-empty content_value
+ */
+export function hasValidTranslationValue(translation: Translation | undefined): boolean {
+  return !!(translation && translation.content_value && translation.content_value.trim() !== '');
+}
+
+/**
+ * Get translation value if valid, otherwise return undefined
+ * @param translation - Translation object or undefined
+ * @returns Content value if valid, undefined otherwise
+ */
+export function getTranslationValue(translation: Translation | undefined): string | undefined {
+  if (hasValidTranslationValue(translation)) {
+    return translation!.content_value;
+  }
+  return undefined;
+}
+
+/**
  * Extract all layer content as a key-value map
  * Returns map of content keys to their values
  * Format: { "layer:{id}:text": "content", "layer:{id}:alt": "alt text" }
@@ -651,17 +743,42 @@ export function getTranslatedAssetId(
 ): string | undefined {
   if (!originalAssetId || !translations || !pageId) return originalAssetId;
 
-  // Build translation key based on whether this layer is from a component or page
-  const sourcePrefix = masterComponentId
-    ? `component:${masterComponentId}`
-    : `page:${pageId}`;
-  const translationKey = `${sourcePrefix}:${contentKey}`;
+  const translationKey = buildLayerTranslationKey(pageId, contentKey, masterComponentId);
+  const translation = getTranslationByKey(translations, translationKey);
 
-  // Look up translation
-  const translation = translations[translationKey];
-  if (translation && translation.content_value && translation.content_value.trim() !== '') {
-    return translation.content_value;
+  const translatedValue = getTranslationValue(translation);
+  if (translatedValue) {
+    return translatedValue;
   }
 
   return originalAssetId;
+}
+
+/**
+ * Get translated text if a translation exists
+ * @param originalText - Original text value
+ * @param contentKey - Content key for translation lookup (e.g., 'layer:layer-id:image_alt')
+ * @param translations - Translations map for the current locale (keyed by translatable key)
+ * @param pageId - Page ID for building translation keys
+ * @param masterComponentId - Optional component ID if layer is from a component
+ * @returns Translated text or original if no translation exists
+ */
+export function getTranslatedText(
+  originalText: string | undefined,
+  contentKey: string,
+  translations: Record<string, Translation> | null | undefined,
+  pageId: string | undefined,
+  masterComponentId?: string | undefined
+): string | undefined {
+  if (!originalText || !translations || !pageId) return originalText;
+
+  const translationKey = buildLayerTranslationKey(pageId, contentKey, masterComponentId);
+  const translation = getTranslationByKey(translations, translationKey);
+
+  const translatedValue = getTranslationValue(translation);
+  if (translatedValue) {
+    return translatedValue;
+  }
+
+  return originalText;
 }

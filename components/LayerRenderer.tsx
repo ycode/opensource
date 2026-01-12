@@ -13,7 +13,7 @@ import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
 import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent } from '@/lib/variable-utils';
-import { getTranslatedAssetId } from '@/lib/localisation-utils';
+import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-utils';
 import { DEFAULT_ASSETS } from '@/lib/asset-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
@@ -290,7 +290,16 @@ const LayerItem: React.FC<{
     effectiveCollectionItemData
   );
 
-  const imageAlt = getDynamicTextContent(layer.variables?.image?.alt) || 'Image';
+  // Get image alt text and apply translation if available
+  const originalImageAlt = getDynamicTextContent(layer.variables?.image?.alt) || 'Image';
+  const translatedImageAlt = getTranslatedText(
+    originalImageAlt,
+    `layer:${layer.id}:image_alt`,
+    translations,
+    pageId,
+    layer._masterComponentId
+  ) || 'Image';
+  const imageAlt = translatedImageAlt;
 
   // Handle component instances - only fetch from store in edit mode
   // In published pages, components are pre-resolved server-side via resolveComponents()

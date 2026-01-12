@@ -43,6 +43,7 @@ import { useAssetsStore } from '@/stores/useAssetsStore';
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
 import type { IframeToParentMessage } from '@/lib/iframe-bridge';
 import { buildPageTree, getNodeIcon, findHomepage, buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
+import { getTranslationValue } from '@/lib/localisation-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
 import { getCollectionVariable, canDeleteLayer, findLayerById } from '@/lib/layer-utils';
@@ -562,8 +563,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
             const translationKey = `cms:${currentPageCollectionItemId}:${contentKey}`;
             const translation = localeTranslations[translationKey];
 
-            if (translation && translation.content_value && translation.content_value.trim()) {
-              slugValue = translation.content_value.trim();
+            const translatedSlug = getTranslationValue(translation);
+            if (translatedSlug) {
+              slugValue = translatedSlug;
             }
           }
         }

@@ -4,6 +4,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import { findHomepage } from '@/lib/page-utils';
+import { getTranslationValue } from '@/lib/localisation-utils';
 import { formatRelativeTime } from '@/lib/utils';
 import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -185,8 +186,9 @@ export default function HeaderBar({
         const translationKey = `cms:${currentPageCollectionItemId}:${contentKey}`;
         const translation = localeTranslations[translationKey];
 
-        if (translation && translation.content_value && translation.content_value.trim()) {
-          slugValue = translation.content_value.trim();
+        const translatedSlug = getTranslationValue(translation);
+        if (translatedSlug) {
+          slugValue = translatedSlug;
         }
       }
     }
