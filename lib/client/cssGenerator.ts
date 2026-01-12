@@ -101,12 +101,7 @@ export async function generateCSS(layers: Layer[]): Promise<string> {
 <head>
   <meta charset="UTF-8">
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <style type="text/tailwindcss">
-    @theme {
-      --breakpoint-max-lg: 1023px;
-      --breakpoint-max-md: 767px;
-    }
-  </style>
+  <style type="text/tailwindcss"></style>
 </head>
 <body>
   ${htmlContent}
