@@ -613,4 +613,312 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
       'customName': 'Section'
     },
   },
+
+  'hero-003': {
+    category: 'Hero',
+    previewImage: '/layouts/hero-003.webp',
+    template: {
+      'name': 'section',
+      'classes': 'flex flex-col items-center pt-[140px] pb-[140px]',
+      'children': [
+        {
+          'name': 'div',
+          'classes': 'flex flex-col max-w-[1280px] w-[100%] pl-[32px] pr-[32px]',
+          'children': [
+            {
+              'name': 'div',
+              'classes': 'grid grid-cols-[repeat(2,_1fr)] gap-[72px] items-center max-lg:grid-cols-[repeat(1,_1fr)]',
+              'children': [
+                {
+                  'name': 'div',
+                  'classes': 'flex flex-col gap-[16px]',
+                  'children': [
+                    {
+                      'name': 'heading',
+                      'settings': {
+                        'tag': 'h1'
+                      },
+                      'classes': 'font-[700] leading-[1.1] tracking-[-0.02em] text-[60px] max-md:text-[36px]',
+                      'restrictions': {
+                        'editText': true
+                      },
+                      'design': {
+                        'typography': {
+                          'isActive': true,
+                          'fontSize': '36',
+                          'fontWeight': '700',
+                          'lineHeight': '1.1',
+                          'letterSpacing': '-0.02'
+                        }
+                      },
+                      'variables': {
+                        'text': {
+                          'type': 'dynamic_text',
+                          'data': {
+                            'content': 'Build professional websites easy, fast, and affordable'
+                          }
+                        }
+                      },
+                      'customName': 'Heading'
+                    },
+                    {
+                      'name': 'p',
+                      'classes': 'text-[20px] text-[#000000]/60',
+                      'restrictions': {
+                        'editText': true
+                      },
+                      'children': [],
+                      'design': {
+                        'typography': {
+                          'color': '#000000/60',
+                          'fontSize': '20',
+                          'isActive': true
+                        }
+                      },
+                      'variables': {
+                        'text': {
+                          'type': 'dynamic_text',
+                          'data': {
+                            'content': 'Visually build and design beautiful, responsive web projects without compromising your vision.'
+                          }
+                        }
+                      },
+                      'customName': 'Paragraph'
+                    },
+                    {
+                      'name': 'div',
+                      'design': {
+                        'layout': {
+                          'gap': '8',
+                          'display': 'flex',
+                          'isActive': true,
+                          'flexDirection': 'column'
+                        }
+                      },
+                      'classes': 'flex gap-[8px] max-md:flex max-md:flex-col',
+                      'children': [
+                        {
+                          'name': 'button',
+                          'design': {
+                            'borders': {
+                              'isActive': true,
+                              'borderRadius': '0.5rem'
+                            },
+                            'spacing': {
+                              'isActive': true,
+                              'paddingTop': '0.5rem',
+                              'paddingLeft': '1.5rem',
+                              'paddingRight': '1.5rem',
+                              'paddingBottom': '0.5rem'
+                            },
+                            'typography': {
+                              'color': '#ffffff',
+                              'fontSize': '16px',
+                              'isActive': true
+                            },
+                            'backgrounds': {
+                              'isActive': true,
+                              'backgroundColor': '#2563eb'
+                            }
+                          },
+                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717]',
+                          'children': [
+                            {
+                              'name': 'span',
+                              'design': {
+                                'typography': {
+                                  'fontSize': '16px',
+                                  'isActive': true
+                                }
+                              },
+                              'classes': 'text-[16px]',
+                              'children': [],
+                              'variables': {
+                                'text': {
+                                  'data': {
+                                    'content': 'Get started'
+                                  },
+                                  'type': 'dynamic_text'
+                                }
+                              },
+                              'restrictions': {
+                                'editText': true
+                              }
+                            }
+                          ],
+                          'attributes': {
+                            'type': 'button'
+                          },
+                          'customName': 'Button'
+                        },
+                        {
+                          'name': 'button',
+                          'design': {
+                            'borders': {
+                              'isActive': true,
+                              'borderRadius': '0.5rem'
+                            },
+                            'spacing': {
+                              'isActive': true,
+                              'paddingTop': '0.5rem',
+                              'paddingLeft': '1.5rem',
+                              'paddingRight': '1.5rem',
+                              'paddingBottom': '0.5rem'
+                            },
+                            'typography': {
+                              'color': '#171717',
+                              'fontSize': '16px',
+                              'isActive': true
+                            },
+                            'backgrounds': {
+                              'isActive': true,
+                              'backgroundColor': '#e5e5e5'
+                            }
+                          },
+                          'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] text-[#171717] bg-[#e5e5e5]',
+                          'children': [
+                            {
+                              'name': 'span',
+                              'design': {
+                                'typography': {
+                                  'fontSize': '16px',
+                                  'isActive': true
+                                }
+                              },
+                              'classes': 'text-[16px]',
+                              'children': [],
+                              'variables': {
+                                'text': {
+                                  'data': {
+                                    'content': 'Learn more'
+                                  },
+                                  'type': 'dynamic_text'
+                                }
+                              },
+                              'restrictions': {
+                                'editText': true
+                              }
+                            }
+                          ],
+                          'attributes': {
+                            'type': 'button'
+                          },
+                          'customName': 'Button'
+                        }
+                      ],
+                      'customName': 'Columns'
+                    }
+                  ],
+                  'design': {
+                    'layout': {
+                      'isActive': true,
+                      'display': 'Flex',
+                      'flexDirection': 'column',
+                      'gap': '16px'
+                    }
+                  },
+                  'customName': 'Rows'
+                },
+                {
+                  'name': 'div',
+                  'classes': 'flex flex-col',
+                  'children': [
+                    {
+                      'name': 'image',
+                      'settings': {
+                        'tag': 'img'
+                      },
+                      'classes': 'w-[100%] min-h-[440px] object-cover rounded-[24px]',
+                      'attributes': {
+                        'loading': 'lazy'
+                      },
+                      'design': {
+                        'sizing': {
+                          'isActive': true,
+                          'width': '[100%]',
+                          'minHeight': '440',
+                          'objectFit': 'cover'
+                        },
+                        'borders': {
+                          'borderRadius': '24',
+                          'isActive': true
+                        }
+                      },
+                      'variables': {
+                        'image': {
+                          'src': {
+                            'type': 'dynamic_text',
+                            'data': {
+                              'content': 'https://app.ycode.com/images/layouts/image-v7rjaWPn4Dd0YIEQoyCUm59jmzwsHM8tRUJ756RV.webp'
+                            }
+                          },
+                          'alt': {
+                            'type': 'dynamic_text',
+                            'data': {
+                              'content': ''
+                            }
+                          }
+                        }
+                      },
+                      'customName': 'Image'
+                    }
+                  ],
+                  'design': {
+                    'layout': {
+                      'isActive': true,
+                      'display': 'Flex',
+                      'flexDirection': 'column'
+                    }
+                  },
+                  'customName': 'Block'
+                }
+              ],
+              'design': {
+                'layout': {
+                  'isActive': true,
+                  'display': 'Grid',
+                  'gap': '72',
+                  'gridTemplateColumns': 'repeat(1, 1fr)',
+                  'alignItems': 'center'
+                }
+              },
+              'customName': 'Grid'
+            }
+          ],
+          'design': {
+            'layout': {
+              'isActive': true,
+              'display': 'Flex',
+              'flexDirection': 'column'
+            },
+            'sizing': {
+              'isActive': true,
+              'width': '100%',
+              'maxWidth': '1280px'
+            },
+            'spacing': {
+              'isActive': true,
+              'paddingLeft': '32px',
+              'paddingRight': '32px'
+            }
+          },
+          'customName': 'Container'
+        }
+      ],
+      'design': {
+        'layout': {
+          'isActive': true,
+          'display': 'Flex',
+          'flexDirection': 'column',
+          'alignItems': 'center'
+        },
+        'spacing': {
+          'isActive': true,
+          'paddingTop': '140',
+          'paddingBottom': '140'
+        }
+      },
+      'customName': 'Section'
+    },
+  },
 };
