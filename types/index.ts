@@ -189,6 +189,11 @@ export type TweenProperties = {
   [K in TweenPropertyKey]?: string | null;
 };
 
+export interface TextStyle {
+  classes?: string;
+  design?: DesignProperties;
+}
+
 export interface Layer {
   id: string;
   key?: string; // Optional internal ID for the layer (i.e. "localeSelectorLabel")
@@ -237,6 +242,9 @@ export interface Layer {
     classes?: string;
     design?: DesignProperties;
   }; // Tracks local changes after style applied
+
+  // object of `{ styleName: TextStyle }`, e.g. `{ bold: { classes: 'font-bold', design: { typography: { fontWeight: 'bold' } } }, [...] }`
+  textStyles?: Record<string, TextStyle>;
 
   // Components (reusable layer trees)
   componentId?: string; // Reference to applied Component
@@ -764,11 +772,11 @@ export interface VideoVariable extends VariableType {
   };
 }
 
-// Dynamic Text Variable, contains text with inline variables
+// Dynamic Text Variable, contains text with formatting (bold, italic, underline, etc.) + inline variables
 export interface DynamicTextVariable extends VariableType {
   type: 'dynamic_text';
   data: {
-    content: string; // String with inline variables
+    content: string | object; // text as string or Tiptap JSON content with inline variables and formatting (bold, italic, underline, etc.)
   };
 }
 

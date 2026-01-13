@@ -3,6 +3,7 @@
  */
 
 import { BlockTemplate } from '@/types';
+import { DEFAULT_TEXT_STYLES } from '@/lib/text-styles';
 
 export const contentTemplates: Record<string, BlockTemplate> = {
   heading: {
@@ -30,7 +31,8 @@ export const contentTemplates: Record<string, BlockTemplate> = {
             content: 'Heading'
           }
         }
-      }
+      },
+      textStyles: DEFAULT_TEXT_STYLES
     }
   },
 
@@ -55,7 +57,8 @@ export const contentTemplates: Record<string, BlockTemplate> = {
             content: 'Text'
           }
         }
-      }
+      },
+      textStyles: DEFAULT_TEXT_STYLES
     }
   },
 
@@ -80,31 +83,8 @@ export const contentTemplates: Record<string, BlockTemplate> = {
             content: 'Text'
           }
         }
-      }
+      },
+      textStyles: DEFAULT_TEXT_STYLES
     }
   },
-
-  richtext: {
-    icon: 'rich-text',
-    name: 'Rich Text',
-    template: {
-      name: 'richtext',
-      classes: ['prose', 'max-w-none'],
-      restrictions: { editText: true },
-      children: [], // Can contain any elements
-      design: {
-        typography: {
-          isActive: true
-        }
-      },
-      variables: {
-        text: {
-          type: 'dynamic_text',
-          data: {
-            content: '<p>This is rich text content. You can format it with <strong>bold</strong>, <em>italic</em>, and more.</p>'
-          }
-        }
-      }
-    }
-  }
 };

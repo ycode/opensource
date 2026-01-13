@@ -3,10 +3,11 @@
  */
 
 import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, CollectionPaginationMeta, Asset } from '@/types';
+import type { IframeConstants } from '@/lib/iframe-constants';
 
 // Message types sent FROM parent TO iframe
 export type ParentToIframeMessage =
-  | { type: 'UPDATE_LAYERS'; payload: { layers: Layer[]; selectedLayerId: string | null; componentMap: Record<string, string>; editingComponentId: string | null; collectionItems: Record<string, CollectionItemWithValues[]>; collectionFields: Record<string, CollectionField[]>; pageCollectionItem?: CollectionItemWithValues | null; pageCollectionFields?: CollectionField[]; assets?: Record<string, Asset> } }
+  | { type: 'UPDATE_LAYERS'; payload: { layers: Layer[]; selectedLayerId: string | null; componentMap: Record<string, string>; editingComponentId: string | null; collectionItems: Record<string, CollectionItemWithValues[]>; collectionFields: Record<string, CollectionField[]>; pageCollectionItem?: CollectionItemWithValues | null; pageCollectionFields?: CollectionField[]; assets?: Record<string, Asset>; constants?: IframeConstants } }
   | { type: 'UPDATE_SELECTION'; payload: { layerId: string | null } }
   | { type: 'UPDATE_BREAKPOINT'; payload: { breakpoint: Breakpoint } }
   | { type: 'UPDATE_UI_STATE'; payload: { uiState: 'neutral' | 'hover' | 'focus' | 'active' | 'disabled' | 'current' } }
@@ -14,7 +15,27 @@ export type ParentToIframeMessage =
   | { type: 'HIGHLIGHT_DROP_ZONE'; payload: { layerId: string | null } }
   | { type: 'COLLECTION_LAYER_DATA'; payload: { layerId: string; items: CollectionItemWithValues[] } }
   | { type: 'UPDATE_HOVER'; payload: { layerId: string | null } }
-  | { type: 'UPDATE_PAGINATION_DATA'; payload: { layerId: string; items: CollectionItemWithValues[]; meta: CollectionPaginationMeta } };
+  | { type: 'UPDATE_PAGINATION_DATA'; payload: { layerId: string; items: CollectionItemWithValues[]; meta: CollectionPaginationMeta } }
+  | { type: 'INSERT_VARIABLE'; payload: { variable: { type: string; data: Record<string, unknown> }; label: string } };
+
+// Tiptap JSON content structure
+export interface TiptapContent {
+  type: 'doc';
+  content?: TiptapNode[];
+}
+
+export interface TiptapNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: TiptapNode[];
+  text?: string;
+  marks?: TiptapMark[];
+}
+
+export interface TiptapMark {
+  type: string;
+  attrs?: Record<string, unknown>;
+}
 
 // Message types sent FROM iframe TO parent
 export type IframeToParentMessage =
@@ -23,6 +44,9 @@ export type IframeToParentMessage =
   | { type: 'LAYER_DOUBLE_CLICK'; payload: { layerId: string } }
   | { type: 'TEXT_CHANGE_START'; payload: { layerId: string } }
   | { type: 'TEXT_CHANGE_END'; payload: { layerId: string; text: string } }
+  | { type: 'RICHTEXT_EDIT_START'; payload: { layerId: string } }
+  | { type: 'RICHTEXT_EDIT_END'; payload: { layerId: string; content: TiptapContent; plainText: string } }
+  | { type: 'REQUEST_VARIABLE_PICKER'; payload: { layerId: string } }
   | { type: 'DRAG_START'; payload: { layerId: string } }
   | { type: 'DRAG_OVER'; payload: { layerId: string | null; position: 'before' | 'after' | 'inside' } }
   | { type: 'DROP'; payload: { targetLayerId: string; position: 'before' | 'after' | 'inside'; sourceLayerId?: string } }
@@ -90,6 +114,9 @@ function isIframeToParentMessage(message: any): message is IframeToParentMessage
     'LAYER_DOUBLE_CLICK',
     'TEXT_CHANGE_START',
     'TEXT_CHANGE_END',
+    'RICHTEXT_EDIT_START',
+    'RICHTEXT_EDIT_END',
+    'REQUEST_VARIABLE_PICKER',
     'DRAG_START',
     'DRAG_OVER',
     'DROP',

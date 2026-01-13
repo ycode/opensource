@@ -18,6 +18,27 @@
       }
     </script>
 
+    <!-- Tiptap for rich text editing (loaded as ES modules) -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@tiptap/core": "https://esm.sh/@tiptap/core@3.10.5",
+          "@tiptap/pm": "https://esm.sh/@tiptap/pm@3.10.5",
+          "@tiptap/pm/state": "https://esm.sh/@tiptap/pm@3.10.5/state",
+          "@tiptap/pm/view": "https://esm.sh/@tiptap/pm@3.10.5/view",
+          "@tiptap/pm/model": "https://esm.sh/@tiptap/pm@3.10.5/model",
+          "@tiptap/pm/transform": "https://esm.sh/@tiptap/pm@3.10.5/transform",
+          "@tiptap/pm/commands": "https://esm.sh/@tiptap/pm@3.10.5/commands",
+          "@tiptap/pm/schema-list": "https://esm.sh/@tiptap/pm@3.10.5/schema-list",
+          "@tiptap/starter-kit": "https://esm.sh/@tiptap/starter-kit@3.10.7",
+          "@tiptap/extension-underline": "https://esm.sh/@tiptap/extension-underline@3.10.5",
+          "@tiptap/extension-text-style": "https://esm.sh/@tiptap/extension-text-style@3.10.5",
+          "@tiptap/extension-color": "https://esm.sh/@tiptap/extension-color@3.10.5",
+          "@tiptap/extension-placeholder": "https://esm.sh/@tiptap/extension-placeholder@3.11.0"
+        }
+      }
+    </script>
+
     <!-- Tailwind v4 Configuration (CSS-based) -->
     <style type="text/tailwindcss"></style>
 
@@ -44,8 +65,8 @@
         outline-offset: -2px;
       }
 
-      .ycode-hover {
-        outline: 1px solid #0b7efd !important;
+      .ycode-hover:not(.ycode-selected, .ycode-selected-purple) {
+        outline: 1px dashed #0b7efd !important;
         outline-offset: -1px;
       }
 
@@ -60,8 +81,14 @@
       }
 
       .ycode-editing {
-        outline: 1px solid #0b7efd !important;
+        outline: 2px solid #0b7efd !important;
         outline-offset: -1px;
+      }
+
+      /* Prevent Tiptap from adding ProseMirror-focused styles */
+      .ProseMirror-focused {
+        outline: none !important;
+        border: none !important;
       }
 
       .ycode-drop-target {
@@ -111,11 +138,139 @@
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
       }
 
-      /* Text editing input */
+      /* Text editing input (legacy) */
       .ycode-text-editor {
         width: 100%;
         outline: 1px solid #0b7efd !important;
         outline-offset: 0 !important;
+      }
+
+      /* Rich text editor (Tiptap) */
+      .ycode-richtext-editor {
+        outline: 1px solid #0b7efd !important;
+        outline-offset: 0 !important;
+        min-width: 50px;
+      }
+
+      .ycode-richtext-editor:focus {
+        outline: 1px solid #0b7efd !important;
+      }
+
+      /* Inline variable badges in editor */
+      .ycode-richtext-editor .ycode-inline-var {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        padding: 0 6px;
+        font-size: 10px;
+        font-weight: 500;
+        border-radius: 4px;
+        background-color: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+        white-space: nowrap;
+        user-select: none;
+        vertical-align: baseline;
+      }
+
+      /* Floating toolbar */
+      .ycode-toolbar {
+        position: fixed;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 4px;
+        background: #18181b;
+        border: 1px solid #27272a;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 10000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.15s, visibility 0.15s;
+      }
+
+      .ycode-toolbar.visible {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .ycode-toolbar-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border: none;
+        border-radius: 4px;
+        background: transparent;
+        color: #a1a1aa;
+        cursor: pointer;
+        transition: background 0.1s, color 0.1s;
+      }
+
+      .ycode-toolbar-btn:hover {
+        background: #27272a;
+        color: #fafafa;
+      }
+
+      .ycode-toolbar-btn.active {
+        background: #3b82f6;
+        color: #ffffff;
+      }
+
+      .ycode-toolbar-btn svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .ycode-toolbar-divider {
+        width: 1px;
+        height: 20px;
+        background: #27272a;
+        margin: 0 4px;
+      }
+
+      /* List styles for rendered content */
+      [data-layer-id] ul,
+      [data-layer-id] ol {
+        margin: 0.5em 0;
+        padding-left: 1.5em;
+      }
+
+      [data-layer-id] ul {
+        list-style-type: disc;
+      }
+
+      [data-layer-id] ol {
+        list-style-type: decimal;
+      }
+
+      [data-layer-id] li {
+        margin: 0.25em 0;
+        padding-left: 0.25em;
+      }
+
+      /* Text formatting styles - ensure HTML elements match Tailwind classes for consistency */
+      [data-layer-id] strong,
+      [data-layer-id] .font-bold {
+        font-weight: 700;
+      }
+
+      [data-layer-id] em,
+      [data-layer-id] .italic {
+        font-style: italic;
+      }
+
+      [data-layer-id] u,
+      [data-layer-id] .underline {
+        text-decoration: underline;
+      }
+
+      [data-layer-id] s,
+      [data-layer-id] .line-through {
+        text-decoration: line-through;
       }
 
       /* Empty element styling (exclude Body layer) */

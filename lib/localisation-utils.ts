@@ -1,6 +1,7 @@
 import type { Layer, Page, Translation, Locale, LocaleOption } from '@/types';
 import { getLayerIcon, getLayerName } from '@/lib/layer-utils';
 import type { IconProps } from '@/components/ui/icon';
+import { isTiptapContent, tiptapToPlainText } from '@/lib/tiptap-utils';
 
 /**
  * Supported locales with their metadata (ISO 639-1 codes)
@@ -269,7 +270,17 @@ export function extractLayerText(layer: Layer): string | null {
     return null;
   }
 
-  const text = layer.variables.text.data.content;
+  const content = layer.variables.text.data.content;
+
+  // Handle Tiptap JSON content
+  let text: string;
+  if (isTiptapContent(content)) {
+    text = tiptapToPlainText(content);
+  } else if (typeof content === 'string') {
+    text = content;
+  } else {
+    return null;
+  }
 
   if (!text || !text.trim()) {
     return null;
@@ -289,7 +300,17 @@ export function extractImageAltText(layer: Layer): string | null {
     return null;
   }
 
-  const altText = layer.variables.image.alt.data.content;
+  const content = layer.variables.image.alt.data.content;
+
+  // Handle Tiptap JSON content
+  let altText: string;
+  if (isTiptapContent(content)) {
+    altText = tiptapToPlainText(content);
+  } else if (typeof content === 'string') {
+    altText = content;
+  } else {
+    return null;
+  }
 
   if (!altText || !altText.trim()) {
     return null;

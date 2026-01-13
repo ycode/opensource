@@ -13,6 +13,7 @@ import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
 import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent } from '@/lib/variable-utils';
+import { isTiptapContent, renderTiptapToHtml } from '@/lib/tiptap-utils';
 import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-utils';
 import { DEFAULT_ASSETS } from '@/lib/asset-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
@@ -219,52 +220,71 @@ const LayerItem: React.FC<{
   const htmlTag = getLayerHtmlTag(layer);
 
   // Resolve text and image URLs with field binding support
-  const textContent = (() => {
+  // Returns { text, isHtml } where isHtml indicates if text contains HTML that needs dangerouslySetInnerHTML
+  const textContentResult = (() => {
     // Special handling for locale selector label
     if (layer.key === 'localeSelectorLabel' && !isEditMode) {
-      // Get default locale if no locale is detected
       const defaultLocale = availableLocales?.find(l => l.is_default) || availableLocales?.[0];
       const displayLocale = currentLocale || defaultLocale;
 
-      // Fallback if no locale data available
       if (!displayLocale) {
-        return 'English';
+        return { text: 'English', isHtml: false };
       }
 
-      // Use format from parent localeSelector layer (passed as prop)
       const format = localeSelectorFormat || 'locale';
-      return format === 'code' ? displayLocale.code.toUpperCase() : displayLocale.label;
+      return { text: format === 'code' ? displayLocale.code.toUpperCase() : displayLocale.label, isHtml: false };
     }
 
-    // Check for inline variables in DynamicTextVariable format
+    // Check for DynamicTextVariable format
     const textVariable = layer.variables?.text;
     if (textVariable && textVariable.type === 'dynamic_text') {
       const content = textVariable.data.content;
-      if (content.includes('<ycode-inline-variable>')) {
-        // Use the embedded JSON resolver (client-safe)
-        if (effectiveCollectionItemData) {
-          const mockItem: any = {
-            id: 'temp',
-            collection_id: 'temp',
-            created_at: '',
-            updated_at: '',
-            deleted_at: null,
-            manual_order: 0,
-            is_published: true,
-            values: effectiveCollectionItemData,
-          };
-          return resolveInlineVariables(content, mockItem);
-        }
-        // No collection data - remove variables
-        return content.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+
+      // Check if content is Tiptap JSON format
+      if (isTiptapContent(content)) {
+        // Render Tiptap JSON to HTML with resolved variables and textStyles
+        const html = renderTiptapToHtml(content, effectiveCollectionItemData, layer.textStyles);
+        return { text: html, isHtml: true };
       }
-      // No inline variables, return plain content
-      return content;
+
+      // Legacy string format with inline variables
+      if (typeof content === 'string') {
+        if (content.includes('<ycode-inline-variable>')) {
+          if (effectiveCollectionItemData) {
+            const mockItem: any = {
+              id: 'temp',
+              collection_id: 'temp',
+              created_at: '',
+              updated_at: '',
+              deleted_at: null,
+              manual_order: 0,
+              is_published: true,
+              values: effectiveCollectionItemData,
+            };
+            return { text: resolveInlineVariables(content, mockItem), isHtml: false };
+          }
+          // No collection data - remove variables
+          return { text: content.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, ''), isHtml: false };
+        }
+        // Check if content contains HTML tags (from server-side Tiptap rendering)
+        const isHtml = /<[a-z][^>]*>/i.test(content);
+        return { text: content, isHtml };
+      }
     }
+
     const text = getText(layer);
-    if (text) return text;
-    return undefined;
+    if (text) return { text, isHtml: false };
+    return { text: undefined, isHtml: false };
   })();
+
+  const textContent = textContentResult.text;
+  const isHtmlContent = textContentResult.isHtml;
+
+  // Check if HTML content contains block-level elements (lists, etc.)
+  // Use div wrapper for block elements, span for inline-only content
+  // Check for block elements including <span class="block"> which we use instead of <p>
+  const hasBlockElements = isHtmlContent && textContent && /<(ul|ol|div|p|h[1-6]|blockquote|span[^>]*class=["']block["'])/i.test(textContent);
+  const HtmlWrapper = hasBlockElements ? 'div' : 'span';
 
   // Get image asset ID and apply translation if available
   const originalImageAssetId = layer.variables?.image?.src?.type === 'asset'
@@ -469,7 +489,11 @@ const LayerItem: React.FC<{
 
   // Render element-specific content
   const renderContent = () => {
-    const Tag = htmlTag as any;
+    // If content contains block-level elements and tag is a text-level element (p, h1-h6),
+    // change to div to avoid invalid HTML (p/h1-h6 cannot contain block elements like ul/ol)
+    const textLevelTags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+    const effectiveTag = hasBlockElements && textLevelTags.includes(htmlTag) ? 'div' : htmlTag;
+    const Tag = effectiveTag as any;
     const { style: attrStyle, ...otherAttributes } = layer.attributes || {};
 
     // Convert string boolean values to actual booleans
@@ -871,7 +895,10 @@ const LayerItem: React.FC<{
 
       return (
         <Tag {...mediaProps}>
-          {textContent && textContent}
+          {textContent && !isHtmlContent && textContent}
+          {textContent && isHtmlContent && (
+            <HtmlWrapper dangerouslySetInnerHTML={{ __html: textContent }} />
+          )}
           {children && children.length > 0 && (
             <LayerRenderer
               layers={children}
@@ -985,7 +1012,10 @@ const LayerItem: React.FC<{
                 </span>
               )}
 
-              {textContent && textContent}
+              {textContent && !isHtmlContent && textContent}
+              {textContent && isHtmlContent && (
+                <HtmlWrapper dangerouslySetInnerHTML={{ __html: textContent }} />
+              )}
 
               {children && children.length > 0 && (
                 <LayerRenderer
@@ -1025,7 +1055,10 @@ const LayerItem: React.FC<{
 
       return (
         <Tag {...elementProps} style={{ ...mergedStyle, position: 'relative' }}>
-          {textContent && textContent}
+          {textContent && !isHtmlContent && textContent}
+          {textContent && isHtmlContent && (
+            <span dangerouslySetInnerHTML={{ __html: textContent }} />
+          )}
 
           {/* Render children with format prop */}
           {children && children.length > 0 && (
@@ -1080,7 +1113,10 @@ const LayerItem: React.FC<{
           <EditingIndicator layerId={layer.id} className="absolute -top-8 right-0 z-20" />
         )}
 
-        {textContent && textContent}
+        {textContent && !isHtmlContent && textContent}
+        {textContent && isHtmlContent && (
+          <span dangerouslySetInnerHTML={{ __html: textContent }} />
+        )}
 
         {/* Render children */}
         {children && children.length > 0 && (

@@ -7,6 +7,7 @@ import { cn, generateId } from '@/lib/utils';
 import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
 import { resolveInlineVariables } from '@/lib/inline-variables';
+import { isTiptapContent, tiptapToPlainText, renderTiptapToHtml } from '@/lib/tiptap-utils';
 
 /**
  * Check if a value is a FieldVariable
@@ -253,11 +254,20 @@ export function getClassesString(layer: Layer): string {
 
 /**
  * Get text content from layer (from variables.text)
+ * Converts Tiptap JSON to plain text if needed
  */
 export function getText(layer: Layer): string | undefined {
   const textVariable = layer.variables?.text;
   if (textVariable && textVariable.type === 'dynamic_text') {
-    return textVariable.data.content;
+    const content = textVariable.data.content;
+    // Handle Tiptap JSON content
+    if (isTiptapContent(content)) {
+      return tiptapToPlainText(content);
+    }
+    // Handle string content
+    if (typeof content === 'string') {
+      return content;
+    }
   }
   return undefined;
 }
@@ -328,33 +338,42 @@ export function resolveFieldValue(
 /**
  * Get text content with field binding resolution
  * Uses variables.text (DynamicTextVariable) with inline variables
+ * Handles both Tiptap JSON and legacy string formats
  */
 export function getTextWithBinding(
   layer: Layer,
   collectionItemData?: Record<string, string>
 ): string | undefined {
-  // Check variables.text (DynamicTextVariable with inline variables)
   const textVariable = layer.variables?.text;
   if (textVariable && textVariable.type === 'dynamic_text') {
     const content = textVariable.data.content;
-    if (content.includes('<ycode-inline-variable>')) {
-      if (collectionItemData) {
-        const mockItem: any = {
-          id: 'temp',
-          collection_id: 'temp',
-          created_at: '',
-          updated_at: '',
-          deleted_at: null,
-          manual_order: 0,
-          is_published: true,
-          values: collectionItemData,
-        };
-        return resolveInlineVariables(content, mockItem);
-      }
-      // No collection data - remove variables
-      return content.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+
+    // Handle Tiptap JSON content - render to HTML with resolved variables and textStyles
+    if (isTiptapContent(content)) {
+      return renderTiptapToHtml(content, collectionItemData, layer.textStyles);
     }
-    return content;
+
+    // Handle legacy string format
+    if (typeof content === 'string') {
+      if (content.includes('<ycode-inline-variable>')) {
+        if (collectionItemData) {
+          const mockItem: any = {
+            id: 'temp',
+            collection_id: 'temp',
+            created_at: '',
+            updated_at: '',
+            deleted_at: null,
+            manual_order: 0,
+            is_published: true,
+            values: collectionItemData,
+          };
+          return resolveInlineVariables(content, mockItem);
+        }
+        // No collection data - remove variables
+        return content.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+      }
+      return content;
+    }
   }
 
   return undefined;
@@ -545,6 +564,35 @@ export function hasSingleInlineVariable(layer: Layer): boolean {
   }
 
   const content = textVariable.data.content;
+
+  // Handle Tiptap JSON content
+  if (isTiptapContent(content)) {
+    // Check if content has exactly one dynamicVariable node and no other text
+    let variableCount = 0;
+    let hasOtherContent = false;
+
+    function checkNode(node: any) {
+      if (node.type === 'dynamicVariable') {
+        variableCount++;
+      } else if (node.type === 'text' && node.text?.trim()) {
+        hasOtherContent = true;
+      }
+      if (node.content) {
+        node.content.forEach(checkNode);
+      }
+    }
+
+    if (content.content) {
+      content.content.forEach(checkNode);
+    }
+
+    return variableCount === 1 && !hasOtherContent;
+  }
+
+  // Handle legacy string format
+  if (typeof content !== 'string') {
+    return false;
+  }
 
   // Match all inline variable tags
   const regex = /<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g;

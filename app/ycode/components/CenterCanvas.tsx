@@ -42,6 +42,7 @@ import { useAssetsStore } from '@/stores/useAssetsStore';
 // 6. Utils
 import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
 import type { IframeToParentMessage } from '@/lib/iframe-bridge';
+import { getIframeConstants } from '@/lib/iframe-constants';
 import { buildPageTree, getNodeIcon, findHomepage, buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 import { getTranslationValue } from '@/lib/localisation-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
@@ -631,7 +632,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (updatedComponent) {
       // Update all instances across pages
       await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
-      
+
       // Broadcast component layers update to collaborators
       if (liveComponentUpdates) {
         liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, updatedComponent.layers);
@@ -693,12 +694,12 @@ const CenterCanvas = React.memo(function CenterCanvas({
     // Clear selection FIRST to release locks on the current page's channel
     // before switching to the new page's channel
     setSelectedLayerId(null);
-    
+
     // Set the page ID immediately for responsive UI
     // The URL effect in YCodeBuilderMain uses a ref to track when we're navigating
     // to prevent reverting to the old page before the URL updates
     setCurrentPageId(pageId);
-    
+
     setPagePopoverOpen(false);
 
     // Navigate to the same route type but with the new page ID
@@ -793,13 +794,13 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (!iframeReady || !iframeRef.current) return;
 
     const { layers: serializedLayers, componentMap } = serializeLayers(layers, components);
-    
+
     // Create assets map for iframe (asset ID -> asset)
     const assetsMap: Record<string, Asset> = {};
     assets.forEach(asset => {
       assetsMap[asset.id] = asset;
     });
-    
+
     sendToIframe(iframeRef.current, {
       type: 'UPDATE_LAYERS',
       payload: {
@@ -812,6 +813,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         pageCollectionItem,
         pageCollectionFields,
         assets: assetsMap,
+        constants: getIframeConstants(),
       },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1001,6 +1003,56 @@ const CenterCanvas = React.memo(function CenterCanvas({
           }
           break;
 
+        case 'RICHTEXT_EDIT_START':
+          // Rich text editing started - handled in iframe
+          break;
+
+        case 'RICHTEXT_EDIT_END':
+          // Rich text editing finished - save Tiptap JSON content
+          if (editingComponentId) {
+            const { updateComponentDraft } = useComponentsStore.getState();
+            const currentDraft = componentDrafts[editingComponentId] || [];
+
+            const updateLayerInTree = (layers: Layer[], layerId: string, updates: Partial<Layer>): Layer[] => {
+              return layers.map(layer => {
+                if (layer.id === layerId) {
+                  return { ...layer, ...updates };
+                }
+                if (layer.children) {
+                  return { ...layer, children: updateLayerInTree(layer.children, layerId, updates) };
+                }
+                return layer;
+              });
+            };
+
+            const updatedLayers = updateLayerInTree(currentDraft, message.payload.layerId, {
+              variables: {
+                text: {
+                  type: 'dynamic_text',
+                  data: { content: message.payload.content } // Tiptap JSON object
+                }
+              }
+            });
+
+            updateComponentDraft(editingComponentId, updatedLayers);
+          } else if (currentPageId) {
+            updateLayer(currentPageId, message.payload.layerId, {
+              variables: {
+                text: {
+                  type: 'dynamic_text',
+                  data: { content: message.payload.content } // Tiptap JSON object
+                }
+              }
+            });
+          }
+          break;
+
+        case 'REQUEST_VARIABLE_PICKER':
+          // TODO: Show variable picker modal and send selected variable to iframe
+          // For now, just log the request
+          console.log('[CenterCanvas] Variable picker requested for layer:', message.payload.layerId);
+          break;
+
         case 'OPEN_COLLECTION_ITEM_SHEET':
           const { openCollectionItemSheet } = useEditorStore.getState();
 
@@ -1042,7 +1094,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               if (draft) {
                 const layersToCheck = selectedLayerIds.map(id => findLayerById(draft.layers, id)).filter(Boolean) as Layer[];
                 const canDeleteAll = layersToCheck.every(layer => canDeleteLayer(layer));
-                
+
                 if (canDeleteAll) {
                   // Delete all selected layers
                   deleteLayers(currentPageId, selectedLayerIds);
@@ -1058,7 +1110,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                   // Cannot delete due to restrictions
                   break;
                 }
-                
+
                 // Helper to find next layer to select
                 const findNextLayerToSelect = (layers: Layer[], layerIdToDelete: string): string | null => {
                   const findLayerContext = (

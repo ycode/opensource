@@ -6,10 +6,21 @@
 (function() {
   'use strict';
 
+  // Tiptap modules (loaded dynamically)
+  let TiptapEditor = null;
+  let TiptapStarterKit = null;
+  let TiptapTextStyle = null;
+  let TiptapColor = null;
+  let TiptapPlaceholder = null;
+  let DynamicVariableExtension = null;
+  let tiptapLoaded = false;
+  let tiptapLoadingPromise = null;
+
   // State
   let layers = [];
   let selectedLayerId = null;
   let editingLayerId = null;
+  let activeRichTextEditor = null; // Current Tiptap instance
   let hoveredLayerId = null;
   let editMode = true;
   let currentBreakpoint = 'desktop';
@@ -22,14 +33,321 @@
   let pageCollectionItem = null; // Collection item for dynamic page preview
   let pageCollectionFields = [];
   let assets = {}; // Assets map (asset ID -> asset) for resolving asset IDs to URLs
+  let constants = null; // Shared constants from parent (lib/iframe-constants.ts) - single source of truth
 
-  // Default placeholder assets
-  const DEFAULT_ASSETS = {
-    IMAGE: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNjAwIDkwMCI+PHJlY3Qgd2lkdGg9IjE2MDAiIGhlaWdodD0iOTAwIiBmaWxsPSIjMmYzNDM3Ii8+PHBvbHlnb24gcG9pbnRzPSIwLDkwMCA2MDAsMzAwIDEyMDAsOTAwIiBmaWxsPSIjNGI1MDUyIiBvcGFjaXR5PSIuNiIvPjxwb2x5Z29uIHBvaW50cz0iNzAwLDkwMCAxMTUwLDQ1MCAxNjAwLDkwMCIgZmlsbD0iIzVhNWY2MSIgb3BhY2l0eT0iLjUiLz48L3N2Zz4=',
-    ICON: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>',
-    VIDEO: '',
-    AUDIO: '',
-  };
+  // Get constants from shared source (lib/iframe-constants.ts via parent window)
+  // These are initialized when UPDATE_LAYERS message is received
+  function getDefaultAssets() {
+    return constants?.defaultAssets || {};
+  }
+
+  function getToolbarIcons() {
+    return constants?.toolbarIcons || {};
+  }
+
+  /**
+   * Load Tiptap modules dynamically (only when needed)
+   */
+  async function loadTiptap() {
+    if (tiptapLoaded) return true;
+    if (tiptapLoadingPromise) return tiptapLoadingPromise;
+
+    tiptapLoadingPromise = (async () => {
+      try {
+        const [
+          coreModule,
+          starterKitModule,
+          textStyleModule,
+          colorModule,
+          placeholderModule
+        ] = await Promise.all([
+          import('@tiptap/core'),
+          import('@tiptap/starter-kit'),
+          import('@tiptap/extension-text-style'),
+          import('@tiptap/extension-color'),
+          import('@tiptap/extension-placeholder')
+        ]);
+
+        TiptapEditor = coreModule.Editor;
+        TiptapStarterKit = starterKitModule.default || starterKitModule.StarterKit;
+        TiptapTextStyle = textStyleModule.default || textStyleModule.TextStyle;
+        TiptapColor = colorModule.default || colorModule.Color;
+        TiptapPlaceholder = placeholderModule.default || placeholderModule.Placeholder;
+
+        // Create custom extension for inline variables
+        DynamicVariableExtension = coreModule.Node.create({
+          name: 'dynamicVariable',
+          group: 'inline',
+          inline: true,
+          atom: true,
+
+          addAttributes() {
+            return {
+              variable: { default: null },
+              label: { default: 'variable' }
+            };
+          },
+
+          parseHTML() {
+            return [{ tag: 'span.ycode-inline-var' }];
+          },
+
+          renderHTML({ node }) {
+            const label = node.attrs.label || 'variable';
+            return ['span', {
+              class: 'ycode-inline-var',
+              'data-variable': JSON.stringify(node.attrs.variable),
+              contenteditable: 'false'
+            }, label];
+          }
+        });
+
+        tiptapLoaded = true;
+        console.log('[Canvas] Tiptap loaded successfully');
+        return true;
+      } catch (error) {
+        console.error('[Canvas] Failed to load Tiptap:', error);
+        return false;
+      }
+    })();
+
+    return tiptapLoadingPromise;
+  }
+
+  /**
+   * Create floating toolbar element
+   */
+  function createToolbar() {
+    let toolbar = document.getElementById('ycode-richtext-toolbar');
+    if (toolbar) return toolbar;
+
+    toolbar = document.createElement('div');
+    toolbar.id = 'ycode-richtext-toolbar';
+    toolbar.className = 'ycode-toolbar';
+    const icons = getToolbarIcons();
+    toolbar.innerHTML = `
+      <button type="button" class="ycode-toolbar-btn" data-action="bold" title="Bold (Cmd+B)">${icons.bold}</button>
+      <button type="button" class="ycode-toolbar-btn" data-action="italic" title="Italic (Cmd+I)">${icons.italic}</button>
+      <button type="button" class="ycode-toolbar-btn" data-action="underline" title="Underline (Cmd+U)">${icons.underline}</button>
+      <button type="button" class="ycode-toolbar-btn" data-action="strike" title="Strikethrough">${icons.strike}</button>
+      <div class="ycode-toolbar-divider"></div>
+      <button type="button" class="ycode-toolbar-btn" data-action="bulletList" title="Bullet List">${icons.bulletList}</button>
+      <button type="button" class="ycode-toolbar-btn" data-action="orderedList" title="Numbered List">${icons.orderedList}</button>
+      <div class="ycode-toolbar-divider"></div>
+      <button type="button" class="ycode-toolbar-btn" data-action="variable" title="Insert Variable">${icons.variable}</button>
+    `;
+
+    document.body.appendChild(toolbar);
+
+    // Handle toolbar button clicks
+    toolbar.addEventListener('mousedown', function(e) {
+      e.preventDefault(); // Prevent focus loss from editor
+      const btn = e.target.closest('[data-action]');
+      if (!btn || !activeRichTextEditor) return;
+
+      const editor = activeRichTextEditor;
+      const action = btn.dataset.action;
+
+      // Use toggleMark with extendEmptyMarkRange to toggle marks at cursor when no selection
+      switch (action) {
+        case 'bold':
+          editor.chain().focus().run();
+          editor.commands.toggleMark('bold', {}, { extendEmptyMarkRange: true });
+          break;
+        case 'italic':
+          editor.chain().focus().run();
+          editor.commands.toggleMark('italic', {}, { extendEmptyMarkRange: true });
+          break;
+        case 'underline':
+          editor.chain().focus().run();
+          editor.commands.toggleMark('underline', {}, { extendEmptyMarkRange: true });
+          break;
+        case 'strike':
+          editor.chain().focus().run();
+          editor.commands.toggleMark('strike', {}, { extendEmptyMarkRange: true });
+          break;
+        case 'bulletList':
+          editor.chain().focus().toggleBulletList().run();
+          break;
+        case 'orderedList':
+          editor.chain().focus().toggleOrderedList().run();
+          break;
+        case 'variable':
+          // Request parent to show variable picker
+          sendToParent('REQUEST_VARIABLE_PICKER', { layerId: editingLayerId });
+          break;
+      }
+      updateToolbarState();
+    });
+
+    return toolbar;
+  }
+
+  /**
+   * Update toolbar button active states
+   */
+  function updateToolbarState() {
+    const toolbar = document.getElementById('ycode-richtext-toolbar');
+    if (!toolbar || !activeRichTextEditor) return;
+
+    const markActions = ['bold', 'italic', 'underline', 'strike'];
+    markActions.forEach(action => {
+      const btn = toolbar.querySelector(`[data-action="${action}"]`);
+      if (btn) {
+        const isActive = activeRichTextEditor.isActive(action);
+        btn.classList.toggle('active', isActive);
+      }
+    });
+
+    // Handle list actions
+    const listBtn = toolbar.querySelector('[data-action="bulletList"]');
+    if (listBtn) {
+      listBtn.classList.toggle('active', activeRichTextEditor.isActive('bulletList'));
+    }
+    const orderedListBtn = toolbar.querySelector('[data-action="orderedList"]');
+    if (orderedListBtn) {
+      orderedListBtn.classList.toggle('active', activeRichTextEditor.isActive('orderedList'));
+    }
+  }
+
+  /**
+   * Position toolbar above selection or element
+   */
+  function positionToolbar(element) {
+    const toolbar = document.getElementById('ycode-richtext-toolbar');
+    if (!toolbar) return;
+
+    const rect = element.getBoundingClientRect();
+    const toolbarWidth = toolbar.offsetWidth || 200;
+    const toolbarHeight = toolbar.offsetHeight || 40;
+
+    // Center above element, clamp to viewport
+    let left = rect.left + (rect.width / 2) - (toolbarWidth / 2);
+    let top = rect.top - toolbarHeight - 8;
+
+    // Clamp to viewport
+    left = Math.max(8, Math.min(left, window.innerWidth - toolbarWidth - 8));
+    if (top < 8) {
+      top = rect.bottom + 8; // Show below if not enough space above
+    }
+
+    toolbar.style.left = left + 'px';
+    toolbar.style.top = top + 'px';
+    toolbar.classList.add('visible');
+  }
+
+  /**
+   * Hide the floating toolbar
+   */
+  function hideToolbar() {
+    const toolbar = document.getElementById('ycode-richtext-toolbar');
+    if (toolbar) {
+      toolbar.classList.remove('visible');
+    }
+  }
+
+  /**
+   * Convert Tiptap JSON to plain text with inline variable tags
+   */
+  function tiptapJsonToPlainText(json) {
+    if (!json || !json.content) return '';
+
+    let result = '';
+    function processNode(node) {
+      if (node.type === 'text') {
+        result += node.text || '';
+      } else if (node.type === 'dynamicVariable') {
+        if (node.attrs && node.attrs.variable) {
+          result += '<ycode-inline-variable>' + JSON.stringify(node.attrs.variable) + '</ycode-inline-variable>';
+        }
+      } else if (node.content) {
+        node.content.forEach(processNode);
+      }
+    }
+
+    if (json.content) {
+      json.content.forEach(processNode);
+    }
+    return result;
+  }
+
+  /**
+   * Parse text with inline variables to Tiptap JSON
+   * Supports both plain text and legacy ycode-inline-variable format
+   */
+  function parseTextToTiptapJson(text, fields) {
+    if (!text) {
+      return { type: 'doc', content: [{ type: 'paragraph' }] };
+    }
+
+    // If it's already a Tiptap JSON object, return as-is
+    if (typeof text === 'object' && text.type === 'doc') {
+      return text;
+    }
+
+    const content = [];
+    const regex = /<ycode-inline-variable(?:\s+id="([^"]+)")?>([\s\S]*?)<\/ycode-inline-variable>/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      // Add text before match
+      if (match.index > lastIndex) {
+        const textBefore = text.slice(lastIndex, match.index);
+        if (textBefore) {
+          content.push({ type: 'text', text: textBefore });
+        }
+      }
+
+      // Parse variable
+      const variableContent = match[2].trim();
+      try {
+        const variable = JSON.parse(variableContent);
+        const label = getVariableLabelFromFields(variable, fields);
+        content.push({
+          type: 'dynamicVariable',
+          attrs: { variable, label }
+        });
+      } catch {
+        // Invalid JSON, keep as text
+        content.push({ type: 'text', text: match[0] });
+      }
+
+      lastIndex = regex.lastIndex;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      content.push({ type: 'text', text: text.slice(lastIndex) });
+    }
+
+    return {
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        content: content.length > 0 ? content : undefined
+      }]
+    };
+  }
+
+  /**
+   * Get variable label from fields
+   */
+  function getVariableLabelFromFields(variable, fields) {
+    if (!variable || variable.type !== 'field' || !variable.data?.field_id) {
+      return 'variable';
+    }
+
+    // Try to find field in provided fields or collection fields
+    const allFieldSources = [
+      ...(fields || []),
+      ...Object.values(collectionFields || {}).flat(),
+      ...(pageCollectionFields || [])
+    ];
+
+    const field = allFieldSources.find(f => f.id === variable.data.field_id);
+    return field?.name || variable.data.field_id.slice(0, 8);
+  }
 
   // Pagination state for collection layers
   let paginationState = {}; // { layerId: { page: number, loading: boolean, meta: {...} } }
@@ -66,6 +384,7 @@
         pageCollectionItem = message.payload.pageCollectionItem || null;
         pageCollectionFields = message.payload.pageCollectionFields || [];
         assets = message.payload.assets || {};
+        constants = message.payload.constants || null;
         render();
         break;
 
@@ -123,6 +442,16 @@
       case 'UPDATE_HOVER':
         hoveredLayerId = message.payload.layerId;
         updateHover();
+        break;
+
+      case 'INSERT_VARIABLE':
+        // Insert a variable into the active rich text editor
+        if (message.payload.variable) {
+          insertVariableIntoEditor(
+            message.payload.variable,
+            message.payload.label || 'variable'
+          );
+        }
         break;
     }
   });
@@ -694,11 +1023,183 @@
    * If collectionId is provided, validates that referenced fields still exist
    */
   /**
+   * Convert Tiptap JSON to plain text with inline variable tags (for rendering)
+   */
+  function tiptapJsonToPlainText(json) {
+    if (!json || !json.content) return '';
+
+    let result = '';
+    function processNode(node) {
+      if (node.type === 'text') {
+        result += node.text || '';
+      } else if (node.type === 'dynamicVariable') {
+        if (node.attrs && node.attrs.variable) {
+          result += '<ycode-inline-variable>' + JSON.stringify(node.attrs.variable) + '</ycode-inline-variable>';
+        }
+      } else if (node.content) {
+        node.content.forEach(processNode);
+      }
+    }
+
+    if (json.content) {
+      json.content.forEach(processNode);
+    }
+    return result;
+  }
+
+  /**
+   * Render Tiptap JSON to HTML with formatting (bold, italic, underline, etc.)
+   * Uses textStyles classes if provided, falls back to DEFAULT_TEXT_STYLES, then HTML tags
+   */
+  function renderTiptapJsonToHtml(json, collectionItemData, collectionId, textStyles) {
+    if (!json || !json.content) return '';
+
+    // Use textStyles from shared constants (single source of truth: lib/iframe-constants.ts)
+    const DEFAULT_TEXT_STYLES = constants?.textStyles || {};
+
+    // Merge DEFAULT_TEXT_STYLES with provided textStyles (provided styles override defaults)
+    const mergedTextStyles = Object.assign({}, DEFAULT_TEXT_STYLES, textStyles || {});
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function processNode(node) {
+      if (node.type === 'paragraph') {
+        const pContent = node.content ? node.content.map(processNode).join('') : '';
+        // Use <span class="block"> instead of <p> so it works in inline contexts (like headings)
+        // Empty paragraphs get a <br> to preserve the line break
+        return '<span class="block">' + (pContent || '<br>') + '</span>';
+      } else if (node.type === 'text') {
+        let text = escapeHtml(node.text || '');
+
+        // Apply marks (formatting) using mergedTextStyles
+        if (node.marks) {
+          node.marks.forEach(function(mark) {
+            // Check if mergedTextStyles provides a class for this mark
+            const styleConfig = mergedTextStyles[mark.type];
+
+            if (styleConfig && styleConfig.classes) {
+              // Use span with classes from textStyles
+              text = '<span class="' + styleConfig.classes + '">' + text + '</span>';
+            } else {
+              // Fall back to standard HTML tags
+              switch (mark.type) {
+                case 'bold':
+                  text = '<strong>' + text + '</strong>';
+                  break;
+                case 'italic':
+                  text = '<em>' + text + '</em>';
+                  break;
+                case 'underline':
+                  text = '<u>' + text + '</u>';
+                  break;
+                case 'strike':
+                  text = '<s>' + text + '</s>';
+                  break;
+                case 'code':
+                  text = '<code>' + text + '</code>';
+                  break;
+              }
+            }
+          });
+        }
+
+        return text;
+      } else if (node.type === 'dynamicVariable') {
+        // Resolve variable from collection data
+        const variable = node.attrs && node.attrs.variable;
+        if (variable && variable.type === 'field' && variable.data && variable.data.field_id && collectionItemData) {
+          const itemValues = collectionItemData.values || collectionItemData;
+          const fieldId = variable.data.field_id;
+          const relationships = variable.data.relationships || [];
+
+          let value = '';
+          if (relationships.length > 0) {
+            value = resolveReferenceFieldValue(fieldId, relationships, itemValues, collectionId) || '';
+          } else {
+            value = itemValues[fieldId] || '';
+          }
+
+          return escapeHtml(value);
+        }
+        // Return placeholder if no data available
+        const label = (node.attrs && node.attrs.label) || 'variable';
+        return '<span class="ycode-inline-var">' + escapeHtml(label) + '</span>';
+      } else if (node.type === 'bulletList') {
+        const ulContent = node.content ? node.content.map(processNode).join('') : '';
+        const listStyle = mergedTextStyles['bulletList'];
+        const classes = listStyle && listStyle.classes ? ' class="' + escapeHtml(listStyle.classes) + '"' : '';
+        return '<ul' + classes + '>' + ulContent + '</ul>';
+      } else if (node.type === 'orderedList') {
+        const olContent = node.content ? node.content.map(processNode).join('') : '';
+        const listStyle = mergedTextStyles['orderedList'];
+        const classes = listStyle && listStyle.classes ? ' class="' + escapeHtml(listStyle.classes) + '"' : '';
+        return '<ol' + classes + '>' + olContent + '</ol>';
+      } else if (node.type === 'listItem') {
+        const liContent = node.content ? node.content.map(processNode).join('') : '';
+        const listStyle = mergedTextStyles['listItem'];
+        const classes = listStyle && listStyle.classes ? ' class="' + escapeHtml(listStyle.classes) + '"' : '';
+        return '<li' + classes + '>' + liContent + '</li>';
+      } else if (node.content) {
+        return node.content.map(processNode).join('');
+      }
+      return '';
+    }
+
+    let result = '';
+    if (json.content) {
+      // Render all blocks directly - paragraphs are now wrapped in <span class="block"> tags
+      // Lists are block elements with their own margins, so no need for separators
+      const blocks = [];
+      json.content.forEach(function(block) {
+        if (block.type === 'paragraph') {
+          // Paragraphs are now wrapped in <span class="block"> tags by processNode
+          blocks.push(processNode(block));
+        } else if (block.type === 'bulletList' || block.type === 'orderedList') {
+          // Lists are block elements - render them directly
+          blocks.push(processNode(block));
+        } else if (block.content) {
+          blocks.push(block.content.map(processNode).join(''));
+        }
+      });
+
+      // Join blocks directly - <span class="block"> tags and lists are block elements with their own spacing
+      result = blocks.join('');
+    }
+    return result;
+  }
+
+  /**
+   * Check if content is Tiptap JSON format
+   */
+  function isTiptapContent(content) {
+    return (
+      typeof content === 'object' &&
+      content !== null &&
+      content.type === 'doc'
+    );
+  }
+
+  /**
    * Resolve inline variables in DynamicTextVariable content
    * Reusable helper function for resolving inline variables in any text content
+   * Supports both string format and Tiptap JSON format
    */
   function resolveInlineVariablesInContent(content, collectionItemData, collectionId) {
-    if (!content || !content.includes('<ycode-inline-variable>')) {
+    if (!content) {
+      return content;
+    }
+
+    // Handle Tiptap JSON format - convert to plain text first
+    if (isTiptapContent(content)) {
+      content = tiptapJsonToPlainText(content);
+    }
+
+    // Now content should be a string - check if it contains inline variables
+    if (typeof content !== 'string' || !content.includes('<ycode-inline-variable>')) {
       return content;
     }
 
@@ -748,18 +1249,27 @@
   function getText(layer, collectionItemData, collectionId) {
     // Get text from variables.text (DynamicTextVariable)
     if (!layer.variables?.text) {
-      return '';
+      return { text: '', isHtml: false };
     }
 
     const textVariable = layer.variables.text;
 
     // Only support DynamicTextVariable format: { type: 'dynamic_text', data: { content: '...' } }
     if (textVariable.type !== 'dynamic_text' || !textVariable.data?.content) {
-      return '';
+      return { text: '', isHtml: false };
     }
 
     const content = textVariable.data.content;
-    return resolveInlineVariablesInContent(content, collectionItemData, collectionId);
+
+    // Handle Tiptap JSON format - render to HTML with textStyles
+    if (isTiptapContent(content)) {
+      const html = renderTiptapJsonToHtml(content, collectionItemData, collectionId, layer.textStyles);
+      return { text: html, isHtml: true };
+    }
+
+    // Handle string format - resolve inline variables
+    const plainText = resolveInlineVariablesInContent(content, collectionItemData, collectionId);
+    return { text: plainText, isHtml: false };
   }
 
   /**
@@ -1595,22 +2105,31 @@
     const activeCollectionId = collectionId || parentCollectionId;
 
     // Debug logging for collection layers
-    if (isCollectionLayer) {
-      console.log('[Canvas] Collection Layer Detected', {
-        layerId: layer.id,
-        collectionId,
-        collectionVariable,
-        hasChildren: !!(layer.children && layer.children.length > 0)
-      });
-    }
+    // if (isCollectionLayer) {
+    //   console.log('[Canvas] Collection Layer Detected', {
+    //     layerId: layer.id,
+    //     collectionId,
+    //     collectionVariable,
+    //     hasChildren: !!(layer.children && layer.children.length > 0)
+    //   });
+    // }
 
     const tag = getLayerHtmlTag(layer);
     const inheritedCollectionItemData = collectionItemData || (pageCollectionItem ? pageCollectionItem.values : undefined);
-    let element = document.createElement(tag);
+
+    // Check if text content contains block-level elements and adjust tag if needed
+    // Text-level elements (p, h1-h6) cannot contain block elements like ul/ol
+    const textResult = getText(layer, inheritedCollectionItemData, activeCollectionId || null);
+    // Check for block elements including <span class="block"> which we use instead of <p>
+    const hasBlockElements = textResult.isHtml && textResult.text && /<(ul|ol|div|p|h[1-6]|blockquote|span[^>]*class=["']block["'])/i.test(textResult.text);
+    const textLevelTags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+    const effectiveTag = hasBlockElements && textLevelTags.includes(tag) ? 'div' : tag;
+
+    let element = document.createElement(effectiveTag);
 
     // Set ID
     element.setAttribute('data-layer-id', layer.id);
-    element.setAttribute('data-layer-type', tag);
+    element.setAttribute('data-layer-type', effectiveTag);
 
     // Apply classes
     const classes = getClassesString(layer);
@@ -1850,7 +2369,7 @@
             imageUrl = asset?.public_url;
           } else if (!imageSrc.data?.asset_id) {
             // asset_id is null - show default image placeholder
-            imageUrl = DEFAULT_ASSETS.IMAGE;
+            imageUrl = getDefaultAssets().IMAGE;
           }
         } else if (imageSrc.type === 'field') {
           // FieldVariable -> resolve field value from collectionItemData
@@ -1871,7 +2390,7 @@
       }
 
       // Use default image if URL is empty or invalid
-      const finalImageUrl = imageUrl && imageUrl.trim() !== '' ? imageUrl : DEFAULT_ASSETS.IMAGE;
+      const finalImageUrl = imageUrl && imageUrl.trim() !== '' ? imageUrl : getDefaultAssets().IMAGE;
       element.src = finalImageUrl;
 
       const imageAlt = layer.variables?.image?.alt;
@@ -1911,7 +2430,7 @@
 
       // If no valid icon content, show default icon
       if (!iconHtml || iconHtml.trim() === '') {
-        iconHtml = DEFAULT_ASSETS.ICON;
+        iconHtml = getDefaultAssets().ICON;
       }
 
       // Add data-icon attribute to trigger CSS styling
@@ -1934,12 +2453,18 @@
     }
 
     // Add text content (skip for video/audio elements - they're self-contained media elements)
-    const textContent = getText(layer, inheritedCollectionItemData, activeCollectionId);
+    // textResult already computed above for tag adjustment
+    const textContent = textResult.text;
+    const isHtmlContent = textResult.isHtml;
     const hasChildren = layer.children && layer.children.length > 0;
     const isMediaElement = tag === 'video' || tag === 'audio';
 
     if (textContent && !hasChildren && !isMediaElement) {
-      element.textContent = textContent;
+      if (isHtmlContent) {
+        element.innerHTML = textContent;
+      } else {
+        element.textContent = textContent;
+      }
     }
 
     // Render children - handle collection layers specially (skip for video/audio elements)
@@ -2198,8 +2723,24 @@
     });
 
     // Hover effects (skip for Body layer - it fills entire iframe)
-    element.addEventListener('mouseenter', function(e) {
+    // Use mouseover instead of mouseenter to handle transitions between nested elements
+    element.addEventListener('mouseover', function(e) {
+      // Find the layer element that contains the target (could be the element itself or a child)
+      const layerElement = e.target.closest('[data-layer-id]');
+
+      // Only handle if this event is for our layer element
+      if (layerElement !== element) {
+        return;
+      }
+
       if (editingLayerId !== layer.id && layer.id !== 'body') {
+        // First, remove all existing hover classes to ensure only one element has hover at a time
+        document.querySelectorAll('.ycode-hover, .ycode-hover-purple, .ycode-component-hover').forEach(el => {
+          el.classList.remove('ycode-hover');
+          el.classList.remove('ycode-hover-purple');
+          el.classList.remove('ycode-component-hover');
+        });
+
         // Check if this layer is part of a component (and we're NOT editing that component)
         const componentRootId = componentMap[layer.id];
         const isPartOfComponent = !!componentRootId;
@@ -2221,7 +2762,25 @@
       }
     });
 
-    element.addEventListener('mouseleave', function(e) {
+    element.addEventListener('mouseout', function(e) {
+      // Find the layer element that contains the target
+      const layerElement = e.target.closest('[data-layer-id]');
+
+      // Only handle if this event is for our layer element
+      if (layerElement !== element) {
+        return;
+      }
+
+      // Check if we're moving to a child element within this layer
+      const relatedTarget = e.relatedTarget;
+      if (relatedTarget) {
+        const relatedLayerElement = relatedTarget.closest('[data-layer-id]');
+        // If moving to a child within the same layer, don't remove hover
+        if (relatedLayerElement === element) {
+          return;
+        }
+      }
+
       // Remove both types of hover classes
       element.classList.remove('ycode-hover');
       element.classList.remove('ycode-hover-purple');
@@ -2301,15 +2860,13 @@
   }
 
   /**
-   * Start text editing mode
+   * Start text editing mode with Tiptap rich text editor
    */
-  function startTextEditing(layerId, layer, element, collectionItemData = null, activeCollectionId = null) {
+  async function startTextEditing(layerId, layer, element, collectionItemData = null, activeCollectionId = null) {
     if (editingLayerId) return;
 
-    // If layer has variables.text (inline variables), don't allow inline editing
-    // This content should only be edited via the Content panel or collection sheet
+    // If layer has single inline variable only, open collection item sheet instead
     if (layer.variables?.text) {
-      // Exception: if it's a single variable, open the collection item sheet
       const hasSingle = hasSingleInlineVariable(layer);
 
       if (hasSingle) {
@@ -2318,37 +2875,45 @@
         const collectionItemId = itemWrapper?.getAttribute('data-collection-item-id');
 
         if (collectionItemId) {
-          // Inside a collection layer - use collection layer context
           const parentCollectionLayer = findParentCollectionLayerInTree(layerId);
           const collectionId = parentCollectionLayer?.variables?.collection?.id;
 
           if (collectionId) {
-            // Notify parent to open collection item sheet
             sendToParent('OPEN_COLLECTION_ITEM_SHEET', {
               collectionId,
               itemId: collectionItemId,
             });
-            return; // Don't start inline editing
+            return;
           }
         }
 
-        // Not in collection layer - check if on dynamic page
         if (pageCollectionItem && pageCollectionFields && pageCollectionFields.length > 0) {
           const pageCollectionId = pageCollectionItem.collection_id;
           const pageItemId = pageCollectionItem.id;
 
           if (pageCollectionId && pageItemId) {
-            // Notify parent to open collection item sheet for page item
             sendToParent('OPEN_COLLECTION_ITEM_SHEET', {
               collectionId: pageCollectionId,
               itemId: pageItemId,
             });
-            return; // Don't start inline editing
+            return;
           }
         }
-      }
 
-      // For non-single variables or if no collection context, don't allow inline editing
+        // Single variable without collection context - allow editing anyway
+      }
+    }
+
+    // Clean up any existing editor first
+    if (activeRichTextEditor) {
+      cleanupRichTextEditor();
+    }
+
+    // Load Tiptap if not loaded
+    const loaded = await loadTiptap();
+    if (!loaded) {
+      console.warn('[Canvas] Tiptap not available, falling back to input');
+      startTextEditingLegacy(layerId, layer, element, collectionItemData, activeCollectionId);
       return;
     }
 
@@ -2356,49 +2921,307 @@
 
     // Remove selection badge if present
     const badge = element.querySelector('.ycode-selection-badge');
-    if (badge) {
-      badge.remove();
+    if (badge) badge.remove();
+
+    // Get current content from layer
+    const textVariable = layer.variables?.text;
+    let initialContent;
+
+    if (textVariable && textVariable.type === 'dynamic_text') {
+      const content = textVariable.data.content;
+      // Check if it's already Tiptap JSON
+      if (typeof content === 'object' && content.type === 'doc') {
+        initialContent = content;
+      } else {
+        // Parse string content with inline variables
+        initialContent = parseTextToTiptapJson(content, collectionFields[activeCollectionId] || pageCollectionFields);
+      }
+    } else {
+      initialContent = parseTextToTiptapJson('', []);
     }
 
-    // Get current text from layer data, not from DOM (to avoid badge text)
-    // Pass actual collection data to resolve variables correctly
-    const currentText = getText(layer, collectionItemData, activeCollectionId);
+    // Create editor container
+    const editorContainer = document.createElement('div');
+    editorContainer.className = 'ycode-richtext-editor';
+    editorContainer.setAttribute('data-editing-layer', layerId);
 
-    // Create input element
+    // Clear element and add editor
+    element.innerHTML = '';
+    element.appendChild(editorContainer);
+    element.classList.add('ycode-editing');
+
+    // Track if we're clicking inside the editor (to prevent blur from closing)
+    let isClickingInsideEditor = false;
+    let blurTimeoutId = null;
+
+    // Stop propagation of all mouse events to prevent triggering layer handlers
+    editorContainer.addEventListener('click', function(e) {
+      e.stopPropagation();
+    }, true);
+
+    editorContainer.addEventListener('dblclick', function(e) {
+      e.stopPropagation();
+    }, true);
+
+    // Add mousedown handler to track clicks inside editor (capture phase to catch all clicks)
+    editorContainer.addEventListener('mousedown', function(e) {
+      e.stopPropagation(); // Prevent triggering layer click handlers
+      isClickingInsideEditor = true;
+      // Clear any pending blur timeout
+      if (blurTimeoutId) {
+        clearTimeout(blurTimeoutId);
+        blurTimeoutId = null;
+      }
+      // Reset flag after a short delay
+      setTimeout(() => {
+        isClickingInsideEditor = false;
+      }, 200);
+    }, true); // Use capture phase
+
+    // Also handle clicks on the ProseMirror element itself (it's created by Tiptap)
+    const handleProseMirrorClick = function(e) {
+      e.stopPropagation(); // Prevent triggering layer handlers
+      isClickingInsideEditor = true;
+      if (blurTimeoutId) {
+        clearTimeout(blurTimeoutId);
+        blurTimeoutId = null;
+      }
+      setTimeout(() => {
+        isClickingInsideEditor = false;
+      }, 200);
+    };
+
+    // Wait for ProseMirror to be created, then add listener
+    setTimeout(() => {
+      const proseMirror = editorContainer.querySelector('.ProseMirror');
+      if (proseMirror) {
+        proseMirror.addEventListener('mousedown', handleProseMirrorClick, true);
+        proseMirror.addEventListener('click', function(e) {
+          e.stopPropagation();
+        }, true);
+        proseMirror.addEventListener('dblclick', function(e) {
+          e.stopPropagation();
+        }, true);
+      }
+    }, 50);
+
+    // Create toolbar
+    createToolbar();
+
+    // Create Tiptap editor
+    activeRichTextEditor = new TiptapEditor({
+      element: editorContainer,
+      extensions: [
+        TiptapStarterKit.configure({
+          // Disable features we don't need for inline text
+          heading: false,
+          blockquote: false,
+          codeBlock: false,
+          horizontalRule: false,
+          hardBreak: false,
+        }),
+        TiptapTextStyle,
+        TiptapColor,
+        DynamicVariableExtension,
+      ],
+      content: initialContent,
+      autofocus: 'end',
+      editorProps: {
+        attributes: {
+          class: 'ProseMirror',
+        },
+        handleKeyDown: (view, event) => {
+          // Handle Cmd+Enter or Shift+Enter to finish editing
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey || event.shiftKey)) {
+            event.preventDefault();
+            finishRichTextEditing();
+            return true;
+          }
+          // Handle Escape to cancel
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            cancelRichTextEditing();
+            return true;
+          }
+          // Allow Enter for line breaks (default behavior)
+          return false;
+        },
+      },
+      onSelectionUpdate: () => {
+        updateToolbarState();
+      },
+      onFocus: () => {
+        positionToolbar(editorContainer);
+      },
+      onBlur: ({ event }) => {
+        // If we just clicked inside the editor, don't close
+        if (isClickingInsideEditor) {
+          return;
+        }
+
+        const relatedTarget = event?.relatedTarget;
+
+        // Don't hide if clicking toolbar
+        if (relatedTarget && relatedTarget.closest('#ycode-richtext-toolbar')) {
+          return;
+        }
+
+        // Don't hide if clicking back into the editor container
+        if (relatedTarget && editorContainer.contains(relatedTarget)) {
+          return;
+        }
+
+        // Clear any existing timeout
+        if (blurTimeoutId) {
+          clearTimeout(blurTimeoutId);
+        }
+
+        // Delay to allow focus to return (e.g., when clicking on formatting inside editor)
+        blurTimeoutId = setTimeout(() => {
+          blurTimeoutId = null;
+
+          if (!activeRichTextEditor) return;
+
+          // If we clicked inside editor during the delay, don't close
+          if (isClickingInsideEditor) {
+            return;
+          }
+
+          // Check if editor is still focused
+          if (activeRichTextEditor.isFocused) {
+            return;
+          }
+
+          // Check if active element is inside the editor container
+          const activeElement = document.activeElement;
+          if (activeElement && editorContainer.contains(activeElement)) {
+            return;
+          }
+
+          // Check if active element is in the toolbar
+          if (activeElement && activeElement.closest('#ycode-richtext-toolbar')) {
+            return;
+          }
+
+          // Only close if we're truly blurred and not inside editor or toolbar
+          finishRichTextEditing();
+        }, 200);
+      },
+    });
+
+    // Position toolbar
+    positionToolbar(editorContainer);
+
+    // Notify parent
+    sendToParent('RICHTEXT_EDIT_START', { layerId });
+  }
+
+  /**
+   * Finish rich text editing and save changes
+   */
+  function finishRichTextEditing() {
+    if (!activeRichTextEditor || !editingLayerId) return;
+
+    const json = activeRichTextEditor.getJSON();
+    const layerId = editingLayerId;
+
+    // Get the HTML content from the editor before cleanup
+    const htmlContent = activeRichTextEditor.getHTML();
+
+    // Find the layer element and preserve the content immediately
+    const layerElement = document.querySelector(`[data-layer-id="${layerId}"]`);
+    if (layerElement && htmlContent) {
+      // Remove editing class and set content immediately to prevent flash
+      layerElement.classList.remove('ycode-editing');
+      layerElement.innerHTML = htmlContent;
+    }
+
+    // Clean up
+    cleanupRichTextEditor();
+
+    // Send both JSON and plain text version to parent
+    sendToParent('RICHTEXT_EDIT_END', {
+      layerId,
+      content: json,
+      plainText: tiptapJsonToPlainText(json),
+    });
+  }
+
+  /**
+   * Cancel rich text editing without saving
+   */
+  function cancelRichTextEditing() {
+    cleanupRichTextEditor();
+    render();
+  }
+
+  /**
+   * Clean up rich text editor
+   */
+  function cleanupRichTextEditor() {
+    hideToolbar();
+    if (activeRichTextEditor) {
+      activeRichTextEditor.destroy();
+      activeRichTextEditor = null;
+    }
+    editingLayerId = null;
+  }
+
+  /**
+   * Insert a variable into the active rich text editor
+   */
+  function insertVariableIntoEditor(variable, label) {
+    if (!activeRichTextEditor) return;
+
+    activeRichTextEditor.chain()
+      .focus()
+      .insertContent({
+        type: 'dynamicVariable',
+        attrs: { variable, label }
+      })
+      .insertContent(' ')
+      .run();
+  }
+
+  /**
+   * Legacy text editing with input (fallback if Tiptap fails to load)
+   */
+  function startTextEditingLegacy(layerId, layer, element, collectionItemData = null, activeCollectionId = null) {
+    editingLayerId = layerId;
+
+    const badge = element.querySelector('.ycode-selection-badge');
+    if (badge) badge.remove();
+
+    const textResult = getText(layer, collectionItemData, activeCollectionId);
+    // For legacy input, convert HTML to plain text (strip tags)
+    const currentText = textResult.isHtml
+      ? textResult.text.replace(/<[^>]*>/g, '')
+      : textResult.text;
+
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'ycode-text-editor';
     input.value = currentText;
 
-    // Replace element content with input
     element.textContent = '';
     element.appendChild(input);
     element.classList.add('ycode-editing');
 
-    // Focus and select
     input.focus();
     input.select();
 
-    // Notify parent
     sendToParent('TEXT_CHANGE_START', { layerId });
 
-    // Handle finish editing
     const finishEditing = () => {
       const newText = input.value;
       editingLayerId = null;
-
-      // Notify parent of change
-      sendToParent('TEXT_CHANGE_END', {
-        layerId,
-        text: newText
-      });
+      sendToParent('TEXT_CHANGE_END', { layerId, text: newText });
     };
 
     input.addEventListener('blur', finishEditing);
     input.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        finishEditing();
-      } else if (e.key === 'Escape') {
+      if (e.key === 'Enter') finishEditing();
+      else if (e.key === 'Escape') {
         editingLayerId = null;
         render();
       }

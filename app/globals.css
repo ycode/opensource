@@ -139,7 +139,7 @@
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  
+
   .bg-checkerboard {
     background-image: repeating-linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), repeating-linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc);
     background-position: 0 0, 4px 4px;
@@ -179,4 +179,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+}
+
+/* InputWithInlineVariables List Styles */
+.input-with-inline-variables .ProseMirror ul,
+.input-with-inline-variables .ProseMirror ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+  list-style-position: outside;
+}
+
+.input-with-inline-variables .ProseMirror ul {
+  list-style-type: disc;
+}
+
+.input-with-inline-variables .ProseMirror ol {
+  list-style-type: decimal;
+}
+
+.input-with-inline-variables .ProseMirror li {
+  margin: 0.25em 0;
+  padding-left: 0.25em;
 }

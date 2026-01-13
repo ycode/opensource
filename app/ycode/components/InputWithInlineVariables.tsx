@@ -8,7 +8,7 @@
  * Data is stored in data-variable attribute as JSON-encoded string
  */
 
-import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
+import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { Node, mergeAttributes } from '@tiptap/core';
@@ -16,6 +16,13 @@ import Document from '@tiptap/extension-document';
 import Text from '@tiptap/extension-text';
 import Paragraph from '@tiptap/extension-paragraph';
 import Placeholder from '@tiptap/extension-placeholder';
+import Bold from '@tiptap/extension-bold';
+import Italic from '@tiptap/extension-italic';
+import Underline from '@tiptap/extension-underline';
+import Strike from '@tiptap/extension-strike';
+import BulletList from '@tiptap/extension-bullet-list';
+import OrderedList from '@tiptap/extension-ordered-list';
+import ListItem from '@tiptap/extension-list-item';
 import { cn } from '@/lib/utils';
 import type { CollectionField, Collection } from '@/types';
 import {
@@ -48,6 +55,8 @@ interface InputWithInlineVariablesProps {
   collections?: Collection[];
   /** Disable editing and hide database button */
   disabled?: boolean;
+  /** Enable formatting toolbar (bold, italic, underline, strikethrough) */
+  withFormatting?: boolean;
 }
 
 export interface InputWithInlineVariablesHandle {
@@ -202,13 +211,14 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   allFields,
   collections,
   disabled = false,
+  withFormatting = false,
 }, ref) => {
   const [isFocused, setIsFocused] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const editor = useEditor({
-    immediatelyRender: true,
-    extensions: [
+  // Build extensions list based on withFormatting prop
+  const extensions = useMemo(() => {
+    const baseExtensions = [
       Document,
       Paragraph,
       Text,
@@ -216,7 +226,27 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
       Placeholder.configure({
         placeholder,
       }),
-    ],
+    ];
+
+    if (withFormatting) {
+      return [
+        ...baseExtensions,
+        Bold,
+        Italic,
+        Underline,
+        Strike,
+        BulletList,
+        OrderedList,
+        ListItem,
+      ];
+    }
+
+    return baseExtensions;
+  }, [placeholder, withFormatting]);
+
+  const editor = useEditor({
+    immediatelyRender: true,
+    extensions,
     content: parseValueToContent(value, fields, undefined, allFields),
     editorProps: {
       attributes: {
@@ -228,15 +258,16 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
           '[&_.ProseMirror]:outline-none [&_.ProseMirror]:w-full [&_.ProseMirror]:min-h-full',
           '[&_.ProseMirror_p]:m-0 [&_.ProseMirror_p]:p-0 [&_.ProseMirror_p]:flex [&_.ProseMirror_p]:flex-wrap [&_.ProseMirror_p]:items-center [&_.ProseMirror_p]:gap-y-0.5',
           '[&_.ProseMirror_p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child]:before:inline-block [&_.ProseMirror_p.is-editor-empty:first-child]:before:w-full [&_.ProseMirror_p.is-editor-empty:first-child]:before:text-xs [&_.ProseMirror_p.is-editor-empty:first-child]:before:text-current/25 [&_.ProseMirror_p.is-editor-empty:first-child]:before:pointer-events-none',
+          // Formatting styles
+          '[&_.ProseMirror_strong]:font-bold',
+          '[&_.ProseMirror_em]:italic',
+          '[&_.ProseMirror_u]:underline',
+          '[&_.ProseMirror_s]:line-through',
           className
         ),
       },
       handleKeyDown: (view, event) => {
-        // Prevent line breaks
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          return true;
-        }
+        // Allow line breaks (Enter key)
         return false;
       },
     },
@@ -261,7 +292,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         onBlurProp(currentValue);
       }
     },
-  }, [placeholder]);
+  }, [placeholder, extensions]);
 
   // Update editor editable state when disabled prop changes
   useEffect(() => {
@@ -444,6 +475,89 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
 
   return (
     <div className="relative flex-1 input-with-inline-variables">
+      {/* Formatting toolbar */}
+      {withFormatting && isFocused && !disabled && (
+        <div className="absolute -top-8 left-0 z-10 flex gap-0.5 bg-popover border border-border rounded-md shadow-sm p-0.5">
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('bold') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().run();
+              editor.commands.toggleMark('bold', {}, { extendEmptyMarkRange: true });
+            }}
+            title="Bold"
+          >
+            <Icon name="bold" className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('italic') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().run();
+              editor.commands.toggleMark('italic', {}, { extendEmptyMarkRange: true });
+            }}
+            title="Italic"
+          >
+            <Icon name="italic" className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('underline') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().run();
+              editor.commands.toggleMark('underline', {}, { extendEmptyMarkRange: true });
+            }}
+            title="Underline"
+          >
+            <Icon name="underline" className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('strike') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().run();
+              editor.commands.toggleMark('strike', {}, { extendEmptyMarkRange: true });
+            }}
+            title="Strikethrough"
+          >
+            <Icon name="strikethrough" className="size-3" />
+          </Button>
+          <div className="w-px h-4 bg-border mx-0.5" />
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('bulletList') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().toggleBulletList().run();
+            }}
+            title="Bullet List"
+          >
+            <Icon name="listUnordered" className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('orderedList') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().toggleOrderedList().run();
+            }}
+            title="Numbered List"
+          >
+            <Icon name="listOrdered" className="size-3" />
+          </Button>
+        </div>
+      )}
+
       <div className="relative">
         <EditorContent editor={editor} />
       </div>

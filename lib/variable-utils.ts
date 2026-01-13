@@ -50,9 +50,14 @@ export function createStaticTextVariable(content: string): StaticTextVariable {
 
 /**
  * Extract content string from a DynamicTextVariable
+ * Returns plain text for string content, or empty string for Tiptap JSON (use tiptapToPlainText for that)
  */
 export function getDynamicTextContent(variable: DynamicTextVariable | undefined | null): string {
-  return variable?.data?.content || '';
+  const content = variable?.data?.content;
+  if (typeof content === 'string') {
+    return content;
+  }
+  return '';
 }
 
 /**
@@ -114,7 +119,8 @@ export function getVariableStringValue(
   }
   
   if (isDynamicTextVariable(variable)) {
-    return variable.data.content;
+    const content = variable.data.content;
+    return typeof content === 'string' ? content : '';
   }
   
   if (isStaticTextVariable(variable)) {
@@ -166,6 +172,10 @@ export function getImageUrlFromVariable(
 
   if (isDynamicTextVariable(src)) {
     const content = src.data.content;
+    // Skip if content is Tiptap JSON object (not a URL string)
+    if (typeof content !== 'string') {
+      return undefined;
+    }
     // Resolve inline variables if collectionItemData is available
     if (content.includes('<ycode-inline-variable>') && collectionItemData) {
       const mockItem: any = {
@@ -231,6 +241,10 @@ export function getVideoUrlFromVariable(
 
   if (isDynamicTextVariable(src)) {
     const content = src.data.content;
+    // Skip if content is Tiptap JSON object (not a URL string)
+    if (typeof content !== 'string') {
+      return undefined;
+    }
     // Resolve inline variables if collectionItemData is available
     if (content.includes('<ycode-inline-variable>') && collectionItemData) {
       const mockItem: any = {
@@ -264,7 +278,8 @@ export function getIframeUrlFromVariable(
   if (!src) return undefined;
 
   if (isDynamicTextVariable(src)) {
-    return src.data.content;
+    const content = src.data.content;
+    return typeof content === 'string' ? content : undefined;
   }
 
   return undefined;

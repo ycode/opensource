@@ -72,6 +72,18 @@ export function parseValueToContent(
     content?: any[];
   }>;
 } {
+  // If text is already Tiptap JSON (stringified), parse and return it directly
+  if (text.trim().startsWith('{"type":"doc"')) {
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.type === 'doc') {
+        return parsed;
+      }
+    } catch {
+      // If parsing fails, fall through to legacy parsing
+    }
+  }
+
   const content: any[] = [];
   const regex = /<ycode-inline-variable(?:\s+id="([^"]+)")?>([\s\S]*?)<\/ycode-inline-variable>/g;
   let lastIndex = 0;
@@ -152,6 +164,29 @@ export function parseValueToContent(
  * Outputs format: <ycode-inline-variable>{"type":"field","data":{"field_id":"..."}}</ycode-inline-variable>
  */
 export function convertContentToValue(content: any): string {
+  // Check if content has any formatting marks (bold, italic, underline, strike)
+  const hasFormatting = (content: any): boolean => {
+    if (!content?.content) return false;
+    
+    for (const block of content.content) {
+      if (block.content) {
+        for (const node of block.content) {
+          // Check if node has marks (formatting)
+          if (node.marks && node.marks.length > 0) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  };
+
+  // If content has formatting, return the full Tiptap JSON as string
+  if (hasFormatting(content)) {
+    return JSON.stringify(content);
+  }
+
+  // Otherwise, convert to legacy string format with inline variable tags
   let result = '';
 
   if (content?.content) {

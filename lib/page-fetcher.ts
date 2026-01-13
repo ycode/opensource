@@ -17,6 +17,7 @@ export interface PaginationContext {
 }
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import { buildLayerTranslationKey, getTranslationByKey, hasValidTranslationValue, getTranslationValue } from '@/lib/localisation-utils';
+import { isTiptapContent, tiptapToPlainText, renderTiptapToHtml } from '@/lib/tiptap-utils';
 
 export interface PageData {
   page: Page;
@@ -957,11 +958,24 @@ async function injectCollectionData(
 
   const updates: Partial<Layer> = {};
 
-  // Resolve inline variables (DynamicTextVariable format)
+  // Resolve inline variables (DynamicTextVariable format - supports both string and Tiptap JSON)
   const textVariable = layer.variables?.text;
   if (textVariable && textVariable.type === 'dynamic_text') {
     const textContent = textVariable.data.content;
-    if (textContent.includes('<ycode-inline-variable>')) {
+
+    // Handle Tiptap JSON content - render to HTML with resolved variables
+    if (isTiptapContent(textContent)) {
+      const resolvedHtml = renderTiptapToHtml(textContent, enhancedValues, layer.textStyles);
+      updates.variables = {
+        ...layer.variables,
+        text: {
+          type: 'dynamic_text',
+          data: { content: resolvedHtml } // Store as resolved HTML string for SSR
+        }
+      };
+    }
+    // Handle legacy string format with inline variable tags
+    else if (typeof textContent === 'string' && textContent.includes('<ycode-inline-variable>')) {
       const mockItem: CollectionItemWithValues = {
         id: 'temp',
         collection_id: 'temp',
@@ -1115,22 +1129,22 @@ export async function resolveCollectionLayers(
   paginationContext?: PaginationContext,
   translations?: Record<string, Translation>
 ): Promise<Layer[]> {
-  console.log('[resolveCollectionLayers] ===== START =====');
-  console.log('[resolveCollectionLayers] Processing layers:', {
-    layerCount: layers.length,
-    isPublished,
-    topLevelLayerIds: layers.map(l => l.id),
-    hasParentItemValues: !!parentItemValues,
-  });
+  // console.log('[resolveCollectionLayers] ===== START =====');
+  // console.log('[resolveCollectionLayers] Processing layers:', {
+  //   layerCount: layers.length,
+  //   isPublished,
+  //   topLevelLayerIds: layers.map(l => l.id),
+  //   hasParentItemValues: !!parentItemValues,
+  // });
 
   const resolveLayer = async (layer: Layer, itemValues?: Record<string, string>): Promise<Layer> => {
-    console.log('[resolveCollectionLayers] Processing layer:', {
-      layerId: layer.id,
-      layerName: layer.name,
-      hasVariables: !!layer.variables,
-      hasCollectionVariable: !!layer.variables?.collection,
-      collectionId: layer.variables?.collection?.id,
-    });
+    // console.log('[resolveCollectionLayers] Processing layer:', {
+    //   layerId: layer.id,
+    //   layerName: layer.name,
+    //   hasVariables: !!layer.variables,
+    //   hasCollectionVariable: !!layer.variables?.collection,
+    //   collectionId: layer.variables?.collection?.id,
+    // });
 
     // Check if this is a collection layer
     const isCollectionLayer = !!layer.variables?.collection?.id;
@@ -1183,18 +1197,18 @@ export async function resolveCollectionLayers(
               if (sourceFieldType === 'reference') {
                 // Single reference: only one item ID
                 allowedItemIds = [refValue];
-                console.log(`[resolveCollectionLayers] Single reference filter for field ${sourceFieldId}:`, {
-                  refItemId: refValue,
-                });
+                // console.log(`[resolveCollectionLayers] Single reference filter for field ${sourceFieldId}:`, {
+                //   refItemId: refValue,
+                // });
               } else {
                 // Multi-reference: parse JSON array of item IDs
                 try {
                   const parsedIds = JSON.parse(refValue);
                   if (Array.isArray(parsedIds)) {
                     allowedItemIds = parsedIds;
-                    console.log(`[resolveCollectionLayers] Multi-reference filter for field ${sourceFieldId}:`, {
-                      allowedIds: parsedIds,
-                    });
+                    // console.log(`[resolveCollectionLayers] Multi-reference filter for field ${sourceFieldId}:`, {
+                    //   allowedIds: parsedIds,
+                    // });
                   }
                 } catch {
                   console.warn(`[resolveCollectionLayers] Failed to parse multi-reference value for field ${sourceFieldId}`);
@@ -1221,20 +1235,20 @@ export async function resolveCollectionLayers(
           let items = fetchResult.items;
           const totalItems = fetchResult.total;
 
-          console.log(`[resolveCollectionLayers] Fetched items for layer ${layer.id}:`, {
-            collectionId: collectionVariable.id,
-            itemsCount: items.length,
-            totalItems,
-            sortBy,
-            sortOrder,
-            limit,
-            offset,
-            sourceFieldId,
-            sourceFieldType,
-            isPaginated,
-            currentPage,
-            hasItemIdFilter: !!allowedItemIds,
-          });
+          // console.log(`[resolveCollectionLayers] Fetched items for layer ${layer.id}:`, {
+          //   collectionId: collectionVariable.id,
+          //   itemsCount: items.length,
+          //   totalItems,
+          //   sortBy,
+          //   sortOrder,
+          //   limit,
+          //   offset,
+          //   sourceFieldId,
+          //   sourceFieldType,
+          //   isPaginated,
+          //   currentPage,
+          //   hasItemIdFilter: !!allowedItemIds,
+          // });
 
           // Apply collection filters (evaluate against each item's own values)
           const collectionFilters = collectionVariable.filters;
@@ -1245,10 +1259,10 @@ export async function resolveCollectionLayers(
                 pageCollectionCounts: {},
               })
             );
-            console.log(`[resolveCollectionLayers] Applied collection filters for layer ${layer.id}:`, {
-              filterGroupCount: collectionFilters.groups.length,
-              filteredCount: items.length,
-            });
+            // console.log(`[resolveCollectionLayers] Applied collection filters for layer ${layer.id}:`, {
+            //   filterGroupCount: collectionFilters.groups.length,
+            //   filteredCount: items.length,
+            // });
           }
 
           // Apply sorting if specified (since API doesn't handle sortBy yet)
@@ -1279,10 +1293,10 @@ export async function resolveCollectionLayers(
           // Fetch collection fields for reference resolution
           const collectionFields = await getFieldsByCollectionId(collectionVariable.id, isPublished);
 
-          console.log(`[resolveCollectionLayers] Resolving children for layer ${layer.id}:`, {
-            childrenCount: layer.children?.length || 0,
-            sortedItemsCount: sortedItems.length,
-          });
+          // console.log(`[resolveCollectionLayers] Resolving children for layer ${layer.id}:`, {
+          //   childrenCount: layer.children?.length || 0,
+          //   sortedItemsCount: sortedItems.length,
+          // });
 
           // Clone the collection layer for each item (design settings apply to each repeated item)
           // For each item, resolve nested collection layers with that item's values
@@ -1323,7 +1337,7 @@ export async function resolveCollectionLayers(
             })
           );
 
-          console.log(`[resolveCollectionLayers] Cloned collection layer into ${clonedLayers.length} items`);
+          // console.log(`[resolveCollectionLayers] Cloned collection layer into ${clonedLayers.length} items`);
 
           // Build pagination metadata if pagination is enabled
           let paginationMeta: CollectionPaginationMeta | undefined;
@@ -1341,7 +1355,8 @@ export async function resolveCollectionLayers(
               // Store the original layer template for load_more client-side rendering
               layerTemplate: paginationConfig.mode === 'load_more' ? layer.children : undefined,
             };
-            console.log(`[resolveCollectionLayers] Pagination meta for layer ${layer.id}:`, paginationMeta);
+
+            // console.log(`[resolveCollectionLayers] Pagination meta for layer ${layer.id}:`, paginationMeta);
           }
 
           // Build children array - just the cloned items
@@ -1386,8 +1401,8 @@ export async function resolveCollectionLayers(
   };
 
   const result = await Promise.all(layers.map(layer => resolveLayer(layer, parentItemValues)));
-  console.log('[resolveCollectionLayers] ===== END =====');
-  console.log('[resolveCollectionLayers] Processed layers count:', result.length);
+  // console.log('[resolveCollectionLayers] ===== END =====');
+  // console.log('[resolveCollectionLayers] Processed layers count:', result.length);
 
   // Collect pagination metadata from all fragments
   const paginationMetaMap: Record<string, CollectionPaginationMeta> = {};
@@ -1768,11 +1783,24 @@ async function injectCollectionDataForHtml(
 
   const updates: Partial<Layer> = {};
 
-  // Resolve inline variables (DynamicTextVariable format)
+  // Resolve inline variables (DynamicTextVariable format - supports both string and Tiptap JSON)
   const textVariable = layer.variables?.text;
   if (textVariable && textVariable.type === 'dynamic_text') {
     const textContent = textVariable.data.content;
-    if (textContent.includes('<ycode-inline-variable>')) {
+
+    // Handle Tiptap JSON content - render to HTML with resolved variables
+    if (isTiptapContent(textContent)) {
+      const resolvedHtml = renderTiptapToHtml(textContent, enhancedValues, layer.textStyles);
+      updates.variables = {
+        ...layer.variables,
+        text: {
+          type: 'dynamic_text',
+          data: { content: resolvedHtml }
+        }
+      };
+    }
+    // Handle legacy string format with inline variable tags
+    else if (typeof textContent === 'string' && textContent.includes('<ycode-inline-variable>')) {
       const mockItem: CollectionItemWithValues = {
         id: 'temp',
         collection_id: 'temp',
@@ -2057,7 +2085,8 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
       // AssetVariable should have been resolved to DynamicTextVariable in injectCollectionDataForHtml
       let srcValue: string | undefined = undefined;
       if (imageSrc.type === 'dynamic_text') {
-        srcValue = imageSrc.data.content || undefined;
+        const content = imageSrc.data.content;
+        srcValue = typeof content === 'string' ? content : undefined;
       } else if (imageSrc.type === 'asset') {
         // AssetVariable should have been resolved, but if not, skip (don't use asset_id as URL)
         srcValue = undefined;
@@ -2079,7 +2108,9 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
     }
     const imageAlt = layer.variables?.image?.alt;
     if (imageAlt && imageAlt.type === 'dynamic_text') {
-      attrs.push(`alt="${escapeHtml(imageAlt.data.content)}"`);
+      const altContent = imageAlt.data.content;
+      const altText = typeof altContent === 'string' ? altContent : '';
+      attrs.push(`alt="${escapeHtml(altText)}"`);
     }
   }
 
@@ -2101,7 +2132,8 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
       // Extract string value from variable (FieldVariable or DynamicTextVariable)
       let hrefValue = '';
       if (linkHref.type === 'dynamic_text') {
-        hrefValue = linkHref.data.content;
+        const hrefContent = linkHref.data.content;
+        hrefValue = typeof hrefContent === 'string' ? hrefContent : '';
       }
       if (hrefValue) {
         attrs.push(`href="${escapeHtml(hrefValue)}"`);
@@ -2133,7 +2165,21 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
 
   // Get text content from variables.text
   const textVariable = layer.variables?.text;
-  const textContent = (textVariable && textVariable.type === 'dynamic_text') ? textVariable.data.content : '';
+  let textContent = '';
+  let isHtmlContent = false;
+
+  if (textVariable && textVariable.type === 'dynamic_text') {
+    const content = textVariable.data.content;
+    // If content is Tiptap JSON, render to HTML
+    if (isTiptapContent(content)) {
+      textContent = renderTiptapToHtml(content, null, layer.textStyles);
+      isHtmlContent = true;
+    } else if (typeof content === 'string') {
+      // Check if content contains HTML tags (from previous Tiptap rendering)
+      isHtmlContent = /<[a-z][^>]*>/i.test(content);
+      textContent = content;
+    }
+  }
 
   // Handle self-closing tags
   const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link'];
@@ -2149,7 +2195,9 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
     return `<${tag}${attrsStr}>${iconHtml}${childrenHtml}</${tag}>`;
   }
 
-  return `<${tag}${attrsStr}>${escapeHtml(textContent)}${childrenHtml}</${tag}>`;
+  // If content contains HTML (from Tiptap), don't escape it
+  const finalTextContent = isHtmlContent ? textContent : escapeHtml(textContent);
+  return `<${tag}${attrsStr}>${finalTextContent}${childrenHtml}</${tag}>`;
 }
 
 /**

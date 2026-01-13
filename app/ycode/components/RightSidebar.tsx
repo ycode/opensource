@@ -62,6 +62,7 @@ import { classesToDesign, mergeDesign, removeConflictsForClass } from '@/lib/tai
 import { cn } from '@/lib/utils';
 import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTextEditable, findLayerWithParent } from '@/lib/layer-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
+import { isTiptapContent, tiptapToPlainText } from '@/lib/tiptap-utils';
 
 // 7. Types
 import type { Layer, FieldVariable, CollectionField } from '@/types';
@@ -631,10 +632,22 @@ const RightSidebar = React.memo(function RightSidebar({
   const handleContentChange = useCallback((value: string) => {
     if (!selectedLayerId) return;
 
+    // Parse the value to determine if it's Tiptap JSON or plain text
+    let content: string | object = value;
+
+    try {
+      // If value is a JSON string starting with {"type":"doc"}, parse it
+      if (value.trim().startsWith('{"type":"doc"')) {
+        content = JSON.parse(value);
+      }
+    } catch {
+      // If parsing fails, keep as string
+    }
+
     // Always create a DynamicTextVariable (even for plain text)
     const textVariable = value ? {
       type: 'dynamic_text' as const,
-      data: { content: value },
+      data: { content },
     } : undefined;
 
     handleLayerUpdate(selectedLayerId, {
@@ -645,13 +658,21 @@ const RightSidebar = React.memo(function RightSidebar({
     });
   }, [selectedLayerId, selectedLayer, handleLayerUpdate]);
 
-  // Get content value for display
+  // Get content value for display - returns Tiptap JSON as string or plain text
   const getContentValue = useCallback((layer: Layer | null): string => {
     if (!layer) return '';
 
-    // Check layer.variables.text (DynamicTextVariable with embedded JSON)
+    // Check layer.variables.text (DynamicTextVariable with embedded JSON or Tiptap content)
     if (layer.variables?.text && layer.variables.text.type === 'dynamic_text') {
-      return layer.variables.text.data.content;
+      const content = layer.variables.text.data.content;
+
+      // If content is Tiptap JSON object, stringify it for the editor
+      if (isTiptapContent(content)) {
+        return JSON.stringify(content);
+      }
+
+      // Otherwise return as string
+      return typeof content === 'string' ? content : '';
     }
 
     return '';
@@ -1660,6 +1681,7 @@ const RightSidebar = React.memo(function RightSidebar({
                     fieldSourceLabel={fieldSourceLabel}
                     allFields={fields}
                     collections={collections}
+                    withFormatting={true}
                   />
                 </div>
               </SettingsPanel>
