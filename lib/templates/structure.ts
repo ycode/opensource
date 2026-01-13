@@ -37,11 +37,12 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Container',
     template: {
       name: 'div',
-      classes: ['flex', 'flex-col', 'max-w-[1280px]', 'w-[100%]'],
+      classes: ['flex', 'flex-col', 'max-w-[1280px]', 'w-[100%]', 'pl-[32px]', 'pr-[32px]'],
       children: [],
       design: {
         layout: { isActive: true, display: 'Flex', flexDirection: 'column' },
         sizing: { isActive: true, width: '100%', maxWidth: '1280px' },
+        spacing: { isActive: true, paddingLeft: '32px', paddingRight: '32px' },
       }
     }
   },
