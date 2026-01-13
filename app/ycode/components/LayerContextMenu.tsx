@@ -24,6 +24,7 @@ import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import type { Layer } from '@/types';
 import CreateComponentDialog from './CreateComponentDialog';
+import SaveLayoutDialog from './SaveLayoutDialog';
 
 interface LayerContextMenuProps {
   layerId: string;
@@ -47,6 +48,7 @@ export default function LayerContextMenu({
   liveComponentUpdates,
 }: LayerContextMenuProps) {
   const [isComponentDialogOpen, setIsComponentDialogOpen] = useState(false);
+  const [isLayoutDialogOpen, setIsLayoutDialogOpen] = useState(false);
   const [layerName, setLayerName] = useState('');
 
   const copyLayer = usePagesStore((state) => state.copyLayer);
@@ -343,6 +345,70 @@ export default function LayerContextMenu({
     console.log('Layer Object:', layer);
   };
 
+  const handleSaveAsLayout = () => {
+    if (!layer) return;
+
+    // Set default name from layer
+    const defaultName = layer.customName || layer.name || 'Custom Layout';
+    setLayerName(defaultName);
+
+    // Open dialog
+    setIsLayoutDialogOpen(true);
+  };
+
+  const handleConfirmSaveLayout = async (layoutName: string, category: string, imageFile: File | null) => {
+    if (!layer) return;
+
+    try {
+      // Strip IDs to convert Layer to LayerTemplate
+      const stripIds = (l: Layer): any => {
+        const { id, ...rest } = l;
+        const result: any = { ...rest };
+
+        if (result.children && Array.isArray(result.children)) {
+          result.children = result.children.map((child: Layer) => stripIds(child));
+        }
+
+        return result;
+      };
+
+      const template = stripIds(layer);
+
+      // Generate layout key from name
+      const layoutKey = layoutName.toLowerCase().replace(/\s+/g, '-');
+
+      // Use FormData to send file + data
+      const formData = new FormData();
+      formData.append('layoutKey', layoutKey);
+      formData.append('layoutName', layoutName);
+      formData.append('category', category);
+      formData.append('template', JSON.stringify(template));
+      
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+
+      // Call API to save layout
+      const response = await fetch('/api/layouts', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save layout');
+      }
+
+      console.log('✅ Layout saved successfully:', layoutName);
+      console.log('Layout key:', layoutKey);
+      console.log('Category:', category);
+    } catch (error) {
+      console.error('Failed to save layout:', error);
+      throw error;
+    }
+  };
+
   const handleOpenChange = (open: boolean) => {
     // When context menu opens, select this layer for visual feedback
     // Only select if the layer exists and is not already selected (prevent unnecessary re-renders)
@@ -459,6 +525,10 @@ export default function LayerContextMenu({
               Show JSON
               <ContextMenuShortcut>🔍</ContextMenuShortcut>
             </ContextMenuItem>
+            <ContextMenuItem onClick={handleSaveAsLayout}>
+              Save as Layout
+              <ContextMenuShortcut>📐</ContextMenuShortcut>
+            </ContextMenuItem>
           </>
         )}
       </ContextMenuContent>
@@ -468,6 +538,13 @@ export default function LayerContextMenu({
         onOpenChange={setIsComponentDialogOpen}
         onConfirm={handleConfirmCreateComponent}
         layerName={layerName}
+      />
+
+      <SaveLayoutDialog
+        open={isLayoutDialogOpen}
+        onOpenChange={setIsLayoutDialogOpen}
+        onConfirm={handleConfirmSaveLayout}
+        defaultName={layerName}
       />
     </ContextMenu>
   );

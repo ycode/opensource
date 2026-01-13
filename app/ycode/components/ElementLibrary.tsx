@@ -6,16 +6,24 @@
  * Displays categorized list of available elements that can be added to the page
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import Image from 'next/image';
 import { getLayerFromTemplate, getBlockName, getBlockIcon, getLayoutTemplate, getLayoutCategory, getLayoutPreviewImage, getLayoutsByCategory, getAllLayoutKeys } from '@/lib/templates/blocks';
 import { canHaveChildren } from '@/lib/layer-utils';
+import SaveLayoutDialog from './SaveLayoutDialog';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
@@ -43,6 +51,10 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
   const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId } = useEditorStore();
   const { components, componentDrafts, updateComponentDraft } = useComponentsStore();
   const [activeTab, setActiveTab] = React.useState<'elements' | 'layouts' | 'components'>(defaultTab);
+  const [isEditLayoutDialogOpen, setIsEditLayoutDialogOpen] = useState(false);
+  const [editingLayoutKey, setEditingLayoutKey] = useState<string>('');
+  const [editingLayoutName, setEditingLayoutName] = useState<string>('');
+  const [editingLayoutCategory, setEditingLayoutCategory] = useState<string>('Custom');
 
   // Update active tab when defaultTab changes (e.g., when opening with a specific tab)
   React.useEffect(() => {
@@ -448,6 +460,89 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     onClose();
   };
 
+  const handleDeleteLayout = async (layoutKey: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the add layout action
+
+    if (!confirm(`Are you sure you want to delete the layout "${layoutKey}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/layouts/${layoutKey}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete layout');
+      }
+
+      console.log('✅ Layout deleted successfully:', layoutKey);
+
+      // Refresh the page to reload layouts
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to delete layout:', error);
+      alert('Failed to delete layout. Check console for details.');
+    }
+  };
+
+  const handleEditLayout = async (layoutKey: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the add layout action
+
+    // Get current category
+    const category = getLayoutCategory(layoutKey) || 'Custom';
+
+    // Convert layout-key to Layout Name
+    const layoutName = layoutKey
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+
+    // Set state and open dialog
+    setEditingLayoutKey(layoutKey);
+    setEditingLayoutName(layoutName);
+    setEditingLayoutCategory(category);
+    setIsEditLayoutDialogOpen(true);
+  };
+
+  const handleConfirmEditLayout = async (layoutName: string, category: string, imageFile: File | null, oldLayoutKey?: string) => {
+    if (!oldLayoutKey) return;
+
+    try {
+      // Generate new layout key from name
+      const newLayoutKey = layoutName.toLowerCase().replace(/\s+/g, '-');
+
+      // Call API to update layout
+      const response = await fetch(`/api/layouts/${oldLayoutKey}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          newLayoutKey,
+          newLayoutName: layoutName,
+          category,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update layout');
+      }
+
+      console.log('✅ Layout updated successfully:', layoutName);
+
+      // Refresh the page to reload layouts
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to update layout:', error);
+      throw error;
+    }
+  };
+
   const handleAddComponent = (componentId: string) => {
     if (!currentPageId) return;
 
@@ -642,23 +737,50 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                         const previewImage = getLayoutPreviewImage(layoutKey);
 
                         return (
-                          <Button
-                            key={layoutKey}
-                            onClick={() => handleAddLayout(layoutKey)}
-                            size="sm"
-                            variant="secondary"
-                            className="justify-start flex-col items-start p-1.5 overflow-hidden hover:opacity-90 transition-opacity rounded-[10px] !h-auto"
-                          >
-                            {previewImage && (
-                              <Image
-                                src={previewImage}
-                                width={640}
-                                height={262}
-                                alt="Layout preview"
-                                className="object-contain w-full h-full rounded"
-                              />
-                            )}
-                          </Button>
+                          <ContextMenu key={layoutKey}>
+                            <ContextMenuTrigger asChild>
+                              <Button
+                                onClick={() => handleAddLayout(layoutKey)}
+                                size="sm"
+                                variant="secondary"
+                                className="justify-start flex-col items-start p-1.5 overflow-hidden hover:opacity-90 transition-opacity rounded-[10px] !h-auto"
+                              >
+                                {previewImage && (
+                                  <Image
+                                    src={previewImage}
+                                    width={640}
+                                    height={262}
+                                    alt="Layout preview"
+                                    className="object-contain w-full h-full rounded"
+                                  />
+                                )}
+                              </Button>
+                            </ContextMenuTrigger>
+
+                            <ContextMenuContent>
+                              <ContextMenuItem onClick={() => handleAddLayout(layoutKey)}>
+                                <Icon name="plus" className="size-3" />
+                                Add to Canvas
+                              </ContextMenuItem>
+
+                              {process.env.NODE_ENV === 'development' && (
+                                <>
+                                  <ContextMenuSeparator />
+                                  <ContextMenuItem onClick={(e) => handleEditLayout(layoutKey, e)}>
+                                    <Icon name="pencil" className="size-3" />
+                                    Edit
+                                  </ContextMenuItem>
+                                  <ContextMenuItem
+                                    onClick={(e) => handleDeleteLayout(layoutKey, e)}
+                                    className="text-red-500 focus:text-red-500"
+                                  >
+                                    <Icon name="trash" className="size-3" />
+                                    Delete
+                                  </ContextMenuItem>
+                                </>
+                              )}
+                            </ContextMenuContent>
+                          </ContextMenu>
                         );
                       })}
                     </div>
@@ -699,6 +821,16 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
             )}
           </TabsContent>
         </Tabs>
+
+        <SaveLayoutDialog
+          open={isEditLayoutDialogOpen}
+          onOpenChange={setIsEditLayoutDialogOpen}
+          onConfirm={handleConfirmEditLayout}
+          defaultName={editingLayoutName}
+          defaultCategory={editingLayoutCategory}
+          mode="edit"
+          layoutKey={editingLayoutKey}
+        />
     </div>
   );
 }

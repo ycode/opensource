@@ -1,0 +1,171 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { promises as fs } from 'fs';
+import path from 'path';
+
+const LAYOUTS_FILE_PATH = path.join(process.cwd(), 'lib', 'templates', 'layouts.ts');
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ layoutKey: string }> }
+) {
+  try {
+    const { layoutKey } = await params;
+    const { newLayoutKey, newLayoutName, category } = await request.json();
+
+    if (!layoutKey || !newLayoutKey || !newLayoutName || !category) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Read the existing file
+    let fileContent = await fs.readFile(LAYOUTS_FILE_PATH, 'utf-8');
+
+    // Check if layout exists
+    if (!fileContent.includes(`'${layoutKey}':`)) {
+      return NextResponse.json(
+        { error: `Layout '${layoutKey}' not found` },
+        { status: 404 }
+      );
+    }
+
+    // If renaming, make the new key unique if it already exists (and it's not the same key)
+    let uniqueNewLayoutKey = newLayoutKey;
+    if (layoutKey !== newLayoutKey) {
+      let counter = 2;
+      while (fileContent.includes(`'${uniqueNewLayoutKey}':`) && uniqueNewLayoutKey !== layoutKey) {
+        uniqueNewLayoutKey = `${newLayoutKey}-${counter}`;
+        counter++;
+      }
+    }
+
+    // Find the layout entry using a simple approach
+    // Step 1: Find the layout start index using the original key
+    const layoutStartIndex = fileContent.indexOf(`'${layoutKey}': {`);
+    if (layoutStartIndex === -1) {
+      return NextResponse.json(
+        { error: 'Could not find layout entry' },
+        { status: 404 }
+      );
+    }
+
+    // Step 2: Replace the layout key if renaming
+    let searchKey = layoutKey; // Key to use for finding boundaries
+    if (layoutKey !== uniqueNewLayoutKey) {
+      const keyRegex = new RegExp(`'${layoutKey}':\\s*\\{`, 'g');
+      fileContent = fileContent.replace(keyRegex, `'${uniqueNewLayoutKey}': {`);
+      searchKey = uniqueNewLayoutKey;
+    }
+
+    // Find the updated layout position after potential key replacement
+    const updatedLayoutStartIndex = fileContent.indexOf(`'${searchKey}': {`);
+    if (updatedLayoutStartIndex === -1) {
+      return NextResponse.json(
+        { error: 'Could not find layout entry after key replacement' },
+        { status: 500 }
+      );
+    }
+
+    // Find the next layout entry or end of object to determine the boundary
+    const nextLayoutIndex = fileContent.indexOf('\n  \'', updatedLayoutStartIndex + 1);
+    const endOfObjectIndex = fileContent.indexOf('\n};', updatedLayoutStartIndex);
+    const layoutEndIndex = nextLayoutIndex !== -1 && nextLayoutIndex < endOfObjectIndex 
+      ? nextLayoutIndex 
+      : endOfObjectIndex;
+
+    if (layoutEndIndex === -1) {
+      return NextResponse.json(
+        { error: 'Could not determine layout boundaries' },
+        { status: 500 }
+      );
+    }
+
+    // Extract just this layout's section
+    const layoutSection = fileContent.substring(updatedLayoutStartIndex, layoutEndIndex);
+
+    // Update category in this section
+    const categoryRegex = /category:\s*'[^']*'/;
+    const updatedLayoutSection = layoutSection.replace(categoryRegex, `category: '${category}'`);
+
+    // Update preview image path in this section
+    const previewImageRegex = /previewImage:\s*'[^']*'/;
+    const updatedLayoutSectionWithImage = updatedLayoutSection.replace(
+      previewImageRegex, 
+      `previewImage: '/layouts/${uniqueNewLayoutKey}.webp'`
+    );
+
+    // Replace the section in the file
+    fileContent = fileContent.substring(0, updatedLayoutStartIndex) + 
+                  updatedLayoutSectionWithImage + 
+                  fileContent.substring(layoutEndIndex);
+
+    // Write back to file
+    await fs.writeFile(LAYOUTS_FILE_PATH, fileContent, 'utf-8');
+
+    return NextResponse.json({
+      data: { layoutKey: uniqueNewLayoutKey, layoutName: newLayoutName, category },
+      message: 'Layout updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating layout:', error);
+    return NextResponse.json(
+      { error: 'Failed to update layout' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ layoutKey: string }> }
+) {
+  try {
+    const { layoutKey } = await params;
+
+    if (!layoutKey) {
+      return NextResponse.json(
+        { error: 'Layout key is required' },
+        { status: 400 }
+      );
+    }
+
+    // Read the existing file
+    let fileContent = await fs.readFile(LAYOUTS_FILE_PATH, 'utf-8');
+
+    // Check if layout exists
+    if (!fileContent.includes(`'${layoutKey}':`)) {
+      return NextResponse.json(
+        { error: `Layout '${layoutKey}' not found` },
+        { status: 404 }
+      );
+    }
+
+    // Find and remove the layout entry
+    // Match the layout entry including all nested content
+    const layoutRegex = new RegExp(
+      `\\s*'${layoutKey}':\\s*\\{[^}]*?template:\\s*\\{[\\s\\S]*?\\},\\s*\\},?`,
+      'g'
+    );
+
+    fileContent = fileContent.replace(layoutRegex, '');
+
+    // Clean up any double commas or trailing commas before closing brace
+    fileContent = fileContent.replace(/,(\s*),/g, ',');
+    fileContent = fileContent.replace(/,(\s*)\n\s*\}/g, '\n}');
+
+    // Write back to file
+    await fs.writeFile(LAYOUTS_FILE_PATH, fileContent, 'utf-8');
+
+    return NextResponse.json({
+      data: { layoutKey },
+      message: 'Layout deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting layout:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete layout' },
+      { status: 500 }
+    );
+  }
+}
