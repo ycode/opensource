@@ -139,6 +139,8 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   overflow: /^overflow-(visible|hidden|clip|scroll|auto|x-visible|x-hidden|x-clip|x-scroll|x-auto|y-visible|y-hidden|y-clip|y-scroll|y-auto)$/,
   aspectRatio: /^aspect-(\[.+\]|auto|square|video)$/,
   objectFit: /^object-(contain|cover|fill|none|scale-down)$/,
+  gridColumnSpan: /^col-span-(1|2|3|4|5|6|7|8|9|10|11|12|auto|full)$/,
+  gridRowSpan: /^row-span-(1|2|3|4|5|6|7|8|9|10|11|12|auto|full)$/,
 
   // Typography
   fontFamily: /^font-(sans|serif|mono|\[.+\])$/,
@@ -483,6 +485,16 @@ export function propertyToClass(
     // Object Fit
     if (property === 'objectFit') {
       return `object-${value}`;
+    }
+
+    // Grid Column Span
+    if (property === 'gridColumnSpan') {
+      return value === 'full' ? 'col-span-full' : `col-span-${value}`;
+    }
+
+    // Grid Row Span
+    if (property === 'gridRowSpan') {
+      return value === 'full' ? 'row-span-full' : `row-span-${value}`;
     }
   }
 
@@ -1050,6 +1062,22 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
       const match = cls.match(/^object-(contain|cover|fill|none|scale-down)$/);
       if (match) {
         design.sizing!.objectFit = match[1];
+      }
+    }
+
+    // Grid Column Span
+    if (cls.startsWith('col-span-')) {
+      const match = cls.match(/^col-span-(1|2|3|4|5|6|7|8|9|10|11|12|auto|full)$/);
+      if (match) {
+        design.sizing!.gridColumnSpan = match[1];
+      }
+    }
+
+    // Grid Row Span
+    if (cls.startsWith('row-span-')) {
+      const match = cls.match(/^row-span-(1|2|3|4|5|6|7|8|9|10|11|12|auto|full)$/);
+      if (match) {
+        design.sizing!.gridRowSpan = match[1];
       }
     }
 

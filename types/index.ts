@@ -58,6 +58,8 @@ export interface SizingDesign {
   maxHeight?: string;
   aspectRatio?: string | null;
   objectFit?: string | null;
+  gridColumnSpan?: string | null;
+  gridRowSpan?: string | null;
 }
 
 export interface BordersDesign {

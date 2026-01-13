@@ -349,6 +349,14 @@ function mapClassToDesignValue(className: string, property: string): string | un
     return cleanClass;
   }
 
+  // Special handling for grid span properties: col-span-1 → 1, row-span-full → full
+  if (property === 'gridColumnSpan' && cleanClass.startsWith('col-span-')) {
+    return cleanClass.replace('col-span-', '');
+  }
+  if (property === 'gridRowSpan' && cleanClass.startsWith('row-span-')) {
+    return cleanClass.replace('row-span-', '');
+  }
+
   // Extract the value part after the property prefix
   // e.g., "text-3xl" → "3xl", "font-bold" → "bold", "w-full" → "full"
   const parts = cleanClass.split('-');
