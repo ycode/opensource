@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group';
 import Icon from '@/components/ui/icon';
@@ -13,6 +13,8 @@ import SettingsPanel from '@/app/ycode/components/SettingsPanel';
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInputs } from '@/hooks/use-controlled-input';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { usePagesStore } from '@/stores/usePagesStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
 import { extractMeasurementValue, formatMeasurementValue } from '@/lib/measurement-utils';
 import type { Layer } from '@/types';
 
@@ -42,6 +44,8 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
   const overflow = getDesignProperty('sizing', 'overflow') || 'visible';
   const aspectRatio = getDesignProperty('sizing', 'aspectRatio') || '';
   const objectFit = getDesignProperty('sizing', 'objectFit') || '';
+  const gridColumnSpan = getDesignProperty('sizing', 'gridColumnSpan') || '';
+  const gridRowSpan = getDesignProperty('sizing', 'gridRowSpan') || '';
 
   // Extract aspect ratio value for display (remove brackets)
   const extractAspectRatioValue = (value: string): string => {
@@ -273,11 +277,113 @@ export default function SizingControls({ layer, onLayerUpdate }: SizingControlsP
     updateDesignProperty('sizing', 'objectFit', value || null);
   };
 
+  // Handle grid column span change
+  const handleGridColumnSpanChange = (value: string) => {
+    updateDesignProperty('sizing', 'gridColumnSpan', value || null);
+  };
+
+  // Handle grid row span change
+  const handleGridRowSpanChange = (value: string) => {
+    updateDesignProperty('sizing', 'gridRowSpan', value || null);
+  };
+
+  // Get store values
+  const { currentPageId, editingComponentId } = useEditorStore();
+  const { draftsByPageId } = usePagesStore();
+  const { componentDrafts } = useComponentsStore();
+
+  // Check if parent layer has grid display
+  const parentHasGrid = useMemo(() => {
+    if (!layer) return false;
+    
+    let layers: Layer[] = [];
+    if (editingComponentId) {
+      layers = componentDrafts[editingComponentId] || [];
+    } else if (currentPageId) {
+      const draft = draftsByPageId[currentPageId];
+      layers = draft ? draft.layers : [];
+    }
+    
+    if (!layers.length) return false;
+    
+    // Find parent layer
+    const findParent = (tree: Layer[], targetId: string, parent: Layer | null = null): Layer | null => {
+      for (const node of tree) {
+        if (node.id === targetId) return parent;
+        if (node.children) {
+          const found = findParent(node.children, targetId, node);
+          if (found !== null) return found;
+        }
+      }
+      return null;
+    };
+    
+    const parent = findParent(layers, layer.id);
+    if (!parent) return false;
+    
+    // Check if parent has grid display
+    const parentDisplay = parent.design?.layout?.display;
+    return parentDisplay === 'Grid';
+  }, [layer, currentPageId, editingComponentId, draftsByPageId, componentDrafts]);
+
   return (
     <SettingsPanel
       title="Sizing" isOpen={isOpen}
       onToggle={() => setIsOpen(!isOpen)}
     >
+
+{parentHasGrid && (
+        <div className="grid grid-cols-3 items-start">
+          <Label variant="muted" className="h-8">Span</Label>
+          <div className="col-span-2 grid grid-cols-2 gap-2">
+            <Select value={gridColumnSpan} onValueChange={handleGridColumnSpanChange}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="1">1</SelectItem>
+                  <SelectItem value="2">2</SelectItem>
+                  <SelectItem value="3">3</SelectItem>
+                  <SelectItem value="4">4</SelectItem>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="6">6</SelectItem>
+                  <SelectItem value="7">7</SelectItem>
+                  <SelectItem value="8">8</SelectItem>
+                  <SelectItem value="9">9</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="11">11</SelectItem>
+                  <SelectItem value="12">12</SelectItem>
+                  <SelectItem value="full">Full</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select value={gridRowSpan} onValueChange={handleGridRowSpanChange}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="1">1</SelectItem>
+                  <SelectItem value="2">2</SelectItem>
+                  <SelectItem value="3">3</SelectItem>
+                  <SelectItem value="4">4</SelectItem>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="6">6</SelectItem>
+                  <SelectItem value="7">7</SelectItem>
+                  <SelectItem value="8">8</SelectItem>
+                  <SelectItem value="9">9</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="11">11</SelectItem>
+                  <SelectItem value="12">12</SelectItem>
+                  <SelectItem value="full">Full</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+)}
+
       <div className="grid grid-cols-3 items-start">
         <Label variant="muted" className="h-8">Width</Label>
         <div className="col-span-2 flex flex-col gap-2">
