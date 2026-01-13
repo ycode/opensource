@@ -147,7 +147,7 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   fontSize: /^text-(?!(?:left|center|right|justify|start|end)(?:\s|$)).+$/,
   fontWeight: /^font-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black|\[.+\])$/,
   lineHeight: /^leading-(none|tight|snug|normal|relaxed|loose|\d+|\[.+\])$/,
-  letterSpacing: /^tracking-(tighter|tight|normal|wide|wider|widest|\[.+\])$/,
+  letterSpacing: /^tracking-(tighter|tight|normal|wide|wider|widest|\[.+\]|.+)$/,
   textAlign: /^text-(left|center|right|justify|start|end)$/,
   textTransform: /^(uppercase|lowercase|capitalize|normal-case)$/,
   textDecoration: /^(underline|overline|line-through|no-underline)$/,
@@ -390,7 +390,13 @@ export function propertyToClass(
       case 'lineHeight':
         return value.match(/^\d/) ? `leading-[${value}]` : `leading-${value}`;
       case 'letterSpacing':
-        return formatMeasurementClass(value, 'tracking');
+        // Check if value starts with digit/minus and doesn't already have a unit
+        if (value.match(/^-?\d/)) {
+          // Check if value already has a unit (ends with letters or %)
+          const hasUnit = /[a-z%]$/i.test(value);
+          return hasUnit ? `tracking-[${value}]` : `tracking-[${value}em]`;
+        }
+        return `tracking-${value}`;
       case 'textAlign':
         return `text-${value}`;
       case 'textTransform':

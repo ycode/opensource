@@ -40,9 +40,26 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
   const textTransform = getDesignProperty('typography', 'textTransform') || 'none';
   const textDecoration = getDesignProperty('typography', 'textDecoration') || 'none';
 
+  // Custom extractor for letter spacing (strips 'em' as default unit, like fontSize strips 'px')
+  const extractLetterSpacingValue = (value: string): string => {
+    if (!value) return '';
+    
+    // Special values that don't need processing
+    const specialValues = ['auto', 'normal'];
+    if (specialValues.includes(value)) return value;
+    
+    // Strip 'em' unit (default for letter spacing)
+    // Keep all other units like px, rem, %, etc.
+    if (value.endsWith('em')) {
+      return value.slice(0, -2);
+    }
+    
+    return value;
+  };
+
   // Local controlled inputs (prevents repopulation bug)
   const [fontSizeInput, setFontSizeInput] = useControlledInput(fontSize, extractMeasurementValue);
-  const [letterSpacingInput, setLetterSpacingInput] = useControlledInput(letterSpacing, extractMeasurementValue);
+  const [letterSpacingInput, setLetterSpacingInput] = useControlledInput(letterSpacing, extractLetterSpacingValue);
   const [lineHeightInput, setLineHeightInput] = useControlledInput(lineHeight);
 
   // Map numeric font weights to named values
