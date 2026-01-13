@@ -134,21 +134,39 @@ export async function DELETE(
     let fileContent = await fs.readFile(LAYOUTS_FILE_PATH, 'utf-8');
 
     // Check if layout exists
-    if (!fileContent.includes(`'${layoutKey}':`)) {
+    const layoutStartIndex = fileContent.indexOf(`'${layoutKey}': {`);
+    if (layoutStartIndex === -1) {
       return NextResponse.json(
         { error: `Layout '${layoutKey}' not found` },
         { status: 404 }
       );
     }
 
-    // Find and remove the layout entry
-    // Match the layout entry including all nested content
-    const layoutRegex = new RegExp(
-      `\\s*'${layoutKey}':\\s*\\{[^}]*?template:\\s*\\{[\\s\\S]*?\\},\\s*\\},?`,
-      'g'
-    );
+    // Find the layout boundaries
+    const nextLayoutIndex = fileContent.indexOf('\n  \'', layoutStartIndex + 1);
+    const endOfObjectIndex = fileContent.indexOf('\n};', layoutStartIndex);
+    const layoutEndIndex = nextLayoutIndex !== -1 && nextLayoutIndex < endOfObjectIndex 
+      ? nextLayoutIndex 
+      : endOfObjectIndex;
 
-    fileContent = fileContent.replace(layoutRegex, '');
+    if (layoutEndIndex === -1) {
+      return NextResponse.json(
+        { error: 'Could not determine layout boundaries' },
+        { status: 500 }
+      );
+    }
+
+    // Check if we need to include the comma from the previous entry
+    // Look backwards to find if there's a comma before this entry
+    let deleteStartIndex = layoutStartIndex;
+    
+    // Find the start of the line (including leading whitespace and newline)
+    while (deleteStartIndex > 0 && fileContent[deleteStartIndex - 1] !== '\n') {
+      deleteStartIndex--;
+    }
+
+    // Remove the layout entry
+    fileContent = fileContent.substring(0, deleteStartIndex) + fileContent.substring(layoutEndIndex);
 
     // Clean up any double commas or trailing commas before closing brace
     fileContent = fileContent.replace(/,(\s*),/g, ',');
@@ -156,6 +174,27 @@ export async function DELETE(
 
     // Write back to file
     await fs.writeFile(LAYOUTS_FILE_PATH, fileContent, 'utf-8');
+
+    // Try to delete the associated image file
+    try {
+      const layoutsDir = path.join(process.cwd(), 'public', 'layouts');
+      
+      // Try common image extensions
+      const extensions = ['.webp', '.png', '.jpg', '.jpeg', '.gif'];
+      for (const ext of extensions) {
+        const imagePath = path.join(layoutsDir, `${layoutKey}${ext}`);
+        try {
+          await fs.unlink(imagePath);
+          console.log('✅ Deleted image:', imagePath);
+          break; // Stop after successfully deleting one
+        } catch {
+          // File doesn't exist with this extension, try next
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete image file:', error);
+      // Don't fail the request if image deletion fails
+    }
 
     return NextResponse.json({
       data: { layoutKey },
