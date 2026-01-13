@@ -224,7 +224,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
               </div>
           </div>
 
-          {layoutType !== 'grid' && layoutType !== 'hidden' && (
+          {layoutType !== 'hidden' && (
               <>
                   <div className="grid grid-cols-3">
                       <Label variant="muted">Align</Label>
