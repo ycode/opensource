@@ -631,7 +631,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (updatedComponent) {
       // Update all instances across pages
       await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
-      
+
       // Broadcast component layers update to collaborators
       if (liveComponentUpdates) {
         liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, updatedComponent.layers);
@@ -693,12 +693,12 @@ const CenterCanvas = React.memo(function CenterCanvas({
     // Clear selection FIRST to release locks on the current page's channel
     // before switching to the new page's channel
     setSelectedLayerId(null);
-    
+
     // Set the page ID immediately for responsive UI
     // The URL effect in YCodeBuilderMain uses a ref to track when we're navigating
     // to prevent reverting to the old page before the URL updates
     setCurrentPageId(pageId);
-    
+
     setPagePopoverOpen(false);
 
     // Navigate to the same route type but with the new page ID
@@ -793,13 +793,13 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (!iframeReady || !iframeRef.current) return;
 
     const { layers: serializedLayers, componentMap } = serializeLayers(layers, components);
-    
+
     // Create assets map for iframe (asset ID -> asset)
     const assetsMap: Record<string, Asset> = {};
     assets.forEach(asset => {
       assetsMap[asset.id] = asset;
     });
-    
+
     sendToIframe(iframeRef.current, {
       type: 'UPDATE_LAYERS',
       payload: {
@@ -1042,7 +1042,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               if (draft) {
                 const layersToCheck = selectedLayerIds.map(id => findLayerById(draft.layers, id)).filter(Boolean) as Layer[];
                 const canDeleteAll = layersToCheck.every(layer => canDeleteLayer(layer));
-                
+
                 if (canDeleteAll) {
                   // Delete all selected layers
                   deleteLayers(currentPageId, selectedLayerIds);
@@ -1058,7 +1058,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                   // Cannot delete due to restrictions
                   break;
                 }
-                
+
                 // Helper to find next layer to select
                 const findNextLayerToSelect = (layers: Layer[], layerIdToDelete: string): string | null => {
                   const findLayerContext = (
@@ -1426,7 +1426,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         {/* Viewport Controls */}
         <div className="flex justify-center gap-2">
           <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
-            <TabsList className="w-[240px]">
+            <TabsList className="w-[200px]">
             <TabsTrigger value="desktop" title="Desktop View">
               Desktop
             </TabsTrigger>
