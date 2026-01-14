@@ -1460,11 +1460,16 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 onValueChange={setCurrentPageCollectionItemId}
                 disabled={isLoadingItems || collectionItems.length === 0}
               >
-                <SelectTrigger className="" size="sm">
+                <SelectTrigger className="w-24 justify-between" size="sm">
                   {isLoadingItems ? (
                     <Spinner className="size-3" />
                   ) : (
-                    <Icon name="database" className="size-3" />
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <Icon name="database" className="size-3 opacity-50 shrink-0" />
+                      <span className="truncate">
+                        {collectionItems.find(item => item.id === currentPageCollectionItemId)?.label || 'Select item'}
+                      </span>
+                    </div>
                   )}
                 </SelectTrigger>
 
@@ -1489,7 +1494,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         {/* Viewport Controls */}
         <div className="flex justify-center gap-2">
           <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
-            <TabsList className="w-[240px]">
+            <TabsList className="w-[200px]">
             <TabsTrigger value="desktop" title="Desktop View">
               Desktop
             </TabsTrigger>

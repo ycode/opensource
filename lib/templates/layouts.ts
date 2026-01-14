@@ -19,6 +19,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
     previewImage: '/layouts/hero-001.webp',
     template: {
       'name': 'section',
+      'open': false,
       'design': {
         'layout': {
           'display': 'Flex',
@@ -35,6 +36,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
       'children': [
         {
           'name': 'div',
+          'open': false,
           'design': {
             'layout': {
               'display': 'Flex',
@@ -56,6 +58,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'children': [
             {
               'name': 'div',
+              'open': false,
               'design': {
                 'layout': {
                   'gap': '20',
@@ -72,6 +75,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
               'children': [
                 {
                   'name': 'div',
+                  'open': false,
                   'design': {
                     'layout': {
                       'display': 'Flex',
@@ -123,6 +127,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                 },
                 {
                   'name': 'div',
+                  'open': false,
                   'design': {
                     'layout': {
                       'gap': '16px',
@@ -139,6 +144,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   'children': [
                     {
                       'name': 'div',
+                      'open': false,
                       'design': {
                         'layout': {
                           'display': 'Flex',
@@ -176,6 +182,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                     },
                     {
                       'name': 'div',
+                      'open': false,
                       'design': {
                         'layout': {
                           'gap': '8',
@@ -188,6 +195,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'children': [
                         {
                           'name': 'button',
+                          'open': false,
                           'design': {
                             'borders': {
                               'isActive': true,
@@ -242,6 +250,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                         },
                         {
                           'name': 'button',
+                          'open': false,
                           'design': {
                             'borders': {
                               'isActive': true,
@@ -308,6 +317,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
         },
         {
           'name': 'div',
+          'open': false,
           'design': {
             'layout': {
               'display': 'Flex',
@@ -372,6 +382,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
     previewImage: '/layouts/hero-002.webp',
     template: {
       'name': 'section',
+      'open': false,
       'design': {
         'layout': {
           'display': 'Flex',
@@ -389,6 +400,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
       'children': [
         {
           'name': 'div',
+          'open': false,
           'design': {
             'layout': {
               'display': 'Flex',
@@ -411,6 +423,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'children': [
             {
               'name': 'div',
+              'open': false,
               'design': {
                 'layout': {
                   'gap': '16px',
@@ -483,10 +496,12 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                 },
                 {
                   'name': 'div',
+                  'open': false,
                   'classes': 'flex gap-ąč gap-[8px]',
                   'children': [
                     {
                       'name': 'button',
+                      'open': false,
                       'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717]',
                       'children': [
                         {
@@ -541,6 +556,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                     },
                     {
                       'name': 'button',
+                      'open': false,
                       'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] text-[#171717] bg-[#e5e5e5]',
                       'children': [
                         {
@@ -619,18 +635,22 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
     previewImage: '/layouts/hero-003.webp',
     template: {
       'name': 'section',
+      'open': false,
       'classes': 'flex flex-col items-center pt-[140px] pb-[140px]',
       'children': [
         {
           'name': 'div',
+          'open': false,
           'classes': 'flex flex-col max-w-[1280px] w-[100%] pl-[32px] pr-[32px]',
           'children': [
             {
               'name': 'div',
+              'open': false,
               'classes': 'grid grid-cols-[repeat(2,_1fr)] gap-[72px] items-center max-lg:grid-cols-[repeat(1,_1fr)]',
               'children': [
                 {
                   'name': 'div',
+                  'open': false,
                   'classes': 'flex flex-col gap-[16px]',
                   'children': [
                     {
@@ -687,6 +707,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                     },
                     {
                       'name': 'div',
+                      'open': false,
                       'design': {
                         'layout': {
                           'gap': '8',
@@ -699,6 +720,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'children': [
                         {
                           'name': 'button',
+                          'open': false,
                           'design': {
                             'borders': {
                               'isActive': true,
@@ -753,6 +775,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                         },
                         {
                           'name': 'button',
+                          'open': false,
                           'design': {
                             'borders': {
                               'isActive': true,
@@ -821,6 +844,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                 },
                 {
                   'name': 'div',
+                  'open': false,
                   'classes': 'flex flex-col',
                   'children': [
                     {

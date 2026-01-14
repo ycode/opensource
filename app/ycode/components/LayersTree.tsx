@@ -474,6 +474,45 @@ function EndDropZone({
   );
 }
 
+// Helper function to collect collapsed layer IDs from layer tree
+function collectCollapsedIds(layers: Layer[]): Set<string> {
+  const collapsed = new Set<string>();
+  
+  function traverse(layerList: Layer[]) {
+    layerList.forEach(layer => {
+      // If open is explicitly false, it's collapsed
+      if (layer.open === false) {
+        collapsed.add(layer.id);
+      }
+      if (layer.children) {
+        traverse(layer.children);
+      }
+    });
+  }
+  
+  traverse(layers);
+  return collapsed;
+}
+
+// Helper function to update a layer's open state in the tree
+function updateLayerOpenState(layers: Layer[], layerId: string, isOpen: boolean): Layer[] {
+  return layers.map(layer => {
+    if (layer.id === layerId) {
+      return {
+        ...layer,
+        open: isOpen,
+      };
+    }
+    if (layer.children) {
+      return {
+        ...layer,
+        children: updateLayerOpenState(layer.children, layerId, isOpen),
+      };
+    }
+    return layer;
+  });
+}
+
 // Main LayersTree Component
 export default function LayersTree({
   layers,
@@ -488,7 +527,7 @@ export default function LayersTree({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | 'inside' | null>(null);
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => collectCollapsedIds(layers));
   const [cursorOffsetY, setCursorOffsetY] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
@@ -619,6 +658,11 @@ export default function LayersTree({
     }
   }, [toggleSelection, selectRange, lastSelectedLayerId, flattenedNodes, onLayerSelect]);
 
+  // Sync collapsedIds state when layers change (from external updates)
+  useEffect(() => {
+    setCollapsedIds(collectCollapsedIds(layers));
+  }, [layers]);
+
   // Listen for expand events from ElementLibrary
   useEffect(() => {
     const handleExpandLayer = (event: CustomEvent) => {
@@ -629,12 +673,16 @@ export default function LayersTree({
           next.delete(layerId);
           return next;
         });
+        
+        // Persist the change to the layer tree
+        const updatedLayers = updateLayerOpenState(layers, layerId, true);
+        onReorder(updatedLayers);
       }
     };
 
     window.addEventListener('expandLayer', handleExpandLayer as EventListener);
     return () => window.removeEventListener('expandLayer', handleExpandLayer as EventListener);
-  }, [collapsedIds]);
+  }, [collapsedIds, layers, onReorder]);
 
   // Pull hover state management from editor store
   const { setHoveredLayerId: setHoveredLayerIdFromStore } = useEditorStore();
@@ -1110,16 +1158,25 @@ export default function LayersTree({
 
   // Handle expand/collapse toggle
   const handleToggle = useCallback((id: string) => {
+    // Determine the new state
+    const isCurrentlyCollapsed = collapsedIds.has(id);
+    const willBeOpen = isCurrentlyCollapsed; // If collapsed, will open; if open, will collapse
+    
+    // Update local state
     setCollapsedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
+      if (isCurrentlyCollapsed) {
         next.delete(id);
       } else {
         next.add(id);
       }
       return next;
     });
-  }, []);
+    
+    // Persist the change to the layer tree (outside of setState)
+    const updatedLayers = updateLayerOpenState(layers, id, willBeOpen);
+    onReorder(updatedLayers);
+  }, [layers, onReorder, collapsedIds]);
 
   // Handle layer selection
   const handleSelect = useCallback(

@@ -367,6 +367,12 @@ const RightSidebar = React.memo(function RightSidebar({
     return layer.name === 'button' || layer.settings?.tag === 'button';
   };
 
+  // Helper function to check if layer is an icon element
+  const isIconLayer = (layer: Layer | null): boolean => {
+    if (!layer) return false;
+    return layer.name === 'icon';
+  };
+
   // Control visibility rules based on layer type
   const shouldShowControl = (controlName: string, layer: Layer | null): boolean => {
     if (!layer) return false;
@@ -385,8 +391,8 @@ const RightSidebar = React.memo(function RightSidebar({
         return true;
 
       case 'typography':
-        // Typography controls: only show for text elements
-        return isTextLayer(layer) || isButtonLayer(layer);
+        // Typography controls: show for text elements, buttons, and icons
+        return isTextLayer(layer) || isButtonLayer(layer) || isIconLayer(layer);
 
       case 'backgrounds':
         // Background controls: hide for text elements, show for buttons and containers
