@@ -16,16 +16,6 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
     },
   },
 
-  lemonSqueezy: {
-    icon: 'block',
-    name: 'Lemon Squeezy',
-    template: {
-      name: 'lemonSqueezy',
-      classes: ['w-full', 'h-full'],
-      children: [],
-    },
-  },
-
   lightbox: {
     icon: 'block',
     name: 'Lightbox',
