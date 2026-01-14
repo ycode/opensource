@@ -33,6 +33,7 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
+import { slugify } from '@/lib/collection-utils';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
 import type { CollectionItemWithValues } from '@/types';
 
@@ -149,21 +150,18 @@ export default function CollectionItemSheet({
     }
   }, [editingItem, collectionFields, form]);
 
-  // Auto-fill slug field based on title field
+  // Auto-fill slug field based on name field
   useEffect(() => {
     if (!editingItem) {
-      const titleField = collectionFields.find(f => f.key === 'title');
+      const nameField = collectionFields.find(f => f.key === 'name');
       const slugField = collectionFields.find(f => f.key === 'slug');
 
-      if (titleField && slugField) {
+      if (nameField && slugField) {
         const subscription = form.watch((value, { name }) => {
-          if (name === titleField.id) {
-            const titleValue = value[titleField.id];
-            if (titleValue && typeof titleValue === 'string') {
-              const slugValue = titleValue
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-|-$/g, '');
+          if (name === nameField.id) {
+            const nameValue = value[nameField.id];
+            if (nameValue && typeof nameValue === 'string') {
+              const slugValue = slugify(nameValue);
               form.setValue(slugField.id, slugValue);
             }
           }
