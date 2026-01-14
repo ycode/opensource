@@ -134,69 +134,76 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
     debouncedUpdateDesignProperty('typography', 'color', sanitized || null);
   };
 
+  // Check if the layer is an icon
+  const isIcon = layer?.name === 'icon';
+
   return (
     <div className="py-5">
       <header className="py-4 -mt-4">
-        <Label>Typography</Label>
+        <Label>{isIcon ? 'Fill' : 'Typography'}</Label>
       </header>
 
       <div className="flex flex-col gap-2">
-        <div className="grid grid-cols-3">
-          <Label variant="muted">Font</Label>
-          <div className="col-span-2 *:w-full">
-            <Select value={fontFamily} onValueChange={handleFontFamilyChange}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="inherit">Inherit</SelectItem>
-                  <SelectItem value="sans">Sans</SelectItem>
-                  <SelectItem value="serif">Serif</SelectItem>
-                  <SelectItem value="mono">Mono</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        {!isIcon && (
+          <>
+            <div className="grid grid-cols-3">
+              <Label variant="muted">Font</Label>
+              <div className="col-span-2 *:w-full">
+                <Select value={fontFamily} onValueChange={handleFontFamilyChange}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="inherit">Inherit</SelectItem>
+                      <SelectItem value="sans">Sans</SelectItem>
+                      <SelectItem value="serif">Serif</SelectItem>
+                      <SelectItem value="mono">Mono</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-3">
-          <Label variant="muted">Weight</Label>
-          <div className="col-span-2 *:w-full">
-            <Select value={fontWeight} onValueChange={handleFontWeightChange}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="thin">Thin</SelectItem>
-                  <SelectItem value="extralight">Extralight</SelectItem>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="normal">Regular</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="semibold">Semibold</SelectItem>
-                  <SelectItem value="bold">Bold</SelectItem>
-                  <SelectItem value="extrabold">Extrabold</SelectItem>
-                  <SelectItem value="black">Black</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+            <div className="grid grid-cols-3">
+              <Label variant="muted">Weight</Label>
+              <div className="col-span-2 *:w-full">
+                <Select value={fontWeight} onValueChange={handleFontWeightChange}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="thin">Thin</SelectItem>
+                      <SelectItem value="extralight">Extralight</SelectItem>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="normal">Regular</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="semibold">Semibold</SelectItem>
+                      <SelectItem value="bold">Bold</SelectItem>
+                      <SelectItem value="extrabold">Extrabold</SelectItem>
+                      <SelectItem value="black">Black</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-3">
-          <Label variant="muted">Size</Label>
-          <div className="col-span-2 *:w-full">
-            <InputGroup>
-              <InputGroupInput
-                value={fontSizeInput}
-                onChange={(e) => handleFontSizeChange(e.target.value)}
-                stepper
-                min="0"
-              />
-            </InputGroup>
-          </div>
-        </div>
+            <div className="grid grid-cols-3">
+              <Label variant="muted">Size</Label>
+              <div className="col-span-2 *:w-full">
+                <InputGroup>
+                  <InputGroupInput
+                    value={fontSizeInput}
+                    onChange={(e) => handleFontSizeChange(e.target.value)}
+                    stepper
+                    min="0"
+                  />
+                </InputGroup>
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="grid grid-cols-3">
           <Label variant="muted">Color</Label>
@@ -209,78 +216,82 @@ export default function TypographyControls({ layer, onLayerUpdate }: TypographyC
           </div>
         </div>
 
-        <div className="grid grid-cols-3">
-          <Label variant="muted">Align</Label>
-          <div className="col-span-2">
-            <Tabs
-              value={textAlign} onValueChange={handleTextAlignChange}
-              className="w-full"
-            >
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="left" className="px-2 text-xs">
-                  <Icon name="textAlignLeft" />
-                </TabsTrigger>
-                <TabsTrigger value="center" className="px-2 text-xs">
-                  <Icon name="textAlignCenter" />
-                </TabsTrigger>
-                <TabsTrigger value="right" className="px-2 text-xs">
-                  <Icon name="textAlignRight" />
-                </TabsTrigger>
-                <TabsTrigger value="justify" className="px-2 text-xs">
-                  <Icon name="textAlignJustify" />
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        </div>
+        {!isIcon && (
+          <>
+            <div className="grid grid-cols-3">
+              <Label variant="muted">Align</Label>
+              <div className="col-span-2">
+                <Tabs
+                  value={textAlign} onValueChange={handleTextAlignChange}
+                  className="w-full"
+                >
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="left" className="px-2 text-xs">
+                      <Icon name="textAlignLeft" />
+                    </TabsTrigger>
+                    <TabsTrigger value="center" className="px-2 text-xs">
+                      <Icon name="textAlignCenter" />
+                    </TabsTrigger>
+                    <TabsTrigger value="right" className="px-2 text-xs">
+                      <Icon name="textAlignRight" />
+                    </TabsTrigger>
+                    <TabsTrigger value="justify" className="px-2 text-xs">
+                      <Icon name="textAlignJustify" />
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-3">
-          <Label variant="muted">Spacing</Label>
-          <div className="col-span-2 grid grid-cols-2 gap-2">
-            <InputGroup>
-              <InputGroupAddon>
-                <div className="flex">
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Icon name="letterSpacing" className="size-3" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Letter spacing</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              </InputGroupAddon>
-              <InputGroupInput
-                className="!pr-0"
-                value={letterSpacingInput}
-                onChange={(e) => handleLetterSpacingChange(e.target.value)}
-                stepper
-                min="0"
-              />
-            </InputGroup>
-            <InputGroup>
-              <InputGroupAddon>
-                <div className="flex">
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Icon name="lineHeight" className="size-3" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Line height</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              </InputGroupAddon>
-              <InputGroupInput
-                className="!pr-0"
-                value={lineHeightInput}
-                onChange={(e) => handleLineHeightChange(e.target.value)}
-                stepper
-                min="0"
-              />
-            </InputGroup>
-          </div>
-        </div>
+            <div className="grid grid-cols-3">
+              <Label variant="muted">Spacing</Label>
+              <div className="col-span-2 grid grid-cols-2 gap-2">
+                <InputGroup>
+                  <InputGroupAddon>
+                    <div className="flex">
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Icon name="letterSpacing" className="size-3" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Letter spacing</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    className="!pr-0"
+                    value={letterSpacingInput}
+                    onChange={(e) => handleLetterSpacingChange(e.target.value)}
+                    stepper
+                    min="0"
+                  />
+                </InputGroup>
+                <InputGroup>
+                  <InputGroupAddon>
+                    <div className="flex">
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Icon name="lineHeight" className="size-3" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Line height</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    className="!pr-0"
+                    value={lineHeightInput}
+                    onChange={(e) => handleLineHeightChange(e.target.value)}
+                    stepper
+                    min="0"
+                  />
+                </InputGroup>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
