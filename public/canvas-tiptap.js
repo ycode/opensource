@@ -38,6 +38,79 @@ export function createTiptapModule(dependencies) {
   let activeRichTextEditor = null;
   let editingLayerId = null;
 
+  // Global handler for variable delete buttons
+  let deleteButtonHandlerInstalled = false;
+  // Zoom observer for toolbar scale updates
+  let zoomObserver = null;
+  // Variable picker close handler reference
+  let variablePickerCloseHandler = null;
+
+  /**
+   * Setup zoom observer to update toolbar scale when zoom changes
+   */
+  function setupZoomObserver() {
+    if (zoomObserver) return; // Already set up
+
+    zoomObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-zoom') {
+          updateToolbarScale();
+          closeVariablePicker();
+        }
+      });
+    });
+
+    zoomObserver.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['data-zoom'],
+    });
+  }
+
+  /**
+   * Install global delete button handler for inline variables
+   */
+  function setDeleteButtonHandler() {
+    if (deleteButtonHandlerInstalled) return;
+
+    document.addEventListener('mousedown', (e) => {
+      const deleteBtn = e.target.closest('.ycode-var-delete');
+      if (!deleteBtn || !activeRichTextEditor) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Find the variable container
+      const container = deleteBtn.closest('.ycode-inline-var');
+      if (!container) return;
+
+      // Get the position from the container's data attribute
+      const variableData = container.getAttribute('data-variable');
+
+      // Find the position of this node in the editor
+      const editor = activeRichTextEditor;
+      const { state } = editor;
+      let nodePos = null;
+
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === 'dynamicVariable') {
+          const nodeVarData = JSON.stringify(node.attrs.variable);
+          if (nodeVarData === variableData) {
+            nodePos = pos;
+            return false; // Stop iteration
+          }
+        }
+      });
+
+      if (nodePos !== null) {
+        setTimeout(() => {
+          editor.chain().focus().deleteRange({ from: nodePos, to: nodePos + 1 }).run();
+        }, 0);
+      }
+    }, true); // Capture phase
+
+    deleteButtonHandlerInstalled = true;
+  }
+
   /**
    * Load Tiptap modules dynamically (only when needed)
    */
@@ -237,10 +310,11 @@ export function createTiptapModule(dependencies) {
           },
         });
 
-        // Custom list extensions
+        // Custom list extensions using Node.create
+        // Based on Tiptap's official list extensions
         const CustomBulletList = coreModule.Node.create({
           name: 'bulletList',
-          group: 'block',
+          group: 'block list',
           content: 'listItem+',
           parseHTML() {
             return [{ tag: 'ul' }];
@@ -250,7 +324,7 @@ export function createTiptapModule(dependencies) {
           },
           addCommands() {
             return {
-              toggleBulletList: () => ({ commands }) => {
+              toggleBulletList: () => ({ commands, chain }) => {
                 return commands.toggleList(this.name, 'listItem');
               },
             };
@@ -264,7 +338,7 @@ export function createTiptapModule(dependencies) {
 
         const CustomOrderedList = coreModule.Node.create({
           name: 'orderedList',
-          group: 'block',
+          group: 'block list',
           content: 'listItem+',
           parseHTML() {
             return [{ tag: 'ol' }];
@@ -315,7 +389,7 @@ export function createTiptapModule(dependencies) {
         window.CustomOrderedList = CustomOrderedList;
         window.CustomListItem = CustomListItem;
 
-        // Custom extension for inline variables
+        // Custom extension for inline variables with interactive UI
         DynamicVariableExtension = coreModule.Node.create({
           name: 'dynamicVariable',
           group: 'inline',
@@ -324,23 +398,94 @@ export function createTiptapModule(dependencies) {
 
           addAttributes() {
             return {
-              variable: { default: null },
-              label: { default: 'variable' }
+              variable: {
+                default: null,
+                parseHTML: (element) => {
+                  const variableAttr = element.getAttribute('data-variable');
+                  if (variableAttr) {
+                    try {
+                      return JSON.parse(variableAttr);
+                    } catch {
+                      return null;
+                    }
+                  }
+                  return null;
+                },
+                renderHTML: (attributes) => {
+                  if (!attributes) return {};
+                  return {
+                    'data-variable': JSON.stringify(attributes),
+                  };
+                },
+              },
+              label: {
+                default: null,
+                parseHTML: (element) => {
+                  return element.textContent || null;
+                },
+              },
             };
           },
 
           parseHTML() {
-            return [{ tag: 'span.ycode-inline-var' }];
+            return [
+              { tag: 'span[data-variable]' },
+              { tag: 'span.ycode-inline-var' }
+            ];
           },
 
-          renderHTML({ node }) {
-            const label = node.attrs.label || 'variable';
+          renderHTML({ node, HTMLAttributes }) {
+            const label = node.attrs.label ||
+              (node.attrs.variable?.data?.field_id) ||
+              (node.attrs.variable?.type || 'variable');
+
             return ['span', {
               class: 'ycode-inline-var',
-              'data-variable': JSON.stringify(node.attrs.variable),
-              contenteditable: 'false'
-            }, label];
-          }
+              'data-variable': node.attrs.variable ? JSON.stringify(node.attrs.variable) : undefined,
+              contenteditable: 'false',
+              ...HTMLAttributes
+            }, ['span', {}, label]];
+          },
+
+          addNodeView() {
+            return ({ node, editor }) => {
+              const container = document.createElement('span');
+              container.className = 'ycode-inline-var';
+              container.contentEditable = 'false';
+
+              const variable = node.attrs.variable;
+              if (variable) {
+                container.setAttribute('data-variable', JSON.stringify(variable));
+              }
+
+              const label = node.attrs.label ||
+                (variable?.data?.field_id) ||
+                (variable?.type || 'variable');
+
+              // Create label span
+              const labelSpan = document.createElement('span');
+              labelSpan.textContent = label;
+              container.appendChild(labelSpan);
+
+              // Add delete button if editor is editable (handled by global handler)
+              if (editor.isEditable) {
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'ycode-var-delete';
+                deleteBtn.setAttribute('type', 'button');
+                deleteBtn.setAttribute('title', 'Remove variable');
+
+                // Create X icon SVG
+                deleteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="currentColor"><path d="M9.5,1.79289322 L10.2071068,2.5 L6.70689322,5.99989322 L10.2071068,9.5 L9.5,10.2071068 L5.99989322,6.70689322 L2.5,10.2071068 L1.79289322,9.5 L5.29289322,5.99989322 L1.79289322,2.5 L2.5,1.79289322 L5.99989322,5.29289322 L9.5,1.79289322 Z"></path></svg>';
+
+                container.appendChild(deleteBtn);
+              }
+
+              return {
+                dom: container,
+                contentDOM: null,
+              };
+            };
+          },
         });
 
         tiptapLoaded = true;
@@ -448,8 +593,12 @@ export function createTiptapModule(dependencies) {
 
           return escapeHtml(value);
         }
+        // Show variable badge in preview mode
         const label = (node.attrs && node.attrs.label) || 'variable';
-        return '<span class="ycode-inline-var">' + escapeHtml(label) + '</span>';
+        const variableJson = variable ? JSON.stringify(variable) : '';
+        return '<span class="ycode-inline-var" data-variable="' + escapeHtml(variableJson) + '">' +
+               '<span>' + escapeHtml(label) + '</span>' +
+               '</span>';
       } else if (node.type === 'bulletList') {
         const ulContent = node.content ? node.content.map(processNode).join('') : '';
         const listStyle = mergedTextStyles['bulletList'];
@@ -523,19 +672,87 @@ export function createTiptapModule(dependencies) {
   }
 
   /**
-   * Insert a variable into the active editor
+   * Insert a variable into the active editor with smart spacing
    */
   function insertVariable(variable, label) {
     if (!activeRichTextEditor) return;
 
-    activeRichTextEditor.chain()
-      .focus()
-      .insertContent({
-        type: 'dynamicVariable',
-        attrs: { variable, label }
-      })
-      .insertContent(' ')
-      .run();
+    const editor = activeRichTextEditor;
+    const { from } = editor.state.selection;
+    const doc = editor.state.doc;
+
+    // Check what's before the cursor
+    let needsSpaceBefore = false;
+    if (from > 0) {
+      const nodeBefore = doc.nodeAt(from - 1);
+      if (nodeBefore) {
+        // Check if it's a variable node
+        if (nodeBefore.type.name === 'dynamicVariable') {
+          needsSpaceBefore = true;
+        } else {
+          // Check if it's text that's not a space
+          const charBefore = doc.textBetween(from - 1, from);
+          needsSpaceBefore = !!(charBefore && charBefore !== ' ' && charBefore !== '\n');
+        }
+      } else {
+        // Check character before cursor
+        const charBefore = doc.textBetween(from - 1, from);
+        needsSpaceBefore = !!(charBefore && charBefore !== ' ' && charBefore !== '\n');
+      }
+    }
+
+    // Check what's after the cursor
+    let needsSpaceAfter = false;
+    if (from < doc.content.size) {
+      const nodeAfter = doc.nodeAt(from);
+      if (nodeAfter) {
+        // Check if it's a variable node
+        if (nodeAfter.type.name === 'dynamicVariable') {
+          needsSpaceAfter = true;
+        } else {
+          // Check if it's text that's not a space
+          const charAfter = doc.textBetween(from, from + 1);
+          needsSpaceAfter = !!(charAfter && charAfter !== ' ' && charAfter !== '\n');
+        }
+      } else {
+        // Check character at cursor position
+        const charAfter = doc.textBetween(from, from + 1);
+        needsSpaceAfter = !!(charAfter && charAfter !== ' ' && charAfter !== '\n');
+      }
+    }
+
+    // Build content to insert
+    const contentToInsert = [];
+
+    // Add space before if needed
+    if (needsSpaceBefore) {
+      contentToInsert.push({ type: 'text', text: ' ' });
+    }
+
+    // Add the variable node
+    contentToInsert.push({
+      type: 'dynamicVariable',
+      attrs: { variable, label },
+    });
+
+    // Add space after if needed
+    if (needsSpaceAfter) {
+      contentToInsert.push({ type: 'text', text: ' ' });
+    }
+
+    // Insert content
+    editor.chain().focus().insertContent(contentToInsert).run();
+
+    // Calculate final cursor position
+    let finalPosition = from;
+    if (needsSpaceBefore) finalPosition += 1;
+    finalPosition += 1; // variable itself
+    if (needsSpaceAfter) finalPosition += 1;
+
+    // Restore focus at the position after the inserted content
+    setTimeout(() => {
+      editor.commands.focus(finalPosition);
+    }, 0);
   }
 
   /**
@@ -610,6 +827,170 @@ export function createTiptapModule(dependencies) {
   }
 
   /**
+   * Show variable picker dropdown
+   */
+  function showVariablePicker(triggerButton) {
+    // Remove any existing picker
+    const existingPicker = document.getElementById('ycode-variable-picker');
+    if (existingPicker) {
+      existingPicker.remove();
+      return; // Toggle off
+    }
+
+    // Get available fields
+    const allFields = [];
+    const collectionFields = getCollectionFields?.() || {};
+    const pageFields = getPageCollectionFields?.() || [];
+
+    // Add page collection fields if available
+    if (pageFields.length > 0) {
+      allFields.push({
+        label: 'Page fields',
+        fields: pageFields,
+      });
+    }
+
+    // Add collection fields
+    Object.entries(collectionFields).forEach(([collectionId, fields]) => {
+      if (fields && fields.length > 0) {
+        allFields.push({
+          label: 'Collection fields',
+          fields: fields,
+        });
+      }
+    });
+
+    if (allFields.length === 0) {
+      return; // No fields available
+    }
+
+    // Create picker dropdown
+    const picker = document.createElement('div');
+    picker.id = 'ycode-variable-picker';
+    picker.className = 'ycode-variable-picker';
+
+    // Build HTML for fields
+    let html = '';
+    allFields.forEach(group => {
+      if (group.label) {
+        html += `<div class="ycode-variable-picker-label">${group.label}</div>`;
+      }
+      group.fields.forEach(field => {
+        html += `
+          <button type="button" class="ycode-variable-picker-item" data-field-id="${field.id}" data-field-name="${field.name}">
+            <span>${field.name}</span>
+          </button>
+        `;
+      });
+    });
+
+    picker.innerHTML = html;
+    document.body.appendChild(picker);
+
+    // Create invisible overlay to close picker when clicking outside
+    const overlay = document.createElement('div');
+    overlay.id = 'ycode-variable-picker-overlay';
+    overlay.className = 'ycode-variable-picker-overlay';
+    document.body.appendChild(overlay);
+
+    // Close picker function
+    const closePicker = function() {
+      picker.remove();
+      overlay.remove();
+      if (variablePickerCloseHandler) {
+        document.removeEventListener('mousedown', variablePickerCloseHandler);
+        variablePickerCloseHandler = null;
+      }
+    };
+
+    // Stop all events on overlay to prevent edit mode exit
+    const stopOverlayEvents = function(e) {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    };
+
+    // Stop all mouse/pointer events in capture phase
+    overlay.addEventListener('mousedown', stopOverlayEvents, true);
+    overlay.addEventListener('mouseup', stopOverlayEvents, true);
+    overlay.addEventListener('click', function(e) {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      closePicker();
+    }, true);
+    overlay.addEventListener('pointerdown', stopOverlayEvents, true);
+    overlay.addEventListener('pointerup', stopOverlayEvents, true);
+
+    // Apply zoom scaling to keep picker at constant size
+    const zoomScale = detectZoom();
+    const inverseScale = 1 / zoomScale;
+    picker.style.transform = `scale(${inverseScale})`;
+    picker.style.transformOrigin = 'top left';
+
+    // Position below the trigger button
+    const rect = triggerButton.getBoundingClientRect();
+    picker.style.left = rect.left + 'px';
+    picker.style.top = (rect.bottom + 4) + 'px';
+
+    // Ensure picker blocks all pointer events
+    picker.style.pointerEvents = 'auto';
+
+    // Handle all events inside picker to prevent them from bubbling
+    picker.addEventListener('mousedown', function(e) {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      const item = e.target.closest('.ycode-variable-picker-item');
+      if (item) {
+        // Clicking on an item - handle selection
+        e.preventDefault();
+
+        const fieldId = item.dataset.fieldId;
+        const fieldName = item.dataset.fieldName;
+
+        // Create variable and insert
+        const variable = {
+          type: 'field',
+          data: {
+            field_id: fieldId,
+            relationships: [],
+          },
+        };
+
+        // Insert variable immediately
+        insertVariable(variable, fieldName);
+
+        // Close picker
+        closePicker();
+
+        // Ensure editor stays focused
+        if (activeRichTextEditor) {
+          setTimeout(() => {
+            activeRichTextEditor.commands.focus();
+          }, 0);
+        }
+      } else {
+        // Clicking on label or empty area - just stop propagation
+        e.preventDefault();
+      }
+    }, true);
+
+    // Stop other events from bubbling
+    picker.addEventListener('mouseup', function(e) {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }, true);
+
+    picker.addEventListener('click', function(e) {
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }, true);
+  }
+
+  /**
    * Create floating toolbar
    */
   function createToolbar() {
@@ -661,13 +1042,15 @@ export function createTiptapModule(dependencies) {
           editor.commands.toggleMark('strike', {}, { extendEmptyMarkRange: true });
           break;
         case 'bulletList':
+          // Simple toggle like InputWithInlineVariables.tsx
           editor.chain().focus().toggleBulletList().run();
           break;
         case 'orderedList':
+          // Simple toggle like InputWithInlineVariables.tsx
           editor.chain().focus().toggleOrderedList().run();
           break;
         case 'variable':
-          sendToParent('REQUEST_VARIABLE_PICKER', { layerId: editingLayerId });
+          showVariablePicker(btn);
           break;
       }
       updateToolbarState();
@@ -703,6 +1086,60 @@ export function createTiptapModule(dependencies) {
   }
 
   /**
+   * Detect current zoom level from parent-set data attribute
+   */
+  function detectZoom() {
+    const zoomAttr = document.body.getAttribute('data-zoom');
+    if (zoomAttr) {
+      const zoom = parseFloat(zoomAttr);
+      if (!isNaN(zoom) && zoom > 0) {
+        return zoom / 100; // Convert percentage to scale factor
+      }
+    }
+    return 1; // Default to 100% if not set
+  }
+
+  /**
+   * Update toolbar scale based on current zoom
+   */
+  function updateToolbarScale() {
+    const toolbar = document.getElementById('ycode-richtext-toolbar');
+    if (!toolbar || !toolbar.classList.contains('visible')) return;
+
+    const zoomScale = detectZoom();
+    const inverseScale = 1 / zoomScale;
+
+    // Apply inverse scale to keep toolbar at constant size
+    toolbar.style.transform = `scale(${inverseScale})`;
+    toolbar.style.transformOrigin = 'top left';
+
+    // Reposition toolbar if it's visible
+    const editorContainer = document.querySelector('.ycode-richtext-editor');
+    if (editorContainer) {
+      positionToolbar(editorContainer);
+    }
+  }
+
+  /**
+   * Close variable picker if open
+   */
+  function closeVariablePicker() {
+    const picker = document.getElementById('ycode-variable-picker');
+    const overlay = document.getElementById('ycode-variable-picker-overlay');
+    if (picker) {
+      picker.remove();
+    }
+    if (overlay) {
+      overlay.remove();
+    }
+    // Clean up event listener
+    if (variablePickerCloseHandler) {
+      document.removeEventListener('mousedown', variablePickerCloseHandler);
+      variablePickerCloseHandler = null;
+    }
+  }
+
+  /**
    * Position toolbar above selection or element
    */
   function positionToolbar(element) {
@@ -710,13 +1147,24 @@ export function createTiptapModule(dependencies) {
     if (!toolbar) return;
 
     const rect = element.getBoundingClientRect();
-    const toolbarWidth = toolbar.offsetWidth || 200;
-    const toolbarHeight = toolbar.offsetHeight || 40;
+    const zoomScale = detectZoom();
+    const inverseScale = 1 / zoomScale;
 
-    let left = rect.left + (rect.width / 2) - (toolbarWidth / 2);
-    let top = rect.top - toolbarHeight - 8;
+    // Apply inverse scale to keep toolbar at constant size
+    toolbar.style.transform = `scale(${inverseScale})`;
+    toolbar.style.transformOrigin = 'top left';
 
-    left = Math.max(8, Math.min(left, window.innerWidth - toolbarWidth - 8));
+    // Get toolbar dimensions after scale is applied
+    const toolbarRect = toolbar.getBoundingClientRect();
+    const scaledWidth = toolbarRect.width;
+    const scaledHeight = toolbarRect.height;
+
+    // Left-align toolbar with element
+    let left = rect.left;
+    let top = rect.top - scaledHeight - 8;
+
+    // Ensure toolbar stays within viewport
+    left = Math.max(8, Math.min(left, window.innerWidth - scaledWidth - 8));
     if (top < 8) {
       top = rect.bottom + 8;
     }
@@ -874,6 +1322,12 @@ export function createTiptapModule(dependencies) {
 
     // Create toolbar
     createToolbar();
+
+    // Install global delete button handler (only once)
+    setDeleteButtonHandler();
+
+    // Setup zoom observer to update toolbar scale (only once)
+    setupZoomObserver();
 
     // Create Tiptap editor
     activeRichTextEditor = new TiptapEditor({

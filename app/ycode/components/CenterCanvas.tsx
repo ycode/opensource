@@ -54,8 +54,11 @@ import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
 import type { Layer, Page, PageFolder, CollectionField, Asset } from '@/types';
 import {
   DropdownMenu,
-  DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut,
-  DropdownMenuTrigger
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
   Popover,
@@ -840,6 +843,21 @@ const CenterCanvas = React.memo(function CenterCanvas({
     });
   }, [selectedLayerId, iframeReady]);
 
+  // Update zoom level in iframe body for toolbar scaling
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    try {
+      const iframe = iframeRef.current;
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (iframeDoc?.body) {
+        iframeDoc.body.setAttribute('data-zoom', zoom.toString());
+      }
+    } catch (error) {
+      // Cross-origin or not ready - ignore
+    }
+  }, [zoom, iframeReady]);
+
   // Send collection layer data to iframe whenever it changes
   useEffect(() => {
     if (!iframeReady || !iframeRef.current) return;
@@ -1048,9 +1066,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
           break;
 
         case 'REQUEST_VARIABLE_PICKER':
-          // TODO: Show variable picker modal and send selected variable to iframe
-          // For now, just log the request
-          console.log('[CenterCanvas] Variable picker requested for layer:', message.payload.layerId);
+          // Variable picker is now handled directly in the iframe
           break;
 
         case 'OPEN_COLLECTION_ITEM_SHEET':
@@ -1875,6 +1891,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
           )}
         </div>
       </div>
+
     </div>
   );
 });
