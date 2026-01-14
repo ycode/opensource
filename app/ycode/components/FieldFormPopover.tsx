@@ -74,7 +74,7 @@ export default function FieldFormPopover({
   // In edit mode, ensure the currently referenced collection is always in the list
   const availableCollections = React.useMemo(() => {
     const filtered = collections.filter(c => c.id !== currentCollectionId);
-    
+
     // In edit mode, ensure the referenced collection is included (even if collections list is stale)
     if (mode === 'edit' && field?.reference_collection_id) {
       const refCollectionExists = filtered.some(c => c.id === field.reference_collection_id);
@@ -86,7 +86,7 @@ export default function FieldFormPopover({
         }
       }
     }
-    
+
     return filtered;
   }, [collections, currentCollectionId, mode, field?.reference_collection_id]);
 
@@ -281,7 +281,7 @@ export default function FieldFormPopover({
   if (useDialog) {
     return (
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>
               {mode === 'create' ? 'Create Field' : 'Edit Field'}

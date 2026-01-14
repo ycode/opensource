@@ -1,6 +1,6 @@
 /**
  * Collection Item Dialog
- * 
+ *
  * Dialog for creating/editing collection items with dynamic form based on fields.
  */
 'use client';
@@ -35,12 +35,12 @@ export default function CollectionItemDialog({
   const { fields, createItem, updateItem, isLoading } = useCollectionsStore();
   const liveCollectionUpdates = useLiveCollectionUpdates();
   const [values, setValues] = useState<Record<string, any>>({});
-  
+
   const collectionFields = useMemo(
     () => fields[collectionId] || [],
     [fields, collectionId]
   );
-  
+
   // Initialize values from item if editing, or with default values if creating
   useEffect(() => {
     if (item) {
@@ -56,15 +56,15 @@ export default function CollectionItemDialog({
       setValues(defaultValues);
     }
   }, [item, collectionFields]);
-  
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    
+
     try {
       if (item) {
         // Update existing item (preserves existing status)
         await updateItem(collectionId, item.id, values);
-        
+
         // Broadcast item update to other collaborators
         if (liveCollectionUpdates) {
           liveCollectionUpdates.broadcastItemUpdate(collectionId, item.id, { values } as any);
@@ -72,17 +72,17 @@ export default function CollectionItemDialog({
       } else {
         // Create new item (defaults to 'draft' status in API)
         const newItem = await createItem(collectionId, values);
-        
+
         // Broadcast item creation to other collaborators
         if (liveCollectionUpdates && newItem) {
           liveCollectionUpdates.broadcastItemCreate(collectionId, newItem);
         }
       }
-      
+
       // Reset and close
       setValues({});
       onClose();
-      
+
       if (onSuccess) {
         onSuccess();
       }
@@ -90,15 +90,15 @@ export default function CollectionItemDialog({
       console.error('Failed to save item:', error);
     }
   };
-  
+
   const handleClose = () => {
     setValues({});
     onClose();
   };
-  
+
   const handleFieldChange = (fieldId: string, value: any) => {
     const newValues = { ...values, [fieldId]: value };
-    
+
     // Auto-populate slug from name field only when creating (not editing)
     // Find the name field by checking field name property
     if (!item) {
@@ -110,13 +110,13 @@ export default function CollectionItemDialog({
         }
       }
     }
-    
+
     setValues(newValues);
   };
-  
+
   const renderFieldInput = (field: CollectionField) => {
     const value = values[field.id] || field.default || '';
-    
+
     switch (field.type) {
       case 'text':
         return (
@@ -126,7 +126,7 @@ export default function CollectionItemDialog({
             placeholder={field.default || ''}
           />
         );
-        
+
       case 'number':
         return (
           <Input
@@ -136,7 +136,7 @@ export default function CollectionItemDialog({
             placeholder={field.default || '0'}
           />
         );
-        
+
       case 'boolean':
         return (
           <Switch
@@ -144,7 +144,7 @@ export default function CollectionItemDialog({
             onCheckedChange={(checked) => handleFieldChange(field.id, checked)}
           />
         );
-        
+
       case 'date':
         return (
           <Input
@@ -153,7 +153,7 @@ export default function CollectionItemDialog({
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
           />
         );
-        
+
       case 'reference':
         // For reference fields, we'd need to load items from the referenced collection
         // Simplified version for now
@@ -164,7 +164,7 @@ export default function CollectionItemDialog({
             placeholder="Reference ID"
           />
         );
-        
+
       default:
         return (
           <Input
@@ -174,10 +174,14 @@ export default function CollectionItemDialog({
         );
     }
   };
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent variant="side" showCloseButton={false}>
+      <DialogContent
+        variant="side"
+        showCloseButton={false}
+        aria-describedby={undefined}
+      >
         <DialogHeader className="flex-row items-center justify-between">
           <DialogTitle>{item ? 'Edit Item' : 'Create Item'}</DialogTitle>
           <div className="flex gap-2">
@@ -187,8 +191,8 @@ export default function CollectionItemDialog({
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={isLoading || collectionFields.filter(f => f.fillable).length === 0}
               size="sm"
               onClick={handleSubmit}
@@ -197,7 +201,7 @@ export default function CollectionItemDialog({
             </Button>
           </div>
         </DialogHeader>
-        
+
         {isLoading ? (
           <div className="flex items-center justify-center p-8">
             <Spinner />
@@ -213,7 +217,7 @@ export default function CollectionItemDialog({
                     {renderFieldInput(field)}
                   </div>
                 ))}
-              
+
               {collectionFields.filter(f => !f.hidden && f.fillable && f.name.toLowerCase() !== 'status').length === 0 && (
                 <div className="text-muted-foreground text-sm">
                   No fields defined for this collection. Add fields first.

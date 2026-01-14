@@ -170,7 +170,7 @@ export default function GeneralSettingsPage() {
 
       {/* Add Redirect Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Add redirect</DialogTitle>
           </DialogHeader>
@@ -227,7 +227,7 @@ export default function GeneralSettingsPage() {
 
       {/* Edit Redirect Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Edit redirect</DialogTitle>
           </DialogHeader>

@@ -64,11 +64,11 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={showCloseButton}>
+      <DialogContent showCloseButton={showCloseButton} aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <DialogDescription>{description}</DialogDescription>
         <DialogFooter>
           <Button
             variant={confirmVariant}

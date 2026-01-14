@@ -16,6 +16,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
   SheetActions,
 } from '@/components/ui/sheet';
 import {
@@ -55,22 +56,22 @@ export default function CollectionItemSheet({
   const { updateItemInLayerData, refetchLayersForCollection } = useCollectionLayerStore();
   const { updatePageCollectionItem, refetchPageCollectionItem, pages } = usePagesStore();
   const { currentPageId } = useEditorStore();
-  
+
   // Collection collaboration sync
   const liveCollectionUpdates = useLiveCollectionUpdates();
-  
+
   // Item locking for collaboration
   const itemLock = useResourceLock({
     resourceType: 'collection_item',
     channelName: collectionId ? `collection:${collectionId}:item_locks` : '',
   });
-  
+
   // Stable ref for lock functions to avoid dependency issues in effects
   const itemLockRef = useRef(itemLock);
   useEffect(() => {
     itemLockRef.current = itemLock;
   }, [itemLock]);
-  
+
   const lockedItemIdRef = useRef<string | null>(null);
 
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
@@ -111,20 +112,20 @@ export default function CollectionItemSheet({
         }
       }
     };
-    
+
     const releaseItemLock = async () => {
       if (lockedItemIdRef.current) {
         await itemLockRef.current.releaseLock(lockedItemIdRef.current);
         lockedItemIdRef.current = null;
       }
     };
-    
+
     if (open && itemId && itemId !== 'new') {
       acquireItemLock();
     } else {
       releaseItemLock();
     }
-    
+
     return () => {
       releaseItemLock();
     };
@@ -189,10 +190,10 @@ export default function CollectionItemSheet({
     try {
       if (editingItem) {
         // Update existing item
-        
+
         // 1. Optimistically update in collection layer store (for collection layers)
         updateItemInLayerData(editingItem.id, values);
-        
+
         // 2. Optimistically update in pages store (for dynamic pages)
         if (isPageLevelItem && currentPageId) {
           updatePageCollectionItem(currentPageId, {
@@ -201,20 +202,20 @@ export default function CollectionItemSheet({
             updated_at: new Date().toISOString(),
           });
         }
-        
+
         // 3. Update in main collections store (API call with optimistic update)
         await updateItem(collectionId, editingItem.id, values);
-        
+
         // Broadcast item update to other collaborators
         if (liveCollectionUpdates) {
           liveCollectionUpdates.broadcastItemUpdate(collectionId, editingItem.id, { values } as any);
         }
-        
+
         // 4. Background refetch for collection layers
         setTimeout(() => {
           refetchLayersForCollection(collectionId);
         }, 100);
-        
+
         // 5. Background refetch for page-level data (if dynamic page)
         if (isPageLevelItem && currentPageId) {
           setTimeout(() => {
@@ -224,16 +225,16 @@ export default function CollectionItemSheet({
       } else {
         // Create new item (store adds to local state optimistically)
         const newItem = await createItem(collectionId, values);
-        
+
         // Broadcast item creation to other collaborators
         if (liveCollectionUpdates && newItem) {
           liveCollectionUpdates.broadcastItemCreate(collectionId, newItem);
         }
-        
+
         // Refetch to show the new item
         setTimeout(() => {
           refetchLayersForCollection(collectionId);
-          
+
           // Also refetch page data if on dynamic page
           if (isPageLevelItem && currentPageId) {
             refetchPageCollectionItem(currentPageId);
@@ -248,7 +249,7 @@ export default function CollectionItemSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent>
+      <SheetContent aria-describedby={undefined}>
         <SheetHeader>
           <SheetTitle>
             {editingItem ? 'Edit' : 'Create'} {collection?.name} Item

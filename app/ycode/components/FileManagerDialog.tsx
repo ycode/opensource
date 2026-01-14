@@ -1887,8 +1887,9 @@ export default function FileManagerDialog({
         }}
       >
         <DialogContent
-          width="400px" aria-describedby={undefined}
+          width="400px"
           className="gap-0"
+          aria-describedby={undefined}
         >
           <DialogHeader>
             <DialogTitle>{isCreateSvgMode ? 'New SVG icon' : 'Edit asset'}</DialogTitle>

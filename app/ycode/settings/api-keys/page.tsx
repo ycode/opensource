@@ -224,7 +224,7 @@ export default function ApiKeysSettingsPage() {
         </header>
 
         <div className="flex flex-col gap-8 bg-secondary/20 p-8 rounded-lg text-sm">
-          
+
           {/* Authentication */}
           <section>
             <h3 className="font-medium mb-2">Authentication</h3>
@@ -240,7 +240,7 @@ export default function ApiKeysSettingsPage() {
           <section>
             <h3 className="font-medium mb-2">Endpoints</h3>
             <div className="space-y-4">
-              
+
               <div>
                 <h4 className="text-muted-foreground mb-1">Collections</h4>
                 <div className="bg-secondary p-3 rounded-lg space-y-1 text-xs font-mono">
@@ -455,7 +455,7 @@ Content-Type: application/json
 
       {/* Generate API Key Dialog */}
       <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Generate API key</DialogTitle>
             <DialogDescription>
@@ -514,7 +514,7 @@ Content-Type: application/json
           }
         }}
       >
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>API key generated</DialogTitle>
             <DialogDescription>

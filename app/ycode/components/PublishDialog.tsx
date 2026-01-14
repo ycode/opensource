@@ -255,7 +255,10 @@ export default function PublishDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+      <DialogContent
+        className="max-w-2xl max-h-[80vh] flex flex-col"
+        aria-describedby={undefined}
+      >
         <DialogHeader>
           <DialogTitle>Publish Content</DialogTitle>
         </DialogHeader>

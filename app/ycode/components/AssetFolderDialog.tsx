@@ -124,8 +124,8 @@ export default function AssetFolderDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         width="320px"
-        aria-describedby={undefined}
         className="gap-0"
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle>

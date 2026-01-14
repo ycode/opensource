@@ -119,7 +119,7 @@ export default function AddFieldDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent>
+      <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{isEditMode ? 'Edit Field x' : 'Add Field'}</DialogTitle>
         </DialogHeader>
