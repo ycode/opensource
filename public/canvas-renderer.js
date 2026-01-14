@@ -3,24 +3,18 @@
  * Runs inside the iframe - renders layers and handles user interactions
  */
 
+import { createTiptapModule } from './canvas-tiptap.js';
+
 (function() {
   'use strict';
 
-  // Tiptap modules (loaded dynamically)
-  let TiptapEditor = null;
-  let TiptapStarterKit = null;
-  let TiptapTextStyle = null;
-  let TiptapColor = null;
-  let TiptapPlaceholder = null;
-  let DynamicVariableExtension = null;
-  let tiptapLoaded = false;
-  let tiptapLoadingPromise = null;
+  // Tiptap module instance (initialized later with dependencies)
+  let tiptapModule = null;
 
   // State
   let layers = [];
   let selectedLayerId = null;
   let editingLayerId = null;
-  let activeRichTextEditor = null; // Current Tiptap instance
   let hoveredLayerId = null;
   let editMode = true;
   let currentBreakpoint = 'desktop';
@@ -39,314 +33,6 @@
   // These are initialized when UPDATE_LAYERS message is received
   function getDefaultAssets() {
     return constants?.defaultAssets || {};
-  }
-
-  function getToolbarIcons() {
-    return constants?.toolbarIcons || {};
-  }
-
-  /**
-   * Load Tiptap modules dynamically (only when needed)
-   */
-  async function loadTiptap() {
-    if (tiptapLoaded) return true;
-    if (tiptapLoadingPromise) return tiptapLoadingPromise;
-
-    tiptapLoadingPromise = (async () => {
-      try {
-        const [
-          coreModule,
-          starterKitModule,
-          textStyleModule,
-          colorModule,
-          placeholderModule
-        ] = await Promise.all([
-          import('@tiptap/core'),
-          import('@tiptap/starter-kit'),
-          import('@tiptap/extension-text-style'),
-          import('@tiptap/extension-color'),
-          import('@tiptap/extension-placeholder')
-        ]);
-
-        TiptapEditor = coreModule.Editor;
-        TiptapStarterKit = starterKitModule.default || starterKitModule.StarterKit;
-        TiptapTextStyle = textStyleModule.default || textStyleModule.TextStyle;
-        TiptapColor = colorModule.default || colorModule.Color;
-        TiptapPlaceholder = placeholderModule.default || placeholderModule.Placeholder;
-
-        // Create custom extension for inline variables
-        DynamicVariableExtension = coreModule.Node.create({
-          name: 'dynamicVariable',
-          group: 'inline',
-          inline: true,
-          atom: true,
-
-          addAttributes() {
-            return {
-              variable: { default: null },
-              label: { default: 'variable' }
-            };
-          },
-
-          parseHTML() {
-            return [{ tag: 'span.ycode-inline-var' }];
-          },
-
-          renderHTML({ node }) {
-            const label = node.attrs.label || 'variable';
-            return ['span', {
-              class: 'ycode-inline-var',
-              'data-variable': JSON.stringify(node.attrs.variable),
-              contenteditable: 'false'
-            }, label];
-          }
-        });
-
-        tiptapLoaded = true;
-        console.log('[Canvas] Tiptap loaded successfully');
-        return true;
-      } catch (error) {
-        console.error('[Canvas] Failed to load Tiptap:', error);
-        return false;
-      }
-    })();
-
-    return tiptapLoadingPromise;
-  }
-
-  /**
-   * Create floating toolbar element
-   */
-  function createToolbar() {
-    let toolbar = document.getElementById('ycode-richtext-toolbar');
-    if (toolbar) return toolbar;
-
-    toolbar = document.createElement('div');
-    toolbar.id = 'ycode-richtext-toolbar';
-    toolbar.className = 'ycode-toolbar';
-    const icons = getToolbarIcons();
-    toolbar.innerHTML = `
-      <button type="button" class="ycode-toolbar-btn" data-action="bold" title="Bold (Cmd+B)">${icons.bold}</button>
-      <button type="button" class="ycode-toolbar-btn" data-action="italic" title="Italic (Cmd+I)">${icons.italic}</button>
-      <button type="button" class="ycode-toolbar-btn" data-action="underline" title="Underline (Cmd+U)">${icons.underline}</button>
-      <button type="button" class="ycode-toolbar-btn" data-action="strike" title="Strikethrough">${icons.strike}</button>
-      <div class="ycode-toolbar-divider"></div>
-      <button type="button" class="ycode-toolbar-btn" data-action="bulletList" title="Bullet List">${icons.bulletList}</button>
-      <button type="button" class="ycode-toolbar-btn" data-action="orderedList" title="Numbered List">${icons.orderedList}</button>
-      <div class="ycode-toolbar-divider"></div>
-      <button type="button" class="ycode-toolbar-btn" data-action="variable" title="Insert Variable">${icons.variable}</button>
-    `;
-
-    document.body.appendChild(toolbar);
-
-    // Handle toolbar button clicks
-    toolbar.addEventListener('mousedown', function(e) {
-      e.preventDefault(); // Prevent focus loss from editor
-      const btn = e.target.closest('[data-action]');
-      if (!btn || !activeRichTextEditor) return;
-
-      const editor = activeRichTextEditor;
-      const action = btn.dataset.action;
-
-      // Use toggleMark with extendEmptyMarkRange to toggle marks at cursor when no selection
-      switch (action) {
-        case 'bold':
-          editor.chain().focus().run();
-          editor.commands.toggleMark('bold', {}, { extendEmptyMarkRange: true });
-          break;
-        case 'italic':
-          editor.chain().focus().run();
-          editor.commands.toggleMark('italic', {}, { extendEmptyMarkRange: true });
-          break;
-        case 'underline':
-          editor.chain().focus().run();
-          editor.commands.toggleMark('underline', {}, { extendEmptyMarkRange: true });
-          break;
-        case 'strike':
-          editor.chain().focus().run();
-          editor.commands.toggleMark('strike', {}, { extendEmptyMarkRange: true });
-          break;
-        case 'bulletList':
-          editor.chain().focus().toggleBulletList().run();
-          break;
-        case 'orderedList':
-          editor.chain().focus().toggleOrderedList().run();
-          break;
-        case 'variable':
-          // Request parent to show variable picker
-          sendToParent('REQUEST_VARIABLE_PICKER', { layerId: editingLayerId });
-          break;
-      }
-      updateToolbarState();
-    });
-
-    return toolbar;
-  }
-
-  /**
-   * Update toolbar button active states
-   */
-  function updateToolbarState() {
-    const toolbar = document.getElementById('ycode-richtext-toolbar');
-    if (!toolbar || !activeRichTextEditor) return;
-
-    const markActions = ['bold', 'italic', 'underline', 'strike'];
-    markActions.forEach(action => {
-      const btn = toolbar.querySelector(`[data-action="${action}"]`);
-      if (btn) {
-        const isActive = activeRichTextEditor.isActive(action);
-        btn.classList.toggle('active', isActive);
-      }
-    });
-
-    // Handle list actions
-    const listBtn = toolbar.querySelector('[data-action="bulletList"]');
-    if (listBtn) {
-      listBtn.classList.toggle('active', activeRichTextEditor.isActive('bulletList'));
-    }
-    const orderedListBtn = toolbar.querySelector('[data-action="orderedList"]');
-    if (orderedListBtn) {
-      orderedListBtn.classList.toggle('active', activeRichTextEditor.isActive('orderedList'));
-    }
-  }
-
-  /**
-   * Position toolbar above selection or element
-   */
-  function positionToolbar(element) {
-    const toolbar = document.getElementById('ycode-richtext-toolbar');
-    if (!toolbar) return;
-
-    const rect = element.getBoundingClientRect();
-    const toolbarWidth = toolbar.offsetWidth || 200;
-    const toolbarHeight = toolbar.offsetHeight || 40;
-
-    // Center above element, clamp to viewport
-    let left = rect.left + (rect.width / 2) - (toolbarWidth / 2);
-    let top = rect.top - toolbarHeight - 8;
-
-    // Clamp to viewport
-    left = Math.max(8, Math.min(left, window.innerWidth - toolbarWidth - 8));
-    if (top < 8) {
-      top = rect.bottom + 8; // Show below if not enough space above
-    }
-
-    toolbar.style.left = left + 'px';
-    toolbar.style.top = top + 'px';
-    toolbar.classList.add('visible');
-  }
-
-  /**
-   * Hide the floating toolbar
-   */
-  function hideToolbar() {
-    const toolbar = document.getElementById('ycode-richtext-toolbar');
-    if (toolbar) {
-      toolbar.classList.remove('visible');
-    }
-  }
-
-  /**
-   * Convert Tiptap JSON to plain text with inline variable tags
-   */
-  function tiptapJsonToPlainText(json) {
-    if (!json || !json.content) return '';
-
-    let result = '';
-    function processNode(node) {
-      if (node.type === 'text') {
-        result += node.text || '';
-      } else if (node.type === 'dynamicVariable') {
-        if (node.attrs && node.attrs.variable) {
-          result += '<ycode-inline-variable>' + JSON.stringify(node.attrs.variable) + '</ycode-inline-variable>';
-        }
-      } else if (node.content) {
-        node.content.forEach(processNode);
-      }
-    }
-
-    if (json.content) {
-      json.content.forEach(processNode);
-    }
-    return result;
-  }
-
-  /**
-   * Parse text with inline variables to Tiptap JSON
-   * Supports both plain text and legacy ycode-inline-variable format
-   */
-  function parseTextToTiptapJson(text, fields) {
-    if (!text) {
-      return { type: 'doc', content: [{ type: 'paragraph' }] };
-    }
-
-    // If it's already a Tiptap JSON object, return as-is
-    if (typeof text === 'object' && text.type === 'doc') {
-      return text;
-    }
-
-    const content = [];
-    const regex = /<ycode-inline-variable(?:\s+id="([^"]+)")?>([\s\S]*?)<\/ycode-inline-variable>/g;
-    let lastIndex = 0;
-    let match;
-
-    while ((match = regex.exec(text)) !== null) {
-      // Add text before match
-      if (match.index > lastIndex) {
-        const textBefore = text.slice(lastIndex, match.index);
-        if (textBefore) {
-          content.push({ type: 'text', text: textBefore });
-        }
-      }
-
-      // Parse variable
-      const variableContent = match[2].trim();
-      try {
-        const variable = JSON.parse(variableContent);
-        const label = getVariableLabelFromFields(variable, fields);
-        content.push({
-          type: 'dynamicVariable',
-          attrs: { variable, label }
-        });
-      } catch {
-        // Invalid JSON, keep as text
-        content.push({ type: 'text', text: match[0] });
-      }
-
-      lastIndex = regex.lastIndex;
-    }
-
-    // Add remaining text
-    if (lastIndex < text.length) {
-      content.push({ type: 'text', text: text.slice(lastIndex) });
-    }
-
-    return {
-      type: 'doc',
-      content: [{
-        type: 'paragraph',
-        content: content.length > 0 ? content : undefined
-      }]
-    };
-  }
-
-  /**
-   * Get variable label from fields
-   */
-  function getVariableLabelFromFields(variable, fields) {
-    if (!variable || variable.type !== 'field' || !variable.data?.field_id) {
-      return 'variable';
-    }
-
-    // Try to find field in provided fields or collection fields
-    const allFieldSources = [
-      ...(fields || []),
-      ...Object.values(collectionFields || {}).flat(),
-      ...(pageCollectionFields || [])
-    ];
-
-    const field = allFieldSources.find(f => f.id === variable.data.field_id);
-    return field?.name || variable.data.field_id.slice(0, 8);
   }
 
   // Pagination state for collection layers
@@ -385,7 +71,14 @@
         pageCollectionFields = message.payload.pageCollectionFields || [];
         assets = message.payload.assets || {};
         constants = message.payload.constants || null;
-        render();
+
+        // Don't re-render if we're currently editing text - it would destroy the editor
+        // Only update selection state without full render
+        if (editingLayerId && tiptapModule && tiptapModule.isEditing()) {
+          updateSelection();
+        } else {
+          render();
+        }
         break;
 
       case 'UPDATE_SELECTION':
@@ -446,8 +139,8 @@
 
       case 'INSERT_VARIABLE':
         // Insert a variable into the active rich text editor
-        if (message.payload.variable) {
-          insertVariableIntoEditor(
+        if (message.payload.variable && tiptapModule) {
+          tiptapModule.insertVariableIntoEditor(
             message.payload.variable,
             message.payload.label || 'variable'
           );
@@ -455,6 +148,32 @@
         break;
     }
   });
+
+  /**
+   * Initialize Tiptap module with dependencies
+   */
+  function initializeTiptapModule() {
+    if (tiptapModule) return; // Already initialized
+
+    tiptapModule = createTiptapModule({
+      sendToParent,
+      getConstants: () => constants,
+      findLayer: (layerId) => findLayer(layers, layerId),
+      resolveReferenceFieldValue,
+      // Pass additional state getters
+      getCollectionFields: () => collectionFields,
+      getPageCollectionFields: () => pageCollectionFields,
+      getEditingLayerId: () => editingLayerId,
+      setEditingLayerId: (id) => { editingLayerId = id; },
+      getSelectedLayerId: () => selectedLayerId,
+      setSelectedLayerId: (id) => { selectedLayerId = id; },
+      updateSelection,
+      render,
+      collectionLayerData,
+      findParentCollectionLayerInTree,
+      pageCollectionItem,
+    });
+  }
 
   /**
    * Get HTML tag for layer
@@ -1022,166 +741,6 @@
    * If collectionItemData is provided, use it for field variable resolution
    * If collectionId is provided, validates that referenced fields still exist
    */
-  /**
-   * Convert Tiptap JSON to plain text with inline variable tags (for rendering)
-   */
-  function tiptapJsonToPlainText(json) {
-    if (!json || !json.content) return '';
-
-    let result = '';
-    function processNode(node) {
-      if (node.type === 'text') {
-        result += node.text || '';
-      } else if (node.type === 'dynamicVariable') {
-        if (node.attrs && node.attrs.variable) {
-          result += '<ycode-inline-variable>' + JSON.stringify(node.attrs.variable) + '</ycode-inline-variable>';
-        }
-      } else if (node.content) {
-        node.content.forEach(processNode);
-      }
-    }
-
-    if (json.content) {
-      json.content.forEach(processNode);
-    }
-    return result;
-  }
-
-  /**
-   * Render Tiptap JSON to HTML with formatting (bold, italic, underline, etc.)
-   * Uses textStyles classes if provided, falls back to DEFAULT_TEXT_STYLES, then HTML tags
-   */
-  function renderTiptapJsonToHtml(json, collectionItemData, collectionId, textStyles) {
-    if (!json || !json.content) return '';
-
-    // Use textStyles from shared constants (single source of truth: lib/iframe-constants.ts)
-    const DEFAULT_TEXT_STYLES = constants?.textStyles || {};
-
-    // Merge DEFAULT_TEXT_STYLES with provided textStyles (provided styles override defaults)
-    const mergedTextStyles = Object.assign({}, DEFAULT_TEXT_STYLES, textStyles || {});
-
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    function processNode(node) {
-      if (node.type === 'paragraph') {
-        const pContent = node.content ? node.content.map(processNode).join('') : '';
-        // Use <span class="block"> instead of <p> so it works in inline contexts (like headings)
-        // Empty paragraphs get a <br> to preserve the line break
-        return '<span class="block">' + (pContent || '<br>') + '</span>';
-      } else if (node.type === 'text') {
-        let text = escapeHtml(node.text || '');
-
-        // Apply marks (formatting) using mergedTextStyles
-        if (node.marks) {
-          node.marks.forEach(function(mark) {
-            // Check if mergedTextStyles provides a class for this mark
-            const styleConfig = mergedTextStyles[mark.type];
-
-            if (styleConfig && styleConfig.classes) {
-              // Use span with classes from textStyles
-              text = '<span class="' + styleConfig.classes + '">' + text + '</span>';
-            } else {
-              // Fall back to standard HTML tags
-              switch (mark.type) {
-                case 'bold':
-                  text = '<strong>' + text + '</strong>';
-                  break;
-                case 'italic':
-                  text = '<em>' + text + '</em>';
-                  break;
-                case 'underline':
-                  text = '<u>' + text + '</u>';
-                  break;
-                case 'strike':
-                  text = '<s>' + text + '</s>';
-                  break;
-                case 'code':
-                  text = '<code>' + text + '</code>';
-                  break;
-              }
-            }
-          });
-        }
-
-        return text;
-      } else if (node.type === 'dynamicVariable') {
-        // Resolve variable from collection data
-        const variable = node.attrs && node.attrs.variable;
-        if (variable && variable.type === 'field' && variable.data && variable.data.field_id && collectionItemData) {
-          const itemValues = collectionItemData.values || collectionItemData;
-          const fieldId = variable.data.field_id;
-          const relationships = variable.data.relationships || [];
-
-          let value = '';
-          if (relationships.length > 0) {
-            value = resolveReferenceFieldValue(fieldId, relationships, itemValues, collectionId) || '';
-          } else {
-            value = itemValues[fieldId] || '';
-          }
-
-          return escapeHtml(value);
-        }
-        // Return placeholder if no data available
-        const label = (node.attrs && node.attrs.label) || 'variable';
-        return '<span class="ycode-inline-var">' + escapeHtml(label) + '</span>';
-      } else if (node.type === 'bulletList') {
-        const ulContent = node.content ? node.content.map(processNode).join('') : '';
-        const listStyle = mergedTextStyles['bulletList'];
-        const classes = listStyle && listStyle.classes ? ' class="' + escapeHtml(listStyle.classes) + '"' : '';
-        return '<ul' + classes + '>' + ulContent + '</ul>';
-      } else if (node.type === 'orderedList') {
-        const olContent = node.content ? node.content.map(processNode).join('') : '';
-        const listStyle = mergedTextStyles['orderedList'];
-        const classes = listStyle && listStyle.classes ? ' class="' + escapeHtml(listStyle.classes) + '"' : '';
-        return '<ol' + classes + '>' + olContent + '</ol>';
-      } else if (node.type === 'listItem') {
-        const liContent = node.content ? node.content.map(processNode).join('') : '';
-        const listStyle = mergedTextStyles['listItem'];
-        const classes = listStyle && listStyle.classes ? ' class="' + escapeHtml(listStyle.classes) + '"' : '';
-        return '<li' + classes + '>' + liContent + '</li>';
-      } else if (node.content) {
-        return node.content.map(processNode).join('');
-      }
-      return '';
-    }
-
-    let result = '';
-    if (json.content) {
-      // Render all blocks directly - paragraphs are now wrapped in <span class="block"> tags
-      // Lists are block elements with their own margins, so no need for separators
-      const blocks = [];
-      json.content.forEach(function(block) {
-        if (block.type === 'paragraph') {
-          // Paragraphs are now wrapped in <span class="block"> tags by processNode
-          blocks.push(processNode(block));
-        } else if (block.type === 'bulletList' || block.type === 'orderedList') {
-          // Lists are block elements - render them directly
-          blocks.push(processNode(block));
-        } else if (block.content) {
-          blocks.push(block.content.map(processNode).join(''));
-        }
-      });
-
-      // Join blocks directly - <span class="block"> tags and lists are block elements with their own spacing
-      result = blocks.join('');
-    }
-    return result;
-  }
-
-  /**
-   * Check if content is Tiptap JSON format
-   */
-  function isTiptapContent(content) {
-    return (
-      typeof content === 'object' &&
-      content !== null &&
-      content.type === 'doc'
-    );
-  }
 
   /**
    * Resolve inline variables in DynamicTextVariable content
@@ -1193,9 +752,14 @@
       return content;
     }
 
+    // Initialize Tiptap module if needed (lazy initialization)
+    if (!tiptapModule) {
+      initializeTiptapModule();
+    }
+
     // Handle Tiptap JSON format - convert to plain text first
-    if (isTiptapContent(content)) {
-      content = tiptapJsonToPlainText(content);
+    if (tiptapModule && tiptapModule.isTiptapContent(content)) {
+      content = tiptapModule.tiptapJsonToPlainText(content);
     }
 
     // Now content should be a string - check if it contains inline variables
@@ -1261,9 +825,14 @@
 
     const content = textVariable.data.content;
 
+    // Initialize Tiptap module if needed (lazy initialization)
+    if (!tiptapModule) {
+      initializeTiptapModule();
+    }
+
     // Handle Tiptap JSON format - render to HTML with textStyles
-    if (isTiptapContent(content)) {
-      const html = renderTiptapJsonToHtml(content, collectionItemData, collectionId, layer.textStyles);
+    if (tiptapModule && tiptapModule.isTiptapContent(content)) {
+      const html = tiptapModule.renderTiptapJsonToHtml(content, collectionItemData, collectionId, layer.textStyles);
       return { text: html, isHtml: true };
     }
 
@@ -2656,9 +2225,18 @@
    * Add event listeners to layer element
    */
   function addEventListeners(element, layer) {
+    let clickTimeout = null;
+    let isDoubleClick = false;
+
     // Click to select
     element.addEventListener('click', function(e) {
       e.stopPropagation();
+
+      // If we're currently editing text on a different layer, finish editing immediately
+      // This prevents the blur timeout from causing selection loops
+      if (editingLayerId && editingLayerId !== layer.id && tiptapModule) {
+        tiptapModule.finishRichTextEditing();
+      }
 
       // Ensure iframe can receive keyboard events by focusing the body
       if (document.body && document.body !== document.activeElement) {
@@ -2675,11 +2253,24 @@
         targetLayerId = componentRootId;
       }
 
-      sendToParent('LAYER_CLICK', {
-        layerId: targetLayerId,
-        metaKey: e.metaKey || e.ctrlKey,
-        shiftKey: e.shiftKey
-      });
+      // Delay click handler to detect double-clicks
+      // If double-click occurs, we cancel the click message to prevent re-render
+      if (clickTimeout) {
+        clearTimeout(clickTimeout);
+      }
+
+      clickTimeout = setTimeout(function() {
+        // Only send click if it wasn't part of a double-click
+        if (!isDoubleClick) {
+          sendToParent('LAYER_CLICK', {
+            layerId: targetLayerId,
+            metaKey: e.metaKey || e.ctrlKey,
+            shiftKey: e.shiftKey
+          });
+        }
+        isDoubleClick = false;
+        clickTimeout = null;
+      }, 250); // 250ms delay to detect double-click
     });
 
     // Double-click to edit text
@@ -2687,6 +2278,28 @@
       console.log('[addEventListeners] Attaching double-click handler to layer:', layer.id, layer.name);
       element.addEventListener('dblclick', function(e) {
         e.stopPropagation();
+
+        // Mark as double-click to cancel the pending click message
+        isDoubleClick = true;
+        if (clickTimeout) {
+          clearTimeout(clickTimeout);
+          clickTimeout = null;
+        }
+
+        // Select the layer before entering edit mode
+        // If this layer is part of a component (and we're NOT editing it), select the component root instead
+        const componentRootId = componentMap[layer.id];
+        const isPartOfComponent = !!componentRootId;
+        const isEditingThisComponent = editingComponentId && componentRootId === editingComponentId;
+
+        let targetLayerId = layer.id;
+        if (isPartOfComponent && !isEditingThisComponent) {
+          targetLayerId = componentRootId;
+        }
+
+        // Update selection locally first (before starting edit mode)
+        selectedLayerId = targetLayerId;
+        updateSelection();
 
         // Get collection item data for this specific element
         const itemWrapper = element.closest('[data-collection-item-id]');
@@ -2705,7 +2318,22 @@
           }
         }
 
-        startTextEditing(layer.id, layer, element, itemData, collectionId);
+        // Start editing immediately (before sending selection to parent)
+        // Initialize Tiptap module if needed
+        if (!tiptapModule) {
+          initializeTiptapModule();
+        }
+        if (tiptapModule) {
+          tiptapModule.startTextEditing(layer.id, layer, element, itemData, collectionId);
+        }
+
+        // Send selection message to parent
+        // UPDATE_LAYERS handler will protect against destroying the editor
+        sendToParent('LAYER_CLICK', {
+          layerId: targetLayerId,
+          metaKey: false,
+          shiftKey: false
+        });
       });
     } else {
       console.log('[addEventListeners] Layer not text-editable:', layer.id, 'editText:', layer.restrictions?.editText);
@@ -2857,375 +2485,6 @@
     }
 
     return traverse(layers, layerId);
-  }
-
-  /**
-   * Start text editing mode with Tiptap rich text editor
-   */
-  async function startTextEditing(layerId, layer, element, collectionItemData = null, activeCollectionId = null) {
-    if (editingLayerId) return;
-
-    // If layer has single inline variable only, open collection item sheet instead
-    if (layer.variables?.text) {
-      const hasSingle = hasSingleInlineVariable(layer);
-
-      if (hasSingle) {
-        // Find the collection item ID from parent wrapper
-        const itemWrapper = element.closest('[data-collection-item-id]');
-        const collectionItemId = itemWrapper?.getAttribute('data-collection-item-id');
-
-        if (collectionItemId) {
-          const parentCollectionLayer = findParentCollectionLayerInTree(layerId);
-          const collectionId = parentCollectionLayer?.variables?.collection?.id;
-
-          if (collectionId) {
-            sendToParent('OPEN_COLLECTION_ITEM_SHEET', {
-              collectionId,
-              itemId: collectionItemId,
-            });
-            return;
-          }
-        }
-
-        if (pageCollectionItem && pageCollectionFields && pageCollectionFields.length > 0) {
-          const pageCollectionId = pageCollectionItem.collection_id;
-          const pageItemId = pageCollectionItem.id;
-
-          if (pageCollectionId && pageItemId) {
-            sendToParent('OPEN_COLLECTION_ITEM_SHEET', {
-              collectionId: pageCollectionId,
-              itemId: pageItemId,
-            });
-            return;
-          }
-        }
-
-        // Single variable without collection context - allow editing anyway
-      }
-    }
-
-    // Clean up any existing editor first
-    if (activeRichTextEditor) {
-      cleanupRichTextEditor();
-    }
-
-    // Load Tiptap if not loaded
-    const loaded = await loadTiptap();
-    if (!loaded) {
-      console.warn('[Canvas] Tiptap not available, falling back to input');
-      startTextEditingLegacy(layerId, layer, element, collectionItemData, activeCollectionId);
-      return;
-    }
-
-    editingLayerId = layerId;
-
-    // Remove selection badge if present
-    const badge = element.querySelector('.ycode-selection-badge');
-    if (badge) badge.remove();
-
-    // Get current content from layer
-    const textVariable = layer.variables?.text;
-    let initialContent;
-
-    if (textVariable && textVariable.type === 'dynamic_text') {
-      const content = textVariable.data.content;
-      // Check if it's already Tiptap JSON
-      if (typeof content === 'object' && content.type === 'doc') {
-        initialContent = content;
-      } else {
-        // Parse string content with inline variables
-        initialContent = parseTextToTiptapJson(content, collectionFields[activeCollectionId] || pageCollectionFields);
-      }
-    } else {
-      initialContent = parseTextToTiptapJson('', []);
-    }
-
-    // Create editor container
-    const editorContainer = document.createElement('div');
-    editorContainer.className = 'ycode-richtext-editor';
-    editorContainer.setAttribute('data-editing-layer', layerId);
-
-    // Clear element and add editor
-    element.innerHTML = '';
-    element.appendChild(editorContainer);
-    element.classList.add('ycode-editing');
-
-    // Track if we're clicking inside the editor (to prevent blur from closing)
-    let isClickingInsideEditor = false;
-    let blurTimeoutId = null;
-
-    // Stop propagation of all mouse events to prevent triggering layer handlers
-    editorContainer.addEventListener('click', function(e) {
-      e.stopPropagation();
-    }, true);
-
-    editorContainer.addEventListener('dblclick', function(e) {
-      e.stopPropagation();
-    }, true);
-
-    // Add mousedown handler to track clicks inside editor (capture phase to catch all clicks)
-    editorContainer.addEventListener('mousedown', function(e) {
-      e.stopPropagation(); // Prevent triggering layer click handlers
-      isClickingInsideEditor = true;
-      // Clear any pending blur timeout
-      if (blurTimeoutId) {
-        clearTimeout(blurTimeoutId);
-        blurTimeoutId = null;
-      }
-      // Reset flag after a short delay
-      setTimeout(() => {
-        isClickingInsideEditor = false;
-      }, 200);
-    }, true); // Use capture phase
-
-    // Also handle clicks on the ProseMirror element itself (it's created by Tiptap)
-    const handleProseMirrorClick = function(e) {
-      e.stopPropagation(); // Prevent triggering layer handlers
-      isClickingInsideEditor = true;
-      if (blurTimeoutId) {
-        clearTimeout(blurTimeoutId);
-        blurTimeoutId = null;
-      }
-      setTimeout(() => {
-        isClickingInsideEditor = false;
-      }, 200);
-    };
-
-    // Wait for ProseMirror to be created, then add listener
-    setTimeout(() => {
-      const proseMirror = editorContainer.querySelector('.ProseMirror');
-      if (proseMirror) {
-        proseMirror.addEventListener('mousedown', handleProseMirrorClick, true);
-        proseMirror.addEventListener('click', function(e) {
-          e.stopPropagation();
-        }, true);
-        proseMirror.addEventListener('dblclick', function(e) {
-          e.stopPropagation();
-        }, true);
-      }
-    }, 50);
-
-    // Create toolbar
-    createToolbar();
-
-    // Create Tiptap editor
-    activeRichTextEditor = new TiptapEditor({
-      element: editorContainer,
-      extensions: [
-        TiptapStarterKit.configure({
-          // Disable features we don't need for inline text
-          heading: false,
-          blockquote: false,
-          codeBlock: false,
-          horizontalRule: false,
-          hardBreak: false,
-        }),
-        TiptapTextStyle,
-        TiptapColor,
-        DynamicVariableExtension,
-      ],
-      content: initialContent,
-      autofocus: 'end',
-      editorProps: {
-        attributes: {
-          class: 'ProseMirror',
-        },
-        handleKeyDown: (view, event) => {
-          // Handle Cmd+Enter or Shift+Enter to finish editing
-          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey || event.shiftKey)) {
-            event.preventDefault();
-            finishRichTextEditing();
-            return true;
-          }
-          // Handle Escape to cancel
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            cancelRichTextEditing();
-            return true;
-          }
-          // Allow Enter for line breaks (default behavior)
-          return false;
-        },
-      },
-      onSelectionUpdate: () => {
-        updateToolbarState();
-      },
-      onFocus: () => {
-        positionToolbar(editorContainer);
-      },
-      onBlur: ({ event }) => {
-        // If we just clicked inside the editor, don't close
-        if (isClickingInsideEditor) {
-          return;
-        }
-
-        const relatedTarget = event?.relatedTarget;
-
-        // Don't hide if clicking toolbar
-        if (relatedTarget && relatedTarget.closest('#ycode-richtext-toolbar')) {
-          return;
-        }
-
-        // Don't hide if clicking back into the editor container
-        if (relatedTarget && editorContainer.contains(relatedTarget)) {
-          return;
-        }
-
-        // Clear any existing timeout
-        if (blurTimeoutId) {
-          clearTimeout(blurTimeoutId);
-        }
-
-        // Delay to allow focus to return (e.g., when clicking on formatting inside editor)
-        blurTimeoutId = setTimeout(() => {
-          blurTimeoutId = null;
-
-          if (!activeRichTextEditor) return;
-
-          // If we clicked inside editor during the delay, don't close
-          if (isClickingInsideEditor) {
-            return;
-          }
-
-          // Check if editor is still focused
-          if (activeRichTextEditor.isFocused) {
-            return;
-          }
-
-          // Check if active element is inside the editor container
-          const activeElement = document.activeElement;
-          if (activeElement && editorContainer.contains(activeElement)) {
-            return;
-          }
-
-          // Check if active element is in the toolbar
-          if (activeElement && activeElement.closest('#ycode-richtext-toolbar')) {
-            return;
-          }
-
-          // Only close if we're truly blurred and not inside editor or toolbar
-          finishRichTextEditing();
-        }, 200);
-      },
-    });
-
-    // Position toolbar
-    positionToolbar(editorContainer);
-
-    // Notify parent
-    sendToParent('RICHTEXT_EDIT_START', { layerId });
-  }
-
-  /**
-   * Finish rich text editing and save changes
-   */
-  function finishRichTextEditing() {
-    if (!activeRichTextEditor || !editingLayerId) return;
-
-    const json = activeRichTextEditor.getJSON();
-    const layerId = editingLayerId;
-
-    // Get the HTML content from the editor before cleanup
-    const htmlContent = activeRichTextEditor.getHTML();
-
-    // Find the layer element and preserve the content immediately
-    const layerElement = document.querySelector(`[data-layer-id="${layerId}"]`);
-    if (layerElement && htmlContent) {
-      // Remove editing class and set content immediately to prevent flash
-      layerElement.classList.remove('ycode-editing');
-      layerElement.innerHTML = htmlContent;
-    }
-
-    // Clean up
-    cleanupRichTextEditor();
-
-    // Send both JSON and plain text version to parent
-    sendToParent('RICHTEXT_EDIT_END', {
-      layerId,
-      content: json,
-      plainText: tiptapJsonToPlainText(json),
-    });
-  }
-
-  /**
-   * Cancel rich text editing without saving
-   */
-  function cancelRichTextEditing() {
-    cleanupRichTextEditor();
-    render();
-  }
-
-  /**
-   * Clean up rich text editor
-   */
-  function cleanupRichTextEditor() {
-    hideToolbar();
-    if (activeRichTextEditor) {
-      activeRichTextEditor.destroy();
-      activeRichTextEditor = null;
-    }
-    editingLayerId = null;
-  }
-
-  /**
-   * Insert a variable into the active rich text editor
-   */
-  function insertVariableIntoEditor(variable, label) {
-    if (!activeRichTextEditor) return;
-
-    activeRichTextEditor.chain()
-      .focus()
-      .insertContent({
-        type: 'dynamicVariable',
-        attrs: { variable, label }
-      })
-      .insertContent(' ')
-      .run();
-  }
-
-  /**
-   * Legacy text editing with input (fallback if Tiptap fails to load)
-   */
-  function startTextEditingLegacy(layerId, layer, element, collectionItemData = null, activeCollectionId = null) {
-    editingLayerId = layerId;
-
-    const badge = element.querySelector('.ycode-selection-badge');
-    if (badge) badge.remove();
-
-    const textResult = getText(layer, collectionItemData, activeCollectionId);
-    // For legacy input, convert HTML to plain text (strip tags)
-    const currentText = textResult.isHtml
-      ? textResult.text.replace(/<[^>]*>/g, '')
-      : textResult.text;
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'ycode-text-editor';
-    input.value = currentText;
-
-    element.textContent = '';
-    element.appendChild(input);
-    element.classList.add('ycode-editing');
-
-    input.focus();
-    input.select();
-
-    sendToParent('TEXT_CHANGE_START', { layerId });
-
-    const finishEditing = () => {
-      const newText = input.value;
-      editingLayerId = null;
-      sendToParent('TEXT_CHANGE_END', { layerId, text: newText });
-    };
-
-    input.addEventListener('blur', finishEditing);
-    input.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') finishEditing();
-      else if (e.key === 'Escape') {
-        editingLayerId = null;
-        render();
-      }
-    });
   }
 
   /**

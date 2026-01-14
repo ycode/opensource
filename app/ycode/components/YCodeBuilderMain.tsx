@@ -356,10 +356,13 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
     if ((isPageOrLayersRoute || isComponentRoute) && !urlState.isEditing && hasInitializedLayerFromUrlRef.current) {
       const layerParam = selectedLayerId || undefined;
-      // Only update if the layer has actually changed from URL
-      if (urlState.layerId !== layerParam) {
+      const normalizedLayerParam = layerParam || null;
+      
+      // Only update if the layer has actually changed from URL AND from our last update
+      // This prevents loops: if we just set selection from URL, don't immediately sync it back
+      if (urlState.layerId !== layerParam && lastUrlLayerIdRef.current !== normalizedLayerParam) {
         updateQueryParams({ layer: layerParam });
-        lastUrlLayerIdRef.current = layerParam || null;
+        lastUrlLayerIdRef.current = normalizedLayerParam;
       }
     }
   }, [selectedLayerId, routeType, updateQueryParams, urlState.layerId, urlState.isEditing, justExitedEditMode]);
