@@ -661,6 +661,19 @@ const LayerItem: React.FC<{
       );
     }
 
+    // Handle HTML Embed layers
+    if (layer.name === 'htmlEmbed') {
+      const htmlCode = layer.settings?.htmlEmbed?.code || '<div>Paste your HTML code here</div>';
+
+      return (
+        <Tag
+          {...elementProps}
+          data-html-embed="true"
+          dangerouslySetInnerHTML={{ __html: htmlCode }}
+        />
+      );
+    }
+
     if (htmlTag === 'video' || htmlTag === 'audio') {
       // Check if this is a YouTube video (VideoVariable type)
       if (htmlTag === 'video' && layer.variables?.video?.src) {

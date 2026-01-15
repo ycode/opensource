@@ -1918,6 +1918,14 @@
       element.setAttribute('data-icon', 'true');
       // Insert SVG content
       element.innerHTML = iconHtml;
+    } else if (layer.name === 'htmlEmbed') {
+      // Handle HTML Embed layers - inject custom HTML code
+      const htmlCode = layer.settings?.htmlEmbed?.code || '<div>Paste your HTML code here</div>';
+      
+      // Add data-html-embed attribute to trigger CSS styling
+      element.setAttribute('data-html-embed', 'true');
+      // Insert HTML content
+      element.innerHTML = htmlCode;
     } else if (tag === 'a' && layer.variables?.link) {
       const linkHref = layer.variables.link.href;
       if (linkHref && linkHref.type === 'dynamic_text') {

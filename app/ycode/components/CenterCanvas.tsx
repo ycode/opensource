@@ -582,6 +582,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return `/ycode/preview${path === '/' ? '' : path}`;
   }, [currentPage, folders, currentPageCollectionItemId, collectionItemsFromStore, collectionFieldsFromStore, selectedLocale, localeTranslations]);
 
+  // Generate a stable preview key that changes when layers are actually modified
+  const previewKey = useMemo(() => {
+    // Use JSON.stringify of layer structure to detect changes
+    // This is more efficient than Date.now() which would refresh constantly
+    const layerHash = JSON.stringify(layers);
+    return `preview-${currentPageId}-${layerHash.length}`;
+  }, [currentPageId, layers]);
+
   // Load collection items when dynamic page is selected
   useEffect(() => {
     if (!collectionId || !currentPage?.is_dynamic) {
@@ -1554,7 +1562,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               >
                 {layers.length > 0 ? (
                   <iframe
-                    key={`preview-${currentPageId}`}
+                    key={previewKey}
                     ref={iframeRef}
                     src={previewUrl}
                     className="w-full h-full border-0"

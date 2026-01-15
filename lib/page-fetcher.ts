@@ -2094,6 +2094,14 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
     attrs.push('data-icon="true"');
   }
 
+  // Handle HTML Embed layers
+  let htmlEmbedCode = '';
+  if (layer.name === 'htmlEmbed') {
+    htmlEmbedCode = layer.settings?.htmlEmbed?.code || '<div>Paste your HTML code here</div>';
+    // Add data-html-embed attribute to trigger CSS styling
+    attrs.push('data-html-embed="true"');
+  }
+
   // Handle links (variables structure)
   if (tag === 'a') {
     const linkHref = layer.variables?.link?.href;
@@ -2147,6 +2155,11 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
   // For icon layers, use raw iconHtml (don't escape SVG content)
   if (layer.name === 'icon' && iconHtml) {
     return `<${tag}${attrsStr}>${iconHtml}${childrenHtml}</${tag}>`;
+  }
+
+  // For HTML Embed layers, use raw htmlEmbedCode (don't escape HTML content)
+  if (layer.name === 'htmlEmbed' && htmlEmbedCode) {
+    return `<${tag}${attrsStr}>${htmlEmbedCode}${childrenHtml}</${tag}>`;
   }
 
   return `<${tag}${attrsStr}>${escapeHtml(textContent)}${childrenHtml}</${tag}>`;

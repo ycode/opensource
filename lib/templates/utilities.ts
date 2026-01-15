@@ -149,4 +149,25 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
       },
     }),
   },
+
+  htmlEmbed: {
+    icon: 'code',
+    name: 'HTML',
+    template: {
+      name: 'htmlEmbed',
+      classes: ['w-full'],
+      settings: {
+        tag: 'div',
+        htmlEmbed: {
+          code: '<div>Paste your HTML code here</div>',
+        },
+      },
+      design: {
+        sizing: {
+          isActive: true,
+          width: '100%',
+        },
+      },
+    },
+  },
 };
