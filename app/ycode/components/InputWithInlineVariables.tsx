@@ -8,7 +8,7 @@
  * Data is stored in data-variable attribute as JSON-encoded string
  */
 
-import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
+import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { Node, mergeAttributes } from '@tiptap/core';
@@ -16,6 +16,13 @@ import Document from '@tiptap/extension-document';
 import Text from '@tiptap/extension-text';
 import Paragraph from '@tiptap/extension-paragraph';
 import Placeholder from '@tiptap/extension-placeholder';
+import Bold from '@tiptap/extension-bold';
+import Italic from '@tiptap/extension-italic';
+import Underline from '@tiptap/extension-underline';
+import Strike from '@tiptap/extension-strike';
+import BulletList from '@tiptap/extension-bullet-list';
+import OrderedList from '@tiptap/extension-ordered-list';
+import ListItem from '@tiptap/extension-list-item';
 import { cn } from '@/lib/utils';
 import type { CollectionField, Collection } from '@/types';
 import {
@@ -35,9 +42,9 @@ import {
 import FieldTreeSelect from './FieldTreeSelect';
 
 interface InputWithInlineVariablesProps {
-  value: string;
-  onChange: (value: string) => void;
-  onBlur?: (value: string) => void;
+  value: string | any; // string for simple text, Tiptap JSON when withFormatting=true
+  onChange: (value: string | any) => void;
+  onBlur?: (value: string | any) => void;
   placeholder?: string;
   className?: string;
   fields?: CollectionField[];
@@ -48,6 +55,8 @@ interface InputWithInlineVariablesProps {
   collections?: Collection[];
   /** Disable editing and hide database button */
   disabled?: boolean;
+  /** Enable formatting toolbar (bold, italic, underline, strikethrough) - uses Tiptap JSON format */
+  withFormatting?: boolean;
 }
 
 export interface InputWithInlineVariablesHandle {
@@ -202,13 +211,12 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   allFields,
   collections,
   disabled = false,
+  withFormatting = false,
 }, ref) => {
-  const [isFocused, setIsFocused] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const editor = useEditor({
-    immediatelyRender: true,
-    extensions: [
+  const extensions = useMemo(() => {
+    const baseExtensions = [
       Document,
       Paragraph,
       Text,
@@ -216,8 +224,30 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
       Placeholder.configure({
         placeholder,
       }),
-    ],
-    content: parseValueToContent(value, fields, undefined, allFields),
+    ];
+
+    if (withFormatting) {
+      return [
+        ...baseExtensions,
+        Bold,
+        Italic,
+        Underline,
+        Strike,
+        BulletList,
+        OrderedList,
+        ListItem,
+      ];
+    }
+
+    return baseExtensions;
+  }, [placeholder, withFormatting]);
+
+  const editor = useEditor({
+    immediatelyRender: true,
+    extensions,
+    content: withFormatting && typeof value === 'object'
+      ? value
+      : parseValueToContent(typeof value === 'string' ? value : '', fields, undefined, allFields),
     editorProps: {
       attributes: {
         class: cn(
@@ -225,43 +255,51 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
           'w-full min-w-0 border border-transparent bg-input transition-[color,box-shadow] outline-none',
           'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[0px]',
           'disabled:cursor-not-allowed disabled:opacity-50',
-          '[&_.ProseMirror]:outline-none [&_.ProseMirror]:w-full [&_.ProseMirror]:min-h-full',
-          '[&_.ProseMirror_p]:m-0 [&_.ProseMirror_p]:p-0 [&_.ProseMirror_p]:flex [&_.ProseMirror_p]:flex-wrap [&_.ProseMirror_p]:items-center [&_.ProseMirror_p]:gap-y-0.5',
-          '[&_.ProseMirror_p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child]:before:inline-block [&_.ProseMirror_p.is-editor-empty:first-child]:before:w-full [&_.ProseMirror_p.is-editor-empty:first-child]:before:text-xs [&_.ProseMirror_p.is-editor-empty:first-child]:before:text-current/25 [&_.ProseMirror_p.is-editor-empty:first-child]:before:pointer-events-none',
+          'input-with-inline-variables-editor',
           className
         ),
       },
       handleKeyDown: (view, event) => {
-        // Prevent line breaks
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          return true;
-        }
+        // Allow line breaks (Enter key)
         return false;
       },
     },
     onUpdate: ({ editor }) => {
-      const newValue = convertContentToValue(editor.getJSON());
-      if (newValue !== value) {
-        onChange(newValue);
+      // When withFormatting is enabled, emit full Tiptap JSON
+      // Otherwise emit string format for backward compatibility
+      const newValue = withFormatting
+        ? editor.getJSON()
+        : convertContentToValue(editor.getJSON());
+
+      if (withFormatting) {
+        // Compare JSON objects
+        if (JSON.stringify(newValue) !== JSON.stringify(value)) {
+          onChange(newValue);
+        }
+      } else {
+        // Compare strings
+        if (newValue !== value) {
+          onChange(newValue);
+        }
       }
     },
     onCreate: ({ editor }) => {
       // Set initial content
-      const content = parseValueToContent(value, fields, undefined, allFields);
+      const content = withFormatting && typeof value === 'object'
+        ? value
+        : parseValueToContent(typeof value === 'string' ? value : '', fields, undefined, allFields);
       editor.commands.setContent(content);
     },
-    onFocus: () => {
-      setIsFocused(true);
-    },
+    onFocus: () => {},
     onBlur: () => {
-      setIsFocused(false);
       if (onBlurProp && editor) {
-        const currentValue = convertContentToValue(editor.getJSON());
+        const currentValue = withFormatting
+          ? editor.getJSON()
+          : convertContentToValue(editor.getJSON());
         onBlurProp(currentValue);
       }
     },
-  }, [placeholder]);
+  }, [placeholder, extensions, withFormatting]);
 
   // Update editor editable state when disabled prop changes
   useEffect(() => {
@@ -273,11 +311,25 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   useEffect(() => {
     if (!editor) return;
 
-    const currentValue = convertContentToValue(editor.getJSON());
-    if (currentValue !== value) {
+    // Compare current editor content with incoming value
+    const currentEditorContent = editor.getJSON();
+    let hasChanged = false;
+
+    if (withFormatting && typeof value === 'object') {
+      // Compare Tiptap JSON objects
+      hasChanged = JSON.stringify(currentEditorContent) !== JSON.stringify(value);
+    } else if (typeof value === 'string') {
+      // Compare string representations
+      const currentValue = convertContentToValue(currentEditorContent);
+      hasChanged = currentValue !== value;
+    }
+
+    if (hasChanged) {
       // Check if editor was focused before updating content
       const wasFocused = editor.isFocused;
-      const content = parseValueToContent(value, fields, undefined, allFields);
+      const content = withFormatting && typeof value === 'object'
+        ? value
+        : parseValueToContent(typeof value === 'string' ? value : '', fields, undefined, allFields);
       editor.commands.setContent(content);
 
       // Only focus if editor was already focused (user was actively editing)
@@ -323,7 +375,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         }
       }
     }
-  }, [value, fields, allFields, editor]);
+  }, [value, fields, allFields, editor, withFormatting]);
 
   // Internal function to add a field variable
   const addFieldVariableInternal = useCallback((variableData: FieldVariable) => {
@@ -405,14 +457,11 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
     const newValue = convertContentToValue(editor.getJSON());
     onChange(newValue);
 
-    // Calculate final cursor position
-    // Variable is 1 character, plus spaces if added
     let finalPosition = from;
-    if (needsSpaceBefore) finalPosition += 1; // space before
-    finalPosition += 1; // variable itself
-    if (needsSpaceAfter) finalPosition += 1; // space after
+    if (needsSpaceBefore) finalPosition += 1;
+    finalPosition += 1;
+    if (needsSpaceAfter) finalPosition += 1;
 
-    // Restore focus at the position after the inserted content
     setTimeout(() => {
       editor.commands.focus(finalPosition);
     }, 0);
@@ -443,7 +492,90 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   };
 
   return (
-    <div className="relative flex-1 input-with-inline-variables">
+    <div className="flex-1 input-with-inline-variables">
+      {/* Formatting toolbar */}
+      {withFormatting && !disabled && (
+        <div className="flex gap-0.5 bg-popover border border-border rounded-md shadow-sm p-0.5 mb-2">
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('bold') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().run();
+              editor.commands.toggleMark('bold', {}, { extendEmptyMarkRange: true });
+            }}
+            title="Bold"
+          >
+            <Icon name="bold" className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('italic') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().run();
+              editor.commands.toggleMark('italic', {}, { extendEmptyMarkRange: true });
+            }}
+            title="Italic"
+          >
+            <Icon name="italic" className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('underline') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().run();
+              editor.commands.toggleMark('underline', {}, { extendEmptyMarkRange: true });
+            }}
+            title="Underline"
+          >
+            <Icon name="underline" className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('strike') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().run();
+              editor.commands.toggleMark('strike', {}, { extendEmptyMarkRange: true });
+            }}
+            title="Strikethrough"
+          >
+            <Icon name="strikethrough" className="size-3" />
+          </Button>
+          <div className="w-px h-4 bg-border mx-0.5" />
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('bulletList') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().toggleBulletList().run();
+            }}
+            title="Bullet List"
+          >
+            <Icon name="listUnordered" className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('orderedList') && 'bg-accent')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().toggleOrderedList().run();
+            }}
+            title="Numbered List"
+          >
+            <Icon name="listOrdered" className="size-3" />
+          </Button>
+        </div>
+      )}
+
       <div className="relative">
         <EditorContent editor={editor} />
       </div>

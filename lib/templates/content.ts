@@ -3,6 +3,7 @@
  */
 
 import { BlockTemplate } from '@/types';
+import { getTiptapTextContent, DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 
 export const contentTemplates: Record<string, BlockTemplate> = {
   heading: {
@@ -15,7 +16,6 @@ export const contentTemplates: Record<string, BlockTemplate> = {
       },
       classes: ['text-[48px]', 'font-[700]'],
       restrictions: { editText: true },
-      children: [], // Can contain inline elements
       design: {
         typography: {
           isActive: true,
@@ -23,11 +23,12 @@ export const contentTemplates: Record<string, BlockTemplate> = {
           fontWeight: '700',
         }
       },
+      textStyles: DEFAULT_TEXT_STYLES,
       variables: {
         text: {
-          type: 'dynamic_text',
+          type: 'dynamic_rich_text',
           data: {
-            content: 'Heading'
+            content: getTiptapTextContent('Heading')
           }
         }
       }
@@ -41,70 +42,21 @@ export const contentTemplates: Record<string, BlockTemplate> = {
       name: 'p',
       classes: ['text-[16px]'],
       restrictions: { editText: true },
-      children: [], // Can contain inline elements
       design: {
         typography: {
           isActive: true,
           fontSize: '16px',
         }
       },
+      textStyles: DEFAULT_TEXT_STYLES,
       variables: {
         text: {
-          type: 'dynamic_text',
+          type: 'dynamic_rich_text',
           data: {
-            content: 'Text'
+            content: getTiptapTextContent('Text')
           }
         }
       }
     }
   },
-
-  span: {
-    icon: 'text',
-    name: 'Text',
-    template: {
-      name: 'span',
-      classes: ['text-[16px]'],
-      restrictions: { editText: true },
-      children: [], // Can contain inline elements
-      design: {
-        typography: {
-          isActive: true,
-          fontSize: '16px',
-        }
-      },
-      variables: {
-        text: {
-          type: 'dynamic_text',
-          data: {
-            content: 'Text'
-          }
-        }
-      }
-    }
-  },
-
-  richtext: {
-    icon: 'rich-text',
-    name: 'Rich Text',
-    template: {
-      name: 'richtext',
-      classes: ['prose', 'max-w-none'],
-      restrictions: { editText: true },
-      children: [], // Can contain any elements
-      design: {
-        typography: {
-          isActive: true
-        }
-      },
-      variables: {
-        text: {
-          type: 'dynamic_text',
-          data: {
-            content: '<p>This is rich text content. You can format it with <strong>bold</strong>, <em>italic</em>, and more.</p>'
-          }
-        }
-      }
-    }
-  }
 };

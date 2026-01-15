@@ -10,7 +10,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'borders' | 'borderTopLeft' | 'letterSpacing' | 'lineHeight' | 'columns' | 'rows' | 'grid' | 'alignStart' | 'alignCenter' | 'alignEnd' | 'alignStretch' | 'verticalGap'
     | 'horizontalGap' | 'link' | 'paddingSide' | 'block' | 'section' | 'container' | 'separator' | 'image' | 'icon' | 'video' | 'text' | 'layout' | 'heading' | 'type'
     | 'file-text' | 'edit' | 'box' | 'chevronRight' | 'minSize' | 'maxSize' | 'undo' | 'redo' | 'page' | 'dynamicPage' | 'homepage' | 'folder' | 'dotsHorizontal' | 'refresh'
-    | 'more' | 'copy' | 'component' | 'arrowLeft' | 'bold' | 'italic' | 'strikethrough' | 'quote' | 'listOrdered' | 'listUnordered' | 'code' | 'pencil' | 'eye' | 'eye-off'
+    | 'more' | 'copy' | 'component' | 'arrowLeft' | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'quote' | 'listOrdered' | 'listUnordered' | 'code' | 'pencil' | 'eye' | 'eye-off'
     | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'zap'
     | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in' | 'ease-back-in-out' | 'ease-back-out'
     | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash'
@@ -319,6 +319,11 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   italic: (
     <>
       <path d="M11.5,0 C11.7761424,0 12,0.223857625 12,0.5 C12,0.745459889 11.8231248,0.94960837 11.5898756,0.991944331 L11.5,1 L9.075,1 L5.325,11 L7.5,11 C7.77614237,11 8,11.2238576 8,11.5 C8,11.7454599 7.82312484,11.9496084 7.58987563,11.9919443 L7.5,12 L1.5,12 C1.22385763,12 1,11.7761424 1,11.5 C1,11.2545401 1.17687516,11.0503916 1.41012437,11.0080557 L1.5,11 L4.257,11 L8.007,1 L5.5,1 C5.22385763,1 5,0.776142375 5,0.5 C5,0.254540111 5.17687516,0.0503916296 5.41012437,0.00805566941 L5.5,0 L11.5,0 Z" />
+    </>
+  ),
+  underline: (
+    <>
+      <path d="M2,0 L2,6 C2,8.209139 3.790861,10 6,10 C8.209139,10 10,8.209139 10,6 L10,0 L11,0 L11,6 C11,8.7614237 8.7614237,11 6,11 C3.2385763,11 1,8.7614237 1,6 L1,0 L2,0 Z M0.5,12 L11.5,12 L11.5,12 L11.5,11 L0.5,11 L0.5,12 Z" />
     </>
   ),
   strikethrough: (

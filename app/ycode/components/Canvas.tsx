@@ -275,13 +275,22 @@ export default function Canvas({
     }
 
     return () => {
-      // Cleanup on unmount
-      if (rootRef.current) {
-        rootRef.current.unmount();
-        rootRef.current = null;
-      }
+      // Cleanup on unmount - defer to avoid unmounting during React's render phase
+      const rootToUnmount = rootRef.current;
+      rootRef.current = null;
       mountPointRef.current = null;
       setIframeReady(false);
+
+      // Defer unmount to next frame to ensure we're outside React's render cycle
+      if (rootToUnmount) {
+        requestAnimationFrame(() => {
+          try {
+            rootToUnmount.unmount();
+          } catch (error) {
+            console.warn('Error unmounting canvas root:', error);
+          }
+        });
+      }
     };
   }, []); // Empty deps - only run once on mount
 

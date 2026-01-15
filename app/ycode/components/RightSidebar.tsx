@@ -15,10 +15,8 @@ import debounce from 'lodash.debounce';
 // 3. ShadCN UI
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectLabel, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -634,13 +632,23 @@ const RightSidebar = React.memo(function RightSidebar({
   };
 
   // Handle content change (with inline variables)
-  const handleContentChange = useCallback((value: string) => {
+  const handleContentChange = useCallback((value: string | any) => {
     if (!selectedLayerId) return;
 
-    // Always create a DynamicTextVariable (even for plain text)
-    const textVariable = value ? {
-      type: 'dynamic_text' as const,
-      data: { content: value },
+    // Create DynamicRichTextVariable with Tiptap JSON content
+    const textVariable = value && (typeof value === 'object' || value.trim()) ? {
+      type: 'dynamic_rich_text' as const,
+      data: {
+        content: typeof value === 'object' ? value : {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: value }],
+            },
+          ],
+        },
+      },
     } : undefined;
 
     handleLayerUpdate(selectedLayerId, {
@@ -651,16 +659,23 @@ const RightSidebar = React.memo(function RightSidebar({
     });
   }, [selectedLayerId, selectedLayer, handleLayerUpdate]);
 
-  // Get content value for display
-  const getContentValue = useCallback((layer: Layer | null): string => {
-    if (!layer) return '';
+  // Get content value for display (returns Tiptap JSON or string)
+  const getContentValue = useCallback((layer: Layer | null): any => {
+    if (!layer) return { type: 'doc', content: [{ type: 'paragraph' }] };
 
-    // Check layer.variables.text (DynamicTextVariable with embedded JSON)
-    if (layer.variables?.text && layer.variables.text.type === 'dynamic_text') {
-      return layer.variables.text.data.content;
+    // Check layer.variables.text
+    if (layer.variables?.text) {
+      // DynamicRichTextVariable (new format with formatting support)
+      if (layer.variables.text.type === 'dynamic_rich_text') {
+        // Return Tiptap JSON directly for InputWithInlineVariables (withFormatting mode)
+        return layer.variables.text.data.content;
+      } else if (layer.variables.text.type === 'dynamic_text') {
+        // Return string for DynamicTextVariable
+        return layer.variables.text.data.content;
+      }
     }
 
-    return '';
+    return { type: 'doc', content: [{ type: 'paragraph' }] };
   }, []);
 
   // Handle collection binding change
@@ -1666,6 +1681,7 @@ const RightSidebar = React.memo(function RightSidebar({
                     fieldSourceLabel={fieldSourceLabel}
                     allFields={fields}
                     collections={collections}
+                    withFormatting={true}
                   />
                 </div>
               </SettingsPanel>

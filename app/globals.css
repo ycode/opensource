@@ -139,7 +139,7 @@
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  
+
   .bg-checkerboard {
     background-image: repeating-linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), repeating-linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc);
     background-position: 0 0, 4px 4px;
@@ -159,24 +159,53 @@
   fill: currentColor;
 }
 
-/* InputWithInlineVariables Placeholder Styles */
-.input-with-inline-variables .ProseMirror p.is-editor-empty:first-child {
-  position: relative;
+/* InputWithInlineVariables Editor Styles */
+
+.input-with-inline-variables-editor.ProseMirror {
+  @apply outline-none w-full min-h-full;
 }
 
-.input-with-inline-variables .ProseMirror p.is-editor-empty:first-child::before {
+.input-with-inline-variables-editor.ProseMirror p {
+  @apply block m-0 p-0;
+}
+
+.input-with-inline-variables-editor.ProseMirror p.is-editor-empty:first-child {
+  @apply relative;
+}
+
+.input-with-inline-variables-editor.ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  color: currentColor;
-  opacity: 0.25;
-  pointer-events: none;
-  font-size: 0.75rem;
-  line-height: 1.375rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+  @apply absolute left-0 top-1/2 -translate-y-1/2 text-current/25 pointer-events-none text-xs leading-[1.375rem] whitespace-nowrap overflow-hidden text-ellipsis max-w-full;
+}
+
+.input-with-inline-variables-editor.ProseMirror ul {
+  @apply my-0 pl-[0.5rem] list-inside list-disc;
+}
+
+.input-with-inline-variables-editor.ProseMirror ol {
+  @apply my-0 pl-[0.5rem] list-inside list-decimal;
+}
+
+.input-with-inline-variables-editor.ProseMirror li {
+  @apply my-0 min-h-[1.375rem];
+}
+
+.input-with-inline-variables-editor.ProseMirror li p {
+  @apply inline;
+}
+
+.input-with-inline-variables-editor.ProseMirror strong {
+  @apply font-bold;
+}
+
+.input-with-inline-variables-editor.ProseMirror em {
+  @apply italic;
+}
+
+.input-with-inline-variables-editor.ProseMirror u {
+  @apply underline;
+}
+
+.input-with-inline-variables-editor.ProseMirror s {
+  @apply line-through;
 }

@@ -191,6 +191,11 @@ export type TweenProperties = {
   [K in TweenPropertyKey]?: string | null;
 };
 
+export interface TextStyle {
+  classes?: string;
+  design?: DesignProperties;
+}
+
 export interface Layer {
   id: string;
   key?: string; // Optional internal ID for the layer (i.e. "localeSelectorLabel")
@@ -206,6 +211,9 @@ export interface Layer {
   };
 
   classes: string | string[]; // Tailwind CSS classes (support arrays and strings)
+
+  // Text styles object, e.g. `{ bold: { classes: 'font-bold', design: { typography: { fontWeight: 'bold' } } }, ... }`
+  textStyles?: Record<string, TextStyle>;
 
   // Children
   children?: Layer[];
@@ -271,7 +279,7 @@ export interface LayerVariables {
   conditionalVisibility?: ConditionalVisibility;
 
   // Variables by type
-  text?: DynamicTextVariable;
+  text?: DynamicTextVariable | DynamicRichTextVariable;
   icon?: {
     src?: AssetVariable | StaticTextVariable; // Static Asset ID | Static Text (SVG code, internal use only)
   };
@@ -735,7 +743,7 @@ export interface Setting {
 }
 
 export interface VariableType {
-  type: 'field' | 'asset' | 'video' | 'dynamic_text' | 'static_text';
+  type: 'field' | 'asset' | 'video'  | 'dynamic_rich_text' | 'dynamic_text'| 'static_text';
   data: object;
 }
 
@@ -766,19 +774,27 @@ export interface VideoVariable extends VariableType {
   };
 }
 
-// Dynamic Text Variable, contains text with inline variables
+// Dynamic Text Variable, contains text with inline variables (without formatting)
 export interface DynamicTextVariable extends VariableType {
   type: 'dynamic_text';
   data: {
-    content: string; // String with inline variables
+    content: string; // String with inline variables (no HTML)
   };
 }
 
-// Static Text Variable, contains text without inline variables
+// Dynamic Rich Text Variable, contains rich text with formatting (bold, italic, etc.) + inline variables
+export interface DynamicRichTextVariable extends VariableType {
+  type: 'dynamic_rich_text';
+  data: {
+    content: object; // Tiptap JSON content with inline variables and formatting (bold, italic, etc.)
+  };
+}
+
+// Static Text Variable, contains text without formatting and without inline variables
 export interface StaticTextVariable extends VariableType {
   type: 'static_text';
   data: {
-    content: string; // Text without inline variables
+    content: string; // String without inline variables (no HTML)
   };
 }
 

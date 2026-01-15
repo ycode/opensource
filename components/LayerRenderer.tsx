@@ -17,6 +17,7 @@ import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-util
 import { DEFAULT_ASSETS } from '@/lib/asset-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
+import { renderRichText, hasBlockElements } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
@@ -227,7 +228,26 @@ const LayerItem: React.FC<{
   const assetsById = useAssetsStore((state) => state.assetsById);
   const allTranslations = useLocalisationStore((state) => state.translations);
   const translations = isEditMode && currentLocale ? allTranslations[currentLocale.id] : null;
-  const htmlTag = getLayerHtmlTag(layer);
+  let htmlTag = getLayerHtmlTag(layer);
+
+  // Check if we need to override the tag for rich text with block elements
+  // Tags like <p>, <h1>-<h6> cannot contain block elements like <ul>/<ol>
+  const textVariable = layer.variables?.text;
+  let useSpanForParagraphs = false;
+
+  if (textVariable?.type === 'dynamic_rich_text') {
+    const restrictiveBlockTags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'a', 'button'];
+    const isRestrictiveTag = restrictiveBlockTags.includes(htmlTag);
+    const hasLists = hasBlockElements(textVariable as any);
+
+    if (isRestrictiveTag && hasLists) {
+      // Replace tag with div to allow list elements
+      htmlTag = 'div';
+    } else if (isRestrictiveTag) {
+      // Use span for paragraphs instead of p tags
+      useSpanForParagraphs = true;
+    }
+  }
 
   // Resolve text and image URLs with field binding support
   const textContent = (() => {
@@ -247,9 +267,14 @@ const LayerItem: React.FC<{
       return format === 'code' ? displayLocale.code.toUpperCase() : displayLocale.label;
     }
 
-    // Check for inline variables in DynamicTextVariable format
-    const textVariable = layer.variables?.text;
-    if (textVariable && textVariable.type === 'dynamic_text') {
+    // Check for DynamicRichTextVariable format (with formatting)
+    if (textVariable?.type === 'dynamic_rich_text') {
+      // Render rich text with formatting (bold, italic, etc.) and inline variables
+      return renderRichText(textVariable as any, effectiveCollectionItemData, layer.textStyles, useSpanForParagraphs);
+    }
+
+    // Check for inline variables in DynamicTextVariable format (legacy)
+    if (textVariable?.type === 'dynamic_text') {
       const content = textVariable.data.content;
       if (content.includes('<ycode-inline-variable>')) {
         // Use the embedded JSON resolver (client-safe)
@@ -403,9 +428,11 @@ const LayerItem: React.FC<{
   });
 
   const startEditing = () => {
-    if (textEditable && isEditMode && !isLockedByOther) {
+    // Disable inline editing for rich text layers (use RightSidebar instead)
+    const hasRichText = layer.variables?.text?.type === 'dynamic_rich_text';
+    if (textEditable && isEditMode && !isLockedByOther && !hasRichText) {
       setEditingLayerId(layer.id);
-      setEditingContent(textContent || '');
+      setEditingContent(typeof textContent === 'string' ? textContent : '');
     }
   };
 
@@ -438,7 +465,6 @@ const LayerItem: React.FC<{
   // Use cn() for cleaner conditional class handling and automatic conflict resolution
   const fullClassName = isEditMode ? cn(
     classesString,
-    'relative',
     'transition-all',
     'duration-100',
     enableDragDrop && !isEditing && !isLockedByOther && 'cursor-grab active:cursor-grabbing',
@@ -1043,7 +1069,7 @@ const LayerItem: React.FC<{
       const format = layer.settings?.locale?.format || 'locale';
 
       return (
-        <Tag {...elementProps} style={{ ...mergedStyle, position: 'relative' }}>
+        <Tag {...elementProps} style={mergedStyle}>
           {textContent && textContent}
 
           {/* Render children with format prop */}
