@@ -235,6 +235,15 @@ export default function Canvas({
     }
   </style>
   <link rel="stylesheet" href="/canvas.css">
+  <!-- GSAP for animations (now free thanks to Webflow) -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/SplitText.min.js"></script>
+  <script>
+    // Register SplitText plugin in iframe context
+    if (typeof gsap !== 'undefined' && typeof SplitText !== 'undefined') {
+      gsap.registerPlugin(SplitText);
+    }
+  </script>
 </head>
 <body style="margin: 0; padding: 0; min-height: 100%;">
   <div id="canvas-mount"></div>

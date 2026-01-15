@@ -26,7 +26,6 @@ import { cn } from '@/lib/utils';
 import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
 import LocaleSelector from '@/components/layers/LocaleSelector';
-import SelectionBadge from '@/components/layers/SelectionBadge';
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -986,10 +985,6 @@ const LayerItem: React.FC<{
         // Show empty state with the layer design
         return (
           <Tag {...elementProps}>
-            {/* Selection Badge */}
-            {isEditMode && isSelected && !isEditing && (
-              <SelectionBadge layer={layer} description="0 items" />
-            )}
             <div className="text-muted-foreground text-sm p-4 text-center">
               No collection items
             </div>
@@ -1007,11 +1002,6 @@ const LayerItem: React.FC<{
               data-collection-item-id={item.id}
               data-layer-id={layer.id} // Keep same layer ID for all instances
             >
-              {/* Selection Badge - only show on first item */}
-              {index === 0 && isEditMode && isSelected && !isEditing && (
-                <SelectionBadge layer={layer} description={`${collectionItems.length} items`} />
-              )}
-
               {textContent && textContent}
 
               {children && children.length > 0 && (
@@ -1095,11 +1085,6 @@ const LayerItem: React.FC<{
     // Regular elements with text and/or children
     return (
       <Tag {...elementProps}>
-        {/* Selection Badge */}
-        {isEditMode && isSelected && !isEditing && (
-          <SelectionBadge layer={layer} description={textEditable ? 'Double-click to edit' : undefined} />
-        )}
-
         {/* Collaboration indicators - only show in edit mode */}
         {isEditMode && isLockedByOther && (
           <LayerLockIndicator layerId={layer.id} layerName={layer.name} />
