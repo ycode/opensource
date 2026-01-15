@@ -26,12 +26,15 @@ import { cn } from '@/lib/utils';
 import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
 import LocaleSelector from '@/components/layers/LocaleSelector';
+import SelectionBadge from '@/components/layers/SelectionBadge';
 
 interface LayerRendererProps {
   layers: Layer[];
   onLayerClick?: (layerId: string) => void;
   onLayerUpdate?: (layerId: string, updates: Partial<Layer>) => void;
+  onLayerHover?: (layerId: string | null) => void; // Callback for hover state changes
   selectedLayerId?: string | null;
+  hoveredLayerId?: string | null; // Externally controlled hover state
   isEditMode?: boolean;
   isPublished?: boolean;
   enableDragDrop?: boolean;
@@ -52,7 +55,9 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   layers,
   onLayerClick,
   onLayerUpdate,
+  onLayerHover,
   selectedLayerId,
+  hoveredLayerId,
   isEditMode = true,
   isPublished = false,
   enableDragDrop = false,
@@ -124,10 +129,12 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         isPublished={isPublished}
         enableDragDrop={enableDragDrop}
         selectedLayerId={selectedLayerId}
+        hoveredLayerId={hoveredLayerId}
         activeLayerId={activeLayerId}
         projected={projected}
         onLayerClick={onLayerClick}
         onLayerUpdate={onLayerUpdate}
+        onLayerHover={onLayerHover}
         editingLayerId={editingLayerId}
         setEditingLayerId={setEditingLayerId}
         editingContent={editingContent}
@@ -159,10 +166,12 @@ const LayerItem: React.FC<{
   isPublished: boolean;
   enableDragDrop: boolean;
   selectedLayerId?: string | null;
+  hoveredLayerId?: string | null;
   activeLayerId?: string | null;
   projected?: { depth: number; parentId: string | null } | null;
   onLayerClick?: (layerId: string) => void;
   onLayerUpdate?: (layerId: string, updates: Partial<Layer>) => void;
+  onLayerHover?: (layerId: string | null) => void;
   editingLayerId: string | null;
   setEditingLayerId: (id: string | null) => void;
   editingContent: string;
@@ -182,10 +191,12 @@ const LayerItem: React.FC<{
   isPublished,
   enableDragDrop,
   selectedLayerId,
+  hoveredLayerId,
   activeLayerId,
   projected,
   onLayerClick,
   onLayerUpdate,
+  onLayerHover,
   editingLayerId,
   setEditingLayerId,
   editingContent,
@@ -201,6 +212,7 @@ const LayerItem: React.FC<{
   liveComponentUpdates,
 }) => {
   const isSelected = selectedLayerId === layer.id;
+  const isHovered = hoveredLayerId === layer.id;
   const isEditing = editingLayerId === layer.id;
   const isDragging = activeLayerId === layer.id;
   const textEditable = isTextEditable(layer);
@@ -430,12 +442,16 @@ const LayerItem: React.FC<{
     'relative',
     'transition-all',
     'duration-100',
-    !isEditing && !isDragging && !isLockedByOther && 'cursor-pointer hover:outline hover:outline-1 hover:outline-blue-400/30 hover:outline-offset-0',
     enableDragDrop && !isEditing && !isLockedByOther && 'cursor-grab active:cursor-grabbing',
+    // Hover state - use explicit state if provided, otherwise fall back to CSS hover
+    isHovered && !isSelected && !isDragging && !isLockedByOther && 'outline outline-1 outline-blue-400/50 outline-offset-0',
+    !isHovered && !isSelected && !isDragging && !isLockedByOther && 'hover:outline hover:outline-1 hover:outline-blue-400/30 hover:outline-offset-0',
     isSelected && !isLockedByOther && 'outline outline-2 outline-blue-500 outline-offset-1',
     isDragging && 'opacity-30 outline-none',
     showProjection && 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10',
-    isLockedByOther && 'opacity-90 pointer-events-none select-none'
+    isLockedByOther && 'opacity-90 pointer-events-none select-none',
+    // Add ycode-layer class for editor styling
+    'ycode-layer'
   ) : classesString;
 
   // Check if layer should be hidden (hide completely in both edit mode and public pages)
@@ -573,6 +589,19 @@ const LayerItem: React.FC<{
       elementProps.onContextMenu = (e: React.MouseEvent) => {
         e.stopPropagation();
       };
+      // Hover handlers for explicit hover state management
+      if (onLayerHover) {
+        elementProps.onMouseEnter = (e: React.MouseEvent) => {
+          e.stopPropagation();
+          if (!isEditing && !isLockedByOther && layer.id !== 'body') {
+            onLayerHover(layer.id);
+          }
+        };
+        elementProps.onMouseLeave = (e: React.MouseEvent) => {
+          e.stopPropagation();
+          onLayerHover(null);
+        };
+      }
     }
 
     // Handle special cases for void/self-closing elements
@@ -877,7 +906,9 @@ const LayerItem: React.FC<{
               layers={children}
               onLayerClick={onLayerClick}
               onLayerUpdate={onLayerUpdate}
+              onLayerHover={onLayerHover}
               selectedLayerId={selectedLayerId}
+              hoveredLayerId={hoveredLayerId}
               isEditMode={isEditMode}
               isPublished={isPublished}
               enableDragDrop={enableDragDrop}
@@ -956,10 +987,8 @@ const LayerItem: React.FC<{
         return (
           <Tag {...elementProps}>
             {/* Selection Badge */}
-            {isSelected && !isEditing && (
-              <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
-                {htmlTag.charAt(0).toUpperCase() + htmlTag.slice(1)} Selected (Collection - 0 items)
-              </span>
+            {isEditMode && isSelected && !isEditing && (
+              <SelectionBadge layer={layer} description="0 items" />
             )}
             <div className="text-muted-foreground text-sm p-4 text-center">
               No collection items
@@ -979,10 +1008,8 @@ const LayerItem: React.FC<{
               data-layer-id={layer.id} // Keep same layer ID for all instances
             >
               {/* Selection Badge - only show on first item */}
-              {index === 0 && isSelected && !isEditing && (
-                <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
-                  {htmlTag.charAt(0).toUpperCase() + htmlTag.slice(1)} Selected ({collectionItems.length} items)
-                </span>
+              {index === 0 && isEditMode && isSelected && !isEditing && (
+                <SelectionBadge layer={layer} description={`${collectionItems.length} items`} />
               )}
 
               {textContent && textContent}
@@ -992,7 +1019,9 @@ const LayerItem: React.FC<{
                   layers={children}
                   onLayerClick={onLayerClick}
                   onLayerUpdate={onLayerUpdate}
+                  onLayerHover={onLayerHover}
                   selectedLayerId={selectedLayerId}
+                  hoveredLayerId={hoveredLayerId}
                   isEditMode={isEditMode}
                   isPublished={isPublished}
                   enableDragDrop={enableDragDrop}
@@ -1033,7 +1062,9 @@ const LayerItem: React.FC<{
               layers={children}
               onLayerClick={onLayerClick}
               onLayerUpdate={onLayerUpdate}
+              onLayerHover={onLayerHover}
               selectedLayerId={selectedLayerId}
+              hoveredLayerId={hoveredLayerId}
               isEditMode={isEditMode}
               isPublished={isPublished}
               enableDragDrop={enableDragDrop}
@@ -1066,10 +1097,7 @@ const LayerItem: React.FC<{
       <Tag {...elementProps}>
         {/* Selection Badge */}
         {isEditMode && isSelected && !isEditing && (
-          <span className="absolute -top-6 left-0 bg-blue-500 text-white text-xs px-2 py-1 rounded shadow-lg z-10 pointer-events-none block">
-            {htmlTag.charAt(0).toUpperCase() + htmlTag.slice(1)} Selected
-            {textEditable && <span className="ml-2 opacity-75">• Double-click to edit</span>}
-          </span>
+          <SelectionBadge layer={layer} description={textEditable ? 'Double-click to edit' : undefined} />
         )}
 
         {/* Collaboration indicators - only show in edit mode */}
@@ -1088,7 +1116,9 @@ const LayerItem: React.FC<{
             layers={children}
             onLayerClick={onLayerClick}
             onLayerUpdate={onLayerUpdate}
+            onLayerHover={onLayerHover}
             selectedLayerId={selectedLayerId}
+            hoveredLayerId={hoveredLayerId}
             isEditMode={isEditMode}
             isPublished={isPublished}
             enableDragDrop={enableDragDrop}
