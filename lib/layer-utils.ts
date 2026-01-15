@@ -2,7 +2,7 @@
  * Layer utilities for rendering and manipulation
  */
 
-import { Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, CollectionField } from '@/types';
+import { Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, CollectionField, Component } from '@/types';
 import { cn, generateId } from '@/lib/utils';
 import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
@@ -1004,4 +1004,93 @@ export function evaluateVisibility(
 
   // All groups passed
   return true;
+}
+
+/**
+ * Build a map of layer IDs to their root component layer ID
+ * This helps know which layers belong to which component instance
+ */
+function buildComponentMap(layers: Layer[], componentMap: Record<string, string> = {}, currentComponentRootId: string | null = null): Record<string, string> {
+  layers.forEach(layer => {
+    // If this is a component instance root, track it
+    const rootId = layer.componentId ? layer.id : currentComponentRootId;
+
+    // Map all descendants to this component root
+    if (rootId) {
+      componentMap[layer.id] = rootId;
+    }
+
+    // Recursively process children
+    if (layer.children && layer.children.length > 0) {
+      buildComponentMap(layer.children, componentMap, rootId);
+    }
+  });
+
+  return componentMap;
+}
+
+/**
+ * Resolve component instances in layer tree
+ * Replaces layers with componentId with the actual component layers
+ */
+function resolveComponentsInLayers(layers: Layer[], components: Component[]): Layer[] {
+  return layers.map(layer => {
+    // If this layer is a component instance, populate its children from the component
+    if (layer.componentId) {
+      const component = components.find(c => c.id === layer.componentId);
+
+      if (component && component.layers && component.layers.length > 0) {
+        // The component's first layer is the actual content (Section, etc.)
+        const componentContent = component.layers[0];
+
+        // Recursively resolve any nested components within the component's content
+        const resolvedChildren = componentContent.children
+          ? resolveComponentsInLayers(componentContent.children, components)
+          : [];
+
+        // Return the wrapper with the component's content merged in
+        const resolved = {
+          ...layer,
+          ...componentContent, // Merge the component's properties (classes, design, etc.)
+          id: layer.id, // Keep the instance's ID
+          // Remove componentId so it's treated as a normal resolved layer
+          componentId: undefined,
+          children: resolvedChildren,
+        };
+
+        // Clean up undefined properties
+        delete resolved.componentId;
+
+        return resolved;
+      }
+    }
+
+    // Recursively process children
+    if (layer.children && layer.children.length > 0) {
+      return {
+        ...layer,
+        children: resolveComponentsInLayers(layer.children, components),
+      };
+    }
+
+    return layer;
+  });
+}
+
+/**
+ * Serialize layers by resolving component instances
+ * Returns both the resolved layers and a map of layer IDs to their component root IDs
+ */
+export function serializeLayers(layers: Layer[], components: Component[] = []): { layers: Layer[]; componentMap: Record<string, string> } {
+  // First build the component map (before resolving)
+  const componentMap = buildComponentMap(layers);
+
+  // Then resolve component instances
+  const resolvedLayers = resolveComponentsInLayers(layers, components);
+
+  // Deep clone to avoid mutations
+  return {
+    layers: JSON.parse(JSON.stringify(resolvedLayers)),
+    componentMap,
+  };
 }

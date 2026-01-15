@@ -1,9 +1,14 @@
 'use client';
 
 /**
- * Center Canvas - Preview Area with Isolated Iframe
+ * Center Canvas - Preview Area with Canvas
  *
- * Shows live preview of the website being built using Tailwind JIT CDN
+ * Shows live preview of the website being built.
+ *
+ * - Editor mode: Uses Canvas (React) with iframe for style isolation
+ * - Preview mode: Uses iframe loading the actual SSR-rendered page
+ *
+ * @see ./Canvas.tsx for the editor canvas implementation
  */
 
 // 1. React/Next.js
@@ -39,9 +44,11 @@ import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 
+// 4b. Internal components
+import Canvas from './Canvas';
+
 // 6. Utils
-import { sendToIframe, listenToIframe, serializeLayers } from '@/lib/iframe-bridge';
-import type { IframeToParentMessage } from '@/lib/iframe-bridge';
+import { serializeLayers } from '@/lib/layer-utils';
 import { buildPageTree, getNodeIcon, findHomepage, buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 import { getTranslationValue } from '@/lib/localisation-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
@@ -103,7 +110,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
   liveComponentUpdates,
 }: CenterCanvasProps) {
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
-  const [iframeReady, setIframeReady] = useState(false);
   const [pagePopoverOpen, setPagePopoverOpen] = useState(false);
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<Set<string>>(new Set());
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -147,11 +153,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const hoveredLayerId = useEditorStore((state) => state.hoveredLayerId);
   const isPreviewMode = useEditorStore((state) => state.isPreviewMode);
   const assets = useAssetsStore((state) => state.assets);
-
-  // Reset iframe ready state when switching between preview/editor mode or changing pages
-  useEffect(() => {
-    setIframeReady(false);
-  }, [isPreviewMode, currentPageId]);
 
   // Load draft when page changes (ensure draft exists before rendering)
   const loadDraft = usePagesStore((state) => state.loadDraft);
@@ -520,6 +521,102 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return collectionFieldsFromStore[collectionId] || [];
   }, [currentPage, collectionFieldsFromStore]);
 
+  // Create assets map for Canvas (asset ID -> asset)
+  const assetsMap = useMemo(() => {
+    const map: Record<string, Asset> = {};
+    assets.forEach(asset => {
+      map[asset.id] = asset;
+    });
+    return map;
+  }, [assets]);
+
+  // Canvas callback handlers
+  const handleCanvasLayerClick = useCallback((layerId: string, metaKey?: boolean, shiftKey?: boolean) => {
+    if (!isPreviewMode) {
+      setSelectedLayerId(layerId);
+    }
+  }, [isPreviewMode, setSelectedLayerId]);
+
+  const handleCanvasLayerUpdate = useCallback((layerId: string, updates: Partial<Layer>) => {
+    if (editingComponentId) {
+      // Update layer in component draft
+      const { updateComponentDraft } = useComponentsStore.getState();
+      const currentDraft = componentDrafts[editingComponentId] || [];
+
+      // Helper to update a layer in the tree
+      const updateLayerInTree = (layers: Layer[], targetId: string, layerUpdates: Partial<Layer>): Layer[] => {
+        return layers.map(layer => {
+          if (layer.id === targetId) {
+            return { ...layer, ...layerUpdates };
+          }
+          if (layer.children) {
+            return { ...layer, children: updateLayerInTree(layer.children, targetId, layerUpdates) };
+          }
+          return layer;
+        });
+      };
+
+      const updatedLayers = updateLayerInTree(currentDraft, layerId, updates);
+      updateComponentDraft(editingComponentId, updatedLayers);
+    } else if (currentPageId) {
+      // Update layer in page draft
+      updateLayer(currentPageId, layerId, updates);
+    }
+  }, [editingComponentId, componentDrafts, currentPageId, updateLayer]);
+
+  const handleCanvasDeleteLayer = useCallback(() => {
+    if (!selectedLayerId || !currentPageId) return;
+
+    // Check if multi-select
+    if (selectedLayerIds.length > 1) {
+      // Check restrictions for all layers
+      const draft = draftsByPageId[currentPageId];
+      if (draft) {
+        const layersToCheck = selectedLayerIds.map(id => findLayerById(draft.layers, id)).filter(Boolean) as Layer[];
+        const canDeleteAll = layersToCheck.every(layer => canDeleteLayer(layer));
+
+        if (canDeleteAll) {
+          deleteLayers(currentPageId, selectedLayerIds);
+          clearSelection();
+        }
+      }
+    } else {
+      // Single layer deletion - check restrictions
+      const draft = draftsByPageId[currentPageId];
+      if (draft) {
+        const layer = findLayerById(draft.layers, selectedLayerId);
+        if (!layer || !canDeleteLayer(layer)) {
+          return;
+        }
+        deleteLayer(currentPageId, selectedLayerId);
+        setSelectedLayerId(null);
+      }
+    }
+  }, [selectedLayerId, currentPageId, selectedLayerIds, draftsByPageId, deleteLayers, clearSelection, deleteLayer, setSelectedLayerId]);
+
+  const handleCanvasGapUpdate = useCallback((layerId: string, gapValue: string) => {
+    if (!currentPageId) return;
+
+    // Find the layer and update its gap class
+    const draft = draftsByPageId[currentPageId];
+    if (!draft) return;
+
+    const layer = findLayerById(draft.layers, layerId);
+    if (!layer) return;
+
+    // Get current classes
+    const currentClasses = Array.isArray(layer.classes) ? layer.classes : (layer.classes?.split(' ') || []);
+
+    // Remove existing gap classes
+    const filteredClasses = currentClasses.filter((cls: string) => !cls.startsWith('gap-'));
+
+    // Add new gap class
+    const newClasses = [...filteredClasses, `gap-[${gapValue}]`];
+
+    // Update the layer
+    updateLayer(currentPageId, layerId, { classes: newClasses });
+  }, [currentPageId, draftsByPageId, updateLayer]);
+
   // Get selected locale and translations
   const selectedLocale = getSelectedLocale();
   const localeTranslations = useMemo(() => {
@@ -796,69 +893,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
     );
   }, [collapsedFolderIds, currentPageId, toggleFolder, handlePageSelect]);
 
-  // Send layers to iframe whenever they change (excludes selection to avoid re-renders)
-  useEffect(() => {
-    if (!iframeReady || !iframeRef.current) return;
-
-    const { layers: serializedLayers, componentMap } = serializeLayers(layers, components);
-
-    // Create assets map for iframe (asset ID -> asset)
-    const assetsMap: Record<string, Asset> = {};
-    assets.forEach(asset => {
-      assetsMap[asset.id] = asset;
-    });
-
-    sendToIframe(iframeRef.current, {
-      type: 'UPDATE_LAYERS',
-      payload: {
-        layers: serializedLayers,
-        selectedLayerId,
-        componentMap,
-        editingComponentId: editingComponentId || null,
-        collectionItems: { ...collectionItemsFromStore, ...referencedItems },
-        collectionFields: collectionFieldsFromStore,
-        pageCollectionItem,
-        pageCollectionFields,
-        assets: assetsMap,
-      },
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    layers,
-    iframeReady,
-    components,
-    editingComponentId,
-    collectionItemsFromStore,
-    referencedItems,
-    collectionFieldsFromStore,
-    pageCollectionItem,
-    pageCollectionFields,
-    assets,
-  ]);
-
-  // Send selection updates separately to avoid full re-renders
-  useEffect(() => {
-    if (!iframeReady || !iframeRef.current) return;
-
-    sendToIframe(iframeRef.current, {
-      type: 'UPDATE_SELECTION',
-      payload: { layerId: selectedLayerId },
-    });
-  }, [selectedLayerId, iframeReady]);
-
-  // Send collection layer data to iframe whenever it changes
-  useEffect(() => {
-    if (!iframeReady || !iframeRef.current) return;
-
-    // Send each layer's data separately
-    Object.entries(collectionLayerData).forEach(([layerId, items]) => {
-      sendToIframe(iframeRef.current!, {
-        type: 'COLLECTION_LAYER_DATA',
-        payload: { layerId, items },
-      });
-    });
-  }, [collectionLayerData, iframeReady]);
-
   // Fetch referenced collection items recursively when layers with reference fields are detected
   useEffect(() => {
     // Recursively find all referenced collection IDs by following reference chains
@@ -909,312 +943,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
       fetchReferencedCollectionItems(collectionId);
     });
   }, [collectionFieldsFromStore, pageCollectionFields, fetchReferencedCollectionItems]);
-
-  // Send breakpoint updates to iframe
-  useEffect(() => {
-    if (!iframeReady || !iframeRef.current) return;
-
-    sendToIframe(iframeRef.current, {
-      type: 'UPDATE_BREAKPOINT',
-      payload: { breakpoint: viewportMode },
-    });
-  }, [viewportMode, iframeReady]);
-
-  // Send UI state updates to iframe
-  useEffect(() => {
-    if (!iframeReady || !iframeRef.current) return;
-
-    sendToIframe(iframeRef.current, {
-      type: 'UPDATE_UI_STATE',
-      payload: { uiState: activeUIState },
-    });
-  }, [activeUIState, iframeReady]);
-
-  // Send hover updates to iframe
-  useEffect(() => {
-    if (!iframeReady || !iframeRef.current) return;
-
-    sendToIframe(iframeRef.current, {
-      type: 'UPDATE_HOVER',
-      payload: { layerId: hoveredLayerId },
-    });
-  }, [hoveredLayerId, iframeReady]);
-
-  // Listen for messages from iframe
-  useEffect(() => {
-    const handleIframeMessage = (message: IframeToParentMessage) => {
-
-      switch (message.type) {
-        case 'READY':
-          setIframeReady(true);
-          break;
-
-        case 'LAYER_CLICK':
-          // Disable layer selection in preview mode
-          if (!isPreviewMode) {
-            setSelectedLayerId(message.payload.layerId);
-            // Focus the iframe so it can receive keyboard events
-            if (iframeRef.current) {
-              iframeRef.current.focus();
-            }
-          }
-          break;
-
-        case 'LAYER_DOUBLE_CLICK':
-          // Text editing is handled inside iframe
-          break;
-
-        case 'TEXT_CHANGE_START':
-          break;
-
-        case 'TEXT_CHANGE_END':
-          if (editingComponentId) {
-            // Update layer in component draft
-            const { updateComponentDraft } = useComponentsStore.getState();
-            const currentDraft = componentDrafts[editingComponentId] || [];
-
-            // Helper to update a layer in the tree
-            const updateLayerInTree = (layers: Layer[], layerId: string, updates: Partial<Layer>): Layer[] => {
-              return layers.map(layer => {
-                if (layer.id === layerId) {
-                  return { ...layer, ...updates };
-                }
-                if (layer.children) {
-                  return { ...layer, children: updateLayerInTree(layer.children, layerId, updates) };
-                }
-                return layer;
-              });
-            };
-
-            const updatedLayers = updateLayerInTree(currentDraft, message.payload.layerId, {
-              variables: {
-                text: {
-                  type: 'dynamic_text',
-                  data: { content: message.payload.text }
-                }
-              }
-            });
-
-            updateComponentDraft(editingComponentId, updatedLayers);
-          } else if (currentPageId) {
-            // Update layer in page draft
-            updateLayer(currentPageId, message.payload.layerId, {
-              variables: {
-                text: {
-                  type: 'dynamic_text',
-                  data: { content: message.payload.text }
-                }
-              }
-            });
-          }
-          break;
-
-        case 'OPEN_COLLECTION_ITEM_SHEET':
-          const { openCollectionItemSheet } = useEditorStore.getState();
-
-          openCollectionItemSheet(
-            message.payload.collectionId,
-            message.payload.itemId
-          );
-          break;
-
-        case 'CONTEXT_MENU':
-          // Context menu will be handled later
-          break;
-
-        case 'ZOOM_GESTURE':
-          // Handle zoom gestures from iframe (Ctrl+wheel, trackpad pinch, keyboard shortcuts)
-          if (message.payload.reset) {
-            resetZoom();
-          } else if (message.payload.zoomToFit) {
-            zoomToFit();
-          } else if (message.payload.autofit) {
-            autofit();
-          } else {
-            handleZoomGesture(message.payload.delta);
-          }
-          break;
-
-        case 'CONTENT_HEIGHT':
-          // Update reported content height from iframe
-          setReportedContentHeight(message.payload.height);
-          break;
-
-        case 'DELETE_LAYER':
-          // Handle layer deletion from iframe (Delete/Backspace key)
-          if (selectedLayerId && currentPageId) {
-            // Check if multi-select
-            if (selectedLayerIds.length > 1) {
-              // Check restrictions for all layers
-              const draft = draftsByPageId[currentPageId];
-              if (draft) {
-                const layersToCheck = selectedLayerIds.map(id => findLayerById(draft.layers, id)).filter(Boolean) as Layer[];
-                const canDeleteAll = layersToCheck.every(layer => canDeleteLayer(layer));
-
-                if (canDeleteAll) {
-                  // Delete all selected layers
-                  deleteLayers(currentPageId, selectedLayerIds);
-                  clearSelection();
-                }
-              }
-            } else {
-              // Single layer deletion - check restrictions
-              const draft = draftsByPageId[currentPageId];
-              if (draft) {
-                const layer = findLayerById(draft.layers, selectedLayerId);
-                if (!layer || !canDeleteLayer(layer)) {
-                  // Cannot delete due to restrictions
-                  break;
-                }
-
-                // Helper to find next layer to select
-                const findNextLayerToSelect = (layers: Layer[], layerIdToDelete: string): string | null => {
-                  const findLayerContext = (
-                    tree: Layer[],
-                    targetId: string,
-                    parent: Layer | null = null
-                  ): { layer: Layer; parent: Layer | null; siblings: Layer[] } | null => {
-                    for (let i = 0; i < tree.length; i++) {
-                      const node = tree[i];
-                      if (node.id === targetId) {
-                        return { layer: node, parent, siblings: tree };
-                      }
-                      if (node.children) {
-                        const found = findLayerContext(node.children, targetId, node);
-                        if (found) return found;
-                      }
-                    }
-                    return null;
-                  };
-
-                  const context = findLayerContext(layers, layerIdToDelete);
-                  if (!context) return null;
-
-                  const { parent, siblings } = context;
-                  const currentIndex = siblings.findIndex(s => s.id === layerIdToDelete);
-
-                  // Try next sibling
-                  if (currentIndex < siblings.length - 1) {
-                    return siblings[currentIndex + 1].id;
-                  }
-
-                  // Try previous sibling
-                  if (currentIndex > 0) {
-                    return siblings[currentIndex - 1].id;
-                  }
-
-                  // Select parent (or null if no parent)
-                  return parent ? parent.id : null;
-                };
-
-                const nextLayerId = findNextLayerToSelect(draft.layers, selectedLayerId);
-                deleteLayer(currentPageId, selectedLayerId);
-                setSelectedLayerId(nextLayerId);
-              }
-            }
-          }
-          break;
-
-        case 'UPDATE_GAP':
-          // Handle gap value update from drag interaction
-          if (message.payload.layerId && currentPageId) {
-            const layerId = message.payload.layerId;
-            const newGapValue = message.payload.gapValue;
-
-            // Get current layer to update its classes
-            const draft = draftsByPageId[currentPageId];
-            if (draft) {
-              // Helper to find and update layer
-              const updateGapInLayer = (layers: Layer[]): Layer[] => {
-                return layers.map(layer => {
-                  if (layer.id === layerId) {
-                    // Get current classes
-                    const currentClasses = Array.isArray(layer.classes)
-                      ? layer.classes.join(' ')
-                      : (layer.classes || '');
-
-                    // Remove existing gap classes
-                    let newClasses = currentClasses
-                      .split(' ')
-                      .filter(cls => !cls.startsWith('gap-'))
-                      .join(' ');
-
-                    // Add new gap class with arbitrary value
-                    newClasses = `${newClasses} gap-[${newGapValue}]`.trim();
-
-                    return { ...layer, classes: newClasses };
-                  }
-                  if (layer.children) {
-                    return { ...layer, children: updateGapInLayer(layer.children) };
-                  }
-                  return layer;
-                });
-              };
-
-              const updatedLayers = updateGapInLayer(draft.layers);
-              usePagesStore.getState().setDraftLayers(currentPageId, updatedLayers);
-            }
-          }
-          break;
-
-        case 'PAGINATION_PAGE_CHANGE':
-          // Handle pagination page change from canvas
-          if (message.payload.layerId && message.payload.page) {
-            const { layerId, page, collectionId, itemsPerPage } = message.payload;
-            console.log('[CenterCanvas] Pagination page change:', { layerId, page, collectionId, itemsPerPage });
-
-            // Initialize pagination meta if not exists (for first-time pagination clicks)
-            const store = useCollectionLayerStore.getState();
-            if (!store.paginationMeta[layerId] && collectionId) {
-              store.setPaginationMeta(layerId, {
-                currentPage: 1,
-                totalPages: 1,
-                totalItems: 0,
-                itemsPerPage: itemsPerPage || 10,
-                layerId,
-                collectionId,
-              });
-              // Also ensure layer config exists
-              if (!store.layerConfig[layerId]) {
-                // Get sort settings from existing layer data if available
-                useCollectionLayerStore.setState((state) => ({
-                  layerConfig: {
-                    ...state.layerConfig,
-                    [layerId]: { collectionId, limit: itemsPerPage || 10, offset: 0 },
-                  },
-                }));
-              }
-            }
-
-            // Fetch new page data
-            fetchPage(layerId, page).then((result) => {
-              if (result && iframeRef.current) {
-                // Send updated pagination data back to iframe
-                sendToIframe(iframeRef.current, {
-                  type: 'UPDATE_PAGINATION_DATA',
-                  payload: {
-                    layerId,
-                    items: result.items,
-                    meta: result.meta,
-                  },
-                });
-              }
-            });
-          }
-          break;
-
-        case 'DRAG_START':
-        case 'DRAG_OVER':
-        case 'DROP':
-          // Drag-and-drop will be handled later
-          break;
-      }
-    };
-
-    const cleanup = listenToIframe(handleIframeMessage);
-    return cleanup;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPageId, editingComponentId, componentDrafts, setSelectedLayerId, selectedLayerIds, updateLayer, deleteLayer, deleteLayers, clearSelection, draftsByPageId, handleZoomGesture, resetZoom, zoomToFit, autofit, fetchPage]);
 
   // Add zoom gesture handlers for preview mode (when iframe doesn't have them)
   useEffect(() => {
@@ -1332,7 +1060,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         iframe.removeEventListener('load', setupIframeListeners);
       }
     };
-  }, [isPreviewMode, handleZoomGesture, iframeReady]);
+  }, [isPreviewMode, handleZoomGesture]);
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">
@@ -1630,20 +1358,40 @@ const CenterCanvas = React.memo(function CenterCanvas({
                     transition: 'none',
                   }}
                 >
-                  {/* Iframe Canvas - either editor or preview */}
+                  {/* Canvas for editor */}
                   {layers.length > 0 ? (
                     <>
-                      <iframe
+                      <Canvas
                         key={`editor-${currentPageId}`}
-                        ref={iframeRef}
-                        src="/canvas.html"
-                        className="w-full h-full border-0"
-                        style={{
-                          height: `${finalIframeHeight}px`,
-                        }}
-                        title="Canvas Preview"
-                        tabIndex={-1}
+                        layers={layers}
+                        components={components}
+                        selectedLayerId={selectedLayerId}
+                        hoveredLayerId={hoveredLayerId}
+                        breakpoint={viewportMode}
+                        activeUIState={activeUIState}
+                        editingComponentId={editingComponentId || null}
+                        collectionItems={{ ...collectionItemsFromStore, ...referencedItems }}
+                        collectionFields={collectionFieldsFromStore}
+                        pageCollectionItem={pageCollectionItem}
+                        pageCollectionFields={pageCollectionFields}
+                        assets={assetsMap}
+                        collectionLayerData={collectionLayerData}
+                        pageId={currentPageId || ''}
+                        onLayerClick={handleCanvasLayerClick}
+                        onLayerUpdate={handleCanvasLayerUpdate}
+                        onDeleteLayer={handleCanvasDeleteLayer}
+                        onContentHeightChange={setReportedContentHeight}
+                        onGapUpdate={handleCanvasGapUpdate}
+                        onZoomGesture={handleZoomGesture}
+                        onZoomIn={zoomIn}
+                        onZoomOut={zoomOut}
+                        onResetZoom={resetZoom}
+                        onZoomToFit={zoomToFit}
+                        onAutofit={autofit}
+                        liveLayerUpdates={liveLayerUpdates}
+                        liveComponentUpdates={liveComponentUpdates}
                       />
+
                       {/* Empty overlay when only Body with no children */}
                       {isCanvasEmpty && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">

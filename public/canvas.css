@@ -1,0 +1,115 @@
+/* Editor-specific styles - using outline to prevent conflicts with user box-shadow */
+.ycode-selected {
+  outline: 1px solid #0b7efd !important;
+  outline-offset: -1px;
+}
+
+.ycode-selected-purple {
+  outline: 2px solid #a855f7 !important;
+  outline-offset: -2px;
+}
+
+.ycode-hover {
+  outline: 1px solid #0b7efd !important;
+  outline-offset: -1px;
+}
+
+.ycode-hover-purple {
+  outline: 1px solid rgba(168, 85, 247, 0.3) !important;
+  outline-offset: -1px;
+}
+
+.ycode-component-hover {
+  outline: 2px solid rgba(168, 85, 247, 0.5) !important;
+  outline-offset: -2px;
+}
+
+.ycode-editing {
+  outline: 1px solid #0b7efd !important;
+  outline-offset: -1px;
+}
+
+.ycode-drop-target {
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: -2px;
+  background-color: rgba(59, 130, 246, 0.05) !important;
+}
+
+.ycode-layer {
+  position: relative;
+}
+
+
+/* Text editing input */
+.ycode-text-editor {
+  width: 100%;
+  outline: 1px solid #0b7efd !important;
+  outline-offset: 0 !important;
+}
+
+/* Empty element styling (exclude Body layer) */
+.ycode-layer:empty:not([data-layer-id="body"])::before {
+  content: ' ';
+  display: block;
+  background-color: rgb(191 219 254 / 0.1);
+  border: 1px dashed rgb(59 130 246 / 0.5);
+  border-radius: 0.125rem;
+  color: rgb(59 130 246);
+  font-size: 0.75rem;
+  padding: 2rem;
+  text-align: center;
+  width: 100%;
+  height: 100%;
+  min-height: 3rem;
+}
+
+/* Icon SVG styling */
+[data-icon] {
+  display: inline-block;
+}
+
+[data-icon] svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+}
+
+/* GSAP animation hidden state */
+[data-gsap-hidden] {
+  display: none !important;
+}
+
+/* Body layer minimum height */
+#canvas-body {
+  min-height: 100%;
+}
+
+/* Gap indicator styles */
+.gap-indicator-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.gap-indicator {
+  position: fixed;
+  pointer-events: auto;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.gap-indicator-marker {
+  width: 20px;
+  height: 2px;
+  background-color: #ec4899;
+  border-radius: 20px;
+  pointer-events: none;
+}
