@@ -275,9 +275,13 @@ export default function Canvas({
     }
 
     return () => {
-      // Cleanup on unmount
+      // Cleanup on unmount - defer to avoid race condition with React rendering
       if (rootRef.current) {
-        rootRef.current.unmount();
+        const root = rootRef.current;
+        // Use setTimeout to defer unmount until after current render cycle
+        setTimeout(() => {
+          root.unmount();
+        }, 0);
         rootRef.current = null;
       }
       mountPointRef.current = null;

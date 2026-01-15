@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * HTML Embed Settings Component
+ * Code Embed Settings Component
  *
- * Settings panel for HTML embed layers with code editor
+ * Settings panel for custom code layers with code editor
  */
 
 import React, { useState, useCallback } from 'react';
@@ -20,7 +20,7 @@ interface HTMLEmbedSettingsProps {
 export default function HTMLEmbedSettings({ layer, onLayerUpdate }: HTMLEmbedSettingsProps) {
   const [isOpen, setIsOpen] = useState(true);
 
-  // Get current HTML code from settings
+  // Get current code from settings
   const currentCode = layer?.settings?.htmlEmbed?.code || '';
 
   const handleCodeChange = useCallback((value: string) => {
@@ -43,7 +43,7 @@ export default function HTMLEmbedSettings({ layer, onLayerUpdate }: HTMLEmbedSet
 
   return (
     <SettingsPanel
-      title="HTML"
+      title="Code"
       isOpen={isOpen}
       onToggle={() => setIsOpen(!isOpen)}
     >
@@ -51,8 +51,8 @@ export default function HTMLEmbedSettings({ layer, onLayerUpdate }: HTMLEmbedSet
         <Textarea
           value={currentCode}
           onChange={(e) => handleCodeChange(e.target.value)}
-          placeholder="<div>Paste your HTML code here</div>"
-          className="font-mono text-xs min-h-[200px]"
+          placeholder="<div>Add your custom code here</div>"
+          className="font-mono text-xs min-h-[200px] max-h-[20vh] overflow-y-auto resize-none"
           spellCheck={false}
         />
       </div>
