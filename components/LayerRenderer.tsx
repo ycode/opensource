@@ -19,6 +19,7 @@ import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import { renderRichText, hasBlockElements } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
+import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
@@ -75,6 +76,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
+  const [editingClickCoords, setEditingClickCoords] = useState<{ x: number; y: number } | null>(null);
 
   // Helper to render a layer or unwrap fragments
   const renderLayer = (layer: Layer): React.ReactNode => {
@@ -139,6 +141,8 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         setEditingLayerId={setEditingLayerId}
         editingContent={editingContent}
         setEditingContent={setEditingContent}
+        editingClickCoords={editingClickCoords}
+        setEditingClickCoords={setEditingClickCoords}
         pageId={pageId}
         collectionItemData={collectionItemData}
         pageCollectionItemData={pageCollectionItemData}
@@ -176,6 +180,8 @@ const LayerItem: React.FC<{
   setEditingLayerId: (id: string | null) => void;
   editingContent: string;
   setEditingContent: (content: string) => void;
+  editingClickCoords: { x: number; y: number } | null;
+  setEditingClickCoords: (coords: { x: number; y: number } | null) => void;
   pageId: string;
   collectionItemData?: Record<string, string>;
   pageCollectionItemData?: Record<string, string> | null;
@@ -201,6 +207,8 @@ const LayerItem: React.FC<{
   setEditingLayerId,
   editingContent,
   setEditingContent,
+  editingClickCoords,
+  setEditingClickCoords,
   pageId,
   collectionItemData,
   pageCollectionItemData,
@@ -247,6 +255,12 @@ const LayerItem: React.FC<{
       // Use span for paragraphs instead of p tags
       useSpanForParagraphs = true;
     }
+  }
+
+  // When editing text, CanvasTextEditor wraps content in a <div>
+  // So we need to use 'div' as the outer tag to avoid invalid nesting like <p><div>
+  if (isEditing && textEditable) {
+    htmlTag = 'div';
   }
 
   // Code Embed iframe ref and effect - must be at component level
@@ -491,30 +505,47 @@ const LayerItem: React.FC<{
     },
   });
 
-  const startEditing = () => {
-    // Disable inline editing for rich text layers (use RightSidebar instead)
-    const hasRichText = layer.variables?.text?.type === 'dynamic_rich_text';
-    if (textEditable && isEditMode && !isLockedByOther && !hasRichText) {
+  const startEditing = (clickX?: number, clickY?: number) => {
+    // Enable inline editing for text layers (both rich text and plain text)
+    if (textEditable && isEditMode && !isLockedByOther) {
       setEditingLayerId(layer.id);
-      setEditingContent(typeof textContent === 'string' ? textContent : '');
+      // Store click coordinates if provided
+      if (typeof clickX === 'number' && typeof clickY === 'number') {
+        setEditingClickCoords({ x: clickX, y: clickY });
+      } else {
+        setEditingClickCoords(null);
+      }
+      // For rich text, pass the Tiptap JSON content; for plain text, pass string
+      const textVar = layer.variables?.text;
+      if (textVar?.type === 'dynamic_rich_text') {
+        setEditingContent(JSON.stringify(textVar.data.content));
+      } else {
+        setEditingContent(typeof textContent === 'string' ? textContent : '');
+      }
     }
   };
 
-  const finishEditing = () => {
+  const finishEditing = useCallback(() => {
     if (editingLayerId === layer.id && onLayerUpdate) {
-      // Update text content
-      onLayerUpdate(layer.id, {
-        variables: {
-          ...layer.variables,
-          text: {
-            type: 'dynamic_text',
-            data: { content: editingContent }
-          }
-        }
-      });
       setEditingLayerId(null);
     }
-  };
+  }, [editingLayerId, layer.id, onLayerUpdate]);
+
+  // Handle content change from CanvasTextEditor
+  const handleEditorChange = useCallback((newContent: any) => {
+    if (!onLayerUpdate) return;
+
+    // Update with rich text format
+    onLayerUpdate(layer.id, {
+      variables: {
+        ...layer.variables,
+        text: {
+          type: 'dynamic_rich_text',
+          data: { content: newContent },
+        },
+      },
+    });
+  }, [layer.id, layer.variables, onLayerUpdate]);
 
   const style = enableDragDrop ? {
     transform: CSS.Transform.toString(transform),
@@ -672,7 +703,7 @@ const LayerItem: React.FC<{
       elementProps.onDoubleClick = (e: React.MouseEvent) => {
         if (isLockedByOther) return;
         e.stopPropagation();
-        startEditing();
+        startEditing(e.clientX, e.clientY);
       };
       // Prevent context menu from bubbling
       elementProps.onContextMenu = (e: React.MouseEvent) => {
@@ -1054,25 +1085,30 @@ const LayerItem: React.FC<{
       );
     }
 
-    // Text-editable elements with inline editing
+    // Text-editable elements with inline editing using CanvasTextEditor
     if (textEditable && isEditing) {
+      // Get current value for editor - use rich text content if available
+      const textVar = layer.variables?.text;
+      const editorValue = textVar?.type === 'dynamic_rich_text'
+        ? textVar.data.content
+        : textVar?.type === 'dynamic_text'
+          ? textVar.data.content
+          : '';
+
       return (
-        <input
-          type="text"
-          value={editingContent}
-          onChange={(e) => setEditingContent(e.target.value)}
-          onBlur={finishEditing}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              finishEditing();
-            } else if (e.key === 'Escape') {
-              setEditingLayerId(null);
-            }
-          }}
-          autoFocus
-          className="w-full bg-white border-2 border-blue-500 rounded px-2 py-1 outline-none"
-          onClick={(e) => e.stopPropagation()}
-        />
+        <Tag
+          {...elementProps}
+          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+        >
+          <CanvasTextEditor
+            layer={layer}
+            value={editorValue}
+            onChange={handleEditorChange}
+            onFinish={finishEditing}
+            collectionItemData={effectiveCollectionItemData}
+            clickCoords={editingClickCoords}
+          />
+        </Tag>
       );
     }
 

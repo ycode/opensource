@@ -1274,7 +1274,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                     children: [
                       {
                         id: 'layer-1762789150944-5qezgblbe',
-                        name: 'heading',
+                        name: 'text',
                         settings: {
                           tag: 'h1',
                         },
@@ -1392,7 +1392,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                     children: [
                       {
                         id: 'layer-1762789150944-5qezgblbe',
-                        name: 'heading',
+                        name: 'text',
                         settings: {
                           tag: 'h1',
                         },
@@ -1510,7 +1510,7 @@ export const DEFAULT_ERROR_PAGES: ErrorPageConfig[] = [
                     children: [
                       {
                         id: 'layer-1762789150944-5qezgblbe',
-                        name: 'heading',
+                        name: 'text',
                         settings: {
                           tag: 'h1',
                         },

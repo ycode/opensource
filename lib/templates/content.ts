@@ -3,14 +3,14 @@
  */
 
 import { BlockTemplate } from '@/types';
-import { getTiptapTextContent, DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
+import { getTiptapTextContent } from '@/lib/text-format-utils';
 
 export const contentTemplates: Record<string, BlockTemplate> = {
   heading: {
     icon: 'heading',
     name: 'Heading',
     template: {
-      name: 'heading',
+      name: 'text',
       settings: {
         tag: 'h1',
       },
@@ -23,7 +23,6 @@ export const contentTemplates: Record<string, BlockTemplate> = {
           fontWeight: '700',
         }
       },
-      textStyles: DEFAULT_TEXT_STYLES,
       variables: {
         text: {
           type: 'dynamic_rich_text',
@@ -35,11 +34,14 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     }
   },
 
-  p: {
+  text: {
     icon: 'text',
     name: 'Paragraph',
     template: {
-      name: 'p',
+      name: 'text',
+      settings: {
+        tag: 'p',
+      },
       classes: ['text-[16px]'],
       restrictions: { editText: true },
       design: {
@@ -48,12 +50,11 @@ export const contentTemplates: Record<string, BlockTemplate> = {
           fontSize: '16px',
         }
       },
-      textStyles: DEFAULT_TEXT_STYLES,
       variables: {
         text: {
           type: 'dynamic_rich_text',
           data: {
-            content: getTiptapTextContent('Text')
+            content: getTiptapTextContent('Paragraph')
           }
         }
       }

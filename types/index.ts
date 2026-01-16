@@ -202,7 +202,7 @@ export interface TextStyle {
 export interface Layer {
   id: string;
   key?: string; // Optional internal ID for the layer (i.e. "localeSelectorLabel")
-  name: string; // Element type name: 'div', 'section', 'heading', etc.
+  name: string; // Element type name: 'div', 'section', 'text', etc.
   customName?: string; // User-defined name for display in the UI
 
   // Restrictions (for layer actions)

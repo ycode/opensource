@@ -124,8 +124,8 @@ const RightSidebar = React.memo(function RightSidebar({
   const [attributesOpen, setAttributesOpen] = useState(true);
   const [customId, setCustomId] = useState<string>('');
   const [isHidden, setIsHidden] = useState<boolean>(false);
-  const [headingTag, setHeadingTag] = useState<string>('h1');
   const [containerTag, setContainerTag] = useState<string>('div');
+  const [textTag, setTextTag] = useState<string>('p');
   const [customAttributesOpen, setCustomAttributesOpen] = useState(true);
   const [showAddAttributePopover, setShowAddAttributePopover] = useState(false);
   const [newAttributeName, setNewAttributeName] = useState('');
@@ -354,9 +354,7 @@ const RightSidebar = React.memo(function RightSidebar({
   // Helper function to check if layer is a text element
   const isTextLayer = (layer: Layer | null): boolean => {
     if (!layer) return false;
-    const layerName = (layer.name || '').toLowerCase();
-    const textTypes = ['text', 'heading', 'p', 'span', 'label', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
-    return textTypes.includes(layerName) || isHeadingLayer(layer);
+    return layer.name === 'text';
   };
 
   // Helper function to check if layer is a button element
@@ -449,16 +447,6 @@ const RightSidebar = React.memo(function RightSidebar({
     // 3. When page unloads (handled in useResourceLock)
   }, [selectedLayerId]); // Only selectedLayerId - channel changes are handled internally
 
-  // Get default heading tag based on layer type/name
-  const getDefaultHeadingTag = (layer: Layer | null): string => {
-    if (!layer) return 'h1';
-    if (layer.settings?.tag) return layer.settings.tag;
-    if (layer.name && ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(layer.name)) {
-      return layer.name;
-    }
-    return 'h1'; // Default to h1
-  };
-
   // Get default container tag based on layer type/name
   const getDefaultContainerTag = (layer: Layer | null): string => {
     if (!layer) return 'div';
@@ -475,6 +463,26 @@ const RightSidebar = React.memo(function RightSidebar({
 
     return 'div'; // Default fallback
   };
+
+  // Get default text tag based on layer settings
+  const getDefaultTextTag = (layer: Layer | null): string => {
+    if (!layer) return 'p';
+    if (layer.settings?.tag) return layer.settings.tag;
+    return 'p'; // Default to p
+  };
+
+  // Text tag options with labels
+  const textTagOptions = [
+    { value: 'h1', label: 'Heading 1' },
+    { value: 'h2', label: 'Heading 2' },
+    { value: 'h3', label: 'Heading 3' },
+    { value: 'h4', label: 'Heading 4' },
+    { value: 'h5', label: 'Heading 5' },
+    { value: 'h6', label: 'Heading 6' },
+    { value: 'p', label: 'Paragraph' },
+    { value: 'span', label: 'Span' },
+    { value: 'label', label: 'Label' },
+  ] as const;
 
   // Classes input state (synced with selectedLayer)
   const [classesInput, setClassesInput] = useState<string>('');
@@ -511,8 +519,8 @@ const RightSidebar = React.memo(function RightSidebar({
     setPrevSelectedLayerId(selectedLayerId);
     setCustomId(selectedLayer?.settings?.id || '');
     setIsHidden(selectedLayer?.settings?.hidden || false);
-    setHeadingTag(selectedLayer?.settings?.tag || getDefaultHeadingTag(selectedLayer));
     setContainerTag(selectedLayer?.settings?.tag || getDefaultContainerTag(selectedLayer));
+    setTextTag(selectedLayer?.settings?.tag || getDefaultTextTag(selectedLayer));
   }
 
   // Debounced updater for classes
@@ -610,9 +618,9 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   };
 
-  // Handle heading tag change
-  const handleHeadingTagChange = (tag: string) => {
-    setHeadingTag(tag);
+  // Handle container tag change
+  const handleContainerTagChange = (tag: string) => {
+    setContainerTag(tag);
     if (selectedLayerId) {
       const currentSettings = selectedLayer?.settings || {};
       handleLayerUpdate(selectedLayerId, {
@@ -621,9 +629,9 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   };
 
-  // Handle container tag change
-  const handleContainerTagChange = (tag: string) => {
-    setContainerTag(tag);
+  // Handle text tag change
+  const handleTextTagChange = (tag: string) => {
+    setTextTag(tag);
     if (selectedLayerId) {
       const currentSettings = selectedLayer?.settings || {};
       handleLayerUpdate(selectedLayerId, {
@@ -1611,30 +1619,6 @@ const RightSidebar = React.memo(function RightSidebar({
                 </div>
               </div>
 
-              {/* Heading Tag Selector - Only for headings */}
-              {isHeadingLayer(selectedLayer) && (
-                <div className="grid grid-cols-3">
-                  <Label variant="muted">Tag</Label>
-                  <div className="col-span-2 *:w-full">
-                    <Select value={headingTag} onValueChange={handleHeadingTagChange}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value="h1">H1</SelectItem>
-                          <SelectItem value="h2">H2</SelectItem>
-                          <SelectItem value="h3">H3</SelectItem>
-                          <SelectItem value="h4">H4</SelectItem>
-                          <SelectItem value="h5">H5</SelectItem>
-                          <SelectItem value="h6">H6</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-
               {/* Container Tag Selector - Only for containers/sections/blocks */}
               {isContainerLayer(selectedLayer) && !isHeadingLayer(selectedLayer) && (
                 <div className="grid grid-cols-3">
@@ -1658,6 +1642,37 @@ const RightSidebar = React.memo(function RightSidebar({
                           <SelectItem value="figcaption">Figcaption</SelectItem>
                           <SelectItem value="details">Details</SelectItem>
                           <SelectItem value="summary">Summary</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {/* Text Tag Selector - Only for text layers (not containers) */}
+              {selectedLayer?.name === 'text' && !isContainerLayer(selectedLayer) && (
+                <div className="grid grid-cols-3">
+                  <Label variant="muted">Tag</Label>
+                  <div className="col-span-2 *:w-full">
+                    <Select value={textTag} onValueChange={handleTextTagChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select tag">
+                          {textTag && (() => {
+                            const option = textTagOptions.find(opt => opt.value === textTag);
+                            return option ? option.label : textTag;
+                          })()}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {textTagOptions.map((option) => (
+                            <SelectItem
+                              key={option.value}
+                              value={option.value}
+                            >
+                              {option.label}
+                            </SelectItem>
+                          ))}
                         </SelectGroup>
                       </SelectContent>
                     </Select>

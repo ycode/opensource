@@ -91,7 +91,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   'classes': 'flex flex-col w-[100%] max-w-[560px]',
                   'children': [
                     {
-                      'name': 'heading',
+                      'name': 'text',
                       'design': {
                         'sizing': {
                           'isActive': true
@@ -155,7 +155,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'classes': 'flex flex-col',
                       'children': [
                         {
-                          'name': 'p',
+                          'name': 'text',
                           'design': {
                             'typography': {
                               'color': '#000000/60',
@@ -441,7 +441,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
               'classes': 'flex flex-col gap-[16px] items-center w-[100%] max-w-[680px]',
               'children': [
                 {
-                  'name': 'heading',
+                  'name': 'text',
                   'design': {
                     'typography': {
                       'fontSize': '36',
@@ -471,7 +471,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   }
                 },
                 {
-                  'name': 'p',
+                  'name': 'text',
                   'design': {
                     'typography': {
                       'color': '#000000/60',
@@ -654,7 +654,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   'classes': 'flex flex-col gap-[16px]',
                   'children': [
                     {
-                      'name': 'heading',
+                      'name': 'text',
                       'settings': {
                         'tag': 'h1'
                       },
@@ -682,7 +682,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'customName': 'Heading'
                     },
                     {
-                      'name': 'p',
+                      'name': 'text',
                       'classes': 'text-[20px] text-[#000000]/60',
                       'restrictions': {
                         'editText': true

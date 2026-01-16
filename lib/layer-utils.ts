@@ -274,7 +274,7 @@ export function canHaveChildren(layer: Layer, childLayerType?: string): boolean 
 
   const blocksWithoutChildren = [
     'icon', 'image', 'audio', 'video', 'iframe',
-    'heading', 'p', 'span', 'label', 'hr',
+    'text', 'span', 'label', 'hr',
     'input', 'textarea', 'select', 'checkbox', 'radio',
     'htmlEmbed',
   ];
@@ -441,9 +441,9 @@ export function getLayerIcon(
     return 'database';
   }
 
-  // Tag icons ('h1', 'h2', ...)
-  if (layer.settings?.tag && iconExists(layer.settings?.tag)) {
-    return layer.settings?.tag as IconProps['name'];
+  // Text layers
+  if (layer.name === 'text') {
+    return ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(layer.settings?.tag || '') ? 'heading' : 'text';
   }
 
   // Based on custom name

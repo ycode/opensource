@@ -18,8 +18,8 @@ import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react'
 import { ArrowLeft } from 'lucide-react';
 
 // 3. ShadCN UI
-import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -43,6 +43,7 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
+import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 
 // 4b. Internal components
 import Canvas from './Canvas';
@@ -153,6 +154,26 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const hoveredLayerId = useEditorStore((state) => state.hoveredLayerId);
   const isPreviewMode = useEditorStore((state) => state.isPreviewMode);
   const assets = useAssetsStore((state) => state.assets);
+
+  // Text editor toolbar state from store
+  const isTextEditing = useCanvasTextEditorStore((state) => state.isEditing);
+  const editingLayerId = useCanvasTextEditorStore((state) => state.editingLayerId);
+  const textEditorActiveMarks = useCanvasTextEditorStore((state) => state.activeMarks);
+  const toggleBold = useCanvasTextEditorStore((state) => state.toggleBold);
+  const toggleItalic = useCanvasTextEditorStore((state) => state.toggleItalic);
+  const toggleUnderline = useCanvasTextEditorStore((state) => state.toggleUnderline);
+  const toggleStrike = useCanvasTextEditorStore((state) => state.toggleStrike);
+  const toggleBulletList = useCanvasTextEditorStore((state) => state.toggleBulletList);
+  const toggleOrderedList = useCanvasTextEditorStore((state) => state.toggleOrderedList);
+  const focusEditor = useCanvasTextEditorStore((state) => state.focusEditor);
+  const requestFinishEditing = useCanvasTextEditorStore((state) => state.requestFinish);
+
+  // Exit text edit mode if a different layer is selected
+  useEffect(() => {
+    if (isTextEditing && editingLayerId && selectedLayerId !== editingLayerId) {
+      requestFinishEditing();
+    }
+  }, [isTextEditing, editingLayerId, selectedLayerId, requestFinishEditing]);
 
   // Load draft when page changes (ensure draft exists before rendering)
   const loadDraft = usePagesStore((state) => state.loadDraft);
@@ -878,7 +899,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
           {/* Check indicator */}
           {isCurrentPage && (
-            <span className="absolute right-2 flex size-3.5 items-center justify-center">
+            <span className="absolute right-2 flex size-3 items-center justify-center">
               <Icon name="check" className="size-3 opacity-50" />
             </span>
           )}
@@ -1063,7 +1084,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   }, [isPreviewMode, handleZoomGesture]);
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col">
+    <div className="flex-1 min-w-0 flex flex-col relative">
       {/* Top Bar */}
       <div className="grid grid-cols-3 items-center p-4 border-b bg-background">
         {/* Page Selector or Back to Page Button */}
@@ -1228,6 +1249,110 @@ const CenterCanvas = React.memo(function CenterCanvas({
           </div>
         )}
       </div>
+
+      {/* Text Editor Toolbar - shown when editing text */}
+      {isTextEditing && !isPreviewMode && (
+        <div className="absolute top-[65px] left-0 right-0 z-50 flex items-center gap-1 px-4 py-3 bg-background border-b">
+          <div className="flex items-center justify-center gap-0.5 bg-popover px-1.5 py-0.75 rounded-md">
+            <Button
+              variant="ghost"
+              size="xs"
+              className={cn('!size-6', textEditorActiveMarks.bold && 'bg-accent')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleBold();
+              }}
+              title="Bold (⌘B)"
+            >
+              <Icon name="bold" className="size-3" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="xs"
+              className={cn('!size-6', textEditorActiveMarks.italic && 'bg-accent')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleItalic();
+              }}
+              title="Italic (⌘I)"
+            >
+              <Icon name="italic" className="size-3" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="xs"
+              className={cn('!size-6', textEditorActiveMarks.underline && 'bg-accent')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleUnderline();
+              }}
+              title="Underline (⌘U)"
+            >
+              <Icon name="underline" className="size-3" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="xs"
+              className={cn('!size-6', textEditorActiveMarks.strike && 'bg-accent')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleStrike();
+              }}
+              title="Strikethrough"
+            >
+              <Icon name="strikethrough" className="size-3" />
+            </Button>
+
+            <div className="h-5 shrink-0 flex items-center justify-center">
+              <Separator orientation="vertical" className="mx-1 bg-secondary" />
+            </div>
+
+            <Button
+              variant="ghost"
+              size="xs"
+              className={cn('!size-6', textEditorActiveMarks.bulletList && 'bg-accent')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleBulletList();
+              }}
+              title="Bullet List"
+            >
+              <Icon name="listUnordered" className="size-3" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="xs"
+              className={cn('!size-6', textEditorActiveMarks.orderedList && 'bg-accent')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleOrderedList();
+              }}
+              title="Numbered List"
+            >
+              <Icon name="listOrdered" className="size-3" />
+            </Button>
+          </div>
+
+          <div className="flex-1" />
+
+          <span className="text-xs text-muted-foreground mr-0.5">
+            Press <kbd className="mx-0.5 px-1.5 py-0.75 bg-secondary rounded text-[10px] text-foreground">ESC</kbd> to
+          </span>
+
+          <Button
+            size="xs"
+            onClick={() => {
+              requestFinishEditing();
+            }}
+          >
+            Close
+          </Button>
+        </div>
+      )}
 
       {/* Canvas Area */}
       <div
@@ -1399,7 +1524,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                             <Empty className="bg-transparent border-0 text-neutral-900">
                               <EmptyContent>
                                 <EmptyMedia variant="icon" className="size-9 mb-0 bg-neutral-900/5">
-                                  <Icon name="layout" className="size-3.5 text-neutral-900" />
+                                  <Icon name="layout" className="size-3 text-neutral-900" />
                                 </EmptyMedia>
                                 <EmptyHeader>
                                   <EmptyTitle className="text-sm">Start building</EmptyTitle>
@@ -1536,7 +1661,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                                 <Button
                                   onClick={() => {
                                     // Always add inside Body container
-                                    const result = addLayerFromTemplate(currentPageId, 'body', 'p');
+                                    const result = addLayerFromTemplate(currentPageId, 'body', 'text');
                                     if (result && liveLayerUpdates) {
                                       // Get FRESH state and find actual parent
                                       const freshDraft = usePagesStore.getState().draftsByPageId[currentPageId];
@@ -1554,7 +1679,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                                         const found = findLayerWithParent(freshDraft.layers, result.newLayerId);
                                         if (found?.layer) {
                                           const actualParentId = found.parent?.id || null;
-                                          liveLayerUpdates.broadcastLayerAdd(currentPageId, actualParentId, 'p', found.layer);
+                                          liveLayerUpdates.broadcastLayerAdd(currentPageId, actualParentId, 'text', found.layer);
                                         }
                                       }
                                     }
