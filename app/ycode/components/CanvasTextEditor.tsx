@@ -5,7 +5,7 @@
  *
  * Tiptap-based inline text editor for the canvas that preserves layer styling.
  * Renders with the same classes/textStyles as LayerRenderer for WYSIWYG editing.
- * 
+ *
  * The formatting toolbar is rendered in CenterCanvas (outside iframe) and
  * communicates with this editor via useCanvasTextEditorStore.
  */
@@ -143,13 +143,13 @@ const DynamicVariable = Node.create({
 
       const renderBadge = () => {
         root.render(
-          <Badge variant="secondary">
+          <Badge variant="inline_variable_canvas">
             <span>{label}</span>
             {editor.isEditable && (
               <Button
                 onClick={handleDelete}
                 className="!size-4 !p-0 -mr-1"
-                variant="outline"
+                variant="inline_variable_canvas"
               >
                 <Icon name="x" className="size-2" />
               </Button>

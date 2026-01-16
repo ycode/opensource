@@ -454,7 +454,11 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
     editor.chain().focus().insertContent(contentToInsert).run();
 
     // Trigger onChange with updated value
-    const newValue = convertContentToValue(editor.getJSON());
+    // When withFormatting is enabled, emit full Tiptap JSON
+    // Otherwise emit string format for backward compatibility
+    const newValue = withFormatting
+      ? editor.getJSON()
+      : convertContentToValue(editor.getJSON());
     onChange(newValue);
 
     let finalPosition = from;
@@ -465,7 +469,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
     setTimeout(() => {
       editor.commands.focus(finalPosition);
     }, 0);
-  }, [editor, fields, allFields, onChange]);
+  }, [editor, fields, allFields, onChange, withFormatting]);
 
   // Expose addFieldVariable function via ref
   useImperativeHandle(ref, () => ({
@@ -573,6 +577,48 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
           >
             <Icon name="listOrdered" className="size-3" />
           </Button>
+
+          {/* Inline Variable Button - in formatting toolbar */}
+          {(() => {
+            // Check if there are any displayable fields (exclude multi_reference)
+            const displayableFields = fields?.filter((f) => f.type !== 'multi_reference') || [];
+            const hasDisplayableFields = displayableFields.length > 0;
+
+            return (
+              <>
+                <div className="w-px h-4 bg-border mx-0.5" />
+                <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="!size-6"
+                      title={hasDisplayableFields ? 'Insert Variable' : 'No variables available'}
+                      disabled={!hasDisplayableFields}
+                    >
+                      <Icon name="database" className="size-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+
+                  {hasDisplayableFields && (
+                    <DropdownMenuContent
+                      className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                      align="start"
+                      sideOffset={4}
+                    >
+                      <FieldTreeSelect
+                        fields={fields || []}
+                        allFields={allFields || {}}
+                        collections={collections || []}
+                        onSelect={handleFieldSelect}
+                        collectionLabel={fieldSourceLabel}
+                      />
+                    </DropdownMenuContent>
+                  )}
+                </DropdownMenu>
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -580,34 +626,45 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         <EditorContent editor={editor} />
       </div>
 
-      {!disabled && fields && fields.length > 0 && (
-        <div className="absolute top-1 right-1">
-          <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="secondary"
-                size="xs"
-              >
-                <Icon name="database" className="size-2.5" />
-              </Button>
-            </DropdownMenuTrigger>
+      {/* Inline Variable Button - absolute positioned (only when no formatting toolbar) */}
+      {!disabled && !withFormatting && (() => {
+        // Check if there are any displayable fields (exclude multi_reference)
+        const displayableFields = fields?.filter((f) => f.type !== 'multi_reference') || [];
+        const hasDisplayableFields = displayableFields.length > 0;
 
-            <DropdownMenuContent
-              className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
-              align="end"
-              sideOffset={4}
-            >
-              <FieldTreeSelect
-                fields={fields}
-                allFields={allFields || {}}
-                collections={collections || []}
-                onSelect={handleFieldSelect}
-                collectionLabel={fieldSourceLabel}
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
+        return (
+          <div className="absolute top-1 right-1">
+            <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  disabled={!hasDisplayableFields}
+                  title={hasDisplayableFields ? 'Insert Variable' : 'No variables available'}
+                >
+                  <Icon name="database" className="size-2.5" />
+                </Button>
+              </DropdownMenuTrigger>
+
+              {hasDisplayableFields && (
+                <DropdownMenuContent
+                  className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                  align="end"
+                  sideOffset={4}
+                >
+                  <FieldTreeSelect
+                    fields={fields || []}
+                    allFields={allFields || {}}
+                    collections={collections || []}
+                    onSelect={handleFieldSelect}
+                    collectionLabel={fieldSourceLabel}
+                  />
+                </DropdownMenuContent>
+              )}
+            </DropdownMenu>
+          </div>
+        );
+      })()}
     </div>
   );
 });

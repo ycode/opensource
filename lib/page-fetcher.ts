@@ -957,9 +957,25 @@ async function injectCollectionData(
 
   const updates: Partial<Layer> = {};
 
-  // Resolve inline variables (DynamicTextVariable format)
+  // Resolve inline variables in text content
   const textVariable = layer.variables?.text;
-  if (textVariable && textVariable.type === 'dynamic_text') {
+  
+  // Handle DynamicRichTextVariable (Tiptap JSON with dynamicVariable nodes)
+  if (textVariable && textVariable.type === 'dynamic_rich_text') {
+    const content = textVariable.data.content;
+    if (content && typeof content === 'object') {
+      const resolvedContent = resolveRichTextVariables(content, enhancedValues);
+      updates.variables = {
+        ...layer.variables,
+        text: {
+          type: 'dynamic_rich_text',
+          data: { content: resolvedContent }
+        }
+      };
+    }
+  }
+  // Handle DynamicTextVariable (legacy string format with inline variable tags)
+  else if (textVariable && textVariable.type === 'dynamic_text') {
     const textContent = textVariable.data.content;
     if (textContent.includes('<ycode-inline-variable>')) {
       const mockItem: CollectionItemWithValues = {
@@ -1096,6 +1112,62 @@ function resolveFieldValueWithRelationships(
   }
 
   return itemValues[field_id];
+}
+
+/**
+ * Resolve dynamicVariable nodes in Tiptap JSON content
+ * Traverses the content tree and replaces variable nodes with resolved text
+ */
+function resolveRichTextVariables(
+  content: any,
+  itemValues: Record<string, string>
+): any {
+  if (!content || typeof content !== 'object') {
+    return content;
+  }
+
+  // Handle dynamicVariable node - replace with text node containing resolved value
+  if (content.type === 'dynamicVariable') {
+    const variable = content.attrs?.variable;
+    if (variable?.type === 'field' && variable.data?.field_id) {
+      const fieldId = variable.data.field_id;
+      const relationships = variable.data.relationships || [];
+
+      let value = '';
+      if (relationships.length > 0) {
+        const fullPath = [fieldId, ...relationships].join('.');
+        value = itemValues[fullPath] || '';
+      } else {
+        value = itemValues[fieldId] || '';
+      }
+
+      // Replace variable node with text node
+      return {
+        type: 'text',
+        text: value,
+      };
+    }
+    return { type: 'text', text: '' };
+  }
+
+  // Recursively process content array
+  if (Array.isArray(content)) {
+    return content.map(node => resolveRichTextVariables(node, itemValues));
+  }
+
+  // Recursively process object properties
+  const result: any = {};
+  for (const key of Object.keys(content)) {
+    if (key === 'content' && Array.isArray(content[key])) {
+      result[key] = content[key].map((node: any) => resolveRichTextVariables(node, itemValues));
+    } else if (typeof content[key] === 'object' && content[key] !== null) {
+      result[key] = resolveRichTextVariables(content[key], itemValues);
+    } else {
+      result[key] = content[key];
+    }
+  }
+
+  return result;
 }
 
 /**

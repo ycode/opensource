@@ -1270,6 +1270,12 @@ const LayerItem: React.FC<{
     );
   };
 
+  // For collection layers in edit mode, return early without context menu wrapper
+  // (Context menu doesn't work properly with Fragments)
+  if (isCollectionLayer && isEditMode) {
+    return renderContent();
+  }
+
   // Wrap with context menu in edit mode
   const content = renderContent();
 

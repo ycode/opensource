@@ -7,6 +7,9 @@
 
 import { create } from 'zustand';
 import type { Editor } from '@tiptap/react';
+import type { FieldVariable } from '@/types';
+import { getVariableLabel } from '@/lib/cms-variables-utils';
+import type { CollectionField } from '@/types';
 
 interface CanvasTextEditorState {
   /** Whether text editing is active */
@@ -55,6 +58,12 @@ interface CanvasTextEditorActions {
   toggleOrderedList: () => void;
   /** Focus the editor */
   focusEditor: () => void;
+  /** Add a field variable at the current cursor position */
+  addFieldVariable: (
+    variableData: FieldVariable,
+    fields?: CollectionField[],
+    allFields?: Record<string, CollectionField[]>
+  ) => void;
 }
 
 type CanvasTextEditorStore = CanvasTextEditorState & CanvasTextEditorActions;
@@ -177,5 +186,92 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     } catch (error) {
       console.warn('Failed to focus editor:', error);
     }
+  },
+
+  addFieldVariable: (variableData, fields, allFields) => {
+    const { editor } = get();
+    if (!editor) return;
+
+    // Save current cursor position
+    const { from } = editor.state.selection;
+    const doc = editor.state.doc;
+
+    // Check what's before the cursor
+    let needsSpaceBefore = false;
+    if (from > 0) {
+      const nodeBefore = doc.nodeAt(from - 1);
+      if (nodeBefore) {
+        // Check if it's a variable node
+        if (nodeBefore.type.name === 'dynamicVariable') {
+          needsSpaceBefore = true;
+        } else {
+          // Check if it's text that's not a space
+          const charBefore = doc.textBetween(from - 1, from);
+          needsSpaceBefore = Boolean(charBefore && charBefore !== ' ' && charBefore !== '\n');
+        }
+      } else {
+        // Check character before cursor
+        const charBefore = doc.textBetween(from - 1, from);
+        needsSpaceBefore = Boolean(charBefore && charBefore !== ' ' && charBefore !== '\n');
+      }
+    }
+
+    // Check what's after the cursor
+    let needsSpaceAfter = false;
+    if (from < doc.content.size) {
+      const nodeAfter = doc.nodeAt(from);
+      if (nodeAfter) {
+        // Check if it's a variable node
+        if (nodeAfter.type.name === 'dynamicVariable') {
+          needsSpaceAfter = true;
+        } else {
+          // Check if it's text that's not a space
+          const charAfter = doc.textBetween(from, from + 1);
+          needsSpaceAfter = Boolean(charAfter && charAfter !== ' ' && charAfter !== '\n');
+        }
+      } else {
+        // Check character at cursor position
+        const charAfter = doc.textBetween(from, from + 1);
+        needsSpaceAfter = Boolean(charAfter && charAfter !== ' ' && charAfter !== '\n');
+      }
+    }
+
+    // Get label for the variable
+    const label = getVariableLabel(variableData, fields, allFields);
+
+    // Build content to insert
+    const contentToInsert: any[] = [];
+
+    // Add space before if needed
+    if (needsSpaceBefore) {
+      contentToInsert.push({ type: 'text', text: ' ' });
+    }
+
+    // Add the variable node
+    contentToInsert.push({
+      type: 'dynamicVariable',
+      attrs: {
+        variable: variableData,
+        label,
+      },
+    });
+
+    // Add space after if needed
+    if (needsSpaceAfter) {
+      contentToInsert.push({ type: 'text', text: ' ' });
+    }
+
+    // Insert content
+    editor.chain().focus().insertContent(contentToInsert).run();
+
+    // Move cursor after inserted content
+    let finalPosition = from;
+    if (needsSpaceBefore) finalPosition += 1;
+    finalPosition += 1;
+    if (needsSpaceAfter) finalPosition += 1;
+
+    setTimeout(() => {
+      editor.commands.focus(finalPosition);
+    }, 0);
   },
 }));

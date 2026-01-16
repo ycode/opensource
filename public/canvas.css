@@ -36,14 +36,6 @@
 }
 
 
-
-/* Text editing input */
-.ycode-text-editor {
-  width: 100%;
-  outline: 1px solid #0b7efd !important;
-  outline-offset: 0 !important;
-}
-
 /* Empty element styling (exclude Body layer) */
 .ycode-layer:empty:not([data-layer-id="body"])::before {
   content: ' ';
@@ -109,4 +101,17 @@
   background-color: #ec4899;
   border-radius: 20px;
   pointer-events: none;
+}
+
+/* Text editing input */
+.ycode-text-editor {
+  width: 100%;
+  outline: 1px solid #0b7efd !important;
+  outline-offset: 0 !important;
+}
+
+/* Hide ProseMirror trailing breaks in text editor */
+.ycode-text-editor img.ProseMirror-separator,
+.ycode-text-editor br.ProseMirror-trailingBreak {
+  display: inline !important;
 }

@@ -47,6 +47,7 @@ import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 
 // 4b. Internal components
 import Canvas from './Canvas';
+import FieldTreeSelect from './FieldTreeSelect';
 
 // 6. Utils
 import { serializeLayers } from '@/lib/layer-utils';
@@ -54,7 +55,7 @@ import { buildPageTree, getNodeIcon, findHomepage, buildSlugPath, buildDynamicPa
 import { getTranslationValue } from '@/lib/localisation-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
-import { getCollectionVariable, canDeleteLayer, findLayerById } from '@/lib/layer-utils';
+import { getCollectionVariable, canDeleteLayer, findLayerById, findParentCollectionLayer } from '@/lib/layer-utils';
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
 
 // 7. Types
@@ -168,6 +169,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const toggleOrderedList = useCanvasTextEditorStore((state) => state.toggleOrderedList);
   const focusEditor = useCanvasTextEditorStore((state) => state.focusEditor);
   const requestFinishEditing = useCanvasTextEditorStore((state) => state.requestFinish);
+  const addFieldVariable = useCanvasTextEditorStore((state) => state.addFieldVariable);
+
+  // State for variable dropdown in text editor toolbar
+  const [textEditorVariableDropdownOpen, setTextEditorVariableDropdownOpen] = useState(false);
 
   // Exit text edit mode if a different layer is selected
   useEffect(() => {
@@ -537,6 +542,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return itemsForCollection.find((item) => item.id === currentPageCollectionItemId) || null;
   }, [currentPage, currentPageId, currentPageCollectionItemId, collectionItemsFromStore, draftsByPageId]);
 
+  // Page collection fields (used for Canvas props and reference loading)
   const pageCollectionFields = useMemo(() => {
     if (!currentPage?.is_dynamic) {
       return [];
@@ -547,6 +553,51 @@ const CenterCanvas = React.memo(function CenterCanvas({
     }
     return collectionFieldsFromStore[collectionId] || [];
   }, [currentPage, collectionFieldsFromStore]);
+
+  // Get parent collection layer for the layer being edited (for inline variables in text editor)
+  const editingLayerParentCollection = useMemo(() => {
+    if (!editingLayerId || !currentPageId) return null;
+
+    // Get layers from either component draft or page draft
+    let layersToSearch: Layer[] = [];
+    if (editingComponentId) {
+      layersToSearch = componentDrafts[editingComponentId] || [];
+    } else {
+      const draft = draftsByPageId[currentPageId];
+      layersToSearch = draft ? draft.layers : [];
+    }
+
+    if (!layersToSearch.length) return null;
+
+    // Find parent collection layer
+    return findParentCollectionLayer(layersToSearch, editingLayerId);
+  }, [editingLayerId, editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
+
+  // Get available collection fields for inline variables in text editor (matches RightSidebar logic)
+  // Priority: 1) Parent collection layer fields, 2) Page collection fields (if dynamic)
+  const availableFieldsForVariables = useMemo(() => {
+    const collectionVariable = editingLayerParentCollection ? getCollectionVariable(editingLayerParentCollection) : null;
+    let collectionId = collectionVariable?.id;
+
+    if (!collectionId && currentPage?.is_dynamic) {
+      collectionId = currentPage.settings?.cms?.collection_id || undefined;
+    }
+
+    if (!collectionId) return [];
+    return collectionFieldsFromStore[collectionId] || [];
+  }, [editingLayerParentCollection, currentPage, collectionFieldsFromStore]);
+
+  // Label for the field source in the dropdown
+  const fieldSourceLabel = useMemo(() => {
+    if (editingLayerParentCollection) {
+      const collectionVariable = getCollectionVariable(editingLayerParentCollection);
+      if (collectionVariable?.id) {
+        const collection = collectionsFromStore.find(c => c.id === collectionVariable.id);
+        return collection?.name || 'Collection';
+      }
+    }
+    return 'Page Collection';
+  }, [editingLayerParentCollection, collectionsFromStore]);
 
   // Create assets map for Canvas (asset ID -> asset)
   const assetsMap = useMemo(() => {
@@ -1343,6 +1394,66 @@ const CenterCanvas = React.memo(function CenterCanvas({
             >
               <Icon name="listOrdered" className="size-3" />
             </Button>
+
+            {/* Inline Variable Button - matches InputWithInlineVariables behavior */}
+            {(() => {
+              // Calculate displayable fields (exclude multi_reference) - same as InputWithInlineVariables
+              const displayableFields = availableFieldsForVariables?.filter((f) => f.type !== 'multi_reference') || [];
+              const hasDisplayableFields = displayableFields.length > 0;
+
+              return (
+                <>
+                  <div className="h-5 shrink-0 flex items-center justify-center">
+                    <Separator orientation="vertical" className="mx-1 bg-secondary" />
+                  </div>
+                  <DropdownMenu
+                    open={textEditorVariableDropdownOpen}
+                    onOpenChange={setTextEditorVariableDropdownOpen}
+                  >
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="!size-6"
+                        title={hasDisplayableFields ? 'Insert Variable' : 'No variables available'}
+                        disabled={!hasDisplayableFields}
+                      >
+                        <Icon name="database" className="size-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+
+                    {hasDisplayableFields && (
+                      <DropdownMenuContent
+                        className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                        align="start"
+                        sideOffset={4}
+                      >
+                        <FieldTreeSelect
+                          fields={availableFieldsForVariables || []}
+                          allFields={collectionFieldsFromStore}
+                          collections={collectionsFromStore}
+                          onSelect={(fieldId, relationshipPath) => {
+                            addFieldVariable(
+                              {
+                                type: 'field',
+                                data: {
+                                  field_id: fieldId,
+                                  relationships: relationshipPath,
+                                },
+                              },
+                              availableFieldsForVariables,
+                              collectionFieldsFromStore
+                            );
+                            setTextEditorVariableDropdownOpen(false);
+                          }}
+                          collectionLabel={fieldSourceLabel}
+                        />
+                      </DropdownMenuContent>
+                    )}
+                  </DropdownMenu>
+                </>
+              );
+            })()}
           </div>
 
           <div className="flex-1" />

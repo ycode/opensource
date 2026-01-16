@@ -93,6 +93,27 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
     limit?: number,
     offset?: number
   ) => {
+    const { layerData, loading, layerConfig } = get();
+
+    // Skip if already loading
+    if (loading[layerId]) {
+      return;
+    }
+
+    // Check if we already have data with the same config
+    const existingConfig = layerConfig[layerId];
+    const configMatches = existingConfig &&
+      existingConfig.collectionId === collectionId &&
+      existingConfig.sortBy === sortBy &&
+      existingConfig.sortOrder === sortOrder &&
+      existingConfig.limit === limit &&
+      existingConfig.offset === offset;
+
+    // Skip if we have data and config matches
+    if (layerData[layerId]?.length > 0 && configMatches) {
+      return;
+    }
+
     // Set loading state
     set((state) => ({
       loading: { ...state.loading, [layerId]: true },
@@ -113,16 +134,6 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
       }
 
       const items = response.data?.items || [];
-
-      console.log(`[CollectionLayerStore] Fetched data for layer ${layerId}:`, {
-        collectionId,
-        sortBy,
-        sortOrder,
-        limit,
-        offset,
-        itemsCount: items.length,
-        items
-      });
 
       // Store fetched data keyed by layerId
       set((state) => ({
@@ -190,16 +201,12 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
 
   // Refetch all layers that use a specific collection
   refetchLayersForCollection: async (collectionId) => {
-    const { layerData, layerConfig } = get();
-    
-    console.log('[CollectionLayerStore] Refetching layers for collection:', collectionId);
+    const { layerConfig } = get();
     
     // Find all layers that use this collection
     const layersToRefetch = Object.entries(layerConfig)
       .filter(([_, config]) => config.collectionId === collectionId)
       .map(([layerId]) => layerId);
-    
-    console.log('[CollectionLayerStore] Layers to refetch:', layersToRefetch);
     
     // Refetch each layer without showing loading state
     for (const layerId of layersToRefetch) {
@@ -280,12 +287,6 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
         paginationMeta: { ...state.paginationMeta, [layerId]: newMeta },
         paginationLoading: { ...state.paginationLoading, [layerId]: false },
       }));
-      
-      console.log(`[CollectionLayerStore] Fetched page ${page} for layer ${layerId}:`, {
-        items: items.length,
-        total,
-        newMeta,
-      });
       
       return { items, meta: newMeta };
     } catch (error) {
