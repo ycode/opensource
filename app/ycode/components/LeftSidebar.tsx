@@ -448,7 +448,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
                 }
               });
             }}
-            className="flex-1 gap-0"
+            className="h-full overflow-hidden"
           >
             <TabsList className="w-full shrink-0">
               <TabsTrigger value="layers">Layers</TabsTrigger>
@@ -460,10 +460,10 @@ const LeftSidebar = React.memo(function LeftSidebar({
 
             {/* Content - forceMount keeps all tabs mounted for instant switching */}
             <TabsContent
-              value="layers" className="flex flex-col min-h-0"
+              value="layers" className="flex flex-col min-h-0  overflow-y-auto no-scrollbar"
               forceMount
             >
-              <header className="py-5 flex justify-between shrink-0">
+              <header className="py-5 flex justify-between shrink-0 sticky top-0 bg-gradient-to-b from-background to-transparent z-20">
                 <span className="font-medium">Layers</span>
                 <div className="-my-1">
                   <Button
@@ -475,7 +475,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
                 </div>
               </header>
 
-              <div className="flex flex-col flex-1 min-h-0 overflow-y-auto no-scrollbar pb-4">
+              <div className="flex flex-col flex-1 min-h-0">
                 {!currentPageId && !editingComponentId ? (
                   <Empty>
                     <EmptyTitle>No page selected</EmptyTitle>

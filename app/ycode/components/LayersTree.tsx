@@ -1393,6 +1393,7 @@ export default function LayersTree({
           </div>
         ) : null}
       </DragOverlay>
+      <div className="min-h-10" />
     </DndContext>
   );
 }
