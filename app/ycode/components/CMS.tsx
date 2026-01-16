@@ -18,6 +18,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEn
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useCollaborationPresenceStore, getResourceLockKey } from '@/stores/useCollaborationPresenceStore';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
@@ -175,16 +176,17 @@ const CMS = React.memo(function CMS() {
 
   // Collection collaboration sync
   const liveCollectionUpdates = useLiveCollectionUpdates();
-  
+
   // Item locking for collaboration
   const itemLock = useResourceLock({
     resourceType: 'collection_item',
     channelName: selectedCollectionId ? `collection:${selectedCollectionId}:item_locks` : '',
   });
-  
+
   // Subscribe to resource locks to trigger re-renders when locks change
   const resourceLocks = useCollaborationPresenceStore((state) => state.resourceLocks);
   const collaborationUsers = useCollaborationPresenceStore((state) => state.users);
+  const getAsset = useAssetsStore((state) => state.getAsset);
 
   const { urlState, navigateToCollection, navigateToCollectionItem, navigateToNewCollectionItem } = useEditorUrl();
 
@@ -531,17 +533,17 @@ const CMS = React.memo(function CMS() {
   const getItemLockInfo = (itemId: string): ItemLockInfo => {
     const lockKey = getResourceLockKey('collection_item', itemId);
     const lock = resourceLocks[lockKey];
-    
+
     if (!lock || Date.now() > lock.expires_at) {
       return { isLocked: false };
     }
-    
+
     // Check if locked by current user
     const currentUserId = useCollaborationPresenceStore.getState().currentUserId;
     if (lock.user_id === currentUserId) {
       return { isLocked: false }; // Not locked by "other" - current user can edit
     }
-    
+
     const owner = collaborationUsers[lock.user_id];
     return {
       isLocked: true,
@@ -569,7 +571,7 @@ const CMS = React.memo(function CMS() {
         // Item is locked - don't open, user will see the visual lock indicator
         return;
       }
-      
+
       // Optimistically open sheet immediately for smooth UX
       setEditingItem(item);
       setShowItemSheet(true);
@@ -584,7 +586,7 @@ const CMS = React.memo(function CMS() {
     if (confirm('Are you sure you want to delete this item?')) {
       try {
         await deleteItem(selectedCollectionId, itemId);
-        
+
         // Broadcast item deletion to other collaborators
         if (liveCollectionUpdates) {
           liveCollectionUpdates.broadcastItemDelete(selectedCollectionId, itemId);
@@ -600,7 +602,7 @@ const CMS = React.memo(function CMS() {
 
     try {
       const newItem = await duplicateItem(selectedCollectionId, itemId);
-      
+
       // Broadcast item creation to other collaborators
       if (liveCollectionUpdates && newItem) {
         liveCollectionUpdates.broadcastItemCreate(selectedCollectionId, newItem);
@@ -1055,6 +1057,31 @@ const CMS = React.memo(function CMS() {
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
                             {formatDate(value, 'MMM D YYYY, HH:mm')}
+                          </td>
+                        );
+                      }
+
+                      // Image fields - show thumbnail preview
+                      if (field.type === 'image' && value) {
+                        const asset = getAsset(value);
+                        return (
+                          <td
+                            key={field.id}
+                            className="px-4 py-5"
+                            onClick={() => !isManualMode && handleEditItem(item)}
+                          >
+                            {asset?.public_url ? (
+                              <div className="relative size-7 rounded-[6px] overflow-hidden bg-secondary/30 -my-1.5">
+                                <div className="absolute inset-0 opacity-5 bg-checkerboard" />
+                                <img
+                                  src={asset.public_url}
+                                  alt={asset.filename || 'Image'}
+                                  className="relative w-full h-full object-contain z-10"
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                           </td>
                         );
                       }
