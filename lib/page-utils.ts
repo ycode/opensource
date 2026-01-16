@@ -757,13 +757,116 @@ export function isDescendant(
  * @example generateSlug('About Us') // 'about-us'
  */
 /**
+ * Transliteration map for international characters to ASCII equivalents
+ * Supports Cyrillic, Latin Extended, Greek, and other common characters
+ */
+const TRANSLITERATION_MAP: Record<string, string> = {
+  // Lithuanian
+  'ą': 'a', 'č': 'c', 'ę': 'e', 'ė': 'e', 'į': 'i', 'š': 's', 'ų': 'u', 'ū': 'u', 'ž': 'z',
+  'Ą': 'A', 'Č': 'C', 'Ę': 'E', 'Ė': 'E', 'Į': 'I', 'Š': 'S', 'Ų': 'U', 'Ū': 'U', 'Ž': 'Z',
+  
+  // Russian/Cyrillic
+  'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh', 'з': 'z',
+  'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r',
+  'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
+  'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+  'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo', 'Ж': 'Zh', 'З': 'Z',
+  'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R',
+  'С': 'S', 'Т': 'T', 'У': 'U', 'Ф': 'F', 'Х': 'H', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Shch',
+  'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya',
+  
+  // Polish (unique characters not in Lithuanian)
+  'ć': 'c', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+  'Ć': 'C', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z',
+  
+  // German
+  'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss',
+  'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
+  
+  // French (unique characters not in other languages)
+  'à': 'a', 'â': 'a', 'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e', 'î': 'i', 'ï': 'i', 'ô': 'o', 'ù': 'u', 'û': 'u', 'ÿ': 'y', 'ç': 'c',
+  'À': 'A', 'Â': 'A', 'É': 'E', 'È': 'E', 'Ê': 'E', 'Ë': 'E', 'Î': 'I', 'Ï': 'I', 'Ô': 'O', 'Ù': 'U', 'Û': 'U', 'Ÿ': 'Y', 'Ç': 'C',
+  
+  // Spanish (unique characters not in French)
+  'á': 'a', 'í': 'i', 'ú': 'u', 'ñ': 'n',
+  'Á': 'A', 'Í': 'I', 'Ú': 'U', 'Ñ': 'N',
+  
+  // Portuguese
+  'ã': 'a', 'õ': 'o',
+  'Ã': 'A', 'Õ': 'O',
+  
+  // Czech/Slovak
+  'ě': 'e', 'ř': 'r', 'ť': 't', 'ů': 'u', 'ý': 'y',
+  'Ě': 'E', 'Ř': 'R', 'Ť': 'T', 'Ů': 'U', 'Ý': 'Y',
+  
+  // Romanian (unique characters)
+  'ă': 'a', 'ș': 's', 'ț': 't',
+  'Ă': 'A', 'Ș': 'S', 'Ț': 'T',
+  
+  // Turkish
+  'ğ': 'g', 'ı': 'i', 'ş': 's',
+  'Ğ': 'G', 'İ': 'I', 'Ş': 'S',
+  
+  // Greek
+  'α': 'a', 'β': 'b', 'γ': 'g', 'δ': 'd', 'ε': 'e', 'ζ': 'z', 'η': 'i', 'θ': 'th',
+  'ι': 'i', 'κ': 'k', 'λ': 'l', 'μ': 'm', 'ν': 'n', 'ξ': 'x', 'ο': 'o', 'π': 'p',
+  'ρ': 'r', 'σ': 's', 'ς': 's', 'τ': 't', 'υ': 'y', 'φ': 'f', 'χ': 'ch', 'ψ': 'ps', 'ω': 'o',
+  'Α': 'A', 'Β': 'B', 'Γ': 'G', 'Δ': 'D', 'Ε': 'E', 'Ζ': 'Z', 'Η': 'I', 'Θ': 'Th',
+  'Ι': 'I', 'Κ': 'K', 'Λ': 'L', 'Μ': 'M', 'Ν': 'N', 'Ξ': 'X', 'Ο': 'O', 'Π': 'P',
+  'Ρ': 'R', 'Σ': 'S', 'Τ': 'T', 'Υ': 'Y', 'Φ': 'F', 'Χ': 'Ch', 'Ψ': 'Ps', 'Ω': 'O',
+  
+  // Scandinavian
+  'å': 'a', 'æ': 'ae', 'ø': 'o',
+  'Å': 'A', 'Æ': 'Ae', 'Ø': 'O',
+  
+  // Latvian
+  'ā': 'a', 'ē': 'e', 'ģ': 'g', 'ī': 'i', 'ķ': 'k', 'ļ': 'l', 'ņ': 'n',
+  'Ā': 'A', 'Ē': 'E', 'Ģ': 'G', 'Ī': 'I', 'Ķ': 'K', 'Ļ': 'L', 'Ņ': 'N',
+  
+  // Ukrainian (additional to Russian)
+  'є': 'ye', 'і': 'i', 'ї': 'yi', 'ґ': 'g',
+  'Є': 'Ye', 'І': 'I', 'Ї': 'Yi', 'Ґ': 'G',
+  
+  // Serbian (additional to Russian/Cyrillic)
+  'ђ': 'dj', 'ј': 'j', 'љ': 'lj', 'њ': 'nj', 'ћ': 'c', 'џ': 'dz',
+  'Ђ': 'Dj', 'Ј': 'J', 'Љ': 'Lj', 'Њ': 'Nj', 'Ћ': 'C', 'Џ': 'Dz',
+};
+
+/**
+ * Transliterate international characters to ASCII equivalents
+ * @param text - Text to transliterate
+ * @returns Transliterated text with ASCII characters
+ */
+function transliterate(text: string): string {
+  let result = '';
+  
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const transliterated = TRANSLITERATION_MAP[char];
+    
+    if (transliterated !== undefined) {
+      result += transliterated;
+    } else {
+      result += char;
+    }
+  }
+  
+  return result;
+}
+
+/**
  * Sanitize slug to only allow [a-z0-9-] characters
  * Replaces invalid characters with "-" and removes consecutive dashes
+ * Transliterates international characters first (Lithuanian, Russian, etc.)
  * @param slug - The slug to sanitize
  * @param allowTrailingDash - If true, allows trailing dashes (for real-time input). Defaults to false.
  */
 export function sanitizeSlug(slug: string, allowTrailingDash: boolean = false): string {
-  let sanitized = slug
+  // First, transliterate international characters
+  let sanitized = transliterate(slug);
+  
+  // Convert to lowercase and replace invalid chars with dash
+  sanitized = sanitized
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, '-') // Replace invalid chars with dash
     .replace(/-+/g, '-'); // Replace multiple consecutive dashes with single dash

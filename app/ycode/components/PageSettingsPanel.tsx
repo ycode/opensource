@@ -39,7 +39,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import Icon from '@/components/ui/icon';
-import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug, sanitizeSlug } from '@/lib/page-utils';
+import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug, generateSlug, sanitizeSlug } from '@/lib/page-utils';
 import { isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 import { Textarea } from '@/components/ui/textarea';
 import { uploadFileApi, deleteAssetApi } from '@/lib/api';
@@ -436,8 +436,29 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       return;
     }
 
+    // Check hasUnsavedChanges by comparing current form state with initialValuesRef
+    // We need to do this check HERE, not rely on the useMemo, because the useMemo
+    // might not have updated yet due to React batching
+    const currentHasChanges = initialValuesRef.current !== null && (
+      name !== initialValuesRef.current.name ||
+      slug !== initialValuesRef.current.slug ||
+      pageFolderId !== initialValuesRef.current.pageFolderId ||
+      isIndex !== initialValuesRef.current.isIndex ||
+      seoTitle !== initialValuesRef.current.seoTitle ||
+      seoDescription !== initialValuesRef.current.seoDescription ||
+      !compareSeoImage(seoImage, initialValuesRef.current.seoImage) ||
+      seoNoindex !== initialValuesRef.current.seoNoindex ||
+      customCodeHead !== initialValuesRef.current.customCodeHead ||
+      customCodeBody !== initialValuesRef.current.customCodeBody ||
+      authEnabled !== initialValuesRef.current.authEnabled ||
+      authPassword !== initialValuesRef.current.authPassword ||
+      collectionId !== initialValuesRef.current.collectionId ||
+      slugFieldId !== initialValuesRef.current.slugFieldId ||
+      pendingImageFile !== null
+    );
+
     // If we have unsaved changes, show confirmation dialog BEFORE changing
-    if (hasUnsavedChanges && initialValuesRef.current !== null) {
+    if (currentHasChanges) {
       setPendingPageChange(page);
       setPendingAction('navigate');
       setShowUnsavedDialog(true);
@@ -448,7 +469,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     setCurrentPage(page);
     rejectedPageRef.current = null; // Clear rejected page since we're accepting a change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, currentPage, isSaving]);
+  }, [page, currentPage, isSaving, name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImage, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, pendingImageFile]);
 
   // Initialize form when currentPage changes (after confirmation or when no unsaved changes)
   useEffect(() => {
@@ -475,6 +496,25 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       const initialCollectionId = settings?.cms?.collection_id || null;
       const initialSlugFieldId = settings?.cms?.slug_field_id || null;
 
+      // IMPORTANT: Save initial values FIRST before updating form state
+      // This prevents false "unsaved changes" detection when switching pages
+      initialValuesRef.current = {
+        name: initialName,
+        slug: initialSlug,
+        pageFolderId: initialFolderId,
+        isIndex: initialIsIndex,
+        seoTitle: initialSeoTitle,
+        seoDescription: initialSeoDescription,
+        seoImage: initialSeoImage,
+        seoNoindex: initialSeoNoindex,
+        customCodeHead: initialCustomCodeHead,
+        customCodeBody: initialCustomCodeBody,
+        authEnabled: initialAuthEnabled,
+        authPassword: initialAuthPassword,
+        collectionId: initialCollectionId,
+        slugFieldId: initialSlugFieldId,
+      };
+
       setName(initialName);
       setSlug(initialSlug);
       setPageFolderId(initialFolderId);
@@ -497,25 +537,25 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         URL.revokeObjectURL(imagePreviewUrl);
         setImagePreviewUrl(null);
       }
-
-      // Save initial values for comparison
-      initialValuesRef.current = {
-        name: initialName,
-        slug: initialSlug,
-        pageFolderId: initialFolderId,
-        isIndex: initialIsIndex,
-        seoTitle: initialSeoTitle,
-        seoDescription: initialSeoDescription,
-        seoImage: initialSeoImage,
-        seoNoindex: initialSeoNoindex,
-        customCodeHead: initialCustomCodeHead,
-        customCodeBody: initialCustomCodeBody,
-        authEnabled: initialAuthEnabled,
-        authPassword: initialAuthPassword,
-        collectionId: initialCollectionId,
-        slugFieldId: initialSlugFieldId,
-      };
     } else {
+      // Reset initial values for new page FIRST
+      initialValuesRef.current = {
+        name: '',
+        slug: '',
+        pageFolderId: null,
+        isIndex: false,
+        seoTitle: '',
+        seoDescription: '',
+        seoImage: null,
+        seoNoindex: false,
+        customCodeHead: '',
+        customCodeBody: '',
+        authEnabled: false,
+        authPassword: '',
+        collectionId: null,
+        slugFieldId: null,
+      };
+
       setName('');
       setSlug('');
       setPageFolderId(null);
@@ -537,25 +577,9 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         URL.revokeObjectURL(imagePreviewUrl);
         setImagePreviewUrl(null);
       }
-
-      // Reset initial values for new page
-      initialValuesRef.current = {
-        name: '',
-        slug: '',
-        pageFolderId: null,
-        isIndex: false,
-        seoTitle: '',
-        seoDescription: '',
-        seoImage: null,
-        seoNoindex: false,
-        customCodeHead: '',
-        customCodeBody: '',
-        authEnabled: false,
-        authPassword: '',
-        collectionId: null,
-        slugFieldId: null,
-      };
     }
+
+    // Clear error state when page changes
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, isErrorPage]);
@@ -584,9 +608,16 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     } else if (isDynamicPage) {
       setSlug('*'); // Dynamic pages use '*' as slug placeholder
     } else if (currentPage && !slug && name) {
-      // If switching to non-index/non-error/non-dynamic and slug is empty, generate one
-      const uniqueSlug = generateUniqueSlug(name, pages, pageFolderId, currentPage.is_published, currentPage.id);
-      setSlug(uniqueSlug);
+      // Guard: Only auto-generate slug if form values match the current page
+      // This prevents generating a slug from stale form values during page transitions
+      const formMatchesCurrentPage = name === currentPage.name && 
+        pageFolderId === currentPage.page_folder_id;
+      
+      if (formMatchesCurrentPage) {
+        // If switching to non-index/non-error/non-dynamic and slug is empty, generate one
+        const uniqueSlug = generateUniqueSlug(name, pages, pageFolderId, currentPage.is_published, currentPage.id);
+        setSlug(uniqueSlug);
+      }
     }
   }, [isIndex, isErrorPage, isDynamicPage, currentPage, name, slug, pageFolderId, pages]);
 
@@ -1215,7 +1246,23 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       <Input
                         type="text"
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
+                        onChange={(e) => {
+                          const newName = e.target.value;
+                          setName(newName);
+                          
+                          // Auto-generate slug from name for non-index, non-error, non-dynamic pages
+                          // Only if user hasn't manually edited the slug (slug matches generated version)
+                          if (!isIndex && !isErrorPage && !isDynamicPage && newName) {
+                            // Check if current slug appears to be auto-generated (matches sanitized version of name)
+                            const expectedSlug = generateSlug(name);
+                            const isSlugAutoGenerated = slug === expectedSlug || slug === '';
+                            
+                            if (isSlugAutoGenerated) {
+                              const newSlug = generateSlug(newName);
+                              setSlug(newSlug);
+                            }
+                          }
+                        }}
                         placeholder="Homepage"
                       />
                     </Field>
@@ -1723,7 +1770,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
         title="Unsaved Changes"
         description="You have unsaved changes. Are you sure you want to discard them?"
         confirmLabel="Discard changes"
-        cancelLabel="Stay on settings"
+        cancelLabel="Cancel"
         confirmVariant="destructive"
         onConfirm={handleConfirmDiscard}
         onCancel={handleCancelDiscard}

@@ -1,4 +1,5 @@
 import type { Collection, CollectionFieldType } from '@/types';
+import { sanitizeSlug } from './page-utils';
 
 /**
  * Collection Utilities
@@ -98,17 +99,18 @@ export function valueToString(value: any, type: CollectionFieldType): string | n
 }
 
 /**
- * Generate a slug from a name
+ * Generate a slug from a name with international character support
+ * Uses the same transliteration logic as page slugs
  * @param name - The name to slugify
- * @returns URL-safe slug
+ * @returns URL-safe slug with transliterated characters
+ * 
+ * @example
+ * slugify('Apie mus') // 'apie-mus'
+ * slugify('О нас') // 'o-nas'
+ * slugify('Über uns') // 'ueber-uns'
  */
 export function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '') // Remove special characters
-    .replace(/[\s_-]+/g, '-')  // Replace spaces and underscores with single dash
-    .replace(/^-+|-+$/g, '');  // Remove leading/trailing dashes
+  return sanitizeSlug(name);
 }
 
 /**
