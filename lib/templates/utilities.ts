@@ -51,9 +51,12 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
       },
       children: [
         // Locale text
-        getTemplateRef('span', {
+        getTemplateRef('text', {
           key: 'localeSelectorLabel',
           customName: 'Locale',
+          settings: {
+            tag: 'span',
+          },
           restrictions: {
             copy: false,
             delete: false,

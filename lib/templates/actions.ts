@@ -4,6 +4,7 @@
 
 import { getTemplateRef } from '@/lib/templates/blocks';
 import { BlockTemplate } from '@/types';
+import { getTiptapTextContent } from '@/lib/text-format-utils';
 
 export const actionTemplates: Record<string, BlockTemplate> = {
   button: {
@@ -13,7 +14,20 @@ export const actionTemplates: Record<string, BlockTemplate> = {
       name: 'button',
       classes: ['flex', 'flex-row', 'items-center', 'justify-center', 'text-[#FFFFFF]', 'pr-[20px]', 'pl-[20px]', 'pt-[10px]', 'pb-[10px]', 'text-[16px]', 'rounded-[12px]', 'bg-[#171717]'],
       children: [
-        getTemplateRef('span'),
+        getTemplateRef('text', {
+          settings: {
+            tag: 'span',
+          },
+          restrictions: { editText: true },
+          variables: {
+            text: {
+              type: 'dynamic_rich_text',
+              data: {
+                content: getTiptapTextContent('Text')
+              }
+            }
+          }
+        }),
       ],
       attributes: {
         type: 'button'

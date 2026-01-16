@@ -221,7 +221,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717]',
                           'children': [
                             {
-                              'name': 'span',
+                              'name': 'text',
+                              'settings': {
+                                'tag': 'span',
+                              },
                               'design': {
                                 'typography': {
                                   'fontSize': '16px',
@@ -276,7 +279,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] text-[#171717] bg-[#e5e5e5]',
                           'children': [
                             {
-                              'name': 'span',
+                              'name': 'text',
+                              'settings': {
+                                'tag': 'span',
+                              },
                               'design': {
                                 'typography': {
                                   'fontSize': '16px',
@@ -746,7 +752,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717]',
                           'children': [
                             {
-                              'name': 'span',
+                              'name': 'text',
+                              'settings': {
+                                'tag': 'span',
+                              },
                               'design': {
                                 'typography': {
                                   'fontSize': '16px',
@@ -801,7 +810,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] text-[#171717] bg-[#e5e5e5]',
                           'children': [
                             {
-                              'name': 'span',
+                              'name': 'text',
+                              'settings': {
+                                'tag': 'span',
+                              },
                               'design': {
                                 'typography': {
                                   'fontSize': '16px',
