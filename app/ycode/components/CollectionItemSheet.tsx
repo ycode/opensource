@@ -31,11 +31,16 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
 import { slugify } from '@/lib/collection-utils';
+import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
+import { toast } from 'sonner';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
 import type { CollectionItemWithValues } from '@/types';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 
 interface CollectionItemSheetProps {
   open: boolean;
@@ -55,23 +60,24 @@ export default function CollectionItemSheet({
   const { collections, fields, items, updateItem, createItem } = useCollectionsStore();
   const { updateItemInLayerData, refetchLayersForCollection } = useCollectionLayerStore();
   const { updatePageCollectionItem, refetchPageCollectionItem, pages } = usePagesStore();
-  const { currentPageId } = useEditorStore();
-  
+  const { currentPageId, openFileManager } = useEditorStore();
+  const getAsset = useAssetsStore((state) => state.getAsset);
+
   // Collection collaboration sync
   const liveCollectionUpdates = useLiveCollectionUpdates();
-  
+
   // Item locking for collaboration
   const itemLock = useResourceLock({
     resourceType: 'collection_item',
     channelName: collectionId ? `collection:${collectionId}:item_locks` : '',
   });
-  
+
   // Stable ref for lock functions to avoid dependency issues in effects
   const itemLockRef = useRef(itemLock);
   useEffect(() => {
     itemLockRef.current = itemLock;
   }, [itemLock]);
-  
+
   const lockedItemIdRef = useRef<string | null>(null);
 
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
@@ -112,20 +118,20 @@ export default function CollectionItemSheet({
         }
       }
     };
-    
+
     const releaseItemLock = async () => {
       if (lockedItemIdRef.current) {
         await itemLockRef.current.releaseLock(lockedItemIdRef.current);
         lockedItemIdRef.current = null;
       }
     };
-    
+
     if (open && itemId && itemId !== 'new') {
       acquireItemLock();
     } else {
       releaseItemLock();
     }
-    
+
     return () => {
       releaseItemLock();
     };
@@ -187,10 +193,10 @@ export default function CollectionItemSheet({
     try {
       if (editingItem) {
         // Update existing item
-        
+
         // 1. Optimistically update in collection layer store (for collection layers)
         updateItemInLayerData(editingItem.id, values);
-        
+
         // 2. Optimistically update in pages store (for dynamic pages)
         if (isPageLevelItem && currentPageId) {
           updatePageCollectionItem(currentPageId, {
@@ -199,20 +205,20 @@ export default function CollectionItemSheet({
             updated_at: new Date().toISOString(),
           });
         }
-        
+
         // 3. Update in main collections store (API call with optimistic update)
         await updateItem(collectionId, editingItem.id, values);
-        
+
         // Broadcast item update to other collaborators
         if (liveCollectionUpdates) {
           liveCollectionUpdates.broadcastItemUpdate(collectionId, editingItem.id, { values } as any);
         }
-        
+
         // 4. Background refetch for collection layers
         setTimeout(() => {
           refetchLayersForCollection(collectionId);
         }, 100);
-        
+
         // 5. Background refetch for page-level data (if dynamic page)
         if (isPageLevelItem && currentPageId) {
           setTimeout(() => {
@@ -222,16 +228,16 @@ export default function CollectionItemSheet({
       } else {
         // Create new item (store adds to local state optimistically)
         const newItem = await createItem(collectionId, values);
-        
+
         // Broadcast item creation to other collaborators
         if (liveCollectionUpdates && newItem) {
           liveCollectionUpdates.broadcastItemCreate(collectionId, newItem);
         }
-        
+
         // Refetch to show the new item
         setTimeout(() => {
           refetchLayersForCollection(collectionId);
-          
+
           // Also refetch page data if on dynamic page
           if (isPageLevelItem && currentPageId) {
             refetchPageCollectionItem(currentPageId);
@@ -302,6 +308,107 @@ export default function CollectionItemSheet({
                               isMulti={true}
                               placeholder={`Select ${field.name.toLowerCase()}...`}
                             />
+                          ) : field.type === 'image' ? (
+                            /* Image Field - File Manager UI */
+                            (() => {
+                              const currentAssetId = formField.value || null;
+                              const currentAsset = currentAssetId ? getAsset(currentAssetId) : null;
+                              const assetFilename = currentAsset?.filename || null;
+                              const imageUrl = currentAsset?.public_url || null;
+
+                              const handleOpenFileManager = () => {
+                                openFileManager(
+                                  (asset) => {
+                                    // Validate asset type
+                                    if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
+                                      toast.error('Invalid asset type', {
+                                        description: 'Please select an image file.',
+                                      });
+                                      return false; // Don't close file manager
+                                    }
+
+                                    // Set the asset ID as the field value
+                                    formField.onChange(asset.id);
+                                    // Return void to close file manager
+                                  },
+                                  currentAssetId,
+                                  ASSET_CATEGORIES.IMAGES
+                                );
+                              };
+
+                              // Helper to format file size
+                              const formatFileSize = (bytes: number): string => {
+                                if (bytes < 1024) return `${bytes} B`;
+                                if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+                                return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+                              };
+
+                              // Helper to get file extension from mime type
+                              const getFileExtension = (mimeType: string): string => {
+                                const parts = mimeType.split('/');
+                                return parts[1]?.toUpperCase() || 'FILE';
+                              };
+
+                              return (
+                                <div className="bg-input p-2 rounded-lg flex items-center gap-4">
+                                  <div className="relative group bg-secondary/30 rounded-md w-full aspect-square overflow-hidden max-w-24">
+                                    {/* Checkerboard pattern for transparency */}
+                                    <div className="absolute inset-0 opacity-5 bg-checkerboard" />
+
+                                    {imageUrl ? (
+                                      <img
+                                        src={imageUrl}
+                                        className="relative w-full h-full object-contain z-10"
+                                        alt="Image preview"
+                                      />
+                                    ) : (
+                                      <div className="relative w-full h-full flex items-center justify-center z-10 text-muted-foreground"></div>
+                                    )}
+                                  </div>
+
+                                  <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                                    {currentAsset && (
+                                      <div className="flex flex-col gap-1">
+                                        <Label className="truncate">{assetFilename}</Label>
+                                        <span className="text-xs text-current/60 inline-flex gap-2 items-center">
+                                          {getFileExtension(currentAsset.mime_type)}
+                                          <div className="size-0.5 bg-current/50 rounded-full inline-flex" />
+                                          {formatFileSize(currentAsset.file_size)}
+                                          <div className="size-0.5 bg-current/50 rounded-full inline-flex" />
+                                          {currentAsset.width && currentAsset.height && (
+                                            <> {currentAsset.width}×{currentAsset.height}</>
+                                          )}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        type="button" variant="secondary"
+                                        size="sm" onClick={(e) => {e.stopPropagation();handleOpenFileManager();}}
+                                      >
+                                        {assetFilename ? 'Change file' : 'Choose file'}
+                                      </Button>
+
+                                      {currentAssetId && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            formField.onChange('');
+                                          }}
+                                        >
+                                          Remove
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                </div>
+                              );
+                            })()
                           ) : (
                             <Input
                               placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
