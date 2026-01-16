@@ -10,15 +10,17 @@ import ColorPicker from './ColorPicker';
 interface BackgroundsControlsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
+  activeTextStyleKey?: string | null;
 }
 
-export default function BackgroundsControls({ layer, onLayerUpdate }: BackgroundsControlsProps) {
+export default function BackgroundsControls({ layer, onLayerUpdate, activeTextStyleKey }: BackgroundsControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
     activeUIState,
+    activeTextStyleKey,
   });
 
   // Get current values from layer (no inheritance - only exact breakpoint values)

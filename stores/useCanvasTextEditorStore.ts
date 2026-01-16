@@ -10,6 +10,7 @@ import type { Editor } from '@tiptap/react';
 import type { FieldVariable } from '@/types';
 import { getVariableLabel } from '@/lib/cms-variables-utils';
 import type { CollectionField } from '@/types';
+import { useEditorStore } from './useEditorStore';
 
 interface CanvasTextEditorState {
   /** Whether text editing is active */
@@ -96,20 +97,26 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     editingLayerId: layerId,
   }),
 
-  stopEditing: () => set({
-    isEditing: false,
-    editor: null,
-    editingLayerId: null,
-    activeMarks: {
-      bold: false,
-      italic: false,
-      underline: false,
-      strike: false,
-      bulletList: false,
-      orderedList: false,
-    },
-    onFinishCallback: null,
-  }),
+  stopEditing: () => {
+    // Reset active text style key when stopping editing
+    const setActiveTextStyleKey = useEditorStore.getState().setActiveTextStyleKey;
+    setActiveTextStyleKey(null);
+
+    set({
+      isEditing: false,
+      editor: null,
+      editingLayerId: null,
+      activeMarks: {
+        bold: false,
+        italic: false,
+        underline: false,
+        strike: false,
+        bulletList: false,
+        orderedList: false,
+      },
+      onFinishCallback: null,
+    });
+  },
 
   requestFinish: () => {
     const { onFinishCallback } = get();
@@ -124,16 +131,37 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     const { editor } = get();
     if (!editor) return;
 
-    set({
-      activeMarks: {
-        bold: editor.isActive('bold'),
-        italic: editor.isActive('italic'),
-        underline: editor.isActive('underline'),
-        strike: editor.isActive('strike'),
-        bulletList: editor.isActive('bulletList'),
-        orderedList: editor.isActive('orderedList'),
-      },
-    });
+    const activeMarks = {
+      bold: editor.isActive('bold'),
+      italic: editor.isActive('italic'),
+      underline: editor.isActive('underline'),
+      strike: editor.isActive('strike'),
+      bulletList: editor.isActive('bulletList'),
+      orderedList: editor.isActive('orderedList'),
+    };
+
+    set({ activeMarks });
+
+    // Update active text style key in editor store based on active marks
+    const setActiveTextStyleKey = useEditorStore.getState().setActiveTextStyleKey;
+
+    // Determine which text style is active (prioritize marks over lists)
+    let textStyleKey: string | null = null;
+    if (activeMarks.bold) {
+      textStyleKey = 'bold';
+    } else if (activeMarks.italic) {
+      textStyleKey = 'italic';
+    } else if (activeMarks.underline) {
+      textStyleKey = 'underline';
+    } else if (activeMarks.strike) {
+      textStyleKey = 'strike';
+    } else if (activeMarks.bulletList) {
+      textStyleKey = 'bulletList';
+    } else if (activeMarks.orderedList) {
+      textStyleKey = 'orderedList';
+    }
+
+    setActiveTextStyleKey(textStyleKey);
   },
 
   toggleBold: () => {

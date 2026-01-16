@@ -31,7 +31,7 @@ import LocaleSelector from '@/components/layers/LocaleSelector';
 
 interface LayerRendererProps {
   layers: Layer[];
-  onLayerClick?: (layerId: string) => void;
+  onLayerClick?: (layerId: string, event?: React.MouseEvent) => void;
   onLayerUpdate?: (layerId: string, updates: Partial<Layer>) => void;
   onLayerHover?: (layerId: string | null) => void; // Callback for hover state changes
   selectedLayerId?: string | null;
@@ -173,7 +173,7 @@ const LayerItem: React.FC<{
   hoveredLayerId?: string | null;
   activeLayerId?: string | null;
   projected?: { depth: number; parentId: string | null } | null;
-  onLayerClick?: (layerId: string) => void;
+  onLayerClick?: (layerId: string, event?: React.MouseEvent) => void;
   onLayerUpdate?: (layerId: string, updates: Partial<Layer>) => void;
   onLayerHover?: (layerId: string | null) => void;
   editingLayerId: string | null;
@@ -348,7 +348,8 @@ const LayerItem: React.FC<{
     // Check for DynamicRichTextVariable format (with formatting)
     if (textVariable?.type === 'dynamic_rich_text') {
       // Render rich text with formatting (bold, italic, etc.) and inline variables
-      return renderRichText(textVariable as any, effectiveCollectionItemData, layer.textStyles, useSpanForParagraphs);
+      // In edit mode, adds data-style attributes for style selection
+      return renderRichText(textVariable as any, effectiveCollectionItemData, layer.textStyles, useSpanForParagraphs, isEditMode);
     }
 
     // Check for inline variables in DynamicTextVariable format (legacy)
@@ -694,7 +695,7 @@ const LayerItem: React.FC<{
         // Only handle if not a context menu trigger
         if (e.button !== 2) {
           e.stopPropagation();
-          onLayerClick?.(layer.id);
+          onLayerClick?.(layer.id, e);
         }
         if (originalOnClick) {
           originalOnClick(e);
@@ -888,7 +889,7 @@ const LayerItem: React.FC<{
               }
               if (e.button !== 2) {
                 e.stopPropagation();
-                onLayerClick?.(layer.id);
+                onLayerClick?.(layer.id, e);
               }
               if (originalOnClick) {
                 originalOnClick(e);

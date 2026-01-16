@@ -8,26 +8,48 @@
 'use client';
 
 import type { Layer } from '@/types';
+import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 
 /**
  * Extract all classes from layers recursively
+ * Includes classes from layer.classes, layer.textStyles, and DEFAULT_TEXT_STYLES
  */
 function extractClassesFromLayers(layers: Layer[]): Set<string> {
   const classes = new Set<string>();
 
+  // Helper to extract classes from a string or array
+  const extractClasses = (classValue: string | string[] | undefined) => {
+    if (!classValue) return;
+
+    if (Array.isArray(classValue)) {
+      classValue.forEach(cls => {
+        if (cls && typeof cls === 'string') {
+          cls.split(/\s+/).forEach(c => c.trim() && classes.add(c.trim()));
+        }
+      });
+    } else if (typeof classValue === 'string') {
+      classValue.split(/\s+/).forEach(cls => cls.trim() && classes.add(cls.trim()));
+    }
+  };
+
   function processLayer(layer: Layer): void {
     if (layer.settings?.hidden) return;
 
-    if (layer.classes) {
-      if (Array.isArray(layer.classes)) {
-        layer.classes.forEach(cls => {
-          if (cls && typeof cls === 'string') {
-            cls.split(/\s+/).forEach(c => c.trim() && classes.add(c.trim()));
-          }
-        });
-      } else if (typeof layer.classes === 'string') {
-        layer.classes.split(/\s+/).forEach(cls => cls.trim() && classes.add(cls.trim()));
-      }
+    // Extract layer classes
+    extractClasses(layer.classes);
+
+    // Extract text style classes (from layer.textStyles)
+    if (layer.textStyles) {
+      Object.values(layer.textStyles).forEach(style => {
+        extractClasses(style.classes);
+      });
+    }
+
+    // Extract default text style classes (if layer has text content)
+    if (layer.variables?.text) {
+      Object.values(DEFAULT_TEXT_STYLES).forEach(style => {
+        extractClasses(style.classes);
+      });
     }
 
     if (layer.children && Array.isArray(layer.children)) {

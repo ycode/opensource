@@ -959,7 +959,7 @@ async function injectCollectionData(
 
   // Resolve inline variables in text content
   const textVariable = layer.variables?.text;
-  
+
   // Handle DynamicRichTextVariable (Tiptap JSON with dynamicVariable nodes)
   if (textVariable && textVariable.type === 'dynamic_rich_text') {
     const content = textVariable.data.content;
@@ -1141,13 +1141,14 @@ function resolveRichTextVariables(
         value = itemValues[fieldId] || '';
       }
 
-      // Replace variable node with text node
+      // Replace variable node with text node, preserving marks (bold, italic, etc.)
       return {
         type: 'text',
         text: value,
+        marks: content.marks || [],
       };
     }
-    return { type: 'text', text: '' };
+    return { type: 'text', text: '', marks: content.marks || [] };
   }
 
   // Recursively process content array
@@ -2169,7 +2170,7 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
   // Handle Code Embed layers - render as iframe for SSR
   if (layer.name === 'htmlEmbed') {
     const htmlEmbedCode = layer.settings?.htmlEmbed?.code || '<div>Add your custom code here</div>';
-    
+
     // Create a complete HTML document for iframe srcdoc
     const iframeContent = `<!DOCTYPE html>
 <html>
@@ -2188,18 +2189,18 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
   ${htmlEmbedCode}
 </body>
 </html>`;
-    
+
     // Escape the HTML for srcdoc attribute
     const escapedIframeContent = iframeContent
       .replace(/&/g, '&amp;')
       .replace(/"/g, '&quot;');
-    
+
     attrs.push('data-html-embed="true"');
     attrs.push(`srcdoc="${escapedIframeContent}"`);
     attrs.push('sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"');
     attrs.push('style="width: 100%; border: none; display: block;"');
     attrs.push(`title="Code Embed ${layer.id}"`);
-    
+
     const attrsStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
     return `<iframe${attrsStr}></iframe>`;
   }

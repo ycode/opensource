@@ -8,9 +8,11 @@
 
 import React from 'react';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 interface SettingsPanelProps {
   title: string;
+  className?: string;
   isOpen: boolean;
   onToggle: () => void;
   children: React.ReactNode;
@@ -19,14 +21,14 @@ interface SettingsPanelProps {
 
 export default function SettingsPanel({
   title,
+  className,
   isOpen,
   onToggle,
   children,
   action,
 }: SettingsPanelProps) {
   return (
-    <div className="py-5">
-
+    <div className={cn('py-5', className)}>
       <header className="w-full py-5 -mt-5 flex items-center justify-between">
         <Label>{title}</Label>
         <div className="flex items-center gap-2 -my-2">
@@ -39,7 +41,6 @@ export default function SettingsPanel({
           {children}
         </div>
       )}
-
     </div>
   );
 }

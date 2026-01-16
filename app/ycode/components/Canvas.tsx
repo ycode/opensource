@@ -53,7 +53,7 @@ interface CanvasProps {
   /** Page ID */
   pageId: string;
   /** Callback when a layer is clicked */
-  onLayerClick?: (layerId: string, metaKey?: boolean, shiftKey?: boolean) => void;
+  onLayerClick?: (layerId: string, event?: React.MouseEvent) => void;
   /** Callback when a layer is updated */
   onLayerUpdate?: (layerId: string, updates: Partial<Layer>) => void;
   /** Callback when delete key is pressed */
@@ -89,7 +89,7 @@ interface CanvasContentProps {
   hoveredLayerId: string | null;
   pageId: string;
   pageCollectionItemData: Record<string, string> | null;
-  onLayerClick: (layerId: string) => void;
+  onLayerClick: (layerId: string, event?: React.MouseEvent) => void;
   onLayerUpdate?: (layerId: string, updates: Partial<Layer>) => void;
   onLayerHover: (layerId: string | null) => void;
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
@@ -187,7 +187,7 @@ export default function Canvas({
   }, [layers, components]);
 
   // Handle layer click with component resolution
-  const handleLayerClick = useCallback((layerId: string) => {
+  const handleLayerClick = useCallback((layerId: string, event?: React.MouseEvent) => {
     const componentRootId = componentMap[layerId];
     const isPartOfComponent = !!componentRootId;
     const isEditingThisComponent = editingComponentId && componentRootId === editingComponentId;
@@ -197,7 +197,7 @@ export default function Canvas({
       targetLayerId = componentRootId;
     }
 
-    onLayerClick?.(targetLayerId);
+    onLayerClick?.(targetLayerId, event);
   }, [componentMap, editingComponentId, onLayerClick]);
 
   // Handle hover

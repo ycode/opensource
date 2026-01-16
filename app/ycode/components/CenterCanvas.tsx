@@ -143,6 +143,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds);
   const clearSelection = useEditorStore((state) => state.clearSelection);
   const setActiveSidebarTab = useEditorStore((state) => state.setActiveSidebarTab);
+  const setActiveTextStyleKey = useEditorStore((state) => state.setActiveTextStyleKey);
 
   const selectedLocaleId = useLocalisationStore((state) => state.selectedLocaleId);
   const getSelectedLocale = useLocalisationStore((state) => state.getSelectedLocale);
@@ -609,13 +610,32 @@ const CenterCanvas = React.memo(function CenterCanvas({
   }, [assets]);
 
   // Canvas callback handlers
-  const handleCanvasLayerClick = useCallback((layerId: string, metaKey?: boolean, shiftKey?: boolean) => {
+  const handleCanvasLayerClick = useCallback((layerId: string, event?: React.MouseEvent) => {
     if (!isPreviewMode) {
       setSelectedLayerId(layerId);
       // Switch to Layers tab when a layer is clicked on canvas
       setActiveSidebarTab('layers');
+
+      // Detect if clicked on a text style element (bold, italic, etc.)
+      if (event) {
+        let target = event.target as HTMLElement;
+        let textStyleKey: string | null = null;
+
+        // Walk up the DOM tree to find data-style attribute
+        while (target && target !== event.currentTarget) {
+          const styleAttr = target.getAttribute?.('data-style');
+          if (styleAttr) {
+            textStyleKey = styleAttr;
+            break;
+          }
+          target = target.parentElement as HTMLElement;
+        }
+
+        // Set the active text style key if found
+        setActiveTextStyleKey(textStyleKey);
+      }
     }
-  }, [isPreviewMode, setSelectedLayerId, setActiveSidebarTab]);
+  }, [isPreviewMode, setSelectedLayerId, setActiveSidebarTab, setActiveTextStyleKey]);
 
   const handleCanvasLayerUpdate = useCallback((layerId: string, updates: Partial<Layer>) => {
     if (editingComponentId) {

@@ -147,6 +147,8 @@ const RightSidebar = React.memo(function RightSidebar({
   const setInteractionHighlights = useEditorStore((state) => state.setInteractionHighlights);
   const setActiveInteraction = useEditorStore((state) => state.setActiveInteraction);
   const clearActiveInteraction = useEditorStore((state) => state.clearActiveInteraction);
+  const activeTextStyleKey = useEditorStore((state) => state.activeTextStyleKey);
+  const setActiveTextStyleKey = useEditorStore((state) => state.setActiveTextStyleKey);
 
   // Collaboration hooks - re-enabled
   const layerLocks = useLayerLocks();
@@ -1455,14 +1457,17 @@ const RightSidebar = React.memo(function RightSidebar({
 
         <hr className="mt-2" />
 
-        {/* Content */}
+        {/* Design tab */}
         <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden mt-0">
-          {/* Layer Styles Panel */}
-          <LayerStylesPanel
-            layer={selectedLayer}
-            pageId={currentPageId}
-            onLayerUpdate={handleLayerUpdate}
-          />
+
+          {/* Layer Styles Panel - only show for default layer style */}
+          {!activeTextStyleKey && (
+            <LayerStylesPanel
+              layer={selectedLayer}
+              pageId={currentPageId}
+              onLayerUpdate={handleLayerUpdate}
+            />
+          )}
 
           {/* Field Binding Panel - show for text/image layers inside a collection */}
           {selectedLayer && parentCollectionLayer && parentCollectionFields.length > 0 && selectedLayer.name === 'image' && (
@@ -1507,40 +1512,58 @@ const RightSidebar = React.memo(function RightSidebar({
           )}
 
           {activeTab === 'design' && (
-            <>
-              <UIStateSelector selectedLayer={selectedLayer} />
-            </>
+            <UIStateSelector selectedLayer={selectedLayer} />
           )}
 
-          {shouldShowControl('layout', selectedLayer) && (
+          {shouldShowControl('layout', selectedLayer) && !activeTextStyleKey && (
             <LayoutControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
           {shouldShowControl('spacing', selectedLayer) && (
-            <SpacingControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
+            <SpacingControls
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+              activeTextStyleKey={activeTextStyleKey}
+            />
           )}
 
-          {shouldShowControl('sizing', selectedLayer) && (
+          {shouldShowControl('sizing', selectedLayer) && !activeTextStyleKey && (
             <SizingControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
           {shouldShowControl('typography', selectedLayer) && (
-            <TypographyControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
+            <TypographyControls
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+              activeTextStyleKey={activeTextStyleKey}
+            />
           )}
 
           {shouldShowControl('backgrounds', selectedLayer) && (
-            <BackgroundsControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
+            <BackgroundsControls
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+              activeTextStyleKey={activeTextStyleKey}
+            />
           )}
 
           {shouldShowControl('borders', selectedLayer) && (
-            <BorderControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
+            <BorderControls
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+              activeTextStyleKey={activeTextStyleKey}
+            />
           )}
 
           {shouldShowControl('effects', selectedLayer) && (
-            <EffectControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
+            <EffectControls
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+              activeTextStyleKey={activeTextStyleKey}
+            />
           )}
 
-          {shouldShowControl('position', selectedLayer) && (
+          {shouldShowControl('position', selectedLayer) && !activeTextStyleKey && (
             <PositionControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 

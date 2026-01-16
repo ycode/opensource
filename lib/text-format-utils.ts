@@ -2,33 +2,86 @@ import React from 'react';
 import type { TextStyle, DynamicRichTextVariable } from '@/types';
 
 /**
+ * Get a human-readable label for a text style
+ * Returns the style.label if it exists, otherwise formats the key (camelCase to Title Case)
+ * @param key - The text style key (e.g., 'bold', 'bulletList')
+ * @param style - Optional TextStyle object that may contain a label
+ * @returns Formatted label string
+ */
+export function getTextStyleLabel(key: string, style?: TextStyle): string {
+  // Return the label if it exists
+  if (style?.label) {
+    return style.label;
+  }
+
+  // Convert camelCase to Title Case
+  // e.g., 'bulletList' → 'Bullet List', 'bold' → 'Bold'
+  return key
+    .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+    .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
+    .trim();
+}
+
+/**
  * Default text styles for formatting marks (bold, italic, underline, etc.)
  * Used in text element templates and can be overridden per layer
  */
 export const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
   bold: {
+    label: 'Bold',
     classes: 'font-bold',
+    design: {
+      typography: { fontWeight: 'bold' },
+    },
   },
   italic: {
-    classes: 'italic'
+    label: 'Italic',
+    classes: 'italic',
+    design: {
+      typography: { fontStyle: 'italic' },
+    },
   },
   underline: {
-    classes: 'underline'
+    label: 'Underline',
+    classes: 'underline',
+    design: {
+      typography: { textDecoration: 'underline' },
+    },
   },
   strike: {
-    classes: 'line-through'
+    label: 'Strikethrough',
+    classes: 'line-through',
+    design: {
+      typography: { textDecoration: 'line-through' },
+    },
   },
   code: {
-    classes: 'font-mono bg-muted px-1 py-0.5 rounded text-sm'
+    label: 'Code',
+    classes: 'font-mono bg-muted px-1 py-0.5 rounded text-sm',
+    design: {
+      typography: { fontFamily: 'mono', fontSize: 'sm' },
+      backgrounds: { backgroundColor: 'muted' },
+      spacing: { paddingLeft: '1', paddingRight: '1', paddingTop: '0.5', paddingBottom: '0.5' },
+      borders: { borderRadius: 'rounded' },
+    },
   },
   bulletList: {
-    classes: 'ml-2 pl-4 list-disc'
+    label: 'Bullet List',
+    classes: 'ml-2 pl-4 list-disc',
+    design: {
+      spacing: { marginLeft: '2', paddingLeft: '4' },
+    },
   },
   orderedList: {
-    classes: 'ml-2 pl-5 list-decimal'
+    label: 'Ordered List',
+    classes: 'ml-2 pl-5 list-decimal',
+    design: {
+      spacing: { marginLeft: '2', paddingLeft: '5' },
+    },
   },
   listItem: {
-    classes: ''
+    label: 'List Item',
+    classes: '',
   },
 };
 
@@ -80,11 +133,13 @@ function resolveVariableNode(
 
 /**
  * Render a text node with its marks (bold, italic, underline, strike)
+ * @param isEditMode - If true, adds data-style attributes for style selection on canvas
  */
 function renderTextNode(
   node: any,
   key: string,
-  textStyles?: Record<string, TextStyle>
+  textStyles?: Record<string, TextStyle>,
+  isEditMode = false
 ): React.ReactNode {
   let text: React.ReactNode = node.text || '';
 
@@ -95,18 +150,27 @@ function renderTextNode(
   if (node.marks && Array.isArray(node.marks)) {
     for (let i = node.marks.length - 1; i >= 0; i--) {
       const mark = node.marks[i];
+      // Build props with optional data-style for edit mode
+      const buildProps = (markKey: string, className?: string) => {
+        const props: Record<string, any> = { key: `${key}-${markKey}`, className };
+        if (isEditMode) {
+          props['data-style'] = markKey;
+        }
+        return props;
+      };
+
       switch (mark.type) {
         case 'bold':
-          text = React.createElement('strong', { key: `${key}-bold`, className: styles.bold?.classes }, text);
+          text = React.createElement('strong', buildProps('bold', styles.bold?.classes), text);
           break;
         case 'italic':
-          text = React.createElement('em', { key: `${key}-italic`, className: styles.italic?.classes }, text);
+          text = React.createElement('em', buildProps('italic', styles.italic?.classes), text);
           break;
         case 'underline':
-          text = React.createElement('u', { key: `${key}-underline`, className: styles.underline?.classes }, text);
+          text = React.createElement('u', buildProps('underline', styles.underline?.classes), text);
           break;
         case 'strike':
-          text = React.createElement('s', { key: `${key}-strike`, className: styles.strike?.classes }, text);
+          text = React.createElement('s', buildProps('strike', styles.strike?.classes), text);
           break;
       }
     }
@@ -121,18 +185,25 @@ function renderTextNode(
 function renderInlineContent(
   content: any[],
   collectionItemData?: Record<string, string>,
-  textStyles?: Record<string, TextStyle>
+  textStyles?: Record<string, TextStyle>,
+  isEditMode = false
 ): React.ReactNode[] {
   return content.map((node, idx) => {
     const key = `node-${idx}`;
 
     if (node.type === 'text') {
-      return renderTextNode(node, key, textStyles);
+      return renderTextNode(node, key, textStyles, isEditMode);
     }
 
     if (node.type === 'dynamicVariable') {
       const value = resolveVariableNode(node, collectionItemData);
-      return React.createElement('span', { key }, value);
+      // Create a text node structure with the resolved value and preserve marks
+      const textNode = {
+        type: 'text',
+        text: value,
+        marks: node.marks || [],
+      };
+      return renderTextNode(textNode, key, textStyles, isEditMode);
     }
 
     return null;
@@ -147,7 +218,8 @@ function renderBlock(
   idx: number,
   collectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
-  useSpanForParagraphs = false
+  useSpanForParagraphs = false,
+  isEditMode = false
 ): React.ReactNode {
   const key = `block-${idx}`;
   const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
@@ -161,27 +233,41 @@ function renderBlock(
     }
     // Use span with block class when inside restrictive tags
     if (useSpanForParagraphs) {
-      return React.createElement('span', { key, className: 'block' }, ...renderInlineContent(block.content, collectionItemData, textStyles));
+      return React.createElement('span', { key, className: 'block' }, ...renderInlineContent(block.content, collectionItemData, textStyles, isEditMode));
     }
-    return React.createElement('p', { key }, ...renderInlineContent(block.content, collectionItemData, textStyles));
+    return React.createElement('p', { key }, ...renderInlineContent(block.content, collectionItemData, textStyles, isEditMode));
   }
 
   if (block.type === 'bulletList') {
+    const ulProps: Record<string, any> = {
+      key,
+      className: styles.bulletList?.classes || DEFAULT_TEXT_STYLES.bulletList?.classes,
+    };
+    if (isEditMode) {
+      ulProps['data-style'] = 'bulletList';
+    }
     return React.createElement(
       'ul',
-      { key, className: styles.bulletList?.classes || DEFAULT_TEXT_STYLES.bulletList.classes },
+      ulProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, textStyles)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, textStyles, isEditMode)
       )
     );
   }
 
   if (block.type === 'orderedList') {
+    const olProps: Record<string, any> = {
+      key,
+      className: styles.orderedList?.classes || DEFAULT_TEXT_STYLES.orderedList?.classes,
+    };
+    if (isEditMode) {
+      olProps['data-style'] = 'orderedList';
+    }
     return React.createElement(
       'ol',
-      { key, className: styles.orderedList?.classes || DEFAULT_TEXT_STYLES.orderedList.classes },
+      olProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, textStyles)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, textStyles, isEditMode)
       )
     );
   }
@@ -196,7 +282,8 @@ function renderListItem(
   item: any,
   key: string,
   collectionItemData?: Record<string, string>,
-  textStyles?: Record<string, TextStyle>
+  textStyles?: Record<string, TextStyle>,
+  isEditMode = false
 ): React.ReactNode {
   if (item.type !== 'listItem') return null;
 
@@ -205,12 +292,19 @@ function renderListItem(
   const children = item.content?.flatMap((block: any, idx: number) => {
     if (block.type === 'paragraph') {
       // For list items, render paragraph content without <p> wrapper
-      return renderInlineContent(block.content || [], collectionItemData, textStyles);
+      return renderInlineContent(block.content || [], collectionItemData, textStyles, isEditMode);
     }
-    return renderBlock(block, idx, collectionItemData, textStyles);
+    return renderBlock(block, idx, collectionItemData, textStyles, false, isEditMode);
   });
 
-  return React.createElement('li', { key, className: styles.listItem?.classes || DEFAULT_TEXT_STYLES.listItem.classes }, children);
+  const liProps: Record<string, any> = {
+    key,
+    className: styles.listItem?.classes || DEFAULT_TEXT_STYLES.listItem?.classes,
+  };
+  if (isEditMode) {
+    liProps['data-style'] = 'listItem';
+  }
+  return React.createElement('li', liProps, children);
 }
 
 /**
@@ -239,12 +333,14 @@ export function hasBlockElements(variable: DynamicRichTextVariable): boolean {
 /**
  * Render DynamicRichTextVariable content to React elements
  * @param useSpanForParagraphs - If true, renders paragraphs as <span class="block"> instead of <p>
+ * @param isEditMode - If true, adds data-style attributes for style selection on canvas
  */
 export function renderRichText(
   variable: DynamicRichTextVariable,
   collectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
-  useSpanForParagraphs = false
+  useSpanForParagraphs = false,
+  isEditMode = false
 ): React.ReactNode {
   const content = variable.data.content;
 
@@ -264,11 +360,11 @@ export function renderRichText(
     if (!paragraph.content || paragraph.content.length === 0) {
       return null;
     }
-    return renderInlineContent(paragraph.content, collectionItemData, textStyles);
+    return renderInlineContent(paragraph.content, collectionItemData, textStyles, isEditMode);
   }
 
   return doc.content.map((block: any, idx: number) =>
-    renderBlock(block, idx, collectionItemData, textStyles, useSpanForParagraphs)
+    renderBlock(block, idx, collectionItemData, textStyles, useSpanForParagraphs, isEditMode)
   );
 }
 

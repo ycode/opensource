@@ -25,6 +25,7 @@ interface EditorActions {
   setSaving: (value: boolean) => void;
   setActiveBreakpoint: (breakpoint: Breakpoint) => void;
   setActiveUIState: (state: UIState) => void;
+  setActiveTextStyleKey: (key: string | null) => void;
   setEditingComponentId: (id: string | null, returnPageId?: string | null) => void;
   setBuilderDataPreloaded: (preloaded: boolean) => void;
   pushHistory: (pageId: string, layers: Layer[]) => void;
@@ -56,6 +57,7 @@ interface EditorStoreWithHistory extends EditorState {
   interactionTargetLayerIds: string[];
   activeInteractionTriggerLayerId: string | null;
   activeInteractionTargetLayerIds: string[];
+  activeTextStyleKey: string | null; // Currently active text style (e.g., 'bold', 'italic')
   collectionItemSheet: {
     open: boolean;
     collectionId: string;
@@ -95,6 +97,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   interactionTargetLayerIds: [],
   activeInteractionTriggerLayerId: null,
   activeInteractionTargetLayerIds: [],
+  activeTextStyleKey: null,
   collectionItemSheet: null,
   hoveredLayerId: null,
   isPreviewMode: false,
@@ -109,10 +112,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setSelectedLayerId: (id) => {
     console.log(`[EDITOR] setSelectedLayerId: ${id}`);
     // Legacy support - also update selectedLayerIds
+    // Clear active text style when changing layers
     set({
       selectedLayerId: id,
       selectedLayerIds: id ? [id] : [],
-      lastSelectedLayerId: id
+      lastSelectedLayerId: id,
+      activeTextStyleKey: null,
     });
   },
 
@@ -197,6 +202,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setSaving: (value) => set({ isSaving: value }),
   setActiveBreakpoint: (breakpoint) => set({ activeBreakpoint: breakpoint }),
   setActiveUIState: (state) => set({ activeUIState: state }),
+  setActiveTextStyleKey: (key) => set({ activeTextStyleKey: key }),
   setEditingComponentId: (id, returnPageId = null) => set({
     editingComponentId: id,
     returnToPageId: returnPageId,

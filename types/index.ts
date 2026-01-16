@@ -26,6 +26,7 @@ export interface TypographyDesign {
   fontSize?: string;
   fontWeight?: string;
   fontFamily?: string;
+  fontStyle?: string;
   lineHeight?: string;
   letterSpacing?: string;
   textAlign?: string;
@@ -195,6 +196,7 @@ export type TweenProperties = {
 };
 
 export interface TextStyle {
+  label?: string; // Display label for the style (e.g., "Bold", "Italic")
   classes?: string;
   design?: DesignProperties;
 }

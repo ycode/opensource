@@ -29,15 +29,17 @@ import {
 interface EffectControlsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
+  activeTextStyleKey?: string | null;
 }
 
-export default function EffectControls({ layer, onLayerUpdate }: EffectControlsProps) {
+export default function EffectControls({ layer, onLayerUpdate, activeTextStyleKey }: EffectControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
     activeUIState,
+    activeTextStyleKey,
   });
 
   // Get current values from layer (no inheritance - only exact breakpoint values)

@@ -22,15 +22,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 interface BorderControlsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
+  activeTextStyleKey?: string | null;
 }
 
-export default function BorderControls({ layer, onLayerUpdate }: BorderControlsProps) {
+export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKey }: BorderControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, updateDesignProperties, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
     activeUIState,
+    activeTextStyleKey,
   });
 
   // Get current values from layer (with inheritance)

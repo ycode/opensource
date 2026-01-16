@@ -23,17 +23,40 @@ interface UseDesignSyncProps {
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
   activeBreakpoint?: Breakpoint; // Optional for backward compatibility
   activeUIState?: UIState; // Optional UI state for state-specific styling
+  activeTextStyleKey?: string | null; // Optional text style key for editing text style design
 }
 
 export function useDesignSync({
   layer,
   onLayerUpdate,
   activeBreakpoint = 'desktop',
-  activeUIState = 'neutral'
+  activeUIState = 'neutral',
+  activeTextStyleKey = null
 }: UseDesignSyncProps) {
+  // Determine if we're editing a text style or the layer itself
+  const isTextStyleMode = !!activeTextStyleKey;
+  
+  // Get the current design and classes source (layer or text style)
+  const getDesignSource = useCallback(() => {
+    if (!layer) return { design: undefined, classes: '' };
+    
+    if (isTextStyleMode && activeTextStyleKey) {
+      const textStyle = layer.textStyles?.[activeTextStyleKey];
+      return {
+        design: textStyle?.design,
+        classes: textStyle?.classes || '',
+      };
+    }
+    
+    return {
+      design: layer.design,
+      classes: Array.isArray(layer.classes) ? layer.classes.join(' ') : (layer.classes || ''),
+    };
+  }, [layer, isTextStyleMode, activeTextStyleKey]);
   /**
    * Update a single design property and sync to classes
    * Applies breakpoint-aware class prefixes based on active viewport
+   * Supports text style mode (updates layer.textStyles[key] instead of layer)
    */
   const updateDesignProperty = useCallback(
     (
@@ -43,7 +66,53 @@ export function useDesignSync({
     ) => {
       if (!layer) return;
 
-      // 1. Update design object
+      // Text Style Mode: Update layer.textStyles[key]
+      if (isTextStyleMode && activeTextStyleKey) {
+        const currentTextStyles = layer.textStyles || {};
+        const currentTextStyle = currentTextStyles[activeTextStyleKey] || {};
+        const currentDesign = currentTextStyle.design || {};
+        const categoryData = currentDesign[category] || {};
+
+        const updatedDesign = {
+          ...currentDesign,
+          [category]: {
+            ...categoryData,
+            [property]: value,
+            isActive: true,
+          },
+        };
+
+        if (!value) {
+          delete updatedDesign[category]![property as keyof typeof categoryData];
+        }
+
+        // Update classes within the text style
+        const newClass = value ? propertyToClass(category, property, value) : null;
+        const existingClasses = (currentTextStyle.classes || '').split(' ').filter(Boolean);
+        const updatedClasses = setBreakpointClass(
+          existingClasses,
+          property,
+          newClass,
+          activeBreakpoint,
+          activeUIState
+        );
+
+        const updatedTextStyle = {
+          ...currentTextStyle,
+          design: updatedDesign,
+          classes: updatedClasses.join(' '),
+        };
+
+        onLayerUpdate(layer.id, {
+          textStyles: {
+            ...currentTextStyles,
+            [activeTextStyleKey]: updatedTextStyle,
+          },
+        });
+        return;
+      }
+
+      // Normal Mode: Update layer directly
       const currentDesign = layer.design || {};
       const categoryData = currentDesign[category] || {};
 
@@ -91,7 +160,7 @@ export function useDesignSync({
 
       onLayerUpdate(layer.id, finalUpdate);
     },
-    [layer, onLayerUpdate, activeBreakpoint, activeUIState]
+    [layer, onLayerUpdate, activeBreakpoint, activeUIState, isTextStyleMode, activeTextStyleKey]
   );
 
   /**
@@ -162,7 +231,28 @@ export function useDesignSync({
     ): string | undefined => {
       if (!layer) return undefined;
 
-      // Get classes as array
+      // Text Style Mode: Read from layer.textStyles[key]
+      if (isTextStyleMode && activeTextStyleKey) {
+        const textStyle = layer.textStyles?.[activeTextStyleKey];
+        const classes = (textStyle?.classes || '').split(' ').filter(Boolean);
+
+        if (classes.length === 0) {
+          // Fallback to design object if no classes
+          if (!textStyle?.design?.[category]) return undefined;
+          const categoryData = textStyle.design[category] as Record<string, any>;
+          return categoryData[property];
+        }
+
+        const { value: inheritedClass } = getInheritedValue(classes, property, activeBreakpoint, activeUIState);
+        if (!inheritedClass) return undefined;
+
+        const arbitraryMatch = inheritedClass.match(/\[([^\]]+)\]/);
+        if (arbitraryMatch) return arbitraryMatch[1];
+
+        return mapClassToDesignValue(inheritedClass, property);
+      }
+
+      // Normal Mode: Read from layer
       const classes = Array.isArray(layer.classes)
         ? layer.classes
         : (layer.classes || '').split(' ').filter(Boolean);
@@ -198,7 +288,7 @@ export function useDesignSync({
 
       return mapClassToDesignValue(inheritedClass, property);
     },
-    [layer, activeBreakpoint, activeUIState]
+    [layer, activeBreakpoint, activeUIState, isTextStyleMode, activeTextStyleKey]
   );
 
   /**

@@ -18,15 +18,17 @@ import ColorPicker from './ColorPicker';
 interface TypographyControlsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
+  activeTextStyleKey?: string | null;
 }
 
-export default function TypographyControls({ layer, onLayerUpdate }: TypographyControlsProps) {
+export default function TypographyControls({ layer, onLayerUpdate, activeTextStyleKey }: TypographyControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
   const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
     activeBreakpoint,
     activeUIState,
+    activeTextStyleKey,
   });
 
   // Get current values from layer (with inheritance)
