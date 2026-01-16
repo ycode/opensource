@@ -75,6 +75,7 @@ interface LayerRowProps {
   selectedLayerId: string | null; // Added for context menu
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
+  scrollToSelected?: boolean; // New: trigger scroll when selected
 }
 
 // Helper to check if a node is a descendant of another
@@ -111,6 +112,7 @@ function LayerRow({
   selectedLayerId,
   liveLayerUpdates,
   liveComponentUpdates,
+  scrollToSelected,
 }: LayerRowProps) {
   const { getStyleById } = useLayerStylesStore();
   const { getComponentById } = useComponentsStore();
@@ -131,11 +133,26 @@ function LayerRow({
     id: node.id,
   });
 
+  // Ref for scrolling to this element
+  const rowRef = React.useRef<HTMLDivElement>(null);
+
   // Combine refs for drag and drop
   const setRefs = (element: HTMLDivElement | null) => {
     setDragRef(element);
     setDropRef(element);
+    rowRef.current = element;
   };
+
+  // Auto-scroll to this row when it becomes selected (from canvas click)
+  React.useEffect(() => {
+    if (isSelected && scrollToSelected && rowRef.current) {
+      rowRef.current.scrollIntoView({
+        behavior: 'auto', // Instant jump for immediate feedback
+        block: 'center', // Center in viewport to avoid sticky header
+        inline: 'nearest',
+      });
+    }
+  }, [isSelected, scrollToSelected]);
 
   const hasChildren = node.layer.children && node.layer.children.length > 0;
   const isCollapsed = node.collapsed || false;
@@ -566,6 +583,7 @@ export default function LayersTree({
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => collectCollapsedIds(layers));
   const [cursorOffsetY, setCursorOffsetY] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [shouldScrollToSelected, setShouldScrollToSelected] = useState(false);
 
   // Pull multi-select state from editor store
   const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange, editingComponentId } = useEditorStore();
@@ -735,7 +753,11 @@ export default function LayersTree({
 
     // Check if layer is already visible
     const isVisible = flattenedNodes.some(n => n.id === selectedLayerId);
-    if (isVisible) return;
+    if (isVisible) {
+      // Already visible - just trigger scroll
+      setShouldScrollToSelected(true);
+      return;
+    }
 
     // Find which parents need to be expanded
     const parentChain = findParentChain(layers, selectedLayerId);
@@ -747,7 +769,19 @@ export default function LayersTree({
     // Expand all collapsed parents in one pass
     const updatedLayers = setLayersOpen(layers, new Set(parentsToExpand));
     onReorder(updatedLayers);
+    
+    // Trigger scroll after expansion (will happen after re-render)
+    setShouldScrollToSelected(true);
   }, [selectedLayerId, flattenedNodes, collapsedIds, layers, onReorder]);
+
+  // Reset scroll trigger after it's been applied
+  useEffect(() => {
+    if (shouldScrollToSelected) {
+      // Reset after a short delay to allow the scroll to complete
+      const timeout = setTimeout(() => setShouldScrollToSelected(false), 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [shouldScrollToSelected]);
 
   // Pull hover state management from editor store
   const { setHoveredLayerId: setHoveredLayerIdFromStore } = useEditorStore();
@@ -1342,6 +1376,7 @@ export default function LayersTree({
               selectedLayerId={selectedLayerId}
               liveLayerUpdates={liveLayerUpdates}
               liveComponentUpdates={liveComponentUpdates}
+              scrollToSelected={shouldScrollToSelected}
             />
           );
         })}
