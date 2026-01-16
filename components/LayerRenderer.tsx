@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import LayerLockIndicator from '@/components/collaboration/LayerLockIndicator';
@@ -248,6 +248,70 @@ const LayerItem: React.FC<{
       useSpanForParagraphs = true;
     }
   }
+
+  // Code Embed iframe ref and effect - must be at component level
+  const htmlEmbedIframeRef = React.useRef<HTMLIFrameElement>(null);
+  const htmlEmbedCode = layer.name === 'htmlEmbed'
+    ? (layer.settings?.htmlEmbed?.code || '<div>Add your custom code here</div>')
+    : '';
+
+  // Handle HTML embed iframe initialization and auto-resizing
+  useEffect(() => {
+    if (layer.name !== 'htmlEmbed' || !htmlEmbedIframeRef.current) return;
+
+    const iframe = htmlEmbedIframeRef.current;
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+
+    if (!iframeDoc) return;
+
+    // Create a complete HTML document inside iframe
+    iframeDoc.open();
+    iframeDoc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+          }
+        </style>
+      </head>
+      <body>
+        ${htmlEmbedCode}
+      </body>
+      </html>
+    `);
+    iframeDoc.close();
+
+    // Auto-resize iframe to match content height
+    const updateHeight = () => {
+      if (iframeDoc.body) {
+        const height = iframeDoc.body.scrollHeight;
+        iframe.style.height = `${height}px`;
+      }
+    };
+
+    // Initial height update
+    updateHeight();
+
+    // Watch for content size changes
+    const resizeObserver = new ResizeObserver(updateHeight);
+    if (iframeDoc.body) {
+      resizeObserver.observe(iframeDoc.body);
+    }
+
+    // Fallback: Update height periodically for dynamic content
+    const interval = setInterval(updateHeight, 100);
+
+    return () => {
+      resizeObserver.disconnect();
+      clearInterval(interval);
+    };
+  }, [htmlEmbedCode, layer.name]);
 
   // Resolve text and image URLs with field binding support
   const textContent = (() => {
@@ -711,6 +775,27 @@ const LayerItem: React.FC<{
           {...elementProps}
           data-icon="true"
           dangerouslySetInnerHTML={{ __html: iconHtml }}
+        />
+      );
+    }
+
+    // Handle Code Embed layers - Framer-style iframe isolation
+    if (layer.name === 'htmlEmbed') {
+      return (
+        <iframe
+          ref={htmlEmbedIframeRef}
+          data-layer-id={layer.id}
+          data-layer-type="htmlEmbed"
+          data-html-embed="true"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+          className={fullClassName}
+          style={{
+            width: '100%',
+            border: 'none',
+            display: 'block',
+            ...mergedStyle,
+          }}
+          title={`Code Embed ${layer.id}`}
         />
       );
     }

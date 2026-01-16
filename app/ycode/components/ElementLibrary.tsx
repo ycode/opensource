@@ -43,7 +43,7 @@ const elementCategories: Record<string, string[]> = {
   Actions: ['button', 'link'],
   Media: ['image', 'icon', 'video', 'audio'],
   Form: ['form', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label'],
-  Utilities: ['localeSelector'],
+  Utilities: ['localeSelector', 'htmlEmbed'],
 };
 
 export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements', liveLayerUpdates }: ElementLibraryProps) {

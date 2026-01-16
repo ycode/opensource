@@ -149,4 +149,55 @@ export const utilityTemplates: Record<string, BlockTemplate> = {
       },
     }),
   },
+
+  htmlEmbed: {
+    icon: 'code',
+    name: 'Code',
+    template: {
+      name: 'htmlEmbed',
+      classes: ['w-full'],
+      settings: {
+        tag: 'div',
+        htmlEmbed: {
+          code: `<!-- Example: Tailwind CSS + JavaScript -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<div class="p-6 rounded-xl border border-gray-200 bg-white shadow-sm w-full">
+  <h2 class="text-xl font-semibold">Custom Code Embed</h2>
+  <p class="text-sm text-gray-500 mt-1">
+    Add your HTML, CSS, and JavaScript here
+  </p>
+
+  <button
+    id="btn"
+    class="mt-4 px-4 py-2 rounded-lg bg-black text-white text-sm font-medium hover:opacity-90"
+  >
+    Click me
+  </button>
+
+  <div id="output" class="mt-2 text-sm text-gray-600">
+    Ready
+  </div>
+</div>
+
+<script>
+  const btn = document.getElementById("btn");
+  const output = document.getElementById("output");
+  let clicks = 0;
+
+  btn.addEventListener("click", () => {
+    clicks++;
+    output.textContent = \`Clicked \${clicks} times!\`;
+  });
+</script>`,
+        },
+      },
+      design: {
+        sizing: {
+          isActive: true,
+          width: '100%',
+        },
+      },
+    },
+  },
 };
