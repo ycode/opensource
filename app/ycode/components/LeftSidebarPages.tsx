@@ -201,6 +201,11 @@ export default function LeftSidebarPages({
           navigateToLayers(result.data.id, urlState.view || undefined, urlState.rightTab || undefined, urlState.layerId || undefined);
         }
 
+        // Automatically open Page settings panel for the newly created page
+        setEditingPage(result.data);
+        setShowPageSettings(true);
+        setShowFolderSettings(false);
+
         // Broadcast page creation to other collaborators
         if (livePageUpdates && result.data) {
           livePageUpdates.broadcastPageCreate(result.data);
@@ -258,6 +263,11 @@ export default function LeftSidebarPages({
         if (selectedItemIdRef.current === result.tempId) {
           setSelectedItemId(result.data.id);
         }
+
+        // Automatically open Folder settings panel for the newly created folder
+        setEditingFolder(result.data);
+        setShowFolderSettings(true);
+        setShowPageSettings(false);
       } else if (result.error) {
         console.error('Error creating folder:', result.error);
       }
@@ -297,12 +307,12 @@ export default function LeftSidebarPages({
     if (!canProceed) {
       return;
     }
-    
+
     // Clear layer selection FIRST to release lock on current page's channel
     // before switching to the new page's channel
     const { setSelectedLayerId } = useEditorStore.getState();
     setSelectedLayerId(null);
-    
+
     // Immediate UI feedback - selection updates instantly
     setSelectedItemId(pageId);
 

@@ -80,12 +80,22 @@ const LeftSidebar = React.memo(function LeftSidebar({
 
   // Local state for instant tab switching - syncs with URL but allows immediate UI feedback
   const [localActiveTab, setLocalActiveTab] = useState<EditorTab>(sidebarTab);
+  
+  // Read the store's activeSidebarTab
+  const storeSidebarTab = useEditorStore((state) => state.activeSidebarTab);
 
   // Sync local tab with URL when URL changes (e.g., from navigation or page load)
   useEffect(() => {
     setLocalActiveTab(sidebarTab);
     setActiveSidebarTab(sidebarTab);
   }, [sidebarTab, setActiveSidebarTab]);
+  
+  // Sync local tab with store when store changes (e.g., from canvas layer click)
+  useEffect(() => {
+    if (storeSidebarTab && storeSidebarTab !== localActiveTab) {
+      setLocalActiveTab(storeSidebarTab);
+    }
+  }, [storeSidebarTab]);
 
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
   const getComponentById = useComponentsStore((state) => state.getComponentById);

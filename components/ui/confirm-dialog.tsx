@@ -69,7 +69,7 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <DialogDescription>{description}</DialogDescription>
-        <DialogFooter>
+        <DialogFooter className="sm:justify-between">
           <Button
             variant={confirmVariant}
             size="sm"
@@ -77,22 +77,24 @@ export function ConfirmDialog({
           >
             {confirmLabel}
           </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleCancel}
-          >
-            {cancelLabel}
-          </Button>
-          {saveLabel && onSave && (
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <Button
-              variant="default"
+              variant="secondary"
               size="sm"
-              onClick={handleSave}
+              onClick={handleCancel}
             >
-              {saveLabel}
+              {cancelLabel}
             </Button>
-          )}
+            {saveLabel && onSave && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleSave}
+              >
+                {saveLabel}
+              </Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

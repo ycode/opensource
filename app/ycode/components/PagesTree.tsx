@@ -8,6 +8,7 @@ import PageContextMenu from './PageContextMenu';
 import type { Page, PageFolder } from '@/types';
 import { cn } from '@/lib/utils';
 import { useTreeDragDrop, type DropPositionCalculation } from '@/hooks/use-tree-drag-drop';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface PagesTreeProps {
   pages: Page[];
@@ -220,17 +221,78 @@ function PageRow({
           {getNodeDisplayName(node)}
         </span>
 
-        {/* Settings button (for pages only) */}
+        {/* Settings dropdown (for pages and folders) */}
         {onSettings && (
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
-              onSettings(node.data as Page | PageFolder);
-            }}
-            className="opacity-0 group-hover:opacity-80 hover:opacity-100 transition-opacity mr-2.5 cursor-pointer"
-          >
-            <Icon name="dotsHorizontal" className="size-3" />
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                className="opacity-0 group-hover:opacity-80 hover:opacity-100 transition-opacity mr-2.5 cursor-pointer"
+              >
+                <Icon name="dotsHorizontal" className="size-3" />
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="right" align="start"
+              className="w-44"
+            >
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSettings(node.data as Page | PageFolder);
+                }}
+              >
+                {node.type === 'page' ? 'Page settings' : 'Folder settings'}
+              </DropdownMenuItem>
+              
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onDuplicate) {
+                    onDuplicate(node.id, node.type);
+                  }
+                }}
+                disabled={
+                  !onDuplicate ||
+                  (node.type === 'page' && (node.data as Page).is_dynamic) ||
+                  (node.type === 'page' && (node.data as Page).error_page !== null)
+                }
+              >
+                Duplicate
+              </DropdownMenuItem>
+              
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onDelete) {
+                    onDelete(node.id, node.type);
+                  }
+                }}
+                disabled={
+                  !onDelete ||
+                  (node.type === 'page' && isHomepage(node.data as Page)) ||
+                  (node.type === 'page' && (node.data as Page).error_page !== null) ||
+                  node.id.startsWith('temp-page-') ||
+                  node.id.startsWith('temp-folder-')
+                }
+                variant={
+                  !onDelete ||
+                  (node.type === 'page' && isHomepage(node.data as Page)) ||
+                  (node.type === 'page' && (node.data as Page).error_page !== null) ||
+                  node.id.startsWith('temp-page-') ||
+                  node.id.startsWith('temp-folder-')
+                    ? 'default'
+                    : 'destructive'
+                }
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
     </div>

@@ -141,6 +141,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds);
   const clearSelection = useEditorStore((state) => state.clearSelection);
+  const setActiveSidebarTab = useEditorStore((state) => state.setActiveSidebarTab);
 
   const selectedLocaleId = useLocalisationStore((state) => state.selectedLocaleId);
   const getSelectedLocale = useLocalisationStore((state) => state.getSelectedLocale);
@@ -182,6 +183,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
       loadDraft(currentPageId);
     }
   }, [currentPageId, loadDraft, draftsByPageId]);
+
+  // Reset content height when page changes to force Canvas to recalculate
+  useEffect(() => {
+    setReportedContentHeight(0);
+  }, [currentPageId]);
 
   const getDropdownItems = useCollectionsStore((state) => state.getDropdownItems);
   const collectionItemsFromStore = useCollectionsStore((state) => state.items);
@@ -555,8 +561,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const handleCanvasLayerClick = useCallback((layerId: string, metaKey?: boolean, shiftKey?: boolean) => {
     if (!isPreviewMode) {
       setSelectedLayerId(layerId);
+      // Switch to Layers tab when a layer is clicked on canvas
+      setActiveSidebarTab('layers');
     }
-  }, [isPreviewMode, setSelectedLayerId]);
+  }, [isPreviewMode, setSelectedLayerId, setActiveSidebarTab]);
 
   const handleCanvasLayerUpdate = useCallback((layerId: string, updates: Partial<Layer>) => {
     if (editingComponentId) {
