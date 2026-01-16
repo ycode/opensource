@@ -13,7 +13,7 @@
  */
 
 // 1. React/Next.js
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 
 // 2. External libraries
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
@@ -513,6 +513,42 @@ function updateLayerOpenState(layers: Layer[], layerId: string, isOpen: boolean)
   });
 }
 
+// Helper to find a layer's parent chain in the tree
+function findParentChain(layers: Layer[], targetId: string, parentId: string | null = null): string[] | null {
+  for (const layer of layers) {
+    if (layer.id === targetId) {
+      return parentId ? [parentId] : [];
+    }
+    
+    if (layer.children) {
+      const childResult = findParentChain(layer.children, targetId, layer.id);
+      if (childResult !== null) {
+        return parentId ? [parentId, ...childResult] : childResult;
+      }
+    }
+  }
+  
+  return null;
+}
+
+// Helper to batch update multiple layers' open state
+function setLayersOpen(layers: Layer[], idsToOpen: Set<string>): Layer[] {
+  return layers.map(layer => {
+    const shouldOpen = idsToOpen.has(layer.id);
+    const hasChildren = layer.children && layer.children.length > 0;
+    
+    if (shouldOpen || hasChildren) {
+      return {
+        ...layer,
+        ...(shouldOpen && { open: true }),
+        ...(hasChildren && { children: setLayersOpen(layer.children!, idsToOpen) }),
+      };
+    }
+    
+    return layer;
+  });
+}
+
 // Main LayersTree Component
 export default function LayersTree({
   layers,
@@ -683,6 +719,35 @@ export default function LayersTree({
     window.addEventListener('expandLayer', handleExpandLayer as EventListener);
     return () => window.removeEventListener('expandLayer', handleExpandLayer as EventListener);
   }, [collapsedIds, layers, onReorder]);
+
+  // Track previous selectedLayerId to only run when it actually changes
+  const prevSelectedLayerIdRef = useRef<string | null>(null);
+
+  // Auto-expand parents when layer is selected (e.g., from canvas click)
+  useEffect(() => {
+    // Only run if selectedLayerId actually changed
+    if (!selectedLayerId || prevSelectedLayerIdRef.current === selectedLayerId) {
+      prevSelectedLayerIdRef.current = selectedLayerId;
+      return;
+    }
+    
+    prevSelectedLayerIdRef.current = selectedLayerId;
+
+    // Check if layer is already visible
+    const isVisible = flattenedNodes.some(n => n.id === selectedLayerId);
+    if (isVisible) return;
+
+    // Find which parents need to be expanded
+    const parentChain = findParentChain(layers, selectedLayerId);
+    if (!parentChain) return;
+
+    const parentsToExpand = parentChain.filter(id => collapsedIds.has(id));
+    if (parentsToExpand.length === 0) return;
+
+    // Expand all collapsed parents in one pass
+    const updatedLayers = setLayersOpen(layers, new Set(parentsToExpand));
+    onReorder(updatedLayers);
+  }, [selectedLayerId, flattenedNodes, collapsedIds, layers, onReorder]);
 
   // Pull hover state management from editor store
   const { setHoveredLayerId: setHoveredLayerIdFromStore } = useEditorStore();

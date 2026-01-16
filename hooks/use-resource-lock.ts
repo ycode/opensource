@@ -120,44 +120,48 @@ export function useResourceLock({
           }
         });
         
-        await channel.subscribe();
-        channelRef.current = channel;
-        
-        const myUserId = currentUserIdRef.current;
-        
-        // Request current locks from all connected users
-        await channel.send({
-          type: 'broadcast',
-          event: `${resourceType}_request_locks`,
-          payload: { userId: myUserId }
+        // Subscribe to the channel
+        channel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            const myUserId = currentUserIdRef.current;
+            
+            // Request current locks from all connected users
+            channel.send({
+              type: 'broadcast',
+              event: `${resourceType}_request_locks`,
+              payload: { userId: myUserId }
+            });
+            
+            // Re-broadcast any locks this user currently holds
+            // This handles the race condition where locks were acquired before channel was ready
+            if (myUserId) {
+              const { resourceLocks, currentUserColor: myColor } = useCollaborationPresenceStore.getState();
+              const myLocks = Object.entries(resourceLocks)
+                .filter(([key, lock]) => 
+                  key.startsWith(`${resourceType}:`) && 
+                  lock.user_id === myUserId &&
+                  Date.now() <= lock.expires_at
+                );
+              
+              for (const [key] of myLocks) {
+                const resourceId = key.replace(`${resourceType}:`, '');
+                channel.send({
+                  type: 'broadcast',
+                  event: `${resourceType}_lock_acquired`,
+                  payload: {
+                    resourceId,
+                    userId: myUserId,
+                    userEmail: userRef.current?.email,
+                    userColor: myColor,
+                    timestamp: Date.now()
+                  }
+                });
+              }
+            }
+          }
         });
         
-        // Re-broadcast any locks this user currently holds
-        // This handles the race condition where locks were acquired before channel was ready
-        if (myUserId) {
-          const { resourceLocks, currentUserColor: myColor } = useCollaborationPresenceStore.getState();
-          const myLocks = Object.entries(resourceLocks)
-            .filter(([key, lock]) => 
-              key.startsWith(`${resourceType}:`) && 
-              lock.user_id === myUserId &&
-              Date.now() <= lock.expires_at
-            );
-          
-          for (const [key] of myLocks) {
-            const resourceId = key.replace(`${resourceType}:`, '');
-            await channel.send({
-              type: 'broadcast',
-              event: `${resourceType}_lock_acquired`,
-              payload: {
-                resourceId,
-                userId: myUserId,
-                userEmail: userRef.current?.email,
-                userColor: myColor,
-                timestamp: Date.now()
-              }
-            });
-          }
-        }
+        channelRef.current = channel;
       } catch (error) {
         console.error(`Failed to initialize ${resourceType} lock channel:`, error);
       }
