@@ -2094,6 +2094,44 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
     attrs.push('data-icon="true"');
   }
 
+  // Handle Code Embed layers - render as iframe for SSR
+  if (layer.name === 'htmlEmbed') {
+    const htmlEmbedCode = layer.settings?.htmlEmbed?.code || '<div>Add your custom code here</div>';
+    
+    // Create a complete HTML document for iframe srcdoc
+    const iframeContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  ${htmlEmbedCode}
+</body>
+</html>`;
+    
+    // Escape the HTML for srcdoc attribute
+    const escapedIframeContent = iframeContent
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;');
+    
+    attrs.push('data-html-embed="true"');
+    attrs.push(`srcdoc="${escapedIframeContent}"`);
+    attrs.push('sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"');
+    attrs.push('style="width: 100%; border: none; display: block;"');
+    attrs.push(`title="Code Embed ${layer.id}"`);
+    
+    const attrsStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
+    return `<iframe${attrsStr}></iframe>`;
+  }
+
   // Handle links (variables structure)
   if (tag === 'a') {
     const linkHref = layer.variables?.link?.href;

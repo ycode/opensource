@@ -33,6 +33,7 @@ import ImageSettings from './ImageSettings';
 import VideoSettings from './VideoSettings';
 import AudioSettings from './AudioSettings';
 import IconSettings from './IconSettings';
+import HTMLEmbedSettings from './HTMLEmbedSettings';
 import InputWithInlineVariables from './InputWithInlineVariables';
 import InteractionsPanel from './InteractionsPanel';
 import LayoutControls from './LayoutControls';
@@ -2117,6 +2118,11 @@ const RightSidebar = React.memo(function RightSidebar({
             />
 
             <IconSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+            />
+
+            <HTMLEmbedSettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
             />

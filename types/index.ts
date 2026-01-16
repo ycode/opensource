@@ -130,6 +130,9 @@ export interface LayerSettings {
   locale?: {
     format?: 'locale' | 'code'; // Display format for locale selector (`locale` => 'English', `code` => 'EN')
   };
+  htmlEmbed?: {
+    code?: string; // Custom HTML code to embed
+  };
 }
 
 // Layer Style Types
