@@ -716,7 +716,26 @@ const LayerItem: React.FC<{
           }
         };
         elementProps.onMouseLeave = (e: React.MouseEvent) => {
-          e.stopPropagation();
+          // Don't stop propagation - allow parent to detect mouse entry
+          // Use mouse coordinates to find which element is actually under the cursor
+          // Use the event target's owner document (iframe's document)
+          const doc = (e.currentTarget as HTMLElement).ownerDocument;
+          const { clientX, clientY } = e;
+          const elementUnderMouse = doc?.elementFromPoint(clientX, clientY);
+
+          if (elementUnderMouse) {
+            // Find the closest layer element
+            const targetLayerElement = elementUnderMouse.closest('[data-layer-id]') as HTMLElement | null;
+            if (targetLayerElement) {
+              const targetLayerId = targetLayerElement.getAttribute('data-layer-id');
+              if (targetLayerId && targetLayerId !== layer.id) {
+                onLayerHover(targetLayerId);
+                return;
+              }
+            }
+          }
+
+          // Not moving to a layer - clear hover
           onLayerHover(null);
         };
       }
