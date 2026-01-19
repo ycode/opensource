@@ -726,13 +726,13 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                 <EmptyDescription>Pre-built page layouts will appear here</EmptyDescription>
               </Empty>
             ) : (
-              <div className="flex flex-col pb-5">
+              <div className="flex flex-col divide-y pb-5">
                 {Object.entries(getLayoutsByCategory()).map(([category, layoutKeys]) => (
                   <div key={category} className="flex flex-col pb-5">
-                    <div className="py-5">
+                    <header className="py-5">
                       <Label>{category}</Label>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3">
+                    </header>
+                    <div className="grid grid-cols-1 gap-1.5">
                       {layoutKeys.map((layoutKey) => {
                         const previewImage = getLayoutPreviewImage(layoutKey);
 
