@@ -55,6 +55,20 @@ export const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
       typography: { textDecoration: 'line-through' },
     },
   },
+  subscript: {
+    label: 'Subscript',
+    classes: 'align-sub',
+    design: {
+      typography: { verticalAlign: 'sub' },
+    },
+  },
+  superscript: {
+    label: 'Superscript',
+    classes: 'align-super',
+    design: {
+      typography: { verticalAlign: 'super' },
+    },
+  },
   code: {
     label: 'Code',
     classes: 'font-mono bg-muted px-1 py-0.5 rounded text-sm',
@@ -171,6 +185,12 @@ function renderTextNode(
           break;
         case 'strike':
           text = React.createElement('s', buildProps('strike', styles.strike?.classes), text);
+          break;
+        case 'subscript':
+          text = React.createElement('sub', buildProps('subscript', styles.subscript?.classes), text);
+          break;
+        case 'superscript':
+          text = React.createElement('sup', buildProps('superscript', styles.superscript?.classes), text);
           break;
       }
     }

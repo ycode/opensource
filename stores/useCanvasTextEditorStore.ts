@@ -25,6 +25,8 @@ interface CanvasTextEditorState {
     italic: boolean;
     underline: boolean;
     strike: boolean;
+    subscript: boolean;
+    superscript: boolean;
     bulletList: boolean;
     orderedList: boolean;
   };
@@ -53,6 +55,10 @@ interface CanvasTextEditorActions {
   toggleUnderline: () => void;
   /** Toggle strikethrough formatting */
   toggleStrike: () => void;
+  /** Toggle subscript formatting */
+  toggleSubscript: () => void;
+  /** Toggle superscript formatting */
+  toggleSuperscript: () => void;
   /** Toggle bullet list */
   toggleBulletList: () => void;
   /** Toggle ordered list */
@@ -79,6 +85,8 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     italic: false,
     underline: false,
     strike: false,
+    subscript: false,
+    superscript: false,
     bulletList: false,
     orderedList: false,
   },
@@ -111,6 +119,8 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
         italic: false,
         underline: false,
         strike: false,
+        subscript: false,
+        superscript: false,
         bulletList: false,
         orderedList: false,
       },
@@ -136,6 +146,8 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
       italic: editor.isActive('italic'),
       underline: editor.isActive('underline'),
       strike: editor.isActive('strike'),
+      subscript: editor.isActive('subscript'),
+      superscript: editor.isActive('superscript'),
       bulletList: editor.isActive('bulletList'),
       orderedList: editor.isActive('orderedList'),
     };
@@ -155,6 +167,10 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
       textStyleKey = 'underline';
     } else if (activeMarks.strike) {
       textStyleKey = 'strike';
+    } else if (activeMarks.subscript) {
+      textStyleKey = 'subscript';
+    } else if (activeMarks.superscript) {
+      textStyleKey = 'superscript';
     } else if (activeMarks.bulletList) {
       textStyleKey = 'bulletList';
     } else if (activeMarks.orderedList) {
@@ -189,6 +205,20 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     const { editor } = get();
     if (!editor) return;
     editor.chain().focus().toggleStrike().run();
+    get().updateActiveMarks();
+  },
+
+  toggleSubscript: () => {
+    const { editor } = get();
+    if (!editor) return;
+    editor.chain().focus().toggleSubscript().run();
+    get().updateActiveMarks();
+  },
+
+  toggleSuperscript: () => {
+    const { editor } = get();
+    if (!editor) return;
+    editor.chain().focus().toggleSuperscript().run();
     get().updateActiveMarks();
   },
 

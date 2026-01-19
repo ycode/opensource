@@ -43,6 +43,8 @@
     "@tiptap/core": "^3.10.5",
     "@tiptap/extension-heading": "^3.10.7",
     "@tiptap/extension-placeholder": "^3.11.0",
+    "@tiptap/extension-subscript": "^3.15.3",
+    "@tiptap/extension-superscript": "^3.15.3",
     "@tiptap/pm": "^3.10.5",
     "@tiptap/react": "^3.10.7",
     "@tiptap/starter-kit": "^3.10.7",
@@ -87,7 +89,9 @@
   "overrides": {
     "punycode": "$punycode",
     "whatwg-url": "^14.2.0",
-    "tr46": "^5.1.0"
+    "tr46": "^5.1.0",
+    "diff": ">=8.0.3",
+    "glob": ">=10.4.6"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

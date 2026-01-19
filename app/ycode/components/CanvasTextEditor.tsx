@@ -21,6 +21,8 @@ import Bold from '@tiptap/extension-bold';
 import Italic from '@tiptap/extension-italic';
 import Underline from '@tiptap/extension-underline';
 import Strike from '@tiptap/extension-strike';
+import Subscript from '@tiptap/extension-subscript';
+import Superscript from '@tiptap/extension-superscript';
 import BulletList from '@tiptap/extension-bullet-list';
 import OrderedList from '@tiptap/extension-ordered-list';
 import ListItem from '@tiptap/extension-list-item';
@@ -231,6 +233,34 @@ function createStrikeExtension(textStyles?: Record<string, TextStyle>) {
 }
 
 /**
+ * Create custom Subscript extension with layer textStyles class
+ */
+function createSubscriptExtension(textStyles?: Record<string, TextStyle>) {
+  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
+  const subscriptClass = styles.subscript?.classes || 'align-sub';
+
+  return Subscript.extend({
+    renderHTML({ HTMLAttributes }) {
+      return ['sub', mergeAttributes(HTMLAttributes, { class: subscriptClass }), 0];
+    },
+  });
+}
+
+/**
+ * Create custom Superscript extension with layer textStyles class
+ */
+function createSuperscriptExtension(textStyles?: Record<string, TextStyle>) {
+  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
+  const superscriptClass = styles.superscript?.classes || 'align-super';
+
+  return Superscript.extend({
+    renderHTML({ HTMLAttributes }) {
+      return ['sup', mergeAttributes(HTMLAttributes, { class: superscriptClass }), 0];
+    },
+  });
+}
+
+/**
  * Create custom BulletList extension with layer textStyles class
  */
 function createBulletListExtension(textStyles?: Record<string, TextStyle>) {
@@ -306,6 +336,8 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     createItalicExtension(textStyles),
     createUnderlineExtension(textStyles),
     createStrikeExtension(textStyles),
+    createSubscriptExtension(textStyles),
+    createSuperscriptExtension(textStyles),
     createBulletListExtension(textStyles),
     createOrderedListExtension(textStyles),
     createListItemExtension(textStyles),
@@ -384,14 +416,21 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
 
   // Focus editor on mount
   useEffect(() => {
-    if (editor && editor.view) {
-      setTimeout(() => {
-        try {
-          editor.commands.focus('end');
-        } catch (error) {
-          console.warn('Failed to focus editor:', error);
+    if (editor) {
+      // Wait for the view to be fully mounted
+      const checkAndFocus = () => {
+        if (editor.view && editor.view.dom && editor.view.dom.isConnected) {
+          try {
+            editor.commands.focus('end');
+          } catch (error) {
+            console.warn('Failed to focus editor:', error);
+          }
+        } else {
+          // Retry after a short delay if view is not ready
+          setTimeout(checkAndFocus, 10);
         }
-      }, 0);
+      };
+      setTimeout(checkAndFocus, 0);
     }
   }, [editor]);
 

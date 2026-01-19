@@ -8,7 +8,7 @@
  * Data is stored in data-variable attribute as JSON-encoded string
  */
 
-import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { Node, mergeAttributes } from '@tiptap/core';
@@ -20,6 +20,8 @@ import Bold from '@tiptap/extension-bold';
 import Italic from '@tiptap/extension-italic';
 import Underline from '@tiptap/extension-underline';
 import Strike from '@tiptap/extension-strike';
+import Subscript from '@tiptap/extension-subscript';
+import Superscript from '@tiptap/extension-superscript';
 import BulletList from '@tiptap/extension-bullet-list';
 import OrderedList from '@tiptap/extension-ordered-list';
 import ListItem from '@tiptap/extension-list-item';
@@ -214,6 +216,8 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   withFormatting = false,
 }, ref) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  // Track if update is coming from editor to prevent infinite loop
+  const isInternalUpdateRef = useRef(false);
 
   const extensions = useMemo(() => {
     const baseExtensions = [
@@ -233,6 +237,8 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         Italic,
         Underline,
         Strike,
+        Subscript,
+        Superscript,
         BulletList,
         OrderedList,
         ListItem,
@@ -265,6 +271,9 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
       },
     },
     onUpdate: ({ editor }) => {
+      // Mark that this update is coming from the editor
+      isInternalUpdateRef.current = true;
+
       // When withFormatting is enabled, emit full Tiptap JSON
       // Otherwise emit string format for backward compatibility
       const newValue = withFormatting
@@ -310,6 +319,12 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   // Update editor content when value or fields change externally
   useEffect(() => {
     if (!editor) return;
+
+    // Skip update if it's coming from the editor itself
+    if (isInternalUpdateRef.current) {
+      isInternalUpdateRef.current = false;
+      return;
+    }
 
     // Compare current editor content with incoming value
     const currentEditorContent = editor.getJSON();
@@ -498,16 +513,19 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   return (
     <div className="flex-1 input-with-inline-variables">
       {/* Formatting toolbar */}
-      {withFormatting && !disabled && (
+      {withFormatting && (
         <div className="flex gap-0.5 bg-popover border border-border rounded-md shadow-sm p-0.5 mb-2">
           <Button
             variant="ghost"
             size="xs"
             className={cn('!size-6', editor.isActive('bold') && 'bg-accent')}
+            disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
-              editor.chain().focus().run();
-              editor.commands.toggleMark('bold', {}, { extendEmptyMarkRange: true });
+              if (!disabled) {
+                editor.chain().focus().run();
+                editor.commands.toggleMark('bold', {}, { extendEmptyMarkRange: true });
+              }
             }}
             title="Bold"
           >
@@ -517,10 +535,13 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
             variant="ghost"
             size="xs"
             className={cn('!size-6', editor.isActive('italic') && 'bg-accent')}
+            disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
-              editor.chain().focus().run();
-              editor.commands.toggleMark('italic', {}, { extendEmptyMarkRange: true });
+              if (!disabled) {
+                editor.chain().focus().run();
+                editor.commands.toggleMark('italic', {}, { extendEmptyMarkRange: true });
+              }
             }}
             title="Italic"
           >
@@ -530,10 +551,13 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
             variant="ghost"
             size="xs"
             className={cn('!size-6', editor.isActive('underline') && 'bg-accent')}
+            disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
-              editor.chain().focus().run();
-              editor.commands.toggleMark('underline', {}, { extendEmptyMarkRange: true });
+              if (!disabled) {
+                editor.chain().focus().run();
+                editor.commands.toggleMark('underline', {}, { extendEmptyMarkRange: true });
+              }
             }}
             title="Underline"
           >
@@ -543,23 +567,61 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
             variant="ghost"
             size="xs"
             className={cn('!size-6', editor.isActive('strike') && 'bg-accent')}
+            disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
-              editor.chain().focus().run();
-              editor.commands.toggleMark('strike', {}, { extendEmptyMarkRange: true });
+              if (!disabled) {
+                editor.chain().focus().run();
+                editor.commands.toggleMark('strike', {}, { extendEmptyMarkRange: true });
+              }
             }}
             title="Strikethrough"
           >
             <Icon name="strikethrough" className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('superscript') && 'bg-accent')}
+            disabled={disabled}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (!disabled) {
+                editor.chain().focus().run();
+                editor.commands.toggleSuperscript();
+              }
+            }}
+            title="Superscript"
+          >
+            <Icon name="superscript" className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn('!size-6', editor.isActive('subscript') && 'bg-accent')}
+            disabled={disabled}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (!disabled) {
+                editor.chain().focus().run();
+                editor.commands.toggleSubscript();
+              }
+            }}
+            title="Subscript"
+          >
+            <Icon name="subscript" className="size-3" />
           </Button>
           <div className="w-px h-4 bg-border mx-0.5" />
           <Button
             variant="ghost"
             size="xs"
             className={cn('!size-6', editor.isActive('bulletList') && 'bg-accent')}
+            disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
-              editor.chain().focus().toggleBulletList().run();
+              if (!disabled) {
+                editor.chain().focus().toggleBulletList().run();
+              }
             }}
             title="Bullet List"
           >
@@ -569,9 +631,12 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
             variant="ghost"
             size="xs"
             className={cn('!size-6', editor.isActive('orderedList') && 'bg-accent')}
+            disabled={disabled}
             onMouseDown={(e) => {
               e.preventDefault();
-              editor.chain().focus().toggleOrderedList().run();
+              if (!disabled) {
+                editor.chain().focus().toggleOrderedList().run();
+              }
             }}
             title="Numbered List"
           >
@@ -594,7 +659,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
                       size="xs"
                       className="!size-6"
                       title={hasDisplayableFields ? 'Insert Variable' : 'No variables available'}
-                      disabled={!hasDisplayableFields}
+                      disabled={!hasDisplayableFields || disabled}
                     >
                       <Icon name="database" className="size-3" />
                     </Button>

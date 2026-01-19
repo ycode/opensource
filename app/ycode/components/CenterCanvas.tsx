@@ -166,6 +166,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const toggleItalic = useCanvasTextEditorStore((state) => state.toggleItalic);
   const toggleUnderline = useCanvasTextEditorStore((state) => state.toggleUnderline);
   const toggleStrike = useCanvasTextEditorStore((state) => state.toggleStrike);
+  const toggleSubscript = useCanvasTextEditorStore((state) => state.toggleSubscript);
+  const toggleSuperscript = useCanvasTextEditorStore((state) => state.toggleSuperscript);
   const toggleBulletList = useCanvasTextEditorStore((state) => state.toggleBulletList);
   const toggleOrderedList = useCanvasTextEditorStore((state) => state.toggleOrderedList);
   const focusEditor = useCanvasTextEditorStore((state) => state.focusEditor);
@@ -1383,6 +1385,32 @@ const CenterCanvas = React.memo(function CenterCanvas({
               title="Strikethrough"
             >
               <Icon name="strikethrough" className="size-3" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="xs"
+              className={cn('!size-6', textEditorActiveMarks.superscript && 'bg-accent')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleSuperscript();
+              }}
+              title="Superscript"
+            >
+              <Icon name="superscript" className="size-3" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="xs"
+              className={cn('!size-6', textEditorActiveMarks.subscript && 'bg-accent')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                toggleSubscript();
+              }}
+              title="Subscript"
+            >
+              <Icon name="subscript" className="size-3" />
             </Button>
 
             <div className="h-5 shrink-0 flex items-center justify-center">

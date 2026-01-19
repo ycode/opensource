@@ -51,6 +51,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
 
 // 5.5 Hooks
@@ -149,6 +150,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const clearActiveInteraction = useEditorStore((state) => state.clearActiveInteraction);
   const activeTextStyleKey = useEditorStore((state) => state.activeTextStyleKey);
   const setActiveTextStyleKey = useEditorStore((state) => state.setActiveTextStyleKey);
+  const isCanvasTextEditing = useCanvasTextEditorStore((state) => state.isEditing);
 
   // Collaboration hooks - re-enabled
   const layerLocks = useLayerLocks();
@@ -1721,6 +1723,7 @@ const RightSidebar = React.memo(function RightSidebar({
                     allFields={fields}
                     collections={collections}
                     withFormatting={true}
+                    disabled={isCanvasTextEditing}
                   />
                 </div>
               </SettingsPanel>
