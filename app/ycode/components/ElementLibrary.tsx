@@ -698,9 +698,9 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
           <TabsContent value="elements" className="flex flex-col divide-y overflow-y-auto flex-1 px-4 pb-4 no-scrollbar">
             {Object.entries(elementCategories).map(([categoryName, elements]) => (
               <div key={categoryName} className="flex flex-col pb-5">
-                <div className="py-4">
+                <header className="py-5">
                   <Label>{categoryName}</Label>
-                </div>
+                </header>
                 <div className="grid grid-cols-2 gap-2">
                   {elements.map((el) => (
                     <Button

@@ -80,7 +80,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
 
   // Local state for instant tab switching - syncs with URL but allows immediate UI feedback
   const [localActiveTab, setLocalActiveTab] = useState<EditorTab>(sidebarTab);
-  
+
   // Read the store's activeSidebarTab
   const storeSidebarTab = useEditorStore((state) => state.activeSidebarTab);
 
@@ -89,7 +89,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
     setLocalActiveTab(sidebarTab);
     setActiveSidebarTab(sidebarTab);
   }, [sidebarTab, setActiveSidebarTab]);
-  
+
   // Sync local tab with store when store changes (e.g., from canvas layer click)
   useEffect(() => {
     if (storeSidebarTab && storeSidebarTab !== localActiveTab) {
@@ -306,12 +306,12 @@ const LeftSidebar = React.memo(function LeftSidebar({
     try {
       const updatedName = renameValue.trim();
       await updateCollection(renamingCollectionId, { name: updatedName });
-      
+
       // Broadcast collection update to other collaborators
       if (liveCollectionUpdates) {
         liveCollectionUpdates.broadcastCollectionUpdate(renamingCollectionId, { name: updatedName });
       }
-      
+
       setRenamingCollectionId(null);
       setRenameValue('');
     } catch (error) {
@@ -334,7 +334,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
 
     try {
       await deleteCollection(collectionId);
-      
+
       // Broadcast collection deletion to other collaborators
       if (liveCollectionUpdates) {
         liveCollectionUpdates.broadcastCollectionDelete(collectionId);
@@ -448,7 +448,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
                 }
               });
             }}
-            className="h-full overflow-hidden"
+            className="h-full overflow-hidden !gap-0"
           >
             <TabsList className="w-full shrink-0">
               <TabsTrigger value="layers">Layers</TabsTrigger>
@@ -460,7 +460,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
 
             {/* Content - forceMount keeps all tabs mounted for instant switching */}
             <TabsContent
-              value="layers" className="flex flex-col min-h-0  overflow-y-auto no-scrollbar"
+              value="layers" className="flex flex-col min-h-0 overflow-y-auto no-scrollbar"
               forceMount
             >
               <header className="py-5 flex justify-between shrink-0 sticky top-0 bg-gradient-to-b from-background to-transparent z-20">
