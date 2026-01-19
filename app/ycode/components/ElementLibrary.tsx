@@ -238,11 +238,17 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     // If editing component, use component draft instead
     if (editingComponentId) {
       const layers = componentDrafts[editingComponentId] || [];
-      const parentId = selectedLayerId || layers[0]?.id || 'body';
 
-      // Get layout template
+      // Get layout template first (we need it to check if it's a section)
       const layoutTemplate = getLayoutTemplate(layoutKey);
       if (!layoutTemplate) return;
+
+      // Special handling for Section layouts - always add to Body/root level
+      const isAddingSection = layoutTemplate.name === 'section';
+      let parentId = selectedLayerId || layers[0]?.id || 'body';
+      if (isAddingSection) {
+        parentId = layers[0]?.id || 'body'; // Add to root/body level
+      }
 
       const newLayer = {
         ...layoutTemplate,
@@ -327,12 +333,17 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     // Regular page mode
     if (!currentPageId) return;
 
-    // Determine parent (selected container or Body)
-    const parentId = selectedLayerId || 'body';
-
-    // Get layout template
+    // Get layout template first (we need it to check if it's a section)
     const layoutTemplate = getLayoutTemplate(layoutKey);
     if (!layoutTemplate) return;
+
+    // Determine parent (selected container or Body)
+    // Special handling for Section layouts - always add to Body
+    const isAddingSection = layoutTemplate.name === 'section';
+    let parentId = selectedLayerId || 'body';
+    if (isAddingSection) {
+      parentId = 'body';
+    }
 
     const newLayer = {
       ...layoutTemplate,
