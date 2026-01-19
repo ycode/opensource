@@ -4,11 +4,10 @@
  * SelectionOverlay Component
  *
  * Renders selection, hover, and parent outlines on top of the canvas iframe.
- * This approach ensures outlines are always visible above other UI elements
- * like the ElementLibrary panel.
+ * Uses direct DOM manipulation for instant updates during scrolling.
  */
 
-import React, { useEffect, useState, useCallback, useLayoutEffect } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 
 interface SelectionOverlayProps {
   /** Reference to the canvas iframe element */
@@ -25,13 +24,6 @@ interface SelectionOverlayProps {
   zoom: number;
 }
 
-interface Rect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
 export function SelectionOverlay({
   iframeElement,
   containerElement,
@@ -40,103 +32,119 @@ export function SelectionOverlay({
   parentLayerId,
   zoom,
 }: SelectionOverlayProps) {
-  const [selectedRect, setSelectedRect] = useState<Rect | null>(null);
-  const [hoveredRect, setHoveredRect] = useState<Rect | null>(null);
-  const [parentRect, setParentRect] = useState<Rect | null>(null);
+  // Refs for direct DOM manipulation (no React re-render needed)
+  const selectedRef = useRef<HTMLDivElement>(null);
+  const hoveredRef = useRef<HTMLDivElement>(null);
+  const parentRef = useRef<HTMLDivElement>(null);
 
-  // Calculate the position of an element inside the iframe relative to the container
-  const calculateRect = useCallback((
-    layerId: string,
+  // Update a single outline element's position directly via DOM
+  const updateOutline = useCallback((
+    element: HTMLDivElement | null,
+    layerId: string | null,
     iframeDoc: Document,
     iframeElement: HTMLIFrameElement,
-    containerElement: HTMLElement
-  ): Rect | null => {
+    containerElement: HTMLElement,
+    scale: number
+  ) => {
+    if (!element) return;
+
+    if (!layerId) {
+      element.style.display = 'none';
+      return;
+    }
+
     // Find the element inside the iframe
-    const element = iframeDoc.querySelector(`[data-layer-id="${layerId}"]`) as HTMLElement;
-    if (!element) return null;
+    const targetElement = iframeDoc.querySelector(`[data-layer-id="${layerId}"]`) as HTMLElement;
+    if (!targetElement) {
+      element.style.display = 'none';
+      return;
+    }
 
-    // Get the element's bounding rect inside the iframe
-    const elementRect = element.getBoundingClientRect();
-
-    // Get the iframe's position relative to the container
+    // Get bounding rects
+    const elementRect = targetElement.getBoundingClientRect();
     const iframeRect = iframeElement.getBoundingClientRect();
     const containerRect = containerElement.getBoundingClientRect();
 
     // Calculate position relative to container, accounting for zoom
-    const scale = zoom / 100;
+    const top = iframeRect.top - containerRect.top + (elementRect.top * scale);
+    const left = iframeRect.left - containerRect.left + (elementRect.left * scale);
+    const width = elementRect.width * scale;
+    const height = elementRect.height * scale;
 
-    return {
-      top: iframeRect.top - containerRect.top + (elementRect.top * scale),
-      left: iframeRect.left - containerRect.left + (elementRect.left * scale),
-      width: elementRect.width * scale,
-      height: elementRect.height * scale,
-    };
-  }, [zoom]);
+    // Apply styles directly
+    element.style.display = 'block';
+    element.style.top = `${top}px`;
+    element.style.left = `${left}px`;
+    element.style.width = `${width}px`;
+    element.style.height = `${height}px`;
+  }, []);
 
-  // Update all rectangles
-  const updateRects = useCallback(() => {
+  // Update all outlines
+  const updateAllOutlines = useCallback(() => {
     if (!iframeElement || !containerElement) {
-      setSelectedRect(null);
-      setHoveredRect(null);
-      setParentRect(null);
+      if (selectedRef.current) selectedRef.current.style.display = 'none';
+      if (hoveredRef.current) hoveredRef.current.style.display = 'none';
+      if (parentRef.current) parentRef.current.style.display = 'none';
       return;
     }
 
     const iframeDoc = iframeElement.contentDocument;
     if (!iframeDoc) {
-      setSelectedRect(null);
-      setHoveredRect(null);
-      setParentRect(null);
+      if (selectedRef.current) selectedRef.current.style.display = 'none';
+      if (hoveredRef.current) hoveredRef.current.style.display = 'none';
+      if (parentRef.current) parentRef.current.style.display = 'none';
       return;
     }
 
-    // Calculate selected rect
-    if (selectedLayerId) {
-      setSelectedRect(calculateRect(selectedLayerId, iframeDoc, iframeElement, containerElement));
-    } else {
-      setSelectedRect(null);
-    }
+    const scale = zoom / 100;
 
-    // Calculate hovered rect (only if different from selected)
-    if (hoveredLayerId && hoveredLayerId !== selectedLayerId) {
-      setHoveredRect(calculateRect(hoveredLayerId, iframeDoc, iframeElement, containerElement));
-    } else {
-      setHoveredRect(null);
-    }
+    // Update selected outline
+    updateOutline(selectedRef.current, selectedLayerId, iframeDoc, iframeElement, containerElement, scale);
 
-    // Calculate parent rect
-    if (parentLayerId && parentLayerId !== selectedLayerId) {
-      setParentRect(calculateRect(parentLayerId, iframeDoc, iframeElement, containerElement));
-    } else {
-      setParentRect(null);
-    }
-  }, [iframeElement, containerElement, selectedLayerId, hoveredLayerId, parentLayerId, calculateRect]);
+    // Update hovered outline (only if different from selected)
+    const effectiveHoveredId = hoveredLayerId !== selectedLayerId ? hoveredLayerId : null;
+    updateOutline(hoveredRef.current, effectiveHoveredId, iframeDoc, iframeElement, containerElement, scale);
 
-  // Use useLayoutEffect for instant updates (no delay)
-  useLayoutEffect(() => {
-    updateRects();
-  }, [updateRects]);
+    // Update parent outline (only if different from selected)
+    const effectiveParentId = parentLayerId !== selectedLayerId ? parentLayerId : null;
+    updateOutline(parentRef.current, effectiveParentId, iframeDoc, iframeElement, containerElement, scale);
+  }, [iframeElement, containerElement, selectedLayerId, hoveredLayerId, parentLayerId, zoom, updateOutline]);
 
-  // Set up observers for continuous updates
+  // Initial update and updates when IDs change
+  useEffect(() => {
+    updateAllOutlines();
+  }, [updateAllOutlines]);
+
+  // Set up scroll/resize/mutation listeners
   useEffect(() => {
     if (!iframeElement || !containerElement) return;
 
     const iframeDoc = iframeElement.contentDocument;
     if (!iframeDoc) return;
 
-    // Update on scroll (both container and iframe)
-    const handleScroll = () => {
-      requestAnimationFrame(updateRects);
-    };
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    // Update on resize
-    const handleResize = () => {
-      requestAnimationFrame(updateRects);
+    // Hide outlines during scroll, show after scroll ends
+    const handleScroll = () => {
+      // Hide outlines immediately on scroll
+      if (selectedRef.current) selectedRef.current.style.display = 'none';
+      if (hoveredRef.current) hoveredRef.current.style.display = 'none';
+      if (parentRef.current) parentRef.current.style.display = 'none';
+
+      // Clear existing timeout
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+
+      // Show outlines after scrolling stops (150ms delay)
+      scrollTimeout = setTimeout(() => {
+        updateAllOutlines();
+      }, 150);
     };
 
     // MutationObserver for DOM changes inside iframe
     const mutationObserver = new MutationObserver(() => {
-      requestAnimationFrame(updateRects);
+      updateAllOutlines();
     });
 
     // Observe the iframe body for changes
@@ -152,64 +160,40 @@ export function SelectionOverlay({
     // Add event listeners
     containerElement.addEventListener('scroll', handleScroll, { passive: true });
     iframeDoc.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleResize, { passive: true });
+    window.addEventListener('resize', handleScroll, { passive: true });
 
     // Cleanup
     return () => {
+      if (scrollTimeout) clearTimeout(scrollTimeout);
       mutationObserver.disconnect();
       containerElement.removeEventListener('scroll', handleScroll);
       iframeDoc.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', handleScroll);
     };
-  }, [iframeElement, containerElement, updateRects]);
-
-  // Don't render if no rects to show
-  if (!selectedRect && !hoveredRect && !parentRect) {
-    return null;
-  }
+  }, [iframeElement, containerElement, updateAllOutlines]);
 
   return (
-    <div
-      className="absolute inset-0 pointer-events-none overflow-hidden z-40"
-    >
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-40">
       {/* Parent outline (dashed) */}
-      {parentRect && (
-        <div
-          className="absolute border border-dashed border-blue-400"
-          style={{
-            top: parentRect.top,
-            left: parentRect.left,
-            width: parentRect.width,
-            height: parentRect.height,
-          }}
-        />
-      )}
+      <div
+        ref={parentRef}
+        className="absolute outline outline-1 outline-dashed outline-blue-400"
+        style={{ display: 'none' }}
+      />
 
       {/* Hover outline */}
-      {hoveredRect && (
-        <div
-          className="absolute outline outline-1 outline-blue-400/50"
-          style={{
-            top: hoveredRect.top,
-            left: hoveredRect.left,
-            width: hoveredRect.width,
-            height: hoveredRect.height,
-          }}
-        />
-      )}
+      <div
+        ref={hoveredRef}
+        className="absolute outline outline-1 outline-blue-400/50"
+        style={{ display: 'none' }}
+      />
 
       {/* Selection outline */}
-      {selectedRect && (
-        <div
-          className="absolute outline outline-1 outline-blue-500"
-          style={{
-            top: selectedRect.top,
-            left: selectedRect.left,
-            width: selectedRect.width,
-            height: selectedRect.height,
-          }}
-        />
-      )}
+      <div
+        ref={selectedRef}
+        className="absolute outline outline-1 outline-blue-500"
+        style={{ display: 'none' }}
+      />
     </div>
   );
 }
