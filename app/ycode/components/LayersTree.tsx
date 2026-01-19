@@ -1440,24 +1440,37 @@ function rebuildTree(
   newParentId: string | null,
   newOrder: number
 ): Layer[] {
-  // Create a copy of all nodes - deep copy layer but clear children references
-  // since we'll rebuild them from scratch
+  // Create a map of original layers to preserve all properties (including collapsed children)
+  const originalLayerMap = new Map<string, Layer>();
+  
+  function collectLayers(layers: Layer[]) {
+    layers.forEach(layer => {
+      originalLayerMap.set(layer.id, layer);
+      if (layer.children) {
+        collectLayers(layer.children);
+      }
+    });
+  }
+  
+  // Collect all layers from the flattened nodes
+  flattenedNodes.forEach(node => {
+    if (!originalLayerMap.has(node.id)) {
+      collectLayers([node.layer]);
+    }
+  });
+
+  // Create working copy of nodes with updated parent/index
   const nodeCopy = flattenedNodes.map(n => ({
     ...n,
-    layer: {
-      ...n.layer,
-      children: undefined // Clear children - we'll rebuild from byParent map
-    }
+    layer: originalLayerMap.get(n.id)! // Use original layer to preserve all properties
   }));
 
-  // Find the moved node and store its original parent
+  // Find the moved node
   const movedNode = nodeCopy.find(n => n.id === movedId);
   if (!movedNode) {
     console.error('❌ REBUILD ERROR: Moved node not found!');
     return [];
   }
-
-  const originalParentId = movedNode.parentId;
 
   // Update moved node's parent and index
   movedNode.parentId = newParentId;
@@ -1486,7 +1499,6 @@ function rebuildTree(
       children.splice(movedIndex, 1);
 
       // Insert at new position
-      // Find insertion index based on newOrder
       let insertIndex = 0;
       for (let i = 0; i < children.length; i++) {
         if (children[i].index < newOrder) {
@@ -1505,21 +1517,30 @@ function rebuildTree(
     });
   });
 
-  // Build tree recursively
+  // Build tree recursively, preserving original layer structure
   function buildNode(nodeId: string): Layer {
-    const node = nodeCopy.find(n => n.id === nodeId)!;
+    const node = nodeCopy.find(n => n.id === nodeId);
+    if (!node) {
+      console.error('❌ REBUILD ERROR: Node not found:', nodeId);
+      return originalLayerMap.get(nodeId)!;
+    }
+
     const childNodes = byParent.get(nodeId) || [];
+    const originalLayer = originalLayerMap.get(nodeId)!;
 
-    const result: Layer = { ...node.layer };
+    // Start with the original layer to preserve all properties
+    const result: Layer = { ...originalLayer };
 
-    // Always set children based on byParent map, even if empty
-    // This ensures old children references are removed
+    // Only update children if they are in the flattened tree (visible)
+    // Otherwise keep the original children (for collapsed nodes)
     if (childNodes.length > 0) {
+      // Build children from the reordered structure
       result.children = childNodes.map(child => buildNode(child.id));
-    } else {
-      // Explicitly remove children property if no children
+    } else if (byParent.has(nodeId)) {
+      // Node is in byParent map but has no children - explicitly remove children
       delete result.children;
     }
+    // else: keep original children (for nodes not in flattened tree)
 
     return result;
   }
@@ -1560,7 +1581,6 @@ function rebuildTree(
       });
       console.error('  movedId:', movedId);
       console.error('  newParentId:', newParentId);
-      console.error('  originalParentId:', originalParentId);
     }
   }
 
