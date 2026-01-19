@@ -717,25 +717,31 @@ const LayerItem: React.FC<{
         };
         elementProps.onMouseLeave = (e: React.MouseEvent) => {
           // Don't stop propagation - allow parent to detect mouse entry
-          // Use mouse coordinates to find which element is actually under the cursor
-          // Use the event target's owner document (iframe's document)
+          // Use the event target's owner document (iframe's document) to query within iframe
           const doc = (e.currentTarget as HTMLElement).ownerDocument;
+          if (!doc) {
+            onLayerHover(null);
+            return;
+          }
+
           const { clientX, clientY } = e;
-          const elementUnderMouse = doc?.elementFromPoint(clientX, clientY);
+          const elementUnderMouse = doc.elementFromPoint(clientX, clientY);
 
           if (elementUnderMouse) {
-            // Find the closest layer element
+            // Use closest() to traverse up the DOM tree to find the actual layer element
+            // This ensures we get the correct layer even if cursor is over a deeply nested child
             const targetLayerElement = elementUnderMouse.closest('[data-layer-id]') as HTMLElement | null;
             if (targetLayerElement) {
               const targetLayerId = targetLayerElement.getAttribute('data-layer-id');
-              if (targetLayerId && targetLayerId !== layer.id) {
+              // Only set hover if it's a different layer (not the one we're leaving)
+              if (targetLayerId && targetLayerId !== layer.id && targetLayerId !== 'body') {
                 onLayerHover(targetLayerId);
                 return;
               }
             }
           }
 
-          // Not moving to a layer - clear hover
+          // Not moving to a layer (or moving outside canvas) - clear hover
           onLayerHover(null);
         };
       }
