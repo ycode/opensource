@@ -563,12 +563,9 @@ const LayerItem: React.FC<{
     classesString,
     'transition-all',
     'duration-100',
-    enableDragDrop && !isEditing && !isLockedByOther && 'cursor-grab active:cursor-grabbing',
-    // Hover state - use explicit state if provided, otherwise fall back to CSS hover
-    isHovered && !isSelected && !isDragging && !isLockedByOther && 'outline outline-1 outline-blue-400/50 outline-offset-0',
-    !isHovered && !isSelected && !isDragging && !isLockedByOther && 'hover:outline hover:outline-1 hover:outline-blue-400/30 hover:outline-offset-0',
-    isSelected && !isLockedByOther && 'outline outline-2 outline-blue-500 outline-offset-1',
-    isDragging && 'opacity-30 outline-none',
+    enableDragDrop && !isEditing && !isLockedByOther && 'cursor-default',
+    // Selection/hover outlines are now rendered by SelectionOverlay component (outside iframe)
+    isDragging && 'opacity-30',
     showProjection && 'outline outline-1 outline-dashed outline-blue-400 bg-blue-50/10',
     isLockedByOther && 'opacity-90 pointer-events-none select-none',
     // Add ycode-layer class for editor styling

@@ -78,6 +78,10 @@ interface CanvasProps {
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   /** Live component updates for collaboration */
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
+  /** Callback when iframe is ready, provides the iframe element */
+  onIframeReady?: (iframeElement: HTMLIFrameElement) => void;
+  /** Callback when a layer is hovered (for external overlay) */
+  onLayerHover?: (layerId: string | null) => void;
 }
 
 /**
@@ -170,6 +174,8 @@ export default function Canvas({
   onAutofit,
   liveLayerUpdates,
   liveComponentUpdates,
+  onIframeReady,
+  onLayerHover,
 }: CanvasProps) {
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -202,8 +208,21 @@ export default function Canvas({
 
   // Handle hover
   const handleLayerHover = useCallback((layerId: string | null) => {
-    setInternalHoveredLayerId(layerId);
-  }, []);
+    // Resolve component root for hover (same logic as click)
+    let resolvedLayerId = layerId;
+    if (layerId) {
+      const componentRootId = componentMap[layerId];
+      const isPartOfComponent = !!componentRootId;
+      const isEditingThisComponent = editingComponentId && componentRootId === editingComponentId;
+
+      if (isPartOfComponent && !isEditingThisComponent) {
+        resolvedLayerId = componentRootId;
+      }
+    }
+
+    setInternalHoveredLayerId(resolvedLayerId);
+    onLayerHover?.(resolvedLayerId);
+  }, [componentMap, editingComponentId, onLayerHover]);
 
   // Initialize iframe with Tailwind Browser CDN (only once)
   useEffect(() => {
@@ -293,6 +312,13 @@ export default function Canvas({
       }
     };
   }, []); // Empty deps - only run once on mount
+
+  // Notify parent when iframe is ready
+  useEffect(() => {
+    if (iframeReady && iframeRef.current && onIframeReady) {
+      onIframeReady(iframeRef.current);
+    }
+  }, [iframeReady, onIframeReady]);
 
   // Render content into iframe
   useEffect(() => {

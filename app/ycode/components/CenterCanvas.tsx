@@ -48,6 +48,7 @@ import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 // 4b. Internal components
 import Canvas from './Canvas';
 import FieldTreeSelect from './FieldTreeSelect';
+import SelectionOverlay from '@/components/SelectionOverlay';
 
 // 6. Utils
 import { serializeLayers } from '@/lib/layer-utils';
@@ -118,6 +119,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // State for iframe element (for SelectionOverlay)
+  const [canvasIframeElement, setCanvasIframeElement] = useState<HTMLIFrameElement | null>(null);
+
   // Track iframe content height from iframe reports
   const [reportedContentHeight, setReportedContentHeight] = useState(0);
 
@@ -155,6 +159,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const currentPageCollectionItemId = useEditorStore((state) => state.currentPageCollectionItemId);
   const setCurrentPageCollectionItemId = useEditorStore((state) => state.setCurrentPageCollectionItemId);
   const hoveredLayerId = useEditorStore((state) => state.hoveredLayerId);
+  const setHoveredLayerId = useEditorStore((state) => state.setHoveredLayerId);
   const isPreviewMode = useEditorStore((state) => state.isPreviewMode);
   const assets = useAssetsStore((state) => state.assets);
 
@@ -718,6 +723,51 @@ const CenterCanvas = React.memo(function CenterCanvas({
     // Update the layer
     updateLayer(currentPageId, layerId, { classes: newClasses });
   }, [currentPageId, draftsByPageId, updateLayer]);
+
+  // Handle iframe ready callback (for SelectionOverlay)
+  const handleIframeReady = useCallback((iframeElement: HTMLIFrameElement) => {
+    setCanvasIframeElement(iframeElement);
+  }, []);
+
+  // Handle layer hover from Canvas (for SelectionOverlay)
+  const handleCanvasLayerHover = useCallback((layerId: string | null) => {
+    setHoveredLayerId(layerId);
+  }, [setHoveredLayerId]);
+
+  // Calculate parent layer ID for selection overlay (one level up from selected)
+  const parentLayerId = useMemo(() => {
+    if (!selectedLayerId || !currentPageId) return null;
+
+    // Get layers from either component draft or page draft
+    let layersToSearch: Layer[] = [];
+    if (editingComponentId) {
+      layersToSearch = componentDrafts[editingComponentId] || [];
+    } else {
+      const draft = draftsByPageId[currentPageId];
+      layersToSearch = draft ? draft.layers : [];
+    }
+
+    if (!layersToSearch.length) return null;
+
+    // Recursive function to find parent of a layer
+    const findParentId = (layers: Layer[], targetId: string, parentId: string | null = null): string | null | undefined => {
+      for (const layer of layers) {
+        if (layer.id === targetId) {
+          return parentId;
+        }
+        if (layer.children && layer.children.length > 0) {
+          const result = findParentId(layer.children, targetId, layer.id);
+          if (result !== undefined) {
+            return result;
+          }
+        }
+      }
+      return undefined; // Not found in this branch
+    };
+
+    const result = findParentId(layersToSearch, selectedLayerId);
+    return result === undefined ? null : result;
+  }, [selectedLayerId, currentPageId, editingComponentId, componentDrafts, draftsByPageId]);
 
   // Get selected locale and translations
   const selectedLocale = getSelectedLocale();
@@ -1536,6 +1586,18 @@ const CenterCanvas = React.memo(function CenterCanvas({
           </div>
         )}
 
+        {/* Selection overlay - renders outlines on top of the iframe */}
+        {!isPreviewMode && canvasIframeElement && (
+          <SelectionOverlay
+            iframeElement={canvasIframeElement}
+            containerElement={scrollContainerRef.current}
+            selectedLayerId={selectedLayerId}
+            hoveredLayerId={hoveredLayerId}
+            parentLayerId={parentLayerId}
+            zoom={zoom}
+          />
+        )}
+
         {/* Scrollable container with hidden scrollbars */}
         <div
           ref={scrollContainerRef}
@@ -1682,6 +1744,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         onAutofit={autofit}
                         liveLayerUpdates={liveLayerUpdates}
                         liveComponentUpdates={liveComponentUpdates}
+                        onIframeReady={handleIframeReady}
+                        onLayerHover={handleCanvasLayerHover}
                       />
 
                       {/* Empty overlay when only Body with no children */}
