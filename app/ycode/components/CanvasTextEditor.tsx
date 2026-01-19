@@ -309,10 +309,15 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
   onFinish,
   fields,
   allFields,
+  clickCoords,
 }, ref) => {
   const textStyles = layer.textStyles;
   const editorRef = useRef<HTMLDivElement>(null);
   const valueRef = useRef(value);
+  // Store cursor position to restore after focus loss
+  const savedSelectionRef = useRef<{ from: number; to: number } | null>(null);
+  // Store click coordinates on mount (they shouldn't change during editing)
+  const clickCoordsRef = useRef(clickCoords);
 
   // Get store actions
   const setEditor = useCanvasTextEditorStore((s) => s.setEditor);
@@ -343,12 +348,13 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     createListItemExtension(textStyles),
   ], [textStyles]);
 
-  // Parse initial content
+  // Parse initial content once on mount
   const initialContent = useMemo(() => {
     if (typeof value === 'object' && value?.type === 'doc') {
       return value;
     }
     return parseValueToContent(typeof value === 'string' ? value : '', fields, undefined, allFields);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Create a ref to handle saving on unmount/finish
@@ -372,13 +378,52 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
         return false;
       },
     },
-    onSelectionUpdate: () => {
+    onSelectionUpdate: ({ editor: editorInstance }) => {
       // Update active marks in store when selection changes
       updateActiveMarks();
+
+      // Save cursor position when selection changes (if editor is focused)
+      if (editorInstance && editorInstance.isFocused) {
+        const { from, to } = editorInstance.state.selection;
+        savedSelectionRef.current = { from, to };
+      }
     },
-    onTransaction: () => {
+    onTransaction: ({ editor: editorInstance }) => {
       // Update active marks after any transaction
       updateActiveMarks();
+
+      // Save cursor position after transaction (if editor is focused)
+      if (editorInstance && editorInstance.isFocused) {
+        const { from, to } = editorInstance.state.selection;
+        savedSelectionRef.current = { from, to };
+      }
+    },
+    onBlur: ({ editor: editorInstance }) => {
+      // Save cursor position when editor loses focus
+      if (editorInstance) {
+        const { from, to } = editorInstance.state.selection;
+        savedSelectionRef.current = { from, to };
+      }
+    },
+    onFocus: ({ editor: editorInstance }) => {
+      // Restore cursor position when editor regains focus
+      if (editorInstance && savedSelectionRef.current) {
+        const { from, to } = savedSelectionRef.current;
+        try {
+          const docSize = editorInstance.state.doc.content.size;
+          const safeFrom = Math.min(from, docSize);
+          const safeTo = Math.min(to, docSize);
+
+          if (safeFrom >= 0 && safeTo >= 0 && safeFrom <= docSize && safeTo <= docSize) {
+            // Use setTimeout to ensure focus is complete before restoring selection
+            setTimeout(() => {
+              editorInstance.commands.setTextSelection({ from: safeFrom, to: safeTo });
+            }, 0);
+          }
+        } catch (error) {
+          // Ignore errors when restoring selection
+        }
+      }
     },
   }, [extensions]);
 
@@ -414,27 +459,111 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     };
   }, [editor, onChange]);
 
-  // Focus editor on mount
+  // Focus editor on mount (only if no saved selection exists)
   useEffect(() => {
-    if (editor) {
-      // Wait for the view to be fully mounted
-      const checkAndFocus = () => {
-        if (editor.view && editor.view.dom && editor.view.dom.isConnected) {
-          try {
+    if (!editor) return;
+
+    let retryCount = 0;
+    const MAX_RETRIES = 50; // Maximum 50 retries (500ms total)
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    // Wait for the view to be fully mounted
+    const checkAndFocus = () => {
+      // Stop retrying if we've exceeded max retries
+      if (retryCount >= MAX_RETRIES) {
+        console.warn('Failed to focus editor: max retries exceeded');
+        return;
+      }
+
+      retryCount++;
+
+      try {
+        // Check if editor still exists
+        if (!editor || !editor.view) {
+          timeoutId = setTimeout(checkAndFocus, 10);
+          return;
+        }
+
+        // Try to access view.dom safely (it may throw if not ready)
+        let dom: HTMLElement | null = null;
+        try {
+          dom = editor.view.dom;
+        } catch (error) {
+          // view.dom is not available yet, retry
+          timeoutId = setTimeout(checkAndFocus, 10);
+          return;
+        }
+
+        if (!dom || !dom.isConnected) {
+          timeoutId = setTimeout(checkAndFocus, 10);
+          return;
+        }
+
+        // All checks passed, safe to focus
+        // Priority 1: Restore saved selection (from previous blur)
+        if (savedSelectionRef.current) {
+          const { from, to } = savedSelectionRef.current;
+          const docSize = editor.state.doc.content.size;
+          const safeFrom = Math.min(from, docSize);
+          const safeTo = Math.min(to, docSize);
+
+          if (safeFrom >= 0 && safeTo >= 0 && safeFrom <= docSize && safeTo <= docSize) {
+            editor.commands.setTextSelection({ from: safeFrom, to: safeTo });
+            editor.commands.focus();
+          } else {
             editor.commands.focus('end');
+          }
+        }
+        // Priority 2: Use click coordinates to position cursor
+        else if (clickCoordsRef.current && editor.view.dom) {
+          try {
+            // Use Tiptap's posAtCoords to find the document position at these coordinates
+            const pos = editor.view.posAtCoords({
+              left: clickCoordsRef.current.x,
+              top: clickCoordsRef.current.y
+            });
+
+            if (pos) {
+              editor.commands.setTextSelection(pos.pos);
+              editor.commands.focus();
+            } else {
+              // Fallback to end if coords are outside content
+              editor.commands.focus('end');
+            }
           } catch (error) {
+            console.warn('Failed to position cursor at click coordinates:', error);
+            editor.commands.focus('end');
+          }
+        }
+        // Priority 3: Default to end
+        else {
+          editor.commands.focus('end');
+        }
+      } catch (error) {
+        // If view is not available, retry after a delay
+        if (error instanceof Error && (error.message.includes('view') || error.message.includes('dom'))) {
+          if (retryCount < MAX_RETRIES) {
+            timeoutId = setTimeout(checkAndFocus, 10);
+          } else {
             console.warn('Failed to focus editor:', error);
           }
         } else {
-          // Retry after a short delay if view is not ready
-          setTimeout(checkAndFocus, 10);
+          console.warn('Failed to focus editor:', error);
         }
-      };
-      setTimeout(checkAndFocus, 0);
-    }
+      }
+    };
+
+    timeoutId = setTimeout(checkAndFocus, 0);
+
+    // Cleanup: cancel pending timeout if component unmounts or editor changes
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [editor]);
 
-  // Update content when value changes externally
+  // Update content when value changes externally (but preserve cursor position)
   useEffect(() => {
     if (!editor) return;
 
@@ -443,8 +572,45 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
       ? value
       : parseValueToContent(typeof value === 'string' ? value : '', fields, undefined, allFields);
 
+    // Only update if content actually changed (not just design properties)
     if (JSON.stringify(currentContent) !== JSON.stringify(newContent)) {
-      editor.commands.setContent(newContent);
+      // Preserve cursor position when updating content
+      const { from, to } = editor.state.selection;
+      const wasFocused = editor.isFocused;
+
+      // Save current selection before updating
+      const selectionRef = { from, to };
+
+      editor.commands.setContent(newContent, { emitUpdate: false });
+
+      // Restore cursor position if editor was focused
+      if (wasFocused && selectionRef.from !== undefined && selectionRef.to !== undefined) {
+        // Use requestAnimationFrame to ensure content is set before restoring selection
+        requestAnimationFrame(() => {
+          try {
+            // Try to restore the exact position, but clamp to document bounds
+            const docSize = editor.state.doc.content.size;
+            const safeFrom = Math.min(selectionRef.from, docSize);
+            const safeTo = Math.min(selectionRef.to, docSize);
+
+            // Only restore if positions are valid
+            if (safeFrom >= 0 && safeTo >= 0 && safeFrom <= docSize && safeTo <= docSize) {
+              editor.commands.setTextSelection({ from: safeFrom, to: safeTo });
+              editor.commands.focus();
+            } else {
+              // Fallback: focus at end if positions are invalid
+              editor.commands.focus('end');
+            }
+          } catch (error) {
+            // If position is invalid, just focus at the end
+            try {
+              editor.commands.focus('end');
+            } catch (e) {
+              // Ignore focus errors
+            }
+          }
+        });
+      }
     }
   }, [value, fields, allFields, editor]);
 

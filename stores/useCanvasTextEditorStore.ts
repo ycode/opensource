@@ -106,9 +106,9 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
   }),
 
   stopEditing: () => {
-    // Reset active text style key when stopping editing
-    const setActiveTextStyleKey = useEditorStore.getState().setActiveTextStyleKey;
-    setActiveTextStyleKey(null);
+    // NOTE: Don't reset activeTextStyleKey here because stopEditing is called
+    // during editor remounts (e.g., when textStyles change). Only clear it
+    // when we actually finish editing (via requestFinish).
 
     set({
       isEditing: false,
@@ -130,6 +130,11 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
 
   requestFinish: () => {
     const { onFinishCallback } = get();
+
+    // Clear active text style key when actually finishing editing
+    const setActiveTextStyleKey = useEditorStore.getState().setActiveTextStyleKey;
+    setActiveTextStyleKey(null);
+
     if (onFinishCallback) {
       onFinishCallback();
     }
@@ -155,6 +160,9 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     set({ activeMarks });
 
     // Update active text style key in editor store based on active marks
+    // ONLY if the editor is focused (to prevent switching styles during content refresh)
+    if (!editor.isFocused) return;
+
     const setActiveTextStyleKey = useEditorStore.getState().setActiveTextStyleKey;
 
     // Determine which text style is active (prioritize marks over lists)

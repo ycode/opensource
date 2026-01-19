@@ -139,6 +139,10 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
   // Check if the layer is an icon
   const isIcon = layer?.name === 'icon';
 
+  // Inline text styles that don't support block-level properties like text-align
+  const inlineTextStyles = ['bold', 'italic', 'underline', 'strike', 'subscript', 'superscript', 'code'];
+  const isInlineTextStyle = activeTextStyleKey && inlineTextStyles.includes(activeTextStyleKey);
+
   return (
     <div className="py-5">
       <header className="py-4 -mt-4">
@@ -218,7 +222,7 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
           </div>
         </div>
 
-        {!isIcon && (
+        {!isIcon && !isInlineTextStyle && (
           <>
             <div className="grid grid-cols-3">
               <Label variant="muted">Align</Label>
