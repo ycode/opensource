@@ -1542,12 +1542,24 @@ function rebuildTree(
     // - If this node is in the visible tree, rebuild from byParent
     // - If this node is NOT visible (hidden/collapsed), preserve original children
     const isNodeVisible = visibleNodeIds.has(nodeId);
+    const isCollapsed = originalLayer.open === false;
 
     if (isNodeVisible) {
       // Node is visible - rebuild children from byParent to reflect the drag operation
       if (childrenFromByParent.length > 0) {
-        // Recursively build children
-        result.children = childrenFromByParent.map(child => buildNode(child.id));
+        // Build new/moved children from byParent
+        const newChildren = childrenFromByParent.map(child => buildNode(child.id));
+        
+        if (isCollapsed && originalChildren.length > 0) {
+          // Layer is collapsed - merge new children with original hidden children
+          // The original children are not in flattenedNodes (hidden), so preserve them
+          const newChildIds = new Set(childrenFromByParent.map(c => c.id));
+          const preservedChildren = originalChildren.filter(c => !newChildIds.has(c.id));
+          result.children = [...newChildren, ...preservedChildren];
+        } else {
+          // Layer is expanded - use only byParent children (complete visible tree)
+          result.children = newChildren;
+        }
       } else {
         // No children in byParent - check if original had children
         // If original had children, they must be collapsed, so preserve them
