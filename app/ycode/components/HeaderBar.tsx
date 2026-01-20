@@ -6,14 +6,12 @@ import { useEditorUrl } from '@/hooks/use-editor-url';
 import { findHomepage } from '@/lib/page-utils';
 import { getTranslationValue } from '@/lib/localisation-utils';
 import { formatRelativeTime } from '@/lib/utils';
-import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -388,10 +386,18 @@ export default function HeaderBar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuLabel>Signed in as</DropdownMenuLabel>
-            <DropdownMenuLabel className="font-normal text-muted-foreground">
-              {user?.email}
-            </DropdownMenuLabel>
+            <DropdownMenuItem
+              onClick={() => router.push('/ycode/settings/general')}
+            >
+              Settings
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() => openFileManager()}
+            >
+              File manager
+            </DropdownMenuItem>
+
             <DropdownMenuSeparator />
 
             <DropdownMenuSub>
@@ -414,27 +420,13 @@ export default function HeaderBar({
             </DropdownMenuSub>
 
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => openFileManager()}
-            >
-              File manager
-            </DropdownMenuItem>
 
             <DropdownMenuItem
-              onClick={() => router.push('/ycode/settings/general')}
-            >
-              Settings
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
               onClick={async () => {
                 await signOut();
               }}
             >
-              <LogOut />
-              Sign Out
+              Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
