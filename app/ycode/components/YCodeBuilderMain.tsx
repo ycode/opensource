@@ -39,6 +39,8 @@ const RightSidebar = lazy(() => import('../components/RightSidebar'));
 const CMS = lazy(() => import('../components/CMS'));
 const CollectionItemSheet = lazy(() => import('../components/CollectionItemSheet'));
 const FileManagerDialog = lazy(() => import('../components/FileManagerDialog'));
+const KeyboardShortcutsDialog = lazy(() => import('../components/KeyboardShortcutsDialog'));
+const CreateComponentDialog = lazy(() => import('../components/CreateComponentDialog'));
 
 // Collaboration components (lazy-loaded)
 const RealtimeCursors = lazy(() => import('@/components/realtime-cursors').then(m => ({ default: m.RealtimeCursors })));
@@ -113,6 +115,9 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const closeCollectionItemSheet = useEditorStore((state) => state.closeCollectionItemSheet);
   const fileManager = useEditorStore((state) => state.fileManager);
   const closeFileManager = useEditorStore((state) => state.closeFileManager);
+  const createComponentDialog = useEditorStore((state) => state.createComponentDialog);
+  const openCreateComponentDialog = useEditorStore((state) => state.openCreateComponentDialog);
+  const closeCreateComponentDialog = useEditorStore((state) => state.closeCreateComponentDialog);
 
   const selectedCollectionId = useCollectionsStore((state) => state.selectedCollectionId);
 
@@ -128,6 +133,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const pasteAfter = usePagesStore((state) => state.pasteAfter);
   const setDraftLayers = usePagesStore((state) => state.setDraftLayers);
   const loadPages = usePagesStore((state) => state.loadPages);
+  const createComponentFromLayer = usePagesStore((state) => state.createComponentFromLayer);
   const pages = usePagesStore((state) => state.pages);
 
   const clipboardLayer = useClipboardStore((state) => state.clipboardLayer);
@@ -1017,10 +1023,52 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       // Layer-specific shortcuts (only work on layers tab)
       if (activeTab === 'layers') {
         // A - Toggle Element Library (when on layers tab and not typing)
-        if (e.key === 'a' && !isInputFocused) {
+        if (e.key === 'a' && !isInputFocused && !e.metaKey && !e.ctrlKey && !e.altKey) {
           e.preventDefault();
           // Dispatch custom event to toggle ElementLibrary
           window.dispatchEvent(new CustomEvent('toggleElementLibrary'));
+          return;
+        }
+
+        // Option + L - Collapse/Expand all layers
+        if (e.altKey && e.code === 'KeyL' && !isInputFocused) {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent('toggleCollapseAllLayers'));
+          return;
+        }
+
+        // Shift + Cmd + H - Toggle layer visibility (Show/Hide)
+        if (e.shiftKey && e.metaKey && e.code === 'KeyH') {
+          if (!isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
+            e.preventDefault();
+            const layers = getCurrentLayers();
+            const layer = findLayerById(layers, selectedLayerId);
+            if (layer) {
+              const currentHidden = layer.settings?.hidden || false;
+              if (editingComponentId) {
+                // Update in component
+                const updateLayerVisibility = (layers: Layer[]): Layer[] => {
+                  return layers.map(l => {
+                    if (l.id === selectedLayerId) {
+                      return {
+                        ...l,
+                        settings: { ...l.settings, hidden: !currentHidden },
+                      };
+                    }
+                    if (l.children) {
+                      return { ...l, children: updateLayerVisibility(l.children) };
+                    }
+                    return l;
+                  });
+                };
+                updateCurrentLayers(updateLayerVisibility(layers));
+              } else if (currentPageId) {
+                updateLayer(currentPageId, selectedLayerId, {
+                  settings: { ...layer.settings, hidden: !currentHidden },
+                });
+              }
+            }
+          }
           return;
         }
 
@@ -1385,7 +1433,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         }
 
         // Copy Style: Option + Cmd + C
-        if (e.altKey && e.metaKey && e.key === 'c') {
+        // Use e.code for physical key detection (e.key produces special chars with Option)
+        if (e.altKey && e.metaKey && e.code === 'KeyC') {
           if (!isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
             e.preventDefault();
             const layers = getCurrentLayers();
@@ -1398,7 +1447,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         }
 
         // Paste Style: Option + Cmd + V
-        if (e.altKey && e.metaKey && e.key === 'v') {
+        // Use e.code for physical key detection (e.key produces special chars with Option)
+        if (e.altKey && e.metaKey && e.code === 'KeyV') {
           if (!isInputFocused && (currentPageId || editingComponentId) && selectedLayerId) {
             e.preventDefault();
             const style = pasteStyleFromClipboard();
@@ -1431,6 +1481,74 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                   styleId: style.styleId,
                   styleOverrides: style.styleOverrides,
                 });
+              }
+            }
+          }
+        }
+
+        // Create Component: Option + Cmd + K
+        if (e.altKey && e.metaKey && e.code === 'KeyK') {
+          if (!isInputFocused && currentPageId && selectedLayerId && !editingComponentId) {
+            e.preventDefault();
+            const layers = getCurrentLayers();
+            const layer = findLayerById(layers, selectedLayerId);
+            if (layer && !layer.componentId) {
+              const defaultName = layer.customName || layer.name || 'Component';
+              openCreateComponentDialog(selectedLayerId, defaultName);
+            }
+          }
+        }
+
+        // Detach from Component: Option + Cmd + B
+        if (e.altKey && e.metaKey && e.code === 'KeyB') {
+          if (!isInputFocused && currentPageId && selectedLayerId && !editingComponentId) {
+            e.preventDefault();
+            const layers = getCurrentLayers();
+            const layer = findLayerById(layers, selectedLayerId);
+            if (layer?.componentId) {
+              const { getComponentById } = useComponentsStore.getState();
+              const component = getComponentById(layer.componentId);
+
+              if (!component || !component.layers || component.layers.length === 0) {
+                // If component not found or has no layers, just remove the componentId
+                updateLayer(currentPageId, selectedLayerId, {
+                  componentId: undefined,
+                  componentOverrides: undefined,
+                });
+              } else {
+                // Replace layer with component's layers (detach)
+                const draft = draftsByPageId[currentPageId];
+                if (draft) {
+                  const replaceLayerWithComponentLayers = (layers: Layer[]): Layer[] => {
+                    return layers.flatMap(currentLayer => {
+                      if (currentLayer.id === selectedLayerId) {
+                        // Deep clone and regenerate IDs
+                        const clonedLayers = JSON.parse(JSON.stringify(component.layers));
+                        return clonedLayers.map((l: Layer) => ({
+                          ...l,
+                          id: crypto.randomUUID(),
+                          children: l.children ? regenerateChildIds(l.children) : undefined,
+                        }));
+                      }
+                      if (currentLayer.children) {
+                        return { ...currentLayer, children: replaceLayerWithComponentLayers(currentLayer.children) };
+                      }
+                      return currentLayer;
+                    });
+                  };
+
+                  const regenerateChildIds = (children: Layer[]): Layer[] => {
+                    return children.map(child => ({
+                      ...child,
+                      id: crypto.randomUUID(),
+                      children: child.children ? regenerateChildIds(child.children) : undefined,
+                    }));
+                  };
+
+                  const newLayers = replaceLayerWithComponentLayers(draft.layers);
+                  setDraftLayers(currentPageId, newLayers);
+                  setSelectedLayerId(null);
+                }
               }
             }
           }
@@ -1468,7 +1586,9 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     deleteSelectedLayer,
     handleUndo,
     handleRedo,
-    liveLayerUpdates
+    liveLayerUpdates,
+    openCreateComponentDialog,
+    setDraftLayers,
   ]);
 
   // Show loading screen while checking Supabase config
@@ -1753,6 +1873,39 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           }}
           assetId={fileManager.assetId}
           category={fileManager.category}
+        />
+      </Suspense>
+    )}
+
+    {/* Keyboard Shortcuts Dialog */}
+    <Suspense fallback={null}>
+      <KeyboardShortcutsDialog />
+    </Suspense>
+
+    {/* Create Component Dialog */}
+    {createComponentDialog.open && createComponentDialog.layerId && currentPageId && (
+      <Suspense fallback={null}>
+        <CreateComponentDialog
+          open={createComponentDialog.open}
+          onOpenChange={(open) => {
+            if (!open) closeCreateComponentDialog();
+          }}
+          onConfirm={async (componentName: string) => {
+            const componentId = await createComponentFromLayer(
+              currentPageId,
+              createComponentDialog.layerId!,
+              componentName
+            );
+            if (componentId && liveComponentUpdates) {
+              const { getComponentById } = useComponentsStore.getState();
+              const component = getComponentById(componentId);
+              if (component) {
+                liveComponentUpdates.broadcastComponentCreate(component);
+              }
+            }
+            closeCreateComponentDialog();
+          }}
+          layerName={createComponentDialog.defaultName}
         />
       </Suspense>
     )}

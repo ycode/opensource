@@ -87,7 +87,7 @@ export default function HeaderBar({
   const router = useRouter();
   const pathname = usePathname();
   const pageDropdownRef = useRef<HTMLDivElement>(null);
-  const { currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode, openFileManager } = useEditorStore();
+  const { currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode, openFileManager, setKeyboardShortcutsOpen } = useEditorStore();
   const { folders, pages: storePages } = usePagesStore();
   const { items, fields } = useCollectionsStore();
   const { locales, selectedLocaleId, setSelectedLocaleId, translations } = useLocalisationStore();
@@ -418,6 +418,12 @@ export default function HeaderBar({
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
+
+            <DropdownMenuItem
+              onClick={() => setKeyboardShortcutsOpen(true)}
+            >
+              Keyboard shortcuts
+            </DropdownMenuItem>
 
             <DropdownMenuSeparator />
 

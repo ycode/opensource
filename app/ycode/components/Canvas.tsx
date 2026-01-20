@@ -421,6 +421,24 @@ export default function Canvas({
           return;
         }
       }
+
+      // Forward keyboard events to parent window for global shortcuts
+      // (copy, paste, undo, redo, copy style, paste style, etc.)
+      if (!isInputFocused) {
+        const syntheticEvent = new KeyboardEvent('keydown', {
+          key: e.key,
+          code: e.code,
+          keyCode: e.keyCode,
+          which: e.which,
+          ctrlKey: e.ctrlKey,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey,
+          metaKey: e.metaKey,
+          bubbles: true,
+          cancelable: true,
+        });
+        window.dispatchEvent(syntheticEvent);
+      }
     };
 
     doc.addEventListener('keydown', handleKeyDown);

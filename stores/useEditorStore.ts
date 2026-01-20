@@ -44,6 +44,9 @@ interface EditorActions {
   setActiveSidebarTab: (tab: EditorSidebarTab) => void;
   openFileManager: (onSelect?: ((asset: Asset) => void | false) | null, assetId?: string | null, category?: AssetCategory | 'all' | null) => void;
   closeFileManager: () => void;
+  setKeyboardShortcutsOpen: (open: boolean) => void;
+  openCreateComponentDialog: (layerId: string, defaultName: string) => void;
+  closeCreateComponentDialog: () => void;
 }
 
 interface EditorStoreWithHistory extends EditorState {
@@ -72,6 +75,12 @@ interface EditorStoreWithHistory extends EditorState {
     onSelect: ((asset: Asset) => void | false) | null;
     assetId: string | null;
     category: AssetCategory | 'all' | null;
+  };
+  keyboardShortcutsOpen: boolean;
+  createComponentDialog: {
+    open: boolean;
+    layerId: string | null;
+    defaultName: string;
   };
   // Computed getters
   showTextStyleControls: () => boolean;
@@ -110,6 +119,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     onSelect: null,
     assetId: null,
     category: null,
+  },
+  keyboardShortcutsOpen: false,
+  createComponentDialog: {
+    open: false,
+    layerId: null,
+    defaultName: '',
   },
 
   // Computed getter: Returns true when text style controls should be shown
@@ -321,6 +336,24 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       onSelect: null,
       assetId: null,
       category: null,
+    },
+  }),
+
+  setKeyboardShortcutsOpen: (open) => set({ keyboardShortcutsOpen: open }),
+
+  openCreateComponentDialog: (layerId, defaultName) => set({
+    createComponentDialog: {
+      open: true,
+      layerId,
+      defaultName,
+    },
+  }),
+
+  closeCreateComponentDialog: () => set({
+    createComponentDialog: {
+      open: false,
+      layerId: null,
+      defaultName: '',
     },
   }),
 }));

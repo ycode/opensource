@@ -739,6 +739,82 @@ export default function LayersTree({
     return () => window.removeEventListener('expandLayer', handleExpandLayer as EventListener);
   }, [collapsedIds, layers, onReorder]);
 
+  // Listen for toggle collapse all layers event (Option + L shortcut)
+  // When collapsed: shows body + first level elements expanded, but collapses their children (second level+)
+  // When expanded: expands all layers
+  useEffect(() => {
+    const handleToggleCollapseAll = () => {
+      // Collect IDs at different levels
+      // First level = top-level layers in the tree (children of body)
+      // Second level+ = children of first level elements and deeper
+      const secondLevelAndDeeperIds: string[] = [];
+
+      const collectChildIds = (children: Layer[]) => {
+        for (const layer of children) {
+          if (layer.children && layer.children.length > 0) {
+            secondLevelAndDeeperIds.push(layer.id);
+            collectChildIds(layer.children);
+          }
+        }
+      };
+
+      // For each first-level layer, collect its children (second level and deeper)
+      for (const layer of layers) {
+        if (layer.children && layer.children.length > 0) {
+          // Collect children of this first-level layer (these are second level)
+          collectChildIds(layer.children);
+        }
+      }
+
+      // Check if any second-level+ layers are expanded
+      const anySecondLevelExpanded = secondLevelAndDeeperIds.some(id => !collapsedIds.has(id));
+
+      if (anySecondLevelExpanded || secondLevelAndDeeperIds.length === 0) {
+        // Collapse: collapse second level and deeper (hide their children)
+        // First level elements stay expanded, showing their direct children
+        // But those children (second level) are collapsed
+        const idsToCollapse = new Set(secondLevelAndDeeperIds);
+        setCollapsedIds(idsToCollapse);
+        // Persist to layer tree
+        let updatedLayers = layers;
+        // Keep first level expanded
+        for (const layer of layers) {
+          if (layer.children && layer.children.length > 0) {
+            updatedLayers = updateLayerOpenState(updatedLayers, layer.id, true);
+          }
+        }
+        // Collapse second level and deeper
+        for (const id of secondLevelAndDeeperIds) {
+          updatedLayers = updateLayerOpenState(updatedLayers, id, false);
+        }
+        onReorder(updatedLayers);
+      } else {
+        // Expand all
+        setCollapsedIds(new Set());
+        // Persist to layer tree - expand everything
+        const collectAllIdsWithChildren = (layerList: Layer[]): string[] => {
+          const ids: string[] = [];
+          for (const layer of layerList) {
+            if (layer.children && layer.children.length > 0) {
+              ids.push(layer.id);
+              ids.push(...collectAllIdsWithChildren(layer.children));
+            }
+          }
+          return ids;
+        };
+        const allIds = collectAllIdsWithChildren(layers);
+        let updatedLayers = layers;
+        for (const id of allIds) {
+          updatedLayers = updateLayerOpenState(updatedLayers, id, true);
+        }
+        onReorder(updatedLayers);
+      }
+    };
+
+    window.addEventListener('toggleCollapseAllLayers', handleToggleCollapseAll);
+    return () => window.removeEventListener('toggleCollapseAllLayers', handleToggleCollapseAll);
+  }, [collapsedIds, layers, onReorder]);
+
   // Track previous selectedLayerId to only run when it actually changes
   const prevSelectedLayerIdRef = useRef<string | null>(null);
 
