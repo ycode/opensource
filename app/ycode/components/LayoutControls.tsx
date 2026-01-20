@@ -89,6 +89,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
     category: 'layout',
     unifiedProperty: 'gap',
     individualProperties: ['columnGap', 'rowGap'],
+    modeProperty: 'gapMode', // Store the mode preference in layer JSON
     updateDesignProperty,
     updateDesignProperties,
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
@@ -151,7 +152,7 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
   // Handle gap changes (debounced for text input)
   const handleGapChange = (value: string) => {
     setGapInput(value);
-    if (gapModeToggle.mode === 'all-borders') {
+    if (gapModeToggle.mode === 'all') {
       const sanitized = removeSpaces(value);
       debouncedUpdateDesignProperty('layout', 'gap', sanitized || null);
     }
@@ -353,20 +354,20 @@ export default function LayoutControls({ layer, onLayerUpdate }: LayoutControlsP
                                 stepper
                                 min="0"
                                 step="1"
-                                disabled={gapModeToggle.mode === 'individual-borders'}
+                                disabled={gapModeToggle.mode === 'individual'}
                                 value={gapInput}
                                 onChange={(e) => handleGapChange(e.target.value)}
                               />
                           </InputGroup>
                           <Button
-                            variant={gapModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
+                            variant={gapModeToggle.mode === 'individual' ? 'secondary' : 'ghost'}
                             size="sm"
                             onClick={gapModeToggle.handleToggle}
                           >
                               <Icon name="link" />
                           </Button>
                       </div>
-                      {gapModeToggle.mode === 'individual-borders' && (
+                      {gapModeToggle.mode === 'individual' && (
                            <div className="col-span-2 grid grid-cols-2 gap-2">
                            <InputGroup>
                                <InputGroupAddon>

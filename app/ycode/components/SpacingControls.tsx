@@ -74,6 +74,7 @@ export default function SpacingControls({ layer, onLayerUpdate, activeTextStyleK
     category: 'spacing',
     unifiedProperty: 'margin',
     individualProperties: ['marginTop', 'marginRight', 'marginBottom', 'marginLeft'],
+    modeProperty: 'marginMode', // Store the mode preference in layer JSON
     updateDesignProperty,
     updateDesignProperties,
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
@@ -85,6 +86,7 @@ export default function SpacingControls({ layer, onLayerUpdate, activeTextStyleK
     category: 'spacing',
     unifiedProperty: 'padding',
     individualProperties: ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'],
+    modeProperty: 'paddingMode', // Store the mode preference in layer JSON
     updateDesignProperty,
     updateDesignProperties,
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
@@ -94,7 +96,7 @@ export default function SpacingControls({ layer, onLayerUpdate, activeTextStyleK
   // Handle margin changes (debounced for smooth typing experience)
   const handleMarginChange = (value: string) => {
     setMarginInput(value);
-    if (marginModeToggle.mode === 'all-borders') {
+    if (marginModeToggle.mode === 'all') {
       if (value === 'auto') {
         debouncedUpdateDesignProperty('spacing', 'margin', 'auto');
       } else {
@@ -147,7 +149,7 @@ export default function SpacingControls({ layer, onLayerUpdate, activeTextStyleK
   // Handle padding changes (debounced for text input)
   const handlePaddingChange = (value: string) => {
     setPaddingInput(value);
-    if (paddingModeToggle.mode === 'all-borders') {
+    if (paddingModeToggle.mode === 'all') {
       const sanitized = removeSpaces(value);
       debouncedUpdateDesignProperty('spacing', 'padding', sanitized || null);
     }
@@ -191,20 +193,20 @@ export default function SpacingControls({ layer, onLayerUpdate, activeTextStyleK
               <InputGroup className="flex-1">
                 <InputGroupInput
                   stepper
-                  disabled={marginModeToggle.mode === 'individual-borders'}
+                  disabled={marginModeToggle.mode === 'individual'}
                   value={marginInput}
                   onChange={(e) => handleMarginChange(e.target.value)}
                 />
               </InputGroup>
               <Button
-                variant={marginModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
+                variant={marginModeToggle.mode === 'individual' ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={marginModeToggle.handleToggle}
               >
                 <Icon name="individualBorders" />
               </Button>
             </div>
-            {marginModeToggle.mode === 'individual-borders' && (
+            {marginModeToggle.mode === 'individual' && (
               <div className="grid grid-cols-2 gap-2">
                 <InputGroup>
                   <InputGroupAddon>
@@ -296,20 +298,20 @@ export default function SpacingControls({ layer, onLayerUpdate, activeTextStyleK
                   stepper
                   min="0"
                   step="1"
-                  disabled={paddingModeToggle.mode === 'individual-borders'}
+                  disabled={paddingModeToggle.mode === 'individual'}
                   value={paddingInput}
                   onChange={(e) => handlePaddingChange(e.target.value)}
                 />
               </InputGroup>
               <Button
-                variant={paddingModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
+                variant={paddingModeToggle.mode === 'individual' ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={paddingModeToggle.handleToggle}
               >
                 <Icon name="individualBorders" />
               </Button>
             </div>
-            {paddingModeToggle.mode === 'individual-borders' && (
+            {paddingModeToggle.mode === 'individual' && (
               <div className="grid grid-cols-2 gap-2">
                 <InputGroup>
                   <InputGroupAddon>

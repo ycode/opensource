@@ -90,6 +90,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
     category: 'borders',
     unifiedProperty: 'borderRadius',
     individualProperties: ['borderTopLeftRadius', 'borderTopRightRadius', 'borderBottomRightRadius', 'borderBottomLeftRadius'],
+    modeProperty: 'borderRadiusMode', // Store the mode preference in layer JSON
     updateDesignProperty,
     updateDesignProperties,
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
@@ -100,6 +101,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
     category: 'borders',
     unifiedProperty: 'borderWidth',
     individualProperties: ['borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth'],
+    modeProperty: 'borderWidthMode', // Store the mode preference in layer JSON
     updateDesignProperty,
     updateDesignProperties,
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
@@ -257,20 +259,20 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                 min="0"
                 step="1"
                 className="flex-1"
-                disabled={radiusModeToggle.mode === 'individual-borders'}
+                disabled={radiusModeToggle.mode === 'individual'}
                 value={borderRadiusInput}
                 onChange={(e) => handleRadiusChange(e.target.value)}
                 placeholder="0"
               />
               <Button
-                variant={radiusModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
+                variant={radiusModeToggle.mode === 'individual' ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={radiusModeToggle.handleToggle}
               >
                 <Icon name="individualBorders" />
               </Button>
             </div>
-            {radiusModeToggle.mode === 'individual-borders' && (
+            {radiusModeToggle.mode === 'individual' && (
               <div className="grid grid-cols-2 gap-2">
                 <InputGroup>
                   <InputGroupAddon>
@@ -377,20 +379,20 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                           min="0"
                           step="1"
                           className="flex-1"
-                          disabled={widthModeToggle.mode === 'individual-borders'}
+                          disabled={widthModeToggle.mode === 'individual'}
                           value={borderWidthInput}
                           onChange={(e) => handleBorderWidthChange(e.target.value)}
                           placeholder="1"
                         />
                         <Button
-                          variant={widthModeToggle.mode === 'individual-borders' ? 'secondary' : 'ghost'}
+                          variant={widthModeToggle.mode === 'individual' ? 'secondary' : 'ghost'}
                           size="sm"
                           onClick={widthModeToggle.handleToggle}
                         >
                           <Icon name="individualBorders" />
                         </Button>
                       </div>
-                      {widthModeToggle.mode === 'individual-borders' && (
+                      {widthModeToggle.mode === 'individual' && (
                           <div className="grid grid-cols-2 gap-2">
                             <div className="flex flex-col items-start gap-1">
                               <Input

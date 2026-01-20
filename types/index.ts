@@ -17,6 +17,9 @@ export interface LayoutDesign {
   justifyContent?: string;
   alignItems?: string;
   gap?: string;
+  columnGap?: string;
+  rowGap?: string;
+  gapMode?: 'all' | 'individual'; // User's toggle preference for gap
   gridTemplateColumns?: string;
   gridTemplateRows?: string;
 }
@@ -43,11 +46,13 @@ export interface SpacingDesign {
   marginRight?: string;
   marginBottom?: string;
   marginLeft?: string;
+  marginMode?: 'all' | 'individual'; // User's toggle preference for margin
   padding?: string;
   paddingTop?: string;
   paddingRight?: string;
   paddingBottom?: string;
   paddingLeft?: string;
+  paddingMode?: 'all' | 'individual'; // User's toggle preference for padding
 }
 
 export interface SizingDesign {
@@ -71,6 +76,7 @@ export interface BordersDesign {
   borderRightWidth?: string;
   borderBottomWidth?: string;
   borderLeftWidth?: string;
+  borderWidthMode?: 'all' | 'individual'; // User's toggle preference for border width
   borderStyle?: string;
   borderColor?: string;
   borderRadius?: string;
@@ -78,6 +84,7 @@ export interface BordersDesign {
   borderTopRightRadius?: string;
   borderBottomLeftRadius?: string;
   borderBottomRightRadius?: string;
+  borderRadiusMode?: 'all' | 'individual'; // User's toggle preference for border radius
   divideX?: string;
   divideY?: string;
   divideStyle?: string;
