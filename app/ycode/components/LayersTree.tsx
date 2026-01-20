@@ -1521,6 +1521,9 @@ function rebuildTree(
   });
 
   // Build tree recursively, preserving properties but rebuilding structure
+  // First, create a Set of all layer IDs in the visible tree (to detect moved layers)
+  const allVisibleLayerIds = new Set(nodeCopy.map(n => n.id));
+
   function buildNode(nodeId: string): Layer {
     const node = nodeCopy.find(n => n.id === nodeId);
     const originalLayer = originalLayerMap.get(nodeId);
@@ -1552,9 +1555,11 @@ function rebuildTree(
         
         if (isCollapsed && originalChildren.length > 0) {
           // Layer is collapsed - merge new children with original hidden children
-          // The original children are not in flattenedNodes (hidden), so preserve them
+          // IMPORTANT: Exclude children that were moved to other visible locations
           const newChildIds = new Set(childrenFromByParent.map(c => c.id));
-          const preservedChildren = originalChildren.filter(c => !newChildIds.has(c.id));
+          const preservedChildren = originalChildren.filter(c => 
+            !newChildIds.has(c.id) && !allVisibleLayerIds.has(c.id)
+          );
           result.children = [...newChildren, ...preservedChildren];
         } else {
           // Layer is expanded - use only byParent children (complete visible tree)
@@ -1563,8 +1568,12 @@ function rebuildTree(
       } else {
         // No children in byParent - check if original had children
         // If original had children, they must be collapsed, so preserve them
+        // But exclude any that appear in the visible tree (they were moved out)
         if (originalChildren.length > 0) {
-          result.children = originalChildren;
+          const preservedChildren = originalChildren.filter(c => !allVisibleLayerIds.has(c.id));
+          if (preservedChildren.length > 0) {
+            result.children = preservedChildren;
+          }
         }
         // else: truly no children, don't set children property
       }
