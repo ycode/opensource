@@ -1440,7 +1440,7 @@ function rebuildTree(
   newParentId: string | null,
   newOrder: number
 ): Layer[] {
-  // Create a map of original layers to preserve all properties (including collapsed children)
+  // Create a map of original layers to preserve all properties
   const originalLayerMap = new Map<string, Layer>();
   
   function collectLayers(layers: Layer[]) {
@@ -1458,6 +1458,9 @@ function rebuildTree(
       collectLayers([node.layer]);
     }
   });
+
+  // Create set of all visible node IDs (nodes that appear in flattened tree)
+  const visibleNodeIds = new Set(flattenedNodes.map(n => n.id));
 
   // Create working copy of nodes with updated parent/index
   const nodeCopy = flattenedNodes.map(n => ({
@@ -1517,30 +1520,48 @@ function rebuildTree(
     });
   });
 
-  // Build tree recursively, preserving original layer structure
+  // Build tree recursively, preserving properties but rebuilding structure
   function buildNode(nodeId: string): Layer {
     const node = nodeCopy.find(n => n.id === nodeId);
-    if (!node) {
-      console.error('❌ REBUILD ERROR: Node not found:', nodeId);
-      return originalLayerMap.get(nodeId)!;
+    const originalLayer = originalLayerMap.get(nodeId);
+    
+    if (!originalLayer) {
+      console.error('❌ REBUILD ERROR: Original layer not found:', nodeId);
+      return { id: nodeId, name: 'div', classes: '' };
     }
 
-    const childNodes = byParent.get(nodeId) || [];
-    const originalLayer = originalLayerMap.get(nodeId)!;
+    // Get children from byParent (for visible nodes) OR from original layer (for collapsed)
+    const childrenFromByParent = byParent.get(nodeId) || [];
+    const originalChildren = originalLayer.children || [];
 
-    // Start with the original layer to preserve all properties
-    const result: Layer = { ...originalLayer };
+    // Preserve all layer properties EXCEPT children
+    const { children: _, ...layerWithoutChildren } = originalLayer;
+    const result: Layer = { ...layerWithoutChildren };
 
-    // Only update children if they are in the flattened tree (visible)
-    // Otherwise keep the original children (for collapsed nodes)
-    if (childNodes.length > 0) {
-      // Build children from the reordered structure
-      result.children = childNodes.map(child => buildNode(child.id));
-    } else if (byParent.has(nodeId)) {
-      // Node is in byParent map but has no children - explicitly remove children
-      delete result.children;
+    // Decision: rebuild children OR preserve original?
+    // - If this node is in the visible tree, rebuild from byParent
+    // - If this node is NOT visible (hidden/collapsed), preserve original children
+    const isNodeVisible = visibleNodeIds.has(nodeId);
+
+    if (isNodeVisible) {
+      // Node is visible - rebuild children from byParent to reflect the drag operation
+      if (childrenFromByParent.length > 0) {
+        // Recursively build children
+        result.children = childrenFromByParent.map(child => buildNode(child.id));
+      } else {
+        // No children in byParent - check if original had children
+        // If original had children, they must be collapsed, so preserve them
+        if (originalChildren.length > 0) {
+          result.children = originalChildren;
+        }
+        // else: truly no children, don't set children property
+      }
+    } else {
+      // Node is not visible (inside collapsed parent) - preserve original children completely
+      if (originalChildren.length > 0) {
+        result.children = originalChildren;
+      }
     }
-    // else: keep original children (for nodes not in flattened tree)
 
     return result;
   }
