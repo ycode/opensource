@@ -69,8 +69,9 @@
   display: none !important;
 }
 
-/* Body layer minimum height */
+/* Body layer fills canvas height */
 #canvas-body {
+  height: 100%;
   min-height: 100%;
 }
 

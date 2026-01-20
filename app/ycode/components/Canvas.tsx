@@ -116,7 +116,7 @@ function CanvasContent({
     <div
       id="canvas-body"
       data-layer-id="body"
-      className="min-h-full bg-white"
+      className="h-full min-h-full bg-white"
     >
       {layers.length > 0 ? (
         <LayerRenderer
@@ -243,7 +243,7 @@ export default function Canvas({
       doc.open();
       doc.write(`
 <!DOCTYPE html>
-<html>
+<html style="height: 100%;">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -264,8 +264,8 @@ export default function Canvas({
     }
   </script>
 </head>
-<body style="margin: 0; padding: 0; min-height: 100%;">
-  <div id="canvas-mount"></div>
+<body style="margin: 0; padding: 0; height: 100%;">
+  <div id="canvas-mount" style="height: 100%;"></div>
 </body>
 </html>
       `);
