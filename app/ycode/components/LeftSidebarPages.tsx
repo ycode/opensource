@@ -227,6 +227,11 @@ export default function LeftSidebarPages({
     if (tempPage) {
       setSelectedItemId(tempPage.id);
       selectedItemIdRef.current = tempPage.id;
+
+      // Immediately open Page settings panel with temp page (optimistic)
+      setEditingPage(tempPage);
+      setShowPageSettings(true);
+      setShowFolderSettings(false);
     }
   };
 
