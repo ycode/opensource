@@ -12,10 +12,12 @@ import type { Layer, Locale } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
-import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent } from '@/lib/variable-utils';
+import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent, createAssetVariable, createDynamicTextVariable } from '@/lib/variable-utils';
 import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-utils';
-import { DEFAULT_ASSETS } from '@/lib/asset-utils';
+import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
+import { useEditorStore } from '@/stores/useEditorStore';
+import { toast } from 'sonner';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import { renderRichText, hasBlockElements } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
@@ -234,6 +236,7 @@ const LayerItem: React.FC<{
   const effectiveCollectionItemData = collectionItemData || pageCollectionItemData || undefined;
   const getAsset = useAssetsStore((state) => state.getAsset);
   const assetsById = useAssetsStore((state) => state.assetsById);
+  const openFileManager = useEditorStore((state) => state.openFileManager);
   const allTranslations = useLocalisationStore((state) => state.translations);
   const translations = isEditMode && currentLocale ? allTranslations[currentLocale.id] : null;
   let htmlTag = getLayerHtmlTag(layer);
@@ -526,6 +529,41 @@ const LayerItem: React.FC<{
     }
   };
 
+  // Open file manager for image layers on double-click
+  const openImageFileManager = useCallback(() => {
+    if (!isEditMode || isLockedByOther || !onLayerUpdate) return;
+
+    // Get current asset ID for highlighting in file manager
+    const currentAssetId = isAssetVariable(layer.variables?.image?.src)
+      ? getAssetId(layer.variables?.image?.src)
+      : null;
+
+    openFileManager(
+      (asset) => {
+        // Validate asset type - only allow images
+        if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
+          toast.error('Invalid asset type', {
+            description: 'Please select an image file.',
+          });
+          return false; // Don't close file manager
+        }
+
+        // Update layer with new image asset
+        onLayerUpdate(layer.id, {
+          variables: {
+            ...layer.variables,
+            image: {
+              src: createAssetVariable(asset.id),
+              alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+            },
+          },
+        });
+      },
+      currentAssetId,
+      ASSET_CATEGORIES.IMAGES
+    );
+  }, [isEditMode, isLockedByOther, onLayerUpdate, layer, openFileManager]);
+
   const finishEditing = useCallback(() => {
     if (editingLayerId === layer.id && onLayerUpdate) {
       setEditingLayerId(null);
@@ -701,6 +739,14 @@ const LayerItem: React.FC<{
       elementProps.onDoubleClick = (e: React.MouseEvent) => {
         if (isLockedByOther) return;
         e.stopPropagation();
+
+        // Image layers: open file manager for quick image replacement
+        if (layer.name === 'image' || htmlTag === 'img') {
+          openImageFileManager();
+          return;
+        }
+
+        // Text-editable layers: start inline editing
         startEditing(e.clientX, e.clientY);
       };
       // Prevent context menu from bubbling
