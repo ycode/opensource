@@ -51,7 +51,16 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
   const { addLayerFromTemplate, updateLayer, setDraftLayers, draftsByPageId } = usePagesStore();
   const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId } = useEditorStore();
   const { components, componentDrafts, updateComponentDraft } = useComponentsStore();
-  const [activeTab, setActiveTab] = React.useState<'elements' | 'layouts' | 'components'>(defaultTab);
+  const [activeTab, setActiveTab] = React.useState<'elements' | 'layouts' | 'components'>(() => {
+    // Try to load from sessionStorage first
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('elementLibrary-activeTab');
+      if (saved && ['elements', 'layouts', 'components'].includes(saved)) {
+        return saved as 'elements' | 'layouts' | 'components';
+      }
+    }
+    return defaultTab;
+  });
   const [isEditLayoutDialogOpen, setIsEditLayoutDialogOpen] = useState(false);
   const [editingLayoutKey, setEditingLayoutKey] = useState<string>('');
   const [editingLayoutName, setEditingLayoutName] = useState<string>('');
@@ -73,12 +82,12 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     return new Set(allCategories.filter(cat => cat !== 'Hero'));
   });
 
-  // Update active tab when defaultTab changes (e.g., when opening with a specific tab)
+  // Persist active tab to sessionStorage
   React.useEffect(() => {
-    if (isOpen && defaultTab) {
-      setActiveTab(defaultTab);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('elementLibrary-activeTab', activeTab);
     }
-  }, [isOpen, defaultTab]);
+  }, [activeTab]);
 
   // Persist collapsed state to sessionStorage
   React.useEffect(() => {
