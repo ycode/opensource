@@ -51,7 +51,6 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
-import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
 
 // 5.5 Hooks
@@ -149,7 +148,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const setActiveInteraction = useEditorStore((state) => state.setActiveInteraction);
   const clearActiveInteraction = useEditorStore((state) => state.clearActiveInteraction);
   const activeTextStyleKey = useEditorStore((state) => state.activeTextStyleKey);
-  const isCanvasTextEditing = useCanvasTextEditorStore((state) => state.isEditing);
+  const showTextStyleControls = useEditorStore((state) => state.showTextStyleControls());
 
   // Collaboration hooks - re-enabled
   const layerLocks = useLayerLocks();
@@ -379,7 +378,7 @@ const RightSidebar = React.memo(function RightSidebar({
     switch (controlName) {
       case 'layout':
         // In text style mode, hide layout controls
-        if (isCanvasTextEditing) return false;
+        if (showTextStyleControls) return false;
         // Layout controls: show for containers, hide for text-only elements
         return !isTextLayer(layer) || isButtonLayer(layer);
 
@@ -390,7 +389,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
       case 'sizing':
         // In text style mode, hide sizing controls
-        if (isCanvasTextEditing) return false;
+        if (showTextStyleControls) return false;
         // Sizing controls: show for all elements
         return true;
 
@@ -398,19 +397,19 @@ const RightSidebar = React.memo(function RightSidebar({
         // Typography controls: show in text edit mode or for text elements, buttons, and icons
         // In text edit mode, shows: font, size, weight, color, letter spacing, line height
         // (text align is hidden by internal logic for inline styles)
-        if (isCanvasTextEditing) return true;
+        if (showTextStyleControls) return true;
         return isTextLayer(layer) || isButtonLayer(layer) || isIconLayer(layer);
 
       case 'backgrounds':
         // Background controls: hide for text elements (show for buttons and containers)
         // Hidden in text edit mode (block-level property)
-        if (isCanvasTextEditing) return false;
+        if (showTextStyleControls) return false;
         return !isTextLayer(layer) || isButtonLayer(layer);
 
       case 'borders':
         // Border controls: hide for pure text elements (show for buttons and containers)
         // Hidden in text edit mode (block-level property)
-        if (isCanvasTextEditing) return false;
+        if (showTextStyleControls) return false;
         return !isTextLayer(layer) || isButtonLayer(layer);
 
       case 'effects':
@@ -420,13 +419,13 @@ const RightSidebar = React.memo(function RightSidebar({
 
       case 'position':
         // In text style mode, hide position controls
-        if (isCanvasTextEditing) return false;
+        if (showTextStyleControls) return false;
         // Position controls: show for all
         return true;
 
       default:
         // In text style mode, hide unknown controls
-        if (isCanvasTextEditing) return false;
+        if (showTextStyleControls) return false;
         return true;
     }
   };
@@ -510,7 +509,7 @@ const RightSidebar = React.memo(function RightSidebar({
   // Sync classesInput when selectedLayer or activeTextStyleKey changes
   useEffect(() => {
     // In text edit mode with a text style selected, show classes for that text style
-    if (isCanvasTextEditing && activeTextStyleKey && selectedLayer?.textStyles?.[activeTextStyleKey]) {
+    if (showTextStyleControls && activeTextStyleKey && selectedLayer?.textStyles?.[activeTextStyleKey]) {
       const textStyleClasses = selectedLayer.textStyles[activeTextStyleKey].classes;
       setClassesInput(textStyleClasses || '');
     }
@@ -523,7 +522,7 @@ const RightSidebar = React.memo(function RightSidebar({
         : selectedLayer.classes;
       setClassesInput(classes);
     }
-  }, [selectedLayer, isCanvasTextEditing, activeTextStyleKey]);
+  }, [selectedLayer, showTextStyleControls, activeTextStyleKey]);
 
   // Lock-aware update function
   const handleLayerUpdate = useCallback((layerId: string, updates: Partial<Layer>) => {
@@ -579,7 +578,7 @@ const RightSidebar = React.memo(function RightSidebar({
     const newClasses = [...classesWithoutConflicts, trimmedClass].join(' ');
 
     // In text edit mode with a text style selected, update the text style
-    if (isCanvasTextEditing && activeTextStyleKey) {
+    if (showTextStyleControls && activeTextStyleKey) {
       const parsedDesign = classesToDesign([trimmedClass]);
       const currentTextStyle = selectedLayer.textStyles?.[activeTextStyleKey] || { design: {}, classes: '' };
       const updatedDesign = mergeDesign(currentTextStyle.design, parsedDesign);
@@ -607,7 +606,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
     setClassesInput(newClasses);
     setCurrentClassInput('');
-  }, [classesArray, handleLayerUpdate, selectedLayer, isCanvasTextEditing, activeTextStyleKey]);
+  }, [classesArray, handleLayerUpdate, selectedLayer, showTextStyleControls, activeTextStyleKey]);
 
   // Remove class function
   const removeClass = useCallback((classToRemove: string) => {
@@ -616,7 +615,7 @@ const RightSidebar = React.memo(function RightSidebar({
     setClassesInput(newClasses);
 
     // In text edit mode with a text style selected, update the text style
-    if (isCanvasTextEditing && activeTextStyleKey) {
+    if (showTextStyleControls && activeTextStyleKey) {
       const currentTextStyle = selectedLayer.textStyles?.[activeTextStyleKey] || { design: {}, classes: '' };
       handleLayerUpdate(selectedLayer.id, {
         textStyles: {
@@ -631,7 +630,7 @@ const RightSidebar = React.memo(function RightSidebar({
       // Otherwise, update the layer
       handleClassesChange(newClasses);
     }
-  }, [classesArray, handleClassesChange, selectedLayer, isCanvasTextEditing, activeTextStyleKey, handleLayerUpdate]);
+  }, [classesArray, handleClassesChange, selectedLayer, showTextStyleControls, activeTextStyleKey, handleLayerUpdate]);
 
   // Handle key press for adding classes
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1516,7 +1515,7 @@ const RightSidebar = React.memo(function RightSidebar({
         <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden mt-0">
 
           {/* Layer Styles Panel - only show for default layer style and not in text style mode */}
-          {!isCanvasTextEditing && (
+          {!showTextStyleControls && (
             <LayerStylesPanel
               layer={selectedLayer}
               pageId={currentPageId}
@@ -1525,7 +1524,7 @@ const RightSidebar = React.memo(function RightSidebar({
           )}
 
           {/* Field Binding Panel - show for text/image layers inside a collection (hide in text style mode) */}
-          {!isCanvasTextEditing && selectedLayer && parentCollectionLayer && parentCollectionFields.length > 0 && selectedLayer.name === 'image' && (
+          {!showTextStyleControls && selectedLayer && parentCollectionLayer && parentCollectionFields.length > 0 && selectedLayer.name === 'image' && (
             <SettingsPanel
               title="Field Binding"
               isOpen={fieldBindingOpen}
@@ -1570,11 +1569,11 @@ const RightSidebar = React.memo(function RightSidebar({
             <UIStateSelector selectedLayer={selectedLayer} />
           )}
 
-          {shouldShowControl('layout', selectedLayer) && !isCanvasTextEditing && (
+          {shouldShowControl('layout', selectedLayer) && !showTextStyleControls && (
             <LayoutControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
-          {shouldShowControl('spacing', selectedLayer) && !isCanvasTextEditing && (
+          {shouldShowControl('spacing', selectedLayer) && !showTextStyleControls && (
             <SpacingControls
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
@@ -1582,7 +1581,7 @@ const RightSidebar = React.memo(function RightSidebar({
             />
           )}
 
-          {shouldShowControl('sizing', selectedLayer) && !isCanvasTextEditing && (
+          {shouldShowControl('sizing', selectedLayer) && !showTextStyleControls && (
             <SizingControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
@@ -1618,7 +1617,7 @@ const RightSidebar = React.memo(function RightSidebar({
             />
           )}
 
-          {shouldShowControl('position', selectedLayer) && !isCanvasTextEditing && (
+          {shouldShowControl('position', selectedLayer) && !showTextStyleControls && (
             <PositionControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
@@ -1777,7 +1776,7 @@ const RightSidebar = React.memo(function RightSidebar({
                     allFields={fields}
                     collections={collections}
                     withFormatting={true}
-                    disabled={isCanvasTextEditing}
+                    disabled={showTextStyleControls}
                   />
                 </div>
               </SettingsPanel>

@@ -10,7 +10,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInput } from '@/hooks/use-controlled-input';
 import { useEditorStore } from '@/stores/useEditorStore';
-import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
 import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
@@ -24,7 +23,7 @@ interface TypographyControlsProps {
 
 export default function TypographyControls({ layer, onLayerUpdate, activeTextStyleKey }: TypographyControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
-  const isCanvasTextEditing = useCanvasTextEditorStore((state) => state.isEditing);
+  const showTextStyleControls = useEditorStore((state) => state.showTextStyleControls());
   const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
@@ -150,7 +149,7 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
   );
 
   // Hide block-level properties (like text align) when in text edit mode with default style
-  const hideBlockLevelProperties = isInlineTextStyle || (isCanvasTextEditing && !activeTextStyleKey);
+  const hideBlockLevelProperties = isInlineTextStyle || (showTextStyleControls && !activeTextStyleKey);
 
   return (
     <div className="py-5">

@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { EditorState, UIState } from '../types';
 import type { Layer, Breakpoint, Asset, AssetCategory } from '../types';
+import { useCanvasTextEditorStore } from './useCanvasTextEditorStore';
 
 interface HistoryEntry {
   pageId: string;
@@ -72,6 +73,8 @@ interface EditorStoreWithHistory extends EditorState {
     assetId: string | null;
     category: AssetCategory | 'all' | null;
   };
+  // Computed getters
+  showTextStyleControls: () => boolean;
 }
 
 type EditorStore = EditorStoreWithHistory & EditorActions;
@@ -107,6 +110,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     onSelect: null,
     assetId: null,
     category: null,
+  },
+
+  // Computed getter: Returns true when text style controls should be shown
+  // This happens when:
+  // 1. Canvas text editing is active, OR
+  // 2. A text style is selected from the dropdown (e.g., bold, italic, custom style)
+  showTextStyleControls: () => {
+    const state = get();
+    const isCanvasTextEditing = useCanvasTextEditorStore.getState().isEditing;
+    return isCanvasTextEditing || !!state.activeTextStyleKey;
   },
 
   setSelectedLayerId: (id) => {

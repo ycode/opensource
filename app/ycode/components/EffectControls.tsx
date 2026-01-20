@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Slider } from '@/components/ui/slider';
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useEditorStore } from '@/stores/useEditorStore';
-import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -35,7 +34,7 @@ interface EffectControlsProps {
 
 export default function EffectControls({ layer, onLayerUpdate, activeTextStyleKey }: EffectControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
-  const isCanvasTextEditing = useCanvasTextEditorStore((state) => state.isEditing);
+  const showTextStyleControls = useEditorStore((state) => state.showTextStyleControls());
   const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
@@ -427,7 +426,7 @@ export default function EffectControls({ layer, onLayerUpdate, activeTextStyleKe
               </div>
           </div>
 
-          {!isCanvasTextEditing && (
+          {!showTextStyleControls && (
             <div className="grid grid-cols-3 items-start">
               <Label variant="muted" className="py-2">Shadow</Label>
               <div className="col-span-2 *:w-full flex flex-col gap-2">
