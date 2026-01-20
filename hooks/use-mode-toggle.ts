@@ -72,8 +72,8 @@ export function useModeToggle(config: ModeToggleConfig) {
         // Switch to individual mode (with or without values)
         setMode('individual');
         pendingModeChangeRef.current = null;
-      } else if (targetMode === 'all' && unifiedValue && individualValues.length === 0) {
-        // Properties are ready, switch to unified mode
+      } else if (targetMode === 'all' && individualValues.length === 0) {
+        // Properties are ready, switch to unified mode (allow even without values)
         setMode('all');
         pendingModeChangeRef.current = null;
       }
