@@ -405,6 +405,9 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     valueRef.current = value;
   }, [value]);
 
+  // Track current layer ID to detect layer switches
+  const currentLayerIdRef = useRef<string>(layer.id);
+
   // Create extensions with layer-specific textStyles
   // Dynamic styles use textStylesRef for real-time class lookups
   const extensions = useMemo(() => [
@@ -605,6 +608,23 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     };
   }, [editor, onChange]);
 
+  // Handle layer switches: save old content before loading new layer
+  useEffect(() => {
+    if (!editor) return;
+
+    if (currentLayerIdRef.current !== layer.id) {
+      // Layer has changed - save the current editor content before switching
+      if (currentLayerIdRef.current) {
+        const currentContent = editor.getJSON();
+        if (JSON.stringify(currentContent) !== JSON.stringify(valueRef.current)) {
+          onChange(currentContent);
+        }
+      }
+      // Update to new layer ID
+      currentLayerIdRef.current = layer.id;
+    }
+  }, [layer.id, editor, onChange]);
+
   // Focus editor on mount (only if no saved selection exists)
   useEffect(() => {
     if (!editor) return;
@@ -728,8 +748,10 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     // Only update if content actually changed (not just design properties)
     if (JSON.stringify(currentContent) !== JSON.stringify(newContent)) {
       editor.commands.setContent(newContent, { emitUpdate: false });
+      // Update valueRef to track the new content
+      valueRef.current = newContent;
     }
-  }, [value, fields, allFields, editor]);
+  }, [value, fields, allFields, editor, layer.id]);
 
   // Add field variable
   const addFieldVariable = useCallback((variableData: FieldVariable) => {

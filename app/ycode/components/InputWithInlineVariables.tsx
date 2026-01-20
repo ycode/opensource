@@ -323,6 +323,11 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
       },
     },
     onUpdate: ({ editor }) => {
+      // Don't trigger updates if editor is disabled (e.g., during canvas text editing)
+      if (!editor.isEditable) {
+        return;
+      }
+
       // Mark that this update is coming from the editor
       isInternalUpdateRef.current = true;
 
@@ -371,6 +376,11 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   // Update editor content when value or fields change externally
   useEffect(() => {
     if (!editor) return;
+
+    // Skip updates when editor is disabled (e.g., during canvas text editing)
+    if (!editor.isEditable) {
+      return;
+    }
 
     // Skip update if it's coming from the editor itself
     if (isInternalUpdateRef.current) {
