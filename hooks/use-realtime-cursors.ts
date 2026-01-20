@@ -292,6 +292,13 @@ export const useRealtimeCursors = ({
             // Set current user in collaboration store
             if (currentUser && currentUser.email) {
               setCurrentUser(currentUser.id, currentUser.email)
+              // Also add current user to users object with email
+              updateUser(currentUser.id, {
+                user_id: currentUser.id,
+                email: currentUser.email,
+                color: color,
+                last_active: Date.now()
+              })
             }
           } else {
             setCursors({})

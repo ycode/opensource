@@ -6,9 +6,9 @@
  * Compact version of active users display integrated into the header bar
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useCollaborationPresenceStore } from '../../../stores/useCollaborationPresenceStore';
-import { getUserInitials, getDisplayName, getUserStatus } from '../../../lib/collaboration-utils';
+import { getUserInitials, getUserStatus } from '../../../lib/collaboration-utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import type { CollaborationUser } from '../../../types';
@@ -28,6 +28,18 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
   const users = useCollaborationPresenceStore((state) => state.users);
   const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
   const [isOpen, setIsOpen] = useState(false);
+
+  // Close popover when clicking on canvas (iframe clicks don't bubble to parent)
+  useEffect(() => {
+    const handleCanvasClick = () => {
+      setIsOpen(false);
+    };
+
+    window.addEventListener('canvasClick', handleCanvasClick);
+    return () => {
+      window.removeEventListener('canvasClick', handleCanvasClick);
+    };
+  }, []);
 
   // Memoize active users computation to avoid creating new arrays on every render
   const activeUsers = useMemo(() => {
@@ -129,7 +141,7 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
 
                   <div className="flex items-center gap-2">
                     <Label>
-                      {getDisplayName(user.email || '')}
+                      {user.email || 'Unknown user'}
                     </Label>
                     {user.user_id === currentUserId && (
                       <span className="text-xs opacity-50">

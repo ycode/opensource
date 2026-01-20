@@ -616,9 +616,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return map;
   }, [assets]);
 
-  // Handle any click inside the canvas (closes ElementLibrary panel)
+  // Handle any click inside the canvas (closes ElementLibrary panel and other popovers)
   const handleCanvasClick = useCallback(() => {
     window.dispatchEvent(new CustomEvent('closeElementLibrary'));
+    window.dispatchEvent(new CustomEvent('canvasClick'));
   }, []);
 
   // Canvas callback handlers
