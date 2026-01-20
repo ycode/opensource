@@ -23,6 +23,7 @@ import {
 import Image from 'next/image';
 import { getLayerFromTemplate, getBlockName, getBlockIcon, getLayoutTemplate, getLayoutCategory, getLayoutPreviewImage, getLayoutsByCategory, getAllLayoutKeys } from '@/lib/templates/blocks';
 import { canHaveChildren } from '@/lib/layer-utils';
+import { cn } from '@/lib/utils';
 import SaveLayoutDialog from './SaveLayoutDialog';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -55,6 +56,22 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
   const [editingLayoutKey, setEditingLayoutKey] = useState<string>('');
   const [editingLayoutName, setEditingLayoutName] = useState<string>('');
   const [editingLayoutCategory, setEditingLayoutCategory] = useState<string>('Custom');
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => {
+    // Try to load from sessionStorage first
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('elementLibrary-collapsedCategories');
+      if (saved) {
+        try {
+          return new Set(JSON.parse(saved));
+        } catch (e) {
+          // If parsing fails, fall through to default
+        }
+      }
+    }
+    // Initialize with all categories collapsed except "Hero"
+    const allCategories = Object.keys(getLayoutsByCategory());
+    return new Set(allCategories.filter(cat => cat !== 'Hero'));
+  });
 
   // Update active tab when defaultTab changes (e.g., when opening with a specific tab)
   React.useEffect(() => {
@@ -62,6 +79,28 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       setActiveTab(defaultTab);
     }
   }, [isOpen, defaultTab]);
+
+  // Persist collapsed state to sessionStorage
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(
+        'elementLibrary-collapsedCategories',
+        JSON.stringify(Array.from(collapsedCategories))
+      );
+    }
+  }, [collapsedCategories]);
+
+  const toggleCategory = (category: string) => {
+    setCollapsedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  };
 
   const handleAddElement = (elementType: string) => {
     // If editing component, use component draft instead
@@ -738,12 +777,26 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
               </Empty>
             ) : (
               <div className="flex flex-col divide-y pb-5">
-                {Object.entries(getLayoutsByCategory()).map(([category, layoutKeys]) => (
-                  <div key={category} className="flex flex-col pb-5">
-                    <header className="py-5">
-                      <Label>{category}</Label>
-                    </header>
-                    <div className="grid grid-cols-1 gap-1.5">
+                {Object.entries(getLayoutsByCategory()).map(([category, layoutKeys]) => {
+                  const isCollapsed = collapsedCategories.has(category);
+                  
+                  return (
+                    <div key={category} className="flex flex-col">
+                      <header 
+                        className="py-5 flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
+                        onClick={() => toggleCategory(category)}
+                      >
+                        <Icon 
+                          name="triangle-down" 
+                          className={cn(
+                            'size-3 opacity-25 transition-transform',
+                            isCollapsed && '-rotate-90'
+                          )}
+                        />
+                        <Label className="cursor-pointer">{category}</Label>
+                      </header>
+                      {!isCollapsed && (
+                        <div className="grid grid-cols-1 gap-1.5 pb-5">
                       {layoutKeys.map((layoutKey) => {
                         const previewImage = getLayoutPreviewImage(layoutKey);
 
@@ -795,8 +848,10 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                         );
                       })}
                     </div>
-                  </div>
-                ))}
+                      )}
+                </div>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
