@@ -616,6 +616,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return map;
   }, [assets]);
 
+  // Handle any click inside the canvas (closes ElementLibrary panel)
+  const handleCanvasClick = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('closeElementLibrary'));
+  }, []);
+
   // Canvas callback handlers
   const handleCanvasLayerClick = useCallback((layerId: string, event?: React.MouseEvent) => {
     if (!isPreviewMode) {
@@ -1611,6 +1616,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
             msOverflowStyle: isPreviewMode ? undefined : 'none', // IE/Edge
             WebkitOverflowScrolling: isPreviewMode ? undefined : 'touch', // Smooth scrolling on iOS
           }}
+          onClick={handleCanvasClick}
         >
           {/* Hide scrollbars for Webkit browsers (editor mode only) */}
           {!isPreviewMode && (
@@ -1746,6 +1752,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         liveComponentUpdates={liveComponentUpdates}
                         onIframeReady={handleIframeReady}
                         onLayerHover={handleCanvasLayerHover}
+                        onCanvasClick={handleCanvasClick}
                       />
 
                       {/* Empty overlay when only Body with no children */}

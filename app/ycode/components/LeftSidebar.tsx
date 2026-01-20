@@ -141,6 +141,16 @@ const LeftSidebar = React.memo(function LeftSidebar({
     return () => window.removeEventListener('toggleElementLibrary', handleToggleElementLibrary);
   }, []);
 
+  // Listen for close ElementLibrary event (e.g., when clicking on canvas)
+  useEffect(() => {
+    const handleCloseElementLibrary = () => {
+      setShowElementLibrary(false);
+    };
+
+    window.addEventListener('closeElementLibrary', handleCloseElementLibrary);
+    return () => window.removeEventListener('closeElementLibrary', handleCloseElementLibrary);
+  }, []);
+
   // Lock-aware layer selection handler
   const handleLayerSelect = useCallback((layerId: string) => {
     // Check if layer is locked by another user
