@@ -11,7 +11,7 @@
 import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useEditor, EditorContent } from '@tiptap/react';
-import { Node, mergeAttributes } from '@tiptap/core';
+import { Node, Mark, mergeAttributes } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Text from '@tiptap/extension-text';
 import Paragraph from '@tiptap/extension-paragraph';
@@ -202,6 +202,57 @@ const DynamicVariable = Node.create({
   },
 });
 
+/**
+ * Custom Tiptap mark for dynamic text styles
+ * Preserves the style keys from canvas text editor without applying visual styling
+ */
+const DynamicStyle = Mark.create({
+  name: 'dynamicStyle',
+
+  addAttributes() {
+    return {
+      styleKeys: {
+        default: [],
+        parseHTML: (element) => {
+          const attr = element.getAttribute('data-style-keys');
+          if (!attr) {
+            // Backwards compatibility: single styleKey
+            const singleKey = element.getAttribute('data-style-key');
+            return singleKey ? [singleKey] : [];
+          }
+          try {
+            return JSON.parse(attr);
+          } catch {
+            return [];
+          }
+        },
+        renderHTML: (attributes) => {
+          const keys = attributes.styleKeys || [];
+          if (keys.length === 0) return {};
+          return { 'data-style-keys': JSON.stringify(keys) };
+        },
+      },
+    };
+  },
+
+  parseHTML() {
+    return [
+      { tag: 'span[data-style-keys]' },
+      { tag: 'span[data-style-key]' }, // Backwards compatibility
+    ];
+  },
+
+  renderHTML({ HTMLAttributes, mark }) {
+    const styleKeys: string[] = mark.attrs.styleKeys || [];
+    const lastKey = styleKeys[styleKeys.length - 1] || null;
+
+    return ['span', mergeAttributes(HTMLAttributes, {
+      'data-style-keys': JSON.stringify(styleKeys),
+      'data-style-key': lastKey,
+    }), 0];
+  },
+});
+
 const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, InputWithInlineVariablesProps>(({
   value,
   onChange,
@@ -225,6 +276,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
       Paragraph,
       Text,
       DynamicVariable,
+      DynamicStyle,
       Placeholder.configure({
         placeholder,
       }),

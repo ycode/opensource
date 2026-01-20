@@ -13,7 +13,7 @@
 import React, { useEffect, useMemo, useCallback, forwardRef, useImperativeHandle, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useEditor, EditorContent } from '@tiptap/react';
-import { Node, mergeAttributes } from '@tiptap/core';
+import { Node, Mark, mergeAttributes } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Text from '@tiptap/extension-text';
 import Paragraph from '@tiptap/extension-paragraph';
@@ -37,6 +37,8 @@ import {
   getVariableLabel,
 } from '@/lib/cms-variables-utils';
 import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
+import { useEditorStore } from '@/stores/useEditorStore';
+import { cn } from '@/lib/utils';
 
 interface CanvasTextEditorProps {
   /** The layer being edited */
@@ -302,6 +304,71 @@ function createListItemExtension(textStyles?: Record<string, TextStyle>) {
   });
 }
 
+/**
+ * Create dynamic style Mark extension for applying arbitrary styles to selected text
+ * Stores an array of styleKeys to support stacking multiple styles on the same text
+ * Classes from all styleKeys are combined at render time
+ */
+function createDynamicStyleExtension(textStylesRef: React.MutableRefObject<Record<string, TextStyle> | undefined>) {
+  return Mark.create({
+    name: 'dynamicStyle',
+
+    addAttributes() {
+      return {
+        styleKeys: {
+          default: [],
+          parseHTML: (element) => {
+            const attr = element.getAttribute('data-style-keys');
+            if (!attr) {
+              // Backwards compatibility: single styleKey
+              const singleKey = element.getAttribute('data-style-key');
+              return singleKey ? [singleKey] : [];
+            }
+            try {
+              return JSON.parse(attr);
+            } catch {
+              return [];
+            }
+          },
+          renderHTML: (attributes) => {
+            const keys = attributes.styleKeys || [];
+            if (keys.length === 0) return {};
+            return { 'data-style-keys': JSON.stringify(keys) };
+          },
+        },
+      };
+    },
+
+    parseHTML() {
+      return [
+        { tag: 'span[data-style-keys]' },
+        { tag: 'span[data-style-key]' }, // Backwards compatibility
+      ];
+    },
+
+    renderHTML({ HTMLAttributes, mark }) {
+      const styleKeys: string[] = mark.attrs.styleKeys || [];
+      const styles = textStylesRef.current || {};
+
+      // Combine classes from all styleKeys using cn() for intelligent merging
+      // Later styles override earlier ones for conflicting properties (e.g., colors)
+      const classesArray = styleKeys
+        .map(key => styles[key]?.classes || '')
+        .filter(Boolean);
+      const combinedClasses = cn(...classesArray);
+
+      // Store the last styleKey as data-style-key for click detection
+      const lastKey = styleKeys[styleKeys.length - 1] || null;
+
+      return ['span', mergeAttributes(HTMLAttributes, {
+        'data-style-keys': JSON.stringify(styleKeys),
+        'data-style-key': lastKey, // For click detection
+        class: combinedClasses,
+      }), 0];
+    },
+  });
+}
+
 const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProps>(({
   layer,
   value,
@@ -318,6 +385,12 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
   const savedSelectionRef = useRef<{ from: number; to: number } | null>(null);
   // Store click coordinates on mount (they shouldn't change during editing)
   const clickCoordsRef = useRef(clickCoords);
+  // Mutable ref for textStyles that gets updated for real-time style changes
+  const textStylesRef = useRef(textStyles);
+  // Keep textStylesRef in sync with textStyles prop
+  useEffect(() => {
+    textStylesRef.current = textStyles;
+  }, [textStyles]);
 
   // Get store actions
   const setEditor = useCanvasTextEditorStore((s) => s.setEditor);
@@ -325,6 +398,7 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
   const stopEditing = useCanvasTextEditorStore((s) => s.stopEditing);
   const updateActiveMarks = useCanvasTextEditorStore((s) => s.updateActiveMarks);
   const setOnFinishCallback = useCanvasTextEditorStore((s) => s.setOnFinishCallback);
+  const setOnSaveCallback = useCanvasTextEditorStore((s) => s.setOnSaveCallback);
 
   // Keep valueRef in sync with value prop
   useEffect(() => {
@@ -332,21 +406,24 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
   }, [value]);
 
   // Create extensions with layer-specific textStyles
+  // Dynamic styles use textStylesRef for real-time class lookups
   const extensions = useMemo(() => [
     Document,
     Paragraph,
     Text,
     DynamicVariable,
-    createBoldExtension(textStyles),
-    createItalicExtension(textStyles),
-    createUnderlineExtension(textStyles),
-    createStrikeExtension(textStyles),
-    createSubscriptExtension(textStyles),
-    createSuperscriptExtension(textStyles),
-    createBulletListExtension(textStyles),
-    createOrderedListExtension(textStyles),
-    createListItemExtension(textStyles),
-  ], [textStyles]);
+    createBoldExtension(textStylesRef.current),
+    createItalicExtension(textStylesRef.current),
+    createUnderlineExtension(textStylesRef.current),
+    createStrikeExtension(textStylesRef.current),
+    createSubscriptExtension(textStylesRef.current),
+    createSuperscriptExtension(textStylesRef.current),
+    createBulletListExtension(textStylesRef.current),
+    createOrderedListExtension(textStylesRef.current),
+    createListItemExtension(textStylesRef.current),
+    createDynamicStyleExtension(textStylesRef),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], []);
 
   // Parse initial content once on mount
   const initialContent = useMemo(() => {
@@ -427,6 +504,70 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     },
   }, [extensions]);
 
+  // Function to apply dynamic style classes to DOM elements
+  const applyDynamicStyles = useCallback(() => {
+    if (!editorRef.current) return;
+    const styles = textStylesRef.current || {};
+
+    // Find all elements with data-style-keys and update their classes
+    const styledElements = editorRef.current.querySelectorAll('[data-style-keys]');
+    styledElements.forEach((el) => {
+      const keysAttr = el.getAttribute('data-style-keys');
+      if (!keysAttr) return;
+
+      try {
+        const styleKeys: string[] = JSON.parse(keysAttr);
+        // Combine classes from all styleKeys using cn() for intelligent merging
+        // Later styles override earlier ones for conflicting properties
+        const classesArray = styleKeys
+          .map(key => styles[key]?.classes || '')
+          .filter(Boolean);
+        el.className = cn(...classesArray);
+      } catch {
+        // Fallback: single key
+        const singleKey = el.getAttribute('data-style-key');
+        if (singleKey && styles[singleKey]) {
+          el.className = styles[singleKey].classes || '';
+        }
+      }
+    });
+  }, []);
+
+  // Subscribe to editor events to apply dynamic styles when content renders
+  useEffect(() => {
+    if (!editor) return;
+
+    // Apply styles when editor creates/updates content
+    const handleCreate = () => {
+      // Use requestAnimationFrame to ensure DOM is updated
+      requestAnimationFrame(applyDynamicStyles);
+    };
+
+    const handleUpdate = () => {
+      requestAnimationFrame(applyDynamicStyles);
+    };
+
+    editor.on('create', handleCreate);
+    editor.on('update', handleUpdate);
+
+    // Also apply immediately and after delays for initial render
+    applyDynamicStyles();
+    const timeoutId1 = setTimeout(applyDynamicStyles, 50);
+    const timeoutId2 = setTimeout(applyDynamicStyles, 150);
+
+    return () => {
+      editor.off('create', handleCreate);
+      editor.off('update', handleUpdate);
+      clearTimeout(timeoutId1);
+      clearTimeout(timeoutId2);
+    };
+  }, [editor, applyDynamicStyles]);
+
+  // Reapply styles when textStyles change
+  useEffect(() => {
+    applyDynamicStyles();
+  }, [textStyles, applyDynamicStyles]);
+
   // Register editor with store on mount
   useEffect(() => {
     if (editor) {
@@ -438,6 +579,11 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
         saveChangesRef.current();
         onFinish?.();
       });
+
+      // Register save callback so dynamicStyle application can trigger a save
+      setOnSaveCallback(() => {
+        saveChangesRef.current();
+      });
     }
 
     return () => {
@@ -445,7 +591,7 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
       saveChangesRef.current();
       stopEditing();
     };
-  }, [editor, setEditor, startEditing, stopEditing, setOnFinishCallback, onFinish, layer.id]);
+  }, [editor, setEditor, startEditing, stopEditing, setOnFinishCallback, setOnSaveCallback, onFinish, layer.id]);
 
   // Update save function when editor or onChange changes
   useEffect(() => {
@@ -564,8 +710,15 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
   }, [editor]);
 
   // Update content when value changes externally (but preserve cursor position)
+  // IMPORTANT: Skip updates when editor is focused to prevent resetting user edits
+  // This is critical for the dynamicStyle auto-apply feature, which modifies content
+  // before updating layer.textStyles - we don't want the old value to reset the editor
   useEffect(() => {
     if (!editor) return;
+
+    // Skip external content sync when user is actively editing
+    // User edits are saved on finish/unmount, not during editing
+    if (editor.isFocused) return;
 
     const currentContent = editor.getJSON();
     const newContent = typeof value === 'object' && value?.type === 'doc'
@@ -574,43 +727,7 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
 
     // Only update if content actually changed (not just design properties)
     if (JSON.stringify(currentContent) !== JSON.stringify(newContent)) {
-      // Preserve cursor position when updating content
-      const { from, to } = editor.state.selection;
-      const wasFocused = editor.isFocused;
-
-      // Save current selection before updating
-      const selectionRef = { from, to };
-
       editor.commands.setContent(newContent, { emitUpdate: false });
-
-      // Restore cursor position if editor was focused
-      if (wasFocused && selectionRef.from !== undefined && selectionRef.to !== undefined) {
-        // Use requestAnimationFrame to ensure content is set before restoring selection
-        requestAnimationFrame(() => {
-          try {
-            // Try to restore the exact position, but clamp to document bounds
-            const docSize = editor.state.doc.content.size;
-            const safeFrom = Math.min(selectionRef.from, docSize);
-            const safeTo = Math.min(selectionRef.to, docSize);
-
-            // Only restore if positions are valid
-            if (safeFrom >= 0 && safeTo >= 0 && safeFrom <= docSize && safeTo <= docSize) {
-              editor.commands.setTextSelection({ from: safeFrom, to: safeTo });
-              editor.commands.focus();
-            } else {
-              // Fallback: focus at end if positions are invalid
-              editor.commands.focus('end');
-            }
-          } catch (error) {
-            // If position is invalid, just focus at the end
-            try {
-              editor.commands.focus('end');
-            } catch (e) {
-              // Ignore focus errors
-            }
-          }
-        });
-      }
     }
   }, [value, fields, allFields, editor]);
 
@@ -662,6 +779,22 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     editor.chain().focus().insertContent(contentToInsert).run();
   }, [editor, fields, allFields]);
 
+  // Handle clicks on styled text to select that style for editing
+  const handleEditorClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+
+    // Check if clicked element or its parents have data-style-key
+    const styledElement = target.closest('[data-style-key]') as HTMLElement;
+    if (styledElement) {
+      const styleKey = styledElement.getAttribute('data-style-key');
+      if (styleKey) {
+        // Import from the store isn't ideal here, but needed for click handling
+        const setActiveTextStyleKey = useEditorStore.getState().setActiveTextStyleKey;
+        setActiveTextStyleKey(styleKey);
+      }
+    }
+  }, []);
+
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
     focus: () => {
@@ -679,7 +812,11 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
   if (!editor) return null;
 
   return (
-    <div ref={editorRef} className="relative">
+    <div
+      ref={editorRef}
+      className="relative"
+      onClick={handleEditorClick}
+    >
       <EditorContent editor={editor} />
     </div>
   );

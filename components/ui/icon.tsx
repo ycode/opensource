@@ -13,7 +13,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'more' | 'copy' | 'component' | 'arrowLeft' | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'subscript' | 'superscript' | 'quote' | 'listOrdered' | 'listUnordered' | 'code' | 'pencil' | 'eye' | 'eye-off'
     | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'zap'
     | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in' | 'ease-back-in-out' | 'ease-back-out'
-    | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash'
+    | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash' | 'paintbrush'
   );
 }
 
@@ -735,6 +735,11 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   hash: (
     <>
       <path d="m3.892 7 .21-2H2V4h2.208l.262-2.5h1.006l-.262 2.5h1.995l.262-2.5h1.006l-.262 2.5H10v1h-1.892l-.21 2H10v1h-2.208l-.262 2.5h-1.006l.262-2.5H4.793l-.262 2.5H3.525l.262-2.5H2v-1h1.892Zm1.006 0h1.995l.21-2h-1.995l-.21 2Z" />
+    </>
+  ),
+  paintbrush: (
+    <>
+      <path d="M11.354.646a.5.5 0 0 1 0 .708L6.707 6H8.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H6v2.5a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5V8H1.5a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h1.793L.646 3.354a.5.5 0 1 1 .708-.708L4 5.293V3.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5V6h2.293l4.647-4.646a.5.5 0 0 1 .708 0zM2 7v.5h2V7H2zm3 0v.5h2V7H5zm3 0v.5h2V7H8zM4.5 4v2h.5V4h-.5zm0 3v2.5h.5V7h-.5z" />
     </>
   ),
 };

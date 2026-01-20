@@ -1,5 +1,6 @@
 import React from 'react';
 import type { TextStyle, DynamicRichTextVariable } from '@/types';
+import { cn } from '@/lib/utils';
 
 /**
  * Get a human-readable label for a text style
@@ -9,6 +10,11 @@ import type { TextStyle, DynamicRichTextVariable } from '@/types';
  * @returns Formatted label string
  */
 export function getTextStyleLabel(key: string, style?: TextStyle): string {
+  // Dynamic styles (dts-*) get a generic label
+  if (key.startsWith('dts-')) {
+    return 'Dynamic Style';
+  }
+
   // Return the label if it exists
   if (style?.label) {
     return style.label;
@@ -192,6 +198,31 @@ function renderTextNode(
         case 'superscript':
           text = React.createElement('sup', buildProps('superscript', styles.superscript?.classes), text);
           break;
+        case 'dynamicStyle': {
+          // Dynamic style stores an array of styleKeys
+          const styleKeys: string[] = mark.attrs?.styleKeys || [];
+          // Backwards compatibility: single styleKey
+          if (styleKeys.length === 0 && mark.attrs?.styleKey) {
+            styleKeys.push(mark.attrs.styleKey);
+          }
+          // Combine classes from all styleKeys using cn() for intelligent merging
+          // Later styles override earlier ones for conflicting properties
+          const classesArray = styleKeys
+            .map(k => styles[k]?.classes || '')
+            .filter(Boolean);
+          const styleClasses = cn(...classesArray);
+          const lastKey = styleKeys[styleKeys.length - 1];
+          const props: Record<string, any> = {
+            key: `${key}-${lastKey || 'dynamicStyle'}`,
+            className: styleClasses,
+          };
+          if (isEditMode) {
+            props['data-style-keys'] = JSON.stringify(styleKeys);
+            props['data-style-key'] = lastKey; // For click detection
+          }
+          text = React.createElement('span', props, text);
+          break;
+        }
       }
     }
   }

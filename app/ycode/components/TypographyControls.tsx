@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useDesignSync } from '@/hooks/use-design-sync';
 import { useControlledInput } from '@/hooks/use-controlled-input';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 import { extractMeasurementValue } from '@/lib/measurement-utils';
 import { removeSpaces } from '@/lib/utils';
 import type { Layer } from '@/types';
@@ -23,6 +24,7 @@ interface TypographyControlsProps {
 
 export default function TypographyControls({ layer, onLayerUpdate, activeTextStyleKey }: TypographyControlsProps) {
   const { activeBreakpoint, activeUIState } = useEditorStore();
+  const isCanvasTextEditing = useCanvasTextEditorStore((state) => state.isEditing);
   const { updateDesignProperty, debouncedUpdateDesignProperty, getDesignProperty } = useDesignSync({
     layer,
     onLayerUpdate,
@@ -45,17 +47,17 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
   // Custom extractor for letter spacing (strips 'em' as default unit, like fontSize strips 'px')
   const extractLetterSpacingValue = (value: string): string => {
     if (!value) return '';
-    
+
     // Special values that don't need processing
     const specialValues = ['auto', 'normal'];
     if (specialValues.includes(value)) return value;
-    
+
     // Strip 'em' unit (default for letter spacing)
     // Keep all other units like px, rem, %, etc.
     if (value.endsWith('em')) {
       return value.slice(0, -2);
     }
-    
+
     return value;
   };
 
@@ -140,8 +142,15 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
   const isIcon = layer?.name === 'icon';
 
   // Inline text styles that don't support block-level properties like text-align
+  // Dynamic styles (dts-*) are also inline
   const inlineTextStyles = ['bold', 'italic', 'underline', 'strike', 'subscript', 'superscript', 'code'];
-  const isInlineTextStyle = activeTextStyleKey && inlineTextStyles.includes(activeTextStyleKey);
+  const isInlineTextStyle = activeTextStyleKey && (
+    inlineTextStyles.includes(activeTextStyleKey) ||
+    activeTextStyleKey.startsWith('dts-')
+  );
+
+  // Hide block-level properties (like text align) when in text edit mode with default style
+  const hideBlockLevelProperties = isInlineTextStyle || (isCanvasTextEditing && !activeTextStyleKey);
 
   return (
     <div className="py-5">
@@ -222,81 +231,81 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
           </div>
         </div>
 
-        {!isIcon && !isInlineTextStyle && (
-          <>
-            <div className="grid grid-cols-3">
-              <Label variant="muted">Align</Label>
-              <div className="col-span-2">
-                <Tabs
-                  value={textAlign} onValueChange={handleTextAlignChange}
-                  className="w-full"
-                >
-                  <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="left" className="px-2 text-xs">
-                      <Icon name="textAlignLeft" />
-                    </TabsTrigger>
-                    <TabsTrigger value="center" className="px-2 text-xs">
-                      <Icon name="textAlignCenter" />
-                    </TabsTrigger>
-                    <TabsTrigger value="right" className="px-2 text-xs">
-                      <Icon name="textAlignRight" />
-                    </TabsTrigger>
-                    <TabsTrigger value="justify" className="px-2 text-xs">
-                      <Icon name="textAlignJustify" />
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
+        {!isIcon && !hideBlockLevelProperties && (
+          <div className="grid grid-cols-3">
+            <Label variant="muted">Align</Label>
+            <div className="col-span-2">
+              <Tabs
+                value={textAlign} onValueChange={handleTextAlignChange}
+                className="w-full"
+              >
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="left" className="px-2 text-xs">
+                    <Icon name="textAlignLeft" />
+                  </TabsTrigger>
+                  <TabsTrigger value="center" className="px-2 text-xs">
+                    <Icon name="textAlignCenter" />
+                  </TabsTrigger>
+                  <TabsTrigger value="right" className="px-2 text-xs">
+                    <Icon name="textAlignRight" />
+                  </TabsTrigger>
+                  <TabsTrigger value="justify" className="px-2 text-xs">
+                    <Icon name="textAlignJustify" />
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
+          </div>
+        )}
 
-            <div className="grid grid-cols-3">
-              <Label variant="muted">Spacing</Label>
-              <div className="col-span-2 grid grid-cols-2 gap-2">
-                <InputGroup>
-                  <InputGroupAddon>
-                    <div className="flex">
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Icon name="letterSpacing" className="size-3" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Letter spacing</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    className="!pr-0"
-                    value={letterSpacingInput}
-                    onChange={(e) => handleLetterSpacingChange(e.target.value)}
-                    stepper
-                    min="0"
-                  />
-                </InputGroup>
-                <InputGroup>
-                  <InputGroupAddon>
-                    <div className="flex">
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Icon name="lineHeight" className="size-3" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Line height</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    className="!pr-0"
-                    value={lineHeightInput}
-                    onChange={(e) => handleLineHeightChange(e.target.value)}
-                    stepper
-                    min="0"
-                  />
-                </InputGroup>
-              </div>
+        {!isIcon && (
+          <div className="grid grid-cols-3">
+            <Label variant="muted">Spacing</Label>
+            <div className="col-span-2 grid grid-cols-2 gap-2">
+              <InputGroup>
+                <InputGroupAddon>
+                  <div className="flex">
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Icon name="letterSpacing" className="size-3" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Letter spacing</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </InputGroupAddon>
+                <InputGroupInput
+                  className="!pr-0"
+                  value={letterSpacingInput}
+                  onChange={(e) => handleLetterSpacingChange(e.target.value)}
+                  stepper
+                  min="0"
+                />
+              </InputGroup>
+              <InputGroup>
+                <InputGroupAddon>
+                  <div className="flex">
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Icon name="lineHeight" className="size-3" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Line height</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </InputGroupAddon>
+                <InputGroupInput
+                  className="!pr-0"
+                  value={lineHeightInput}
+                  onChange={(e) => handleLineHeightChange(e.target.value)}
+                  stepper
+                  min="0"
+                />
+              </InputGroup>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

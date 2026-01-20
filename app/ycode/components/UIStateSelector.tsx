@@ -27,6 +27,10 @@ export default function UIStateSelector({ selectedLayer }: UIStateSelectorProps)
 
   const isTextLayer = selectedLayer?.name === 'text';
 
+  // Filter out dynamic styles (dts-*) from the dropdown - they're not user-selectable
+  const allTextStyles = { ...DEFAULT_TEXT_STYLES, ...selectedLayer?.textStyles };
+  const selectableStyles = Object.entries(allTextStyles).filter(([key]) => !key.startsWith('dts-'));
+
   return (
     <div className="sticky -top-2 bg-background z-10 py-4 flex flex-row gap-2">
       {/* Text Style Selector - show for text layers with textStyles, placed first */}
@@ -42,13 +46,21 @@ export default function UIStateSelector({ selectedLayer }: UIStateSelectorProps)
             <SelectGroup>
               <SelectItem value="default">Default style</SelectItem>
             </SelectGroup>
-            <SelectGroup>
-              {Object.entries({ ...DEFAULT_TEXT_STYLES, ...selectedLayer?.textStyles }).map(([key, style]) => (
-                <SelectItem key={key} value={key}>
-                  {getTextStyleLabel(key, style)}
-                </SelectItem>
-              ))}
-            </SelectGroup>
+            {selectableStyles.length > 0 && (
+              <SelectGroup>
+                {selectableStyles.map(([key, style]) => (
+                  <SelectItem key={key} value={key}>
+                    {getTextStyleLabel(key, style)}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            )}
+            {/* Hidden item for dynamic styles - allows SelectValue to display correctly */}
+            {activeTextStyleKey && activeTextStyleKey.startsWith('dts-') && (
+              <SelectItem value={activeTextStyleKey} className="hidden">
+                Dynamic style
+              </SelectItem>
+            )}
           </SelectContent>
         </Select>
       )}

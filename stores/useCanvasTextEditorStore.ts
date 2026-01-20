@@ -11,6 +11,7 @@ import type { FieldVariable } from '@/types';
 import { getVariableLabel } from '@/lib/cms-variables-utils';
 import type { CollectionField } from '@/types';
 import { useEditorStore } from './useEditorStore';
+import { generateId } from '@/lib/utils';
 
 interface CanvasTextEditorState {
   /** Whether text editing is active */
@@ -29,6 +30,8 @@ interface CanvasTextEditorState {
     superscript: boolean;
     bulletList: boolean;
     orderedList: boolean;
+    /** Active dynamic style key (if any) */
+    dynamicStyleKey: string | null;
   };
 }
 
@@ -45,6 +48,12 @@ interface CanvasTextEditorActions {
   onFinishCallback: (() => void) | null;
   /** Set the finish callback */
   setOnFinishCallback: (callback: (() => void) | null) => void;
+  /** Callback for saving content (set by CanvasTextEditor) */
+  onSaveCallback: (() => void) | null;
+  /** Set the save callback */
+  setOnSaveCallback: (callback: (() => void) | null) => void;
+  /** Trigger a content save without finishing */
+  triggerSave: () => void;
   /** Update active marks based on editor state */
   updateActiveMarks: () => void;
   /** Toggle bold formatting */
@@ -63,6 +72,8 @@ interface CanvasTextEditorActions {
   toggleBulletList: () => void;
   /** Toggle ordered list */
   toggleOrderedList: () => void;
+  /** Toggle custom style formatting */
+  toggleCustomStyle: () => void;
   /** Focus the editor */
   focusEditor: () => void;
   /** Add a field variable at the current cursor position */
@@ -71,6 +82,10 @@ interface CanvasTextEditorActions {
     fields?: CollectionField[],
     allFields?: Record<string, CollectionField[]>
   ) => void;
+  /** Check if there's a text selection (not just cursor position) */
+  hasTextSelection: () => boolean;
+  /** Ensure dynamicStyle mark is applied to selection, returns the active text style key */
+  ensureDynamicStyleApplied: () => string | null;
 }
 
 type CanvasTextEditorStore = CanvasTextEditorState & CanvasTextEditorActions;
@@ -89,8 +104,10 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     superscript: false,
     bulletList: false,
     orderedList: false,
+    dynamicStyleKey: null,
   },
   onFinishCallback: null,
+  onSaveCallback: null,
 
   // Actions
   setEditor: (editor) => {
@@ -123,8 +140,10 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
         superscript: false,
         bulletList: false,
         orderedList: false,
+        dynamicStyleKey: null,
       },
       onFinishCallback: null,
+      onSaveCallback: null,
     });
   },
 
@@ -142,9 +161,27 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
 
   setOnFinishCallback: (callback) => set({ onFinishCallback: callback }),
 
+  setOnSaveCallback: (callback) => set({ onSaveCallback: callback }),
+
+  triggerSave: () => {
+    const { onSaveCallback } = get();
+    if (onSaveCallback) {
+      onSaveCallback();
+    }
+  },
+
   updateActiveMarks: () => {
     const { editor } = get();
     if (!editor) return;
+
+    // Check for dynamicStyle mark and get the last styleKey from the array
+    let dynamicStyleKey: string | null = null;
+    if (editor.isActive('dynamicStyle')) {
+      const attrs = editor.getAttributes('dynamicStyle');
+      const styleKeys: string[] = attrs?.styleKeys || [];
+      // Use the last (most recently added) styleKey
+      dynamicStyleKey = styleKeys.length > 0 ? styleKeys[styleKeys.length - 1] : null;
+    }
 
     const activeMarks = {
       bold: editor.isActive('bold'),
@@ -155,6 +192,7 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
       superscript: editor.isActive('superscript'),
       bulletList: editor.isActive('bulletList'),
       orderedList: editor.isActive('orderedList'),
+      dynamicStyleKey,
     };
 
     set({ activeMarks });
@@ -165,9 +203,11 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
 
     const setActiveTextStyleKey = useEditorStore.getState().setActiveTextStyleKey;
 
-    // Determine which text style is active (prioritize marks over lists)
+    // Determine which text style is active (prioritize dynamicStyle, then marks over lists)
     let textStyleKey: string | null = null;
-    if (activeMarks.bold) {
+    if (dynamicStyleKey) {
+      textStyleKey = dynamicStyleKey;
+    } else if (activeMarks.bold) {
       textStyleKey = 'bold';
     } else if (activeMarks.italic) {
       textStyleKey = 'italic';
@@ -244,6 +284,21 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     get().updateActiveMarks();
   },
 
+  toggleCustomStyle: () => {
+    const { editor, activeMarks } = get();
+    if (!editor) return;
+
+    // If dynamicStyle is already active, remove it
+    if (activeMarks.dynamicStyleKey) {
+      editor.chain().focus().unsetMark('dynamicStyle').run();
+    } else {
+      // Generate a new unique style key and apply dynamicStyle
+      const newKey = generateId('dts');
+      editor.chain().focus().setMark('dynamicStyle', { styleKeys: [newKey] }).run();
+    }
+    get().updateActiveMarks();
+  },
+
   focusEditor: () => {
     const { editor } = get();
     if (!editor || !editor.view) return;
@@ -252,6 +307,62 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     } catch (error) {
       console.warn('Failed to focus editor:', error);
     }
+  },
+
+  hasTextSelection: () => {
+    const { editor } = get();
+    if (!editor) return false;
+
+    const { from, to } = editor.state.selection;
+    return from !== to;
+  },
+
+  ensureDynamicStyleApplied: () => {
+    const { editor, activeMarks } = get();
+    if (!editor) return null;
+
+    const { from, to } = editor.state.selection;
+    const hasSelection = from !== to;
+
+    // If no selection (cursor only), return the current active style for editing
+    if (!hasSelection) {
+      if (activeMarks.dynamicStyleKey) return activeMarks.dynamicStyleKey;
+      if (activeMarks.bold) return 'bold';
+      if (activeMarks.italic) return 'italic';
+      if (activeMarks.underline) return 'underline';
+      if (activeMarks.strike) return 'strike';
+      if (activeMarks.subscript) return 'subscript';
+      if (activeMarks.superscript) return 'superscript';
+      return null;
+    }
+
+    // Get existing styleKeys from the current mark (if any)
+    let existingKeys: string[] = [];
+    if (editor.isActive('dynamicStyle')) {
+      const attrs = editor.getAttributes('dynamicStyle');
+      existingKeys = attrs?.styleKeys || [];
+    }
+
+    // Create a new styleKey and append it to the array
+    const newKey = generateId('dts');
+    const updatedKeys = [...existingKeys, newKey];
+
+    // Remove existing mark from selection, then apply with combined styleKeys
+    // This ensures the new styleKeys array is properly set instead of merged
+    editor.chain()
+      .unsetMark('dynamicStyle')
+      .setMark('dynamicStyle', { styleKeys: updatedKeys })
+      .run();
+    get().updateActiveMarks();
+
+    // Set the active text style key to the new one
+    const setActiveTextStyleKey = useEditorStore.getState().setActiveTextStyleKey;
+    setActiveTextStyleKey(newKey);
+
+    // Trigger a save to persist the new mark to the layer
+    get().triggerSave();
+
+    return newKey;
   },
 
   addFieldVariable: (variableData, fields, allFields) => {

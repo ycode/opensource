@@ -17,6 +17,7 @@ import {
   getConflictingClassPattern,
 } from '@/lib/tailwind-class-mapper';
 import { updateStyledLayer } from '@/lib/layer-style-utils';
+import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 
 interface UseDesignSyncProps {
   layer: Layer | null;
@@ -53,10 +54,16 @@ export function useDesignSync({
       classes: Array.isArray(layer.classes) ? layer.classes.join(' ') : (layer.classes || ''),
     };
   }, [layer, isTextStyleMode, activeTextStyleKey]);
+  // Get text editor state for auto-applying dynamicStyle mark
+  const isTextEditing = useCanvasTextEditorStore((state) => state.isEditing);
+  const ensureDynamicStyleApplied = useCanvasTextEditorStore((state) => state.ensureDynamicStyleApplied);
+  const hasTextSelection = useCanvasTextEditorStore((state) => state.hasTextSelection);
+
   /**
    * Update a single design property and sync to classes
    * Applies breakpoint-aware class prefixes based on active viewport
    * Supports text style mode (updates layer.textStyles[key] instead of layer)
+   * Auto-applies dynamicStyle mark when editing text with selection
    */
   const updateDesignProperty = useCallback(
     (
@@ -66,10 +73,35 @@ export function useDesignSync({
     ) => {
       if (!layer) return;
 
+      // Auto-apply dynamicStyle mark when editing text
+      // - If there's a selection: ALWAYS create a new style (enables stacking)
+      // - If no selection but cursor in styled text: edit the existing style
+      let effectiveTextStyleKey = activeTextStyleKey;
+      if (isTextEditing) {
+        const hasSelection = hasTextSelection();
+        if (hasSelection) {
+          // Selection exists: create new style (stacks on top of existing)
+          const appliedKey = ensureDynamicStyleApplied();
+          if (appliedKey) {
+            effectiveTextStyleKey = appliedKey;
+          }
+        } else if (!activeTextStyleKey) {
+          // No selection, no active style: create new style for cursor position
+          const appliedKey = ensureDynamicStyleApplied();
+          if (appliedKey) {
+            effectiveTextStyleKey = appliedKey;
+          }
+        }
+        // If no selection but activeTextStyleKey exists, we edit that style
+      }
+
+      // Determine if we're in text style mode
+      const effectiveIsTextStyleMode = !!effectiveTextStyleKey;
+
       // Text Style Mode: Update layer.textStyles[key]
-      if (isTextStyleMode && activeTextStyleKey) {
+      if (effectiveIsTextStyleMode && effectiveTextStyleKey) {
         const currentTextStyles = layer.textStyles || {};
-        const currentTextStyle = currentTextStyles[activeTextStyleKey] || {};
+        const currentTextStyle = currentTextStyles[effectiveTextStyleKey] || {};
         const currentDesign = currentTextStyle.design || {};
         const categoryData = currentDesign[category] || {};
 
@@ -106,7 +138,7 @@ export function useDesignSync({
         onLayerUpdate(layer.id, {
           textStyles: {
             ...currentTextStyles,
-            [activeTextStyleKey]: updatedTextStyle,
+            [effectiveTextStyleKey]: updatedTextStyle,
           },
         });
         return;
@@ -160,7 +192,7 @@ export function useDesignSync({
 
       onLayerUpdate(layer.id, finalUpdate);
     },
-    [layer, onLayerUpdate, activeBreakpoint, activeUIState, isTextStyleMode, activeTextStyleKey]
+    [layer, onLayerUpdate, activeBreakpoint, activeUIState, isTextStyleMode, activeTextStyleKey, isTextEditing, ensureDynamicStyleApplied, hasTextSelection]
   );
 
   /**
