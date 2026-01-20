@@ -1094,3 +1094,123 @@ export function serializeLayers(layers: Layer[], components: Component[] = []): 
     componentMap,
   };
 }
+
+/**
+ * Assign order classes to a newly added layer if siblings have responsive order classes.
+ * This ensures new layers appear at the end when the parent has responsive ordering.
+ * 
+ * IMPORTANT: This checks for order classes on ALL responsive breakpoints (tablet AND mobile),
+ * not just the current breakpoint. This handles the case where a layer is added on Desktop
+ * but siblings have tablet/mobile order overrides.
+ * 
+ * @param layers - The full layer tree
+ * @param parentId - The parent layer ID where the new layer was added
+ * @param newLayerId - The ID of the newly added layer
+ * @param _breakpoint - The current breakpoint (kept for API compatibility, but we check all breakpoints)
+ * @returns Updated layer tree, or original if no changes needed
+ */
+export function assignOrderClassToNewLayer(
+  layers: Layer[],
+  parentId: string,
+  newLayerId: string,
+  _breakpoint: 'desktop' | 'tablet' | 'mobile'
+): Layer[] {
+  // Define all responsive breakpoints to check
+  const breakpointConfigs = [
+    { name: 'tablet', prefix: 'max-lg:' },
+    { name: 'mobile', prefix: 'max-md:' },
+  ];
+  
+  // Helper to normalize classes to string
+  const normalizeClasses = (classes: string | string[] | undefined): string => {
+    if (!classes) return '';
+    return Array.isArray(classes) ? classes.join(' ') : classes;
+  };
+  
+  // Helper to check if a class string has order classes for a specific prefix
+  const hasOrderClassForPrefix = (classes: string | string[] | undefined, prefix: string): boolean => {
+    const normalized = normalizeClasses(classes);
+    const regex = new RegExp(`${prefix.replace(':', '\\:')}order-\\d+`);
+    return regex.test(normalized);
+  };
+  
+  // Helper to get the order value from classes for a specific prefix
+  const getOrderValueForPrefix = (classes: string | string[] | undefined, prefix: string): number | null => {
+    const normalized = normalizeClasses(classes);
+    const regex = new RegExp(`${prefix.replace(':', '\\:')}order-(\\d+)`);
+    const match = normalized.match(regex);
+    return match ? parseInt(match[1], 10) : null;
+  };
+  
+  // Recursively find the parent and process
+  function processLayers(layerList: Layer[]): Layer[] {
+    return layerList.map(layer => {
+      if (layer.id === parentId && layer.children && layer.children.length > 0) {
+        // Found the parent - check each breakpoint for order classes
+        const siblings = layer.children.filter(c => c.id !== newLayerId);
+        const newLayer = layer.children.find(c => c.id === newLayerId);
+        
+        if (!newLayer) {
+          return layer;
+        }
+        
+        // Collect order classes to add for each breakpoint
+        const orderClassesToAdd: string[] = [];
+        
+        for (const config of breakpointConfigs) {
+          const hasOrderedSiblings = siblings.some(c => hasOrderClassForPrefix(c.classes, config.prefix));
+          
+          if (hasOrderedSiblings) {
+            // Find the highest order value among siblings for this breakpoint
+            let maxOrder = -1;
+            siblings.forEach(sibling => {
+              const orderValue = getOrderValueForPrefix(sibling.classes, config.prefix);
+              if (orderValue !== null && orderValue > maxOrder) {
+                maxOrder = orderValue;
+              }
+            });
+            
+            // Assign the next order value
+            const newOrderValue = maxOrder + 1;
+            orderClassesToAdd.push(`${config.prefix}order-${newOrderValue}`);
+          }
+        }
+        
+        if (orderClassesToAdd.length === 0) {
+          // No siblings have order classes for any breakpoint
+          return layer;
+        }
+        
+        // Update the new layer with order classes
+        const updatedChildren = layer.children.map(child => {
+          if (child.id === newLayerId) {
+            const currentClasses = normalizeClasses(child.classes);
+            const newClasses = orderClassesToAdd.join(' ');
+            return {
+              ...child,
+              classes: currentClasses ? `${currentClasses} ${newClasses}` : newClasses,
+            };
+          }
+          return child;
+        });
+        
+        return {
+          ...layer,
+          children: updatedChildren,
+        };
+      }
+      
+      // Recursively process children
+      if (layer.children) {
+        return {
+          ...layer,
+          children: processLayers(layer.children),
+        };
+      }
+      
+      return layer;
+    });
+  }
+  
+  return processLayers(layers);
+}

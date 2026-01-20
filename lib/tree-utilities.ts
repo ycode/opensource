@@ -1,5 +1,6 @@
-import type { Layer } from '../types';
+import type { Layer, Breakpoint } from '../types';
 import { canHaveChildren } from './layer-utils';
+import { getBreakpointPrefix } from './breakpoint-utils';
 
 export interface FlattenedItem {
   id: string;
@@ -23,18 +24,123 @@ export interface FlattenedTreeNode<T> {
 }
 
 /**
+ * Get the CSS order value from a layer's classes for a specific breakpoint
+ * Handles CSS cascade: mobile inherits from tablet if no mobile-specific override
+ * 
+ * Desktop-first cascade:
+ * - Desktop: no order classes apply
+ * - Tablet: max-lg:order-* applies
+ * - Mobile: max-md:order-* applies, OR falls back to max-lg:order-*
+ * 
+ * Returns null if no order class is found
+ */
+function getOrderValueForBreakpoint(layer: Layer, breakpoint: Breakpoint): number | null {
+  if (breakpoint === 'desktop') return null;
+  
+  const classes = Array.isArray(layer.classes) ? layer.classes.join(' ') : (layer.classes || '');
+  
+  if (breakpoint === 'mobile') {
+    // First check for mobile-specific order (max-md:)
+    const mobileRegex = /max-md\:order-(\d+)/;
+    const mobileMatch = classes.match(mobileRegex);
+    if (mobileMatch) {
+      return parseInt(mobileMatch[1], 10);
+    }
+    
+    // Fall back to tablet order (max-lg:) which also applies to mobile
+    const tabletRegex = /max-lg\:order-(\d+)/;
+    const tabletMatch = classes.match(tabletRegex);
+    if (tabletMatch) {
+      return parseInt(tabletMatch[1], 10);
+    }
+    
+    return null;
+  }
+  
+  // Tablet breakpoint - only check max-lg:
+  const prefix = getBreakpointPrefix(breakpoint);
+  const regex = new RegExp(`${prefix.replace(':', '\\:')}order-(\\d+)`);
+  const match = classes.match(regex);
+  
+  return match ? parseInt(match[1], 10) : null;
+}
+
+/**
+ * Check if any layer has an order class for the given breakpoint
+ * For mobile, also checks tablet classes (due to CSS cascade)
+ */
+function hasAnyOrderClassForBreakpoint(layers: Layer[], breakpoint: Breakpoint): boolean {
+  if (breakpoint === 'desktop') return false;
+  
+  return layers.some(layer => {
+    const classes = Array.isArray(layer.classes) ? layer.classes.join(' ') : (layer.classes || '');
+    
+    if (breakpoint === 'mobile') {
+      // Check both mobile and tablet (tablet cascades to mobile)
+      return /max-md\:order-\d+/.test(classes) || /max-lg\:order-\d+/.test(classes);
+    }
+    
+    // Tablet - only check max-lg:
+    return /max-lg\:order-\d+/.test(classes);
+  });
+}
+
+/**
+ * Sort layers by their CSS order value for the given breakpoint
+ * Layers without order classes maintain their DOM position relative to each other
+ */
+function sortByOrderClass(layers: Layer[], breakpoint: Breakpoint): Layer[] {
+  if (breakpoint === 'desktop') return layers;
+  
+  // Check if any layer has an order class (including cascade)
+  if (!hasAnyOrderClassForBreakpoint(layers, breakpoint)) return layers;
+  
+  // Sort by order value, maintaining DOM order for items with same/no order
+  return [...layers].sort((a, b) => {
+    const orderA = getOrderValueForBreakpoint(a, breakpoint);
+    const orderB = getOrderValueForBreakpoint(b, breakpoint);
+    
+    // Both have order values - sort by order
+    if (orderA !== null && orderB !== null) {
+      return orderA - orderB;
+    }
+    
+    // Only one has order - items without order default to 0
+    if (orderA !== null && orderB === null) {
+      return orderA - 0; // Compare with implicit 0
+    }
+    if (orderA === null && orderB !== null) {
+      return 0 - orderB; // Compare with implicit 0
+    }
+    
+    // Neither has order - maintain DOM order (return 0 for stable sort)
+    return 0;
+  });
+}
+
+/**
  * Flatten a tree structure into a linear array with depth information
  * Supports both 'children' and 'items' properties for nested layers
+ * 
+ * @param items - The layer tree to flatten
+ * @param parentId - The parent ID (for recursion)
+ * @param depth - Current depth (for recursion)
+ * @param collapsedIds - Set of collapsed layer IDs
+ * @param breakpoint - Active breakpoint for visual order sorting
  */
 export function flattenTree(
   items: Layer[],
   parentId: string | null = null,
   depth: number = 0,
-  collapsedIds: Set<string> = new Set()
+  collapsedIds: Set<string> = new Set(),
+  breakpoint: Breakpoint = 'desktop'
 ): FlattenedItem[] {
   const flattened: FlattenedItem[] = [];
+  
+  // Sort items by CSS order for responsive breakpoints
+  const sortedItems = sortByOrderClass(items, breakpoint);
 
-  items.forEach((item, index) => {
+  sortedItems.forEach((item, index) => {
     const isCollapsed = collapsedIds.has(item.id);
 
     flattened.push({
@@ -50,7 +156,7 @@ export function flattenTree(
     // Only flatten children if not collapsed
     if (item.children && item.children.length > 0 && !isCollapsed) {
       flattened.push(
-        ...flattenTree(item.children, item.id, depth + 1, collapsedIds)
+        ...flattenTree(item.children, item.id, depth + 1, collapsedIds, breakpoint)
       );
     }
   });

@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/context-menu';
 import Image from 'next/image';
 import { getLayerFromTemplate, getBlockName, getBlockIcon, getLayoutTemplate, getLayoutCategory, getLayoutPreviewImage, getLayoutsByCategory, getAllLayoutKeys } from '@/lib/templates/blocks';
-import { canHaveChildren } from '@/lib/layer-utils';
+import { canHaveChildren, assignOrderClassToNewLayer } from '@/lib/layer-utils';
 import { cn } from '@/lib/utils';
 import SaveLayoutDialog from './SaveLayoutDialog';
 import { usePagesStore } from '@/stores/usePagesStore';
@@ -49,7 +49,7 @@ const elementCategories: Record<string, string[]> = {
 
 export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements', liveLayerUpdates }: ElementLibraryProps) {
   const { addLayerFromTemplate, updateLayer, setDraftLayers, draftsByPageId } = usePagesStore();
-  const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId } = useEditorStore();
+  const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId, activeBreakpoint } = useEditorStore();
   const { components, componentDrafts, updateComponentDraft } = useComponentsStore();
   const [activeTab, setActiveTab] = React.useState<'elements' | 'layouts' | 'components'>(() => {
     // Try to load from sessionStorage first
@@ -212,7 +212,18 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
 
       const result = addLayerToTree(layers, parentId);
       if (result.success) {
-        updateComponentDraft(editingComponentId, result.newLayers);
+        // Apply order class to new layer if siblings have responsive order classes
+        let finalLayers = result.newLayers;
+        if (result.parentToExpand) {
+          finalLayers = assignOrderClassToNewLayer(
+            result.newLayers,
+            result.parentToExpand,
+            result.newLayerId,
+            activeBreakpoint
+          );
+        }
+        
+        updateComponentDraft(editingComponentId, finalLayers);
         setSelectedLayerId(result.newLayerId);
         if (result.parentToExpand) {
           window.dispatchEvent(new CustomEvent('expandLayer', {
@@ -243,6 +254,23 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     // Select the newly added layer
     if (result) {
       setSelectedLayerId(result.newLayerId);
+
+      // Assign order class to new layer if siblings have responsive order classes
+      if (result.parentToExpand) {
+        const freshDraft = usePagesStore.getState().draftsByPageId[currentPageId];
+        if (freshDraft) {
+          const updatedLayers = assignOrderClassToNewLayer(
+            freshDraft.layers,
+            result.parentToExpand,
+            result.newLayerId,
+            activeBreakpoint
+          );
+          // Only update if layers actually changed
+          if (updatedLayers !== freshDraft.layers) {
+            setDraftLayers(currentPageId, updatedLayers);
+          }
+        }
+      }
 
       // Broadcast layer add to other collaborators
       if (liveLayerUpdates && currentPageId) {
@@ -365,7 +393,18 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
 
       const result = addLayerToTree(layers, parentId);
       if (result.success) {
-        updateComponentDraft(editingComponentId, result.newLayers);
+        // Apply order class to new layer if siblings have responsive order classes
+        let finalLayers = result.newLayers;
+        if (result.parentToExpand) {
+          finalLayers = assignOrderClassToNewLayer(
+            result.newLayers,
+            result.parentToExpand,
+            result.newLayerId,
+            activeBreakpoint
+          );
+        }
+        
+        updateComponentDraft(editingComponentId, finalLayers);
         setSelectedLayerId(result.newLayerId);
         if (result.parentToExpand) {
           window.dispatchEvent(new CustomEvent('expandLayer', {
@@ -485,8 +524,19 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       }
     }
 
+    // Assign order class to new layer if siblings have responsive order classes
+    let finalLayers = newLayers;
+    if (parentToExpand) {
+      finalLayers = assignOrderClassToNewLayer(
+        newLayers,
+        parentToExpand,
+        newLayer.id,
+        activeBreakpoint
+      );
+    }
+
     // Update the draft with the new layers
-    usePagesStore.getState().setDraftLayers(currentPageId, newLayers);
+    usePagesStore.getState().setDraftLayers(currentPageId, finalLayers);
 
     // Broadcast layout add to other collaborators - find actual parent
     if (liveLayerUpdates) {

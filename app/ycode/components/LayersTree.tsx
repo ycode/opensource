@@ -36,6 +36,7 @@ import { flattenTree, type FlattenedItem } from '@/lib/tree-utilities';
 import { canHaveChildren, getLayerIcon, getLayerName, getCollectionVariable, canMoveLayer } from '@/lib/layer-utils';
 import { hasStyleOverrides } from '@/lib/layer-style-utils';
 import { getUserInitials, getDisplayName } from '@/lib/collaboration-utils';
+import { getBreakpointPrefix } from '@/lib/breakpoint-utils';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge';
 
@@ -585,8 +586,8 @@ export default function LayersTree({
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [shouldScrollToSelected, setShouldScrollToSelected] = useState(false);
 
-  // Pull multi-select state from editor store
-  const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange, editingComponentId } = useEditorStore();
+  // Pull multi-select state and breakpoint from editor store
+  const { selectedLayerIds: storeSelectedLayerIds, lastSelectedLayerId, toggleSelection, selectRange, editingComponentId, activeBreakpoint } = useEditorStore();
 
   // Get component by ID function for drag overlay
   const { getComponentById } = useComponentsStore();
@@ -597,10 +598,10 @@ export default function LayersTree({
   // Use prop or store state (prop takes precedence for compatibility)
   const selectedLayerIds = propSelectedLayerIds ?? storeSelectedLayerIds;
 
-  // Flatten the tree for rendering
+  // Flatten the tree for rendering (sorted by CSS order on responsive breakpoints)
   const flattenedNodes = useMemo(
     () => {
-      const flattened = flattenTree(layers, null, 0, collapsedIds);
+      const flattened = flattenTree(layers, null, 0, collapsedIds, activeBreakpoint);
 
       // Validate no duplicate IDs in flattened array
       if (process.env.NODE_ENV === 'development') {
@@ -651,7 +652,7 @@ export default function LayersTree({
 
       return flattened;
     },
-    [layers, collapsedIds]
+    [layers, collapsedIds, activeBreakpoint]
   );
 
   // Calculate which depth levels should be highlighted (selected containers)
@@ -1232,8 +1233,27 @@ export default function LayersTree({
         }
       }
 
-      // Rebuild the tree structure
-      const newLayers = rebuildTree(flattenedNodes, activeNode.id, newParentId, newOrder);
+      // Check if this is a within-parent reorder on a non-desktop breakpoint
+      // If so, use CSS order classes instead of changing DOM structure
+      const isWithinParentReorder = activeNode.parentId === newParentId;
+      const isResponsiveBreakpoint = activeBreakpoint !== 'desktop';
+      
+      let newLayers: Layer[];
+      
+      if (isWithinParentReorder && isResponsiveBreakpoint) {
+        // Apply CSS order classes for responsive visual reordering
+        // This keeps DOM structure intact but changes visual order on this breakpoint
+        newLayers = applyResponsiveOrderClasses(
+          layers,
+          newParentId!,
+          activeNode.id,
+          newOrder,
+          activeBreakpoint as 'tablet' | 'mobile'
+        );
+      } else {
+        // Standard DOM structure change (affects all breakpoints)
+        newLayers = rebuildTree(flattenedNodes, activeNode.id, newParentId, newOrder);
+      }
 
       onReorder(newLayers);
       setActiveId(null);
@@ -1244,7 +1264,7 @@ export default function LayersTree({
       // Use setTimeout to reset processing flag after state updates complete
       setTimeout(() => setIsProcessing(false), 0);
     },
-    [flattenedNodes, dropPosition, onReorder, layers]
+    [flattenedNodes, dropPosition, onReorder, layers, activeBreakpoint]
   );
 
   // Handle drag cancel
@@ -1627,4 +1647,115 @@ function rebuildTree(
   }
 
   return result;
+}
+
+/**
+ * Apply CSS order classes to reorder children visually for a specific breakpoint.
+ * Instead of changing DOM structure, this applies order-{n} classes with breakpoint prefixes.
+ * 
+ * @param layers - The full layer tree
+ * @param parentId - The parent whose children should be reordered
+ * @param movedChildId - The child that was moved
+ * @param newIndex - The new visual index for the moved child
+ * @param breakpoint - The active breakpoint (tablet or mobile)
+ * @returns Updated layer tree with order classes applied
+ */
+function applyResponsiveOrderClasses(
+  layers: Layer[],
+  parentId: string,
+  movedChildId: string,
+  newIndex: number,
+  breakpoint: 'tablet' | 'mobile'
+): Layer[] {
+  const prefix = getBreakpointPrefix(breakpoint); // max-lg: or max-md:
+  
+  // Helper to normalize classes to string
+  const normalizeClasses = (classes: string | string[] | undefined): string => {
+    if (!classes) return '';
+    return Array.isArray(classes) ? classes.join(' ') : classes;
+  };
+  
+  // Helper to remove existing order classes for this breakpoint
+  const removeOrderClasses = (classes: string): string => {
+    return classes
+      .split(' ')
+      .filter(cls => {
+        // Remove order classes for this breakpoint
+        if (prefix && cls.startsWith(prefix)) {
+          const baseClass = cls.slice(prefix.length);
+          return !baseClass.startsWith('order-');
+        }
+        // For desktop (no prefix), we don't touch those
+        return true;
+      })
+      .join(' ');
+  };
+  
+  // Helper to add order class
+  const addOrderClass = (classes: string | string[] | undefined, order: number): string => {
+    const normalized = normalizeClasses(classes);
+    const cleaned = removeOrderClasses(normalized);
+    const orderClass = `${prefix}order-${order}`;
+    return cleaned ? `${cleaned} ${orderClass}` : orderClass;
+  };
+  
+  // Recursively process the tree
+  function processLayers(layerList: Layer[]): Layer[] {
+    return layerList.map(layer => {
+      if (layer.id === parentId && layer.children) {
+        // Found the parent - reorder its children with order classes
+        const children = [...layer.children];
+        
+        // Find the moved child's current index
+        const currentIndex = children.findIndex(c => c.id === movedChildId);
+        if (currentIndex === -1) {
+          // Child not found, return as is
+          return layer;
+        }
+        
+        // Calculate new order values
+        // We need to assign order values so the moved child appears at newIndex
+        const updatedChildren = children.map((child, idx) => {
+          let visualOrder: number;
+          
+          if (child.id === movedChildId) {
+            // The moved child gets the target position
+            visualOrder = newIndex;
+          } else if (idx < currentIndex && idx >= newIndex) {
+            // Children that need to shift right (moved child went before them)
+            visualOrder = idx + 1;
+          } else if (idx > currentIndex && idx <= newIndex) {
+            // Children that need to shift left (moved child went after them)
+            visualOrder = idx - 1;
+          } else {
+            // Children not affected by the move
+            visualOrder = idx;
+          }
+          
+          return {
+            ...child,
+            classes: addOrderClass(child.classes, visualOrder),
+            children: child.children ? processLayers(child.children) : undefined,
+          };
+        });
+        
+        return {
+          ...layer,
+          children: updatedChildren,
+        };
+      }
+      
+      // Not the parent, but process children recursively
+      if (layer.children) {
+        return {
+          ...layer,
+          children: processLayers(layer.children),
+        };
+      }
+      
+      return layer;
+    });
+  }
+  
+  return processLayers(layers);
 }
