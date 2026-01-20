@@ -262,20 +262,41 @@ export interface TranslatableItem {
 
 /**
  * Extract text from a layer (includes text with inline variables)
+ * Supports both DynamicTextVariable (plain text) and DynamicRichTextVariable (formatted text)
  */
 export function extractLayerText(layer: Layer): string | null {
-  // Only use variables.text (DynamicTextVariable)
-  if (!layer.variables?.text || layer.variables.text.type !== 'dynamic_text') {
+  if (!layer.variables?.text) {
     return null;
   }
 
-  const text = layer.variables.text.data.content;
+  const textVariable = layer.variables.text;
 
-  if (!text || !text.trim()) {
-    return null;
+  // Handle DynamicTextVariable (plain text)
+  if (textVariable.type === 'dynamic_text') {
+    const text = textVariable.data.content;
+
+    if (!text || !text.trim()) {
+      return null;
+    }
+
+    return text.trim();
   }
 
-  return text.trim();
+  // Handle DynamicRichTextVariable (Tiptap JSON with formatting)
+  if (textVariable.type === 'dynamic_rich_text') {
+    // Store Tiptap JSON as JSON string to preserve all formatting (bold, italic, custom styles, etc.)
+    const jsonContent = textVariable.data.content;
+
+    // Check if content is empty
+    if (!jsonContent || typeof jsonContent !== 'object') {
+      return null;
+    }
+
+    // Convert to JSON string for storage in translation database
+    return JSON.stringify(jsonContent);
+  }
+
+  return null;
 }
 
 /**
@@ -315,12 +336,16 @@ function extractLayerTranslatableItems(
     const text = extractLayerText(layer);
 
     if (text) {
+      // Determine content type based on the variable type
+      // If the layer uses DynamicRichTextVariable, mark it as 'richtext'
+      const contentType = layer.variables?.text?.type === 'dynamic_rich_text' ? 'richtext' : 'text';
+
       items.push({
         key: `${sourceType}:${sourceId}:layer:${layer.id}:text`,
         source_type: sourceType,
         source_id: sourceId,
         content_key: `layer:${layer.id}:text`,
-        content_type: layer.name === 'richtext' ? 'richtext' : 'text',
+        content_type: contentType,
         content_value: text,
         info: {
           icon: getLayerIcon(layer),

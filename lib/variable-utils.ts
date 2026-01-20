@@ -1,16 +1,17 @@
 /**
  * Variable Utilities
- * 
+ *
  * Helper functions for working with the new variable types:
  * - AssetVariable
- * - FieldVariable  
+ * - FieldVariable
  * - DynamicTextVariable
  * - StaticTextVariable
  */
 
-import type { AssetVariable, FieldVariable, DynamicTextVariable, StaticTextVariable } from '@/types';
+import type { AssetVariable, FieldVariable, DynamicTextVariable, DynamicRichTextVariable, StaticTextVariable } from '@/types';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import { DEFAULT_ASSETS } from '@/lib/asset-constants';
+import { stringToTiptapContent } from '@/lib/text-format-utils';
 
 /**
  * Create a DynamicTextVariable from a string (with or without inline variables)
@@ -22,6 +23,32 @@ export function createDynamicTextVariable(content: string): DynamicTextVariable 
       content,
     },
   };
+}
+
+/**
+ * Create a DynamicRichTextVariable from a JSON string
+ * Parses JSON string back to Tiptap JSON object to preserve all formatting
+ */
+export function createDynamicRichTextVariable(content: string): DynamicRichTextVariable {
+  try {
+    // Parse JSON string back to Tiptap JSON object
+    const tiptapContent = JSON.parse(content);
+    return {
+      type: 'dynamic_rich_text',
+      data: {
+        content: tiptapContent,
+      },
+    };
+  } catch (error) {
+    // Fallback: if content is not valid JSON, treat it as plain text and convert to Tiptap format
+    console.error('Failed to parse rich text JSON:', error);
+    return {
+      type: 'dynamic_rich_text',
+      data: {
+        content: stringToTiptapContent(content),
+      },
+    };
+  }
 }
 
 /**
@@ -91,6 +118,13 @@ export function isDynamicTextVariable(value: any): value is DynamicTextVariable 
 }
 
 /**
+ * Check if a value is a DynamicRichTextVariable
+ */
+export function isDynamicRichTextVariable(value: any): value is DynamicRichTextVariable {
+  return value && typeof value === 'object' && value.type === 'dynamic_rich_text' && value.data?.content !== undefined;
+}
+
+/**
  * Check if a value is a StaticTextVariable
  */
 export function isStaticTextVariable(value: any): value is StaticTextVariable {
@@ -108,19 +142,19 @@ export function getVariableStringValue(
   variable: AssetVariable | FieldVariable | DynamicTextVariable | StaticTextVariable | undefined | null
 ): string {
   if (!variable) return '';
-  
+
   if (isAssetVariable(variable)) {
     return variable.data.asset_id || '';
   }
-  
+
   if (isDynamicTextVariable(variable)) {
     return variable.data.content;
   }
-  
+
   if (isStaticTextVariable(variable)) {
     return variable.data.content;
   }
-  
+
   // FieldVariable needs resolution with collection data
   return '';
 }
@@ -130,7 +164,7 @@ export function getVariableStringValue(
  * - AssetVariable -> gets asset URL from store
  * - FieldVariable -> resolves field value (requires collectionItemData and resolveFieldValue)
  * - DynamicTextVariable -> returns content as URL (resolves inline variables if collectionItemData provided)
- * 
+ *
  * @param src - The image src variable (AssetVariable | FieldVariable | DynamicTextVariable)
  * @param getAsset - Function to get asset by ID (required for AssetVariable)
  * @param resolveFieldValue - Function to resolve field variable (required for FieldVariable)
@@ -192,7 +226,7 @@ export function getImageUrlFromVariable(
  * - FieldVariable -> resolves field value (requires collectionItemData and resolveFieldValue)
  * - DynamicTextVariable -> returns content as URL (resolves inline variables if collectionItemData provided)
  * - VideoVariable -> returns undefined (YouTube videos are handled separately as iframes)
- * 
+ *
  * @param src - The video src variable (AssetVariable | FieldVariable | DynamicTextVariable | VideoVariable)
  * @param getAsset - Function to get asset by ID (required for AssetVariable)
  * @param resolveFieldValue - Function to resolve field variable (required for FieldVariable)
@@ -254,7 +288,7 @@ export function getVideoUrlFromVariable(
 /**
  * Get iframe URL from iframe src variable
  * - DynamicTextVariable -> returns content as URL
- * 
+ *
  * @param src - The iframe src variable (DynamicTextVariable)
  * @returns Iframe URL string or undefined
  */

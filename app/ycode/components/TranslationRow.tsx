@@ -77,10 +77,47 @@ export default function TranslationRow({
     : null;
   const storeValue = translation?.content_value || '';
 
+  // Check if this is rich text content (stored as JSON string)
+  const isRichText = item.content_type === 'richtext';
+
+  // Parse original value if it's rich text (JSON string → Tiptap JSON)
+  let originalValueForEditor: string | any = item.content_value;
+  if (isRichText) {
+    if (item.content_value && typeof item.content_value === 'string') {
+      try {
+        originalValueForEditor = JSON.parse(item.content_value);
+      } catch (error) {
+        // If parsing fails, use empty Tiptap document
+        console.error('Failed to parse original value JSON:', error, item.content_value);
+        originalValueForEditor = { type: 'doc', content: [{ type: 'paragraph' }] };
+      }
+    } else if (!item.content_value) {
+      // Empty original value - use empty Tiptap document
+      originalValueForEditor = { type: 'doc', content: [{ type: 'paragraph' }] };
+    }
+  }
+
   // Use local value if available, otherwise use store value
   const translationValue = localInputValues[item.key] !== undefined
     ? localInputValues[item.key]
     : storeValue;
+
+  // For rich text, parse JSON string to Tiptap JSON object for InputWithInlineVariables
+  let translationValueForEditor: string | any = translationValue;
+  if (isRichText) {
+    if (translationValue && typeof translationValue === 'string') {
+      try {
+        translationValueForEditor = JSON.parse(translationValue);
+      } catch (error) {
+        // If parsing fails, use empty Tiptap document
+        console.error('Failed to parse translation JSON:', error, translationValue);
+        translationValueForEditor = { type: 'doc', content: [{ type: 'paragraph' }] };
+      }
+    } else if (!translationValue) {
+      // Empty translation - use empty Tiptap document structure
+      translationValueForEditor = { type: 'doc', content: [{ type: 'paragraph' }] };
+    }
+  }
 
   // Check if this is an asset
   const isAsset = item.content_type === 'asset_id';
@@ -105,11 +142,14 @@ export default function TranslationRow({
   const isSlugField = item.content_key === 'slug' || item.content_key === 'field:key:slug';
 
   // Update local state on change (immediate UI feedback)
-  const handleTranslationChange = (value: string) => {
+  const handleTranslationChange = (value: string | any) => {
     let processedValue = value;
 
-    // Slugify if this is a slug field
-    if (isSlugField) {
+    // For rich text, stringify Tiptap JSON object to store as string
+    if (isRichText && typeof value === 'object') {
+      processedValue = JSON.stringify(value);
+    } else if (isSlugField && typeof value === 'string') {
+      // Slugify if this is a slug field
       processedValue = sanitizeSlug(value, true); // Allow trailing dash for better UX while typing
     }
 
@@ -122,13 +162,16 @@ export default function TranslationRow({
   };
 
   // Save to store/API on blur (optimistic update + API call)
-  const handleTranslationBlur = (value: string) => {
+  const handleTranslationBlur = (value: string | any) => {
     if (!selectedLocaleId) return;
 
     let finalValue = value;
 
-    // Slugify and validate if this is a slug field
-    if (isSlugField) {
+    // For rich text, stringify Tiptap JSON object to store as string
+    if (isRichText && typeof value === 'object') {
+      finalValue = JSON.stringify(value);
+    } else if (isSlugField && typeof value === 'string') {
+      // Slugify and validate if this is a slug field
       // Finalize slug (remove trailing dashes)
       finalValue = sanitizeSlug(value, false);
 
@@ -494,7 +537,7 @@ export default function TranslationRow({
           ) : (
             <div className="text-sm opacity-50">
               <InputWithInlineVariables
-                value={item.content_value}
+                value={originalValueForEditor}
                 onChange={() => {}} // Read-only on left side
                 placeholder=""
                 fields={pageFields}
@@ -502,6 +545,7 @@ export default function TranslationRow({
                 allFields={allFields}
                 collections={collections}
                 disabled={true}
+                withFormatting={isRichText}
               />
             </div>
           )}
@@ -521,10 +565,14 @@ export default function TranslationRow({
               </div>
             ) : (
               <InputWithInlineVariables
-                value={translationValue}
+                value={translationValueForEditor}
                 onChange={handleTranslationChange}
                 onBlur={handleTranslationBlur}
-                placeholder={translation?.is_completed === true ? item.content_value : 'Enter translation...'}
+                placeholder={
+                  translation?.is_completed === true
+                    ? '(Using original)'
+                    : (isRichText ? 'Enter translation...' : (item.content_value || 'Enter translation...'))
+                }
                 className={`min-h-[28px] [&_.ProseMirror]:py-1 [&_.ProseMirror]:px-2.5 [&_.ProseMirror]:!bg-transparent ${
                   validationError ? '[&_.ProseMirror]:!border-destructive' : ''
                 }`}
@@ -532,6 +580,7 @@ export default function TranslationRow({
                 fieldSourceLabel={fieldSourceLabel}
                 allFields={allFields}
                 collections={collections}
+                withFormatting={isRichText}
               />
             )}
             {validationError && (

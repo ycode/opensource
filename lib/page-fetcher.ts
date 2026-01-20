@@ -4,7 +4,7 @@ import { getItemWithValues, getItemsWithValues } from '@/lib/repositories/collec
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer, CollectionPaginationMeta, Translation, Locale } from '@/types';
 import { getCollectionVariable, resolveFieldValue, evaluateVisibility } from '@/lib/layer-utils';
-import { isFieldVariable, isAssetVariable, createDynamicTextVariable, createAssetVariable, getDynamicTextContent, getVariableStringValue, getAssetId } from '@/lib/variable-utils';
+import { isFieldVariable, isAssetVariable, createDynamicTextVariable, createDynamicRichTextVariable, createAssetVariable, getDynamicTextContent, getVariableStringValue, getAssetId } from '@/lib/variable-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { resolveComponents } from '@/lib/resolve-components';
 
@@ -685,7 +685,12 @@ function injectTranslatedText(
 
     const textValue = getTranslationValue(textTranslation);
     if (textValue) {
-      variableUpdates.text = createDynamicTextVariable(textValue);
+      // Preserve the original variable type (dynamic_text or dynamic_rich_text)
+      if (layer.variables?.text?.type === 'dynamic_rich_text') {
+        variableUpdates.text = createDynamicRichTextVariable(textValue);
+      } else {
+        variableUpdates.text = createDynamicTextVariable(textValue);
+      }
     }
 
     // 2. Inject asset translations for media layers

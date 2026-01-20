@@ -225,7 +225,7 @@ export default function TypographyControls({ layer, onLayerUpdate, activeTextSty
             <ColorPicker
               value={color}
               onChange={handleColorChange}
-              defaultValue="#000000"
+              defaultValue="#1c70d7"
             />
           </div>
         </div>

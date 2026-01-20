@@ -1515,8 +1515,17 @@ export default function ColorPicker({
           </Button>
       )}
       </PopoverTrigger>
+
+      {/* Overlay backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
       <PopoverContent
-        className="w-56 p-2" align="end"
+        className="w-56 p-2 relative z-50" align="end"
         onKeyDown={handleKeyDown}
       >
         <Tabs
