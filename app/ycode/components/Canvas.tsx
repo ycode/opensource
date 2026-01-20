@@ -82,6 +82,8 @@ interface CanvasProps {
   onIframeReady?: (iframeElement: HTMLIFrameElement) => void;
   /** Callback when a layer is hovered (for external overlay) */
   onLayerHover?: (layerId: string | null) => void;
+  /** Callback when any click occurs inside the canvas (for closing panels) */
+  onCanvasClick?: () => void;
 }
 
 /**
@@ -112,11 +114,20 @@ function CanvasContent({
   liveLayerUpdates,
   liveComponentUpdates,
 }: CanvasContentProps) {
+  // Handle click on canvas body (select body when clicking on empty space)
+  const handleBodyClick = (event: React.MouseEvent) => {
+    // Only select body if clicking directly on it (not on a child layer)
+    if (event.target === event.currentTarget) {
+      onLayerClick('body', event);
+    }
+  };
+
   return (
     <div
       id="canvas-body"
       data-layer-id="body"
       className="h-full min-h-full bg-white"
+      onClick={handleBodyClick}
     >
       {layers.length > 0 ? (
         <LayerRenderer
@@ -176,6 +187,7 @@ export default function Canvas({
   liveComponentUpdates,
   onIframeReady,
   onLayerHover,
+  onCanvasClick,
 }: CanvasProps) {
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -414,6 +426,22 @@ export default function Canvas({
     doc.addEventListener('keydown', handleKeyDown);
     return () => doc.removeEventListener('keydown', handleKeyDown);
   }, [iframeReady, selectedLayerId, onDeleteLayer, onResetZoom, onZoomIn, onZoomOut, onZoomToFit, onAutofit]);
+
+  // Handle any click inside the iframe (capture phase to run before stopPropagation)
+  useEffect(() => {
+    if (!iframeReady || !iframeRef.current) return;
+
+    const doc = iframeRef.current.contentDocument;
+    if (!doc) return;
+
+    const handleClick = () => {
+      onCanvasClick?.();
+    };
+
+    // Use capture phase to ensure we catch clicks before stopPropagation
+    doc.addEventListener('click', handleClick, true);
+    return () => doc.removeEventListener('click', handleClick, true);
+  }, [iframeReady, onCanvasClick]);
 
   // Content height reporting
   useEffect(() => {
