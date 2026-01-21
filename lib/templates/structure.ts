@@ -23,10 +23,11 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Section',
     template: {
       name: 'section',
-      classes: ['flex', 'flex-col', 'pt-[80px]', 'pb-[80px]', 'items-center'],
+      classes: ['flex', 'flex-col', 'w-[100%]', 'pt-[80px]', 'pb-[80px]', 'items-center'],
       children: [],
       design: {
         layout: { isActive: true, display: 'Flex', flexDirection: 'column', alignItems: 'center' },
+        sizing: { isActive: true, width: '100%' },
         spacing: { isActive: true, paddingTop: '80px', paddingBottom: '80px' }
       }
     }

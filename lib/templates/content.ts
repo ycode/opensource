@@ -14,13 +14,15 @@ export const contentTemplates: Record<string, BlockTemplate> = {
       settings: {
         tag: 'h1',
       },
-      classes: ['text-[48px]', 'font-[700]'],
+      classes: ['text-[48px]', 'font-[700]', 'leading-[1.1]', 'tracking-[-0.01em]'],
       restrictions: { editText: true },
       design: {
         typography: {
           isActive: true,
           fontSize: '48px',
           fontWeight: '700',
+          lineHeight: '1.1',
+          letterSpacing: '-0.01',
         }
       },
       variables: {

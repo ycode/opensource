@@ -12,12 +12,14 @@ export const actionTemplates: Record<string, BlockTemplate> = {
     name: 'Button',
     template: {
       name: 'button',
-      classes: ['flex', 'flex-row', 'items-center', 'justify-center', 'text-[#FFFFFF]', 'pr-[20px]', 'pl-[20px]', 'pt-[10px]', 'pb-[10px]', 'text-[16px]', 'rounded-[12px]', 'bg-[#171717]'],
+      classes: ['flex', 'flex-row', 'items-center', 'justify-center', 'text-[#FFFFFF]', 'pr-[16px]', 'pl-[16px]', 'pt-[8px]', 'pb-[8px]', 'text-[14px]', 'rounded-[12px]', 'bg-[#171717]'],
       children: [
         getTemplateRef('text', {
           settings: {
             tag: 'span',
           },
+          classes: [], // No default classes - inherits font-size from button parent
+          design: {}, // No default design - inherits from button parent
           restrictions: { editText: true },
           variables: {
             text: {
@@ -40,18 +42,14 @@ export const actionTemplates: Record<string, BlockTemplate> = {
         },
         spacing: {
           isActive: true,
-          paddingLeft: '1.5rem',
-          paddingRight: '1.5rem',
-          paddingTop: '0.5rem',
-          paddingBottom: '0.5rem'
+          paddingLeft: '16',
+          paddingRight: '16',
+          paddingTop: '8',
+          paddingBottom: '8'
         },
-        borders: {
-          isActive: true,
-          borderRadius: '0.5rem'
-        },
-        backgrounds: {
-          isActive: true,
-          backgroundColor: '#2563eb'
+        'backgrounds': {
+          'backgroundColor': '#171717',
+          'isActive': true
         }
       }
     }
