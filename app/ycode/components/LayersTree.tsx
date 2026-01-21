@@ -41,7 +41,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge';
 
 // 7. Types
-import type { Layer } from '@/types';
+import type { Layer, Breakpoint } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import Icon from '@/components/ui/icon';
@@ -77,6 +77,7 @@ interface LayerRowProps {
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
   scrollToSelected?: boolean; // New: trigger scroll when selected
+  activeBreakpoint: Breakpoint; // For breakpoint-aware icons and names
 }
 
 // Helper to check if a node is a descendant of another
@@ -114,6 +115,7 @@ function LayerRow({
   liveLayerUpdates,
   liveComponentUpdates,
   scrollToSelected,
+  activeBreakpoint,
 }: LayerRowProps) {
   const { getStyleById } = useLayerStylesStore();
   const { getComponentById } = useComponentsStore();
@@ -181,8 +183,8 @@ function LayerRow({
   // Use purple for component instances OR when editing a component
   const usePurpleStyle = isComponentInstance || !!editingComponentId;
 
-  // Get icon name from blocks template system
-  const layerIcon = getLayerIcon(node.layer);
+  // Get icon name from blocks template system (breakpoint-aware)
+  const layerIcon = getLayerIcon(node.layer, 'box', activeBreakpoint);
 
   // Check if layer is locked by another user (using unified resource locks)
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -378,12 +380,12 @@ function LayerRow({
             />
           )}
 
-          {/* Label */}
+          {/* Label (breakpoint-aware for layout layers) */}
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
             {getLayerName(node.layer, {
               component_name: appliedComponent?.name,
               collection_name: finalCollectionName,
-            })}
+            }, activeBreakpoint)}
           </span>
 
           {/* Lock Indicator - show when layer is locked by another user */}
@@ -1473,6 +1475,7 @@ export default function LayersTree({
               liveLayerUpdates={liveLayerUpdates}
               liveComponentUpdates={liveComponentUpdates}
               scrollToSelected={shouldScrollToSelected}
+              activeBreakpoint={activeBreakpoint}
             />
           );
         })}
@@ -1494,7 +1497,7 @@ export default function LayersTree({
           >
             {(() => {
               const draggedComponent = activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId) : null;
-              const layerIcon = getLayerIcon(activeNode.layer);
+              const layerIcon = getLayerIcon(activeNode.layer, 'box', activeBreakpoint);
               const isActiveNodeSelected = selectedLayerIds.includes(activeNode.id) || selectedLayerId === activeNode.id;
 
               return (
@@ -1519,7 +1522,7 @@ export default function LayersTree({
               {getLayerName(activeNode.layer, {
                 component_name: activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId)?.name : null,
                 collection_name: activeNodeCollectionName,
-              })}
+              }, activeBreakpoint)}
             </span>
           </div>
         ) : null}

@@ -2,11 +2,12 @@
  * Layer utilities for rendering and manipulation
  */
 
-import { Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, CollectionField, Component } from '@/types';
+import { Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, CollectionField, Component, Breakpoint } from '@/types';
 import { cn, generateId } from '@/lib/utils';
 import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
 import { resolveInlineVariables } from '@/lib/inline-variables';
+import { getInheritedValue } from '@/lib/tailwind-class-mapper';
 
 /**
  * Check if a value is a FieldVariable
@@ -424,11 +425,95 @@ export function sortCollectionItems(
 }
 
 /**
+ * Layout type derived from layer's design properties
+ */
+export type LayoutType = 'columns' | 'rows' | 'grid' | 'hidden' | null;
+
+/**
+ * Get the layout type for a layer at a specific breakpoint
+ * Takes into account CSS inheritance (desktop → tablet → mobile)
+ * 
+ * @param layer - The layer to check
+ * @param breakpoint - The breakpoint to check (default: 'desktop')
+ * @returns The layout type ('columns', 'rows', 'grid', 'hidden') or null if not a layout layer
+ */
+export function getLayoutTypeForBreakpoint(
+  layer: Layer,
+  breakpoint: Breakpoint = 'desktop'
+): LayoutType {
+  const classes = Array.isArray(layer.classes)
+    ? layer.classes
+    : (layer.classes || '').split(' ').filter(Boolean);
+
+  if (classes.length === 0) {
+    // Fallback to design object if no classes
+    const design = layer.design?.layout;
+    if (!design?.isActive) return null;
+    
+    const display = design.display;
+    const flexDirection = design.flexDirection;
+    
+    if (display === 'hidden') return 'hidden';
+    if (display === 'grid' || display === 'Grid') return 'grid';
+    if (display === 'flex' || display === 'Flex') {
+      if (flexDirection === 'column' || flexDirection === 'column-reverse') {
+        return 'rows';
+      }
+      return 'columns';
+    }
+    return null;
+  }
+
+  // Use inheritance to get the display value for the breakpoint
+  const { value: displayClass } = getInheritedValue(classes, 'display', breakpoint);
+  const { value: flexDirectionClass } = getInheritedValue(classes, 'flexDirection', breakpoint);
+
+  // getInheritedValue returns full class names like 'flex-col', 'flex-row', 'grid', 'flex'
+  const display = displayClass || '';
+  const flexDirection = flexDirectionClass || '';
+
+  if (display === 'hidden') return 'hidden';
+  if (display === 'grid') return 'grid';
+  if (display === 'flex' || display === 'inline-flex') {
+    // Check for column direction
+    // Tailwind classes: 'flex-col', 'flex-col-reverse'
+    if (flexDirection === 'flex-col' || flexDirection === 'flex-col-reverse') {
+      return 'rows';
+    }
+    // Default flex is row direction (flex-row, flex-row-reverse, or no direction class)
+    return 'columns';
+  }
+
+  return null;
+}
+
+/**
+ * Get the display name for a layout type
+ */
+export function getLayoutTypeName(layoutType: LayoutType): string | null {
+  switch (layoutType) {
+    case 'columns': return 'Columns';
+    case 'rows': return 'Rows';
+    case 'grid': return 'Grid';
+    case 'hidden': return 'Hidden';
+    default: return null;
+  }
+}
+
+// Layout custom names that should use breakpoint-aware icons/names
+const LAYOUT_CUSTOM_NAMES = ['Columns', 'Rows', 'Grid'];
+
+/**
  * Get the icon name (for `components/ui/Icon.tsx`) for a layer
+ * 
+ * @param layer - The layer to get the icon for
+ * @param defaultIcon - Fallback icon (default: 'box')
+ * @param breakpoint - Optional breakpoint for layout-aware icons
  */
 export function getLayerIcon(
   layer: Layer,
-  defaultIcon: IconProps['name'] = 'box'
+  defaultIcon: IconProps['name'] = 'box',
+  breakpoint?: Breakpoint
 ): IconProps['name'] {
   // Body layers
   if (layer.id === 'body') return 'layout';
@@ -446,11 +531,23 @@ export function getLayerIcon(
     return ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(layer.settings?.tag || '') ? 'heading' : 'text';
   }
 
-  // Based on custom name
+  // Layout layers (Columns, Rows, Grid) - breakpoint-aware icons
+  if (layer.customName && LAYOUT_CUSTOM_NAMES.includes(layer.customName)) {
+    if (breakpoint) {
+      const layoutType = getLayoutTypeForBreakpoint(layer, breakpoint);
+      if (layoutType === 'columns') return 'columns';
+      if (layoutType === 'rows') return 'rows';
+      if (layoutType === 'grid') return 'grid';
+      if (layoutType === 'hidden') return 'eye-off';
+    }
+    // Fallback to custom name when no breakpoint
+    if (layer.customName === 'Columns') return 'columns';
+    if (layer.customName === 'Rows') return 'rows';
+    if (layer.customName === 'Grid') return 'grid';
+  }
+
+  // Other named layers
   if (layer.customName === 'Container') return 'container';
-  if (layer.customName === 'Columns') return 'columns';
-  if (layer.customName === 'Rows') return 'rows';
-  if (layer.customName === 'Grid') return 'grid';
 
   // Fallback to block icon (based on name)
   return getBlockIcon(layer.name, defaultIcon);
@@ -458,13 +555,18 @@ export function getLayerIcon(
 
 /**
  * Get the label for a layer (for display in the UI)
+ * 
+ * @param layer - The layer to get the name for
+ * @param context - Optional context (component_name, collection_name)
+ * @param breakpoint - Optional breakpoint for layout-aware names
  */
 export function getLayerName(
   layer: Layer,
   context?: {
     component_name?: string | undefined | null,
     collection_name?: string | undefined | null,
-  }
+  },
+  breakpoint?: Breakpoint
 ): string {
   // Special case for Body layer
   if (layer.id === 'body') {
@@ -479,6 +581,15 @@ export function getLayerName(
   // Use collection name with formatting
   if (getCollectionVariable(layer)) {
     return `Collection${context?.collection_name ? ` (${context.collection_name})` : ''}`;
+  }
+
+  // Layout layers (Columns, Rows, Grid) - breakpoint-aware names
+  if (breakpoint && layer.customName && LAYOUT_CUSTOM_NAMES.includes(layer.customName)) {
+    const layoutType = getLayoutTypeForBreakpoint(layer, breakpoint);
+    const layoutName = getLayoutTypeName(layoutType);
+    if (layoutName) {
+      return layoutName;
+    }
   }
 
   // Use custom name if available
