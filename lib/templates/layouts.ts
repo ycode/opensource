@@ -32,7 +32,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'paddingTop': '140'
         }
       },
-      'classes': 'flex flex-col items-center pt-[140px]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px]',
       'children': [
         {
           'name': 'div',
@@ -101,7 +101,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'letterSpacing': '-0.02'
                         }
                       },
-                      'classes': 'font-[700] tracking-[-0.02em] text-[60px] leading-[1.1] max-md:text-[36px]',
+                      'classes': 'font-[700] tracking-[-0.02em] text-[56px] leading-[1.1] max-md:text-[36px]',
                       'settings': {
                         'tag': 'h1'
                       },
@@ -167,11 +167,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'design': {
                             'typography': {
                               'color': '#000000/60',
-                              'fontSize': '20',
+                              'fontSize': '18',
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[20px] text-[#000000]/60',
+                          'classes': 'text-[18px] text-[#000000]/60',
                           'settings': {
                             'tag': 'p'
                           },
@@ -225,10 +225,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#ffffff',
@@ -240,7 +240,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#2563eb'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -250,7 +250,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -295,10 +295,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#171717',
@@ -310,7 +310,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#e5e5e5'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -320,7 +320,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -448,7 +448,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'paddingBottom': '140'
         }
       },
-      'classes': 'flex flex-col items-center pt-[140px] pb-[140px]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px]',
       'children': [
         {
           'name': 'div',
@@ -504,7 +504,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'letterSpacing': '-0.02'
                     }
                   },
-                  'classes': 'font-[700] tracking-[-0.02em] text-[60px] leading-[1.1] text-center max-md:text-[36px]',
+                  'classes': 'font-[700] tracking-[-0.02em] text-[56px] leading-[1.1] text-center max-md:text-[36px]',
                   'settings': {
                     'tag': 'h1'
                   },
@@ -539,12 +539,12 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   'design': {
                     'typography': {
                       'color': '#000000/60',
-                      'fontSize': '20',
+                      'fontSize': '18',
                       'isActive': true,
                       'textAlign': 'center'
                     }
                   },
-                  'classes': 'text-[20px] text-[#000000]/60 text-center',
+                  'classes': 'text-[18px] text-[#000000]/60 text-center',
                   'settings': {
                     'tag': 'p'
                   },
@@ -596,10 +596,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                         },
                         'spacing': {
                           'isActive': true,
-                          'paddingTop': '0.5rem',
-                          'paddingLeft': '1.5rem',
-                          'paddingRight': '1.5rem',
-                          'paddingBottom': '0.5rem'
+                          'paddingTop': '8',
+                          'paddingLeft': '16',
+                          'paddingRight': '16',
+                          'paddingBottom': '8'
                         },
                         'typography': {
                           'color': '#ffffff',
@@ -612,7 +612,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'backgroundColor': '#2563eb'
                         }
                       },
-                      'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717] text-center',
+                      'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#171717] text-center',
                       'children': [
                         {
                           'name': 'text',
@@ -622,7 +622,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[16px]',
+                          'classes': '',
                           'settings': {
                             'tag': 'span'
                           },
@@ -667,10 +667,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                         },
                         'spacing': {
                           'isActive': true,
-                          'paddingTop': '0.5rem',
-                          'paddingLeft': '1.5rem',
-                          'paddingRight': '1.5rem',
-                          'paddingBottom': '0.5rem'
+                          'paddingTop': '8',
+                          'paddingLeft': '16',
+                          'paddingRight': '16',
+                          'paddingBottom': '8'
                         },
                         'typography': {
                           'color': '#171717',
@@ -682,7 +682,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'backgroundColor': '#e5e5e5'
                         }
                       },
-                      'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                      'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                       'children': [
                         {
                           'name': 'text',
@@ -692,7 +692,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[16px]',
+                          'classes': '',
                           'settings': {
                             'tag': 'span'
                           },
@@ -760,7 +760,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'paddingBottom': '140'
         }
       },
-      'classes': 'flex flex-col items-center pt-[140px] pb-[140px]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px]',
       'children': [
         {
           'name': 'div',
@@ -822,7 +822,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'letterSpacing': '-0.02'
                         }
                       },
-                      'classes': 'font-[700] tracking-[-0.02em] text-[60px] leading-[1.1] max-md:text-[36px]',
+                      'classes': 'font-[700] tracking-[-0.02em] text-[56px] leading-[1.1] max-md:text-[36px]',
                       'settings': {
                         'tag': 'h1'
                       },
@@ -857,11 +857,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'design': {
                         'typography': {
                           'color': '#000000/60',
-                          'fontSize': '20',
+                          'fontSize': '18',
                           'isActive': true
                         }
                       },
-                      'classes': 'text-[20px] text-[#000000]/60',
+                      'classes': 'text-[18px] text-[#000000]/60',
                       'settings': {
                         'tag': 'p'
                       },
@@ -913,10 +913,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#ffffff',
@@ -928,7 +928,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#2563eb'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -938,7 +938,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -983,10 +983,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#171717',
@@ -998,7 +998,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#e5e5e5'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -1008,7 +1008,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -1133,7 +1133,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'paddingBottom': '140'
         }
       },
-      'classes': 'flex flex-col items-center pt-[140px] pb-[140px]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px]',
       'children': [
         {
           'name': 'div',
@@ -1206,7 +1206,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'textAlign': 'center'
                         }
                       },
-                      'classes': 'font-[700] tracking-[-0.02em] text-[60px] leading-[1.1] text-center max-md:text-[36px]',
+                      'classes': 'font-[700] tracking-[-0.02em] text-[56px] leading-[1.1] text-center max-md:text-[36px]',
                       'settings': {
                         'tag': 'h1'
                       },
@@ -1241,12 +1241,12 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'design': {
                         'typography': {
                           'color': '#000000/60',
-                          'fontSize': '20',
+                          'fontSize': '18',
                           'isActive': true,
                           'textAlign': 'center'
                         }
                       },
-                      'classes': 'text-[20px] text-[#000000]/60 text-center',
+                      'classes': 'text-[18px] text-[#000000]/60 text-center',
                       'settings': {
                         'tag': 'p'
                       },
@@ -1298,10 +1298,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#ffffff',
@@ -1314,7 +1314,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#2563eb'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717] text-center',
+                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#171717] text-center',
                           'children': [
                             {
                               'name': 'text',
@@ -1324,7 +1324,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -1369,10 +1369,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#171717',
@@ -1384,7 +1384,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#e5e5e5'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -1394,7 +1394,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -1529,7 +1529,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'isActive': true
         }
       },
-      'classes': 'flex flex-col items-center relative bg-[#000000] pt-[200px] pb-[200px]',
+      'classes': 'flex flex-col items-center w-[100%] relative bg-[#000000] pt-[200px] pb-[200px]',
       'children': [
         {
           'name': 'div',
@@ -1591,7 +1591,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'color': '#ffffff'
                     }
                   },
-                  'classes': 'font-[700] tracking-[-0.02em] text-[60px] leading-[1.1] text-center max-md:text-[36px] text-[#ffffff]',
+                  'classes': 'font-[700] tracking-[-0.02em] text-[56px] leading-[1.1] text-center max-md:text-[36px] text-[#ffffff]',
                   'settings': {
                     'tag': 'h1'
                   },
@@ -1626,12 +1626,12 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   'design': {
                     'typography': {
                       'color': '#ffffff/60',
-                      'fontSize': '20',
+                      'fontSize': '18',
                       'isActive': true,
                       'textAlign': 'center'
                     }
                   },
-                  'classes': 'text-[20px] text-center text-[#ffffff]/60',
+                  'classes': 'text-[18px] text-center text-[#ffffff]/60',
                   'settings': {
                     'tag': 'p'
                   },
@@ -1683,10 +1683,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                         },
                         'spacing': {
                           'isActive': true,
-                          'paddingTop': '0.5rem',
-                          'paddingLeft': '1.5rem',
-                          'paddingRight': '1.5rem',
-                          'paddingBottom': '0.5rem'
+                          'paddingTop': '8',
+                          'paddingLeft': '16',
+                          'paddingRight': '16',
+                          'paddingBottom': '8'
                         },
                         'typography': {
                           'color': '#171717',
@@ -1699,7 +1699,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'backgroundColor': '#ffffff'
                         }
                       },
-                      'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] text-center bg-[#ffffff] text-[#171717]',
+                      'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] text-center bg-[#ffffff] text-[#171717]',
                       'children': [
                         {
                           'name': 'text',
@@ -1709,7 +1709,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[16px]',
+                          'classes': '',
                           'settings': {
                             'tag': 'span'
                           },
@@ -1824,7 +1824,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'paddingBottom': '100'
         }
       },
-      'classes': 'flex flex-col items-center pt-[100px] pb-[100px]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[100px] pb-[100px]',
       'children': [
         {
           'name': 'div',
@@ -1871,7 +1871,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   'settings': {
                     'tag': 'p'
                   },
-                  'classes': 'text-[16px]',
+                  'classes': '',
                   'restrictions': {
                     'editText': true
                   },
@@ -1915,7 +1915,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'letterSpacing': '-0.02'
                     }
                   },
-                  'classes': 'font-[700] tracking-[-0.02em] text-[60px] leading-[1.1] max-md:text-[36px]',
+                  'classes': 'font-[700] tracking-[-0.02em] text-[56px] leading-[1.1] max-md:text-[36px]',
                   'settings': {
                     'tag': 'h1'
                   },
@@ -1950,11 +1950,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   'design': {
                     'typography': {
                       'color': '#000000/60',
-                      'fontSize': '20',
+                      'fontSize': '18',
                       'isActive': true
                     }
                   },
-                  'classes': 'text-[20px] text-[#000000]/60',
+                  'classes': 'text-[18px] text-[#000000]/60',
                   'settings': {
                     'tag': 'p'
                   },
@@ -2006,10 +2006,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                         },
                         'spacing': {
                           'isActive': true,
-                          'paddingTop': '0.5rem',
-                          'paddingLeft': '1.5rem',
-                          'paddingRight': '1.5rem',
-                          'paddingBottom': '0.5rem'
+                          'paddingTop': '8',
+                          'paddingLeft': '16',
+                          'paddingRight': '16',
+                          'paddingBottom': '8'
                         },
                         'typography': {
                           'color': '#ffffff',
@@ -2022,7 +2022,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'backgroundColor': '#2563eb'
                         }
                       },
-                      'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717] text-center',
+                      'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#171717] text-center',
                       'children': [
                         {
                           'name': 'text',
@@ -2032,7 +2032,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[16px]',
+                          'classes': '',
                           'settings': {
                             'tag': 'span'
                           },
@@ -2077,10 +2077,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                         },
                         'spacing': {
                           'isActive': true,
-                          'paddingTop': '0.5rem',
-                          'paddingLeft': '1.5rem',
-                          'paddingRight': '1.5rem',
-                          'paddingBottom': '0.5rem'
+                          'paddingTop': '8',
+                          'paddingLeft': '16',
+                          'paddingRight': '16',
+                          'paddingBottom': '8'
                         },
                         'typography': {
                           'color': '#171717',
@@ -2092,7 +2092,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'backgroundColor': '#e5e5e5'
                         }
                       },
-                      'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                      'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                       'children': [
                         {
                           'name': 'text',
@@ -2102,7 +2102,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[16px]',
+                          'classes': '',
                           'settings': {
                             'tag': 'span'
                           },
@@ -2170,7 +2170,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'paddingBottom': '100'
         }
       },
-      'classes': 'flex flex-col items-center pt-[100px] pb-[100px]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[100px] pb-[100px]',
       'children': [
         {
           'name': 'div',
@@ -2223,7 +2223,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'letterSpacing': '-0.02'
                     }
                   },
-                  'classes': 'font-[700] tracking-[-0.02em] text-[60px] leading-[1.1] max-md:text-[36px]',
+                  'classes': 'font-[700] tracking-[-0.02em] text-[56px] leading-[1.1] max-md:text-[36px]',
                   'settings': {
                     'tag': 'h1'
                   },
@@ -2258,11 +2258,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   'design': {
                     'typography': {
                       'color': '#000000/60',
-                      'fontSize': '20',
+                      'fontSize': '18',
                       'isActive': true
                     }
                   },
-                  'classes': 'text-[20px] text-[#000000]/60',
+                  'classes': 'text-[18px] text-[#000000]/60',
                   'settings': {
                     'tag': 'p'
                   },
@@ -2322,7 +2322,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'paddingBottom': '100'
         }
       },
-      'classes': 'flex flex-col items-center pt-[100px] pb-[100px]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[100px] pb-[100px]',
       'children': [
         {
           'name': 'div',
@@ -2386,7 +2386,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'settings': {
                         'tag': 'p'
                       },
-                      'classes': 'text-[16px]',
+                      'classes': '',
                       'restrictions': {
                         'editText': true
                       },
@@ -2430,7 +2430,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'letterSpacing': '-0.02'
                         }
                       },
-                      'classes': 'font-[700] tracking-[-0.02em] text-[60px] leading-[1.1] max-md:text-[36px]',
+                      'classes': 'font-[700] tracking-[-0.02em] text-[56px] leading-[1.1] max-md:text-[36px]',
                       'settings': {
                         'tag': 'h1'
                       },
@@ -2497,11 +2497,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'design': {
                             'typography': {
                               'color': '#000000/60',
-                              'fontSize': '20',
+                              'fontSize': '18',
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[20px] text-[#000000]/60',
+                          'classes': 'text-[18px] text-[#000000]/60',
                           'settings': {
                             'tag': 'p'
                           },
@@ -2555,10 +2555,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#ffffff',
@@ -2570,7 +2570,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#2563eb'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -2580,7 +2580,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -2625,10 +2625,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#171717',
@@ -2640,7 +2640,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#e5e5e5'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -2650,7 +2650,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -2729,7 +2729,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'isActive': true
         }
       },
-      'classes': 'flex flex-col items-center relative bg-[#000000] pt-[100px] pb-[100px]',
+      'classes': 'flex flex-col items-center w-[100%] relative bg-[#000000] pt-[100px] pb-[100px]',
       'children': [
         {
           'name': 'div',
@@ -2828,7 +2828,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'color': '#ffffff'
                     }
                   },
-                  'classes': 'font-[700] tracking-[-0.02em] text-[60px] leading-[1.1] max-md:text-[36px] text-[#ffffff]',
+                  'classes': 'font-[700] tracking-[-0.02em] text-[56px] leading-[1.1] max-md:text-[36px] text-[#ffffff]',
                   'settings': {
                     'tag': 'h1'
                   },
@@ -2863,11 +2863,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   'design': {
                     'typography': {
                       'color': '#ffffff/60',
-                      'fontSize': '20',
+                      'fontSize': '18',
                       'isActive': true
                     }
                   },
-                  'classes': 'text-[20px] text-[#ffffff]/60',
+                  'classes': 'text-[18px] text-[#ffffff]/60',
                   'settings': {
                     'tag': 'p'
                   },
@@ -2919,10 +2919,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                         },
                         'spacing': {
                           'isActive': true,
-                          'paddingTop': '0.5rem',
-                          'paddingLeft': '1.5rem',
-                          'paddingRight': '1.5rem',
-                          'paddingBottom': '0.5rem'
+                          'paddingTop': '8',
+                          'paddingLeft': '16',
+                          'paddingRight': '16',
+                          'paddingBottom': '8'
                         },
                         'typography': {
                           'color': '#ffffff',
@@ -2935,7 +2935,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'backgroundColor': '#2563eb'
                         }
                       },
-                      'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717] text-center',
+                      'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#171717] text-center',
                       'children': [
                         {
                           'name': 'text',
@@ -2945,7 +2945,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[16px]',
+                          'classes': '',
                           'settings': {
                             'tag': 'span'
                           },
@@ -2990,10 +2990,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                         },
                         'spacing': {
                           'isActive': true,
-                          'paddingTop': '0.5rem',
-                          'paddingLeft': '1.5rem',
-                          'paddingRight': '1.5rem',
-                          'paddingBottom': '0.5rem'
+                          'paddingTop': '8',
+                          'paddingLeft': '16',
+                          'paddingRight': '16',
+                          'paddingBottom': '8'
                         },
                         'typography': {
                           'color': '#171717',
@@ -3005,7 +3005,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'backgroundColor': '#e5e5e5'
                         }
                       },
-                      'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                      'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                       'children': [
                         {
                           'name': 'text',
@@ -3015,7 +3015,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[16px]',
+                          'classes': '',
                           'settings': {
                             'tag': 'span'
                           },
@@ -3134,7 +3134,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'isActive': true
         }
       },
-      'classes': 'flex flex-col items-center pt-[140px] pb-[140px] bg-[#ffffff]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
       'children': [
         {
           'name': 'div',
@@ -3243,11 +3243,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'design': {
                             'typography': {
                               'color': '#000000/60',
-                              'fontSize': '20',
+                              'fontSize': '18',
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[20px] text-[#000000]/60',
+                          'classes': 'text-[18px] text-[#000000]/60',
                           'settings': {
                             'tag': 'p'
                           },
@@ -3452,11 +3452,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'design': {
                             'typography': {
                               'color': '#000000/60',
-                              'fontSize': '20',
+                              'fontSize': '18',
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[20px] text-[#000000]/60',
+                          'classes': 'text-[18px] text-[#000000]/60',
                           'settings': {
                             'tag': 'p'
                           },
@@ -3519,7 +3519,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
     previewImage: '/layouts/features-002.webp',
     template: {
       'name': 'section',
-      'classes': 'flex flex-col items-center pt-[140px] pb-[140px] bg-[#ffffff]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
       'children': [
         {
           'name': 'div',
@@ -3633,12 +3633,12 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'design': {
                         'typography': {
                           'color': '#000000/60',
-                          'fontSize': '20',
+                          'fontSize': '18',
                           'isActive': true,
                           'textAlign': 'center'
                         }
                       },
-                      'classes': 'text-[20px] text-[#000000]/60 text-center',
+                      'classes': 'text-[18px] text-[#000000]/60 text-center',
                       'settings': {
                         'tag': 'p'
                       },
@@ -4080,7 +4080,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
     previewImage: '/layouts/features-003.webp',
     template: {
       'name': 'section',
-      'classes': 'flex flex-col items-center pt-[140px] pb-[140px] bg-[#ffffff]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
       'children': [
         {
           'name': 'div',
@@ -4117,7 +4117,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'settings': {
                             'tag': 'p'
                           },
-                          'classes': 'text-[16px]',
+                          'classes': '',
                           'restrictions': {
                             'editText': true
                           },
@@ -4196,11 +4196,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'design': {
                             'typography': {
                               'color': '#000000/60',
-                              'fontSize': '20',
+                              'fontSize': '18',
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[20px] text-[#000000]/60',
+                          'classes': 'text-[18px] text-[#000000]/60',
                           'settings': {
                             'tag': 'p'
                           },
@@ -4834,7 +4834,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'backgroundColor': '#ffffff'
         }
       },
-      'classes': 'flex flex-col items-center pt-[140px] pb-[140px] bg-[#ffffff]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
       'children': [
         {
           'name': 'div',
@@ -4977,12 +4977,12 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'design': {
                         'typography': {
                           'color': '#000000/60',
-                          'fontSize': '20',
+                          'fontSize': '18',
                           'isActive': true,
                           'textAlign': 'center'
                         }
                       },
-                      'classes': 'text-[20px] text-[#000000]/60 text-center',
+                      'classes': 'text-[18px] text-[#000000]/60 text-center',
                       'settings': {
                         'tag': 'p'
                       },
@@ -5232,10 +5232,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#171717',
@@ -5247,7 +5247,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#e5e5e5'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -5257,7 +5257,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -5495,10 +5495,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#171717',
@@ -5510,7 +5510,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#e5e5e5'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -5520,7 +5520,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -5758,10 +5758,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#171717',
@@ -5773,7 +5773,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#e5e5e5'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -5783,7 +5783,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -5858,7 +5858,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'backgroundColor': '#ffffff'
         }
       },
-      'classes': 'flex flex-col items-center pt-[140px] pb-[140px] bg-[#ffffff]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
       'children': [
         {
           'name': 'div',
@@ -5931,7 +5931,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'settings': {
                             'tag': 'p'
                           },
-                          'classes': 'text-[16px]',
+                          'classes': '',
                           'restrictions': {
                             'editText': true
                           },
@@ -6010,11 +6010,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'design': {
                             'typography': {
                               'color': '#000000/60',
-                              'fontSize': '20',
+                              'fontSize': '18',
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[20px] text-[#000000]/60',
+                          'classes': 'text-[18px] text-[#000000]/60',
                           'settings': {
                             'tag': 'p'
                           },
@@ -6054,10 +6054,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#171717',
@@ -6069,7 +6069,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#e5e5e5'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -6079,7 +6079,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -6571,7 +6571,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'position': 'relative'
         }
       },
-      'classes': 'flex flex-col items-center relative bg-[#000000] pt-ąė pt-ąė pt-ąė0 pt-[140px] pb-[140px]',
+      'classes': 'flex flex-col items-center w-[100%] relative bg-[#000000] pt-[140px] pb-[140px]',
       'customName': 'Section',
       'children': [
         {
@@ -7341,7 +7341,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'backgroundColor': '#ffffff'
         }
       },
-      'classes': 'flex flex-col items-center pt-[140px] pb-[140px] bg-[#ffffff]',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
       'children': [
         {
           'name': 'div',
@@ -7486,12 +7486,12 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'design': {
                         'typography': {
                           'color': '#000000/60',
-                          'fontSize': '20',
+                          'fontSize': '18',
                           'isActive': true,
                           'textAlign': 'left'
                         }
                       },
-                      'classes': 'text-[20px] text-[#000000]/60 text-left',
+                      'classes': 'text-[18px] text-[#000000]/60 text-left',
                       'settings': {
                         'tag': 'p'
                       },
@@ -8410,7 +8410,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'settings': {
                             'tag': 'p'
                           },
-                          'classes': 'text-[16px]',
+                          'classes': '',
                           'restrictions': {
                             'editText': true
                           },
@@ -8489,11 +8489,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'design': {
                             'typography': {
                               'color': '#000000/60',
-                              'fontSize': '20',
+                              'fontSize': '18',
                               'isActive': true
                             }
                           },
-                          'classes': 'text-[20px] text-[#000000]/60',
+                          'classes': 'text-[18px] text-[#000000]/60',
                           'settings': {
                             'tag': 'p'
                           },
@@ -8855,10 +8855,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#ffffff',
@@ -8871,7 +8871,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#2563eb'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717] text-center',
+                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#171717] text-center',
                           'children': [
                             {
                               'name': 'text',
@@ -8881,7 +8881,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -8926,10 +8926,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#171717',
@@ -8941,7 +8941,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#e5e5e5'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -8951,7 +8951,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -9172,12 +9172,12 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'design': {
                         'typography': {
                           'color': '#000000/60',
-                          'fontSize': '20',
+                          'fontSize': '18',
                           'isActive': true,
                           'textAlign': 'left'
                         }
                       },
-                      'classes': 'text-[20px] text-[#000000]/60 text-left',
+                      'classes': 'text-[18px] text-[#000000]/60 text-left',
                       'settings': {
                         'tag': 'p'
                       },
@@ -11303,11 +11303,11 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'design': {
                                 'typography': {
                                   'color': '#000000/60',
-                                  'fontSize': '20',
+                                  'fontSize': '18',
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[20px] text-[#000000]/60',
+                              'classes': 'text-[18px] text-[#000000]/60',
                               'settings': {
                                 'tag': 'p'
                               },
@@ -12254,12 +12254,12 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'design': {
                         'typography': {
                           'color': '#000000/60',
-                          'fontSize': '20',
+                          'fontSize': '18',
                           'isActive': true,
                           'textAlign': 'left'
                         }
                       },
-                      'classes': 'text-[20px] text-[#000000]/60 text-left',
+                      'classes': 'text-[18px] text-[#000000]/60 text-left',
                       'settings': {
                         'tag': 'p'
                       },
@@ -12311,10 +12311,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#ffffff',
@@ -12326,7 +12326,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#2563eb'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center text-[#FFFFFF] pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -12336,7 +12336,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -12381,10 +12381,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                             },
                             'spacing': {
                               'isActive': true,
-                              'paddingTop': '0.5rem',
-                              'paddingLeft': '1.5rem',
-                              'paddingRight': '1.5rem',
-                              'paddingBottom': '0.5rem'
+                              'paddingTop': '8',
+                              'paddingLeft': '16',
+                              'paddingRight': '16',
+                              'paddingBottom': '8'
                             },
                             'typography': {
                               'color': '#171717',
@@ -12396,7 +12396,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'backgroundColor': '#e5e5e5'
                             }
                           },
-                          'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                          'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                           'children': [
                             {
                               'name': 'text',
@@ -12406,7 +12406,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'isActive': true
                                 }
                               },
-                              'classes': 'text-[16px]',
+                              'classes': '',
                               'settings': {
                                 'tag': 'span'
                               },
@@ -13143,12 +13143,12 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'design': {
                         'typography': {
                           'color': '#000000/60',
-                          'fontSize': '20',
+                          'fontSize': '18',
                           'isActive': true,
                           'textAlign': 'center'
                         }
                       },
-                      'classes': 'text-[20px] text-[#000000]/60 text-center',
+                      'classes': 'text-[18px] text-[#000000]/60 text-center',
                       'settings': {
                         'tag': 'p'
                       },
@@ -13438,10 +13438,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                 },
                                 'spacing': {
                                   'isActive': true,
-                                  'paddingTop': '0.5rem',
-                                  'paddingLeft': '1.5rem',
-                                  'paddingRight': '1.5rem',
-                                  'paddingBottom': '0.5rem'
+                                  'paddingTop': '8',
+                                  'paddingLeft': '16',
+                                  'paddingRight': '16',
+                                  'paddingBottom': '8'
                                 },
                                 'typography': {
                                   'color': '#171717',
@@ -13453,7 +13453,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'backgroundColor': '#e5e5e5'
                                 }
                               },
-                              'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                              'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                               'children': [
                                 {
                                   'name': 'text',
@@ -13743,10 +13743,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                 },
                                 'spacing': {
                                   'isActive': true,
-                                  'paddingTop': '0.5rem',
-                                  'paddingLeft': '1.5rem',
-                                  'paddingRight': '1.5rem',
-                                  'paddingBottom': '0.5rem'
+                                  'paddingTop': '8',
+                                  'paddingLeft': '16',
+                                  'paddingRight': '16',
+                                  'paddingBottom': '8'
                                 },
                                 'typography': {
                                   'color': '#171717',
@@ -13758,7 +13758,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'backgroundColor': '#e5e5e5'
                                 }
                               },
-                              'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                              'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                               'children': [
                                 {
                                   'name': 'text',
@@ -14048,10 +14048,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                 },
                                 'spacing': {
                                   'isActive': true,
-                                  'paddingTop': '0.5rem',
-                                  'paddingLeft': '1.5rem',
-                                  'paddingRight': '1.5rem',
-                                  'paddingBottom': '0.5rem'
+                                  'paddingTop': '8',
+                                  'paddingLeft': '16',
+                                  'paddingRight': '16',
+                                  'paddingBottom': '8'
                                 },
                                 'typography': {
                                   'color': '#171717',
@@ -14063,7 +14063,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'backgroundColor': '#e5e5e5'
                                 }
                               },
-                              'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                              'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                               'children': [
                                 {
                                   'name': 'text',
@@ -14353,10 +14353,10 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                 },
                                 'spacing': {
                                   'isActive': true,
-                                  'paddingTop': '0.5rem',
-                                  'paddingLeft': '1.5rem',
-                                  'paddingRight': '1.5rem',
-                                  'paddingBottom': '0.5rem'
+                                  'paddingTop': '8',
+                                  'paddingLeft': '16',
+                                  'paddingRight': '16',
+                                  'paddingBottom': '8'
                                 },
                                 'typography': {
                                   'color': '#171717',
@@ -14368,7 +14368,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'backgroundColor': '#e5e5e5'
                                 }
                               },
-                              'classes': 'flex flex-row items-center justify-center pr-[20px] pl-[20px] pt-[10px] pb-[10px] text-[16px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
+                              'classes': 'flex flex-row items-center justify-center pr-[16px] pl-[16px] pt-[8px] pb-[8px] text-[14px] rounded-[12px] bg-[#e5e5e5] text-[#171717]',
                               'children': [
                                 {
                                   'name': 'text',
@@ -14562,12 +14562,12 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'design': {
                         'typography': {
                           'color': '#000000/60',
-                          'fontSize': '20',
+                          'fontSize': '18',
                           'isActive': true,
                           'textAlign': 'left'
                         }
                       },
-                      'classes': 'text-[20px] text-[#000000]/60 text-left',
+                      'classes': 'text-[18px] text-[#000000]/60 text-left',
                       'settings': {
                         'tag': 'p'
                       },
