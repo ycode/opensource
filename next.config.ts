@@ -17,7 +17,34 @@ const nextConfig: NextConfig = {
   },
 
   // Ensure sharp works properly in serverless environments (Vercel)
-  serverExternalPackages: ['sharp'],
+  // Also externalize Knex database drivers (we only use PostgreSQL)
+  // This works for both webpack and Turbopack
+  serverExternalPackages: [
+    'sharp',
+    'oracledb',
+    'mysql',
+    'mysql2',
+    'sqlite3',
+    'better-sqlite3',
+    'tedious',
+    'pg-query-stream',
+  ],
+
+  // Turbopack configuration
+  // Map unused database drivers to stub modules (we only use PostgreSQL)
+  // This prevents Turbopack from trying to resolve packages that aren't installed
+  turbopack: {
+    resolveAlias: {
+      // Map unused database drivers to stub module to prevent resolution errors
+      'oracledb': './lib/stubs/db-driver-stub.ts',
+      'mysql': './lib/stubs/db-driver-stub.ts',
+      'mysql2': './lib/stubs/db-driver-stub.ts',
+      'sqlite3': './lib/stubs/db-driver-stub.ts',
+      'better-sqlite3': './lib/stubs/db-driver-stub.ts',
+      'tedious': './lib/stubs/db-driver-stub.ts',
+      'pg-query-stream': './lib/stubs/db-driver-stub.ts',
+    },
+  },
 
   async headers() {
     return [
