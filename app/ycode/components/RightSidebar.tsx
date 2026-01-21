@@ -1450,7 +1450,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
   // If it's a component instance, show a message with edit button instead of design properties
   if (isComponentInstance && component && !editingComponentId) {
-    const handleEditMasterComponent = () => {
+    const handleEditMasterComponent = async () => {
       const { loadComponentDraft } = useComponentsStore.getState();
       const { setSelectedLayerId: setLayerId } = useEditorStore.getState();
 
@@ -1458,8 +1458,8 @@ const RightSidebar = React.memo(function RightSidebar({
       // before switching to component's channel
       setLayerId(null);
 
-      // Load the component's layers into draft
-      loadComponentDraft(component.id);
+      // Load the component's layers into draft (async to ensure proper cache sync)
+      await loadComponentDraft(component.id);
 
       // Open component (updates state + URL, changes lock channel)
       openComponent(component.id, currentPageId, undefined, selectedLayerId);

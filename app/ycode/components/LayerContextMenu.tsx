@@ -82,11 +82,6 @@ export default function LayerContextMenu({
   const draft = draftsByPageId[pageId];
   const layer = draft ? findLayerById(draft.layers, layerId) : null;
 
-  // Debug logging for development
-  if (process.env.NODE_ENV === 'development' && !layer) {
-    console.warn(`[LayerContextMenu] Could not find layer ${layerId} in page ${pageId}. Draft exists:`, !!draft, 'Layers count:', draft?.layers?.length);
-  }
-
   const isComponentInstance = !!(layer && layer.componentId);
   const componentName = isComponentInstance && layer?.componentId
     ? getComponentById(layer.componentId)?.name
@@ -253,7 +248,7 @@ export default function LayerContextMenu({
   const handleConfirmCreateComponent = async (componentName: string) => {
     const componentId = await createComponentFromLayer(pageId, layerId, componentName);
     // No need to reload components - createComponentFromLayer already adds it to the store
-    
+
     // Broadcast component creation to collaborators
     if (componentId && liveComponentUpdates) {
       const component = getComponentById(componentId);
@@ -263,7 +258,7 @@ export default function LayerContextMenu({
     }
   };
 
-  const handleEditMasterComponent = () => {
+  const handleEditMasterComponent = async () => {
     if (!layer?.componentId) return;
 
     const { setEditingComponentId, setSelectedLayerId } = useEditorStore.getState();
@@ -281,8 +276,8 @@ export default function LayerContextMenu({
     // Pass the component instance layer ID so we can restore it when exiting
     setEditingComponentId(layer.componentId, pageId, componentInstanceLayerId);
 
-    // Load component into draft
-    loadComponentDraft(layer.componentId);
+    // Load component into draft (async to ensure proper cache sync)
+    await loadComponentDraft(layer.componentId);
 
     // Select the first (top-level) layer of the component (now on component channel)
     const component = getComponentById(layer.componentId);
@@ -388,7 +383,7 @@ export default function LayerContextMenu({
       formData.append('layoutName', layoutName);
       formData.append('category', category);
       formData.append('template', JSON.stringify(template));
-      
+
       if (imageFile) {
         formData.append('image', imageFile);
       }

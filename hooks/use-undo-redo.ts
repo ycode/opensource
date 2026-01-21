@@ -116,6 +116,9 @@ const localRedoBuffer = new Map<string, LocalChange[]>();
 // Operation lock to prevent concurrent undo/redo operations per entity
 const operationLocks = new Map<string, boolean>();
 
+// Track entities currently being initialized to prevent false change detection
+const initializingEntities = new Set<string>();
+
 export function useUndoRedo({
   entityType,
   entityId,
@@ -183,6 +186,15 @@ export function useUndoRedo({
           break;
         }
         case 'component': {
+          // Log component state for debugging duplication issues
+          if (process.env.NODE_ENV === 'development') {
+            const layerIds = (state as Layer[]).map(l => l.id);
+            const duplicates = layerIds.filter((id, index) => layerIds.indexOf(id) !== index);
+            if (duplicates.length > 0) {
+              console.error(`❌ [applyState] Component ${entityId} - Applying state with DUPLICATE IDs:`, duplicates);
+              console.error('   Layer IDs in state:', layerIds);
+            }
+          }
           updateComponentDraft(entityId, state as Layer[]);
           break;
         }
@@ -204,30 +216,52 @@ export function useUndoRedo({
 
   // Initialize entity state - only when entityId changes
   const initialize = useCallback(async () => {
-    if (!entityId) return;
+    if (!entityId || !cacheKey) return;
 
-    // Only initialize if not already initialized
-    const existingState = useVersionsStore.getState().entityStates[`${entityType}:${entityId}`];
-    if (existingState && (existingState.undoStack.length > 0 || existingState.redoStack.length > 0)) {
-      // Already initialized, don't reset
-      return;
-    }
+    // Mark entity as initializing to prevent false change detection
+    initializingEntities.add(cacheKey);
 
-    initEntityState(entityType, entityId);
+    try {
+      // Small delay to ensure loadComponentDraft completes first
+      // This prevents race condition where we read stale state
+      await new Promise(resolve => setTimeout(resolve, 10));
 
-    // Get current state and calculate its hash to determine position in history
-    const currentState = getCurrentState();
-    let currentHash: string | undefined;
+      // Get current state
+      const currentState = getCurrentState();
 
-    if (currentState && entityType === 'page_layers') {
-      currentHash = generatePageLayersHash({ layers: currentState, generated_css: null });
-    }
+      // ALWAYS sync previousStateCache with current loaded state to prevent
+      // false change detection when re-entering edit mode
+      // Only update if not already set by loadComponentDraft
+      if (currentState && !previousStateCache.has(cacheKey)) {
+        previousStateCache.set(cacheKey, JSON.parse(JSON.stringify(currentState)));
+      }
 
-    await loadVersionHistory(entityType, entityId, currentHash);
+      // Clear local buffers when switching entities to prevent stale state interference
+      localUndoBuffer.delete(cacheKey);
+      localRedoBuffer.delete(cacheKey);
 
-    // Cache initial state
-    if (cacheKey && currentState) {
-      previousStateCache.set(cacheKey, JSON.parse(JSON.stringify(currentState)));
+      // Only initialize version history if not already initialized
+      const existingState = useVersionsStore.getState().entityStates[`${entityType}:${entityId}`];
+      if (existingState && (existingState.undoStack.length > 0 || existingState.redoStack.length > 0)) {
+        // Already initialized, don't reset version history
+        return;
+      }
+
+      initEntityState(entityType, entityId);
+
+      // Calculate hash to determine position in history
+      let currentHash: string | undefined;
+
+      if (currentState && entityType === 'page_layers') {
+        currentHash = generatePageLayersHash({ layers: currentState, generated_css: null });
+      }
+
+      await loadVersionHistory(entityType, entityId, currentHash);
+    } finally {
+      // Clear initializing flag after a longer delay to ensure all async operations complete
+      setTimeout(() => {
+        initializingEntities.delete(cacheKey);
+      }, 100);
     }
   }, [entityType, entityId, initEntityState, loadVersionHistory, cacheKey, getCurrentState]);
 
@@ -237,12 +271,17 @@ export function useUndoRedo({
       initialize();
     }
 
-    // Initialize buffer counts from existing buffers
+    // Reset buffer counts when entity changes - buffers are cleared in initialize()
+    // This ensures UI reflects the cleared state
     if (cacheKey) {
-      const undoBuffer = localUndoBuffer.get(cacheKey);
-      const redoBuffer = localRedoBuffer.get(cacheKey);
-      setLocalUndoCount(undoBuffer?.length || 0);
-      setLocalRedoCount(redoBuffer?.length || 0);
+      // Use timeout to ensure this runs after initialize() clears the buffers
+      const timer = setTimeout(() => {
+        const undoBuffer = localUndoBuffer.get(cacheKey);
+        const redoBuffer = localRedoBuffer.get(cacheKey);
+        setLocalUndoCount(undoBuffer?.length || 0);
+        setLocalRedoCount(redoBuffer?.length || 0);
+      }, 0);
+      return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoInit, entityId, cacheKey]);
@@ -274,6 +313,12 @@ export function useUndoRedo({
   useEffect(() => {
     if (!cacheKey || !entityId) return;
 
+    // Don't track during entity initialization (e.g., entering component edit mode)
+    // This prevents treating loaded state as a user change
+    if (initializingEntities.has(cacheKey)) {
+      return;
+    }
+
     const currentState = getCurrentState();
     if (!currentState) return;
 
@@ -294,6 +339,25 @@ export function useUndoRedo({
     const prevJSON = JSON.stringify(prevState);
 
     if (currentJSON !== prevJSON) {
+      // Validate states before adding to buffer (development only)
+      if (process.env.NODE_ENV === 'development' && entityType === 'component') {
+        const prevLayerIds = (prevState as Layer[]).map(l => l.id);
+        const currentLayerIds = (currentState as Layer[]).map(l => l.id);
+        const prevDuplicates = prevLayerIds.filter((id, index) => prevLayerIds.indexOf(id) !== index);
+        const currentDuplicates = currentLayerIds.filter((id, index) => currentLayerIds.indexOf(id) !== index);
+
+        if (prevDuplicates.length > 0) {
+          console.error(`❌ [State Tracking] Component ${entityId} - Previous state has DUPLICATE IDs:`, prevDuplicates);
+          console.error('   Previous layer IDs:', prevLayerIds);
+          console.error('   Current layer IDs:', currentLayerIds);
+        }
+        if (currentDuplicates.length > 0) {
+          console.error(`❌ [State Tracking] Component ${entityId} - Current state has DUPLICATE IDs:`, currentDuplicates);
+          console.error('   Previous layer IDs:', prevLayerIds);
+          console.error('   Current layer IDs:', currentLayerIds);
+        }
+      }
+
       // Add current state to undo buffer
       const undoBuffer = localUndoBuffer.get(cacheKey) || [];
       undoBuffer.push({
@@ -353,6 +417,17 @@ export function useUndoRedo({
           const lastChange = undoBuffer.pop()!;
           localUndoBuffer.set(cacheKey, undoBuffer);
           setLocalUndoCount(undoBuffer.length);
+
+          // Validate buffer state for components
+          if (process.env.NODE_ENV === 'development' && entityType === 'component') {
+            const layerIds = (lastChange.state as Layer[]).map(l => l.id);
+            const duplicates = layerIds.filter((id, index) => layerIds.indexOf(id) !== index);
+            if (duplicates.length > 0) {
+              console.error(`❌ [Local Undo] Component ${entityId} - Buffer state has DUPLICATE IDs:`, duplicates);
+              console.error('   Layer IDs in buffer:', layerIds);
+              console.error('   This indicates corruption when the state was saved to buffer');
+            }
+          }
 
           // Add current state to redo buffer
           const currentState = getCurrentState();
@@ -551,7 +626,7 @@ export function useUndoRedo({
         if (entityType === 'page_layers') {
           await usePagesStore.getState().loadDraft(entityId);
         } else if (entityType === 'component') {
-          useComponentsStore.getState().loadComponentDraft(entityId);
+          await useComponentsStore.getState().loadComponentDraft(entityId);
         } else if (entityType === 'layer_style') {
           await useLayerStylesStore.getState().loadStyles();
         }
@@ -719,4 +794,22 @@ export function getPreviousState(entityType: VersionEntityType, entityId: string
 export function updatePreviousState(entityType: VersionEntityType, entityId: string, state: any): void {
   const cacheKey = `${entityType}:${entityId}`;
   previousStateCache.set(cacheKey, JSON.parse(JSON.stringify(state)));
+}
+
+/**
+ * Mark entity as initializing to prevent false change detection.
+ * Call this BEFORE updating the store with loaded data.
+ */
+export function markEntityInitializing(entityType: VersionEntityType, entityId: string): void {
+  const cacheKey = `${entityType}:${entityId}`;
+  initializingEntities.add(cacheKey);
+}
+
+/**
+ * Clear entity initializing mark.
+ * Call this AFTER the entity state has been fully initialized.
+ */
+export function clearEntityInitializing(entityType: VersionEntityType, entityId: string): void {
+  const cacheKey = `${entityType}:${entityId}`;
+  initializingEntities.delete(cacheKey);
 }

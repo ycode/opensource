@@ -53,7 +53,7 @@ import SelectionOverlay from '@/components/SelectionOverlay';
 
 // 6. Utils
 import { serializeLayers } from '@/lib/layer-utils';
-import { buildPageTree, getNodeIcon, findHomepage, buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
+import { buildPageTree, getNodeIcon, buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 import { getTranslationValue } from '@/lib/localisation-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
@@ -93,6 +93,7 @@ interface CenterCanvasProps {
   setViewportMode: (mode: ViewportMode) => void;
   onLayerSelect?: (layerId: string) => void;
   onLayerDeselect?: () => void;
+  onExitComponentEditMode?: () => void;
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
 }
@@ -110,6 +111,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   setViewportMode,
   onLayerSelect,
   onLayerDeselect,
+  onExitComponentEditMode,
   liveLayerUpdates,
   liveComponentUpdates,
 }: CenterCanvasProps) {
@@ -907,66 +909,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return returnToPageId ? pages.find(p => p.id === returnToPageId) : null;
   }, [returnToPageId, pages]);
 
-  // Exit component edit mode handler
-  const handleExitComponentEditMode = useCallback(async () => {
-    const { setEditingComponentId } = useEditorStore.getState();
-    const { saveComponentDraft, clearComponentDraft } = useComponentsStore.getState();
-    const { updateComponentOnLayers } = usePagesStore.getState();
-
-    if (!editingComponentId) return;
-
-    // Save component draft
-    await saveComponentDraft(editingComponentId);
-
-    // Get the updated component
-    const updatedComponent = useComponentsStore.getState().getComponentById(editingComponentId);
-    if (updatedComponent) {
-      // Update all instances across pages
-      await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
-
-      // Broadcast component layers update to collaborators
-      if (liveComponentUpdates) {
-        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, updatedComponent.layers);
-      }
-    }
-
-    // Clear component draft
-    clearComponentDraft(editingComponentId);
-
-    // Determine which page to navigate to
-    let targetPageId = returnToPageId;
-    if (!targetPageId) {
-      // No return page - use homepage
-      const homePage = findHomepage(pages);
-      const defaultPage = homePage || pages[0];
-      targetPageId = defaultPage?.id || null;
-    }
-
-    // Get the layer to restore BEFORE clearing state
-    const { returnToLayerId } = useEditorStore.getState();
-
-    // IMPORTANT: Navigate FIRST, then clear state
-    // This ensures the navigation happens before component unmounts
-    if (targetPageId) {
-      // Navigate to the target page, including the layer ID in the URL
-      // This ensures the URL sync effect will restore the correct layer
-      navigateToLayers(
-        targetPageId,
-        undefined, // view - use current
-        undefined, // rightTab - use current
-        returnToLayerId || undefined // layerId - restore the original layer
-      );
-
-      // Small delay to ensure navigation starts before clearing state
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-
-    // Exit edit mode (this will clear returnToLayerId in the store)
-    setEditingComponentId(null, null);
-
-    // Selection will be restored by the URL sync effect in YCodeBuilderMain
-  }, [editingComponentId, returnToPageId, pages, navigateToLayers, liveComponentUpdates]);
-
   // Initialize all folders as collapsed on mount (including virtual error pages folder)
   useEffect(() => {
     const allFolderIds = new Set(folders.map(f => f.id));
@@ -1302,7 +1244,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
           <Button
             variant="purple"
             size="sm"
-            onClick={handleExitComponentEditMode}
+            onClick={onExitComponentEditMode}
             className="gap-1 w-fit"
           >
             <Icon name="arrowLeft" />

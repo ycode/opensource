@@ -578,7 +578,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     } else if (routeType === 'collections-base') {
       // On base collections route, don't set a selected collection
       // The CMS component will show all collections or empty state
-    } else if (routeType === 'component' && resourceId) {
+    } else if (routeType === 'component' && resourceId && !isExitingComponentModeRef.current) {
       const { getComponentById, loadComponentDraft } = useComponentsStore.getState();
       const component = getComponentById(resourceId);
       if (component && editingComponentId !== resourceId) {
@@ -586,6 +586,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         // Use currentPageId if available, otherwise find homepage as fallback
         const returnPageId = currentPageId || (pages.length > 0 ? (findHomepage(pages)?.id || pages[0]?.id) : null);
         setEditingComponentId(resourceId, returnPageId);
+        // Load component draft (async but we don't need to await in this context)
         loadComponentDraft(resourceId);
       }
     } else if (!currentPageId && !routeType && pages.length > 0) {
@@ -927,57 +928,83 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     return null;
   }, [editingComponentId, activeTab, selectedCollectionId, currentPageId]);
 
+  // Track if we're currently exiting component edit mode to prevent re-entry
+  const isExitingComponentModeRef = useRef(false);
+
   // Exit component edit mode handler
   const handleExitComponentEditMode = useCallback(async () => {
-    const { editingComponentId, returnToPageId, setEditingComponentId } = useEditorStore.getState();
-    const { saveComponentDraft, clearComponentDraft, componentDrafts, getComponentById, saveTimeouts } = useComponentsStore.getState();
+    const { editingComponentId, returnToPageId, setEditingComponentId, returnToLayerId } = useEditorStore.getState();
+    const { saveComponentDraft, clearComponentDraft, getComponentById, saveTimeouts } = useComponentsStore.getState();
     const { updateComponentOnLayers } = usePagesStore.getState();
 
-    if (!editingComponentId) return;
+    if (!editingComponentId || isExitingComponentModeRef.current) return;
 
-    // Clear any pending auto-save timeout to avoid duplicate saves
-    if (saveTimeouts[editingComponentId]) {
-      clearTimeout(saveTimeouts[editingComponentId]);
-    }
+    // Set flag to prevent re-entry during exit
+    isExitingComponentModeRef.current = true;
 
-    // Immediately save component draft (ensures all changes are persisted)
-    await saveComponentDraft(editingComponentId);
-
-    // Get the updated component to get its layers
-    const updatedComponent = getComponentById(editingComponentId);
-    if (updatedComponent) {
-      // Update all instances across pages with the new layers
-      await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
-
-      // Broadcast component layers update to collaborators
-      if (liveComponentUpdates) {
-        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, updatedComponent.layers);
+    try {
+      // Clear any pending auto-save timeout to avoid duplicate saves
+      if (saveTimeouts[editingComponentId]) {
+        clearTimeout(saveTimeouts[editingComponentId]);
       }
-    }
 
-    // Clear component draft
-    clearComponentDraft(editingComponentId);
+      // Immediately save component draft (ensures all changes are persisted)
+      await saveComponentDraft(editingComponentId);
 
-    // Get the layer to restore BEFORE clearing state
-    const { returnToLayerId } = useEditorStore.getState();
+      // Get the updated component to get its layers
+      const updatedComponent = getComponentById(editingComponentId);
+      if (updatedComponent) {
+        // Update all instances across pages with the new layers
+        await updateComponentOnLayers(editingComponentId, updatedComponent.layers);
 
-    // Return to previous page with layer ID in URL
-    if (returnToPageId) {
-      // Navigate to the page, including the layer ID in the URL
+        // Broadcast component layers update to collaborators
+        if (liveComponentUpdates) {
+          liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, updatedComponent.layers);
+        }
+      }
+
+      // Clear component draft
+      clearComponentDraft(editingComponentId);
+
+      // Determine which page to navigate to
+      let targetPageId = returnToPageId;
+      if (!targetPageId) {
+        // No return page - use homepage or first available page
+        const homePage = findHomepage(pages);
+        const defaultPage = homePage || pages[0];
+        targetPageId = defaultPage?.id || null;
+      }
+
+      if (!targetPageId) {
+        console.warn('[handleExitComponentEditMode] No target page found, cannot exit component edit mode');
+        return;
+      }
+
+      // Exit edit mode FIRST to clear the state
+      // This prevents the URL navigation effect from re-entering component edit mode
+      setEditingComponentId(null, null);
+
+      // Small delay to ensure state clears
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // Navigate to the target page, including the layer ID in the URL
       // This ensures the URL sync effect will restore the correct layer
       navigateToLayers(
-        returnToPageId,
+        targetPageId,
         undefined, // view - use current
         undefined, // rightTab - use current
         returnToLayerId || undefined // layerId - restore the original layer
       );
+
+      // Wait for navigation to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } finally {
+      // Clear flag after exit completes
+      isExitingComponentModeRef.current = false;
     }
 
-    // Exit edit mode (this will clear returnToLayerId in the store)
-    setEditingComponentId(null, null);
-
     // Selection will be restored by the URL sync effect
-  }, [navigateToLayers, liveComponentUpdates]);
+  }, [navigateToLayers, liveComponentUpdates, pages]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -1757,6 +1784,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                   currentPageId={currentPageId}
                   viewportMode={viewportMode}
                   setViewportMode={setViewportMode}
+                  onExitComponentEditMode={handleExitComponentEditMode}
                   liveLayerUpdates={liveLayerUpdates}
                   liveComponentUpdates={liveComponentUpdates}
                 />

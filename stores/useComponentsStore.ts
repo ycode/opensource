@@ -1,6 +1,6 @@
 /**
  * Components Store
- * 
+ *
  * Global state management for components
  * Components are reusable layer trees stored globally
  */
@@ -21,22 +21,22 @@ interface ComponentsActions {
   // Data loading
   setComponents: (components: Component[]) => void;
   loadComponents: () => Promise<void>;
-  
+
   // CRUD operations
   createComponent: (name: string, layers: Layer[]) => Promise<Component | null>;
   updateComponent: (id: string, updates: Partial<Pick<Component, 'name' | 'layers'>>) => Promise<void>;
   deleteComponent: (id: string) => Promise<void>;
-  
+
   // Draft management (for editing mode)
-  loadComponentDraft: (componentId: string) => void;
+  loadComponentDraft: (componentId: string) => Promise<void>;
   updateComponentDraft: (componentId: string, layers: Layer[]) => void;
   saveComponentDraft: (componentId: string) => Promise<void>;
   clearComponentDraft: (componentId: string) => void;
-  
+
   // Convenience actions
   renameComponent: (id: string, newName: string) => Promise<void>;
   getComponentById: (id: string) => Component | undefined;
-  
+
   // State management
   setError: (error: string | null) => void;
   clearError: () => void;
@@ -53,34 +53,34 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
   componentDrafts: {},
   isSaving: false,
   saveTimeouts: {},
-  
+
   // Set components (used by unified init)
   setComponents: (components) => set({ components }),
-  
+
   // Load all components
   loadComponents: async () => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await fetch('/api/components');
       const result = await response.json();
-      
+
       if (result.error) {
         set({ error: result.error, isLoading: false });
         return;
       }
-      
+
       set({ components: result.data || [], isLoading: false });
     } catch (error) {
       console.error('Failed to load components:', error);
       set({ error: 'Failed to load components', isLoading: false });
     }
   },
-  
+
   // Create a new component
   createComponent: async (name, layers) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await fetch('/api/components', {
         method: 'POST',
@@ -90,20 +90,20 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
           layers,
         }),
       });
-      
+
       const result = await response.json();
-      
+
       if (result.error) {
         set({ error: result.error, isLoading: false });
         return null;
       }
-      
+
       const newComponent = result.data;
       set((state) => ({
         components: [newComponent, ...state.components],
         isLoading: false,
       }));
-      
+
       return newComponent;
     } catch (error) {
       console.error('Failed to create component:', error);
@@ -111,25 +111,25 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       return null;
     }
   },
-  
+
   // Update a component
   updateComponent: async (id, updates) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await fetch(`/api/components/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
-      
+
       const result = await response.json();
-      
+
       if (result.error) {
         set({ error: result.error, isLoading: false });
         return;
       }
-      
+
       const updatedComponent = result.data;
       set((state) => ({
         components: state.components.map((c) => (c.id === id ? updatedComponent : c)),
@@ -140,23 +140,23 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       set({ error: 'Failed to update component', isLoading: false });
     }
   },
-  
+
   // Delete a component
   deleteComponent: async (id) => {
     set({ isLoading: true, error: null });
-    
+
     try {
       const response = await fetch(`/api/components/${id}`, {
         method: 'DELETE',
       });
-      
+
       const result = await response.json();
-      
+
       if (result.error) {
         set({ error: result.error, isLoading: false });
         return;
       }
-      
+
       set((state) => ({
         components: state.components.filter((c) => c.id !== id),
         isLoading: false,
@@ -166,12 +166,23 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       set({ error: 'Failed to delete component', isLoading: false });
     }
   },
-  
+
   // Load component into draft for editing
-  loadComponentDraft: (componentId) => {
+  loadComponentDraft: async (componentId) => {
     const component = get().components.find((c) => c.id === componentId);
     if (component) {
       const layers = JSON.parse(JSON.stringify(component.layers)); // Deep clone
+
+      // Mark entity as initializing BEFORE updating store to prevent false change detection
+      try {
+        const { markEntityInitializing, updatePreviousState } = await import('@/hooks/use-undo-redo');
+        markEntityInitializing('component', componentId);
+        // Also sync the previous state cache with loaded data
+        updatePreviousState('component', componentId, layers);
+      } catch (err) {
+        console.error('Failed to mark component as initializing:', err);
+      }
+
       set((state) => ({
         componentDrafts: {
           ...state.componentDrafts,
@@ -187,7 +198,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       });
     }
   },
-  
+
   // Update component draft (triggers auto-save)
   updateComponentDraft: (componentId, layers) => {
     set((state) => ({
@@ -196,18 +207,18 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
         [componentId]: layers,
       },
     }));
-    
+
     // Clear existing timeout for this component
     const { saveTimeouts } = get();
     if (saveTimeouts[componentId]) {
       clearTimeout(saveTimeouts[componentId]);
     }
-    
+
     // Set new timeout for auto-save (500ms debounce)
     const timeout = setTimeout(() => {
       get().saveComponentDraft(componentId);
     }, 500);
-    
+
     set((state) => ({
       saveTimeouts: {
         ...state.saveTimeouts,
@@ -215,39 +226,39 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       },
     }));
   },
-  
+
   // Save component draft to database
   saveComponentDraft: async (componentId) => {
     const { componentDrafts } = get();
     const draftLayers = componentDrafts[componentId];
-    
+
     if (!draftLayers) {
       console.warn(`No draft found for component ${componentId}`);
       return;
     }
-    
+
     // Capture the layers we're about to save
     const layersBeingSaved = draftLayers;
-    
+
     set({ isSaving: true });
-    
+
     try {
       const response = await fetch(`/api/components/${componentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ layers: layersBeingSaved }),
       });
-      
+
       const result = await response.json();
-      
+
       if (result.error) {
         console.error('Failed to save component draft:', result.error);
         set({ isSaving: false });
         return;
       }
-      
+
       const updatedComponent = result.data;
-      
+
       // Update the component in the store
       // Check if layers changed during save (e.g., undo/redo happened)
       const currentDraft = get().componentDrafts[componentId];
@@ -277,7 +288,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
         // DO NOT record version - the saved state is stale
         // The new state will trigger another auto-save which will record its own version
       }
-      
+
       // Trigger component sync across all pages
       // This will be handled by usePagesStore.updateComponentOnLayers
       if (typeof window !== 'undefined') {
@@ -290,36 +301,36 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       set({ isSaving: false });
     }
   },
-  
+
   // Clear component draft from memory
   clearComponentDraft: (componentId) => {
     set((state) => {
       const newDrafts = { ...state.componentDrafts };
       delete newDrafts[componentId];
-      
+
       const newTimeouts = { ...state.saveTimeouts };
       if (newTimeouts[componentId]) {
         clearTimeout(newTimeouts[componentId]);
         delete newTimeouts[componentId];
       }
-      
+
       return {
         componentDrafts: newDrafts,
         saveTimeouts: newTimeouts,
       };
     });
   },
-  
+
   // Rename a component (convenience method)
   renameComponent: async (id, newName) => {
     await get().updateComponent(id, { name: newName });
   },
-  
+
   // Get component by ID (convenience method)
   getComponentById: (id) => {
     return get().components.find((c) => c.id === id);
   },
-  
+
   // Error management
   setError: (error) => set({ error }),
   clearError: () => set({ error: null }),

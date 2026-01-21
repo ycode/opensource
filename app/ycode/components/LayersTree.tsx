@@ -95,7 +95,8 @@ function isDescendant(
 }
 
 // LayerRow Component - Individual draggable/droppable tree node
-function LayerRow({
+// Memoized to prevent unnecessary re-renders on hover state changes
+const LayerRow = React.memo(function LayerRow({
   node,
   isSelected,
   isChildOfSelected,
@@ -117,17 +118,17 @@ function LayerRow({
   scrollToSelected,
   activeBreakpoint,
 }: LayerRowProps) {
-  const { getStyleById } = useLayerStylesStore();
-  const { getComponentById } = useComponentsStore();
-  const { collections } = useCollectionsStore();
-  const {
-    editingComponentId,
-    interactionTriggerLayerIds,
-    interactionTargetLayerIds,
-    activeInteractionTriggerLayerId,
-    activeInteractionTargetLayerIds,
-    setHoveredLayerId,
-  } = useEditorStore();
+  const getStyleById = useLayerStylesStore((state) => state.getStyleById);
+  const getComponentById = useComponentsStore((state) => state.getComponentById);
+  const collections = useCollectionsStore((state) => state.collections);
+
+  // Use selective subscriptions to avoid re-renders when unrelated state changes
+  const editingComponentId = useEditorStore((state) => state.editingComponentId);
+  const interactionTriggerLayerIds = useEditorStore((state) => state.interactionTriggerLayerIds);
+  const interactionTargetLayerIds = useEditorStore((state) => state.interactionTargetLayerIds);
+  const activeInteractionTriggerLayerId = useEditorStore((state) => state.activeInteractionTriggerLayerId);
+  const activeInteractionTargetLayerIds = useEditorStore((state) => state.activeInteractionTargetLayerIds);
+  const setHoveredLayerId = useEditorStore((state) => state.setHoveredLayerId);
   const { setNodeRef: setDropRef } = useDroppable({
     id: node.id,
   });
@@ -452,7 +453,7 @@ function LayerRow({
       </div>
     </LayerContextMenu>
   );
-}
+});
 
 // EndDropZone Component - Drop target for adding layers at the end (bottom of Body)
 function EndDropZone({
@@ -497,7 +498,7 @@ function EndDropZone({
 // Helper function to collect collapsed layer IDs from layer tree
 function collectCollapsedIds(layers: Layer[]): Set<string> {
   const collapsed = new Set<string>();
-  
+
   function traverse(layerList: Layer[]) {
     layerList.forEach(layer => {
       // If open is explicitly false, it's collapsed
@@ -509,7 +510,7 @@ function collectCollapsedIds(layers: Layer[]): Set<string> {
       }
     });
   }
-  
+
   traverse(layers);
   return collapsed;
 }
@@ -539,7 +540,7 @@ function findParentChain(layers: Layer[], targetId: string, parentId: string | n
     if (layer.id === targetId) {
       return parentId ? [parentId] : [];
     }
-    
+
     if (layer.children) {
       const childResult = findParentChain(layer.children, targetId, layer.id);
       if (childResult !== null) {
@@ -547,7 +548,7 @@ function findParentChain(layers: Layer[], targetId: string, parentId: string | n
       }
     }
   }
-  
+
   return null;
 }
 
@@ -556,7 +557,7 @@ function setLayersOpen(layers: Layer[], idsToOpen: Set<string>): Layer[] {
   return layers.map(layer => {
     const shouldOpen = idsToOpen.has(layer.id);
     const hasChildren = layer.children && layer.children.length > 0;
-    
+
     if (shouldOpen || hasChildren) {
       return {
         ...layer,
@@ -564,7 +565,7 @@ function setLayersOpen(layers: Layer[], idsToOpen: Set<string>): Layer[] {
         ...(hasChildren && { children: setLayersOpen(layer.children!, idsToOpen) }),
       };
     }
-    
+
     return layer;
   });
 }
@@ -730,7 +731,7 @@ export default function LayersTree({
           next.delete(layerId);
           return next;
         });
-        
+
         // Persist the change to the layer tree
         const updatedLayers = updateLayerOpenState(layers, layerId, true);
         onReorder(updatedLayers);
@@ -827,7 +828,7 @@ export default function LayersTree({
       prevSelectedLayerIdRef.current = selectedLayerId;
       return;
     }
-    
+
     prevSelectedLayerIdRef.current = selectedLayerId;
 
     // Check if layer is already visible
@@ -848,7 +849,7 @@ export default function LayersTree({
     // Expand all collapsed parents in one pass
     const updatedLayers = setLayersOpen(layers, new Set(parentsToExpand));
     onReorder(updatedLayers);
-    
+
     // Trigger scroll after expansion (will happen after re-render)
     setShouldScrollToSelected(true);
   }, [selectedLayerId, flattenedNodes, collapsedIds, layers, onReorder]);
@@ -1315,9 +1316,9 @@ export default function LayersTree({
       // If so, use CSS order classes instead of changing DOM structure
       const isWithinParentReorder = activeNode.parentId === newParentId;
       const isResponsiveBreakpoint = activeBreakpoint !== 'desktop';
-      
+
       let newLayers: Layer[];
-      
+
       if (isWithinParentReorder && isResponsiveBreakpoint) {
         // Apply CSS order classes for responsive visual reordering
         // This keeps DOM structure intact but changes visual order on this breakpoint
@@ -1358,7 +1359,7 @@ export default function LayersTree({
     // Determine the new state
     const isCurrentlyCollapsed = collapsedIds.has(id);
     const willBeOpen = isCurrentlyCollapsed; // If collapsed, will open; if open, will collapse
-    
+
     // Update local state
     setCollapsedIds((prev) => {
       const next = new Set(prev);
@@ -1369,7 +1370,7 @@ export default function LayersTree({
       }
       return next;
     });
-    
+
     // Persist the change to the layer tree (outside of setState)
     const updatedLayers = updateLayerOpenState(layers, id, willBeOpen);
     onReorder(updatedLayers);
@@ -1383,6 +1384,80 @@ export default function LayersTree({
     [onLayerSelect]
   );
 
+  // Pre-compute selection-related data for all nodes (avoids expensive calculations in render loop)
+  const nodeSelectionData = useMemo(() => {
+    const selectedIdsSet = new Set(selectedLayerIds);
+    if (selectedLayerId) selectedIdsSet.add(selectedLayerId);
+
+    // Build a parent lookup map for O(1) access
+    const nodeById = new Map<string, FlattenedItem>();
+    flattenedNodes.forEach(node => nodeById.set(node.id, node));
+
+    // For each node, compute: isChildOfSelected, parentSelectedId
+    const childOfSelectedMap = new Map<string, string | null>(); // nodeId -> parentSelectedId
+
+    flattenedNodes.forEach(node => {
+      if (selectedIdsSet.has(node.id)) {
+        childOfSelectedMap.set(node.id, null); // Selected nodes are not "child of selected"
+        return;
+      }
+
+      // Walk up parent chain to see if any ancestor is selected
+      let current: FlattenedItem | undefined = node;
+      while (current && current.parentId) {
+        if (selectedIdsSet.has(current.parentId)) {
+          childOfSelectedMap.set(node.id, current.parentId);
+          return;
+        }
+        current = nodeById.get(current.parentId);
+      }
+      childOfSelectedMap.set(node.id, null);
+    });
+
+    // Find last visible descendants for each selected parent
+    const lastDescendantMap = new Map<string, string>(); // parentSelectedId -> lastDescendantId
+
+    selectedIdsSet.forEach(selectedId => {
+      // Find all descendants of this selected node
+      const descendants: string[] = [];
+      flattenedNodes.forEach(node => {
+        if (childOfSelectedMap.get(node.id) === selectedId) {
+          descendants.push(node.id);
+        }
+      });
+      if (descendants.length > 0) {
+        lastDescendantMap.set(selectedId, descendants[descendants.length - 1]);
+      }
+    });
+
+    // Build final map for each node
+    const result = new Map<string, {
+      isSelected: boolean;
+      isChildOfSelected: boolean;
+      isLastVisibleDescendant: boolean;
+      hasVisibleChildren: boolean;
+    }>();
+
+    flattenedNodes.forEach(node => {
+      const parentSelectedId = childOfSelectedMap.get(node.id) ?? null;
+      const isChildOfSelected = parentSelectedId !== null;
+      const isLastVisibleDescendant = parentSelectedId !== null &&
+        lastDescendantMap.get(parentSelectedId!) === node.id;
+      const hasVisibleChildren = !!(node.layer.children &&
+        node.layer.children.length > 0 &&
+        !collapsedIds.has(node.id));
+
+      result.set(node.id, {
+        isSelected: selectedIdsSet.has(node.id),
+        isChildOfSelected,
+        isLastVisibleDescendant,
+        hasVisibleChildren,
+      });
+    });
+
+    return result;
+  }, [flattenedNodes, selectedLayerIds, selectedLayerId, collapsedIds]);
+
   return (
     <DndContext
       sensors={sensors}
@@ -1393,74 +1468,17 @@ export default function LayersTree({
       onDragCancel={handleDragCancel}
     >
       <div className="space-y-0">
-        {flattenedNodes.map((node, nodeIndex) => {
-          // Check if this node has visible children
-          const hasVisibleChildren = !!(node.layer.children &&
-                                        node.layer.children.length > 0 &&
-                                        !collapsedIds.has(node.id));
-
-          // Check if this node is a child/descendant of any selected layer
-          let parentSelectedId: string | null = null;
-          const isChildOfSelected = selectedLayerIds.some(selectedId => {
-            // Find the selected node
-            const selectedNode = flattenedNodes.find(n => n.id === selectedId);
-            if (!selectedNode || node.id === selectedId) return false;
-
-            // Check if node's parentId chain leads to selectedId
-            let currentNode: FlattenedItem | undefined = node;
-            while (currentNode && currentNode.parentId) {
-              if (currentNode.parentId === selectedId) {
-                parentSelectedId = selectedId;
-                return true;
-              }
-              currentNode = flattenedNodes.find(n => n.id === currentNode!.parentId);
-            }
-            return false;
-          });
-
-          // Determine if this is the last visible descendant of selected parent
-          let isLastVisibleDescendant = false;
-
-          if (isChildOfSelected && parentSelectedId) {
-            // Find ALL visible descendants of the selected parent
-            const allDescendants: FlattenedItem[] = [];
-
-            for (let i = 0; i < flattenedNodes.length; i++) {
-              const checkNode = flattenedNodes[i];
-
-              // Skip the selected parent itself
-              if (checkNode.id === parentSelectedId) continue;
-
-              // Check if this node is a descendant of parentSelectedId
-              let current: FlattenedItem | undefined = checkNode;
-              let isDescendant = false;
-
-              while (current && current.parentId) {
-                if (current.parentId === parentSelectedId) {
-                  isDescendant = true;
-                  break;
-                }
-                current = flattenedNodes.find(n => n.id === current!.parentId);
-              }
-
-              if (isDescendant && !selectedLayerIds.includes(checkNode.id)) {
-                allDescendants.push(checkNode);
-              }
-            }
-
-            if (allDescendants.length > 0) {
-              isLastVisibleDescendant = allDescendants[allDescendants.length - 1].id === node.id;
-            }
-          }
+        {flattenedNodes.map((node) => {
+          const selectionData = nodeSelectionData.get(node.id)!;
 
           return (
             <LayerRow
               key={node.id}
               node={node}
-              isSelected={selectedLayerIds.includes(node.id) || selectedLayerId === node.id}
-              isChildOfSelected={isChildOfSelected}
-              isLastVisibleDescendant={isLastVisibleDescendant}
-              hasVisibleChildren={hasVisibleChildren}
+              isSelected={selectionData.isSelected}
+              isChildOfSelected={selectionData.isChildOfSelected}
+              isLastVisibleDescendant={selectionData.isLastVisibleDescendant}
+              hasVisibleChildren={selectionData.hasVisibleChildren}
               canHaveChildren={node.canHaveChildren}
               isOver={overId === node.id}
               isDragging={activeId === node.id}
@@ -1541,7 +1559,7 @@ function rebuildTree(
 ): Layer[] {
   // Create a map of original layers to preserve all properties
   const originalLayerMap = new Map<string, Layer>();
-  
+
   function collectLayers(layers: Layer[]) {
     layers.forEach(layer => {
       originalLayerMap.set(layer.id, layer);
@@ -1550,7 +1568,7 @@ function rebuildTree(
       }
     });
   }
-  
+
   // Collect all layers from the flattened nodes
   flattenedNodes.forEach(node => {
     if (!originalLayerMap.has(node.id)) {
@@ -1626,7 +1644,7 @@ function rebuildTree(
   function buildNode(nodeId: string): Layer {
     const node = nodeCopy.find(n => n.id === nodeId);
     const originalLayer = originalLayerMap.get(nodeId);
-    
+
     if (!originalLayer) {
       console.error('❌ REBUILD ERROR: Original layer not found:', nodeId);
       return { id: nodeId, name: 'div', classes: '' };
@@ -1651,12 +1669,12 @@ function rebuildTree(
       if (childrenFromByParent.length > 0) {
         // Build new/moved children from byParent
         const newChildren = childrenFromByParent.map(child => buildNode(child.id));
-        
+
         if (isCollapsed && originalChildren.length > 0) {
           // Layer is collapsed - merge new children with original hidden children
           // IMPORTANT: Exclude children that were moved to other visible locations
           const newChildIds = new Set(childrenFromByParent.map(c => c.id));
-          const preservedChildren = originalChildren.filter(c => 
+          const preservedChildren = originalChildren.filter(c =>
             !newChildIds.has(c.id) && !allVisibleLayerIds.has(c.id)
           );
           result.children = [...newChildren, ...preservedChildren];
@@ -1731,7 +1749,7 @@ function rebuildTree(
 /**
  * Apply CSS order classes to reorder children visually for a specific breakpoint.
  * Instead of changing DOM structure, this applies order-{n} classes with breakpoint prefixes.
- * 
+ *
  * @param layers - The full layer tree
  * @param parentId - The parent whose children should be reordered
  * @param movedChildId - The child that was moved
@@ -1747,13 +1765,13 @@ function applyResponsiveOrderClasses(
   breakpoint: 'tablet' | 'mobile'
 ): Layer[] {
   const prefix = getBreakpointPrefix(breakpoint); // max-lg: or max-md:
-  
+
   // Helper to normalize classes to string
   const normalizeClasses = (classes: string | string[] | undefined): string => {
     if (!classes) return '';
     return Array.isArray(classes) ? classes.join(' ') : classes;
   };
-  
+
   // Helper to remove existing order classes for this breakpoint
   const removeOrderClasses = (classes: string): string => {
     return classes
@@ -1769,7 +1787,7 @@ function applyResponsiveOrderClasses(
       })
       .join(' ');
   };
-  
+
   // Helper to add order class
   const addOrderClass = (classes: string | string[] | undefined, order: number): string => {
     const normalized = normalizeClasses(classes);
@@ -1777,26 +1795,26 @@ function applyResponsiveOrderClasses(
     const orderClass = `${prefix}order-${order}`;
     return cleaned ? `${cleaned} ${orderClass}` : orderClass;
   };
-  
+
   // Recursively process the tree
   function processLayers(layerList: Layer[]): Layer[] {
     return layerList.map(layer => {
       if (layer.id === parentId && layer.children) {
         // Found the parent - reorder its children with order classes
         const children = [...layer.children];
-        
+
         // Find the moved child's current index
         const currentIndex = children.findIndex(c => c.id === movedChildId);
         if (currentIndex === -1) {
           // Child not found, return as is
           return layer;
         }
-        
+
         // Calculate new order values
         // We need to assign order values so the moved child appears at newIndex
         const updatedChildren = children.map((child, idx) => {
           let visualOrder: number;
-          
+
           if (child.id === movedChildId) {
             // The moved child gets the target position
             visualOrder = newIndex;
@@ -1810,20 +1828,20 @@ function applyResponsiveOrderClasses(
             // Children not affected by the move
             visualOrder = idx;
           }
-          
+
           return {
             ...child,
             classes: addOrderClass(child.classes, visualOrder),
             children: child.children ? processLayers(child.children) : undefined,
           };
         });
-        
+
         return {
           ...layer,
           children: updatedChildren,
         };
       }
-      
+
       // Not the parent, but process children recursively
       if (layer.children) {
         return {
@@ -1831,10 +1849,10 @@ function applyResponsiveOrderClasses(
           children: processLayers(layer.children),
         };
       }
-      
+
       return layer;
     });
   }
-  
+
   return processLayers(layers);
 }
