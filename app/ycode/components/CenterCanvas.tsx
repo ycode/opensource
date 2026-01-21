@@ -942,22 +942,30 @@ const CenterCanvas = React.memo(function CenterCanvas({
       targetPageId = defaultPage?.id || null;
     }
 
+    // Get the layer to restore BEFORE clearing state
+    const { returnToLayerId } = useEditorStore.getState();
+
     // IMPORTANT: Navigate FIRST, then clear state
     // This ensures the navigation happens before component unmounts
     if (targetPageId) {
-      // Navigate to the target page
-      navigateToLayers(targetPageId);
+      // Navigate to the target page, including the layer ID in the URL
+      // This ensures the URL sync effect will restore the correct layer
+      navigateToLayers(
+        targetPageId,
+        undefined, // view - use current
+        undefined, // rightTab - use current
+        returnToLayerId || undefined // layerId - restore the original layer
+      );
 
       // Small delay to ensure navigation starts before clearing state
       await new Promise(resolve => setTimeout(resolve, 50));
     }
 
-    // Exit edit mode
+    // Exit edit mode (this will clear returnToLayerId in the store)
     setEditingComponentId(null, null);
 
-    // Clear selection
-    setSelectedLayerId(null);
-  }, [editingComponentId, returnToPageId, pages, setSelectedLayerId, navigateToLayers, liveComponentUpdates]);
+    // Selection will be restored by the URL sync effect in YCodeBuilderMain
+  }, [editingComponentId, returnToPageId, pages, navigateToLayers, liveComponentUpdates]);
 
   // Initialize all folders as collapsed on mount (including virtual error pages folder)
   useEffect(() => {

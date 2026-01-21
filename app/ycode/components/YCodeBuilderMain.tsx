@@ -958,17 +958,26 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     // Clear component draft
     clearComponentDraft(editingComponentId);
 
-    // Return to previous page
+    // Get the layer to restore BEFORE clearing state
+    const { returnToLayerId } = useEditorStore.getState();
+
+    // Return to previous page with layer ID in URL
     if (returnToPageId) {
-      setCurrentPageId(returnToPageId);
+      // Navigate to the page, including the layer ID in the URL
+      // This ensures the URL sync effect will restore the correct layer
+      navigateToLayers(
+        returnToPageId,
+        undefined, // view - use current
+        undefined, // rightTab - use current
+        returnToLayerId || undefined // layerId - restore the original layer
+      );
     }
 
-    // Exit edit mode
+    // Exit edit mode (this will clear returnToLayerId in the store)
     setEditingComponentId(null, null);
 
-    // Clear selection
-    setSelectedLayerId(null);
-  }, [setCurrentPageId, setSelectedLayerId, liveComponentUpdates]);
+    // Selection will be restored by the URL sync effect
+  }, [navigateToLayers, liveComponentUpdates]);
 
   // Global keyboard shortcuts
   useEffect(() => {

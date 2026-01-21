@@ -288,10 +288,10 @@ export function useEditorUrl() {
   }, [router]);
 
   const updateQueryParams = useCallback(
-    (params: { 
-      view?: string; 
-      tab?: string; 
-      layer?: string; 
+    (params: {
+      view?: string;
+      tab?: string;
+      layer?: string;
       preview?: string | undefined;
     }) => {
       const currentSearchParams = new URLSearchParams(window.location.search);
@@ -431,7 +431,7 @@ export function useEditorActions() {
   // Combined action: Open component edit mode (updates state + URL)
   const openComponent = useCallback(
     (componentId: string, returnPageId: string | null, rightTab?: string, layerId?: string) => {
-      setEditingComponentId(componentId, returnPageId);
+      setEditingComponentId(componentId, returnPageId, layerId);
       navigateToComponent(componentId, rightTab, layerId);
     },
     [setEditingComponentId, navigateToComponent]

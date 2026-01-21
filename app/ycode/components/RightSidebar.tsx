@@ -1462,7 +1462,7 @@ const RightSidebar = React.memo(function RightSidebar({
       loadComponentDraft(component.id);
 
       // Open component (updates state + URL, changes lock channel)
-      openComponent(component.id, currentPageId);
+      openComponent(component.id, currentPageId, undefined, selectedLayerId);
 
       // Select the first layer of the component (now on component channel)
       if (component.layers && component.layers.length > 0) {

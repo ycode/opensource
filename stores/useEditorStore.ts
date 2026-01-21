@@ -27,7 +27,7 @@ interface EditorActions {
   setActiveBreakpoint: (breakpoint: Breakpoint) => void;
   setActiveUIState: (state: UIState) => void;
   setActiveTextStyleKey: (key: string | null) => void;
-  setEditingComponentId: (id: string | null, returnPageId?: string | null) => void;
+  setEditingComponentId: (id: string | null, returnPageId?: string | null, returnToLayerId?: string | null) => void;
   setBuilderDataPreloaded: (preloaded: boolean) => void;
   pushHistory: (pageId: string, layers: Layer[]) => void;
   undo: () => HistoryEntry | null;
@@ -55,6 +55,7 @@ interface EditorStoreWithHistory extends EditorState {
   maxHistorySize: number;
   editingComponentId: string | null;
   returnToPageId: string | null;
+  returnToLayerId: string | null; // Layer to restore when exiting component edit mode
   currentPageCollectionItemId: string | null;
   builderDataPreloaded: boolean;
   interactionTriggerLayerIds: string[];
@@ -103,6 +104,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   maxHistorySize: 50,
   editingComponentId: null,
   returnToPageId: null,
+  returnToLayerId: null,
   currentPageCollectionItemId: null,
   builderDataPreloaded: false,
   interactionTriggerLayerIds: [],
@@ -231,10 +233,34 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setActiveBreakpoint: (breakpoint) => set({ activeBreakpoint: breakpoint }),
   setActiveUIState: (state) => set({ activeUIState: state }),
   setActiveTextStyleKey: (key) => set({ activeTextStyleKey: key }),
-  setEditingComponentId: (id, returnPageId = null) => set({
-    editingComponentId: id,
-    returnToPageId: returnPageId,
-  }),
+  setEditingComponentId: (id, returnPageId = null, returnToLayerId = undefined) => {
+    const state = get();
+
+    // When entering component edit mode:
+    // - If returnToLayerId is explicitly provided, use it
+    // - Otherwise, use the current selected layer
+    // When exiting (id === null), keep the stored returnToLayerId so exit handler can use it
+    let layerToReturn: string | null;
+    if (id !== null) {
+      // Entering component mode
+      if (returnToLayerId !== undefined) {
+        // Explicitly provided
+        layerToReturn = returnToLayerId;
+      } else {
+        // Fallback to current selection
+        layerToReturn = state.selectedLayerId;
+      }
+    } else {
+      // Exiting component mode - keep the stored value
+      layerToReturn = state.returnToLayerId;
+    }
+
+    set({
+      editingComponentId: id,
+      returnToPageId: returnPageId,
+      returnToLayerId: layerToReturn,
+    });
+  },
   setBuilderDataPreloaded: (preloaded) => set({ builderDataPreloaded: preloaded }),
 
   pushHistory: (pageId, layers) => {

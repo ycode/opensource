@@ -269,12 +269,17 @@ export default function LayerContextMenu({
     const { setEditingComponentId, setSelectedLayerId } = useEditorStore.getState();
     const { loadComponentDraft, getComponentById } = useComponentsStore.getState();
 
+    // Capture the current layer ID BEFORE clearing selection
+    // This is the layer we'll return to when exiting component edit mode
+    const componentInstanceLayerId = layer.id;
+
     // Clear selection FIRST to release lock on current page's channel
     // before switching to component's channel
     setSelectedLayerId(null);
 
     // Enter edit mode (changes lock channel to component)
-    setEditingComponentId(layer.componentId, pageId);
+    // Pass the component instance layer ID so we can restore it when exiting
+    setEditingComponentId(layer.componentId, pageId, componentInstanceLayerId);
 
     // Load component into draft
     loadComponentDraft(layer.componentId);

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "NEXT_DISABLE_TURBOPACK=1 next dev -p 3002",
+    "dev:turbo": "next dev -p 3002 --turbo",
     "prod": "npm run build && npm run start",
     "build": "next build",
     "start": "next start -p 3002",
