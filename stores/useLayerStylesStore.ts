@@ -123,6 +123,13 @@ export const useLayerStylesStore = create<LayerStylesStore>((set, get) => ({
         styles: state.styles.map((s) => (s.id === id ? updatedStyle : s)),
         isLoading: false,
       }));
+
+      // Record version for undo/redo (async, non-blocking)
+      import('@/lib/version-tracking').then(({ recordVersionViaApi }) => {
+        recordVersionViaApi('layer_style', id, { classes: updatedStyle.classes, design: updatedStyle.design });
+      }).catch((err) => {
+        console.error('Failed to record style version:', err);
+      });
     } catch (error) {
       console.error('Failed to update layer style:', error);
       set({ error: 'Failed to update style', isLoading: false });

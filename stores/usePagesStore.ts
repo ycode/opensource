@@ -216,6 +216,15 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     });
 
     set({ pages, draftsByPageId: draftsMap });
+    
+    // Initialize version tracking for all drafts
+    import('@/lib/version-tracking').then(({ initializeVersionTracking }) => {
+      Object.entries(draftsMap).forEach(([pageId, draft]) => {
+        initializeVersionTracking('page_layers', pageId, draft.layers);
+      });
+    }).catch((err) => {
+      console.error('Failed to initialize version tracking:', err);
+    });
   },
 
   loadPages: async () => {
@@ -279,6 +288,14 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           draftsByPageId: { ...state.draftsByPageId, [pageId]: response.data! },
           isLoading: false,
         }));
+
+        // Initialize version tracking with loaded state (awaited to ensure it completes before edits)
+        try {
+          const { initializeVersionTracking } = await import('@/lib/version-tracking');
+          initializeVersionTracking('page_layers', pageId, response.data!.layers);
+        } catch (err) {
+          console.error('Failed to initialize version tracking:', err);
+        }
       }
     } catch (error) {
       set({ error: 'Failed to load draft', isLoading: false });
@@ -322,6 +339,16 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
         draftsByPageId: { ...state.draftsByPageId, ...draftsMap },
         isLoading: false,
       }));
+
+      // Initialize version tracking for all loaded drafts
+      try {
+        const { initializeVersionTracking } = await import('@/lib/version-tracking');
+        Object.entries(draftsMap).forEach(([pageId, draft]) => {
+          initializeVersionTracking('page_layers', pageId, draft.layers);
+        });
+      } catch (err) {
+        console.error('Failed to initialize version tracking for drafts:', err);
+      }
     } catch (error) {
       set({ error: 'Failed to load drafts', isLoading: false });
     }
@@ -337,6 +364,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       deleted_at: null,
     };
     set((state) => ({ draftsByPageId: { ...state.draftsByPageId, [page.id]: draft } }));
+    
+    // Initialize version tracking for this draft
+    import('@/lib/version-tracking').then(({ initializeVersionTracking }) => {
+      initializeVersionTracking('page_layers', page.id, initialLayers);
+    }).catch((err) => {
+      console.error('Failed to initialize version tracking:', err);
+    });
   },
 
   updateLayerClasses: (pageId, layerId, classes) => {
@@ -386,8 +420,17 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
             },
             isLoading: false,
           }));
+
+          // Record version for undo/redo only if layers match what we saved
+          // This ensures we don't create version records for stale data
+          import('@/lib/version-tracking').then(({ recordVersionViaApi }) => {
+            recordVersionViaApi('page_layers', pageId, layersBeingSaved);
+          }).catch((err) => {
+            console.error('Failed to record version:', err);
+          });
         } else {
           // Layers changed during save - keep local changes, but update metadata
+          // This happens if user made changes (or undo/redo) while save was in-flight
           set((state) => ({
             draftsByPageId: {
               ...state.draftsByPageId,
@@ -398,6 +441,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
             },
             isLoading: false,
           }));
+
+          // DO NOT record version - the saved state is stale
+          // The new state will trigger another auto-save which will record its own version
         }
 
         // After successfully saving the draft, generate and save CSS from ALL pages

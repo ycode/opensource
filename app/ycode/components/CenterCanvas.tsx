@@ -34,6 +34,7 @@ import {
 // 4. Hooks
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import { useZoom } from '@/hooks/use-zoom';
+import { useUndoRedo } from '@/hooks/use-undo-redo';
 
 // 5. Stores
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -217,6 +218,21 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
   const [collectionItems, setCollectionItems] = useState<Array<{ id: string; label: string }>>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
+
+  // Undo/Redo hook - tracks versions for the current entity (page or component)
+  const undoRedoEntityType = editingComponentId ? 'component' : 'page_layers';
+  const undoRedoEntityId = editingComponentId || currentPageId;
+  const {
+    canUndo,
+    canRedo,
+    undo: performUndo,
+    redo: performRedo,
+    isLoading: isUndoRedoLoading,
+  } = useUndoRedo({
+    entityType: undoRedoEntityType,
+    entityId: undoRedoEntityId,
+    autoInit: true,
+  });
 
   // Parse viewport width
   const viewportWidth = useMemo(() => {
@@ -740,6 +756,19 @@ const CenterCanvas = React.memo(function CenterCanvas({
     setHoveredLayerId(layerId);
   }, [setHoveredLayerId]);
 
+  // Undo/Redo handlers
+  // Note: We don't auto-save after undo/redo to preserve the redo stack
+  // The state will be saved when the user makes the next change
+  const handleUndo = useCallback(async () => {
+    if (!canUndo || isUndoRedoLoading) return;
+    await performUndo();
+  }, [canUndo, isUndoRedoLoading, performUndo]);
+
+  const handleRedo = useCallback(async () => {
+    if (!canRedo || isUndoRedoLoading) return;
+    await performRedo();
+  }, [canRedo, isUndoRedoLoading, performRedo]);
+
   // Calculate parent layer ID for selection overlay (one level up from selected)
   const parentLayerId = useMemo(() => {
     if (!selectedLayerId || !currentPageId) return null;
@@ -1102,6 +1131,42 @@ const CenterCanvas = React.memo(function CenterCanvas({
     });
   }, [collectionFieldsFromStore, pageCollectionFields, fetchReferencedCollectionItems]);
 
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    if (isPreviewMode) return; // No undo/redo in preview mode
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't interfere with text input fields
+      const target = e.target as HTMLElement;
+      const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      if (isInputFocused) return;
+
+      // Check for Cmd/Ctrl + Z (undo) and Cmd/Ctrl + Shift + Z (redo)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+
+        if (e.shiftKey) {
+          // Redo: Cmd/Ctrl + Shift + Z
+          handleRedo();
+        } else {
+          // Undo: Cmd/Ctrl + Z
+          handleUndo();
+        }
+        return;
+      }
+
+      // Check for Cmd/Ctrl + Y (redo alternative)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isPreviewMode, handleUndo, handleRedo]);
+
   // Add zoom gesture handlers for preview mode (when iframe doesn't have them)
   useEffect(() => {
     if (!isPreviewMode) return; // Editor iframe handles its own zoom gestures
@@ -1377,10 +1442,22 @@ const CenterCanvas = React.memo(function CenterCanvas({
         {/* Undo/Redo Buttons (hidden in preview mode) */}
         {!isPreviewMode && (
           <div className="flex justify-end gap-0">
-            <Button size="sm" variant="ghost">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleUndo}
+              disabled={!canUndo || isUndoRedoLoading}
+              title="Undo (⌘Z)"
+            >
               <Icon name="undo" />
             </Button>
-            <Button size="sm" variant="ghost">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleRedo}
+              disabled={!canRedo || isUndoRedoLoading}
+              title="Redo (⌘⇧Z)"
+            >
               <Icon name="redo" />
             </Button>
           </div>
@@ -1749,6 +1826,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         onResetZoom={resetZoom}
                         onZoomToFit={zoomToFit}
                         onAutofit={autofit}
+                        onUndo={handleUndo}
+                        onRedo={handleRedo}
                         liveLayerUpdates={liveLayerUpdates}
                         liveComponentUpdates={liveComponentUpdates}
                         onIframeReady={handleIframeReady}

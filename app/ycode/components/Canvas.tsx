@@ -74,6 +74,10 @@ interface CanvasProps {
   onZoomToFit?: () => void;
   /** Callback when autofit is triggered (Cmd+2) */
   onAutofit?: () => void;
+  /** Callback when undo is triggered (Cmd+Z) */
+  onUndo?: () => void;
+  /** Callback when redo is triggered (Cmd+Shift+Z) */
+  onRedo?: () => void;
   /** Live layer updates for collaboration */
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   /** Live component updates for collaboration */
@@ -183,6 +187,8 @@ export default function Canvas({
   onResetZoom,
   onZoomToFit,
   onAutofit,
+  onUndo,
+  onRedo,
   liveLayerUpdates,
   liveComponentUpdates,
   onIframeReady,
@@ -384,6 +390,26 @@ export default function Canvas({
         return;
       }
 
+      // Undo/Redo shortcuts (Cmd/Ctrl + Z / Shift + Z, or Cmd/Ctrl + Y)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !isInputFocused) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Redo: Cmd/Ctrl + Shift + Z
+          onRedo?.();
+        } else {
+          // Undo: Cmd/Ctrl + Z
+          onUndo?.();
+        }
+        return;
+      }
+
+      // Redo alternative: Cmd/Ctrl + Y
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y' && !isInputFocused) {
+        e.preventDefault();
+        onRedo?.();
+        return;
+      }
+
       // Zoom shortcuts (Cmd/Ctrl + key)
       if (e.metaKey || e.ctrlKey) {
         // Cmd+0 - Reset zoom
@@ -443,7 +469,7 @@ export default function Canvas({
 
     doc.addEventListener('keydown', handleKeyDown);
     return () => doc.removeEventListener('keydown', handleKeyDown);
-  }, [iframeReady, selectedLayerId, onDeleteLayer, onResetZoom, onZoomIn, onZoomOut, onZoomToFit, onAutofit]);
+  }, [iframeReady, selectedLayerId, onDeleteLayer, onResetZoom, onZoomIn, onZoomOut, onZoomToFit, onAutofit, onUndo, onRedo]);
 
   // Handle any click inside the iframe (capture phase to run before stopPropagation)
   useEffect(() => {

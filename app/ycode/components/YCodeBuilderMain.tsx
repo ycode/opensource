@@ -66,6 +66,7 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { useMigrationStore } from '@/stores/useMigrationStore';
+import { useVersionsStore } from '@/stores/useVersionsStore';
 // Collaboration temporarily disabled
 // import { useCollaborationPresenceStore } from '@/stores/useCollaborationPresenceStore';
 
@@ -626,36 +627,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     }
   }, [currentPageId, draftsByPageId, setSelectedLayerId, urlState.layerId]);
 
-  // Handle undo
-  const handleUndo = useCallback(() => {
-    if (!canUndo()) return;
-
-    const historyEntry = undo();
-    if (historyEntry && historyEntry.pageId === currentPageId) {
-      const draft = draftsByPageId[currentPageId];
-      if (draft) {
-        // Restore layers from history
-        updateLayer(currentPageId, draft.layers[0]?.id || 'root', {});
-        // Update entire layers array
-        draft.layers = historyEntry.layers;
-      }
-    }
-  }, [canUndo, undo, currentPageId, draftsByPageId, updateLayer]);
-
-  // Handle redo
-  const handleRedo = useCallback(() => {
-    if (!canRedo()) return;
-
-    const historyEntry = redo();
-    if (historyEntry && historyEntry.pageId === currentPageId) {
-      const draft = draftsByPageId[currentPageId];
-      if (draft) {
-        // Restore layers from history
-        draft.layers = historyEntry.layers;
-      }
-    }
-  }, [canRedo, redo, currentPageId, draftsByPageId]);
-
   // Get selected layer
   const selectedLayer = useMemo(() => {
     if (!currentPageId || !selectedLayerId) return null;
@@ -879,6 +850,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
     // Only trigger save if layers actually changed for THIS page
     if (lastLayersJSON && lastLayersJSON !== currentLayersJSON) {
+      // Always trigger auto-save - undo/redo operations use markUndoRedoSave() to prevent version creation
       setHasUnsavedChanges(true);
       debouncedSave(currentPageId);
     }
@@ -893,6 +865,21 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       }
     };
   }, [currentPageId, draftsByPageId, debouncedSave]);
+
+  // Listen for version saved event to clear unsaved flag
+  useEffect(() => {
+    const handleVersionSaved = (event: CustomEvent) => {
+      const { entityType, entityId } = event.detail;
+      if (entityType === 'page_layers' && entityId === currentPageId) {
+        setHasUnsavedChanges(false);
+      }
+    };
+
+    window.addEventListener('versionSaved', handleVersionSaved as EventListener);
+    return () => {
+      window.removeEventListener('versionSaved', handleVersionSaved as EventListener);
+    };
+  }, [currentPageId]);
 
   // Warn before closing browser with unsaved changes
   useEffect(() => {
@@ -1004,21 +991,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         }
       }
 
-      // Undo: Cmd/Ctrl + Z
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
-        if (!isInputFocused) {
-          e.preventDefault();
-          handleUndo();
-        }
-      }
-
-      // Redo: Cmd/Ctrl + Shift + Z
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
-        if (!isInputFocused) {
-          e.preventDefault();
-          handleRedo();
-        }
-      }
+      // Note: Undo/Redo shortcuts (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z, Cmd/Ctrl+Y) are handled in CenterCanvas.tsx
+      // This prevents duplication and ensures they work both in the main window and inside the iframe
 
       // Layer-specific shortcuts (only work on layers tab)
       if (activeTab === 'layers') {
@@ -1584,8 +1558,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     copyStyleToClipboard,
     pasteStyleFromClipboard,
     deleteSelectedLayer,
-    handleUndo,
-    handleRedo,
     liveLayerUpdates,
     openCreateComponentDialog,
     setDraftLayers,

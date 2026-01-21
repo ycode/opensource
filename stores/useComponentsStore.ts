@@ -171,12 +171,20 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
   loadComponentDraft: (componentId) => {
     const component = get().components.find((c) => c.id === componentId);
     if (component) {
+      const layers = JSON.parse(JSON.stringify(component.layers)); // Deep clone
       set((state) => ({
         componentDrafts: {
           ...state.componentDrafts,
-          [componentId]: JSON.parse(JSON.stringify(component.layers)), // Deep clone
+          [componentId]: layers,
         },
       }));
+
+      // Initialize version tracking with loaded state
+      import('@/lib/version-tracking').then(({ initializeVersionTracking }) => {
+        initializeVersionTracking('component', componentId, layers);
+      }).catch((err) => {
+        console.error('Failed to initialize component version tracking:', err);
+      });
     }
   },
   
@@ -218,13 +226,16 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       return;
     }
     
+    // Capture the layers we're about to save
+    const layersBeingSaved = draftLayers;
+    
     set({ isSaving: true });
     
     try {
       const response = await fetch(`/api/components/${componentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ layers: draftLayers }),
+        body: JSON.stringify({ layers: layersBeingSaved }),
       });
       
       const result = await response.json();
@@ -238,10 +249,34 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       const updatedComponent = result.data;
       
       // Update the component in the store
-      set((state) => ({
-        components: state.components.map((c) => (c.id === componentId ? updatedComponent : c)),
-        isSaving: false,
-      }));
+      // Check if layers changed during save (e.g., undo/redo happened)
+      const currentDraft = get().componentDrafts[componentId];
+      const currentLayersJSON = JSON.stringify(currentDraft || []);
+      const savedLayersJSON = JSON.stringify(layersBeingSaved);
+
+      if (currentLayersJSON === savedLayersJSON) {
+        // Safe to update - no changes made during save
+        set((state) => ({
+          components: state.components.map((c) => (c.id === componentId ? updatedComponent : c)),
+          isSaving: false,
+        }));
+
+        // Record version for undo/redo only if layers match what we saved
+        import('@/lib/version-tracking').then(({ recordVersionViaApi }) => {
+          recordVersionViaApi('component', componentId, layersBeingSaved);
+        }).catch((err) => {
+          console.error('Failed to record component version:', err);
+        });
+      } else {
+        // Layers changed during save - keep local changes
+        set((state) => ({
+          components: state.components.map((c) => (c.id === componentId ? updatedComponent : c)),
+          isSaving: false,
+        }));
+
+        // DO NOT record version - the saved state is stale
+        // The new state will trigger another auto-save which will record its own version
+      }
       
       // Trigger component sync across all pages
       // This will be handled by usePagesStore.updateComponentOnLayers

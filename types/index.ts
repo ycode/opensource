@@ -972,3 +972,51 @@ export interface UpdateTranslationData {
   content_value?: string;
   is_completed?: boolean;
 }
+
+// Version Types (for undo/redo functionality)
+export type VersionEntityType = 'page_layers' | 'component' | 'layer_style';
+export type VersionActionType = 'create' | 'update' | 'delete';
+
+export interface VersionMetadata {
+  selectedLayerId?: string | null;
+  selectedLayerIds?: string[];
+  lastSelectedLayerId?: string | null;
+  // Add other UI state as needed (e.g., scroll position, zoom level)
+}
+
+export interface Version {
+  id: string;
+  entity_type: VersionEntityType;
+  entity_id: string;
+  action_type: VersionActionType;
+  description: string | null;
+  redo: object; // Forward patch - applies the change (JSON Patch RFC 6902)
+  undo: object | null; // Inverse patch - reverts the change
+  snapshot: object | null; // Full snapshot (stored periodically)
+  previous_hash: string | null;
+  current_hash: string;
+  session_id: string | null;
+  created_at: string;
+  metadata: VersionMetadata | null; // Additional context (e.g., selected layer, viewport state)
+}
+
+export interface CreateVersionData {
+  entity_type: VersionEntityType;
+  entity_id: string;
+  action_type: VersionActionType;
+  description?: string | null;
+  redo: object; // Forward patch
+  undo?: object | null; // Inverse patch
+  snapshot?: object | null;
+  previous_hash?: string | null;
+  current_hash: string;
+  session_id?: string | null;
+  metadata?: VersionMetadata | null;
+}
+
+export interface VersionHistoryItem {
+  id: string;
+  action_type: VersionActionType;
+  description: string | null;
+  created_at: string;
+}
