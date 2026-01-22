@@ -28,6 +28,7 @@ export async function up(knex: Knex): Promise<void> {
     // Timestamps
     table.timestamp('created_at').defaultTo(knex.fn.now());
     table.timestamp('updated_at').defaultTo(knex.fn.now());
+    table.timestamp('deleted_at').nullable();
 
     // Composite primary key (id, is_published) - same pattern as pages
     table.primary(['id', 'is_published']);
@@ -36,9 +37,7 @@ export async function up(knex: Knex): Promise<void> {
     table.index('name');
     table.index('is_published');
     table.index('content_hash');
-
-    // Unique index to allow draft + published versions with same name
-    table.unique(['name', 'is_published']);
+    table.index('deleted_at');
   });
 }
 

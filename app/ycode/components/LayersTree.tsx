@@ -210,6 +210,7 @@ const LayerRow = React.memo(function LayerRow({
       selectedLayerId={selectedLayerId}
       liveLayerUpdates={liveLayerUpdates}
       liveComponentUpdates={liveComponentUpdates}
+      editingComponentId={editingComponentId}
     >
       <div className="relative">
         {/* Vertical connector lines - one for each depth level */}

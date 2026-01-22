@@ -21,7 +21,7 @@ export interface CreateComponentData {
 }
 
 /**
- * Get all components (draft by default)
+ * Get all components (draft by default, excludes soft deleted)
  */
 export async function getAllComponents(isPublished: boolean = false): Promise<Component[]> {
   const client = await getSupabaseAdmin();
@@ -33,6 +33,7 @@ export async function getAllComponents(isPublished: boolean = false): Promise<Co
     .from('components')
     .select('*')
     .eq('is_published', isPublished)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -43,7 +44,7 @@ export async function getAllComponents(isPublished: boolean = false): Promise<Co
 }
 
 /**
- * Get a single component by ID (draft by default)
+ * Get a single component by ID (draft by default, excludes soft deleted)
  * With composite primary key, we need to specify is_published to get a single row
  */
 export async function getComponentById(id: string, isPublished: boolean = false): Promise<Component | null> {
@@ -57,6 +58,7 @@ export async function getComponentById(id: string, isPublished: boolean = false)
     .select('*')
     .eq('id', id)
     .eq('is_published', isPublished)
+    .is('deleted_at', null)
     .single();
 
   if (error) {
@@ -255,12 +257,13 @@ export async function publishComponents(componentIds: string[]): Promise<{ count
     throw new Error('Failed to initialize Supabase client');
   }
 
-  // Batch fetch all draft components
+  // Batch fetch all draft components (excluding soft deleted)
   const { data: draftComponents, error: fetchError } = await client
     .from('components')
     .select('*')
     .in('id', componentIds)
-    .eq('is_published', false);
+    .eq('is_published', false)
+    .is('deleted_at', null);
 
   if (fetchError) {
     throw new Error(`Failed to fetch draft components: ${fetchError.message}`);
@@ -295,7 +298,7 @@ export async function publishComponents(componentIds: string[]): Promise<{ count
 }
 
 /**
- * Get all unpublished components
+ * Get all unpublished components (excludes soft deleted)
  * A component needs publishing if:
  * - It has is_published: false (never published), OR
  * - Its draft content_hash differs from published content_hash (needs republishing)
@@ -306,11 +309,12 @@ export async function getUnpublishedComponents(): Promise<Component[]> {
     throw new Error('Failed to initialize Supabase client');
   }
 
-  // Get all draft components
+  // Get all draft components (excluding soft deleted)
   const { data: draftComponents, error } = await client
     .from('components')
     .select('*')
     .eq('is_published', false)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -368,7 +372,216 @@ export async function getUnpublishedComponentsCount(): Promise<number> {
 }
 
 /**
- * Delete a component and detach it from all layers in all page_layers records
+ * Affected entity info returned when deleting a component
+ */
+export interface AffectedEntity {
+  type: 'page' | 'component';
+  id: string;
+  name: string;
+  pageId?: string; // For page_layers, this is the page_id
+  previousLayers: Layer[];
+  newLayers: Layer[];
+}
+
+/**
+ * Result of soft deleting a component
+ */
+export interface SoftDeleteResult {
+  component: Component;
+  affectedEntities: AffectedEntity[];
+}
+
+/**
+ * Find all pages and components that use a specific component
+ */
+export async function findEntitiesUsingComponent(componentId: string): Promise<AffectedEntity[]> {
+  const client = await getSupabaseAdmin();
+  if (!client) {
+    throw new Error('Failed to initialize Supabase client');
+  }
+
+  const affectedEntities: AffectedEntity[] = [];
+
+  // Find all page_layers records that contain this component
+  const { data: pageLayersRecords, error: pageError } = await client
+    .from('page_layers')
+    .select('id, page_id, layers, is_published')
+    .is('deleted_at', null)
+    .eq('is_published', false); // Only draft versions
+
+  if (pageError) {
+    throw new Error(`Failed to fetch page layers: ${pageError.message}`);
+  }
+
+  // Get page names for better UX
+  const pageIds = pageLayersRecords?.map(r => r.page_id).filter(Boolean) || [];
+  let pageNames: Record<string, string> = {};
+  if (pageIds.length > 0) {
+    const { data: pages } = await client
+      .from('pages')
+      .select('id, name')
+      .in('id', pageIds);
+    pageNames = (pages || []).reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {});
+  }
+
+  // Check each page_layers record
+  for (const record of pageLayersRecords || []) {
+    if (layersContainComponent(record.layers || [], componentId)) {
+      const newLayers = await detachComponentFromLayersRecursive(record.layers || [], componentId);
+      affectedEntities.push({
+        type: 'page',
+        id: record.id,
+        pageId: record.page_id,
+        name: pageNames[record.page_id] || 'Unknown Page',
+        previousLayers: record.layers || [],
+        newLayers,
+      });
+    }
+  }
+
+  // Find all components (draft versions) that contain this component
+  const { data: componentRecords, error: compError } = await client
+    .from('components')
+    .select('id, name, layers')
+    .is('deleted_at', null)
+    .eq('is_published', false)
+    .neq('id', componentId); // Exclude the component being deleted
+
+  if (compError) {
+    throw new Error(`Failed to fetch components: ${compError.message}`);
+  }
+
+  // Check each component
+  for (const record of componentRecords || []) {
+    if (layersContainComponent(record.layers || [], componentId)) {
+      const newLayers = await detachComponentFromLayersRecursive(record.layers || [], componentId);
+      affectedEntities.push({
+        type: 'component',
+        id: record.id,
+        name: record.name,
+        previousLayers: record.layers || [],
+        newLayers,
+      });
+    }
+  }
+
+  return affectedEntities;
+}
+
+/**
+ * Check if layers contain a reference to a specific component
+ */
+function layersContainComponent(layers: Layer[], componentId: string): boolean {
+  for (const layer of layers) {
+    if (layer.componentId === componentId) {
+      return true;
+    }
+    if (layer.children && layersContainComponent(layer.children, componentId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Soft delete a component and detach it from all layers
+ * Returns the deleted component and affected entities for undo/redo
+ */
+export async function softDeleteComponent(id: string): Promise<SoftDeleteResult> {
+  const client = await getSupabaseAdmin();
+  if (!client) {
+    throw new Error('Failed to initialize Supabase client');
+  }
+
+  // Get the component before deleting
+  const { data: component, error: fetchError } = await client
+    .from('components')
+    .select('*')
+    .eq('id', id)
+    .eq('is_published', false)
+    .is('deleted_at', null)
+    .single();
+
+  if (fetchError || !component) {
+    throw new Error('Component not found');
+  }
+
+  // Find all affected entities
+  const affectedEntities = await findEntitiesUsingComponent(id);
+
+  // Detach component from all affected page_layers
+  for (const entity of affectedEntities) {
+    if (entity.type === 'page') {
+      const { error: updateError } = await client
+        .from('page_layers')
+        .update({
+          layers: entity.newLayers,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', entity.id);
+
+      if (updateError) {
+        console.error(`Failed to update page_layers ${entity.id}:`, updateError);
+      }
+    } else if (entity.type === 'component') {
+      const { error: updateError } = await client
+        .from('components')
+        .update({
+          layers: entity.newLayers,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', entity.id)
+        .eq('is_published', false);
+
+      if (updateError) {
+        console.error(`Failed to update component ${entity.id}:`, updateError);
+      }
+    }
+  }
+
+  // Soft delete the component (both draft and published versions)
+  const deletedAt = new Date().toISOString();
+  const { error: deleteError } = await client
+    .from('components')
+    .update({ deleted_at: deletedAt })
+    .eq('id', id);
+
+  if (deleteError) {
+    throw new Error(`Failed to soft delete component: ${deleteError.message}`);
+  }
+
+  return {
+    component: { ...component, deleted_at: deletedAt },
+    affectedEntities,
+  };
+}
+
+/**
+ * Restore a soft-deleted component
+ */
+export async function restoreComponent(id: string): Promise<Component> {
+  const client = await getSupabaseAdmin();
+  if (!client) {
+    throw new Error('Failed to initialize Supabase client');
+  }
+
+  const { data, error } = await client
+    .from('components')
+    .update({ deleted_at: null })
+    .eq('id', id)
+    .eq('is_published', false)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to restore component: ${error.message}`);
+  }
+
+  return data;
+}
+
+/**
+ * Hard delete a component (permanent, use with caution)
  */
 export async function deleteComponent(id: string): Promise<void> {
   const client = await getSupabaseAdmin();
@@ -376,48 +589,6 @@ export async function deleteComponent(id: string): Promise<void> {
     throw new Error('Failed to initialize Supabase client');
   }
 
-  // First, get all page_layers records that might contain layers with this component
-  const { data: pageLayersRecords, error: fetchError } = await client
-    .from('page_layers')
-    .select('id, layers')
-    .is('deleted_at', null);
-
-  if (fetchError) {
-    throw new Error(`Failed to fetch page layers: ${fetchError.message}`);
-  }
-
-  // Detach component from layers in each record
-  if (pageLayersRecords && pageLayersRecords.length > 0) {
-    const updates = pageLayersRecords
-      .map(record => {
-        const updatedLayers = detachComponentFromLayersRecursive(record.layers || [], id);
-        // Only update if layers actually changed
-        if (JSON.stringify(updatedLayers) !== JSON.stringify(record.layers)) {
-          return { id: record.id, layers: updatedLayers };
-        }
-        return null;
-      })
-      .filter(Boolean);
-
-    // Batch update all affected records
-    for (const update of updates) {
-      if (update) {
-        const { error: updateError } = await client
-          .from('page_layers')
-          .update({
-            layers: update.layers,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', update.id);
-
-        if (updateError) {
-          console.error(`Failed to update page_layers ${update.id}:`, updateError);
-        }
-      }
-    }
-  }
-
-  // Finally, delete the component (both draft and published versions)
   const { error } = await client
     .from('components')
     .delete()
@@ -431,22 +602,16 @@ export async function deleteComponent(id: string): Promise<void> {
 /**
  * Helper function to recursively remove componentId from layers
  */
-function detachComponentFromLayersRecursive(layers: Layer[], componentId: string): Layer[] {
-  return layers.map(layer => {
-    // Create a clean copy of the layer
-    const cleanLayer = { ...layer };
+/**
+ * Detach component from layers - async wrapper that fetches component data
+ * Uses the shared utility function from component-utils.ts
+ */
+async function detachComponentFromLayersRecursive(layers: Layer[], componentId: string): Promise<Layer[]> {
+  const { detachComponentFromLayers } = await import('../component-utils');
 
-    // If this layer uses the component, remove componentId and componentOverrides
-    if (cleanLayer.componentId === componentId) {
-      delete cleanLayer.componentId;
-      delete cleanLayer.componentOverrides;
-    }
+  // Get the component data to extract its layers
+  const component = await getComponentById(componentId);
 
-    // Recursively process children
-    if (cleanLayer.children && cleanLayer.children.length > 0) {
-      cleanLayer.children = detachComponentFromLayersRecursive(cleanLayer.children, componentId);
-    }
-
-    return cleanLayer;
-  });
+  // Use the shared utility function
+  return detachComponentFromLayers(layers, componentId, component || undefined);
 }

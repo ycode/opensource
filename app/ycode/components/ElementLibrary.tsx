@@ -20,14 +20,24 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import type { Component } from '@/types';
 import Image from 'next/image';
 import { getLayerFromTemplate, getBlockName, getBlockIcon, getLayoutTemplate, getLayoutCategory, getLayoutPreviewImage, getLayoutsByCategory, getAllLayoutKeys } from '@/lib/templates/blocks';
+import { DEFAULT_ASSETS } from '@/lib/asset-constants';
 import { canHaveChildren, assignOrderClassToNewLayer } from '@/lib/layer-utils';
-import { cn } from '@/lib/utils';
+import { cn, generateId } from '@/lib/utils';
 import SaveLayoutDialog from './SaveLayoutDialog';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
+import { useEditorActions } from '@/hooks/use-editor-url';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 
 interface ElementLibraryProps {
@@ -48,9 +58,16 @@ const elementCategories: Record<string, string[]> = {
 };
 
 export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements', liveLayerUpdates }: ElementLibraryProps) {
-  const { addLayerFromTemplate, updateLayer, setDraftLayers, draftsByPageId } = usePagesStore();
-  const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId, activeBreakpoint } = useEditorStore();
-  const { components, componentDrafts, updateComponentDraft } = useComponentsStore();
+  const { addLayerFromTemplate, updateLayer, setDraftLayers, draftsByPageId, pages } = usePagesStore();
+  const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId, activeBreakpoint, pushComponentNavigation } = useEditorStore();
+  const { components, componentDrafts, updateComponentDraft, deleteComponent, getDeletePreview, loadComponentDraft, getComponentById } = useComponentsStore();
+  const { openComponent } = useEditorActions();
+
+  // Delete component state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [componentToDelete, setComponentToDelete] = useState<Component | null>(null);
+  const [deletePreviewInfo, setDeletePreviewInfo] = useState<{ pageCount: number; componentCount: number } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [activeTab, setActiveTab] = React.useState<'elements' | 'layouts' | 'components'>(() => {
     // Try to load from sessionStorage first
     if (typeof window !== 'undefined') {
@@ -122,7 +139,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       const displayName = getBlockName(elementType);
       const newLayer = {
         ...template,
-        id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: generateId('lyr'),
         customName: displayName || undefined, // Set display name
       };
 
@@ -222,7 +239,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
             activeBreakpoint
           );
         }
-        
+
         updateComponentDraft(editingComponentId, finalLayers);
         setSelectedLayerId(result.newLayerId);
         if (result.parentToExpand) {
@@ -403,7 +420,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
             activeBreakpoint
           );
         }
-        
+
         updateComponentDraft(editingComponentId, finalLayers);
         setSelectedLayerId(result.newLayerId);
         if (result.parentToExpand) {
@@ -664,7 +681,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
 
     // Create a component instance layer directly
     const componentInstanceLayer = {
-      id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: generateId('lyr'),
       name: 'div',
       customName: component.name,
       componentId: component.id,
@@ -783,6 +800,93 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     onClose();
   };
 
+  const handleEditComponent = async (component: Component, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    const { setSelectedLayerId: setLayerId } = useEditorStore.getState();
+
+    setLayerId(null);
+
+    if (editingComponentId) {
+      const currentComponent = getComponentById(editingComponentId);
+      if (currentComponent) {
+        pushComponentNavigation({
+          type: 'component',
+          id: editingComponentId,
+          name: currentComponent.name,
+          layerId: selectedLayerId,
+        });
+      }
+    } else if (currentPageId) {
+      const currentPage = pages.find((p) => p.id === currentPageId);
+      if (currentPage) {
+        pushComponentNavigation({
+          type: 'page',
+          id: currentPageId,
+          name: currentPage.name,
+          layerId: selectedLayerId,
+        });
+      }
+    }
+
+    await loadComponentDraft(component.id);
+    openComponent(component.id, currentPageId, undefined, undefined);
+
+    if (component.layers?.length) {
+      setLayerId(component.layers[0].id);
+    }
+
+    onClose();
+  };
+
+  const handleDeleteClick = async (component: Component, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setComponentToDelete(component);
+
+    // Get preview of affected entities
+    const preview = await getDeletePreview(component.id);
+    if (preview) {
+      const pageCount = preview.affectedEntities.filter(e => e.type === 'page').length;
+      const componentCount = preview.affectedEntities.filter(e => e.type === 'component').length;
+      setDeletePreviewInfo({ pageCount, componentCount });
+    } else {
+      setDeletePreviewInfo({ pageCount: 0, componentCount: 0 });
+    }
+
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!componentToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteComponent(componentToDelete.id);
+    } catch (error) {
+      console.error('Failed to delete component:', error);
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setComponentToDelete(null);
+      setDeletePreviewInfo(null);
+    }
+  };
+
+  const componentName = componentToDelete?.name ?? '';
+  let usageSuffix = 'This component is not used anywhere.';
+  if (deletePreviewInfo && (deletePreviewInfo.pageCount > 0 || deletePreviewInfo.componentCount > 0)) {
+    const parts: string[] = [];
+    if (deletePreviewInfo.pageCount > 0) {
+      parts.push(`${deletePreviewInfo.pageCount} ${deletePreviewInfo.pageCount === 1 ? 'page' : 'pages'}`);
+    }
+    if (deletePreviewInfo.componentCount > 0) {
+      parts.push(`${deletePreviewInfo.componentCount} ${deletePreviewInfo.componentCount === 1 ? 'component' : 'components'}`);
+    }
+    usageSuffix = `This component is used in ${parts.join(' and ')}.`;
+  }
+
+  const deleteConfirmDescription = `Are you sure you want to delete "${componentName}"? ${usageSuffix}`;
+
   if (!isOpen) return null;
 
   return (
@@ -838,15 +942,15 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
               <div className="flex flex-col divide-y pb-5">
                 {Object.entries(getLayoutsByCategory()).map(([category, layoutKeys]) => {
                   const isCollapsed = collapsedCategories.has(category);
-                  
+
                   return (
                     <div key={category} className="flex flex-col">
-                      <header 
+                      <header
                         className="py-5 flex items-center gap-2 cursor-pointer hover:opacity-70 transition-opacity"
                         onClick={() => toggleCategory(category)}
                       >
-                        <Icon 
-                          name="triangle-down" 
+                        <Icon
+                          name="triangle-down"
                           className={cn(
                             'size-3 opacity-25 transition-transform',
                             isCollapsed && '-rotate-90'
@@ -928,18 +1032,46 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                 <div className="py-5 h-14">
                   <Label>Components</Label>
                 </div>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 gap-1.5 pb-5">
                   {components.map((component) => (
-                    <Button
-                      key={component.id}
-                      onClick={() => handleAddComponent(component.id)}
-                      size="sm"
-                      variant="secondary"
-                      className="justify-start"
-                    >
-                      <Icon name="box" />
-                      <span className="truncate">{component.name}</span>
-                    </Button>
+                    <div key={component.id} className="group flex flex-col gap-1.5">
+                      <Button
+                        onClick={() => handleAddComponent(component.id)}
+                        size="sm"
+                        variant="secondary"
+                        className="justify-start flex-col items-start p-1.5 overflow-hidden hover:opacity-90 transition-opacity rounded-[10px] !h-auto"
+                      >
+                        <Image
+                          src={DEFAULT_ASSETS.IMAGE}
+                          alt=""
+                          width={640}
+                          height={262}
+                          unoptimized
+                          className="object-contain w-full h-full rounded"
+                        />
+                      </Button>
+                      <div className="flex items-center gap-1 px-0.5 min-w-0">
+                        <span className="flex-1 truncate text-xs font-medium" title={component.name}>
+                          {component.name}
+                        </span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="size-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Icon name="more" className="size-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={(e) => handleEditComponent(component, e)}>Edit</DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => handleDeleteClick(component, e)}>Delete</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -955,6 +1087,20 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
           defaultCategory={editingLayoutCategory}
           mode="edit"
           layoutKey={editingLayoutKey}
+        />
+
+        <ConfirmDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="Delete component"
+          description={deleteConfirmDescription}
+          confirmLabel={isDeleting ? 'Deleting...' : 'Delete'}
+          confirmVariant="destructive"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => {
+            setComponentToDelete(null);
+            setDeletePreviewInfo(null);
+          }}
         />
     </div>
   );

@@ -5,7 +5,7 @@
  * Used by client stores to record and track versions for undo/redo.
  */
 
-import type { VersionEntityType, CreateVersionData, Layer } from '@/types';
+import type { VersionEntityType, CreateVersionData, Layer, VersionMetadata } from '@/types';
 import { createPatch, createInversePatch, isPatchEmpty, doesPatchChangeState, generatePatchDescription, JsonPatch } from '@/lib/version-utils';
 import { generatePageLayersHash, generateComponentContentHash, generateLayerStyleContentHash } from '@/lib/hash-utils';
 import { stripUIProperties } from '@/lib/layer-utils';
@@ -121,7 +121,8 @@ export function clearUndoRedoSave(entityType: VersionEntityType, entityId: strin
 export async function recordVersionViaApi(
   entityType: VersionEntityType,
   entityId: string,
-  currentState: any
+  currentState: any,
+  additionalMetadata?: Partial<VersionMetadata>
 ): Promise<void> {
   const entityKey = `${entityType}:${entityId}`;
 
@@ -187,7 +188,46 @@ export async function recordVersionViaApi(
 
   // Capture UI metadata (selected layers, etc.)
   // Pass the patch to intelligently determine which layer to select
-  const metadata = captureUIMetadata(entityType, entityId, redoPatch as any, currentState);
+  const uiMetadata = captureUIMetadata(entityType, entityId, redoPatch as any, currentState);
+
+  // Merge with additional metadata (e.g., requirements for undo)
+  // Ensure nested properties are properly merged
+  let metadata: VersionMetadata = {};
+
+  // Merge UI metadata
+  if (uiMetadata) {
+    metadata = { ...uiMetadata };
+  }
+
+  // Merge additional metadata
+  if (additionalMetadata) {
+    // Merge selection if exists in additionalMetadata
+    if (additionalMetadata.selection) {
+      metadata.selection = {
+        ...(metadata.selection || {}),
+        ...additionalMetadata.selection,
+      };
+    }
+
+    // Merge requirements if exists in additionalMetadata
+    if (additionalMetadata.requirements) {
+      metadata.requirements = {
+        ...(metadata.requirements || {}),
+        ...additionalMetadata.requirements,
+      };
+    }
+  }
+
+  // Log merged metadata in development
+  if (process.env.NODE_ENV === 'development' && additionalMetadata) {
+    console.log('[recordVersionViaApi] Merged metadata:', {
+      entityType,
+      entityId: entityId.substring(0, 8),
+      uiMetadata,
+      additionalMetadata,
+      finalMetadata: metadata,
+    });
+  }
 
   // Prepare version data
   const versionData: CreateVersionData = {
@@ -314,10 +354,10 @@ function getAffectedLayerIds(patch: any[]): string[] {
 }
 
 /**
- * Get the most appropriate layer ID to select based on the changes
+ * Get prioritized list of layer IDs to try when restoring selection
  * Priority:
  * 1. Newly added layer (from patch)
- * 2. Modified layer (from patch)
+ * 2. Modified layers (from patch)
  * 3. Current selected layer (if still exists)
  * 4. Last selected layer (fallback)
  */
@@ -326,54 +366,41 @@ function getAppropriateLayerSelection(
   currentState: any,
   currentSelectedLayerId: string | null,
   lastSelectedLayerId: string | null
-): { selectedLayerId: string | null; selectedLayerIds: string[] } {
-  // Get affected layer IDs from the patch
-  const affectedIds = getAffectedLayerIds(patch);
+): string[] {
+  const prioritizedIds: string[] = [];
 
-  // Priority 1: If a new layer was added, select it
+  // Priority 1: If a new layer was added, select it (highest priority)
   const addedLayers = patch.filter(op => op.op === 'add' && op.value?.id);
   if (addedLayers.length > 0) {
     const newLayerId = addedLayers[addedLayers.length - 1].value.id;
-    return {
-      selectedLayerId: newLayerId,
-      selectedLayerIds: [newLayerId],
-    };
-  }
-
-  // Priority 2: If layers were modified, select the first affected layer that still exists
-  if (affectedIds.length > 0) {
-    // Verify the layer still exists in current state
-    for (const layerId of affectedIds) {
-      if (layerExistsInState(currentState, layerId)) {
-        return {
-          selectedLayerId: layerId,
-          selectedLayerIds: [layerId],
-        };
-      }
+    if (newLayerId && layerExistsInState(currentState, newLayerId)) {
+      prioritizedIds.push(newLayerId);
     }
   }
 
-  // Priority 3: Keep current selection if it still exists
-  if (currentSelectedLayerId && layerExistsInState(currentState, currentSelectedLayerId)) {
-    return {
-      selectedLayerId: currentSelectedLayerId,
-      selectedLayerIds: [currentSelectedLayerId],
-    };
+  // Priority 2: Layers affected by modifications
+  const affectedIds = getAffectedLayerIds(patch);
+  for (const layerId of affectedIds) {
+    if (layerExistsInState(currentState, layerId) && !prioritizedIds.includes(layerId)) {
+      prioritizedIds.push(layerId);
+    }
   }
 
-  // Priority 4: Fall back to last selected layer
-  if (lastSelectedLayerId && layerExistsInState(currentState, lastSelectedLayerId)) {
-    return {
-      selectedLayerId: lastSelectedLayerId,
-      selectedLayerIds: [lastSelectedLayerId],
-    };
+  // Priority 3: Current selection (if exists and not already added)
+  if (currentSelectedLayerId &&
+      layerExistsInState(currentState, currentSelectedLayerId) &&
+      !prioritizedIds.includes(currentSelectedLayerId)) {
+    prioritizedIds.push(currentSelectedLayerId);
   }
 
-  // No valid selection
-  return {
-    selectedLayerId: null,
-    selectedLayerIds: [],
-  };
+  // Priority 4: Last selected layer (if exists and not already added)
+  if (lastSelectedLayerId &&
+      layerExistsInState(currentState, lastSelectedLayerId) &&
+      !prioritizedIds.includes(lastSelectedLayerId)) {
+    prioritizedIds.push(lastSelectedLayerId);
+  }
+
+  return prioritizedIds;
 }
 
 /**
@@ -416,23 +443,44 @@ function captureUIMetadata(
       const currentSelectedLayerId = editorState.selectedLayerId || null;
       const lastSelectedLayerId = editorState.lastSelectedLayerId || null;
 
-      // Intelligently determine which layer to select based on changes
+      // Log for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[captureUIMetadata]', {
+          entityType,
+          entityId,
+          hasPatch: !!patch,
+          hasCurrentState: !!currentState,
+          currentSelectedLayerId,
+          lastSelectedLayerId,
+        });
+      }
+
+      // Build prioritized list of layer IDs
+      let layerIds: string[] = [];
+
       if (patch && currentState) {
-        const selection = getAppropriateLayerSelection(
+        // Use intelligent selection based on patch changes
+        layerIds = getAppropriateLayerSelection(
           patch,
           currentState,
           currentSelectedLayerId,
           lastSelectedLayerId
         );
-
-        metadata.selectedLayerId = selection.selectedLayerId;
-        metadata.selectedLayerIds = selection.selectedLayerIds;
-        metadata.lastSelectedLayerId = lastSelectedLayerId;
       } else {
-        // No patch provided - use current selection as fallback
-        metadata.selectedLayerIds = editorState.selectedLayerIds || [];
-        metadata.lastSelectedLayerId = lastSelectedLayerId;
-        metadata.selectedLayerId = currentSelectedLayerId;
+        // No patch provided - use current selection
+        if (currentSelectedLayerId) {
+          layerIds.push(currentSelectedLayerId);
+        }
+        if (lastSelectedLayerId && lastSelectedLayerId !== currentSelectedLayerId) {
+          layerIds.push(lastSelectedLayerId);
+        }
+      }
+
+      // Store prioritized selection
+      if (layerIds.length > 0) {
+        metadata.selection = {
+          layer_ids: layerIds,
+        };
       }
     }
 

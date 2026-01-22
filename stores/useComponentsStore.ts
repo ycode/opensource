@@ -7,6 +7,11 @@
 
 import { create } from 'zustand';
 import type { Component, Layer } from '@/types';
+import {
+  createComponentViaApi,
+  replaceLayerWithComponentInstance,
+  findLayerById,
+} from '@/lib/layer-utils';
 
 interface ComponentsState {
   components: Component[];
@@ -17,6 +22,34 @@ interface ComponentsState {
   saveTimeouts: Record<string, NodeJS.Timeout>;
 }
 
+/**
+ * Preview info for component deletion
+ */
+export interface DeletePreviewInfo {
+  affectedCount: number;
+  affectedEntities: Array<{
+    type: 'page' | 'component';
+    id: string;
+    name: string;
+    pageId?: string;
+  }>;
+}
+
+/**
+ * Result of deleting a component
+ */
+export interface DeleteComponentResult {
+  success: boolean;
+  affectedEntities?: Array<{
+    type: 'page' | 'component';
+    id: string;
+    name: string;
+    pageId?: string;
+    previousLayers: Layer[];
+    newLayers: Layer[];
+  }>;
+}
+
 interface ComponentsActions {
   // Data loading
   setComponents: (components: Component[]) => void;
@@ -25,7 +58,8 @@ interface ComponentsActions {
   // CRUD operations
   createComponent: (name: string, layers: Layer[]) => Promise<Component | null>;
   updateComponent: (id: string, updates: Partial<Pick<Component, 'name' | 'layers'>>) => Promise<void>;
-  deleteComponent: (id: string) => Promise<void>;
+  deleteComponent: (id: string) => Promise<DeleteComponentResult>;
+  getDeletePreview: (id: string) => Promise<DeletePreviewInfo | null>;
 
   // Draft management (for editing mode)
   loadComponentDraft: (componentId: string) => Promise<void>;
@@ -36,6 +70,8 @@ interface ComponentsActions {
   // Convenience actions
   renameComponent: (id: string, newName: string) => Promise<void>;
   getComponentById: (id: string) => Component | undefined;
+  createComponentFromLayer: (componentId: string, layerId: string, componentName: string) => Promise<string | null>;
+  restoreComponents: (componentIds: string[]) => Promise<string[]>;
 
   // State management
   setError: (error: string | null) => void;
@@ -141,7 +177,30 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     }
   },
 
-  // Delete a component
+  // Get preview of what will be affected by deleting a component
+  getDeletePreview: async (id) => {
+    try {
+      const response = await fetch(`/api/components/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'preview-delete' }),
+      });
+
+      const result = await response.json();
+
+      if (result.error) {
+        console.error('Failed to get delete preview:', result.error);
+        return null;
+      }
+
+      return result.data as DeletePreviewInfo;
+    } catch (error) {
+      console.error('Failed to get delete preview:', error);
+      return null;
+    }
+  },
+
+  // Delete a component (soft delete with undo/redo support)
   deleteComponent: async (id) => {
     set({ isLoading: true, error: null });
 
@@ -154,16 +213,132 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
 
       if (result.error) {
         set({ error: result.error, isLoading: false });
-        return;
+        return { success: false };
       }
 
+      const { component, affectedEntities } = result.data;
+
+      // Update pages store for affected pages
+      if (affectedEntities && affectedEntities.length > 0) {
+        const { usePagesStore } = await import('./usePagesStore');
+        const pagesStore = usePagesStore.getState();
+
+        for (const entity of affectedEntities) {
+          if (entity.type === 'page' && entity.pageId) {
+            // Update the page draft with new layers (component detached)
+            const currentDraft = pagesStore.draftsByPageId[entity.pageId];
+            if (currentDraft) {
+              pagesStore.setDraftLayers(entity.pageId, entity.newLayers);
+            }
+          } else if (entity.type === 'component') {
+            // Update component in local store
+            set((state) => ({
+              components: state.components.map((c) =>
+                c.id === entity.id ? { ...c, layers: entity.newLayers } : c
+              ),
+            }));
+
+            // Also update component draft if it's currently being edited
+            const currentDraft = get().componentDrafts[entity.id];
+            if (currentDraft) {
+              get().updateComponentDraft(entity.id, entity.newLayers);
+            }
+          }
+        }
+
+        // Record undo/redo versions for affected entities
+        const { recordVersionViaApi, initializeVersionTracking } = await import('@/lib/version-tracking');
+        const { useEditorStore } = await import('./useEditorStore');
+
+        // Get current editor state to check if any affected entity is currently being edited
+        const editorState = useEditorStore.getState();
+        const currentPageId = editorState.currentPageId;
+        const editingComponentId = editorState.editingComponentId;
+        const selectedLayerId = editorState.selectedLayerId;
+        const lastSelectedLayerId = editorState.lastSelectedLayerId;
+
+        // Helper: Find all layer IDs of component instances in a layer tree
+        const findComponentInstanceLayerIds = (layers: Layer[], componentId: string): string[] => {
+          const instanceIds: string[] = [];
+          const traverse = (layerList: Layer[]) => {
+            for (const layer of layerList) {
+              if (layer.componentId === componentId) {
+                instanceIds.push(layer.id);
+              }
+              if (layer.children && layer.children.length > 0) {
+                traverse(layer.children);
+              }
+            }
+          };
+          traverse(layers);
+          return instanceIds;
+        };
+
+        // Record versions with component requirement metadata
+        for (const entity of affectedEntities) {
+          // Add metadata with component requirements so undo can restore the component first
+          const metadata: any = {
+            requirements: {
+              components: [id], // The deleted component must be restored before undoing
+            },
+          };
+
+          // Build prioritized selection list
+          const layerIds: string[] = [];
+
+          // If this entity is currently being edited, capture current selection first
+          const isCurrentlyEditing =
+            (entity.type === 'page' && entity.pageId === currentPageId) ||
+            (entity.type === 'component' && entity.id === editingComponentId);
+
+          if (isCurrentlyEditing) {
+            if (selectedLayerId) layerIds.push(selectedLayerId);
+            if (lastSelectedLayerId && lastSelectedLayerId !== selectedLayerId) {
+              layerIds.push(lastSelectedLayerId);
+            }
+          }
+
+          // Always add the component instance layer IDs that are being detached
+          // These will be restored when undoing, so they're good selection candidates
+          const componentInstanceIds = findComponentInstanceLayerIds(entity.previousLayers, id);
+          for (const instanceId of componentInstanceIds) {
+            if (!layerIds.includes(instanceId)) {
+              layerIds.push(instanceId);
+            }
+          }
+
+          // Store selection metadata if we have any layer IDs
+          if (layerIds.length > 0) {
+            metadata.selection = {
+              layer_ids: layerIds,
+            };
+          }
+
+          if (entity.type === 'page' && entity.pageId) {
+            // Initialize cache with previous state (before detachment) if not already cached
+            initializeVersionTracking('page_layers', entity.pageId, entity.previousLayers);
+            // Record version with new state (after detachment)
+            await recordVersionViaApi('page_layers', entity.pageId, entity.newLayers, metadata);
+          } else if (entity.type === 'component') {
+            // Initialize cache with previous state (before detachment) if not already cached
+            initializeVersionTracking('component', entity.id, entity.previousLayers);
+            // Record version with new state (after detachment)
+            await recordVersionViaApi('component', entity.id, entity.newLayers, metadata);
+          }
+        }
+      }
+
+      // Remove the component from local store
       set((state) => ({
         components: state.components.filter((c) => c.id !== id),
         isLoading: false,
       }));
+
+      return { success: true, affectedEntities };
     } catch (error) {
       console.error('Failed to delete component:', error);
       set({ error: 'Failed to delete component', isLoading: false });
+      return { success: false };
     }
   },
 
@@ -329,6 +504,78 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
   // Get component by ID (convenience method)
   getComponentById: (id) => {
     return get().components.find((c) => c.id === id);
+  },
+
+  /**
+   * Create a component from a layer in a component draft
+   */
+  createComponentFromLayer: async (componentId, layerId, componentName) => {
+    const { componentDrafts } = get();
+    const layers = componentDrafts[componentId];
+    if (!layers) return null;
+
+    const layerToCopy = findLayerById(layers, layerId);
+    if (!layerToCopy) return null;
+
+    const newComponent = await createComponentViaApi(componentName, [layerToCopy]);
+    if (!newComponent) return null;
+
+    // Add to local store
+    set((state) => ({
+      components: [newComponent, ...state.components],
+    }));
+
+    // Replace layer with component instance
+    const newLayers = replaceLayerWithComponentInstance(layers, layerId, newComponent.id);
+    get().updateComponentDraft(componentId, newLayers);
+
+    return newComponent.id;
+  },
+
+  /**
+   * Restore required components for undo operations
+   * Checks if components exist, restores them if deleted
+   */
+  restoreComponents: async (componentIds) => {
+    const { loadComponents } = get();
+    const restoredIds: string[] = [];
+
+    for (const componentId of componentIds) {
+      try {
+        // Check if component exists/is deleted
+        const response = await fetch(`/api/components/${componentId}`);
+        const result = await response.json();
+
+        // If component doesn't exist or is deleted, restore it
+        if (!result.data || result.error) {
+          console.log(`[Store] Restoring required component: ${componentId}`);
+
+          // Restore the component via API
+          const restoreResponse = await fetch(`/api/components/${componentId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'restore' }),
+          });
+
+          const restoreResult = await restoreResponse.json();
+
+          if (restoreResult.data) {
+            restoredIds.push(componentId);
+            console.log(`[Store] Successfully restored component: ${componentId}`);
+          }
+        }
+      } catch (error) {
+        console.error(`[Store] Failed to check/restore required component ${componentId}:`, error);
+        // Continue with other components
+      }
+    }
+
+    // Reload all components if any were restored
+    if (restoredIds.length > 0) {
+      await loadComponents();
+    }
+
+    return restoredIds;
   },
 
   // Error management

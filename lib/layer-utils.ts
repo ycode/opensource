@@ -8,6 +8,7 @@ import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import { getInheritedValue } from '@/lib/tailwind-class-mapper';
+import { cloneDeep } from 'lodash';
 
 /**
  * Strip UI-only properties from layers before comparison/hashing
@@ -1338,4 +1339,74 @@ export function assignOrderClassToNewLayer(
   }
 
   return processLayers(layers);
+}
+
+/**
+ * Creates a component via API and returns the result
+ */
+export async function createComponentViaApi(
+  componentName: string,
+  layers: Layer[]
+): Promise<Component | null> {
+  try {
+    const response = await fetch('/api/components', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: componentName,
+        layers: layers.map(layer => cloneDeep(layer)),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
+      }
+      console.error('Failed to create component:', errorMessage);
+      return null;
+    }
+
+    const result = await response.json();
+
+    if (result.error || !result.data) {
+      console.error('Failed to create component:', result.error);
+      return null;
+    }
+
+    return result.data;
+  } catch (error) {
+    console.error('Failed to create component:', error);
+    return null;
+  }
+}
+
+/**
+ * Replaces a layer with a component instance in a layer tree
+ */
+export function replaceLayerWithComponentInstance(
+  layers: Layer[],
+  layerId: string,
+  componentId: string
+): Layer[] {
+  return layers.map((layer) => {
+    if (layer.id === layerId) {
+      return {
+        ...layer,
+        componentId,
+        children: [],
+      };
+    }
+    if (layer.children) {
+      return {
+        ...layer,
+        children: replaceLayerWithComponentInstance(layer.children, layerId, componentId),
+      };
+    }
+    return layer;
+  });
 }

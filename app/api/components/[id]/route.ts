@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getComponentById, updateComponent, deleteComponent } from '@/lib/repositories/componentRepository';
-import { deleteTranslationsInBulk } from '@/lib/repositories/translationRepository';
+import {
+  getComponentById,
+  updateComponent,
+  softDeleteComponent,
+  restoreComponent,
+  findEntitiesUsingComponent,
+} from '@/lib/repositories/componentRepository';
 
 /**
  * GET /api/components/[id]
@@ -59,7 +64,8 @@ export async function PUT(
 
 /**
  * DELETE /api/components/[id]
- * Delete a component and its associated translations (detaches from all instances)
+ * Soft delete a component and detach it from all instances
+ * Returns the deleted component and affected entities for undo/redo
  */
 export async function DELETE(
   request: NextRequest,
@@ -68,17 +74,64 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    // Delete the component
-    await deleteComponent(id);
+    // Soft delete the component and get affected entities
+    const result = await softDeleteComponent(id);
 
-    // Delete all translations for this component
-    await deleteTranslationsInBulk('component', id);
-
-    return NextResponse.json({ message: 'Component deleted successfully' });
+    return NextResponse.json({
+      data: {
+        component: result.component,
+        affectedEntities: result.affectedEntities,
+      },
+      message: 'Component deleted successfully',
+    });
   } catch (error) {
     console.error('Error deleting component:', error);
     return NextResponse.json(
       { error: 'Failed to delete component' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/components/[id]
+ * Restore a soft-deleted component or get affected entities preview
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+
+    // Check if this is a restore request
+    if (body.action === 'restore') {
+      const component = await restoreComponent(id);
+      return NextResponse.json({ data: component });
+    }
+
+    // Check if this is a preview request (get affected entities without deleting)
+    if (body.action === 'preview-delete') {
+      const affectedEntities = await findEntitiesUsingComponent(id);
+      return NextResponse.json({
+        data: {
+          affectedCount: affectedEntities.length,
+          affectedEntities: affectedEntities.map(e => ({
+            type: e.type,
+            id: e.id,
+            name: e.name,
+            pageId: e.pageId,
+          })),
+        },
+      });
+    }
+
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('Error processing component action:', error);
+    return NextResponse.json(
+      { error: 'Failed to process request' },
       { status: 500 }
     );
   }

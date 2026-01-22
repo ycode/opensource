@@ -33,41 +33,70 @@ function layerExists(layers: Layer[], layerId: string): boolean {
 
 /**
  * Restore UI metadata after undo/redo
+ * Uses prioritized layer IDs - tries first valid layer from the list
+ * Falls back to previous version's metadata if no valid layers found
  */
-function restoreUIMetadata(metadata: any, currentState?: any): void {
-  if (!metadata) return;
+function restoreUIMetadata(
+  metadata: any,
+  currentState?: any,
+  fallbackMetadata?: any
+): void {
+  if (!metadata && !fallbackMetadata) return;
 
   try {
     const { setSelectedLayerIds, clearSelection } = useEditorStore.getState();
 
-    // For page_layers and components, validate that layers exist before restoring selection
-    let validLayerIds: string[] = [];
+    // Get prioritized layer IDs from metadata
+    const layerIds = metadata?.selection?.layer_ids;
 
-    if (Array.isArray(metadata.selectedLayerIds) && metadata.selectedLayerIds.length > 0) {
-      // Validate each layer ID exists in current state
+    if (layerIds && Array.isArray(layerIds) && layerIds.length > 0) {
+      // Try each layer ID in priority order until we find a valid one
       if (currentState && Array.isArray(currentState)) {
-        validLayerIds = metadata.selectedLayerIds.filter((id: string) =>
-          layerExists(currentState, id)
-        );
-      } else {
-        // No validation possible, trust the metadata
-        validLayerIds = metadata.selectedLayerIds;
-      }
-    } else if (metadata.selectedLayerId) {
-      // Validate single layer
-      if (!currentState || layerExists(currentState, metadata.selectedLayerId)) {
-        validLayerIds = [metadata.selectedLayerId];
-      }
-    } else if (metadata.lastSelectedLayerId) {
-      // Validate last selected layer
-      if (!currentState || layerExists(currentState, metadata.lastSelectedLayerId)) {
-        validLayerIds = [metadata.lastSelectedLayerId];
-      }
-    }
+        for (const layerId of layerIds) {
+          if (layerExists(currentState, layerId)) {
+            // Found a valid layer, select it
+            setSelectedLayerIds([layerId]);
+            return;
+          }
+        }
 
-    // Restore selection or clear if no valid layers
-    if (validLayerIds.length > 0) {
-      setSelectedLayerIds(validLayerIds);
+        // None of the current metadata layers exist, try fallback
+        if (fallbackMetadata) {
+          const fallbackLayerIds = fallbackMetadata.selection?.layer_ids;
+          if (fallbackLayerIds && Array.isArray(fallbackLayerIds)) {
+            for (const layerId of fallbackLayerIds) {
+              if (layerExists(currentState, layerId)) {
+                // Found a valid layer in fallback metadata
+                setSelectedLayerIds([layerId]);
+                return;
+              }
+            }
+          }
+        }
+
+        // No valid layers found anywhere, clear selection
+        clearSelection();
+      } else {
+        // No validation possible, trust the first layer in the list
+        setSelectedLayerIds([layerIds[0]]);
+      }
+    } else if (fallbackMetadata) {
+      // No metadata in current version, try fallback directly
+      const fallbackLayerIds = fallbackMetadata.selection?.layer_ids;
+      if (fallbackLayerIds && Array.isArray(fallbackLayerIds) && fallbackLayerIds.length > 0) {
+        if (currentState && Array.isArray(currentState)) {
+          for (const layerId of fallbackLayerIds) {
+            if (layerExists(currentState, layerId)) {
+              setSelectedLayerIds([layerId]);
+              return;
+            }
+          }
+        } else {
+          setSelectedLayerIds([fallbackLayerIds[0]]);
+          return;
+        }
+      }
+      clearSelection();
     } else {
       clearSelection();
     }
@@ -468,6 +497,12 @@ export function useUndoRedo({
         return false;
       }
 
+      // Check and restore required components before undoing
+      if (version.metadata?.requirements?.components) {
+        const { restoreComponents } = useComponentsStore.getState();
+        await restoreComponents(version.metadata.requirements.components);
+      }
+
       // Apply the undo patch to restore previous state
       const currentState = getCurrentState();
 
@@ -490,32 +525,9 @@ export function useUndoRedo({
         await applyState(restoredState);
 
         // Restore UI metadata (selected layers, etc.)
-        // Strategy: Try to keep the current selection if the layer still exists,
-        // otherwise fall back to the N-1 version's selection
-        const currentMetadata = version.metadata;
+        // The metadata contains prioritized layer IDs - tries current version first, then falls back to previous
         const previousMetadata = (version as any).previousVersionMetadata;
-
-        let metadataToRestore = null;
-
-        // First, try the current version's metadata if the layer(s) still exist in restored state
-        if (currentMetadata) {
-          const currentLayerId = currentMetadata.selectedLayerId ||
-                                 (currentMetadata.selectedLayerIds && currentMetadata.selectedLayerIds[0]);
-
-          if (currentLayerId && layerExists(restoredState, currentLayerId)) {
-            // Current selection still exists in restored state, use it
-            metadataToRestore = currentMetadata;
-          }
-        }
-
-        // If current selection doesn't exist, fall back to N-1 metadata
-        if (!metadataToRestore && previousMetadata) {
-          metadataToRestore = previousMetadata;
-        }
-
-        if (metadataToRestore) {
-          restoreUIMetadata(metadataToRestore, restoredState);
-        }
+        restoreUIMetadata(version.metadata, restoredState, previousMetadata);
 
         // Update cache
         if (cacheKey) {
@@ -530,6 +542,12 @@ export function useUndoRedo({
       // If no undo patch, try to reconstruct from snapshot
       // This is a fallback for older versions or create/delete actions
       if (version.snapshot) {
+        // Check and restore required components before undoing
+        if (version.metadata?.requirements?.components) {
+          const { restoreComponents } = useComponentsStore.getState();
+          await restoreComponents(version.metadata.requirements.components);
+        }
+
         // Mark this entity so auto-save won't create a new version
         markUndoRedoSave(entityType, entityId);
 
@@ -538,32 +556,10 @@ export function useUndoRedo({
           previousStateCache.set(cacheKey, JSON.parse(JSON.stringify(version.snapshot)));
         }
 
-        // Restore UI metadata using the same smart selection strategy
-        const currentMetadata = version.metadata;
+        // Restore UI metadata from snapshot
+        // The metadata contains prioritized layer IDs - tries current version first, then falls back to previous
         const previousMetadata = (version as any).previousVersionMetadata;
-        const snapshotState = version.snapshot as any; // Snapshot is generic object, cast for layer validation
-
-        let metadataToRestore = null;
-
-        // First, try the current version's metadata if the layer(s) still exist
-        if (currentMetadata && snapshotState) {
-          const currentLayerId = currentMetadata.selectedLayerId ||
-                                 (currentMetadata.selectedLayerIds && currentMetadata.selectedLayerIds[0]);
-
-          // For page_layers and components, snapshot is Layer[], validate existence
-          if (currentLayerId && Array.isArray(snapshotState) && layerExists(snapshotState, currentLayerId)) {
-            metadataToRestore = currentMetadata;
-          }
-        }
-
-        // Fall back to N-1 metadata if current selection doesn't exist
-        if (!metadataToRestore && previousMetadata) {
-          metadataToRestore = previousMetadata;
-        }
-
-        if (metadataToRestore) {
-          restoreUIMetadata(metadataToRestore, snapshotState);
-        }
+        restoreUIMetadata(version.metadata, version.snapshot, previousMetadata);
 
         // Auto-save will detect the state change and handle saving with debouncing
         return true;

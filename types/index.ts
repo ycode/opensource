@@ -346,6 +346,7 @@ export interface Component {
 
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null; // Soft delete timestamp
 }
 
 export interface Page {
@@ -978,10 +979,15 @@ export type VersionEntityType = 'page_layers' | 'component' | 'layer_style';
 export type VersionActionType = 'create' | 'update' | 'delete';
 
 export interface VersionMetadata {
-  selectedLayerId?: string | null;
-  selectedLayerIds?: string[];
-  lastSelectedLayerId?: string | null;
-  // Add other UI state as needed (e.g., scroll position, zoom level)
+  // Layer selection - ordered by priority (index 0 = highest priority)
+  // When restoring, try layer_ids[0] first, then layer_ids[1], etc.
+  selection?: {
+    layer_ids?: string[];
+  };
+  // Requirements for undo operations (e.g., components that must exist before undoing)
+  requirements?: {
+    components?: string[]; // Array of component IDs that must exist/be restored before undoing
+  };
 }
 
 export interface Version {

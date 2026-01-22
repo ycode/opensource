@@ -283,7 +283,8 @@ export async function fetchPageByPath(
     // If path is empty after locale detection (e.g., "/fr/" -> "fr" -> ""),
     // try to fetch the homepage
     if (targetPath === '' && detectedLocale) {
-      const homepageData = await fetchHomepage(isPublished, paginationContext);
+      // Pass preloaded components to avoid redundant query
+      const homepageData = await fetchHomepage(isPublished, paginationContext, components);
       if (homepageData) {
         // Resolve components and apply translations
         let processedLayers = applyComponentsAndTranslations(
@@ -566,6 +567,14 @@ export async function fetchErrorPage(
       ? await resolveCollectionLayers(pageLayers.layers, isPublished, undefined, undefined, undefined)
       : [];
 
+    // Resolve components and apply translations
+    resolvedLayers = applyComponentsAndTranslations(
+      resolvedLayers,
+      errorPage.id,
+      components,
+      undefined // No translations for error pages
+    );
+
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
     resolvedLayers = await resolveAllAssets(resolvedLayers);
 
@@ -575,7 +584,7 @@ export async function fetchErrorPage(
         ...pageLayers,
         layers: resolvedLayers,
       },
-      components,
+      components: [], // Components already resolved into layers
       locale: null, // Error pages don't have locale context
       availableLocales: availableLocales as Locale[] || [],
     };
@@ -590,10 +599,12 @@ export async function fetchErrorPage(
  * Works for both draft and published pages
  * @param isPublished - Whether to fetch published or draft version
  * @param paginationContext - Optional pagination context with page numbers from URL
+ * @param preloadedComponents - Optional pre-fetched components to avoid redundant queries
  */
 export async function fetchHomepage(
   isPublished: boolean,
-  paginationContext?: PaginationContext
+  paginationContext?: PaginationContext,
+  preloadedComponents?: Component[]
 ): Promise<Pick<PageData, 'page' | 'pageLayers' | 'locale' | 'availableLocales'> | null> {
   try {
     const supabase = await getSupabaseAdmin();
@@ -639,10 +650,21 @@ export async function fetchHomepage(
       return null;
     }
 
+    // Use preloaded components if available, otherwise fetch them
+    const components = preloadedComponents || await fetchComponents(supabase);
+
     // Resolve collection layers server-side (for both draft and published)
     let resolvedLayers = pageLayers?.layers
       ? await resolveCollectionLayers(pageLayers.layers, isPublished, undefined, paginationContext, undefined)
       : [];
+
+    // Resolve components (no translations for non-localized homepage)
+    resolvedLayers = applyComponentsAndTranslations(
+      resolvedLayers,
+      homepage.id,
+      components,
+      undefined
+    );
 
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
     resolvedLayers = await resolveAllAssets(resolvedLayers);

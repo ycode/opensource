@@ -59,7 +59,10 @@ export default function PageRenderer({
   availableLocales = [],
 }: PageRendererProps) {
   // Resolve component instances in the layer tree before rendering
-  const resolvedLayers = resolveComponents(layers || [], components);
+  // If components array is empty, they're already resolved server-side
+  const resolvedLayers = components.length > 0
+    ? resolveComponents(layers || [], components)
+    : layers || [];
 
   // Extract custom code from page settings and resolve placeholders for dynamic pages
   const rawCustomCodeHead = page.settings?.custom_code?.head || '';

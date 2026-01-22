@@ -5,10 +5,19 @@ import type { Layer, Page, PageLayers, PageFolder, PageItemDuplicateResult, Coll
 import { pagesApi, pageLayersApi, foldersApi } from '../lib/api';
 import { getLayerFromTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
-import { canHaveChildren, regenerateIdsWithInteractionRemapping, canMoveLayer } from '../lib/layer-utils';
+import {
+  canHaveChildren,
+  regenerateIdsWithInteractionRemapping,
+  canMoveLayer,
+  findLayerById,
+  createComponentViaApi,
+  replaceLayerWithComponentInstance,
+} from '../lib/layer-utils';
+import { generateId } from '../lib/utils';
 import { getDescendantFolderIds, isHomepage, findHomepage, findNextSelection } from '../lib/page-utils';
 import { updateLayersWithStyle, detachStyleFromLayers } from '../lib/layer-style-utils';
 import { updateLayersWithComponent, detachComponentFromLayers } from '../lib/component-utils';
+import { useComponentsStore } from './useComponentsStore';
 
 interface PagesState {
   pages: Page[];
@@ -514,7 +523,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     }
 
     const newLayer: Layer = {
-      id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: generateId('lyr'),
       name: layerName,
       classes: '',
       children: layerName === 'div' || layerName === 'section' || layerName === 'container' ? [] : undefined,
@@ -1110,21 +1119,9 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (!draft) return null;
 
-    const findLayer = (layers: Layer[], id: string): Layer | null => {
-      for (const layer of layers) {
-        if (layer.id === id) return layer;
-        if (layer.children) {
-          const found = findLayer(layer.children, id);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const layer = findLayer(draft.layers, layerId);
+    const layer = findLayerById(draft.layers, layerId);
     if (!layer) return null;
 
-    // Deep clone the layer
     return cloneDeep(layer);
   },
 
@@ -2731,75 +2728,28 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const draft = draftsByPageId[pageId];
     if (!draft) return null;
 
-    // Get the layer to convert
     const layerToCopy = copyLayer(pageId, layerId);
     if (!layerToCopy) return null;
 
-    try {
-      // Create the component via API
-      // The component should store the ENTIRE layer tree including the wrapper
-      // componentId is preserved in nested layers to allow nested components
-      const response = await fetch('/api/components', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: componentName,
-          layers: [layerToCopy], // Store the complete layer tree with componentId preserved
-        }),
-      });
+    const newComponent = await createComponentViaApi(componentName, [layerToCopy]);
+    if (!newComponent) return null;
 
-      const result = await response.json();
+    // Add to components store
+    const { useComponentsStore } = await import('./useComponentsStore');
+    const componentsState = useComponentsStore.getState();
+    componentsState.setComponents([newComponent, ...componentsState.components]);
 
-      if (result.error || !result.data) {
-        console.error('Failed to create component:', result.error);
-        return null;
-      }
+    // Replace layer with component instance
+    const newLayers = replaceLayerWithComponentInstance(draft.layers, layerId, newComponent.id);
 
-      const newComponent = result.data;
+    set({
+      draftsByPageId: {
+        ...draftsByPageId,
+        [pageId]: { ...draft, layers: newLayers },
+      },
+    });
 
-      // Add the component to the components store
-      const { useComponentsStore } = await import('./useComponentsStore');
-      const componentsState = useComponentsStore.getState();
-      componentsState.setComponents([newComponent, ...componentsState.components]);
-
-      // Replace the layer with a component instance
-      const updateLayerToInstance = (layers: Layer[]): Layer[] => {
-        return layers.map(layer => {
-          if (layer.id === layerId) {
-            // Keep the original layer but mark it as a component instance
-            // Remove children since they'll come from the component
-            return {
-              ...layer,
-              componentId: newComponent.id,
-              children: [],
-            };
-          }
-
-          if (layer.children && layer.children.length > 0) {
-            return {
-              ...layer,
-              children: updateLayerToInstance(layer.children),
-            };
-          }
-
-          return layer;
-        });
-      };
-
-      const newLayers = updateLayerToInstance(draft.layers);
-
-      set({
-        draftsByPageId: {
-          ...draftsByPageId,
-          [pageId]: { ...draft, layers: newLayers }
-        }
-      });
-
-      return newComponent.id;
-    } catch (error) {
-      console.error('Failed to create component:', error);
-      return null;
-    }
+    return newComponent.id;
   },
 
   /**
@@ -2825,10 +2775,14 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   /**
    * Detach a component from all layers across all pages
    * Used when a component is deleted
-   * Removes the component link from all instances
+   * Replaces component instances with the component's actual children layers
    */
   detachComponentFromAllLayers: (componentId) => {
     const { draftsByPageId } = get();
+    const { getComponentById } = useComponentsStore.getState();
+
+    // Get the component data to extract its layers
+    const component = getComponentById(componentId);
 
     const updatedDrafts = { ...draftsByPageId };
 
@@ -2836,7 +2790,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       const draft = updatedDrafts[pageId];
       updatedDrafts[pageId] = {
         ...draft,
-        layers: detachComponentFromLayers(draft.layers, componentId),
+        layers: detachComponentFromLayers(draft.layers, componentId, component || undefined),
       };
     });
 

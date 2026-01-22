@@ -19,7 +19,8 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useClipboardStore } from '@/stores/useClipboardStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
-import { canHaveChildren, findLayerById, getClassesString, regenerateIdsWithInteractionRemapping, regenerateInteractionIds, canCopyLayer, canDeleteLayer } from '@/lib/layer-utils';
+import { canHaveChildren, findLayerById, getClassesString, regenerateInteractionIds, canCopyLayer, canDeleteLayer } from '@/lib/layer-utils';
+import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import type { Layer } from '@/types';
@@ -35,6 +36,8 @@ interface LayerContextMenuProps {
   selectedLayerId?: string | null;
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
+  /** When set, we're editing a component; resolve layer from component draft so "Detach" works for nested instances */
+  editingComponentId?: string | null;
 }
 
 export default function LayerContextMenu({
@@ -46,6 +49,7 @@ export default function LayerContextMenu({
   selectedLayerId,
   liveLayerUpdates,
   liveComponentUpdates,
+  editingComponentId = null,
 }: LayerContextMenuProps) {
   const [isComponentDialogOpen, setIsComponentDialogOpen] = useState(false);
   const [isLayoutDialogOpen, setIsLayoutDialogOpen] = useState(false);
@@ -57,11 +61,16 @@ export default function LayerContextMenu({
   const pasteAfter = usePagesStore((state) => state.pasteAfter);
   const pasteInside = usePagesStore((state) => state.pasteInside);
   const updateLayer = usePagesStore((state) => state.updateLayer);
+  const setDraftLayers = usePagesStore((state) => state.setDraftLayers);
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const createComponentFromLayer = usePagesStore((state) => state.createComponentFromLayer);
 
   const loadComponents = useComponentsStore((state) => state.loadComponents);
   const getComponentById = useComponentsStore((state) => state.getComponentById);
+  const components = useComponentsStore((state) => state.components);
+  const componentDrafts = useComponentsStore((state) => state.componentDrafts);
+  const updateComponentDraft = useComponentsStore((state) => state.updateComponentDraft);
+  const createComponentFromComponentLayer = useComponentsStore((state) => state.createComponentFromLayer);
 
   const clipboardLayer = useClipboardStore((state) => state.clipboardLayer);
   const clipboardMode = useClipboardStore((state) => state.clipboardMode);
@@ -78,9 +87,16 @@ export default function LayerContextMenu({
   const hasStyleClipboard = copiedStyle !== null;
   const hasInteractionsClipboard = copiedInteractions !== null;
 
-  // Check if this layer is a component instance
-  const draft = draftsByPageId[pageId];
-  const layer = draft ? findLayerById(draft.layers, layerId) : null;
+  // Resolve layers: component draft when editing a component, else page draft
+  const isComponentContext = !!editingComponentId;
+  const layers = useMemo(
+    () =>
+      isComponentContext
+        ? (componentDrafts[editingComponentId!] || [])
+        : (draftsByPageId[pageId]?.layers || []),
+    [isComponentContext, editingComponentId, componentDrafts, draftsByPageId, pageId]
+  );
+  const layer = findLayerById(layers, layerId);
 
   const isComponentInstance = !!(layer && layer.componentId);
   const componentName = isComponentInstance && layer?.componentId
@@ -89,14 +105,10 @@ export default function LayerContextMenu({
 
   // Check if the current layer can have children
   const canPasteInside = useMemo(() => {
-    const draft = draftsByPageId[pageId];
-    if (!draft) return false;
-
-    const layer = findLayerById(draft.layers, layerId);
-    if (!layer) return false;
-
-    return canHaveChildren(layer);
-  }, [draftsByPageId, pageId, layerId]);
+    const targetLayer = findLayerById(layers, layerId);
+    if (!targetLayer) return false;
+    return canHaveChildren(targetLayer);
+  }, [layers, layerId]);
 
   // Check layer restrictions
   const canCopy = useMemo(() => {
@@ -233,11 +245,7 @@ export default function LayerContextMenu({
   };
 
   const handleCreateComponent = () => {
-    // Get layer name for default component name
-    const draft = draftsByPageId[pageId];
-    if (!draft) return;
-
-    const layer = findLayerById(draft.layers, layerId);
+    // Use the already-resolved layer (works in both page and component context)
     if (!layer) return;
 
     const defaultName = layer.customName || layer.name || 'Component';
@@ -246,11 +254,15 @@ export default function LayerContextMenu({
   };
 
   const handleConfirmCreateComponent = async (componentName: string) => {
-    const componentId = await createComponentFromLayer(pageId, layerId, componentName);
-    // No need to reload components - createComponentFromLayer already adds it to the store
+    // Use appropriate creation function based on context
+    const componentId = isComponentContext && editingComponentId
+      ? await createComponentFromComponentLayer(editingComponentId, layerId, componentName)
+      : await createComponentFromLayer(pageId, layerId, componentName);
 
-    // Broadcast component creation to collaborators
-    if (componentId && liveComponentUpdates) {
+    if (!componentId) return;
+
+    // Broadcast to collaborators
+    if (liveComponentUpdates) {
       const component = getComponentById(componentId);
       if (component) {
         liveComponentUpdates.broadcastComponentCreate(component);
@@ -315,51 +327,17 @@ export default function LayerContextMenu({
   const handleDetachFromComponent = () => {
     if (!layer || !layer.componentId) return;
 
-    // Get the component to extract its layers
     const component = getComponentById(layer.componentId);
-    if (!component || !component.layers || component.layers.length === 0) {
-      // If component not found or has no layers, just remove the componentId
-      updateLayer(pageId, layerId, {
-        componentId: undefined,
-        componentOverrides: undefined,
-      });
-      return;
+
+    // Use the shared utility function for detaching
+    const newLayers = detachSpecificLayerFromComponent(layers, layerId, component || undefined);
+
+    if (isComponentContext && editingComponentId) {
+      updateComponentDraft(editingComponentId, newLayers);
+    } else {
+      setDraftLayers(pageId, newLayers);
     }
 
-    // Find the layer in the tree and replace it with component's layers
-    const draft = draftsByPageId[pageId];
-    if (!draft) return;
-
-    // Helper to find and replace the layer with component layers
-    const replaceLayerWithComponentLayers = (layers: Layer[]): Layer[] => {
-      return layers.flatMap(currentLayer => {
-        if (currentLayer.id === layerId) {
-          // Replace this layer with the component's layers
-          // Deep clone to avoid mutations and regenerate IDs with interaction remapping
-          const clonedLayers = JSON.parse(JSON.stringify(component.layers));
-
-          // Regenerate IDs and remap self-targeted interactions
-          return clonedLayers.map(regenerateIdsWithInteractionRemapping);
-        }
-
-        // Recursively process children
-        if (currentLayer.children && currentLayer.children.length > 0) {
-          return {
-            ...currentLayer,
-            children: replaceLayerWithComponentLayers(currentLayer.children),
-          };
-        }
-
-        return currentLayer;
-      });
-    };
-
-    const newLayers = replaceLayerWithComponentLayers(draft.layers);
-
-    // Update the draft with the new layer tree
-    usePagesStore.getState().setDraftLayers(pageId, newLayers);
-
-    // Clear selection since the layer ID no longer exists
     if (onLayerSelect) {
       onLayerSelect(null as any);
     }

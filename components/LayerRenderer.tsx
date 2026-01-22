@@ -647,6 +647,36 @@ const LayerItem: React.FC<{
 
   // Render element-specific content
   const renderContent = () => {
+    // Component instances in EDIT MODE: render component's layers directly without wrapper
+    // In published mode, components are already resolved server-side into children, so render normally
+    if (isEditMode && component && component.layers && component.layers.length > 0) {
+      return (
+        <LayerRenderer
+          layers={component.layers}
+          onLayerClick={onLayerClick}
+          onLayerUpdate={onLayerUpdate}
+          onLayerHover={onLayerHover}
+          selectedLayerId={selectedLayerId}
+          hoveredLayerId={hoveredLayerId}
+          isEditMode={isEditMode}
+          isPublished={isPublished}
+          enableDragDrop={enableDragDrop}
+          activeLayerId={activeLayerId}
+          projected={projected}
+          pageId={pageId}
+          collectionItemData={effectiveCollectionItemData}
+          pageCollectionItemData={pageCollectionItemData}
+          hiddenLayerIds={hiddenLayerIds}
+          currentLocale={currentLocale}
+          availableLocales={availableLocales}
+          localeSelectorFormat={localeSelectorFormat}
+          liveLayerUpdates={liveLayerUpdates}
+          liveComponentUpdates={liveComponentUpdates}
+          parentComponentLayerId={layer.id}
+        />
+      );
+    }
+
     const Tag = htmlTag as any;
     const { style: attrStyle, ...otherAttributes } = layer.attributes || {};
 
@@ -1360,9 +1390,10 @@ const LayerItem: React.FC<{
   }
 
   // Wrap with context menu in edit mode
+  // Don't wrap layers inside component instances (they're not directly editable)
   const content = renderContent();
 
-  if (isEditMode && pageId && !isEditing) {
+  if (isEditMode && pageId && !isEditing && !parentComponentLayerId) {
     const isLocked = layer.id === 'body';
 
     return (
