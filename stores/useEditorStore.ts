@@ -11,6 +11,16 @@ interface HistoryEntry {
   timestamp: number;
 }
 
+/**
+ * Navigation stack entry for component editing breadcrumb
+ */
+export interface ComponentNavigationEntry {
+  type: 'page' | 'component';
+  id: string; // pageId or componentId
+  name: string; // Display name for breadcrumb
+  layerId?: string | null; // Layer to restore when returning
+}
+
 export type EditorSidebarTab = 'layers' | 'pages' | 'cms';
 
 interface EditorActions {
@@ -28,6 +38,8 @@ interface EditorActions {
   setActiveUIState: (state: UIState) => void;
   setActiveTextStyleKey: (key: string | null) => void;
   setEditingComponentId: (id: string | null, returnPageId?: string | null, returnToLayerId?: string | null) => void;
+  pushComponentNavigation: (entry: ComponentNavigationEntry) => void;
+  getReturnDestination: () => ComponentNavigationEntry | null;
   setBuilderDataPreloaded: (preloaded: boolean) => void;
   pushHistory: (pageId: string, layers: Layer[]) => void;
   undo: () => HistoryEntry | null;
@@ -56,6 +68,7 @@ interface EditorStoreWithHistory extends EditorState {
   editingComponentId: string | null;
   returnToPageId: string | null;
   returnToLayerId: string | null; // Layer to restore when exiting component edit mode
+  componentNavigationStack: ComponentNavigationEntry[]; // Breadcrumb stack for nested component editing
   currentPageCollectionItemId: string | null;
   builderDataPreloaded: boolean;
   interactionTriggerLayerIds: string[];
@@ -105,6 +118,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   editingComponentId: null,
   returnToPageId: null,
   returnToLayerId: null,
+  componentNavigationStack: [],
   currentPageCollectionItemId: null,
   builderDataPreloaded: false,
   interactionTriggerLayerIds: [],
@@ -255,13 +269,43 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       layerToReturn = state.returnToLayerId;
     }
 
+    // Manage navigation stack for nested component editing
+    // Note: Stack is pushed explicitly by callers (RightSidebar, LayerContextMenu) with proper names
+    // This function only pops when exiting
+    const newStack = [...state.componentNavigationStack];
+
+    if (id === null) {
+      // Exiting component mode - pop from stack
+      newStack.pop();
+    }
+
     set({
       editingComponentId: id,
       returnToPageId: returnPageId,
       returnToLayerId: layerToReturn,
+      componentNavigationStack: newStack,
     });
   },
   setBuilderDataPreloaded: (preloaded) => set({ builderDataPreloaded: preloaded }),
+
+  /**
+   * Push an entry to the component navigation stack (for breadcrumb)
+   */
+  pushComponentNavigation: (entry: ComponentNavigationEntry) => {
+    const state = get();
+    set({
+      componentNavigationStack: [...state.componentNavigationStack, entry],
+    });
+  },
+
+  /**
+   * Get the return destination (top of stack) without popping
+   */
+  getReturnDestination: () => {
+    const state = get();
+    const stack = state.componentNavigationStack;
+    return stack.length > 0 ? stack[stack.length - 1] : null;
+  },
 
   pushHistory: (pageId, layers) => {
     const { history, historyIndex, maxHistorySize } = get();

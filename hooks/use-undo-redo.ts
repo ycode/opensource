@@ -13,6 +13,7 @@ import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
 import { applyPatch, createPatch, createInversePatch, isPatchEmpty, doesPatchChangeState, generatePatchDescription, JsonPatch } from '@/lib/version-utils';
 import { markUndoRedoSave } from '@/lib/version-tracking';
 import { generatePageLayersHash } from '@/lib/hash-utils';
+import { stripUIProperties } from '@/lib/layer-utils';
 import { useEditorStore } from '@/stores/useEditorStore';
 import type { Layer, Version, VersionEntityType, CreateVersionData } from '@/types';
 
@@ -335,8 +336,18 @@ export function useUndoRedo({
 
     // Check if state actually changed
     const prevState = previousStateCache.get(cacheKey);
-    const currentJSON = JSON.stringify(currentState);
-    const prevJSON = JSON.stringify(prevState);
+
+    // Strip UI-only properties (like 'open') before comparison for layer-based entities
+    const isLayerEntity = entityType === 'page_layers' || entityType === 'component';
+    const prevStateForComparison = isLayerEntity && Array.isArray(prevState)
+      ? stripUIProperties(prevState as Layer[])
+      : prevState;
+    const currentStateForComparison = isLayerEntity && Array.isArray(currentState)
+      ? stripUIProperties(currentState as Layer[])
+      : currentState;
+
+    const currentJSON = JSON.stringify(currentStateForComparison);
+    const prevJSON = JSON.stringify(prevStateForComparison);
 
     if (currentJSON !== prevJSON) {
       // Validate states before adding to buffer (development only)

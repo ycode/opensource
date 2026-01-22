@@ -64,7 +64,7 @@ import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-
 
 // 7. Types
 import type { Layer, FieldVariable, CollectionField } from '@/types';
-import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import {
   DropdownMenu,
   DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut,
@@ -1449,14 +1449,41 @@ const RightSidebar = React.memo(function RightSidebar({
   const component = isComponentInstance ? getComponentById(selectedLayer.componentId!) : null;
 
   // If it's a component instance, show a message with edit button instead of design properties
-  if (isComponentInstance && component && !editingComponentId) {
+  // This works both when editing a page OR when editing a component (nested component instances)
+  if (isComponentInstance && component) {
     const handleEditMasterComponent = async () => {
-      const { loadComponentDraft } = useComponentsStore.getState();
-      const { setSelectedLayerId: setLayerId } = useEditorStore.getState();
+      const { loadComponentDraft, getComponentById } = useComponentsStore.getState();
+      const { setSelectedLayerId: setLayerId, pushComponentNavigation } = useEditorStore.getState();
+      const { pages } = usePagesStore.getState();
 
       // Clear selection FIRST to release lock on current page's channel
       // before switching to component's channel
       setLayerId(null);
+
+      // Push current context to navigation stack before entering component edit mode
+      if (editingComponentId) {
+        // We're currently editing a component, push it to stack
+        const currentComponent = getComponentById(editingComponentId);
+        if (currentComponent) {
+          pushComponentNavigation({
+            type: 'component',
+            id: editingComponentId,
+            name: currentComponent.name,
+            layerId: selectedLayerId,
+          });
+        }
+      } else if (currentPageId) {
+        // We're on a page, push it to stack
+        const currentPage = pages.find((p) => p.id === currentPageId);
+        if (currentPage) {
+          pushComponentNavigation({
+            type: 'page',
+            id: currentPageId,
+            name: currentPage.name,
+            layerId: selectedLayerId,
+          });
+        }
+      }
 
       // Load the component's layers into draft (async to ensure proper cache sync)
       await loadComponentDraft(component.id);
@@ -1474,6 +1501,9 @@ const RightSidebar = React.memo(function RightSidebar({
       <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
           <Empty>
+            <EmptyMedia variant="icon">
+              <Icon name="component" className="size-3.5" />
+            </EmptyMedia>
             <EmptyTitle>Component Instance</EmptyTitle>
             <EmptyDescription>
               This is an instance of &quot;{component.name}&quot;. To edit this component, click the button below or right-click and select &quot;Edit master component&quot;.

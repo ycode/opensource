@@ -5,9 +5,10 @@
  * Used by client stores to record and track versions for undo/redo.
  */
 
-import type { VersionEntityType, CreateVersionData } from '@/types';
+import type { VersionEntityType, CreateVersionData, Layer } from '@/types';
 import { createPatch, createInversePatch, isPatchEmpty, doesPatchChangeState, generatePatchDescription, JsonPatch } from '@/lib/version-utils';
 import { generatePageLayersHash, generateComponentContentHash, generateLayerStyleContentHash } from '@/lib/hash-utils';
+import { stripUIProperties } from '@/lib/layer-utils';
 import { useEditorStore } from '@/stores/useEditorStore';
 
 // In-memory cache for previous states (per session)
@@ -151,8 +152,17 @@ export async function recordVersionViaApi(
     return;
   }
 
-  // Create patch from previous to current state
-  const redoPatch = createPatch(previousState, currentState);
+  // Strip UI properties from states before creating patches (for layer-based entities)
+  const isLayerEntity = entityType === 'page_layers' || entityType === 'component';
+  const previousStateForPatch = isLayerEntity && Array.isArray(previousState)
+    ? stripUIProperties(previousState as Layer[])
+    : previousState;
+  const currentStateForPatch = isLayerEntity && Array.isArray(currentState)
+    ? stripUIProperties(currentState as Layer[])
+    : currentState;
+
+  // Create patch from previous to current state (using stripped states)
+  const redoPatch = createPatch(previousStateForPatch, currentStateForPatch);
 
   // Skip if no changes
   if (isPatchEmpty(redoPatch)) {
@@ -161,14 +171,14 @@ export async function recordVersionViaApi(
 
   // Verify the patch actually produces a different state
   // This catches patches that exist but don't change anything
-  if (!doesPatchChangeState(previousState, redoPatch)) {
+  if (!doesPatchChangeState(previousStateForPatch, redoPatch)) {
     return;
   }
 
   // Create inverse patch for undo (arguments: originalState, forwardPatch)
-  const undoPatch = createInversePatch(previousState, redoPatch);
+  const undoPatch = createInversePatch(previousStateForPatch, redoPatch);
 
-  // Generate hashes for integrity
+  // Generate hashes for integrity (hash functions already strip UI properties internally)
   const previousHash = generateHash(entityType, previousState);
   const currentHash = generateHash(entityType, currentState);
 

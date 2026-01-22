@@ -90,7 +90,7 @@ interface YCodeBuilderProps {
 
 export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCodeBuilderProps) {
   const router = useRouter();
-  const { routeType, resourceId, sidebarTab, navigateToLayers, urlState, updateQueryParams } = useEditorUrl();
+  const { routeType, resourceId, sidebarTab, navigateToLayers, navigateToComponent, urlState, updateQueryParams } = useEditorUrl();
 
   // Optimize store subscriptions - use selective selectors to prevent unnecessary re-renders
   const signOut = useAuthStore((state) => state.signOut);
@@ -933,8 +933,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
   // Exit component edit mode handler
   const handleExitComponentEditMode = useCallback(async () => {
-    const { editingComponentId, returnToPageId, setEditingComponentId, returnToLayerId } = useEditorStore.getState();
-    const { saveComponentDraft, clearComponentDraft, getComponentById, saveTimeouts } = useComponentsStore.getState();
+    const { editingComponentId, returnToPageId, setEditingComponentId, returnToLayerId, getReturnDestination, setSelectedLayerId: setLayerIdFromStore } = useEditorStore.getState();
+    const { saveComponentDraft, clearComponentDraft, getComponentById, saveTimeouts, loadComponentDraft } = useComponentsStore.getState();
     const { updateComponentOnLayers } = usePagesStore.getState();
 
     if (!editingComponentId || isExitingComponentModeRef.current) return;
@@ -966,35 +966,72 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       // Clear component draft
       clearComponentDraft(editingComponentId);
 
-      // Determine which page to navigate to
-      let targetPageId = returnToPageId;
-      if (!targetPageId) {
-        // No return page - use homepage or first available page
-        const homePage = findHomepage(pages);
-        const defaultPage = homePage || pages[0];
-        targetPageId = defaultPage?.id || null;
+      // Check navigation stack to determine return destination
+      const returnDestination = getReturnDestination();
+
+      if (returnDestination?.type === 'component') {
+        // Returning to a parent component
+        const parentComponent = getComponentById(returnDestination.id);
+        if (parentComponent) {
+          // Load the parent component draft FIRST
+          await loadComponentDraft(returnDestination.id);
+
+          // Pop the current component from the stack before transitioning
+          const { componentNavigationStack } = useEditorStore.getState();
+          const newStack = [...componentNavigationStack];
+          newStack.pop(); // Remove child component entry
+
+          // Transition directly to parent component (avoids showing page)
+          // Manually update the stack to reflect the pop
+          useEditorStore.setState({
+            editingComponentId: returnDestination.id,
+            returnToPageId: returnToPageId,
+            returnToLayerId: returnDestination.layerId || null,
+            componentNavigationStack: newStack,
+          });
+
+          // Navigate to the parent component
+          navigateToComponent(
+            returnDestination.id,
+            undefined, // rightTab - use current
+            returnDestination.layerId || undefined // layerId - restore the layer
+          );
+
+          // Restore layer selection if specified
+          if (returnDestination.layerId) {
+            setLayerIdFromStore(returnDestination.layerId);
+          }
+        }
+      } else {
+        // Returning to a page
+        // Exit edit mode to clear the state and pop the stack
+        setEditingComponentId(null, null);
+
+        // Small delay to ensure state clears
+        await new Promise(resolve => setTimeout(resolve, 10));
+        // Returning to a page (or no stack entry)
+        let targetPageId = returnToPageId;
+        if (!targetPageId) {
+          // No return page - use homepage or first available page
+          const homePage = findHomepage(pages);
+          const defaultPage = homePage || pages[0];
+          targetPageId = defaultPage?.id || null;
+        }
+
+        if (!targetPageId) {
+          console.warn('[handleExitComponentEditMode] No target page found, cannot exit component edit mode');
+          return;
+        }
+
+        // Navigate to the target page, including the layer ID in the URL
+        // This ensures the URL sync effect will restore the correct layer
+        navigateToLayers(
+          targetPageId,
+          undefined, // view - use current
+          undefined, // rightTab - use current
+          returnToLayerId || returnDestination?.layerId || undefined // layerId - restore the original layer
+        );
       }
-
-      if (!targetPageId) {
-        console.warn('[handleExitComponentEditMode] No target page found, cannot exit component edit mode');
-        return;
-      }
-
-      // Exit edit mode FIRST to clear the state
-      // This prevents the URL navigation effect from re-entering component edit mode
-      setEditingComponentId(null, null);
-
-      // Small delay to ensure state clears
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      // Navigate to the target page, including the layer ID in the URL
-      // This ensures the URL sync effect will restore the correct layer
-      navigateToLayers(
-        targetPageId,
-        undefined, // view - use current
-        undefined, // rightTab - use current
-        returnToLayerId || undefined // layerId - restore the original layer
-      );
 
       // Wait for navigation to complete
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -1004,7 +1041,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     }
 
     // Selection will be restored by the URL sync effect
-  }, [navigateToLayers, liveComponentUpdates, pages]);
+  }, [navigateToLayers, navigateToComponent, liveComponentUpdates, pages]);
 
   // Global keyboard shortcuts
   useEffect(() => {

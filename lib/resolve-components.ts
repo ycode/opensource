@@ -42,7 +42,7 @@ export function resolveComponents(layers: Layer[], components: Component[]): Lay
         const componentContent = component.layers[0];
 
         // Recursively resolve nested components, then tag with master component ID
-        const nestedResolved = componentContent.children 
+        const nestedResolved = componentContent.children
           ? resolveComponents(componentContent.children, components)
           : [];
         const resolvedChildren = nestedResolved.length
@@ -50,16 +50,17 @@ export function resolveComponents(layers: Layer[], components: Component[]): Lay
           : [];
 
         // Merge component content with instance layer, keeping instance ID
+        // IMPORTANT: Keep componentId so LayerRenderer knows this is a component instance
         return {
           ...layer,
           ...componentContent,
           id: layer.id,
-          componentId: undefined,
+          componentId: layer.componentId, // Keep the original componentId
           _masterComponentId: component.id,
           children: resolvedChildren,
         };
       }
-      
+
       console.warn('[resolveComponents] Component not found or has no layers:', layer.componentId);
     }
 

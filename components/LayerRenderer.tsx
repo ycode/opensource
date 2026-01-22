@@ -52,6 +52,7 @@ interface LayerRendererProps {
   localeSelectorFormat?: 'locale' | 'code'; // Format for locale selector label (inherited from parent)
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null; // For collaboration broadcasts
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null; // For component collaboration broadcasts
+  parentComponentLayerId?: string; // ID of the parent component layer (if rendering inside a component)
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -75,6 +76,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   localeSelectorFormat,
   liveLayerUpdates,
   liveComponentUpdates,
+  parentComponentLayerId,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -154,6 +156,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         localeSelectorFormat={localeSelectorFormat}
         liveLayerUpdates={liveLayerUpdates}
         liveComponentUpdates={liveComponentUpdates}
+        parentComponentLayerId={parentComponentLayerId}
       />
     );
   };
@@ -193,6 +196,7 @@ const LayerItem: React.FC<{
   localeSelectorFormat?: 'locale' | 'code';
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
+  parentComponentLayerId?: string; // ID of the parent component layer (if this layer is inside a component)
 }> = ({
   layer,
   isEditMode,
@@ -220,12 +224,14 @@ const LayerItem: React.FC<{
   localeSelectorFormat,
   liveLayerUpdates,
   liveComponentUpdates,
+  parentComponentLayerId,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isHovered = hoveredLayerId === layer.id;
   const isEditing = editingLayerId === layer.id;
   const isDragging = activeLayerId === layer.id;
   const textEditable = isTextEditable(layer);
+
   // Collaboration layer locking - use unified resource lock system
   const currentUserId = useAuthStore((state) => state.user?.id);
   const lockKey = getResourceLockKey(RESOURCE_TYPES.LAYER, layer.id);
@@ -730,7 +736,10 @@ const LayerItem: React.FC<{
         // Only handle if not a context menu trigger
         if (e.button !== 2) {
           e.stopPropagation();
-          onLayerClick?.(layer.id, e);
+          // If this layer is inside a component, select the component layer instead
+          const layerIdToSelect = parentComponentLayerId || layer.id;
+
+          onLayerClick?.(layerIdToSelect, e);
         }
         if (originalOnClick) {
           originalOnClick(e);
@@ -758,7 +767,9 @@ const LayerItem: React.FC<{
         elementProps.onMouseEnter = (e: React.MouseEvent) => {
           e.stopPropagation();
           if (!isEditing && !isLockedByOther && layer.id !== 'body') {
-            onLayerHover(layer.id);
+            // If this layer is inside a component, hover the component layer instead
+            const layerIdToHover = parentComponentLayerId || layer.id;
+            onLayerHover(layerIdToHover);
           }
         };
         elementProps.onMouseLeave = (e: React.MouseEvent) => {
@@ -1240,6 +1251,7 @@ const LayerItem: React.FC<{
                   currentLocale={currentLocale}
                   availableLocales={availableLocales}
                   liveLayerUpdates={liveLayerUpdates}
+                  parentComponentLayerId={parentComponentLayerId || (layer.componentId ? layer.id : undefined)}
                 />
               )}
             </Tag>
@@ -1284,6 +1296,7 @@ const LayerItem: React.FC<{
               availableLocales={availableLocales}
               localeSelectorFormat={format}
               liveLayerUpdates={liveLayerUpdates}
+              parentComponentLayerId={layer.componentId ? layer.id : parentComponentLayerId}
             />
           )}
 
@@ -1333,6 +1346,7 @@ const LayerItem: React.FC<{
             availableLocales={availableLocales}
             localeSelectorFormat={localeSelectorFormat}
             liveLayerUpdates={liveLayerUpdates}
+            parentComponentLayerId={parentComponentLayerId || (layer.componentId ? layer.id : undefined)}
           />
         )}
       </Tag>

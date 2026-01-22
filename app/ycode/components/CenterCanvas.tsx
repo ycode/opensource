@@ -148,6 +148,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds);
+  const getReturnDestination = useEditorStore((state) => state.getReturnDestination);
   const clearSelection = useEditorStore((state) => state.clearSelection);
   const setActiveSidebarTab = useEditorStore((state) => state.setActiveSidebarTab);
   const setActiveTextStyleKey = useEditorStore((state) => state.setActiveTextStyleKey);
@@ -1248,7 +1249,26 @@ const CenterCanvas = React.memo(function CenterCanvas({
             className="gap-1 w-fit"
           >
             <Icon name="arrowLeft" />
-            Back to {returnToPage ? returnToPage.name : 'Homepage'}
+            {(() => {
+              const returnDestination = getReturnDestination();
+              if (returnDestination && returnDestination.name) {
+                return returnDestination.type === 'page'
+                  ? `Return to ${returnDestination.name}`
+                  : `Return to ${returnDestination.name}`;
+              }
+              // Fallback: Try to get name from stores if stack entry exists but name is empty
+              if (returnDestination) {
+                if (returnDestination.type === 'page') {
+                  const page = pages.find(p => p.id === returnDestination.id);
+                  if (page) return `Return to ${page.name}`;
+                } else {
+                  const component = components.find(c => c.id === returnDestination.id);
+                  if (component) return `Return to ${component.name}`;
+                }
+              }
+              // Final fallback to old behavior if stack is empty
+              return `Back to ${returnToPage ? returnToPage.name : 'Homepage'}`;
+            })()}
           </Button>
         ) : (
           <div className="flex items-center gap-1.5">

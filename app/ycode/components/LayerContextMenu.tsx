@@ -261,12 +261,38 @@ export default function LayerContextMenu({
   const handleEditMasterComponent = async () => {
     if (!layer?.componentId) return;
 
-    const { setEditingComponentId, setSelectedLayerId } = useEditorStore.getState();
+    const { setEditingComponentId, setSelectedLayerId, pushComponentNavigation, editingComponentId } = useEditorStore.getState();
     const { loadComponentDraft, getComponentById } = useComponentsStore.getState();
+    const { pages } = usePagesStore.getState();
 
     // Capture the current layer ID BEFORE clearing selection
     // This is the layer we'll return to when exiting component edit mode
     const componentInstanceLayerId = layer.id;
+
+    // Push current context to navigation stack before entering component edit mode
+    if (editingComponentId) {
+      // We're currently editing a component, push it to stack
+      const currentComponent = getComponentById(editingComponentId);
+      if (currentComponent) {
+        pushComponentNavigation({
+          type: 'component',
+          id: editingComponentId,
+          name: currentComponent.name,
+          layerId: layer.id,
+        });
+      }
+    } else if (pageId) {
+      // We're on a page, push it to stack
+      const currentPage = pages.find((p) => p.id === pageId);
+      if (currentPage) {
+        pushComponentNavigation({
+          type: 'page',
+          id: pageId,
+          name: currentPage.name,
+          layerId: componentInstanceLayerId,
+        });
+      }
+    }
 
     // Clear selection FIRST to release lock on current page's channel
     // before switching to component's channel

@@ -1,18 +1,20 @@
 /**
  * Hash Utilities
- * 
+ *
  * Provides content hashing functionality for change detection across
  * pages, components, and layer styles.
  */
 
 import crypto from 'crypto';
+import { stripUIProperties } from './layer-utils';
+import type { Layer } from '@/types';
 
 /**
  * Generate a SHA-256 hash from any content
- * 
+ *
  * @param content - Any serializable content (object, string, number, etc.)
  * @returns SHA-256 hash as a hex string (64 characters)
- * 
+ *
  * @example
  * const hash1 = generateContentHash({ name: 'Test', value: 123 });
  * const hash2 = generateContentHash({ name: 'Test', value: 123 });
@@ -26,10 +28,10 @@ export function generateContentHash(content: any): string {
       .update('null')
       .digest('hex');
   }
-  
+
   // Serialize with sorted keys for deterministic hashing
   const serialized = serializeForHash(content);
-  
+
   // Generate SHA-256 hash
   return crypto
     .createHash('sha256')
@@ -46,25 +48,25 @@ function serializeForHash(obj: any): string {
   if (obj === null) return 'null';
   if (obj === undefined) return 'undefined';
   if (typeof obj !== 'object') return String(obj);
-  
+
   // Arrays
   if (Array.isArray(obj)) {
     return '[' + obj.map(item => serializeForHash(item)).join(',') + ']';
   }
-  
+
   // Objects - sort keys for deterministic output
   const sortedKeys = Object.keys(obj).sort();
   const pairs = sortedKeys.map(key => {
     const value = serializeForHash(obj[key]);
     return `"${key}":${value}`;
   });
-  
+
   return '{' + pairs.join(',') + '}';
 }
 
 /**
  * Generate a hash for page metadata only
- * 
+ *
  * @param pageData - Page metadata fields
  * @returns Content hash
  */
@@ -88,7 +90,8 @@ export function generatePageMetadataHash(pageData: {
 
 /**
  * Generate a hash for page layers content
- * 
+ * Strip UI-only properties (like 'open') before hashing to prevent false changes
+ *
  * @param layersData - Layer tree and CSS
  * @returns Content hash
  */
@@ -96,15 +99,21 @@ export function generatePageLayersHash(layersData: {
   layers: any;
   generated_css: string | null;
 }): string {
+  // Strip UI properties from layers before hashing
+  const layersForHash = Array.isArray(layersData.layers)
+    ? stripUIProperties(layersData.layers as Layer[])
+    : layersData.layers;
+
   return generateContentHash({
-    layers: layersData.layers,
+    layers: layersForHash,
     generated_css: layersData.generated_css,
   });
 }
 
 /**
  * Generate a hash for page content (metadata + layers)
- * 
+ * Strip UI-only properties (like 'open') before hashing to prevent false changes
+ *
  * @param pageData - Page metadata fields
  * @param layersData - Layer tree and CSS
  * @returns Content hash
@@ -123,6 +132,11 @@ export function generatePageContentHash(
     generated_css: string | null;
   }
 ): string {
+  // Strip UI properties from layers before hashing
+  const layersForHash = Array.isArray(layersData.layers)
+    ? stripUIProperties(layersData.layers as Layer[])
+    : layersData.layers;
+
   const combinedContent = {
     // Page metadata
     name: pageData.name,
@@ -132,16 +146,17 @@ export function generatePageContentHash(
     is_dynamic: pageData.is_dynamic,
     error_page: pageData.error_page,
     // Layer content
-    layers: layersData.layers,
+    layers: layersForHash,
     generated_css: layersData.generated_css,
   };
-  
+
   return generateContentHash(combinedContent);
 }
 
 /**
  * Generate a hash for component content
- * 
+ * Strip UI-only properties (like 'open') before hashing to prevent false changes
+ *
  * @param componentData - Component name and layers
  * @returns Content hash
  */
@@ -149,15 +164,20 @@ export function generateComponentContentHash(componentData: {
   name: string;
   layers: any;
 }): string {
+  // Strip UI properties from layers before hashing
+  const layersForHash = Array.isArray(componentData.layers)
+    ? stripUIProperties(componentData.layers as Layer[])
+    : componentData.layers;
+
   return generateContentHash({
     name: componentData.name,
-    layers: componentData.layers,
+    layers: layersForHash,
   });
 }
 
 /**
  * Generate a hash for layer style content
- * 
+ *
  * @param styleData - Style name, classes, and design
  * @returns Content hash
  */

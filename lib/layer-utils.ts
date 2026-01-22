@@ -10,6 +10,23 @@ import { resolveInlineVariables } from '@/lib/inline-variables';
 import { getInheritedValue } from '@/lib/tailwind-class-mapper';
 
 /**
+ * Strip UI-only properties from layers before comparison/hashing
+ * These properties (like 'open') are used for UI state and shouldn't trigger version changes
+ */
+export function stripUIProperties(layers: Layer[]): Layer[] {
+  return layers.map(layer => {
+    const { open, ...layerWithoutUI } = layer;
+    if (layer.children && layer.children.length > 0) {
+      return {
+        ...layerWithoutUI,
+        children: stripUIProperties(layer.children)
+      };
+    }
+    return layerWithoutUI;
+  });
+}
+
+/**
  * Check if a value is a FieldVariable
  */
 export function isFieldVariable(value: any): value is FieldVariable {
@@ -432,7 +449,7 @@ export type LayoutType = 'columns' | 'rows' | 'grid' | 'hidden' | null;
 /**
  * Get the layout type for a layer at a specific breakpoint
  * Takes into account CSS inheritance (desktop → tablet → mobile)
- * 
+ *
  * @param layer - The layer to check
  * @param breakpoint - The breakpoint to check (default: 'desktop')
  * @returns The layout type ('columns', 'rows', 'grid', 'hidden') or null if not a layout layer
@@ -449,10 +466,10 @@ export function getLayoutTypeForBreakpoint(
     // Fallback to design object if no classes
     const design = layer.design?.layout;
     if (!design?.isActive) return null;
-    
+
     const display = design.display;
     const flexDirection = design.flexDirection;
-    
+
     if (display === 'hidden') return 'hidden';
     if (display === 'grid' || display === 'Grid') return 'grid';
     if (display === 'flex' || display === 'Flex') {
@@ -505,7 +522,7 @@ const LAYOUT_CUSTOM_NAMES = ['Columns', 'Rows', 'Grid'];
 
 /**
  * Get the icon name (for `components/ui/Icon.tsx`) for a layer
- * 
+ *
  * @param layer - The layer to get the icon for
  * @param defaultIcon - Fallback icon (default: 'box')
  * @param breakpoint - Optional breakpoint for layout-aware icons
@@ -555,7 +572,7 @@ export function getLayerIcon(
 
 /**
  * Get the label for a layer (for display in the UI)
- * 
+ *
  * @param layer - The layer to get the name for
  * @param context - Optional context (component_name, collection_name)
  * @param breakpoint - Optional breakpoint for layout-aware names
@@ -1160,17 +1177,14 @@ function resolveComponentsInLayers(layers: Layer[], components: Component[]): La
           : [];
 
         // Return the wrapper with the component's content merged in
+        // IMPORTANT: Keep componentId so LayerRenderer knows this is a component instance
         const resolved = {
           ...layer,
           ...componentContent, // Merge the component's properties (classes, design, etc.)
           id: layer.id, // Keep the instance's ID
-          // Remove componentId so it's treated as a normal resolved layer
-          componentId: undefined,
+          componentId: layer.componentId, // Keep the original componentId for selection
           children: resolvedChildren,
         };
-
-        // Clean up undefined properties
-        delete resolved.componentId;
 
         return resolved;
       }
@@ -1209,11 +1223,11 @@ export function serializeLayers(layers: Layer[], components: Component[] = []): 
 /**
  * Assign order classes to a newly added layer if siblings have responsive order classes.
  * This ensures new layers appear at the end when the parent has responsive ordering.
- * 
+ *
  * IMPORTANT: This checks for order classes on ALL responsive breakpoints (tablet AND mobile),
  * not just the current breakpoint. This handles the case where a layer is added on Desktop
  * but siblings have tablet/mobile order overrides.
- * 
+ *
  * @param layers - The full layer tree
  * @param parentId - The parent layer ID where the new layer was added
  * @param newLayerId - The ID of the newly added layer
@@ -1231,20 +1245,20 @@ export function assignOrderClassToNewLayer(
     { name: 'tablet', prefix: 'max-lg:' },
     { name: 'mobile', prefix: 'max-md:' },
   ];
-  
+
   // Helper to normalize classes to string
   const normalizeClasses = (classes: string | string[] | undefined): string => {
     if (!classes) return '';
     return Array.isArray(classes) ? classes.join(' ') : classes;
   };
-  
+
   // Helper to check if a class string has order classes for a specific prefix
   const hasOrderClassForPrefix = (classes: string | string[] | undefined, prefix: string): boolean => {
     const normalized = normalizeClasses(classes);
     const regex = new RegExp(`${prefix.replace(':', '\\:')}order-\\d+`);
     return regex.test(normalized);
   };
-  
+
   // Helper to get the order value from classes for a specific prefix
   const getOrderValueForPrefix = (classes: string | string[] | undefined, prefix: string): number | null => {
     const normalized = normalizeClasses(classes);
@@ -1252,7 +1266,7 @@ export function assignOrderClassToNewLayer(
     const match = normalized.match(regex);
     return match ? parseInt(match[1], 10) : null;
   };
-  
+
   // Recursively find the parent and process
   function processLayers(layerList: Layer[]): Layer[] {
     return layerList.map(layer => {
@@ -1260,17 +1274,17 @@ export function assignOrderClassToNewLayer(
         // Found the parent - check each breakpoint for order classes
         const siblings = layer.children.filter(c => c.id !== newLayerId);
         const newLayer = layer.children.find(c => c.id === newLayerId);
-        
+
         if (!newLayer) {
           return layer;
         }
-        
+
         // Collect order classes to add for each breakpoint
         const orderClassesToAdd: string[] = [];
-        
+
         for (const config of breakpointConfigs) {
           const hasOrderedSiblings = siblings.some(c => hasOrderClassForPrefix(c.classes, config.prefix));
-          
+
           if (hasOrderedSiblings) {
             // Find the highest order value among siblings for this breakpoint
             let maxOrder = -1;
@@ -1280,18 +1294,18 @@ export function assignOrderClassToNewLayer(
                 maxOrder = orderValue;
               }
             });
-            
+
             // Assign the next order value
             const newOrderValue = maxOrder + 1;
             orderClassesToAdd.push(`${config.prefix}order-${newOrderValue}`);
           }
         }
-        
+
         if (orderClassesToAdd.length === 0) {
           // No siblings have order classes for any breakpoint
           return layer;
         }
-        
+
         // Update the new layer with order classes
         const updatedChildren = layer.children.map(child => {
           if (child.id === newLayerId) {
@@ -1304,13 +1318,13 @@ export function assignOrderClassToNewLayer(
           }
           return child;
         });
-        
+
         return {
           ...layer,
           children: updatedChildren,
         };
       }
-      
+
       // Recursively process children
       if (layer.children) {
         return {
@@ -1318,10 +1332,10 @@ export function assignOrderClassToNewLayer(
           children: processLayers(layer.children),
         };
       }
-      
+
       return layer;
     });
   }
-  
+
   return processLayers(layers);
 }

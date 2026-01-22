@@ -474,7 +474,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
               forceMount
             >
               <header className="py-5 flex justify-between shrink-0 sticky top-0 bg-gradient-to-b from-background to-transparent z-20">
-                <span className="font-medium">Layers</span>
+                <span className="font-medium">{editingComponentId ? 'Component layers' : 'Page layers'}</span>
                 <div className="-my-1">
                   <Button
                     size="xs" variant="secondary"

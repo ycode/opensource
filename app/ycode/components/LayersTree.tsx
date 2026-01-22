@@ -181,8 +181,8 @@ const LayerRow = React.memo(function LayerRow({
   const shouldHideChildren = isComponentInstance && !editingComponentId;
   const effectiveHasChildren = hasChildren && !shouldHideChildren;
 
-  // Use purple for component instances OR when editing a component
-  const usePurpleStyle = isComponentInstance || !!editingComponentId;
+  // Use purple ONLY for component instances (not for all layers when editing a component)
+  const usePurpleStyle = isComponentInstance;
 
   // Get icon name from blocks template system (breakpoint-aware)
   const layerIcon = getLayerIcon(node.layer, 'box', activeBreakpoint);
@@ -239,46 +239,31 @@ const LayerRow = React.memo(function LayerRow({
         {/* Drop Indicators */}
         {isOver && dropPosition === 'above' && (
           <div
-            className={cn(
-              'absolute top-0 left-0 right-0 h-[1.5px] z-50',
-              editingComponentId ? 'bg-purple-500' : 'bg-primary'
-            )}
+            className={cn('absolute top-0 left-0 right-0 h-[1.5px] z-50 bg-primary')}
             style={{
               marginLeft: `${node.depth * 14 + 8}px`,
             }}
           >
             <div
-              className={cn(
-                'absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950',
-                editingComponentId ? 'border-purple-500' : 'border-primary'
-              )}
+              className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary"
             />
           </div>
         )}
         {isOver && dropPosition === 'below' && (
           <div
-            className={cn(
-              'absolute bottom-0 left-0 right-0 h-[1.5px] z-50',
-              editingComponentId ? 'bg-purple-500' : 'bg-primary'
-            )}
+            className="absolute bottom-0 left-0 right-0 h-[1.5px] z-50 bg-primary"
             style={{
               marginLeft: `${node.depth * 14 + 8}px`,
             }}
           >
             <div
-              className={cn(
-                'absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950',
-                editingComponentId ? 'border-purple-500' : 'border-primary'
-              )}
+              className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary"
             />
           </div>
         )}
         {isOver && dropPosition === 'inside' && (
           <div
-            className={cn(
-              'absolute inset-0 border-[1.5px] rounded-lg z-40 pointer-events-none',
-              editingComponentId ? 'border-purple-500' : 'border-primary'
-            )}
+            className="absolute inset-0 border-[1.5px] rounded-lg z-40 pointer-events-none border-primary"
           />
         )}
 
@@ -478,16 +463,10 @@ function EndDropZone({
     >
       {isOver && (
         <div
-          className={cn(
-            'absolute top-0 left-0 right-0 h-[1.5px] z-50 ml-2',
-            editingComponentId ? 'bg-purple-500' : 'bg-primary'
-          )}
+          className="absolute top-0 left-0 right-0 h-[1.5px] z-50 ml-2 bg-primary"
         >
           <div
-            className={cn(
-              'absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950',
-              editingComponentId ? 'border-purple-500' : 'border-primary'
-            )}
+            className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary"
           />
         </div>
       )}

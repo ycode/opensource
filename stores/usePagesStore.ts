@@ -216,7 +216,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     });
 
     set({ pages, draftsByPageId: draftsMap });
-    
+
     // Initialize version tracking for all drafts
     import('@/lib/version-tracking').then(({ initializeVersionTracking }) => {
       Object.entries(draftsMap).forEach(([pageId, draft]) => {
@@ -364,7 +364,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       deleted_at: null,
     };
     set((state) => ({ draftsByPageId: { ...state.draftsByPageId, [page.id]: draft } }));
-    
+
     // Initialize version tracking for this draft
     import('@/lib/version-tracking').then(({ initializeVersionTracking }) => {
       initializeVersionTracking('page_layers', page.id, initialLayers);
@@ -497,12 +497,12 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
   addLayer: (pageId, parentLayerId, layerName) => {
     const { draftsByPageId, pages } = get();
     let draft = draftsByPageId[pageId];
-    
+
     // Initialize draft if it doesn't exist
     if (!draft) {
       const page = pages.find(p => p.id === pageId);
       if (!page) return;
-      
+
       draft = {
         id: `draft-${pageId}`,
         page_id: pageId,
@@ -521,7 +521,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     };
 
     let newLayers: Layer[];
-    
+
     if (!parentLayerId) {
       // Add to root
       newLayers = [...draft.layers, newLayer];
@@ -533,11 +533,11 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
       }));
     }
 
-    set({ 
-      draftsByPageId: { 
-        ...draftsByPageId, 
+    set({
+      draftsByPageId: {
+        ...draftsByPageId,
         [pageId]: { ...draft, layers: newLayers }
-      } 
+      }
     });
   },
 
@@ -1220,7 +1220,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     const { draftsByPageId, copyLayer } = get();
     const draft = draftsByPageId[pageId];
     if (!draft || layerIds.length === 0) return [];
-    
+
     const duplicatedLayers: Layer[] = [];
 
     // Filter out body and locked layers
@@ -2723,6 +2723,8 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
    * Create a component from a layer
    * Extracts the layer tree and creates a component
    * Then replaces the original layer with a component instance
+   *
+   * IMPORTANT: componentId is preserved in nested layers to support nested components
    */
   createComponentFromLayer: async (pageId, layerId, componentName) => {
     const { draftsByPageId, copyLayer } = get();
@@ -2736,12 +2738,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     try {
       // Create the component via API
       // The component should store the ENTIRE layer tree including the wrapper
+      // componentId is preserved in nested layers to allow nested components
       const response = await fetch('/api/components', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: componentName,
-          layers: [layerToCopy], // Store the complete layer tree with wrapper
+          layers: [layerToCopy], // Store the complete layer tree with componentId preserved
         }),
       });
 
