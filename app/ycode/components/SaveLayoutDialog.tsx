@@ -42,6 +42,7 @@ interface SaveLayoutDialogProps {
 const LAYOUT_CATEGORIES = [
   'Hero',
   'Features',
+  'Stats',
   'Blog header',
   'Blog posts',
   'CTA',
