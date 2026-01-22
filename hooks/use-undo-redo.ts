@@ -498,9 +498,9 @@ export function useUndoRedo({
       }
 
       // Check and restore required components before undoing
-      if (version.metadata?.requirements?.components) {
+      if (version.metadata?.requirements?.component_ids) {
         const { restoreComponents } = useComponentsStore.getState();
-        await restoreComponents(version.metadata.requirements.components);
+        await restoreComponents(version.metadata.requirements.component_ids);
       }
 
       // Apply the undo patch to restore previous state
@@ -514,8 +514,7 @@ export function useUndoRedo({
         const restoredJSON = JSON.stringify(restoredState);
 
         if (currentJSON === restoredJSON) {
-          console.warn('⚠️ Undo: Patch produced no change!');
-          console.warn('⚠️ This might indicate we\'re applying patches out of order');
+          // console.warn('⚠️ Undo: Patch produced no change!');
           // Don't return false - still update the store to keep stacks in sync
         }
 
@@ -543,9 +542,9 @@ export function useUndoRedo({
       // This is a fallback for older versions or create/delete actions
       if (version.snapshot) {
         // Check and restore required components before undoing
-        if (version.metadata?.requirements?.components) {
+        if (version.metadata?.requirements?.component_ids) {
           const { restoreComponents } = useComponentsStore.getState();
-          await restoreComponents(version.metadata.requirements.components);
+          await restoreComponents(version.metadata.requirements.component_ids);
         }
 
         // Mark this entity so auto-save won't create a new version

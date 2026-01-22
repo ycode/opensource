@@ -190,6 +190,11 @@ export async function recordVersionViaApi(
   // Pass the patch to intelligently determine which layer to select
   const uiMetadata = captureUIMetadata(entityType, entityId, redoPatch as any, currentState);
 
+  // Automatically detect required components from layer changes
+  const autoDetectedComponents = (entityType === 'page_layers' || entityType === 'component')
+    ? extractComponentRequirements(previousState as Layer[], currentState as Layer[])
+    : [];
+
   // Merge with additional metadata (e.g., requirements for undo)
   // Ensure nested properties are properly merged
   let metadata: VersionMetadata = {};
@@ -199,7 +204,14 @@ export async function recordVersionViaApi(
     metadata = { ...uiMetadata };
   }
 
-  // Merge additional metadata
+  // Add auto-detected component requirements
+  if (autoDetectedComponents.length > 0) {
+    metadata.requirements = {
+      component_ids: autoDetectedComponents,
+    };
+  }
+
+  // Merge additional metadata (which can add more requirements)
   if (additionalMetadata) {
     // Merge selection if exists in additionalMetadata
     if (additionalMetadata.selection) {
@@ -210,23 +222,16 @@ export async function recordVersionViaApi(
     }
 
     // Merge requirements if exists in additionalMetadata
-    if (additionalMetadata.requirements) {
+    if (additionalMetadata.requirements?.component_ids) {
+      const existingComponents = metadata.requirements?.component_ids || [];
+      const additionalComponents = additionalMetadata.requirements.component_ids;
+
+      // Combine and deduplicate component IDs
       metadata.requirements = {
         ...(metadata.requirements || {}),
-        ...additionalMetadata.requirements,
+        component_ids: [...new Set([...existingComponents, ...additionalComponents])],
       };
     }
-  }
-
-  // Log merged metadata in development
-  if (process.env.NODE_ENV === 'development' && additionalMetadata) {
-    console.log('[recordVersionViaApi] Merged metadata:', {
-      entityType,
-      entityId: entityId.substring(0, 8),
-      uiMetadata,
-      additionalMetadata,
-      finalMetadata: metadata,
-    });
   }
 
   // Prepare version data
@@ -404,6 +409,57 @@ function getAppropriateLayerSelection(
 }
 
 /**
+ * Extract all component IDs used in a layer tree
+ */
+function extractComponentIds(layers: Layer[]): string[] {
+  const componentIds = new Set<string>();
+
+  function traverse(layerList: Layer[]) {
+    for (const layer of layerList) {
+      if (layer.componentId) {
+        componentIds.add(layer.componentId);
+      }
+      if (layer.children && layer.children.length > 0) {
+        traverse(layer.children);
+      }
+    }
+  }
+
+  traverse(layers);
+  return Array.from(componentIds);
+}
+
+/**
+ * Extract component requirements from before/after states
+ * Returns only component IDs that were added or removed in the change
+ */
+function extractComponentRequirements(previousState: Layer[], currentState: Layer[]): string[] {
+  const previousComponents = new Set(extractComponentIds(previousState));
+  const currentComponents = new Set(extractComponentIds(currentState));
+
+  // Only include components that were affected by the change:
+  // - Components added (in current but not in previous) - needed for redo
+  // - Components removed (in previous but not in current) - needed for undo
+  const affectedComponents = new Set<string>();
+
+  // Components that were removed (needed for undo)
+  for (const id of previousComponents) {
+    if (!currentComponents.has(id)) {
+      affectedComponents.add(id);
+    }
+  }
+
+  // Components that were added (needed for redo)
+  for (const id of currentComponents) {
+    if (!previousComponents.has(id)) {
+      affectedComponents.add(id);
+    }
+  }
+
+  return Array.from(affectedComponents);
+}
+
+/**
  * Check if a layer exists in the state (for page_layers/component)
  */
 function layerExistsInState(state: any, layerId: string): boolean {
@@ -442,18 +498,6 @@ function captureUIMetadata(
       const editorState = useEditorStore.getState();
       const currentSelectedLayerId = editorState.selectedLayerId || null;
       const lastSelectedLayerId = editorState.lastSelectedLayerId || null;
-
-      // Log for debugging
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[captureUIMetadata]', {
-          entityType,
-          entityId,
-          hasPatch: !!patch,
-          hasCurrentState: !!currentState,
-          currentSelectedLayerId,
-          lastSelectedLayerId,
-        });
-      }
 
       // Build prioritized list of layer IDs
       let layerIds: string[] = [];

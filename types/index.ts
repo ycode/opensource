@@ -980,13 +980,12 @@ export type VersionActionType = 'create' | 'update' | 'delete';
 
 export interface VersionMetadata {
   // Layer selection - ordered by priority (index 0 = highest priority)
-  // When restoring, try layer_ids[0] first, then layer_ids[1], etc.
   selection?: {
     layer_ids?: string[];
   };
   // Requirements for undo operations (e.g., components that must exist before undoing)
   requirements?: {
-    components?: string[]; // Array of component IDs that must exist/be restored before undoing
+    component_ids?: string[]; // Array of component IDs that must exist/be restored before undoing
   };
 }
 

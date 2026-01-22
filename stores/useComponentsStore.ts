@@ -276,10 +276,11 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
 
         // Record versions with component requirement metadata
         for (const entity of affectedEntities) {
-          // Add metadata with component requirements so undo can restore the component first
+          // Note: Component requirements are now auto-detected from layers
+          // We still explicitly add the deleted component ID for clarity and as a safety measure
           const metadata: any = {
             requirements: {
-              components: [id], // The deleted component must be restored before undoing
+              component_ids: [id], // The deleted component must be restored before undoing
             },
           };
 
