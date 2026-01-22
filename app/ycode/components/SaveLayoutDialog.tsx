@@ -46,6 +46,7 @@ const LAYOUT_CATEGORIES = [
   'Blog header',
   'Blog posts',
   'CTA',
+  'Team',
   'Testimonials',
   'Pricing',
   'FAQ',
@@ -158,7 +159,7 @@ export default function SaveLayoutDialog({
         <DialogHeader>
           <DialogTitle>{mode === 'edit' ? 'Edit Layout' : 'Save as Layout'}</DialogTitle>
           <DialogDescription>
-            {mode === 'edit' 
+            {mode === 'edit'
               ? 'Update the layout name and category'
               : 'Save this layer structure as a reusable layout template'
             }
@@ -248,8 +249,8 @@ export default function SaveLayoutDialog({
               onClick={handleConfirm}
               disabled={!layoutName.trim() || isSaving}
             >
-              {isSaving 
-                ? (mode === 'edit' ? 'Updating...' : 'Saving...') 
+              {isSaving
+                ? (mode === 'edit' ? 'Updating...' : 'Saving...')
                 : (mode === 'edit' ? 'Update Layout' : 'Save Layout')
               }
             </Button>
