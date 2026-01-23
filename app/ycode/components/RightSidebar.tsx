@@ -371,6 +371,12 @@ const RightSidebar = React.memo(function RightSidebar({
     return layer.name === 'icon';
   };
 
+  // Helper function to check if layer is an image element
+  const isImageLayer = (layer: Layer | null): boolean => {
+    if (!layer) return false;
+    return layer.name === 'image' || layer.settings?.tag === 'img';
+  };
+
   // Control visibility rules based on layer type
   const shouldShowControl = (controlName: string, layer: Layer | null): boolean => {
     if (!layer) return false;
@@ -379,7 +385,8 @@ const RightSidebar = React.memo(function RightSidebar({
       case 'layout':
         // In text style mode, hide layout controls
         if (showTextStyleControls) return false;
-        // Layout controls: show for containers, hide for text-only elements
+        // Layout controls: show for containers, hide for text-only and image elements
+        if (isImageLayer(layer)) return false;
         return !isTextLayer(layer) || isButtonLayer(layer);
 
       case 'spacing':
