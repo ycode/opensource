@@ -50,17 +50,25 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     for (const user of data.users) {
-      // A user is "pending" if they were invited but haven't confirmed/set password
-      // Check if user has confirmed their email or has ever signed in
-      const hasConfirmed = user.email_confirmed_at !== null;
+      // Get metadata - check both user_metadata and raw_user_meta_data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const userAny = user as any;
+      const metadata = user.user_metadata || userAny.raw_user_meta_data || {};
+
+      // Check if this user was invited (we set invited_at when sending invite)
+      const wasInvited = !!metadata.invited_at;
+
+      // A user is "pending" if:
+      // 1. They were invited AND haven't signed in after the invite
+      // 2. They have no identities (no password set)
+      const hasIdentities = user.identities && user.identities.length > 0;
       const hasSignedIn = user.last_sign_in_at !== null;
 
-      if (hasConfirmed || hasSignedIn) {
-        // Get metadata - check both user_metadata and raw_user_meta_data
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const userAny = user as any;
-        const metadata = user.user_metadata || userAny.raw_user_meta_data || {};
+      // User is pending if they were invited but haven't completed setup
+      // (no sign-in after invite, or no identities meaning no password set)
+      const isPending = wasInvited && (!hasSignedIn || !hasIdentities);
 
+      if (!isPending) {
         activeUsers.push({
           id: user.id,
           email: user.email || '',
@@ -75,7 +83,7 @@ export async function GET(request: NextRequest) {
         pendingInvites.push({
           id: user.id,
           email: user.email || '',
-          invited_at: user.created_at,
+          invited_at: metadata.invited_at || user.created_at,
         });
       }
     }
