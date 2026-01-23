@@ -13,15 +13,15 @@ export const mediaTemplates: Record<string, BlockTemplate> = {
       settings: {
         tag: 'img'
       },
-      classes: ['w-full', 'h-auto'],
+      classes: ['w-[100%]', 'object-cover'],
       attributes: {
         loading: 'lazy'
       },
       design: {
         sizing: {
           isActive: true,
-          width: '100%',
-          height: 'auto'
+          width: '[100%]',
+          objectFit: 'cover'
         }
       },
       variables: {
