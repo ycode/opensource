@@ -143,6 +143,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const [fieldBindingOpen, setFieldBindingOpen] = useState(true);
   const [contentOpen, setContentOpen] = useState(true);
   const [localeLabelOpen, setLocaleLabelOpen] = useState(true);
+  const [variablesOpen, setVariablesOpen] = useState(true);
   const [variablesDialogOpen, setVariablesDialogOpen] = useState(false);
   const [interactionOwnerLayerId, setInteractionOwnerLayerId] = useState<string | null>(null);
   const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
@@ -1558,55 +1559,79 @@ const RightSidebar = React.memo(function RightSidebar({
 
     return (
       <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
-        {/* Variable overrides */}
-        {textVariables.length > 0 && (
-          <div className="flex flex-col gap-3 pb-4 border-b mb-4">
-            <Label>Variables</Label>
-            {textVariables.map((variable) => (
-              <div key={variable.id} className="grid grid-cols-3 gap-2">
-                <Label
-                  variant="muted" className="truncate"
-                  title={variable.name}
-                >
-                  {variable.name}
-                </Label>
-                <div className="col-span-2 *:w-full">
-                  <InputWithInlineVariables
-                    value={getOverrideValue(variable.id)}
-                    onChange={(val) => handleVariableOverrideChange(variable.id, val)}
-                    placeholder="Enter value..."
-                    fields={[]}
-                    allFields={fields}
-                    collections={collections}
-                    withFormatting={true}
-                    showFormattingToolbar={false}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
 
-        <div className="flex-1 flex items-center justify-center">
-          <Empty>
-            <EmptyMedia variant="icon">
-              <Icon name="component" className="size-3.5" />
-            </EmptyMedia>
-            <EmptyTitle>Component Instance</EmptyTitle>
-            <EmptyDescription>
-              This is an instance of &quot;{component.name}&quot;. To edit this component, click the button below or right-click and select &quot;Edit master component&quot;.
-            </EmptyDescription>
-            <div>
-              <Button
-                onClick={handleEditMasterComponent}
-                variant="secondary"
-                size="sm"
-              >
-                Edit component
-              </Button>
+        <Tabs className="flex flex-col min-h-0 !gap-0">
+
+          <div className="">
+            <TabsList className="w-full">
+              <TabsTrigger value="design">Design</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+              <TabsTrigger value="interactions">Interactions</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <hr className="mt-4" />
+
+          <div className="flex flex-col divide-y">
+
+            <SettingsPanel
+              title="Variables"
+              isOpen={variablesOpen}
+              onToggle={() => setVariablesOpen(!variablesOpen)}
+            >
+
+            {/* Variable overrides */}
+            {textVariables.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {textVariables.map((variable) => (
+                  <div key={variable.id} className="grid grid-cols-3 gap-2">
+                    <Label variant="muted" className="truncate">
+                      {variable.name}
+                    </Label>
+                    <div className="col-span-2 *:w-full">
+                      <InputWithInlineVariables
+                        value={getOverrideValue(variable.id)}
+                        onChange={(val) => handleVariableOverrideChange(variable.id, val)}
+                        placeholder="Enter value..."
+                        fields={[]}
+                        allFields={fields}
+                        collections={collections}
+                        withFormatting={true}
+                        showFormattingToolbar={false}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </SettingsPanel>
+
+            <div className="flex-1 flex items-center justify-center">
+              <Empty>
+                <EmptyMedia variant="icon">
+                  <Icon name="component" className="size-3.5" />
+                </EmptyMedia>
+                <EmptyTitle>Component Instance</EmptyTitle>
+                <EmptyDescription>
+                  This is an instance of &quot;{component.name}&quot;.
+                </EmptyDescription>
+                <div>
+                  <Button
+                    onClick={handleEditMasterComponent}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Edit component
+                  </Button>
+                </div>
+              </Empty>
             </div>
-          </Empty>
-        </div>
+
+          </div>
+
+        </Tabs>
+
       </div>
     );
   }
@@ -1617,7 +1642,7 @@ const RightSidebar = React.memo(function RightSidebar({
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}
-        className="flex flex-col flex-1 min-h-0"
+        className="flex flex-col flex-1 min-h-0 gap-0"
       >
         <div className="">
           <TabsList className="w-full">
@@ -1627,7 +1652,7 @@ const RightSidebar = React.memo(function RightSidebar({
           </TabsList>
         </div>
 
-        <hr className="mt-2" />
+        <hr className="mt-4" />
 
         {/* Design tab */}
         <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden mt-0">

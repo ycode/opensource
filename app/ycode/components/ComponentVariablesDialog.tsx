@@ -58,6 +58,9 @@ export default function ComponentVariablesDialog({
   // Get the currently selected variable
   const selectedVariable = textVariables.find((v) => v.id === selectedVariableId);
 
+  // Helper to get empty Tiptap doc
+  const getEmptyTiptapDoc = () => ({ type: 'doc', content: [{ type: 'paragraph' }] });
+
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {
@@ -72,6 +75,7 @@ export default function ComponentVariablesDialog({
         setEditingDefaultValue(getEmptyTiptapDoc());
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, componentId]);
 
   // Update editing values when selection changes
@@ -80,10 +84,8 @@ export default function ComponentVariablesDialog({
       setEditingName(selectedVariable.name);
       setEditingDefaultValue(selectedVariable.default_value || getEmptyTiptapDoc());
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVariableId]);
-
-  // Helper to get empty Tiptap doc
-  const getEmptyTiptapDoc = () => ({ type: 'doc', content: [{ type: 'paragraph' }] });
 
   // Handle creating a new text variable
   const handleAddTextVariable = async () => {
@@ -206,6 +208,7 @@ export default function ComponentVariablesDialog({
                       allFields={fields}
                       collections={collections}
                       withFormatting={true}
+                      showFormattingToolbar={false}
                     />
                   </div>
                 </div>
