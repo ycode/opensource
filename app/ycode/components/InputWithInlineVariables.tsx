@@ -59,6 +59,8 @@ interface InputWithInlineVariablesProps {
   disabled?: boolean;
   /** Enable formatting toolbar (bold, italic, underline, strikethrough) - uses Tiptap JSON format */
   withFormatting?: boolean;
+  /** Show or hide the formatting toolbar (defaults to true when withFormatting is enabled) */
+  showFormattingToolbar?: boolean;
 }
 
 export interface InputWithInlineVariablesHandle {
@@ -265,6 +267,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   collections,
   disabled = false,
   withFormatting = false,
+  showFormattingToolbar = true,
 }, ref) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   // Track if update is coming from editor to prevent infinite loop
@@ -573,9 +576,9 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   };
 
   return (
-    <div className="flex-1 input-with-inline-variables">
+    <div className="flex-1 input-with-inline-variables relative">
       {/* Formatting toolbar */}
-      {withFormatting && (
+      {withFormatting && showFormattingToolbar && (
         <div className="flex gap-0.5 bg-popover border border-border rounded-md shadow-sm p-0.5 mb-2">
           <Button
             variant="ghost"

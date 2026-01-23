@@ -1561,7 +1561,7 @@ const RightSidebar = React.memo(function RightSidebar({
         {/* Variable overrides */}
         {textVariables.length > 0 && (
           <div className="flex flex-col gap-3 pb-4 border-b mb-4">
-            <Label variant="muted" className="text-xs uppercase tracking-wider">Variables</Label>
+            <Label>Variables</Label>
             {textVariables.map((variable) => (
               <div key={variable.id} className="grid grid-cols-3 gap-2">
                 <Label
@@ -1579,6 +1579,7 @@ const RightSidebar = React.memo(function RightSidebar({
                     allFields={fields}
                     collections={collections}
                     withFormatting={true}
+                    showFormattingToolbar={false}
                   />
                 </div>
               </div>
@@ -1968,6 +1969,7 @@ const RightSidebar = React.memo(function RightSidebar({
                           allFields={fields}
                           collections={collections}
                           withFormatting={true}
+                          showFormattingToolbar={false}
                           disabled={showTextStyleControls}
                         />
                       )}
