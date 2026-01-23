@@ -763,27 +763,3 @@ export async function deleteAssetApi(assetId: string): Promise<boolean> {
     return false;
   }
 }
-
-// ============================================================================
-// Auth API
-// ============================================================================
-
-/**
- * Invite a user by email
- *
- * @param email - Email address to invite
- * @param redirectTo - Optional URL to redirect to after accepting invite
- * @returns Invite result with user data or error
- */
-export async function inviteUserApi(
-  email: string,
-  redirectTo?: string
-): Promise<ApiResponse<{ user: unknown; message: string }>> {
-  return apiRequest('/api/auth/invite', {
-    method: 'POST',
-    body: JSON.stringify({
-      email,
-      redirectTo,
-    }),
-  });
-}

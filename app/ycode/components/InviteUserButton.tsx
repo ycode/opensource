@@ -2,7 +2,7 @@
 
 /**
  * Invite User Button Component
- * 
+ *
  * A button with popover dropdown to invite users by email
  */
 

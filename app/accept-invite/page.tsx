@@ -2,7 +2,7 @@
 
 /**
  * Accept Invite Page
- * 
+ *
  * Handles user invitation flow - allows invited users to set their password
  * and complete their account setup.
  */
@@ -35,7 +35,7 @@ export default function AcceptInvitePage() {
   // Ensure dark mode is applied
   useEffect(() => {
     document.documentElement.classList.add('dark');
-    
+
     return () => {
       document.documentElement.classList.remove('dark');
     };
@@ -46,7 +46,7 @@ export default function AcceptInvitePage() {
     const verifyInvite = async () => {
       try {
         const supabase = await createBrowserClient();
-        
+
         if (!supabase) {
           setError('Application not configured. Please contact the administrator.');
           setVerifying(false);
@@ -84,7 +84,7 @@ export default function AcceptInvitePage() {
 
         // Check if user is already logged in (maybe clicked link while logged in)
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session?.user) {
           // User is already authenticated, redirect to app
           router.push('/ycode');
@@ -128,7 +128,7 @@ export default function AcceptInvitePage() {
 
     try {
       const supabase = await createBrowserClient();
-      
+
       if (!supabase) {
         setError('Application not configured');
         setLoading(false);

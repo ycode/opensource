@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { noCache } from '@/lib/api-response';
 
 /**
  * POST /api/auth/invite
- * 
+ *
  * Invite a user by email using Supabase's built-in invite system
  */
 export async function POST(request: NextRequest) {

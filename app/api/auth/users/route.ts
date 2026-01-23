@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
       avatar_url: string | null;
       created_at: string;
       last_sign_in_at: string | null;
-      email_confirmed_at: string | null;
     }> = [];
 
     const pendingInvites: Array<{
@@ -76,7 +75,6 @@ export async function GET(request: NextRequest) {
           avatar_url: metadata.avatar_url || null,
           created_at: user.created_at,
           last_sign_in_at: user.last_sign_in_at || null,
-          email_confirmed_at: user.email_confirmed_at || null,
         });
       } else {
         // User was invited but hasn't completed setup
