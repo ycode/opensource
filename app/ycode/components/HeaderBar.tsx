@@ -37,6 +37,7 @@ import { buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocali
 import type { Page } from '@/types';
 import type { User } from '@supabase/supabase-js';
 import ActiveUsersInHeader from './ActiveUsersInHeader';
+import InviteUserButton from './InviteUserButton';
 import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import { Separator } from '@/components/ui/separator';
@@ -534,6 +535,9 @@ export default function HeaderBar({
       <div className="flex items-center justify-end gap-2">
         {/* Active Users */}
         <ActiveUsersInHeader />
+
+        {/* Invite User */}
+        <InviteUserButton />
 
         {/* Save Status Indicator */}
         <div className="flex items-center justify-end w-[64px] text-xs text-white/50">
