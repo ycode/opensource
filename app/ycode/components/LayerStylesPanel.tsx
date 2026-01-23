@@ -24,6 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Icon } from '@/components/ui/icon';
 import { Badge } from '@/components/ui/badge';
 import type { Layer, LayerStyle } from '@/types';
@@ -58,7 +59,7 @@ export default function LayerStylesPanel({
     deleteStyle,
     getStyleById,
   } = useLayerStylesStore();
-  
+
   // Real-time style sync
   const liveLayerStyleUpdates = useLiveLayerStyleUpdates();
 
@@ -68,6 +69,8 @@ export default function LayerStylesPanel({
   const [newStyleName, setNewStyleName] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [styleToDelete, setStyleToDelete] = useState<string | null>(null);
 
   // Styles are loaded during app initialization (no need to load here)
 
@@ -98,7 +101,7 @@ export default function LayerStylesPanel({
       onLayerUpdate(layer.id, updatedLayer);
       setNewStyleName('');
       setIsCreating(false);
-      
+
       // Broadcast style creation to collaborators
       if (liveLayerStyleUpdates) {
         liveLayerStyleUpdates.broadcastStyleCreate(style);
@@ -175,7 +178,7 @@ export default function LayerStylesPanel({
     onLayerUpdate(layer.id, {
       styleOverrides: undefined,
     });
-    
+
     // Broadcast style update to collaborators
     if (liveLayerStyleUpdates) {
       liveLayerStyleUpdates.broadcastStyleUpdate(appliedStyle.id, {
@@ -186,25 +189,46 @@ export default function LayerStylesPanel({
   }, [layer, appliedStyle, currentClasses, currentDesign, updateStyle, updateStyleOnLayers, onLayerUpdate, liveLayerStyleUpdates]);
 
   /**
-   * Delete a style
+   * Open delete confirmation dialog
    */
-  const handleDeleteStyle = useCallback(async (styleId: string) => {
-    if (!confirm('Are you sure you want to delete this style? It will be detached from all layers.')) {
-      return;
-    }
+  const handleDeleteStyle = useCallback((styleId: string) => {
+    setStyleToDelete(styleId);
+    setDeleteDialogOpen(true);
+  }, []);
 
-    // Delete the style (backend will detach from all page versions in the database)
-    await deleteStyle(styleId);
-
-    // Update local state to detach style from all layers
-    // No need to reload draft - this updates all drafts instantly
-    detachStyleFromAllLayers(styleId);
-    
-    // Broadcast style deletion to collaborators
-    if (liveLayerStyleUpdates) {
-      liveLayerStyleUpdates.broadcastStyleDelete(styleId);
+  /**
+   * Handle dialog close - reset state
+   */
+  const handleDeleteDialogClose = useCallback((open: boolean) => {
+    setDeleteDialogOpen(open);
+    if (!open) {
+      setStyleToDelete(null);
     }
-  }, [deleteStyle, detachStyleFromAllLayers, liveLayerStyleUpdates]);
+  }, []);
+
+  /**
+   * Confirm and delete a style
+   */
+  const confirmDeleteStyle = useCallback(async () => {
+    if (!styleToDelete) return;
+
+    // Delete the style (backend soft-deletes and detaches from all layers)
+    // Store automatically removes from local state on success
+    const result = await deleteStyle(styleToDelete);
+
+    if (result.success) {
+      // Update local state to detach style from all layers
+      detachStyleFromAllLayers(styleToDelete);
+
+      // Broadcast style deletion to collaborators
+      if (liveLayerStyleUpdates) {
+        liveLayerStyleUpdates.broadcastStyleDelete(styleToDelete);
+      }
+    } else {
+      // If deletion failed, throw error so dialog stays open
+      throw new Error('Failed to delete layer style');
+    }
+  }, [styleToDelete, deleteStyle, detachStyleFromAllLayers, liveLayerStyleUpdates]);
 
   /**
    * Rename the applied style
@@ -215,7 +239,7 @@ export default function LayerStylesPanel({
     await updateStyle(appliedStyle.id, { name: renameValue.trim() });
     setIsRenaming(false);
     setRenameValue('');
-    
+
     // Broadcast style rename to collaborators
     if (liveLayerStyleUpdates) {
       liveLayerStyleUpdates.broadcastStyleUpdate(appliedStyle.id, { name: renameValue.trim() });
@@ -232,7 +256,6 @@ export default function LayerStylesPanel({
 
   return (
     <div className="flex flex-col gap-2 pb-2 pt-2">
-
       {/* Style Selector or Rename Input */}
       {!isCreating && (
         <>
@@ -275,7 +298,7 @@ export default function LayerStylesPanel({
               <div className="flex items-center gap-2">
                 <Select
                   onValueChange={handleApplyStyle}
-                  value={layer?.styleId || undefined}
+                  value={layer?.styleId || ''}
                 >
                   <SelectTrigger className="flex-1">
                     {styles.length === 0 ? (
@@ -353,72 +376,79 @@ export default function LayerStylesPanel({
 
       {!isCreating && !isRenaming && (
         <div className="flex">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setIsCreating(true)}
+            className="flex-1"
+          >
+            <Icon name="plus" />
+            New
+          </Button>
 
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setIsCreating(true)}
-          className="flex-1"
-        >
-          <Icon name="plus" />
-          New
-        </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleUpdateStyle}
+            disabled={!hasOverrides}
+          >
+            Update
+          </Button>
 
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handleUpdateStyle}
-          disabled={!hasOverrides}
-        >
-          Update
-        </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleDetachStyle}
+            disabled={!appliedStyle}
+          >
+            Detach
+          </Button>
 
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handleDetachStyle}
-          disabled={!appliedStyle}
-        >
-          Detach
-        </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm" variant="ghost"
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="sm" variant="ghost"
-
+                >
+                  <Icon name="more" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={handleResetOverrides}
+                disabled={!hasOverrides}
               >
-                <Icon name="more" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={handleResetOverrides}
-              disabled={!hasOverrides}
-            >
-              Reset
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => {
-                if (!appliedStyle) return;
-                setRenameValue(appliedStyle.name);
-                setIsRenaming(true);
-              }}
-            >
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => appliedStyle && handleDeleteStyle(appliedStyle.id)}
-              className="text-red-500"
-            >
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-      </div>
+                Reset
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (!appliedStyle) return;
+                  setRenameValue(appliedStyle.name);
+                  setIsRenaming(true);
+                }}
+              >
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => appliedStyle && handleDeleteStyle(appliedStyle.id)}
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       )}
 
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={handleDeleteDialogClose}
+        title="Delete layer style"
+        description="Are you sure you want to delete this style? It will be detached from all layers."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={confirmDeleteStyle}
+      />
     </div>
   );
 }

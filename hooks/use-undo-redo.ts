@@ -503,6 +503,13 @@ export function useUndoRedo({
         await restoreComponents(version.metadata.requirements.component_ids);
       }
 
+      // Check and restore required layer styles before undoing
+      if (version.metadata?.requirements?.layer_style_ids) {
+        const { useLayerStylesStore } = await import('@/stores/useLayerStylesStore');
+        const { restoreLayerStyles } = useLayerStylesStore.getState();
+        await restoreLayerStyles(version.metadata.requirements.layer_style_ids);
+      }
+
       // Apply the undo patch to restore previous state
       const currentState = getCurrentState();
 
@@ -545,6 +552,13 @@ export function useUndoRedo({
         if (version.metadata?.requirements?.component_ids) {
           const { restoreComponents } = useComponentsStore.getState();
           await restoreComponents(version.metadata.requirements.component_ids);
+        }
+
+        // Check and restore required layer styles before undoing
+        if (version.metadata?.requirements?.layer_style_ids) {
+          const { useLayerStylesStore } = await import('@/stores/useLayerStylesStore');
+          const { restoreLayerStyles } = useLayerStylesStore.getState();
+          await restoreLayerStyles(version.metadata.requirements.layer_style_ids);
         }
 
         // Mark this entity so auto-save won't create a new version
@@ -646,6 +660,19 @@ export function useUndoRedo({
         }
 
         return true;
+      }
+
+      // Check and restore required components before redoing
+      if (version.metadata?.requirements?.component_ids) {
+        const { restoreComponents } = useComponentsStore.getState();
+        await restoreComponents(version.metadata.requirements.component_ids);
+      }
+
+      // Check and restore required layer styles before redoing
+      if (version.metadata?.requirements?.layer_style_ids) {
+        const { useLayerStylesStore } = await import('@/stores/useLayerStylesStore');
+        const { restoreLayerStyles } = useLayerStylesStore.getState();
+        await restoreLayerStyles(version.metadata.requirements.layer_style_ids);
       }
 
       // Apply the redo patch

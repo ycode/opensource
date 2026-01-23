@@ -5,9 +5,10 @@
  *
  * Reusable confirmation dialog for destructive or important actions
  * Provides consistent UX for confirmation flows
+ * Automatically handles loading state for async callbacks
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -26,11 +28,11 @@ export interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   confirmVariant?: 'default' | 'destructive' | 'secondary';
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel?: () => void;
   showCloseButton?: boolean;
   saveLabel?: string;
-  onSave?: () => void;
+  onSave?: () => void | Promise<void>;
 }
 
 export function ConfirmDialog({
@@ -47,34 +49,74 @@ export function ConfirmDialog({
   saveLabel,
   onSave,
 }: ConfirmDialogProps) {
+  const [loading, setLoading] = useState(false);
+
   const handleCancel = () => {
+    if (loading) return; // Prevent closing while loading
     onCancel?.();
     onOpenChange?.(false);
   };
 
-  const handleConfirm = () => {
-    onConfirm();
-    onOpenChange?.(false);
+  const handleConfirm = async () => {
+    setLoading(true);
+    try {
+      const result = onConfirm();
+      // Check if result is a Promise
+      if (result instanceof Promise) {
+        await result;
+      }
+      // Close dialog after successful completion
+      onOpenChange?.(false);
+    } catch (error) {
+      console.error('Error in confirm action:', error);
+      // Keep dialog open on error so user can see what happened
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSave = () => {
-    onSave?.();
-    onOpenChange?.(false);
+  const handleSave = async () => {
+    if (!onSave) return;
+
+    setLoading(true);
+    try {
+      const result = onSave();
+      // Check if result is a Promise
+      if (result instanceof Promise) {
+        await result;
+      }
+      // Close dialog after successful completion
+      onOpenChange?.(false);
+    } catch (error) {
+      console.error('Error in save action:', error);
+      // Keep dialog open on error so user can see what happened
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    if (loading && !newOpen) return; // Prevent closing while loading
+    onOpenChange?.(newOpen);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={showCloseButton}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent showCloseButton={showCloseButton && !loading} aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
+
         <DialogDescription>{description}</DialogDescription>
+
         <DialogFooter className="sm:justify-between">
           <Button
             variant={confirmVariant}
             size="sm"
             onClick={handleConfirm}
+            disabled={loading}
           >
+            {loading && <Spinner />}
             {confirmLabel}
           </Button>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
@@ -82,6 +124,7 @@ export function ConfirmDialog({
               variant="secondary"
               size="sm"
               onClick={handleCancel}
+              disabled={loading}
             >
               {cancelLabel}
             </Button>
@@ -90,6 +133,7 @@ export function ConfirmDialog({
                 variant="default"
                 size="sm"
                 onClick={handleSave}
+                disabled={loading}
               >
                 {saveLabel}
               </Button>
