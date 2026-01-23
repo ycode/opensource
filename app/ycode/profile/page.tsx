@@ -283,7 +283,7 @@ export default function ProfilePage() {
       setConfirmPasswordInput('');
       setPasswordError(null);
       setIsPasswordDialogOpen(false);
-      
+
       // Refresh session to ensure it's still valid after password change
       await checkSession();
     } catch (error) {
@@ -414,7 +414,13 @@ export default function ProfilePage() {
               <div className="text-sm text-muted-foreground">Email address</div>
               <div className="flex items-center gap-4">
                 <span className="text-sm">{email}</span>
-                {/* Email edit temporarily disabled - requires Supabase email verification */}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setIsEmailDialogOpen(true)}
+                >
+                  Edit
+                </Button>
               </div>
             </div>
 
