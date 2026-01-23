@@ -8,7 +8,7 @@ import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import type { Layer, Locale } from '@/types';
+import type { Layer, Locale, ComponentVariable } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
@@ -54,8 +54,8 @@ interface LayerRendererProps {
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null; // For component collaboration broadcasts
   parentComponentLayerId?: string; // ID of the parent component layer (if rendering inside a component)
   parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
-  parentComponentVariables?: { id: string; name: string; default_value?: any }[]; // Component's text_variables for default value lookup
-  editingComponentVariables?: { id: string; name: string; default_value?: any }[]; // Variables when directly editing a component
+  parentComponentVariables?: ComponentVariable[]; // Component's variables for default value lookup
+  editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -207,8 +207,8 @@ const LayerItem: React.FC<{
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
   parentComponentLayerId?: string; // ID of the parent component layer (if this layer is inside a component)
   parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
-  parentComponentVariables?: { id: string; name: string; default_value?: any }[]; // Component's text_variables for default value lookup
-  editingComponentVariables?: { id: string; name: string; default_value?: any }[]; // Variables when directly editing a component
+  parentComponentVariables?: ComponentVariable[]; // Component's variables for default value lookup
+  editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
 }> = ({
   layer,
   isEditMode,
@@ -374,27 +374,25 @@ const LayerItem: React.FC<{
     // 1. Component instances on a page (parentComponentVariables is set)
     // 2. Directly editing a component (editingComponentVariables is set)
     const componentVariables = parentComponentVariables || editingComponentVariables;
-    if (layer.text_variable_id && componentVariables) {
+    const linkedVariableId = textVariable?.id;
+    if (linkedVariableId && componentVariables) {
       // Check for override value first (only when viewing an instance, not when editing component)
-      const overrideValue = parentComponentOverrides?.text?.[layer.text_variable_id];
-      const variableDef = componentVariables.find(v => v.id === layer.text_variable_id);
-      const valueToRender = (overrideValue !== undefined && overrideValue !== '') 
-        ? overrideValue 
-        : variableDef?.default_value;
-      
-      if (valueToRender !== undefined && valueToRender !== '') {
-        // Check if value is Tiptap JSON format
-        if (typeof valueToRender === 'object' && valueToRender.type === 'doc') {
-          // Create a temporary variable to render with formatting
-          const tempVariable = {
-            type: 'dynamic_rich_text' as const,
-            data: { content: valueToRender },
-          };
-          return renderRichText(tempVariable as any, effectiveCollectionItemData, layer.textStyles, useSpanForParagraphs, isEditMode);
+      const overrideValue = parentComponentOverrides?.text?.[linkedVariableId];
+      const variableDef = componentVariables.find(v => v.id === linkedVariableId);
+      const valueToRender = overrideValue ?? variableDef?.default_value;
+
+      if (valueToRender !== undefined) {
+        // Value is now typed as ComponentVariableValue (DynamicTextVariable | DynamicRichTextVariable)
+        if (valueToRender.type === 'dynamic_rich_text') {
+          return renderRichText(valueToRender as any, effectiveCollectionItemData, layer.textStyles, useSpanForParagraphs, isEditMode);
         }
-        // Return plain text value
-        return valueToRender;
+        if (valueToRender.type === 'dynamic_text') {
+          return valueToRender.data.content;
+        }
       }
+
+      // Variable is linked but has no default value - return empty string (don't fall through to layer's text)
+      return '';
     }
 
     // Check for DynamicRichTextVariable format (with formatting)
@@ -717,7 +715,7 @@ const LayerItem: React.FC<{
           liveComponentUpdates={liveComponentUpdates}
           parentComponentLayerId={layer.id}
           parentComponentOverrides={layer.componentOverrides}
-          parentComponentVariables={component.text_variables}
+          parentComponentVariables={component.variables}
         />
       );
     }

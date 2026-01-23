@@ -12,6 +12,7 @@ import {
   replaceLayerWithComponentInstance,
   findLayerById,
 } from '@/lib/layer-utils';
+import { generateId } from '@/lib/utils';
 
 interface ComponentsState {
   components: Component[];
@@ -589,17 +590,15 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     const component = get().getComponentById(componentId);
     if (!component) return null;
 
-    // Generate unique variable ID
-    const variableId = `var_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-
+    const variableId = generateId('cpv'); // CPV = Component Variable
     const newVariable = { id: variableId, name };
-    const updatedVariables = [...(component.text_variables || []), newVariable];
+    const updatedVariables = [...(component.variables || []), newVariable];
 
     try {
       const response = await fetch(`/api/components/${componentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text_variables: updatedVariables }),
+        body: JSON.stringify({ variables: updatedVariables }),
       });
 
       const result = await response.json();
@@ -611,7 +610,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       // Update local state
       set((state) => ({
         components: state.components.map((c) =>
-          c.id === componentId ? { ...c, text_variables: updatedVariables } : c
+          c.id === componentId ? { ...c, variables: updatedVariables } : c
         ),
       }));
 
@@ -627,7 +626,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     const component = get().getComponentById(componentId);
     if (!component) return;
 
-    const updatedVariables = (component.text_variables || []).map((v) =>
+    const updatedVariables = (component.variables || []).map((v) =>
       v.id === variableId ? { ...v, ...updates } : v
     );
 
@@ -635,7 +634,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       const response = await fetch(`/api/components/${componentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text_variables: updatedVariables }),
+        body: JSON.stringify({ variables: updatedVariables }),
       });
 
       const result = await response.json();
@@ -646,7 +645,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
 
       set((state) => ({
         components: state.components.map((c) =>
-          c.id === componentId ? { ...c, text_variables: updatedVariables } : c
+          c.id === componentId ? { ...c, variables: updatedVariables } : c
         ),
       }));
     } catch (error) {
@@ -659,23 +658,28 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     const component = get().getComponentById(componentId);
     if (!component) return;
 
-    const updatedVariables = (component.text_variables || []).filter((v) => v.id !== variableId);
+    const updatedVariables = (component.variables || []).filter((v) => v.id !== variableId);
 
     // Helper to unlink layers from the deleted variable
     const unlinkLayersFromVariable = (layers: Layer[]): Layer[] => {
       return layers.map(layer => {
         const updatedLayer = { ...layer };
-        
-        // Unlink if this layer references the deleted variable
-        if (layer.text_variable_id === variableId) {
-          delete updatedLayer.text_variable_id;
+
+        // Unlink if this layer's text variable references the deleted variable
+        const textVar = layer.variables?.text;
+        if (textVar?.id === variableId) {
+          const { id: _, ...textWithoutId } = textVar;
+          updatedLayer.variables = {
+            ...layer.variables,
+            text: textWithoutId as typeof textVar,
+          };
         }
-        
+
         // Recursively process children
         if (layer.children && layer.children.length > 0) {
           updatedLayer.children = unlinkLayersFromVariable(layer.children);
         }
-        
+
         return updatedLayer;
       });
     };
@@ -687,8 +691,8 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       const response = await fetch(`/api/components/${componentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          text_variables: updatedVariables,
+        body: JSON.stringify({
+          variables: updatedVariables,
           layers: updatedLayers,
         }),
       });
@@ -702,7 +706,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       // Update local state
       set((state) => ({
         components: state.components.map((c) =>
-          c.id === componentId ? { ...c, text_variables: updatedVariables, layers: updatedLayers } : c
+          c.id === componentId ? { ...c, variables: updatedVariables, layers: updatedLayers } : c
         ),
         // Also update draft if it exists
         componentDrafts: {
@@ -717,12 +721,12 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       // Import pages store and clean up componentOverrides that reference the deleted variable
       const { usePagesStore } = await import('./usePagesStore');
       const pagesState = usePagesStore.getState();
-      
+
       // Helper to clean overrides from layers
       const cleanOverridesFromLayers = (layers: Layer[]): Layer[] => {
         return layers.map(layer => {
           const updatedLayer = { ...layer };
-          
+
           // If this is an instance of our component, clean up the override
           if (layer.componentId === componentId && layer.componentOverrides?.text?.[variableId] !== undefined) {
             const { [variableId]: _, ...remainingOverrides } = layer.componentOverrides.text;
@@ -735,12 +739,12 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
               delete updatedLayer.componentOverrides;
             }
           }
-          
+
           // Recursively process children
           if (layer.children && layer.children.length > 0) {
             updatedLayer.children = cleanOverridesFromLayers(layer.children);
           }
-          
+
           return updatedLayer;
         });
       };

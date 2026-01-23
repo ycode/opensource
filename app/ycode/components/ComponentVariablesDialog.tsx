@@ -27,7 +27,7 @@ import InputWithInlineVariables from './InputWithInlineVariables';
 
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
-import type { ComponentTextVariable } from '@/types';
+import { createTextComponentVariableValue, extractTiptapFromComponentVariable } from '@/lib/variable-utils';
 
 interface ComponentVariablesDialogProps {
   open: boolean;
@@ -53,7 +53,7 @@ export default function ComponentVariablesDialog({
 
   // Get component and its variables
   const component = componentId ? getComponentById(componentId) : undefined;
-  const textVariables = component?.text_variables || [];
+  const textVariables = component?.variables || [];
 
   // Get the currently selected variable
   const selectedVariable = textVariables.find((v) => v.id === selectedVariableId);
@@ -68,7 +68,7 @@ export default function ComponentVariablesDialog({
       if (textVariables.length > 0) {
         setSelectedVariableId(textVariables[0].id);
         setEditingName(textVariables[0].name);
-        setEditingDefaultValue(textVariables[0].default_value || getEmptyTiptapDoc());
+        setEditingDefaultValue(extractTiptapFromComponentVariable(textVariables[0].default_value));
       } else {
         setSelectedVariableId(null);
         setEditingName('');
@@ -82,7 +82,7 @@ export default function ComponentVariablesDialog({
   useEffect(() => {
     if (selectedVariable) {
       setEditingName(selectedVariable.name);
-      setEditingDefaultValue(selectedVariable.default_value || getEmptyTiptapDoc());
+      setEditingDefaultValue(extractTiptapFromComponentVariable(selectedVariable.default_value));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVariableId]);
@@ -111,11 +111,27 @@ export default function ComponentVariablesDialog({
     }
   };
 
-  // Handle updating default value
-  const handleDefaultValueChange = async (value: any) => {
-    setEditingDefaultValue(value);
+  // Handle updating default value (local state only)
+  const handleDefaultValueChange = (tiptapContent: any) => {
+    setEditingDefaultValue(tiptapContent);
+  };
+
+  // Save default value on blur
+  const handleDefaultValueBlur = async (tiptapContent: any) => {
     if (!componentId || !selectedVariableId) return;
-    await updateTextVariable(componentId, selectedVariableId, { default_value: value });
+    
+    // Check if value has changed
+    const currentValue = selectedVariable?.default_value;
+    const currentTiptap = extractTiptapFromComponentVariable(currentValue);
+    
+    // Simple comparison - stringify and compare
+    if (JSON.stringify(currentTiptap) === JSON.stringify(tiptapContent)) {
+      return; // No change, skip API call
+    }
+    
+    // Wrap Tiptap content in proper ComponentVariableValue structure (text variable)
+    const variableValue = createTextComponentVariableValue(tiptapContent);
+    await updateTextVariable(componentId, selectedVariableId, { default_value: variableValue });
   };
 
   // Handle deleting a variable
@@ -203,6 +219,7 @@ export default function ComponentVariablesDialog({
                     <InputWithInlineVariables
                       value={editingDefaultValue}
                       onChange={handleDefaultValueChange}
+                      onBlur={handleDefaultValueBlur}
                       placeholder="Default value..."
                       fields={[]}
                       allFields={fields}

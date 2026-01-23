@@ -221,12 +221,12 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
   const [collectionItems, setCollectionItems] = useState<Array<{ id: string; label: string }>>([]);
 
-  // Get editing component's text_variables for default value display
+  // Get editing component's variables for default value display
   // Depends on `components` array to react to variable changes
   const editingComponentVariables = useMemo(() => {
     if (!editingComponentId) return undefined;
     const component = components.find(c => c.id === editingComponentId);
-    return component?.text_variables;
+    return component?.variables;
   }, [editingComponentId, components]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
 

@@ -19,8 +19,8 @@ export async function up(knex: Knex): Promise<void> {
     // Component data - stores the complete layer tree
     table.jsonb('layers').notNullable();
 
-    // Component variables - exposed text content for overrides
-    table.jsonb('text_variables').defaultTo('[]');
+    // Component variables - exposed properties for overrides (text, numbers, booleans, etc.)
+    table.jsonb('variables').defaultTo('[]');
 
     // Versioning for draft/published workflow
     table.boolean('is_published').notNullable().defaultTo(false);

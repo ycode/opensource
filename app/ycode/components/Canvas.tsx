@@ -19,7 +19,7 @@ import LayerRenderer from '@/components/LayerRenderer';
 import { serializeLayers } from '@/lib/layer-utils';
 import { cn } from '@/lib/utils';
 
-import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, Asset } from '@/types';
+import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, Asset, ComponentVariable } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 
@@ -89,7 +89,7 @@ interface CanvasProps {
   /** Callback when any click occurs inside the canvas (for closing panels) */
   onCanvasClick?: () => void;
   /** Component variables when editing a component (for default value display) */
-  editingComponentVariables?: { id: string; name: string; default_value?: any }[];
+  editingComponentVariables?: ComponentVariable[];
 }
 
 /**
@@ -106,7 +106,7 @@ interface CanvasContentProps {
   onLayerHover: (layerId: string | null) => void;
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
-  editingComponentVariables?: { id: string; name: string; default_value?: any }[];
+  editingComponentVariables?: ComponentVariable[];
 }
 
 function CanvasContent({

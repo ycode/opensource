@@ -44,12 +44,12 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, layers, text_variables } = body;
+    const { name, layers, variables } = body;
 
     const updates: any = {};
     if (name !== undefined) updates.name = name;
     if (layers !== undefined) updates.layers = layers;
-    if (text_variables !== undefined) updates.text_variables = text_variables;
+    if (variables !== undefined) updates.variables = variables;
 
     const component = await updateComponent(id, updates);
 

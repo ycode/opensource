@@ -66,6 +66,7 @@ import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-
 
 // 7. Types
 import type { Layer, FieldVariable, CollectionField } from '@/types';
+import { createTextComponentVariableValue, extractTiptapFromComponentVariable } from '@/lib/variable-utils';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import {
   DropdownMenu,
@@ -1568,43 +1569,32 @@ const RightSidebar = React.memo(function RightSidebar({
       }
     };
 
-    const textVariables = component.text_variables || [];
+    const textVariables = component.variables || [];
     const currentOverrides = selectedLayer.componentOverrides?.text || {};
 
-    // Convert string to Tiptap JSON for display
+    // Extract Tiptap content from text ComponentVariableValue
     // Falls back to variable's default_value if no override is set
     const getOverrideValue = (variableId: string) => {
       const overrideValue = currentOverrides[variableId];
       const variableDef = textVariables.find(v => v.id === variableId);
 
       // Use override if set, otherwise fall back to default value
-      const value = (overrideValue !== undefined && overrideValue !== '')
-        ? overrideValue
-        : variableDef?.default_value;
+      const value = overrideValue ?? variableDef?.default_value;
 
-      if (!value) {
-        return { type: 'doc', content: [{ type: 'paragraph' }] };
-      }
-      // If it's already Tiptap JSON, return as-is
-      if (typeof value === 'object' && value.type === 'doc') {
-        return value;
-      }
-      // Convert string to Tiptap format
-      return {
-        type: 'doc',
-        content: [{ type: 'paragraph', content: [{ type: 'text', text: value }] }],
-      };
+      // Extract Tiptap content using utility function
+      return extractTiptapFromComponentVariable(value);
     };
 
-    // Convert Tiptap JSON to string for storage
-    const handleVariableOverrideChange = (variableId: string, value: any) => {
-      // Store as Tiptap JSON format to preserve formatting
+    // Store override as text ComponentVariableValue (DynamicRichTextVariable)
+    const handleVariableOverrideChange = (variableId: string, tiptapContent: any) => {
+      // Store as DynamicRichTextVariable to preserve formatting
+      const variableValue = createTextComponentVariableValue(tiptapContent);
       onLayerUpdate(selectedLayerId!, {
         componentOverrides: {
           ...selectedLayer.componentOverrides,
           text: {
             ...currentOverrides,
-            [variableId]: value,
+            [variableId]: variableValue,
           },
         },
       });
@@ -1989,20 +1979,35 @@ const RightSidebar = React.memo(function RightSidebar({
             {selectedLayer && isTextEditable(selectedLayer) && (() => {
               // Get component variables if editing a component
               const editingComponent = editingComponentId ? getComponentById(editingComponentId) : undefined;
-              const componentVariables = editingComponent?.text_variables || [];
-              const linkedVariableId = selectedLayer.text_variable_id;
+              const componentVariables = editingComponent?.variables || [];
+              const linkedVariableId = selectedLayer.variables?.text?.id;
               const linkedVariable = componentVariables.find(v => v.id === linkedVariableId);
 
               // Handle linking a layer to a variable
               const handleLinkVariable = (variableId: string) => {
                 if (!selectedLayerId) return;
-                handleLayerUpdate(selectedLayerId, { text_variable_id: variableId });
+                const currentTextVar = selectedLayer.variables?.text;
+                handleLayerUpdate(selectedLayerId, {
+                  variables: {
+                    ...selectedLayer.variables,
+                    text: currentTextVar ? { ...currentTextVar, id: variableId } : { type: 'dynamic_text', id: variableId, data: { content: '' } },
+                  },
+                });
               };
 
               // Handle unlinking a layer from a variable
               const handleUnlinkVariable = () => {
                 if (!selectedLayerId) return;
-                handleLayerUpdate(selectedLayerId, { text_variable_id: undefined });
+                const currentTextVar = selectedLayer.variables?.text;
+                if (currentTextVar) {
+                  const { id: _, ...textWithoutId } = currentTextVar;
+                  handleLayerUpdate(selectedLayerId, {
+                    variables: {
+                      ...selectedLayer.variables,
+                      text: textWithoutId as typeof currentTextVar,
+                    },
+                  });
+                }
               };
 
               return (
@@ -2057,15 +2062,22 @@ const RightSidebar = React.memo(function RightSidebar({
                     </div>
                     <div className="col-span-2 *:w-full">
                       {linkedVariable ? (
-                        <Button variant="purple" className="!justify-between">
-                          <span>{linkedVariable.name}</span>
-                          <Button
-                            className="!size-4 !p-0"
-                            variant="outline"
-                            onClick={handleUnlinkVariable}
-                          >
-                            <Icon name="x" className="size-2" />
-                          </Button>
+                        <Button
+                          asChild
+                          variant="purple"
+                          className="!justify-between"
+                          onClick={handleUnlinkVariable}
+                        >
+                          <div>
+                            <span>{linkedVariable.name}</span>
+                            <Button
+                              className="!size-4 !p-0"
+                              variant="outline"
+                              onClick={handleUnlinkVariable}
+                            >
+                              <Icon name="x" className="size-2" />
+                            </Button>
+                          </div>
                         </Button>
                       ) : (
                         <InputWithInlineVariables

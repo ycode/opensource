@@ -265,11 +265,8 @@ export interface Layer {
   // Components (reusable layer trees)
   componentId?: string; // Reference to applied Component
   componentOverrides?: {
-    text?: Record<string, string | any>; // text_variable_id → override value (string or Tiptap JSON)
+    text?: Record<string, ComponentVariableValue>; // ComponentVariable.id → override value
   };
-
-  // Component variable linking (for text layers within components)
-  text_variable_id?: string; // Reference to ComponentTextVariable.id
 
   // Collection binding (for collection layers)
   collection?: {
@@ -338,11 +335,11 @@ export interface BlockTemplate {
   template: LayerTemplate | LayerTemplateRef;
 }
 
-// Component Variable Types
-export interface ComponentTextVariable {
+// Component Variable Types (ComponentVariableValue defined after text variable types)
+export interface ComponentVariable {
   id: string;        // Unique variable ID
   name: string;      // Display name (e.g., "Button title")
-  default_value?: any; // Default value (Tiptap JSON or string)
+  default_value?: ComponentVariableValue; // Default value
 }
 
 // Component Types (Reusable Layer Trees)
@@ -353,8 +350,8 @@ export interface Component {
   // Component data - complete layer tree
   layers: Layer[];
 
-  // Component variables - exposed text content
-  text_variables?: ComponentTextVariable[];
+  // Component variables - exposed properties for overrides
+  variables?: ComponentVariable[];
 
   // Versioning fields
   content_hash?: string; // SHA-256 hash for change detection
@@ -775,6 +772,7 @@ export interface Setting {
 }
 
 export interface VariableType {
+  id?: string; // Reference to ComponentVariable.id (for component variable linking)
   type: 'field' | 'asset' | 'video'  | 'dynamic_rich_text' | 'dynamic_text'| 'static_text';
   data: object;
 }
@@ -831,6 +829,9 @@ export interface StaticTextVariable extends VariableType {
 }
 
 export type InlineVariable = FieldVariable;
+
+// Component variable value type (text variables for now, expandable in future)
+export type ComponentVariableValue = DynamicTextVariable | DynamicRichTextVariable;
 
 // Pagination Layer Definition (partial Layer for styling pagination controls)
 export interface PaginationLayerConfig {
