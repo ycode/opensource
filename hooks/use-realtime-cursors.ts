@@ -81,6 +81,7 @@ type CursorEventPayload = {
         id: number
         name: string
         authId?: string // Actual auth user ID for lock comparison
+        avatarUrl?: string | null
     }
     color: string
     timestamp: number
@@ -128,6 +129,7 @@ export const useRealtimeCursors = ({
           id: userId,
           name: username,
           authId: user?.id, // Include actual auth ID for lock comparison
+          avatarUrl: user?.user_metadata?.avatar_url || null,
         },
         color: color,
         timestamp: new Date().getTime(),
@@ -207,11 +209,12 @@ export const useRealtimeCursors = ({
                 const isRemoteUser = remoteAuthId && remoteAuthId !== currentAuthId;
                 
                 if (isRemoteUser) {
-                  // Store user info for lock indicator display (color, email, etc.)
+                  // Store user info for lock indicator display (color, email, avatar, etc.)
                   storeUpdateUser(remoteAuthId, {
                     user_id: remoteAuthId,
                     email: presence.email || presence.name || 'Unknown',
                     color: presence.color || '#3b82f6',
+                    avatar_url: presence.avatarUrl || null,
                     last_active: Date.now()
                   });
                 }
@@ -260,6 +263,7 @@ export const useRealtimeCursors = ({
               user_id: remoteUser.authId,
               email: remoteUser.name,
               color: remoteColor,
+              avatar_url: remoteUser.avatarUrl || null,
               last_active: Date.now()
             });
           }
@@ -278,12 +282,14 @@ export const useRealtimeCursors = ({
         .subscribe(async (status: any) => {
           if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
             const currentUser = userRef.current;
+            const avatarUrl = currentUser?.user_metadata?.avatar_url || null;
             await channel.track({ 
               key: userId,
               authId: currentUser?.id, // Include auth ID for lock comparison
               email: currentUser?.email || username,
               name: username,
               color: color,
+              avatarUrl: avatarUrl,
               lockedLayerId: selectedLayerId || null
             })
             channelRef.current = channel
@@ -291,11 +297,13 @@ export const useRealtimeCursors = ({
                     
             // Set current user in collaboration store
             if (currentUser && currentUser.email) {
-              setCurrentUser(currentUser.id, currentUser.email)
-              // Also add current user to users object with email
+              const avatarUrl = currentUser.user_metadata?.avatar_url || null;
+              setCurrentUser(currentUser.id, currentUser.email, avatarUrl)
+              // Also add current user to users object with email and avatar
               updateUser(currentUser.id, {
                 user_id: currentUser.id,
                 email: currentUser.email,
+                avatar_url: avatarUrl,
                 color: color,
                 last_active: Date.now()
               })

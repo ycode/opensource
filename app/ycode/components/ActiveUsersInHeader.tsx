@@ -101,10 +101,18 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
             {displayUsers.slice(0, 3).map((user, index) => (
               <div
                 key={user.user_id || `user-${index}`}
-                className="size-8 rounded-full bg-neutral-700 border-2 border-background flex items-center justify-center text-xs text-current/75 font-medium cursor-pointer"
-                style={{ backgroundColor: user.color }}
+                className="size-8 rounded-full bg-neutral-700 border-2 border-background flex items-center justify-center text-xs text-current/75 font-medium cursor-pointer overflow-hidden"
+                style={{ backgroundColor: user.avatar_url ? undefined : user.color }}
               >
-                {getUserInitials(user.email || '', user.display_name)}
+                {user.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={user.display_name || user.email || 'User'}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  getUserInitials(user.email || '', user.display_name)
+                )}
               </div>
             ))}
             {hasMoreUsers && (
@@ -127,10 +135,18 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
                 {/* Avatar with status */}
                 <div className="relative">
                   <div
-                    className="size-8 rounded-full bg-neutral-700 flex items-center justify-center text-xs text-current/75 font-medium"
-                    style={{ backgroundColor: user.color }}
+                    className="size-8 rounded-full bg-neutral-700 flex items-center justify-center text-xs text-current/75 font-medium overflow-hidden"
+                    style={{ backgroundColor: user.avatar_url ? undefined : user.color }}
                   >
-                    {getUserInitials(user.email || '', user.display_name)}
+                    {user.avatar_url ? (
+                      <img
+                        src={user.avatar_url}
+                        alt={user.display_name || user.email || 'User'}
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      getUserInitials(user.email || '', user.display_name)
+                    )}
                   </div>
                   {/* Status indicator */}
                   <div className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-popover ${getStatusColor(user)}`} />

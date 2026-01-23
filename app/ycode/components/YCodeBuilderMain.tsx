@@ -29,6 +29,7 @@ import HeaderBar from '../components/HeaderBar';
 import LeftSidebar from '../components/LeftSidebar';
 import SettingsContent from '../components/SettingsContent';
 import LocalizationContent from '../components/LocalizationContent';
+import ProfileContent from '../components/ProfileContent';
 import UpdateNotification from '@/components/UpdateNotification';
 import MigrationChecker from '@/components/MigrationChecker';
 import BuilderLoading from '@/components/BuilderLoading';
@@ -177,7 +178,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const setCurrentCollaborationUser = useCollaborationPresenceStore((state) => state.setCurrentUser);
   useEffect(() => {
     if (user) {
-      setCurrentCollaborationUser(user.id, user.email || '');
+      const avatarUrl = user.user_metadata?.avatar_url || null;
+      setCurrentCollaborationUser(user.id, user.email || '', avatarUrl);
     }
   }, [user, setCurrentCollaborationUser]);
 
@@ -1766,24 +1768,24 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         signOut={signOut}
         showPageDropdown={showPageDropdown}
         setShowPageDropdown={setShowPageDropdown}
-        currentPage={routeType === 'settings' ? undefined : currentPage}
-        currentPageId={routeType === 'settings' ? null : currentPageId}
-        pages={routeType === 'settings' ? [] : pages}
-        setCurrentPageId={routeType === 'settings' ? () => {} : setCurrentPageId}
-        isSaving={routeType === 'settings' || routeType === 'localization' ? false : isCurrentlySaving}
-        hasUnsavedChanges={routeType === 'settings' || routeType === 'localization' ? false : hasUnsavedChanges}
-        lastSaved={routeType === 'settings' || routeType === 'localization' ? null : lastSaved}
-        isPublishing={routeType === 'settings' || routeType === 'localization' ? false : isPublishing}
-        setIsPublishing={routeType === 'settings' || routeType === 'localization' ? () => {} : setIsPublishing}
-        saveImmediately={routeType === 'settings' || routeType === 'localization' ? async () => {} : saveImmediately}
-        activeTab={routeType === 'settings' || routeType === 'localization' ? 'pages' : activeTab}
+        currentPage={routeType === 'settings' || routeType === 'profile' ? undefined : currentPage}
+        currentPageId={routeType === 'settings' || routeType === 'profile' ? null : currentPageId}
+        pages={routeType === 'settings' || routeType === 'profile' ? [] : pages}
+        setCurrentPageId={routeType === 'settings' || routeType === 'profile' ? () => {} : setCurrentPageId}
+        isSaving={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? false : isCurrentlySaving}
+        hasUnsavedChanges={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? false : hasUnsavedChanges}
+        lastSaved={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? null : lastSaved}
+        isPublishing={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? false : isPublishing}
+        setIsPublishing={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? () => {} : setIsPublishing}
+        saveImmediately={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? async () => {} : saveImmediately}
+        activeTab={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? 'pages' : activeTab}
         onExitComponentEditMode={handleExitComponentEditMode}
-        publishCount={routeType === 'settings' || routeType === 'localization' ? 0 : publishCount}
-        onPublishSuccess={routeType === 'settings' || routeType === 'localization' ? () => {} : () => {
+        publishCount={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? 0 : publishCount}
+        onPublishSuccess={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? () => {} : () => {
           loadPublishCounts();
           // No need to reload pages - publish already updates store state
         }}
-        isSettingsRoute={routeType === 'settings' || routeType === 'localization'}
+        isSettingsRoute={routeType === 'settings' || routeType === 'localization' || routeType === 'profile'}
       />
 
       {/* Main Content Area */}
@@ -1793,6 +1795,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           <SettingsContent>{children}</SettingsContent>
         ) : routeType === 'localization' ? (
           <LocalizationContent>{children}</LocalizationContent>
+        ) : routeType === 'profile' ? (
+          <ProfileContent>{children}</ProfileContent>
         ) : (
           <>
             {/* Left Sidebar - Pages & Layers (hidden in preview mode) */}
@@ -1891,7 +1895,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
     )}
 
     {/* Collaboration: Realtime Cursors - scoped to context (tab + page/collection/component) */}
-    {user && cursorRoomName && routeType !== 'settings' && routeType !== 'localization' && (
+    {user && cursorRoomName && routeType !== 'settings' && routeType !== 'localization' && routeType !== 'profile' && (
       <Suspense fallback={null}>
         <RealtimeCursors
           roomName={cursorRoomName}
