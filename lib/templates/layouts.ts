@@ -27577,4 +27577,1140 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
       'customName': 'Section'
     },
   },
+
+  'testimonials-001': {
+    category: 'Testimonials',
+    previewImage: '/layouts/testimonials-001.webp',
+    template: {
+      'name': 'section',
+      'open': false,
+      'design': {
+        'layout': {
+          'display': 'Flex',
+          'isActive': true,
+          'alignItems': 'center',
+          'flexDirection': 'column'
+        },
+        'sizing': {
+          'width': '[100%]',
+          'isActive': true
+        },
+        'spacing': {
+          'isActive': true,
+          'paddingTop': '140',
+          'paddingBottom': '140'
+        },
+        'backgrounds': {
+          'isActive': true,
+          'backgroundColor': '#ffffff'
+        }
+      },
+      'classes': 'flex flex-col items-center pt-[140px] pb-[140px] bg-[#ffffff] w-[100%]',
+      'customName': 'Section',
+      'children': [
+        {
+          'name': 'div',
+          'open': false,
+          'design': {
+            'layout': {
+              'display': 'Flex',
+              'isActive': true,
+              'flexDirection': 'column',
+              'alignItems': 'center'
+            },
+            'sizing': {
+              'width': '100%',
+              'isActive': true,
+              'maxWidth': '1280px'
+            },
+            'spacing': {
+              'isActive': true,
+              'paddingLeft': '32px',
+              'paddingRight': '32px'
+            }
+          },
+          'classes': 'flex flex-col max-w-[1280px] w-[100%] pl-[32px] pr-[32px] items-center',
+          'customName': 'Container',
+          'children': [
+            {
+              'name': 'div',
+              'open': false,
+              'design': {
+                'layout': {
+                  'display': 'flex',
+                  'isActive': true,
+                  'flexDirection': 'column',
+                  'alignItems': 'center',
+                  'gap': '56'
+                },
+                'spacing': {
+                  'isActive': true,
+                  'paddingMode': 'all'
+                },
+                'sizing': {
+                  'width': '[100%]',
+                  'isActive': true,
+                  'maxWidth': '768'
+                }
+              },
+              'classes': 'max-lg:flex max-lg:flex-col max-md:gap-[72px] max-lg:gap-[72px] flex flex-col items-center gap-[56px] w-[100%] max-w-[768px]',
+              'customName': 'Columns',
+              'children': [
+                {
+                  'name': 'div',
+                  'open': false,
+                  'design': {
+                    'layout': {
+                      'display': 'Flex',
+                      'isActive': true,
+                      'flexDirection': 'column'
+                    }
+                  },
+                  'classes': 'flex flex-col',
+                  'children': [
+                    {
+                      'name': 'image',
+                      'design': {
+                        'sizing': {
+                          'width': '96',
+                          'isActive': true,
+                          'objectFit': 'cover',
+                          'aspectRatio': '[1/1]'
+                        },
+                        'borders': {
+                          'isActive': true,
+                          'borderRadius': '100'
+                        },
+                        'spacing': {
+                          'isActive': true,
+                          'paddingMode': 'all'
+                        }
+                      },
+                      'classes': 'aspect-[1/1] object-cover rounded-[100px] w-[96px]',
+                      'settings': {
+                        'tag': 'img'
+                      },
+                      'variables': {
+                        'image': {
+                          'alt': {
+                            'data': {
+                              'content': 'Image description'
+                            },
+                            'type': 'dynamic_text'
+                          },
+                          'src': {
+                            'data': {
+                              'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                            },
+                            'type': 'dynamic_text'
+                          }
+                        }
+                      },
+                      'attributes': {
+                        'loading': 'lazy'
+                      },
+                      'customName': 'Image'
+                    }
+                  ]
+                },
+                {
+                  'name': 'text',
+                  'settings': {
+                    'tag': 'p'
+                  },
+                  'classes': 'text-[24px] text-center font-[500] max-md:text-[18px]',
+                  'restrictions': {
+                    'editText': true
+                  },
+                  'design': {
+                    'typography': {
+                      'isActive': true,
+                      'textAlign': 'center',
+                      'fontWeight': '500',
+                      'fontSize': '18'
+                    }
+                  },
+                  'variables': {
+                    'text': {
+                      'type': 'dynamic_rich_text',
+                      'data': {
+                        'content': {
+                          'type': 'doc',
+                          'content': [
+                            {
+                              'type': 'paragraph',
+                              'content': [
+                                {
+                                  'type': 'text',
+                                  'text': "I’ve built several websites for my clients using this platform, and I'm very satisfied. The templates make it easy to create stunning sites quickly, and my clients love the results!"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  'customName': 'Paragraph'
+                },
+                {
+                  'name': 'div',
+                  'open': false,
+                  'design': {
+                    'layout': {
+                      'display': 'Flex',
+                      'isActive': true,
+                      'flexDirection': 'column'
+                    }
+                  },
+                  'classes': 'flex flex-col',
+                  'customName': 'Rows',
+                  'children': [
+                    {
+                      'name': 'text',
+                      'design': {
+                        'typography': {
+                          'fontSize': '14',
+                          'isActive': true,
+                          'fontWeight': '500',
+                          'textAlign': 'center'
+                        }
+                      },
+                      'classes': 'text-[14px] font-[500] text-center',
+                      'settings': {
+                        'tag': 'p'
+                      },
+                      'variables': {
+                        'text': {
+                          'data': {
+                            'content': {
+                              'type': 'doc',
+                              'content': [
+                                {
+                                  'type': 'paragraph',
+                                  'content': [
+                                    {
+                                      'text': 'Lena Harper',
+                                      'type': 'text'
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          'type': 'dynamic_rich_text'
+                        }
+                      },
+                      'customName': 'Paragraph',
+                      'restrictions': {
+                        'editText': true
+                      }
+                    },
+                    {
+                      'name': 'text',
+                      'design': {
+                        'typography': {
+                          'color': '#000000/60',
+                          'fontSize': '14',
+                          'isActive': true,
+                          'textAlign': 'center'
+                        }
+                      },
+                      'classes': 'text-[14px] text-[#000000]/60 text-center',
+                      'settings': {
+                        'tag': 'p'
+                      },
+                      'variables': {
+                        'text': {
+                          'data': {
+                            'content': {
+                              'type': 'doc',
+                              'content': [
+                                {
+                                  'type': 'paragraph',
+                                  'content': [
+                                    {
+                                      'text': 'Head of Product Design',
+                                      'type': 'text'
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          'type': 'dynamic_rich_text'
+                        }
+                      },
+                      'customName': 'Paragraph',
+                      'restrictions': {
+                        'editText': true
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+  },
+
+  'testimonials-002': {
+    category: 'Testimonials',
+    previewImage: '/layouts/testimonials-002.webp',
+    template: {
+      'name': 'section',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
+      'children': [
+        {
+          'name': 'div',
+          'classes': 'flex flex-col max-w-[1280px] w-[100%] pl-[32px] pr-[32px]',
+          'children': [
+            {
+              'name': 'div',
+              'classes': 'flex flex-col items-center gap-[72px]',
+              'children': [
+                {
+                  'name': 'div',
+                  'open': false,
+                  'design': {
+                    'layout': {
+                      'gap': '16px',
+                      'display': 'Flex',
+                      'isActive': true,
+                      'flexDirection': 'column',
+                      'alignItems': 'center'
+                    },
+                    'sizing': {
+                      'width': '[100%]',
+                      'isActive': true,
+                      'maxWidth': '768'
+                    }
+                  },
+                  'classes': 'flex flex-col gap-[16px] w-[100%] items-center max-w-š max-w-įš max-w-į max-w-[768px]',
+                  'children': [
+                    {
+                      'name': 'text',
+                      'settings': {
+                        'tag': 'p'
+                      },
+                      'classes': 'text-[16px] text-center',
+                      'restrictions': {
+                        'editText': true
+                      },
+                      'design': {
+                        'typography': {
+                          'isActive': true,
+                          'fontSize': '16px',
+                          'textAlign': 'center'
+                        }
+                      },
+                      'variables': {
+                        'text': {
+                          'type': 'dynamic_rich_text',
+                          'data': {
+                            'content': {
+                              'type': 'doc',
+                              'content': [
+                                {
+                                  'type': 'paragraph',
+                                  'content': [
+                                    {
+                                      'type': 'text',
+                                      'text': 'Testimonials'
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      'customName': 'Paragraph'
+                    },
+                    {
+                      'name': 'text',
+                      'design': {
+                        'typography': {
+                          'isActive': true,
+                          'fontWeight': '700',
+                          'lineHeight': '1.1',
+                          'letterSpacing': '-0.02',
+                          'textAlign': 'center',
+                          'fontSize': '48'
+                        }
+                      },
+                      'classes': 'font-[700] tracking-[-0.02em] max-md:text-[36px] text-center text-[48px] leading-[1.1]',
+                      'settings': {
+                        'tag': 'h2'
+                      },
+                      'variables': {
+                        'text': {
+                          'type': 'dynamic_rich_text',
+                          'data': {
+                            'content': {
+                              'type': 'doc',
+                              'content': [
+                                {
+                                  'type': 'paragraph',
+                                  'content': [
+                                    {
+                                      'type': 'text',
+                                      'text': 'Join other designers, creators and founders building websites'
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      'customName': 'Heading',
+                      'restrictions': {
+                        'editText': true
+                      }
+                    }
+                  ],
+                  'customName': 'Rows'
+                },
+                {
+                  'name': 'div',
+                  'classes': 'grid w-[100%] grid-cols-[repeat(3,_1fr)] gap-[56px] max-lg:grid-cols-[repeat(1,_1fr)]',
+                  'children': [
+                    {
+                      'name': 'div',
+                      'classes': 'flex flex-col gap-[32px]',
+                      'children': [
+                        {
+                          'name': 'text',
+                          'settings': {
+                            'tag': 'p'
+                          },
+                          'classes': 'text-[16px] text-[#000000]/60',
+                          'restrictions': {
+                            'editText': true
+                          },
+                          'design': {
+                            'typography': {
+                              'color': '#000000/60',
+                              'fontSize': '16px',
+                              'isActive': true
+                            }
+                          },
+                          'variables': {
+                            'text': {
+                              'type': 'dynamic_rich_text',
+                              'data': {
+                                'content': {
+                                  'type': 'doc',
+                                  'content': [
+                                    {
+                                      'type': 'paragraph',
+                                      'content': [
+                                        {
+                                          'type': 'text',
+                                          'text': 'Using this platform has transformed my workflow! I’ve created multiple websites for clients in no time.'
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          'customName': 'Paragraph'
+                        },
+                        {
+                          'name': 'div',
+                          'open': false,
+                          'design': {
+                            'layout': {
+                              'gap': '16px',
+                              'display': 'Flex',
+                              'isActive': true,
+                              'alignItems': 'center'
+                            }
+                          },
+                          'classes': 'flex gap-[16px] items-center',
+                          'children': [
+                            {
+                              'name': 'div',
+                              'open': false,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                }
+                              },
+                              'classes': 'flex flex-col',
+                              'children': [
+                                {
+                                  'name': 'image',
+                                  'design': {
+                                    'sizing': {
+                                      'width': '48',
+                                      'isActive': true,
+                                      'objectFit': 'cover',
+                                      'aspectRatio': '[1/1]'
+                                    },
+                                    'borders': {
+                                      'isActive': true,
+                                      'borderRadius': '100'
+                                    },
+                                    'spacing': {
+                                      'isActive': true,
+                                      'paddingMode': 'all'
+                                    }
+                                  },
+                                  'classes': 'w-[48px] aspect-[1/1] object-cover rounded-[100px]',
+                                  'settings': {
+                                    'tag': 'img'
+                                  },
+                                  'variables': {
+                                    'image': {
+                                      'alt': {
+                                        'data': {
+                                          'content': 'Image description'
+                                        },
+                                        'type': 'dynamic_text'
+                                      },
+                                      'src': {
+                                        'data': {
+                                          'content': 'https://app.ycode.com/images/layouts/user-profile-1.jpg'
+                                        },
+                                        'type': 'dynamic_text'
+                                      }
+                                    }
+                                  },
+                                  'attributes': {
+                                    'loading': 'lazy'
+                                  },
+                                  'customName': 'Image'
+                                }
+                              ]
+                            },
+                            {
+                              'name': 'div',
+                              'open': false,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                }
+                              },
+                              'classes': 'flex flex-col',
+                              'children': [
+                                {
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'fontSize': '14',
+                                      'isActive': true,
+                                      'fontWeight': '500'
+                                    }
+                                  },
+                                  'classes': 'text-[14px] font-[500]',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Lena Harper',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Paragraph',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                },
+                                {
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'color': '#000000/60',
+                                      'fontSize': '14',
+                                      'isActive': true
+                                    }
+                                  },
+                                  'classes': 'text-[14px] text-[#000000]/60',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Head of Product Design',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Paragraph',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                }
+                              ],
+                              'customName': 'Rows'
+                            }
+                          ],
+                          'customName': 'Columns'
+                        }
+                      ],
+                      'design': {
+                        'layout': {
+                          'isActive': true,
+                          'display': 'Flex',
+                          'flexDirection': 'column',
+                          'gap': '32'
+                        }
+                      },
+                      'customName': 'Rows',
+                      'open': false
+                    },
+                    {
+                      'name': 'div',
+                      'classes': 'flex flex-col gap-[32px]',
+                      'children': [
+                        {
+                          'name': 'text',
+                          'settings': {
+                            'tag': 'p'
+                          },
+                          'classes': 'text-[16px] text-[#000000]/60',
+                          'restrictions': {
+                            'editText': true
+                          },
+                          'design': {
+                            'typography': {
+                              'color': '#000000/60',
+                              'fontSize': '16px',
+                              'isActive': true
+                            }
+                          },
+                          'variables': {
+                            'text': {
+                              'type': 'dynamic_rich_text',
+                              'data': {
+                                'content': {
+                                  'type': 'doc',
+                                  'content': [
+                                    {
+                                      'type': 'paragraph',
+                                      'content': [
+                                        {
+                                          'type': 'text',
+                                          'text': 'Our visual editor empowers you to create stunning, impactful designs effortlessly, leaving a lasting impression on your audience.'
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          'customName': 'Paragraph'
+                        },
+                        {
+                          'name': 'div',
+                          'open': false,
+                          'design': {
+                            'layout': {
+                              'gap': '16px',
+                              'display': 'Flex',
+                              'isActive': true,
+                              'alignItems': 'center'
+                            }
+                          },
+                          'classes': 'flex gap-[16px] items-center',
+                          'children': [
+                            {
+                              'name': 'div',
+                              'open': false,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                }
+                              },
+                              'classes': 'flex flex-col',
+                              'children': [
+                                {
+                                  'name': 'image',
+                                  'design': {
+                                    'sizing': {
+                                      'width': '48',
+                                      'isActive': true,
+                                      'objectFit': 'cover',
+                                      'aspectRatio': '[1/1]'
+                                    },
+                                    'borders': {
+                                      'isActive': true,
+                                      'borderRadius': '100'
+                                    },
+                                    'spacing': {
+                                      'isActive': true,
+                                      'paddingMode': 'all'
+                                    }
+                                  },
+                                  'classes': 'w-[48px] aspect-[1/1] object-cover rounded-[100px]',
+                                  'settings': {
+                                    'tag': 'img'
+                                  },
+                                  'variables': {
+                                    'image': {
+                                      'alt': {
+                                        'data': {
+                                          'content': 'Image description'
+                                        },
+                                        'type': 'dynamic_text'
+                                      },
+                                      'src': {
+                                        'data': {
+                                          'content': 'https://app.ycode.com/images/layouts/user-profile-6.jpg'
+                                        },
+                                        'type': 'dynamic_text'
+                                      }
+                                    }
+                                  },
+                                  'attributes': {
+                                    'loading': 'lazy'
+                                  },
+                                  'customName': 'Image'
+                                }
+                              ]
+                            },
+                            {
+                              'name': 'div',
+                              'open': false,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                }
+                              },
+                              'classes': 'flex flex-col',
+                              'children': [
+                                {
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'fontSize': '14',
+                                      'isActive': true,
+                                      'fontWeight': '500'
+                                    }
+                                  },
+                                  'classes': 'text-[14px] font-[500]',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Ethan Brooks',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Paragraph',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                },
+                                {
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'color': '#000000/60',
+                                      'fontSize': '14',
+                                      'isActive': true
+                                    }
+                                  },
+                                  'classes': 'text-[14px] text-[#000000]/60',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Lead Front-End Developer',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Paragraph',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                }
+                              ],
+                              'customName': 'Rows'
+                            }
+                          ],
+                          'customName': 'Columns'
+                        }
+                      ],
+                      'design': {
+                        'layout': {
+                          'isActive': true,
+                          'display': 'Flex',
+                          'flexDirection': 'column',
+                          'gap': '32'
+                        }
+                      },
+                      'customName': 'Rows',
+                      'open': false
+                    },
+                    {
+                      'name': 'div',
+                      'classes': 'flex flex-col gap-[32px]',
+                      'children': [
+                        {
+                          'name': 'text',
+                          'settings': {
+                            'tag': 'p'
+                          },
+                          'classes': 'text-[16px] text-[#000000]/60',
+                          'restrictions': {
+                            'editText': true
+                          },
+                          'design': {
+                            'typography': {
+                              'color': '#000000/60',
+                              'fontSize': '16px',
+                              'isActive': true
+                            }
+                          },
+                          'variables': {
+                            'text': {
+                              'type': 'dynamic_rich_text',
+                              'data': {
+                                'content': {
+                                  'type': 'doc',
+                                  'content': [
+                                    {
+                                      'type': 'paragraph',
+                                      'content': [
+                                        {
+                                          'type': 'text',
+                                          'text': 'The easy-to-use templates help me create professional sites fast, and my clients are thrilled with the outcome!'
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          'customName': 'Paragraph'
+                        },
+                        {
+                          'name': 'div',
+                          'open': false,
+                          'design': {
+                            'layout': {
+                              'gap': '16px',
+                              'display': 'Flex',
+                              'isActive': true,
+                              'alignItems': 'center'
+                            }
+                          },
+                          'classes': 'flex gap-[16px] items-center',
+                          'children': [
+                            {
+                              'name': 'div',
+                              'open': false,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                }
+                              },
+                              'classes': 'flex flex-col',
+                              'children': [
+                                {
+                                  'name': 'image',
+                                  'design': {
+                                    'sizing': {
+                                      'width': '48',
+                                      'isActive': true,
+                                      'objectFit': 'cover',
+                                      'aspectRatio': '[1/1]'
+                                    },
+                                    'borders': {
+                                      'isActive': true,
+                                      'borderRadius': '100'
+                                    },
+                                    'spacing': {
+                                      'isActive': true,
+                                      'paddingMode': 'all'
+                                    }
+                                  },
+                                  'classes': 'w-[48px] aspect-[1/1] object-cover rounded-[100px]',
+                                  'settings': {
+                                    'tag': 'img'
+                                  },
+                                  'variables': {
+                                    'image': {
+                                      'alt': {
+                                        'data': {
+                                          'content': 'Image description'
+                                        },
+                                        'type': 'dynamic_text'
+                                      },
+                                      'src': {
+                                        'data': {
+                                          'content': 'https://app.ycode.com/images/layouts/user-profile-7.jpg'
+                                        },
+                                        'type': 'dynamic_text'
+                                      }
+                                    }
+                                  },
+                                  'attributes': {
+                                    'loading': 'lazy'
+                                  },
+                                  'customName': 'Image'
+                                }
+                              ]
+                            },
+                            {
+                              'name': 'div',
+                              'open': false,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                }
+                              },
+                              'classes': 'flex flex-col',
+                              'children': [
+                                {
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'fontSize': '14',
+                                      'isActive': true,
+                                      'fontWeight': '500'
+                                    }
+                                  },
+                                  'classes': 'text-[14px] font-[500]',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Sophie Carter',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Paragraph',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                },
+                                {
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'color': '#000000/60',
+                                      'fontSize': '14',
+                                      'isActive': true
+                                    }
+                                  },
+                                  'classes': 'text-[14px] text-[#000000]/60',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Content Strategist',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Paragraph',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                }
+                              ],
+                              'customName': 'Rows'
+                            }
+                          ],
+                          'customName': 'Columns'
+                        }
+                      ],
+                      'design': {
+                        'layout': {
+                          'isActive': true,
+                          'display': 'Flex',
+                          'flexDirection': 'column',
+                          'gap': '32'
+                        }
+                      },
+                      'customName': 'Rows',
+                      'open': false
+                    }
+                  ],
+                  'design': {
+                    'layout': {
+                      'isActive': true,
+                      'display': 'Grid',
+                      'gap': '56',
+                      'gridTemplateColumns': 'repeat(1, 1fr)'
+                    },
+                    'sizing': {
+                      'width': '[100%]',
+                      'isActive': true
+                    }
+                  },
+                  'customName': 'Grid',
+                  'open': false
+                }
+              ],
+              'design': {
+                'layout': {
+                  'isActive': true,
+                  'display': 'Flex',
+                  'flexDirection': 'column',
+                  'gap': '72',
+                  'alignItems': 'center'
+                }
+              },
+              'customName': 'Rows',
+              'open': false
+            }
+          ],
+          'design': {
+            'layout': {
+              'isActive': true,
+              'display': 'Flex',
+              'flexDirection': 'column'
+            },
+            'sizing': {
+              'isActive': true,
+              'width': '100%',
+              'maxWidth': '1280px'
+            },
+            'spacing': {
+              'isActive': true,
+              'paddingLeft': '32px',
+              'paddingRight': '32px'
+            }
+          },
+          'customName': 'Container',
+          'open': false
+        }
+      ],
+      'design': {
+        'layout': {
+          'isActive': true,
+          'display': 'Flex',
+          'flexDirection': 'column',
+          'alignItems': 'center'
+        },
+        'spacing': {
+          'isActive': true,
+          'paddingTop': '140',
+          'paddingBottom': '140'
+        },
+        'backgrounds': {
+          'backgroundColor': '#ffffff',
+          'isActive': true
+        }
+      },
+      'customName': 'Section',
+      'open': false
+    },
+  },
 };
