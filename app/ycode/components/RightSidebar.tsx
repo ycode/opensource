@@ -52,13 +52,14 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
+import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
 import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
 
 // 5.5 Hooks
 import { useLayerLocks } from '@/hooks/use-layer-locks';
 
 // 6. Utils, APIs, lib
-import { classesToDesign, mergeDesign, removeConflictsForClass } from '@/lib/tailwind-class-mapper';
+import { classesToDesign, mergeDesign, removeConflictsForClass, getRemovedPropertyClasses } from '@/lib/tailwind-class-mapper';
 import { cn } from '@/lib/utils';
 import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTextEditable, findLayerWithParent } from '@/lib/layer-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
@@ -78,6 +79,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Separator } from '@/components/ui/separator';
 
 interface RightSidebarProps {
   selectedLayerId: string | null;
@@ -555,6 +557,57 @@ const RightSidebar = React.memo(function RightSidebar({
   const classesArray = useMemo(() => {
     return classesInput.split(' ').filter(cls => cls.trim() !== '');
   }, [classesInput]);
+
+  // Get applied layer style and its classes
+  const { getStyleById } = useLayerStylesStore();
+  const appliedStyle = selectedLayer?.styleId ? getStyleById(selectedLayer.styleId) : undefined;
+  const styleClassesArray = useMemo(() => {
+    if (!appliedStyle || !appliedStyle.classes) return [];
+    const styleClasses = Array.isArray(appliedStyle.classes)
+      ? appliedStyle.classes.join(' ')
+      : appliedStyle.classes;
+    return styleClasses.split(' ').filter(cls => cls.trim() !== '');
+  }, [appliedStyle]);
+
+  // Filter layer classes to only show those NOT in the style
+  const layerOnlyClasses = useMemo(() => {
+    if (styleClassesArray.length === 0) return classesArray;
+    return classesArray.filter(cls => !styleClassesArray.includes(cls));
+  }, [classesArray, styleClassesArray]);
+
+  // Determine which style classes are overridden by layer's custom classes or explicitly removed
+  const overriddenStyleClasses = useMemo(() => {
+    if (styleClassesArray.length === 0) return new Set<string>();
+    const overridden = new Set<string>();
+
+    // 1. Check for classes overridden by layer's custom classes
+    if (layerOnlyClasses.length > 0) {
+      for (const layerClass of layerOnlyClasses) {
+        // Use the conflict detection utility
+        // If adding this layer class would remove any style classes, those are overridden
+        const classesWithoutConflicts = removeConflictsForClass(styleClassesArray, layerClass);
+
+        // Find which style classes were removed (those are the overridden ones)
+        for (const styleClass of styleClassesArray) {
+          if (!classesWithoutConflicts.includes(styleClass)) {
+            overridden.add(styleClass);
+          }
+        }
+      }
+    }
+
+    // 2. Check for classes from properties explicitly removed on the layer
+    if (appliedStyle?.design && selectedLayer) {
+      const removedClasses = getRemovedPropertyClasses(
+        selectedLayer.design,
+        appliedStyle.design,
+        styleClassesArray
+      );
+      removedClasses.forEach(cls => overridden.add(cls));
+    }
+
+    return overridden;
+  }, [layerOnlyClasses, styleClassesArray, appliedStyle, selectedLayer]);
 
   // Update local state when selected layer changes (for settings fields)
   const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
@@ -1779,14 +1832,14 @@ const RightSidebar = React.memo(function RightSidebar({
                 disabled={isLockedByOther}
                 className={isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''}
               />
-              <div className="flex flex-wrap gap-1.5">
-                {classesArray.length === 0 ? (
-                  <div></div>
-                ) : (
-                  classesArray.map((cls, index) => (
+
+              {layerOnlyClasses.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {/* Layer's own classes (excluding style classes) */}
+                  {layerOnlyClasses.map((cls, index) => (
                     <Badge
                       variant="secondary"
-                      key={index}
+                      key={`layer-${index}`}
                     >
                       <span>{cls}</span>
                       <Button
@@ -1798,9 +1851,39 @@ const RightSidebar = React.memo(function RightSidebar({
                         <Icon name="x" className="size-2" />
                       </Button>
                     </Badge>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Layer style classes (strikethrough if overridden) */}
+              {styleClassesArray.length > 0 && (
+                <div className="flex flex-col gap-2.5">
+                  <div className="py-1 w-full flex items-center gap-2">
+                    <Separator className="flex-1" />
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-semibold">{appliedStyle?.name}</span> classes
+                    </div>
+                    <Separator className="flex-1" />
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {styleClassesArray.map((cls, index) => {
+                      const isOverridden = overriddenStyleClasses.has(cls);
+                      return (
+                        <Badge
+                          variant="secondary"
+                          key={`style-${index}`}
+                          className="opacity-60"
+                        >
+                          <span className={isOverridden ? 'line-through' : ''}>
+                            {cls}
+                          </span>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </SettingsPanel>
         </TabsContent>

@@ -159,6 +159,7 @@ export interface LayerStyle {
 
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null; // Soft delete for undo/redo support
 }
 
 export interface LayerInteraction {
@@ -612,6 +613,7 @@ export interface CollaborationUser {
   user_id: string;
   email: string;
   display_name: string;
+  avatar_url: string | null;
   color: string;
   cursor: { x: number; y: number } | null;
   selected_layer_id: string | null;
@@ -642,6 +644,7 @@ export interface CollaborationState {
   isConnected: boolean;
   currentUserId: string | null;
   currentUserColor: string;
+  currentUserAvatarUrl: string | null;
 }
 
 export interface ActivityNotification {
@@ -998,9 +1001,10 @@ export interface VersionMetadata {
   selection?: {
     layer_ids?: string[];
   };
-  // Requirements for undo operations (e.g., components that must exist before undoing)
+  // Requirements for undo operations (e.g., components/styles that must exist before undoing)
   requirements?: {
     component_ids?: string[]; // Array of component IDs that must exist/be restored before undoing
+    layer_style_ids?: string[]; // Array of layer style IDs that must exist/be restored before undoing
   };
 }
 

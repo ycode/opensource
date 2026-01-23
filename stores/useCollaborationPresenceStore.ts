@@ -46,7 +46,7 @@ interface CollaborationPresenceState extends Omit<CollaborationState, 'locks'> {
   updateUser: (userId: string, updates: Partial<CollaborationUser>) => void;
   removeUser: (userId: string) => void;
   setConnectionStatus: (connected: boolean) => void;
-  setCurrentUser: (userId: string, email: string) => void;
+  setCurrentUser: (userId: string, email: string, avatarUrl?: string | null) => void;
   addNotification: (notification: Omit<ActivityNotification, 'id'>) => void;
   removeNotification: (notificationId: string) => void;
   clearNotifications: () => void;
@@ -78,6 +78,7 @@ export const useCollaborationPresenceStore = create<CollaborationPresenceState>(
     isConnected: false,
     currentUserId: null,
     currentUserColor: '#3b82f6',
+    currentUserAvatarUrl: null,
     notifications: [],
     selectedUsers: [],
     
@@ -159,9 +160,10 @@ export const useCollaborationPresenceStore = create<CollaborationPresenceState>(
     
     setConnectionStatus: (connected) => set({ isConnected: connected }),
     
-    setCurrentUser: (userId, email) => set({
+    setCurrentUser: (userId, email, avatarUrl) => set({
       currentUserId: userId,
-      currentUserColor: generateUserColor(userId)
+      currentUserColor: generateUserColor(userId),
+      currentUserAvatarUrl: avatarUrl || null
     }),
     
     // Notification management

@@ -222,10 +222,10 @@ function extractArbitraryValue(className: string): string | null {
 function extractArbitraryValueWithOpacity(className: string): string | null {
   const match = className.match(/\[([^\]]+)\](?:\/(\d+))?/);
   if (!match) return null;
-  
+
   const value = match[1];
   const opacity = match[2];
-  
+
   // If opacity exists, append it with /
   return opacity ? `${value}/${opacity}` : value;
 }
@@ -310,6 +310,45 @@ export function removeConflictingClasses(
     // For all other cases, remove the conflicting class
     return false;
   });
+}
+
+/**
+ * Check if a class is a standard Tailwind color class (e.g., text-blue-500, bg-red-500)
+ */
+function isStandardColorClass(className: string): boolean {
+  // Strip prefixes
+  const baseClass = className.replace(/^(max-lg:|max-md:|lg:|md:)?(hover:|focus:|active:|disabled:|visited:)?/, '');
+
+  // Common Tailwind color patterns
+  const colorPattern = /^(text|bg|border|ring|outline|decoration|shadow|from|via|to|caret|accent|divide|placeholder)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)(-\d+)?$/;
+
+  return colorPattern.test(baseClass);
+}
+
+/**
+ * Check if a class is an arbitrary value for a color property
+ */
+function isArbitraryColorClass(className: string, property: string): boolean {
+  // Strip prefixes
+  const baseClass = className.replace(/^(max-lg:|max-md:|lg:|md:)?(hover:|focus:|active:|disabled:|visited:)?/, '');
+
+  // Check based on property
+  if (property === 'color' && baseClass.startsWith('text-[')) {
+    const value = extractArbitraryValue(baseClass);
+    return value ? isColorValue(value) : false;
+  }
+
+  if (property === 'backgroundColor' && baseClass.startsWith('bg-[')) {
+    const value = extractArbitraryValue(baseClass);
+    return value ? isColorValue(value) : false;
+  }
+
+  if (property === 'borderColor' && baseClass.startsWith('border-[')) {
+    const value = extractArbitraryValue(baseClass);
+    return value ? isColorValue(value) : false;
+  }
+
+  return false;
 }
 
 /**
@@ -694,6 +733,23 @@ export function getAffectedProperties(className: string): string[] {
     return properties;
   }
 
+  // Special handling for standard Tailwind color classes (e.g., text-blue-500, text-red-500)
+  // These should ONLY affect color, not fontSize
+  if (isStandardColorClass(baseClass)) {
+    if (baseClass.startsWith('text-')) {
+      properties.push('color');
+      return properties;
+    }
+    if (baseClass.startsWith('bg-')) {
+      properties.push('backgroundColor');
+      return properties;
+    }
+    if (baseClass.startsWith('border-')) {
+      properties.push('borderColor');
+      return properties;
+    }
+  }
+
   // Special handling for text-[...] arbitrary values
   // Must distinguish between fontSize and color
   if (baseClass.startsWith('text-[')) {
@@ -771,6 +827,14 @@ export function removeConflictsForClass(
     result = removeConflictingClasses(result, property);
   });
 
+  // Additional check: if newClass is a standard color class (e.g., text-blue-500),
+  // also remove arbitrary color values (e.g., text-[#000000])
+  if (isStandardColorClass(newClass)) {
+    affectedProperties.forEach(property => {
+      result = result.filter(cls => !isArbitraryColorClass(cls, property));
+    });
+  }
+
   return result;
 }
 
@@ -814,7 +878,7 @@ export function classesToDesign(classes: string | string[]): Layer['design'] {
   // Check if this is a text gradient (bg-[gradient] + bg-clip-text)
   const hasBgClipText = classList.includes('bg-clip-text');
   const hasTextTransparent = classList.includes('text-transparent');
-  const gradientBgClass = classList.find(cls => 
+  const gradientBgClass = classList.find(cls =>
     cls.startsWith('bg-[') && extractArbitraryValue(cls)?.includes('gradient(')
   );
 
@@ -1647,4 +1711,101 @@ export function setBreakpointClass(
   }
 
   return newClasses;
+}
+
+/**
+ * Get classes from layer style that correspond to properties explicitly removed on the layer
+ * Returns the style classes that should be shown as line-through
+ */
+export function getRemovedPropertyClasses(
+  layerDesign: Layer['design'] | undefined,
+  styleDesign: Layer['design'] | undefined,
+  styleClasses: string[]
+): string[] {
+  if (!styleDesign || !styleClasses.length) return [];
+
+  const removedClasses: string[] = [];
+  const layerDesignObj = layerDesign || {};
+
+  // Check each category in style design
+  const categories = [
+    'layout', 'typography', 'spacing', 'sizing',
+    'borders', 'backgrounds', 'effects', 'positioning'
+  ] as const;
+
+  for (const category of categories) {
+    const styleCategory = styleDesign[category];
+    const layerCategory = layerDesignObj[category];
+
+    if (!styleCategory) continue;
+
+    // Check each property in the style category
+    for (const [property, styleValue] of Object.entries(styleCategory)) {
+      // Skip if style property is empty/null
+      if (styleValue === null || styleValue === undefined || styleValue === '') continue;
+
+      // Check if layer has explicitly removed this property
+      // A property is considered removed if:
+      // 1. Style has the property with a value
+      // 2. Layer either:
+      //    a) Doesn't have this category at all (inheriting everything from style)
+      //    b) Has the category but the property is missing (removed)
+      //    c) Has the property set to null or empty string (explicitly cleared)
+
+      // If layer doesn't have this category, it's inheriting from style (not removed)
+      if (!layerCategory) continue;
+
+      const layerValue = layerCategory[property as keyof typeof layerCategory];
+      const hasProperty = property in layerCategory;
+
+      // Property is removed if it's either:
+      // 1. Present with null/empty value (explicit removal)
+      // 2. NOT present in layer category while other properties are (selective removal)
+      const isExplicitlyRemoved = hasProperty ? (
+        layerValue === null ||
+        (typeof layerValue === 'string' && layerValue === '')
+      ) : (
+        // Property not present in layer, but layer has the category with other properties
+        // This means this specific property was removed
+        Object.keys(layerCategory).length > 0
+      );
+
+      if (isExplicitlyRemoved) {
+        // Find which style classes correspond to this property
+        const propertyPattern = getConflictingClassPattern(property);
+        if (propertyPattern) {
+          // Find all style classes that match this property pattern
+          for (const styleClass of styleClasses) {
+            // Strip prefixes for pattern matching
+            const baseClass = styleClass.replace(/^(max-lg:|max-md:|lg:|md:)?(hover:|focus:|active:|disabled:|visited:)?/, '');
+
+            // Special handling for text-[...] classes
+            if (baseClass.startsWith('text-[')) {
+              const value = baseClass.match(/\[([^\]]+)\]/)?.[1];
+              if (value) {
+                const isColor = /^#?[0-9A-Fa-f]{3,8}$/.test(value) ||
+                               /^rgba?\s*\(/i.test(value) ||
+                               /^hsla?\s*\(/i.test(value);
+
+                // Match text color with color property
+                if (property === 'color' && isColor && !removedClasses.includes(styleClass)) {
+                  removedClasses.push(styleClass);
+                }
+                // Match text size with fontSize property
+                else if (property === 'fontSize' && !isColor && !removedClasses.includes(styleClass)) {
+                  removedClasses.push(styleClass);
+                }
+              }
+            }
+            // Standard pattern matching
+            else if (propertyPattern.test(baseClass) && !removedClasses.includes(styleClass)) {
+              removedClasses.push(styleClass);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return removedClasses;
 }

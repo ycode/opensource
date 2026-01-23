@@ -1,6 +1,6 @@
 /**
  * Layer Style Utilities
- * 
+ *
  * Core logic for applying, detaching, and managing layer styles
  */
 
@@ -29,10 +29,10 @@ export function applyStyleToLayer(layer: Layer, style: LayerStyle): Layer {
 export function detachStyleFromLayer(layer: Layer, style?: LayerStyle): Layer {
   // When updateStyledLayer is called, it updates both layer.classes/design AND styleOverrides
   // So we can just use what's already on the layer
-  
+
   // Remove style references but keep current classes/design
   const { styleId, styleOverrides, ...rest } = layer;
-  
+
   return {
     ...rest,
     // Keep the layer's current classes and design
@@ -55,21 +55,21 @@ export function hasStyle(layer: Layer): boolean {
  */
 export function hasStyleOverrides(layer: Layer, style?: LayerStyle): boolean {
   const hasValidStyleId = layer.styleId && layer.styleId.trim() !== '';
-  
+
   if (!hasValidStyleId || !layer.styleOverrides) {
     return false;
   }
-  
+
   // If no style provided, we can only check if styleOverrides exists
   // This is a simple check used when we don't have the style loaded
   if (!style) {
     return true;
   }
-  
+
   // Compare current values with style values to see if they actually differ
   const classesMatch = layer.classes === style.classes;
   const designMatch = JSON.stringify(layer.design || {}) === JSON.stringify(style.design || {});
-  
+
   // Has overrides if either classes or design differ from the style
   return !classesMatch || !designMatch;
 }
@@ -82,7 +82,7 @@ export function resetLayerToStyle(layer: Layer, style: LayerStyle): Layer {
   if (!layer.styleId || layer.styleId !== style.id) {
     return layer;
   }
-  
+
   return {
     ...layer,
     classes: style.classes,
@@ -102,12 +102,12 @@ export function updateStyledLayer(
 ): Layer {
   // Check if layer has a valid style ID (not just empty string or undefined)
   const hasValidStyleId = layer.styleId && layer.styleId.trim() !== '';
-  
+
   if (!hasValidStyleId) {
     // No style applied, just update normally
     return { ...layer, ...updates };
   }
-  
+
   // Style is applied - track as overrides
   return {
     ...layer,
@@ -139,7 +139,7 @@ export function updateLayersWithStyle(
         design: newDesign,
       };
     }
-    
+
     // Recursively update children
     if (layer.children && layer.children.length > 0) {
       return {
@@ -147,7 +147,7 @@ export function updateLayersWithStyle(
         children: updateLayersWithStyle(layer.children, styleId, newClasses, newDesign),
       };
     }
-    
+
     return layer;
   });
 }
@@ -164,7 +164,7 @@ export function detachStyleFromLayers(layers: Layer[], styleId: string): Layer[]
       const { styleId: _, styleOverrides: __, ...rest } = layer;
       return rest as Layer;
     }
-    
+
     // Recursively detach from children
     if (layer.children && layer.children.length > 0) {
       return {
@@ -172,7 +172,7 @@ export function detachStyleFromLayers(layers: Layer[], styleId: string): Layer[]
         children: detachStyleFromLayers(layer.children, styleId),
       };
     }
-    
+
     return layer;
   });
 }
@@ -183,17 +183,17 @@ export function detachStyleFromLayers(layers: Layer[], styleId: string): Layer[]
  */
 export function countLayersUsingStyle(layers: Layer[], styleId: string): number {
   let count = 0;
-  
+
   for (const layer of layers) {
     if (layer.styleId === styleId) {
       count++;
     }
-    
+
     if (layer.children && layer.children.length > 0) {
       count += countLayersUsingStyle(layer.children, styleId);
     }
   }
-  
+
   return count;
 }
 
@@ -203,16 +203,16 @@ export function countLayersUsingStyle(layers: Layer[], styleId: string): number 
  */
 export function getLayerIdsUsingStyle(layers: Layer[], styleId: string): string[] {
   const ids: string[] = [];
-  
+
   for (const layer of layers) {
     if (layer.styleId === styleId) {
       ids.push(layer.id);
     }
-    
+
     if (layer.children && layer.children.length > 0) {
       ids.push(...getLayerIdsUsingStyle(layer.children, styleId));
     }
   }
-  
+
   return ids;
 }

@@ -190,9 +190,12 @@ export async function recordVersionViaApi(
   // Pass the patch to intelligently determine which layer to select
   const uiMetadata = captureUIMetadata(entityType, entityId, redoPatch as any, currentState);
 
-  // Automatically detect required components from layer changes
-  const autoDetectedComponents = (entityType === 'page_layers' || entityType === 'component')
+  // Automatically detect required components and layer styles from layer changes
+  const autoDetectedComponents = isLayerEntity
     ? extractComponentRequirements(previousState as Layer[], currentState as Layer[])
+    : [];
+  const autoDetectedLayerStyles = isLayerEntity
+    ? extractLayerStyleRequirements(previousState as Layer[], currentState as Layer[])
     : [];
 
   // Merge with additional metadata (e.g., requirements for undo)
@@ -204,11 +207,15 @@ export async function recordVersionViaApi(
     metadata = { ...uiMetadata };
   }
 
-  // Add auto-detected component requirements
-  if (autoDetectedComponents.length > 0) {
-    metadata.requirements = {
-      component_ids: autoDetectedComponents,
-    };
+  // Add auto-detected requirements
+  if (autoDetectedComponents.length > 0 || autoDetectedLayerStyles.length > 0) {
+    metadata.requirements = {};
+    if (autoDetectedComponents.length > 0) {
+      metadata.requirements.component_ids = autoDetectedComponents;
+    }
+    if (autoDetectedLayerStyles.length > 0) {
+      metadata.requirements.layer_style_ids = autoDetectedLayerStyles;
+    }
   }
 
   // Merge additional metadata (which can add more requirements)
@@ -230,6 +237,17 @@ export async function recordVersionViaApi(
       metadata.requirements = {
         ...(metadata.requirements || {}),
         component_ids: [...new Set([...existingComponents, ...additionalComponents])],
+      };
+    }
+
+    if (additionalMetadata.requirements?.layer_style_ids) {
+      const existingStyles = metadata.requirements?.layer_style_ids || [];
+      const additionalStyles = additionalMetadata.requirements.layer_style_ids;
+
+      // Combine and deduplicate layer style IDs
+      metadata.requirements = {
+        ...(metadata.requirements || {}),
+        layer_style_ids: [...new Set([...existingStyles, ...additionalStyles])],
       };
     }
   }
@@ -457,6 +475,57 @@ function extractComponentRequirements(previousState: Layer[], currentState: Laye
   }
 
   return Array.from(affectedComponents);
+}
+
+/**
+ * Extract all layer style IDs used in a layer tree
+ */
+function extractLayerStyleIds(layers: Layer[]): string[] {
+  const styleIds = new Set<string>();
+
+  function traverse(layerList: Layer[]) {
+    for (const layer of layerList) {
+      if (layer.styleId) {
+        styleIds.add(layer.styleId);
+      }
+      if (layer.children && layer.children.length > 0) {
+        traverse(layer.children);
+      }
+    }
+  }
+
+  traverse(layers);
+  return Array.from(styleIds);
+}
+
+/**
+ * Extract layer style requirements from before/after states
+ * Returns only layer style IDs that were added or removed in the change
+ */
+function extractLayerStyleRequirements(previousState: Layer[], currentState: Layer[]): string[] {
+  const previousStyles = new Set(extractLayerStyleIds(previousState));
+  const currentStyles = new Set(extractLayerStyleIds(currentState));
+
+  // Only include styles that were affected by the change:
+  // - Styles added (in current but not in previous) - needed for redo
+  // - Styles removed (in previous but not in current) - needed for undo
+  const affectedStyles = new Set<string>();
+
+  // Styles that were removed (needed for undo)
+  for (const id of previousStyles) {
+    if (!currentStyles.has(id)) {
+      affectedStyles.add(id);
+    }
+  }
+
+  // Styles that were added (needed for redo)
+  for (const id of currentStyles) {
+    if (!previousStyles.has(id)) {
+      affectedStyles.add(id);
+    }
+  }
+
+  return Array.from(affectedStyles);
 }
 
 /**
