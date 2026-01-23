@@ -179,7 +179,7 @@ export default function ComponentVariablesDialog({
           </div>
 
           {/* Right panel - variable editor */}
-          <div className="flex-1 p-6 flex flex-col gap-2">
+          <div className="flex-1 p-6 pt-14 flex flex-col gap-2">
             {selectedVariable ? (
               <>
                 <div className="grid grid-cols-3">
