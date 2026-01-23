@@ -20,7 +20,7 @@ const buttonVariants = cva(
         white: 'bg-white text-neutral-900',
         overlay: 'bg-white/90 text-neutral-800 hover:bg-white dark:bg-neutral-800/90 dark:text-white dark:hover:bg-neutral-800',
         inline_variable_canvas: 'bg-white/5 text-white hover:bg-white/15',
-        variable: 'text-muted-foreground hover:text-[#8a6df1]',
+        variable: 'text-muted-foreground hover:text-purple-300',
       },
       size: {
         default: 'text-sm h-9 px-4 rounded-xl py-2 has-[>svg]:px-3',

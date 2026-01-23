@@ -1522,12 +1522,12 @@ const RightSidebar = React.memo(function RightSidebar({
     const getOverrideValue = (variableId: string) => {
       const overrideValue = currentOverrides[variableId];
       const variableDef = textVariables.find(v => v.id === variableId);
-      
+
       // Use override if set, otherwise fall back to default value
-      const value = (overrideValue !== undefined && overrideValue !== '') 
-        ? overrideValue 
+      const value = (overrideValue !== undefined && overrideValue !== '')
+        ? overrideValue
         : variableDef?.default_value;
-      
+
       if (!value) {
         return { type: 'doc', content: [{ type: 'paragraph' }] };
       }
@@ -1903,14 +1903,14 @@ const RightSidebar = React.memo(function RightSidebar({
                   onToggle={() => setContentOpen(!contentOpen)}
                 >
                   <div className="grid grid-cols-3">
-                    <div className="flex items-center gap-1 items-start">
+                    <div className="flex items-center gap-1 items-start py-1">
                       {editingComponentId ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
                               variant="variable"
                               size="xs"
-                              className="has-[>svg]:px-0"
+                              className="has-[>svg]:px-0 py-"
                             >
                               <Icon name="plus-circle-solid" />
                               Content
@@ -1948,16 +1948,16 @@ const RightSidebar = React.memo(function RightSidebar({
                     </div>
                     <div className="col-span-2 *:w-full">
                       {linkedVariable ? (
-                        <Badge variant="secondary">
+                        <Button variant="purple" className="!justify-between">
                           <span>{linkedVariable.name}</span>
                           <Button
-                            className="!size-4 !p-0 -mr-1"
+                            className="!size-4 !p-0"
                             variant="outline"
                             onClick={handleUnlinkVariable}
                           >
                             <Icon name="x" className="size-2" />
                           </Button>
-                        </Badge>
+                        </Button>
                       ) : (
                         <InputWithInlineVariables
                           value={getContentValue(selectedLayer)}
