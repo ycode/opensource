@@ -34,7 +34,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
     activeUIState,
     activeTextStyleKey,
   });
-
+  
   // Get current values from layer (with inheritance)
   const borderRadius = getDesignProperty('borders', 'borderRadius') || '';
   const borderTopLeftRadius = getDesignProperty('borders', 'borderTopLeftRadius') || '';
@@ -53,9 +53,16 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
   const divideStyle = getDesignProperty('borders', 'divideStyle') || 'solid';
   const divideColor = getDesignProperty('borders', 'divideColor') || '';
 
-  const hasBorder = !!(borderWidth || borderTopWidth || borderRightWidth || borderBottomWidth || borderLeftWidth);
-  const hasDivider = !!(divideX || divideY);
-
+  // Check for border existence from both class-based values AND design object
+  // This ensures backwards compatibility with layers that have design properties but missing classes
+  const designBorders = layer?.design?.borders;
+  const hasBorder = !!(
+    borderWidth || borderTopWidth || borderRightWidth || borderBottomWidth || borderLeftWidth ||
+    designBorders?.borderWidth || designBorders?.borderTopWidth || designBorders?.borderRightWidth ||
+    designBorders?.borderBottomWidth || designBorders?.borderLeftWidth
+  );
+  const hasDivider = !!(divideX || divideY || designBorders?.divideX || designBorders?.divideY);
+  
   // Local controlled inputs (prevents repopulation bug)
   const inputs = useControlledInputs({
     borderRadius,
@@ -84,7 +91,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
   const [borderLeftWidthInput, setBorderLeftWidthInput] = inputs.borderLeftWidth;
   const [divideXInput, setDivideXInput] = inputs.divideX;
   const [divideYInput, setDivideYInput] = inputs.divideY;
-
+  
   // Use mode toggle hooks for radius and width
   const radiusModeToggle = useModeToggle({
     category: 'borders',
@@ -96,7 +103,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
     getCurrentValue: (prop: string) => getDesignProperty('borders', prop) || '',
   });
-
+  
   const widthModeToggle = useModeToggle({
     category: 'borders',
     unifiedProperty: 'borderWidth',
@@ -107,76 +114,76 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
     getCurrentValue: (prop: string) => getDesignProperty('borders', prop) || '',
   });
-
+  
   // Handle radius changes (debounced for text input)
   const handleRadiusChange = (value: string) => {
     setBorderRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderRadius', sanitized || null);
   };
-
+  
   const handleTopLeftRadiusChange = (value: string) => {
     setBorderTopLeftRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderTopLeftRadius', sanitized || null);
   };
-
+  
   const handleTopRightRadiusChange = (value: string) => {
     setBorderTopRightRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderTopRightRadius', sanitized || null);
   };
-
+  
   const handleBottomRightRadiusChange = (value: string) => {
     setBorderBottomRightRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderBottomRightRadius', sanitized || null);
   };
-
+  
   const handleBottomLeftRadiusChange = (value: string) => {
     setBorderBottomLeftRadiusInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderBottomLeftRadius', sanitized || null);
   };
-
+  
   // Handle border width changes (debounced for text input)
   const handleBorderWidthChange = (value: string) => {
     setBorderWidthInput(value);
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderWidth', sanitized || null);
   };
-
+  
   const handleTopWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderTopWidth', sanitized || null);
   };
-
+  
   const handleRightWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderRightWidth', sanitized || null);
   };
-
+  
   const handleBottomWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderBottomWidth', sanitized || null);
   };
-
+  
   const handleLeftWidthChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderLeftWidth', sanitized || null);
   };
-
+  
   // Handle border style change (immediate - dropdown selection)
   const handleBorderStyleChange = (value: string) => {
     updateDesignProperty('borders', 'borderStyle', value);
   };
-
+  
   // Handle border color change (debounced for text input)
   const handleBorderColorChange = (value: string) => {
     const sanitized = removeSpaces(value);
     debouncedUpdateDesignProperty('borders', 'borderColor', sanitized || null);
   };
-
+  
   // Add border
   const handleAddBorder = () => {
     updateDesignProperties([
@@ -185,7 +192,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
       { category: 'borders', property: 'borderColor', value: '#000000' },
     ]);
   };
-
+  
   // Remove border
   const handleRemoveBorder = () => {
     updateDesignProperties([
@@ -264,7 +271,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                 onChange={(e) => handleRadiusChange(e.target.value)}
                 placeholder="0"
               />
-              <Button
+              <Button 
                 variant={radiusModeToggle.mode === 'individual' ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={radiusModeToggle.handleToggle}
@@ -384,7 +391,7 @@ export default function BorderControls({ layer, onLayerUpdate, activeTextStyleKe
                           onChange={(e) => handleBorderWidthChange(e.target.value)}
                           placeholder="1"
                         />
-                        <Button
+                        <Button 
                           variant={widthModeToggle.mode === 'individual' ? 'secondary' : 'ghost'}
                           size="sm"
                           onClick={widthModeToggle.handleToggle}
