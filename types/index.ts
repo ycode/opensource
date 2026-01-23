@@ -597,6 +597,7 @@ export interface CollaborationUser {
   user_id: string;
   email: string;
   display_name: string;
+  avatar_url: string | null;
   color: string;
   cursor: { x: number; y: number } | null;
   selected_layer_id: string | null;
@@ -627,6 +628,7 @@ export interface CollaborationState {
   isConnected: boolean;
   currentUserId: string | null;
   currentUserColor: string;
+  currentUserAvatarUrl: string | null;
 }
 
 export interface ActivityNotification {

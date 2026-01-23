@@ -428,6 +428,12 @@ export default function HeaderBar({
             <DropdownMenuSeparator />
 
             <DropdownMenuItem
+              onClick={() => router.push('/ycode/profile')}
+            >
+              My profile
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
               onClick={async () => {
                 await signOut();
               }}
