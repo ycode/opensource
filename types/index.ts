@@ -263,7 +263,12 @@ export interface Layer {
 
   // Components (reusable layer trees)
   componentId?: string; // Reference to applied Component
-  componentOverrides?: Record<string, never>; // Reserved for future use - local modifications to component instances
+  componentOverrides?: {
+    text?: Record<string, string | any>; // text_variable_id → override value (string or Tiptap JSON)
+  };
+
+  // Component variable linking (for text layers within components)
+  text_variable_id?: string; // Reference to ComponentTextVariable.id
 
   // Collection binding (for collection layers)
   collection?: {
@@ -332,6 +337,13 @@ export interface BlockTemplate {
   template: LayerTemplate | LayerTemplateRef;
 }
 
+// Component Variable Types
+export interface ComponentTextVariable {
+  id: string;        // Unique variable ID
+  name: string;      // Display name (e.g., "Button title")
+  default_value?: any; // Default value (Tiptap JSON or string)
+}
+
 // Component Types (Reusable Layer Trees)
 export interface Component {
   id: string;
@@ -339,6 +351,9 @@ export interface Component {
 
   // Component data - complete layer tree
   layers: Layer[];
+
+  // Component variables - exposed text content
+  text_variables?: ComponentTextVariable[];
 
   // Versioning fields
   content_hash?: string; // SHA-256 hash for change detection

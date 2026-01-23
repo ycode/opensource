@@ -53,6 +53,9 @@ interface LayerRendererProps {
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null; // For collaboration broadcasts
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null; // For component collaboration broadcasts
   parentComponentLayerId?: string; // ID of the parent component layer (if rendering inside a component)
+  parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
+  parentComponentVariables?: { id: string; name: string; default_value?: any }[]; // Component's text_variables for default value lookup
+  editingComponentVariables?: { id: string; name: string; default_value?: any }[]; // Variables when directly editing a component
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -77,6 +80,9 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   liveLayerUpdates,
   liveComponentUpdates,
   parentComponentLayerId,
+  parentComponentOverrides,
+  parentComponentVariables,
+  editingComponentVariables,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -157,6 +163,9 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         liveLayerUpdates={liveLayerUpdates}
         liveComponentUpdates={liveComponentUpdates}
         parentComponentLayerId={parentComponentLayerId}
+        parentComponentOverrides={parentComponentOverrides}
+        parentComponentVariables={parentComponentVariables}
+        editingComponentVariables={editingComponentVariables}
       />
     );
   };
@@ -197,6 +206,9 @@ const LayerItem: React.FC<{
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
   parentComponentLayerId?: string; // ID of the parent component layer (if this layer is inside a component)
+  parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
+  parentComponentVariables?: { id: string; name: string; default_value?: any }[]; // Component's text_variables for default value lookup
+  editingComponentVariables?: { id: string; name: string; default_value?: any }[]; // Variables when directly editing a component
 }> = ({
   layer,
   isEditMode,
@@ -225,6 +237,9 @@ const LayerItem: React.FC<{
   liveLayerUpdates,
   liveComponentUpdates,
   parentComponentLayerId,
+  parentComponentOverrides,
+  parentComponentVariables,
+  editingComponentVariables,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isHovered = hoveredLayerId === layer.id;
@@ -352,6 +367,34 @@ const LayerItem: React.FC<{
       // Use format from parent localeSelector layer (passed as prop)
       const format = localeSelectorFormat || 'locale';
       return format === 'code' ? displayLocale.code.toUpperCase() : displayLocale.label;
+    }
+
+    // Check for component variable override or default value
+    // This handles both:
+    // 1. Component instances on a page (parentComponentVariables is set)
+    // 2. Directly editing a component (editingComponentVariables is set)
+    const componentVariables = parentComponentVariables || editingComponentVariables;
+    if (layer.text_variable_id && componentVariables) {
+      // Check for override value first (only when viewing an instance, not when editing component)
+      const overrideValue = parentComponentOverrides?.text?.[layer.text_variable_id];
+      const variableDef = componentVariables.find(v => v.id === layer.text_variable_id);
+      const valueToRender = (overrideValue !== undefined && overrideValue !== '') 
+        ? overrideValue 
+        : variableDef?.default_value;
+      
+      if (valueToRender !== undefined && valueToRender !== '') {
+        // Check if value is Tiptap JSON format
+        if (typeof valueToRender === 'object' && valueToRender.type === 'doc') {
+          // Create a temporary variable to render with formatting
+          const tempVariable = {
+            type: 'dynamic_rich_text' as const,
+            data: { content: valueToRender },
+          };
+          return renderRichText(tempVariable as any, effectiveCollectionItemData, layer.textStyles, useSpanForParagraphs, isEditMode);
+        }
+        // Return plain text value
+        return valueToRender;
+      }
     }
 
     // Check for DynamicRichTextVariable format (with formatting)
@@ -673,6 +716,8 @@ const LayerItem: React.FC<{
           liveLayerUpdates={liveLayerUpdates}
           liveComponentUpdates={liveComponentUpdates}
           parentComponentLayerId={layer.id}
+          parentComponentOverrides={layer.componentOverrides}
+          parentComponentVariables={component.text_variables}
         />
       );
     }
@@ -1282,6 +1327,9 @@ const LayerItem: React.FC<{
                   availableLocales={availableLocales}
                   liveLayerUpdates={liveLayerUpdates}
                   parentComponentLayerId={parentComponentLayerId || (layer.componentId ? layer.id : undefined)}
+                  parentComponentOverrides={parentComponentOverrides}
+                  parentComponentVariables={parentComponentVariables}
+                  editingComponentVariables={editingComponentVariables}
                 />
               )}
             </Tag>
@@ -1327,6 +1375,9 @@ const LayerItem: React.FC<{
               localeSelectorFormat={format}
               liveLayerUpdates={liveLayerUpdates}
               parentComponentLayerId={layer.componentId ? layer.id : parentComponentLayerId}
+              parentComponentOverrides={parentComponentOverrides}
+              parentComponentVariables={parentComponentVariables}
+              editingComponentVariables={editingComponentVariables}
             />
           )}
 
@@ -1377,6 +1428,9 @@ const LayerItem: React.FC<{
             localeSelectorFormat={localeSelectorFormat}
             liveLayerUpdates={liveLayerUpdates}
             parentComponentLayerId={parentComponentLayerId || (layer.componentId ? layer.id : undefined)}
+            parentComponentOverrides={parentComponentOverrides}
+            parentComponentVariables={parentComponentVariables}
+            editingComponentVariables={editingComponentVariables}
           />
         )}
       </Tag>

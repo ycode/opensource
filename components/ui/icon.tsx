@@ -13,7 +13,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'more' | 'copy' | 'component' | 'arrowLeft' | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'subscript' | 'superscript' | 'quote' | 'listOrdered' | 'listUnordered' | 'code' | 'pencil' | 'eye' | 'eye-off'
     | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'zap'
     | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in' | 'ease-back-in-out' | 'ease-back-out'
-    | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash' | 'paintbrush' | 'triangle-down'
+    | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash' | 'paintbrush' | 'triangle-down' | 'plus-circle' | 'plus-circle-solid'
   );
 }
 
@@ -289,6 +289,16 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   plus: (
     <>
       <path d="M6.5,1 L6.5,5.5 L11,5.5 L11,6.5 L6.5,6.5 L6.5,11 L5.5,11 L5.5,6.5 L1,6.5 L1,5.5 L5.5,5.5 L5.5,1 L6.5,1 Z" />
+    </>
+  ),
+  'plus-circle': (
+    <>
+      <path d="M6,0 C9.3137085,0 12,2.6862915 12,6 C12,9.3137085 9.3137085,12 6,12 C2.6862915,12 0,9.3137085 0,6 C0,2.6862915 2.6862915,0 6,0 Z M6,1 C3.23857625,1 1,3.23857625 1,6 C1,8.76142375 3.23857625,11 6,11 C8.76142375,11 11,8.76142375 11,6 C11,3.23857625 8.76142375,1 6,1 Z M6.5,3 L6.5,5.5 L9,5.5 L9,6.5 L6.5,6.5 L6.5,9 L5.5,9 L5.5,6.5 L3,6.5 L3,5.5 L5.5,5.5 L5.5,3 L6.5,3 Z" />
+    </>
+  ),
+  'plus-circle-solid': (
+    <>
+      <path d="M6,0 C9.3137085,0 12,2.6862915 12,6 C12,9.3137085 9.3137085,12 6,12 C2.6862915,12 0,9.3137085 0,6 C0,2.6862915 2.6862915,0 6,0 Z M6,2 C5.58578644,2 5.25,2.33578644 5.25,2.75 L5.25,5.25 L2.75,5.25 C2.33578644,5.25 2,5.58578644 2,6 C2,6.41421356 2.33578644,6.75 2.75,6.75 L5.25,6.75 L5.25,9.25 C5.25,9.66421356 5.58578644,10 6,10 C6.41421356,10 6.75,9.66421356 6.75,9.25 L6.75,6.75 L9.25,6.75 C9.66421356,6.75 10,6.41421356 10,6 C10,5.58578644 9.66421356,5.25 9.25,5.25 L6.75,5.25 L6.75,2.75 C6.75,2.33578644 6.41421356,2 6,2 Z" />
     </>
   ),
   bold: (

@@ -220,6 +220,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const components = useComponentsStore((state) => state.components);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
   const [collectionItems, setCollectionItems] = useState<Array<{ id: string; label: string }>>([]);
+
+  // Get editing component's text_variables for default value display
+  // Depends on `components` array to react to variable changes
+  const editingComponentVariables = useMemo(() => {
+    if (!editingComponentId) return undefined;
+    const component = components.find(c => c.id === editingComponentId);
+    return component?.text_variables;
+  }, [editingComponentId, components]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
 
   // Undo/Redo hook - tracks versions for the current entity (page or component)
@@ -1803,6 +1811,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         onIframeReady={handleIframeReady}
                         onLayerHover={handleCanvasLayerHover}
                         onCanvasClick={handleCanvasClick}
+                        editingComponentVariables={editingComponentVariables}
                       />
 
                       {/* Empty overlay when only Body with no children */}

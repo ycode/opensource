@@ -111,7 +111,7 @@ export async function createComponent(
  */
 export async function updateComponent(
   id: string,
-  updates: Partial<Pick<Component, 'name' | 'layers'>>
+  updates: Partial<Pick<Component, 'name' | 'layers' | 'text_variables'>>
 ): Promise<Component> {
   const client = await getSupabaseAdmin();
   if (!client) {

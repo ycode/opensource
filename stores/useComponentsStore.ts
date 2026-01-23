@@ -73,6 +73,11 @@ interface ComponentsActions {
   createComponentFromLayer: (componentId: string, layerId: string, componentName: string) => Promise<string | null>;
   restoreComponents: (componentIds: string[]) => Promise<string[]>;
 
+  // Text variables
+  addTextVariable: (componentId: string, name: string) => Promise<string | null>;
+  updateTextVariable: (componentId: string, variableId: string, updates: { name?: string; default_value?: any }) => Promise<void>;
+  deleteTextVariable: (componentId: string, variableId: string) => Promise<void>;
+
   // State management
   setError: (error: string | null) => void;
   clearError: () => void;
@@ -577,6 +582,106 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     }
 
     return restoredIds;
+  },
+
+  // Add a text variable to a component
+  addTextVariable: async (componentId, name) => {
+    const component = get().getComponentById(componentId);
+    if (!component) return null;
+
+    // Generate unique variable ID
+    const variableId = `var_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    const newVariable = { id: variableId, name };
+    const updatedVariables = [...(component.text_variables || []), newVariable];
+
+    try {
+      const response = await fetch(`/api/components/${componentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text_variables: updatedVariables }),
+      });
+
+      const result = await response.json();
+      if (result.error) {
+        console.error('Failed to add text variable:', result.error);
+        return null;
+      }
+
+      // Update local state
+      set((state) => ({
+        components: state.components.map((c) =>
+          c.id === componentId ? { ...c, text_variables: updatedVariables } : c
+        ),
+      }));
+
+      return variableId;
+    } catch (error) {
+      console.error('Failed to add text variable:', error);
+      return null;
+    }
+  },
+
+  // Update a text variable's name and/or default value
+  updateTextVariable: async (componentId, variableId, updates) => {
+    const component = get().getComponentById(componentId);
+    if (!component) return;
+
+    const updatedVariables = (component.text_variables || []).map((v) =>
+      v.id === variableId ? { ...v, ...updates } : v
+    );
+
+    try {
+      const response = await fetch(`/api/components/${componentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text_variables: updatedVariables }),
+      });
+
+      const result = await response.json();
+      if (result.error) {
+        console.error('Failed to update text variable:', result.error);
+        return;
+      }
+
+      set((state) => ({
+        components: state.components.map((c) =>
+          c.id === componentId ? { ...c, text_variables: updatedVariables } : c
+        ),
+      }));
+    } catch (error) {
+      console.error('Failed to update text variable:', error);
+    }
+  },
+
+  // Delete a text variable
+  deleteTextVariable: async (componentId, variableId) => {
+    const component = get().getComponentById(componentId);
+    if (!component) return;
+
+    const updatedVariables = (component.text_variables || []).filter((v) => v.id !== variableId);
+
+    try {
+      const response = await fetch(`/api/components/${componentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text_variables: updatedVariables }),
+      });
+
+      const result = await response.json();
+      if (result.error) {
+        console.error('Failed to delete text variable:', result.error);
+        return;
+      }
+
+      set((state) => ({
+        components: state.components.map((c) =>
+          c.id === componentId ? { ...c, text_variables: updatedVariables } : c
+        ),
+      }));
+    } catch (error) {
+      console.error('Failed to delete text variable:', error);
+    }
   },
 
   // Error management
