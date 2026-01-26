@@ -13,7 +13,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'more' | 'copy' | 'component' | 'arrowLeft' | 'bold' | 'italic' | 'underline' | 'strikethrough' | 'subscript' | 'superscript' | 'quote' | 'listOrdered' | 'listUnordered' | 'code' | 'pencil' | 'eye' | 'eye-off'
     | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'zap'
     | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in' | 'ease-back-in-out' | 'ease-back-out'
-    | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash' | 'paintbrush' | 'triangle-down' | 'plus-circle' | 'plus-circle-solid'
+    | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash' | 'paintbrush' | 'triangle-down' | 'plus-circle' | 'plus-circle-solid' | 'detach'
   );
 }
 
@@ -24,6 +24,12 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   x: (
     <>
       <path d="M9.5,1.79289322 L10.2071068,2.5 L6.70689322,5.99989322 L10.2071068,9.5 L9.5,10.2071068 L5.99989322,6.70689322 L2.5,10.2071068 L1.79289322,9.5 L5.29289322,5.99989322 L1.79289322,2.5 L2.5,1.79289322 L5.99989322,5.29289322 L9.5,1.79289322 Z" />
+    </>
+  ),
+  detach: (
+    <>
+      <path d="M2.9,3 L4.9989774,3 L4.9989774,4 L2.9,4 C1.85532852,4 1,4.89096721 1,6 C1,7.05862221 1.77933859,7.91855243 2.75878096,7.99454067 L2.9,8 L4.9989774,8 L4.9989774,9 L2.9,9 C1.29370468,9 0,7.65239096 0,6 C0,4.40662301 1.20294734,3.09664654 2.72913776,3.00510916 L2.9,3 Z M9.0989774,3 L7,3 L7,4 L9.0989774,4 C10.1436489,4 10.9989774,4.89096721 10.9989774,6 C10.9989774,7.05862221 10.2196388,7.91855243 9.24019645,7.99454067 L9.0989774,8 L7,8 L7,9 L9.0989774,9 C10.7052727,9 11.9989774,7.65239096 11.9989774,6 C11.9989774,4.40662301 10.7960301,3.09664654 9.26983964,3.00510916 L9.0989774,3 Z" />
+      <path d="M5.5,10 L6.5,10 L6.5,12 L5.5,12 L5.5,10 Z M3.41421356,9.9 L4.12132034,10.6071068 L2.70710678,12.0213203 L2,11.3142136 L3.41421356,9.9 Z M7.9,10.6071068 L8.60710678,9.9 L10.0213203,11.3142136 L9.31421356,12.0213203 L7.9,10.6071068 Z M5.5,-4.79616347e-14 L6.5,-4.79616347e-14 L6.5,2 L5.5,2 L5.5,-4.79616347e-14 Z M9.31421356,-3.23630012e-13 L10.0213203,0.707106781 L8.60710678,2.12132034 L7.9,1.41421356 L9.31421356,-3.23630012e-13 Z M2,0.707106781 L2.70710678,-3.23630012e-13 L4.12132034,1.41421356 L3.41421356,2.12132034 L2,0.707106781 Z" opacity="0.5" />
     </>
   ),
   layers: (

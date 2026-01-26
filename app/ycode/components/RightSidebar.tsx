@@ -62,6 +62,7 @@ import { useLayerLocks } from '@/hooks/use-layer-locks';
 import { classesToDesign, mergeDesign, removeConflictsForClass, getRemovedPropertyClasses } from '@/lib/tailwind-class-mapper';
 import { cn } from '@/lib/utils';
 import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTextEditable, findLayerWithParent } from '@/lib/layer-utils';
+import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
 
 // 7. Types
@@ -170,10 +171,12 @@ const RightSidebar = React.memo(function RightSidebar({
   layerLocksRef.current = layerLocks;
 
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
+  const setDraftLayers = usePagesStore((state) => state.setDraftLayers);
   const pages = usePagesStore((state) => state.pages);
 
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
+  const updateComponentDraft = useComponentsStore((state) => state.updateComponentDraft);
   const updateTextVariable = useComponentsStore((state) => state.updateTextVariable);
 
   const collections = useCollectionsStore((state) => state.collections);
@@ -1600,6 +1603,38 @@ const RightSidebar = React.memo(function RightSidebar({
       });
     };
 
+    // Handle detaching from component (converts instance to regular layers)
+    const handleDetachFromComponent = () => {
+      if (!selectedLayer.componentId) return;
+
+      // Use the shared utility function for detaching
+      const newLayers = detachSpecificLayerFromComponent(allLayers, selectedLayerId!, component || undefined);
+
+      if (editingComponentId) {
+        // We're editing a component, update component draft
+        updateComponentDraft(editingComponentId, newLayers);
+      } else if (currentPageId) {
+        // We're on a page, update page draft
+        setDraftLayers(currentPageId, newLayers);
+      }
+
+      // Clear selection after detaching
+      useEditorStore.getState().setSelectedLayerId(null);
+    };
+
+    // Handle resetting all overrides to defaults
+    const handleResetAllOverrides = () => {
+      if (!selectedLayerId) return;
+
+      // Clear all text overrides - values will fall back to defaults
+      onLayerUpdate(selectedLayerId, {
+        componentOverrides: {
+          ...selectedLayer.componentOverrides,
+          text: {},
+        },
+      });
+    };
+
     return (
       <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
         <Tabs className="flex flex-col min-h-0 !gap-0">
@@ -1613,7 +1648,57 @@ const RightSidebar = React.memo(function RightSidebar({
 
           <hr className="mt-4" />
 
-          <div className="flex flex-col divide-y">
+          <div className="flex flex-col divide-y divide-border">
+
+            <SettingsPanel
+              title="Component instance"
+              isOpen={true}
+              onToggle={() => {}}
+              action={
+                <div className="flex items-center gap-1">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="xs" variant="ghost">
+                        <Icon name="more" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={handleResetAllOverrides}
+                        disabled={Object.keys(currentOverrides).length === 0}
+                      >
+                        <Icon name="undo" />
+                        Reset all overrides
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleDetachFromComponent}>
+                        <Icon name="detach" />
+                        Detach from component
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              }
+            >
+              <div className="bg-purple-500/20 text-purple-700 dark:text-purple-300 pl-2 pr-3 h-10 rounded-lg flex items-center gap-2">
+                <div className="p-1.5 bg-current/20 rounded-[8px]">
+                  <Icon name="component" className="size-3" />
+                </div>
+                <span>{component.name}</span>
+                {Object.keys(currentOverrides).length > 0 && (
+                    <span className="ml-auto text-[10px] italic text-orange-600 dark:text-orange-200">Overridden</span>
+                )}
+              </div>
+
+              <Button
+                size="sm" variant="secondary"
+                onClick={handleEditMasterComponent}
+              >
+                <Icon name="edit" />
+                Edit component
+              </Button>
+
+            </SettingsPanel>
+
             <SettingsPanel
               title="Variables"
               isOpen={variablesOpen}
@@ -1643,29 +1728,34 @@ const RightSidebar = React.memo(function RightSidebar({
                   ))}
                 </div>
               )}
+
+              {textVariables.length === 0 && (
+                <div className="flex-1 flex items-center justify-center">
+                  <Empty>
+                    <EmptyMedia variant="icon">
+                      <Icon name="component" className="size-3.5" />
+                    </EmptyMedia>
+                    <EmptyTitle>No variables set</EmptyTitle>
+                    <EmptyDescription>
+                      Enter component editing mode to add variables.
+                    </EmptyDescription>
+                    <div>
+                      <Button
+                        onClick={handleEditMasterComponent}
+                        variant="secondary"
+                        size="sm"
+                      >
+                        Edit component
+                      </Button>
+                    </div>
+                  </Empty>
+                </div>
+              )}
+
             </SettingsPanel>
 
-            <div className="flex-1 flex items-center justify-center">
-              <Empty>
-                <EmptyMedia variant="icon">
-                  <Icon name="component" className="size-3.5" />
-                </EmptyMedia>
-                <EmptyTitle>Component Instance</EmptyTitle>
-                <EmptyDescription>
-                  This is an instance of &quot;{component.name}&quot;.
-                </EmptyDescription>
-                <div>
-                  <Button
-                    onClick={handleEditMasterComponent}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    Edit component
-                  </Button>
-                </div>
-              </Empty>
-            </div>
           </div>
+
         </Tabs>
       </div>
     );
