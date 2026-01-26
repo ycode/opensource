@@ -9,6 +9,7 @@ const SETTINGS_ITEMS = [
   { id: 'users', label: 'Users', path: '/ycode/settings/users' },
   { id: 'redirects', label: 'Redirects', path: '/ycode/settings/redirects' },
   { id: 'api-keys', label: 'API keys', path: '/ycode/settings/api-keys' },
+  { id: 'updates', label: 'Updates', path: '/ycode/settings/updates' },
 ];
 
 interface SettingsContentProps {

@@ -30,7 +30,6 @@ import LeftSidebar from '../components/LeftSidebar';
 import SettingsContent from '../components/SettingsContent';
 import LocalizationContent from '../components/LocalizationContent';
 import ProfileContent from '../components/ProfileContent';
-import UpdateNotification from '@/components/UpdateNotification';
 import MigrationChecker from '@/components/MigrationChecker';
 import BuilderLoading from '@/components/BuilderLoading';
 import { Toaster } from '@/components/ui/sonner';
@@ -1759,9 +1758,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   return (
     <>
       <div className="h-screen flex flex-col">
-      {/* Update Notification Banner */}
-      <UpdateNotification />
-
       {/* Top Header Bar */}
       <HeaderBar
         user={user}

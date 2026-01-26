@@ -106,6 +106,7 @@ export default function HeaderBar({
     return 'dark';
   });
   const [baseUrl, setBaseUrl] = useState<string>('');
+  const [hasUpdate, setHasUpdate] = useState(false);
 
   // Get published_at from settings store (loaded on builder init)
   const publishedAt = getSettingByKey('published_at');
@@ -113,6 +114,22 @@ export default function HeaderBar({
   // Get current host after mount
   useEffect(() => {
     setBaseUrl(window.location.protocol + '//' + window.location.host);
+  }, []);
+
+  // Check for updates on mount
+  useEffect(() => {
+    const checkForUpdates = async () => {
+      try {
+        const response = await fetch('/api/updates/check');
+        if (response.ok) {
+          const data = await response.json();
+          setHasUpdate(data.available === true);
+        }
+      } catch (error) {
+        console.error('Failed to check for updates:', error);
+      }
+    };
+    checkForUpdates();
   }, []);
 
   // Get selected locale (computed from subscribed store values)
@@ -522,13 +539,22 @@ export default function HeaderBar({
           </a>
         </Button>
 
-        <div className="h-5">
-          <Separator orientation="vertical" />
-        </div>
+        {hasUpdate && (
+          <>
+            <div className="h-5">
+              <Separator orientation="vertical" />
+            </div>
 
-        <Button size="xs" variant="ghost">
-          Free
-        </Button>
+            <Button
+              size="xs"
+              variant="ghost"
+              className="text-green-500 hover:text-green-400"
+              onClick={() => router.push('/ycode/settings/updates')}
+            >
+              Update available
+            </Button>
+          </>
+        )}
       </div>
 
       {/* Right: User & Actions */}

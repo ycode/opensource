@@ -113,15 +113,15 @@ export async function GET() {
         ];
       }
     } else {
-      // Manual git pull method
-      updateMethod = 'git-pull';
+      // Default to github-sync instructions (most users will have forked)
+      updateMethod = 'github-sync';
+      autoSyncUrl = `https://github.com/${UPSTREAM_REPO}`;
       steps = [
-        'Open your terminal in the project directory',
-        'Run: <code class="bg-blue-800 px-2 py-1 rounded">git fetch upstream</code>',
-        'Run: <code class="bg-blue-800 px-2 py-1 rounded">git merge upstream/main</code>',
-        'Run: <code class="bg-blue-800 px-2 py-1 rounded">git push origin main</code>',
-        'Your deployment will update automatically',
-        '⚠️ Please reload this page (Ycode builder) after deployment to apply the latest migrations',
+        'Go to your forked GitHub repository',
+        'Click the <strong>"Sync fork"</strong> button (above the file list)',
+        'Click <strong>"Update branch"</strong>',
+        'Your deployment will automatically redeploy with the latest changes',
+        'Please reload this page (Ycode builder) after deployment to apply the latest migrations',
       ];
     }
 
