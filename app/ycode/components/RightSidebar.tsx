@@ -96,7 +96,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const { routeType } = useEditorUrl();
 
   // Local state for immediate UI feedback
-  const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'interactions'>(
+  const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'interactions' | undefined>(
     urlState.rightTab || 'design'
   );
 
@@ -1637,12 +1637,12 @@ const RightSidebar = React.memo(function RightSidebar({
 
     return (
       <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
-        <Tabs className="flex flex-col min-h-0 !gap-0">
+        <Tabs value="" className="flex flex-col min-h-0 !gap-0">
           <div>
             <TabsList className="w-full">
-              <TabsTrigger value="design">Design</TabsTrigger>
-              <TabsTrigger value="settings">Settings</TabsTrigger>
-              <TabsTrigger value="interactions">Interactions</TabsTrigger>
+              <TabsTrigger value="design" disabled>Design</TabsTrigger>
+              <TabsTrigger value="settings" disabled>Settings</TabsTrigger>
+              <TabsTrigger value="interactions" disabled>Interactions</TabsTrigger>
             </TabsList>
           </div>
 
