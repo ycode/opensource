@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { EditorState, UIState } from '../types';
 import type { Layer, Breakpoint, Asset, AssetCategory } from '../types';
 import { useCanvasTextEditorStore } from './useCanvasTextEditorStore';
+import { updateUrlQueryParam } from '@/hooks/use-editor-url';
 
 interface HistoryEntry {
   pageId: string;
@@ -163,6 +164,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       lastSelectedLayerId: id,
       activeTextStyleKey: null,
     });
+
+    // Update URL query param if we're in a route that supports layer selection
+    // Check if we're in /ycode/layers, /ycode/pages, or /ycode/components route
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname;
+      const isLayerRoute = /^\/ycode\/(layers|pages|components)\//.test(pathname);
+      
+      if (isLayerRoute) {
+        updateUrlQueryParam('layer', id || null);
+      }
+    }
   },
 
   setSelectedLayerIds: (ids) => {
