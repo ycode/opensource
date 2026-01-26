@@ -11,7 +11,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/updates/check
- * 
+ *
  * Check for updates from the official YCode repository
  */
 export async function GET() {
@@ -39,9 +39,9 @@ export async function GET() {
 
     const release = await response.json();
     const latestVersion = release.tag_name?.replace(/^v/, '') || '1.0.0';
-    
+
     // Compare versions (simple string comparison for now)
-    const hasUpdate = latestVersion !== CURRENT_VERSION && 
+    const hasUpdate = latestVersion !== CURRENT_VERSION &&
                       compareVersions(latestVersion, CURRENT_VERSION) > 0;
 
     // Detect deployment environment
@@ -64,11 +64,11 @@ export async function GET() {
             cache: 'no-store',
           }
         );
-        
+
         if (repoResponse.ok) {
           const repoData = await repoResponse.json();
           // Check if it's a fork and if parent matches our upstream
-          isFork = repoData.fork && 
+          isFork = repoData.fork &&
                    repoData.parent?.full_name === UPSTREAM_REPO;
         }
       } catch (error) {
@@ -86,7 +86,7 @@ export async function GET() {
         // User forked first, then deployed - ONE CLICK! ✨
         updateMethod = 'github-sync';
         autoSyncUrl = `https://github.com/${vercelGitRepoOwner}/${vercelGitRepoSlug}`;
-        
+
         steps = [
           `Go to <a href="https://github.com/${vercelGitRepoOwner}/${vercelGitRepoSlug}" target="_blank" class="underline font-semibold">your GitHub repository</a>`,
           'Click the <strong class="text-white">"Sync fork"</strong> button (above the file list)',
@@ -98,7 +98,7 @@ export async function GET() {
         // User deployed directly without forking - needs git pull
         updateMethod = 'git-pull';
         autoSyncUrl = `https://github.com/${vercelGitRepoOwner}/${vercelGitRepoSlug}`;
-        
+
         steps = [
           '⚠️ <strong class="text-yellow-300">Your repo is not a fork.</strong> For easier one-click updates in the future, consider forking the official repo first.',
           '',
@@ -118,10 +118,10 @@ export async function GET() {
       autoSyncUrl = `https://github.com/${UPSTREAM_REPO}`;
       steps = [
         'Go to your forked GitHub repository',
-        'Click the <strong>"Sync fork"</strong> button (above the file list)',
-        'Click <strong>"Update branch"</strong>',
+        'Click the <span class="!font-semibold">"Sync fork"</span> button',
+        'Click <span class="!font-semibold">"Update branch"</span>',
         'Your deployment will automatically redeploy with the latest changes',
-        'Please reload this page (Ycode builder) after deployment to apply the latest migrations',
+        'Please reload builder after deployment to apply the latest migrations',
       ];
     }
 
@@ -140,7 +140,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Failed to check for updates:', error);
-    
+
     return noCache({
       available: false,
       currentVersion: CURRENT_VERSION,
@@ -156,14 +156,14 @@ export async function GET() {
 function compareVersions(a: string, b: string): number {
   const aParts = a.split('.').map(Number);
   const bParts = b.split('.').map(Number);
-  
+
   for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
     const aNum = aParts[i] || 0;
     const bNum = bParts[i] || 0;
-    
+
     if (aNum > bNum) return 1;
     if (aNum < bNum) return -1;
   }
-  
+
   return 0;
 }

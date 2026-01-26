@@ -547,8 +547,8 @@ export default function HeaderBar({
 
             <Button
               size="xs"
-              variant="ghost"
-              className="text-green-500 hover:text-green-400"
+              variant="default"
+              className="bg-primary/20 hover:bg-primary/30 text-blue-400 hover:text-blue-300"
               onClick={() => router.push('/ycode/settings/updates')}
             >
               Update available

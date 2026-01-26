@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/field';
 import { Spinner } from '@/components/ui/spinner';
 import Icon from '@/components/ui/icon';
+import { Label } from '@/components/ui/label';
+import { Empty, EmptyTitle } from '@/components/ui/empty';
 
 interface UpdateInfo {
   available: boolean;
@@ -54,7 +56,7 @@ function formatDate(dateString: string): string {
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
-    month: 'long',
+    month: 'short',
     day: 'numeric',
   });
 }
@@ -131,10 +133,9 @@ export default function UpdatesSettingsPage() {
 
           <div className="col-span-2">
             {loading ? (
-              <div className="flex items-center gap-3 py-4">
+              <Empty className="bg-input">
                 <Spinner />
-                <span className="text-sm text-muted-foreground">Checking for updates...</span>
-              </div>
+              </Empty>
             ) : updateInfo?.error ? (
               <div className="py-4">
                 <div className="flex items-center gap-2 text-destructive">
@@ -152,20 +153,15 @@ export default function UpdatesSettingsPage() {
               </div>
             ) : updateInfo?.available ? (
               // Update available state
-              <div className="space-y-6">
-                <div className="flex items-start gap-4">
-                  <div className="flex-1 space-y-4">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-muted-foreground">Current version:</span>
-                      <Badge variant="secondary">{updateInfo.currentVersion}</Badge>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-muted-foreground">Latest version:</span>
-                      <Badge variant="default" className="bg-green-600 hover:bg-green-600">
-                        {updateInfo.latestVersion}
-                      </Badge>
-                      <span className="text-xs text-green-600 font-medium">New update available</span>
-                    </div>
+              <div className="flex flex-col gap-4">
+
+                <div className="flex items-center gap-4">
+                  <div className="size-12 rounded-full bg-secondary flex items-center justify-center font-medium text-[11px] text-current/60">
+                    {updateInfo.latestVersion}
+                  </div>
+                  <div>
+                    <Label>Update available</Label>
+                    <Label variant="muted">Current version {updateInfo?.currentVersion}</Label>
                   </div>
                 </div>
 
@@ -174,17 +170,16 @@ export default function UpdatesSettingsPage() {
                 {updateInfo.updateInstructions && (
                   <div className="space-y-4">
                     <div className="flex items-center gap-2">
-                      <Icon name="info" className="size-4 text-muted-foreground" />
                       <span className="text-sm font-medium">How to update</span>
                     </div>
-                    
-                    <ol className="space-y-2 text-sm text-muted-foreground ml-6">
+
+                    <ol className="flex flex-col gap-3 text-sm text-muted-foreground">
                       {updateInfo.updateInstructions.steps
                         .filter(step => step.trim() !== '')
                         .map((step, index) => (
                           <li key={index} className="flex gap-2">
-                            <span className="font-medium text-foreground">{index + 1}.</span>
-                            <span dangerouslySetInnerHTML={{ __html: step }} />
+                            <span className="font-medium text-foreground/50 size-6 shrink-0 bg-input rounded-md flex items-center justify-center">{index + 1}</span>
+                            <span className="mt-0.5" dangerouslySetInnerHTML={{ __html: step }} />
                           </li>
                         ))}
                     </ol>
@@ -203,8 +198,8 @@ export default function UpdatesSettingsPage() {
                             >
                               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
                             </svg>
-                            {updateInfo.updateInstructions.method === 'github-sync' 
-                              ? 'Sync Fork on GitHub' 
+                            {updateInfo.updateInstructions.method === 'github-sync'
+                              ? 'Sync Fork on GitHub'
                               : 'View on GitHub'}
                           </a>
                         </Button>
@@ -213,24 +208,24 @@ export default function UpdatesSettingsPage() {
                   </div>
                 )}
               </div>
+
             ) : (
               // Up to date state
-              <div className="space-y-6">
+              <div className="flex flex-col gap-4">
+
                 <div className="flex items-center gap-4">
-                  <div className="size-12 rounded-full bg-green-600/10 flex items-center justify-center">
-                    <Icon name="check" className="size-6 text-green-600" />
+                  <div className="size-12 rounded-full bg-green-400/10 flex items-center justify-center">
+                    <Icon name="check" className="size-6 text-green-400" />
                   </div>
                   <div>
-                    <p className="font-medium">You&apos;re up to date</p>
-                    <p className="text-sm text-muted-foreground">
-                      Version {updateInfo?.currentVersion}
-                    </p>
+                    <Label>You&apos;re up to date</Label>
+                    <Label variant="muted">Version {updateInfo?.currentVersion}</Label>
                   </div>
                 </div>
 
                 <FieldSeparator />
 
-                <div className="flex gap-3">
+                <div className="flex gap-1">
                   <Button
                     size="sm" variant="secondary"
                     asChild
@@ -257,6 +252,7 @@ export default function UpdatesSettingsPage() {
                     Check again
                   </Button>
                 </div>
+
               </div>
             )}
           </div>
@@ -275,47 +271,86 @@ export default function UpdatesSettingsPage() {
 
           <div className="col-span-2">
             {releasesLoading ? (
-              <div className="flex items-center gap-3 py-4">
+              <Empty className="bg-input">
                 <Spinner />
-                <span className="text-sm text-muted-foreground">Loading releases...</span>
-              </div>
+              </Empty>
             ) : releases.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">No releases found.</p>
+              <Empty className="bg-input">
+                <EmptyTitle>No releases found</EmptyTitle>
+              </Empty>
             ) : (
-              <div className="space-y-6">
-                {releases.map((release, index) => (
-                  <div key={release.version}>
-                    {index > 0 && <FieldSeparator className="mb-6" />}
-                    
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <Badge 
-                          variant={release.isCurrent ? 'default' : 'secondary'}
-                          className={release.isCurrent ? 'bg-green-600 hover:bg-green-600' : ''}
-                        >
-                          v{release.version}
-                        </Badge>
-                        {release.isCurrent && (
-                          <span className="text-xs text-green-600 font-medium">Current</span>
-                        )}
-                        {release.isPrerelease && (
-                          <Badge variant="outline" className="text-xs">Pre-release</Badge>
-                        )}
-                        <span className="text-xs text-muted-foreground ml-auto">
-                          {formatDate(release.publishedAt)}
-                        </span>
-                      </div>
+              <ul className="divide-y divide-border">
+                {(() => {
+                  // Find the index of the current version to determine which releases are newer
+                  const currentIndex = releases.findIndex((r) => r.isCurrent);
+                  return releases.map((release, index) => {
+                    // A release is newer if it appears before the current version in the list
+                    const isNewerThanCurrent = currentIndex !== -1 && index < currentIndex;
+                    return (
+                      <li key={release.version}>
+                        {index > 0 }
 
-                      {release.body && (
-                        <div 
-                          className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground [&>ul]:list-disc [&>ul]:ml-4 [&>ol]:list-decimal [&>ol]:ml-4 [&>p]:mb-2 [&>h1]:text-base [&>h1]:font-semibold [&>h1]:mb-2 [&>h2]:text-sm [&>h2]:font-semibold [&>h2]:mb-2 [&>h3]:text-sm [&>h3]:font-medium [&>h3]:mb-1"
-                          dangerouslySetInnerHTML={{ __html: marked(release.body) as string }}
-                        />
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                        <div className="relative flex gap-x-4 py-5">
+
+                          <div className="absolute top-0 bottom-0 left-0 flex w-6 justify-center">
+                            <div className="w-px bg-secondary"></div>
+                          </div>
+                          <div className="relative flex size-6 flex-none items-center justify-center bg-[#1c1c1c]">
+                            {release.isCurrent && !updateInfo?.available ? (
+                              <div className="size-1.5 rounded-full bg-green-400 ring ring-green-400" />
+                            ) : release.isCurrent && updateInfo?.available ? (
+                              <div className="size-1.5 rounded-full bg-white/50 ring ring-white/50" />
+                            ) : (
+                              <div className="size-1.5 rounded-full bg-[#1c1c1c] ring ring-secondary" />
+                            )}
+                          </div>
+
+                          <div className="flex-auto py-0.5">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant={
+                                  index === 0 && release.isCurrent ? 'green' :
+                                    index === 0 ? 'default' :
+                                      release.isCurrent ? 'secondary' :
+                                        'outline'
+                                }
+                                className="gap-2"
+                              >
+                                {release.version}
+                              </Badge>
+                              <div className="size-1 bg-secondary rounded-full" />
+                              <time className="flex-none py-0.5 opacity-50">{formatDate(release.publishedAt)}</time>
+                              {release.isCurrent && (
+                                <div className="flex items-center gap-2">
+                                  <div className="size-1 bg-secondary rounded-full" />
+                                  <Label variant="muted">Current</Label>
+                                </div>
+                              )}
+                              {index === 0 && !release.isCurrent && (
+                                <div className="flex items-center gap-2">
+                                  <div className="size-1 bg-secondary rounded-full" />
+                                  <Label variant="muted">Newest</Label>
+                                </div>
+                              )}
+                            </div>
+                            {release.isPrerelease && (
+                              <Badge variant="outline" className="text-xs">Pre-release</Badge>
+                            )}
+                            {release.body && (
+                              <div
+                                className="mt-2 prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground [&>ul]:list-disc [&>ul]:ml-4 [&>ol]:list-decimal [&>ol]:ml-4 [&>p]:mb-2 [&>h1]:text-base [&>h1]:font-semibold [&>h1]:mb-2 [&>h2]:text-sm [&>h2]:font-semibold [&>h2]:mb-2 [&>h3]:text-sm [&>h3]:font-medium [&>h3]:mb-1"
+                                dangerouslySetInnerHTML={{ __html: marked(release.body) as string }}
+                              />
+                            )}
+                          </div>
+
+                        </div>
+
+                      </li>
+                    );
+                  });
+                })()}
+              </ul>
             )}
           </div>
 
