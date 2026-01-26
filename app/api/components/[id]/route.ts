@@ -44,19 +44,21 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, layers } = body;
+    const { name, layers, variables } = body;
 
     const updates: any = {};
     if (name !== undefined) updates.name = name;
     if (layers !== undefined) updates.layers = layers;
+    if (variables !== undefined) updates.variables = variables;
 
     const component = await updateComponent(id, updates);
 
     return NextResponse.json({ data: component });
   } catch (error) {
     console.error('Error updating component:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update component';
     return NextResponse.json(
-      { error: 'Failed to update component' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

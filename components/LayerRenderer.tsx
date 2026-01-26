@@ -8,7 +8,7 @@ import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import type { Layer, Locale } from '@/types';
+import type { Layer, Locale, ComponentVariable } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
@@ -53,6 +53,9 @@ interface LayerRendererProps {
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null; // For collaboration broadcasts
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null; // For component collaboration broadcasts
   parentComponentLayerId?: string; // ID of the parent component layer (if rendering inside a component)
+  parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
+  parentComponentVariables?: ComponentVariable[]; // Component's variables for default value lookup
+  editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -77,6 +80,9 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   liveLayerUpdates,
   liveComponentUpdates,
   parentComponentLayerId,
+  parentComponentOverrides,
+  parentComponentVariables,
+  editingComponentVariables,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -157,6 +163,9 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         liveLayerUpdates={liveLayerUpdates}
         liveComponentUpdates={liveComponentUpdates}
         parentComponentLayerId={parentComponentLayerId}
+        parentComponentOverrides={parentComponentOverrides}
+        parentComponentVariables={parentComponentVariables}
+        editingComponentVariables={editingComponentVariables}
       />
     );
   };
@@ -197,6 +206,9 @@ const LayerItem: React.FC<{
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
   parentComponentLayerId?: string; // ID of the parent component layer (if this layer is inside a component)
+  parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
+  parentComponentVariables?: ComponentVariable[]; // Component's variables for default value lookup
+  editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
 }> = ({
   layer,
   isEditMode,
@@ -225,6 +237,9 @@ const LayerItem: React.FC<{
   liveLayerUpdates,
   liveComponentUpdates,
   parentComponentLayerId,
+  parentComponentOverrides,
+  parentComponentVariables,
+  editingComponentVariables,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isHovered = hoveredLayerId === layer.id;
@@ -352,6 +367,32 @@ const LayerItem: React.FC<{
       // Use format from parent localeSelector layer (passed as prop)
       const format = localeSelectorFormat || 'locale';
       return format === 'code' ? displayLocale.code.toUpperCase() : displayLocale.label;
+    }
+
+    // Check for component variable override or default value
+    // This handles both:
+    // 1. Component instances on a page (parentComponentVariables is set)
+    // 2. Directly editing a component (editingComponentVariables is set)
+    const componentVariables = parentComponentVariables || editingComponentVariables;
+    const linkedVariableId = textVariable?.id;
+    if (linkedVariableId && componentVariables) {
+      // Check for override value first (only when viewing an instance, not when editing component)
+      const overrideValue = parentComponentOverrides?.text?.[linkedVariableId];
+      const variableDef = componentVariables.find(v => v.id === linkedVariableId);
+      const valueToRender = overrideValue ?? variableDef?.default_value;
+
+      if (valueToRender !== undefined) {
+        // Value is now typed as ComponentVariableValue (DynamicTextVariable | DynamicRichTextVariable)
+        if (valueToRender.type === 'dynamic_rich_text') {
+          return renderRichText(valueToRender as any, effectiveCollectionItemData, layer.textStyles, useSpanForParagraphs, isEditMode);
+        }
+        if (valueToRender.type === 'dynamic_text') {
+          return valueToRender.data.content;
+        }
+      }
+
+      // Variable is linked but has no default value - return empty string (don't fall through to layer's text)
+      return '';
     }
 
     // Check for DynamicRichTextVariable format (with formatting)
@@ -673,6 +714,8 @@ const LayerItem: React.FC<{
           liveLayerUpdates={liveLayerUpdates}
           liveComponentUpdates={liveComponentUpdates}
           parentComponentLayerId={layer.id}
+          parentComponentOverrides={layer.componentOverrides}
+          parentComponentVariables={component.variables}
         />
       );
     }
@@ -1282,6 +1325,9 @@ const LayerItem: React.FC<{
                   availableLocales={availableLocales}
                   liveLayerUpdates={liveLayerUpdates}
                   parentComponentLayerId={parentComponentLayerId || (layer.componentId ? layer.id : undefined)}
+                  parentComponentOverrides={parentComponentOverrides}
+                  parentComponentVariables={parentComponentVariables}
+                  editingComponentVariables={editingComponentVariables}
                 />
               )}
             </Tag>
@@ -1327,6 +1373,9 @@ const LayerItem: React.FC<{
               localeSelectorFormat={format}
               liveLayerUpdates={liveLayerUpdates}
               parentComponentLayerId={layer.componentId ? layer.id : parentComponentLayerId}
+              parentComponentOverrides={parentComponentOverrides}
+              parentComponentVariables={parentComponentVariables}
+              editingComponentVariables={editingComponentVariables}
             />
           )}
 
@@ -1377,6 +1426,9 @@ const LayerItem: React.FC<{
             localeSelectorFormat={localeSelectorFormat}
             liveLayerUpdates={liveLayerUpdates}
             parentComponentLayerId={parentComponentLayerId || (layer.componentId ? layer.id : undefined)}
+            parentComponentOverrides={parentComponentOverrides}
+            parentComponentVariables={parentComponentVariables}
+            editingComponentVariables={editingComponentVariables}
           />
         )}
       </Tag>

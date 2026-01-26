@@ -8,7 +8,7 @@
  * - StaticTextVariable
  */
 
-import type { AssetVariable, FieldVariable, DynamicTextVariable, DynamicRichTextVariable, StaticTextVariable } from '@/types';
+import type { AssetVariable, FieldVariable, DynamicTextVariable, DynamicRichTextVariable, StaticTextVariable, ComponentVariableValue } from '@/types';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import { DEFAULT_ASSETS } from '@/lib/asset-constants';
 import { stringToTiptapContent } from '@/lib/text-format-utils';
@@ -61,6 +61,48 @@ export function createAssetVariable(assetId: string): AssetVariable {
       asset_id: assetId,
     },
   };
+}
+
+/**
+ * Component Variable Utilities
+ * 
+ * ComponentVariableValue currently supports text variables (DynamicTextVariable | DynamicRichTextVariable)
+ * but will be expanded to support other types (image, link, etc.) in the future
+ */
+
+/**
+ * Create a text ComponentVariableValue from Tiptap JSON content
+ * Used for component variable default values and overrides (text variables only)
+ */
+export function createTextComponentVariableValue(tiptapContent: object): ComponentVariableValue {
+  return {
+    type: 'dynamic_rich_text',
+    data: {
+      content: tiptapContent,
+    },
+  };
+}
+
+/**
+ * Extract Tiptap JSON content from text ComponentVariableValue
+ * Returns the Tiptap content object or a default empty document
+ * Handles both DynamicRichTextVariable (with formatting) and DynamicTextVariable (plain text)
+ */
+export function extractTiptapFromComponentVariable(value?: ComponentVariableValue): object {
+  const emptyDoc = { type: 'doc', content: [{ type: 'paragraph' }] };
+  
+  if (!value) return emptyDoc;
+  
+  if (value.type === 'dynamic_rich_text') {
+    return value.data.content;
+  }
+  
+  if (value.type === 'dynamic_text') {
+    // Convert plain text to Tiptap format
+    return stringToTiptapContent(value.data.content);
+  }
+  
+  return emptyDoc;
 }
 
 /**

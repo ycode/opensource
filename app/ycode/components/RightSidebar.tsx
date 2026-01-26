@@ -26,6 +26,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import AddAttributeModal from './AddAttributeModal';
 import BackgroundsControls from './BackgroundsControls';
 import BorderControls from './BorderControls';
+import ComponentVariablesDialog from './ComponentVariablesDialog';
 import EffectControls from './EffectControls';
 import CollectionFiltersSettings from './CollectionFiltersSettings';
 import ConditionalVisibilitySettings from './ConditionalVisibilitySettings';
@@ -65,11 +66,19 @@ import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-
 
 // 7. Types
 import type { Layer, FieldVariable, CollectionField } from '@/types';
+import { createTextComponentVariableValue, extractTiptapFromComponentVariable } from '@/lib/variable-utils';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import {
   DropdownMenu,
-  DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut,
-  DropdownMenuTrigger
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 
@@ -137,6 +146,8 @@ const RightSidebar = React.memo(function RightSidebar({
   const [fieldBindingOpen, setFieldBindingOpen] = useState(true);
   const [contentOpen, setContentOpen] = useState(true);
   const [localeLabelOpen, setLocaleLabelOpen] = useState(true);
+  const [variablesOpen, setVariablesOpen] = useState(true);
+  const [variablesDialogOpen, setVariablesDialogOpen] = useState(false);
   const [interactionOwnerLayerId, setInteractionOwnerLayerId] = useState<string | null>(null);
   const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
   const [interactionResetKey, setInteractionResetKey] = useState(0);
@@ -163,6 +174,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);
+  const updateTextVariable = useComponentsStore((state) => state.updateTextVariable);
 
   const collections = useCollectionsStore((state) => state.collections);
   const fields = useCollectionsStore((state) => state.fields);
@@ -1557,28 +1569,104 @@ const RightSidebar = React.memo(function RightSidebar({
       }
     };
 
+    const textVariables = component.variables || [];
+    const currentOverrides = selectedLayer.componentOverrides?.text || {};
+
+    // Extract Tiptap content from text ComponentVariableValue
+    // Falls back to variable's default_value if no override is set
+    const getOverrideValue = (variableId: string) => {
+      const overrideValue = currentOverrides[variableId];
+      const variableDef = textVariables.find(v => v.id === variableId);
+
+      // Use override if set, otherwise fall back to default value
+      const value = overrideValue ?? variableDef?.default_value;
+
+      // Extract Tiptap content using utility function
+      return extractTiptapFromComponentVariable(value);
+    };
+
+    // Store override as text ComponentVariableValue (DynamicRichTextVariable)
+    const handleVariableOverrideChange = (variableId: string, tiptapContent: any) => {
+      // Store as DynamicRichTextVariable to preserve formatting
+      const variableValue = createTextComponentVariableValue(tiptapContent);
+      onLayerUpdate(selectedLayerId!, {
+        componentOverrides: {
+          ...selectedLayer.componentOverrides,
+          text: {
+            ...currentOverrides,
+            [variableId]: variableValue,
+          },
+        },
+      });
+    };
+
     return (
       <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
-        <div className="flex-1 flex items-center justify-center">
-          <Empty>
-            <EmptyMedia variant="icon">
-              <Icon name="component" className="size-3.5" />
-            </EmptyMedia>
-            <EmptyTitle>Component Instance</EmptyTitle>
-            <EmptyDescription>
-              This is an instance of &quot;{component.name}&quot;. To edit this component, click the button below or right-click and select &quot;Edit master component&quot;.
-            </EmptyDescription>
-            <div>
-              <Button
-                onClick={handleEditMasterComponent}
-                variant="secondary"
-                size="sm"
-              >
-                Edit component
-              </Button>
+        <Tabs className="flex flex-col min-h-0 !gap-0">
+          <div>
+            <TabsList className="w-full">
+              <TabsTrigger value="design">Design</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+              <TabsTrigger value="interactions">Interactions</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <hr className="mt-4" />
+
+          <div className="flex flex-col divide-y">
+            <SettingsPanel
+              title="Variables"
+              isOpen={variablesOpen}
+              onToggle={() => setVariablesOpen(!variablesOpen)}
+            >
+              {/* Variable overrides */}
+              {textVariables.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {textVariables.map((variable) => (
+                    <div key={variable.id} className="grid grid-cols-3 gap-2">
+                      <Label variant="muted" className="truncate">
+                        {variable.name}
+                      </Label>
+                      <div className="col-span-2 *:w-full">
+                        <InputWithInlineVariables
+                          value={getOverrideValue(variable.id)}
+                          onChange={(val) => handleVariableOverrideChange(variable.id, val)}
+                          placeholder="Enter value..."
+                          fields={[]}
+                          allFields={fields}
+                          collections={collections}
+                          withFormatting={true}
+                          showFormattingToolbar={false}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SettingsPanel>
+
+            <div className="flex-1 flex items-center justify-center">
+              <Empty>
+                <EmptyMedia variant="icon">
+                  <Icon name="component" className="size-3.5" />
+                </EmptyMedia>
+                <EmptyTitle>Component Instance</EmptyTitle>
+                <EmptyDescription>
+                  This is an instance of &quot;{component.name}&quot;.
+                </EmptyDescription>
+                <div>
+                  <Button
+                    onClick={handleEditMasterComponent}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Edit component
+                  </Button>
+                </div>
+              </Empty>
             </div>
-          </Empty>
-        </div>
+          </div>
+        </Tabs>
       </div>
     );
   }
@@ -1589,7 +1677,7 @@ const RightSidebar = React.memo(function RightSidebar({
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}
-        className="flex flex-col flex-1 min-h-0"
+        className="flex flex-col flex-1 min-h-0 gap-0"
       >
         <div className="">
           <TabsList className="w-full">
@@ -1599,7 +1687,7 @@ const RightSidebar = React.memo(function RightSidebar({
           </TabsList>
         </div>
 
-        <hr className="mt-2" />
+        <hr className="mt-4" />
 
         {/* Design tab */}
         <TabsContent value="design" className="flex-1 flex flex-col divide-y overflow-y-auto no-scrollbar data-[state=inactive]:hidden overflow-x-hidden mt-0">
@@ -1880,27 +1968,127 @@ const RightSidebar = React.memo(function RightSidebar({
             </SettingsPanel>
 
             {/* Content Panel - show for text-editable layers */}
-            {selectedLayer && isTextEditable(selectedLayer) && (
-              <SettingsPanel
-                title="Content"
-                isOpen={contentOpen}
-                onToggle={() => setContentOpen(!contentOpen)}
-              >
-                <div className="flex flex-col gap-2">
-                  <InputWithInlineVariables
-                    value={getContentValue(selectedLayer)}
-                    onChange={handleContentChange}
-                    placeholder="Enter text..."
-                    fields={parentCollectionFields}
-                    fieldSourceLabel={fieldSourceLabel}
-                    allFields={fields}
-                    collections={collections}
-                    withFormatting={true}
-                    disabled={showTextStyleControls}
-                  />
-                </div>
-              </SettingsPanel>
-            )}
+            {selectedLayer && isTextEditable(selectedLayer) && (() => {
+              // Get component variables if editing a component
+              const editingComponent = editingComponentId ? getComponentById(editingComponentId) : undefined;
+              const componentVariables = editingComponent?.variables || [];
+              const linkedVariableId = selectedLayer.variables?.text?.id;
+              const linkedVariable = componentVariables.find(v => v.id === linkedVariableId);
+
+              // Handle linking a layer to a variable
+              const handleLinkVariable = (variableId: string) => {
+                if (!selectedLayerId) return;
+                const currentTextVar = selectedLayer.variables?.text;
+                handleLayerUpdate(selectedLayerId, {
+                  variables: {
+                    ...selectedLayer.variables,
+                    text: currentTextVar ? { ...currentTextVar, id: variableId } : { type: 'dynamic_text', id: variableId, data: { content: '' } },
+                  },
+                });
+              };
+
+              // Handle unlinking a layer from a variable
+              const handleUnlinkVariable = () => {
+                if (!selectedLayerId) return;
+                const currentTextVar = selectedLayer.variables?.text;
+                if (currentTextVar) {
+                  const { id: _, ...textWithoutId } = currentTextVar;
+                  handleLayerUpdate(selectedLayerId, {
+                    variables: {
+                      ...selectedLayer.variables,
+                      text: textWithoutId as typeof currentTextVar,
+                    },
+                  });
+                }
+              };
+
+              return (
+                <SettingsPanel
+                  title="Element"
+                  isOpen={contentOpen}
+                  onToggle={() => setContentOpen(!contentOpen)}
+                >
+                  <div className="grid grid-cols-3">
+                    <div className="flex items-start gap-1 py-1">
+                      {editingComponentId ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="variable"
+                              size="xs"
+                              className="has-[>svg]:px-0 py-"
+                            >
+                              <Icon name="plus-circle-solid" />
+                              Content
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {componentVariables.length > 0 && (
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger>Link to variable</DropdownMenuSubTrigger>
+                                <DropdownMenuPortal>
+                                  <DropdownMenuSubContent>
+                                    {componentVariables.map((variable) => (
+                                      <DropdownMenuItem
+                                        key={variable.id}
+                                        onClick={() => handleLinkVariable(variable.id)}
+                                      >
+                                        {variable.name}
+                                        {linkedVariableId === variable.id && (
+                                          <Icon name="check" className="ml-auto size-3" />
+                                        )}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuPortal>
+                              </DropdownMenuSub>
+                            )}
+                            <DropdownMenuItem onClick={() => setVariablesDialogOpen(true)}>
+                              Manage variables
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Label variant="muted">Content</Label>
+                      )}
+                    </div>
+                    <div className="col-span-2 *:w-full">
+                      {linkedVariable ? (
+                        <Button
+                          asChild
+                          variant="purple"
+                          className="!justify-between"
+                          onClick={handleUnlinkVariable}
+                        >
+                          <div>
+                            <span>{linkedVariable.name}</span>
+                            <Button
+                              className="!size-4 !p-0"
+                              variant="outline"
+                            >
+                              <Icon name="x" className="size-2" />
+                            </Button>
+                          </div>
+                        </Button>
+                      ) : (
+                        <InputWithInlineVariables
+                          value={getContentValue(selectedLayer)}
+                          onChange={handleContentChange}
+                          placeholder="Enter text..."
+                          fields={parentCollectionFields}
+                          fieldSourceLabel={fieldSourceLabel}
+                          allFields={fields}
+                          collections={collections}
+                          withFormatting={true}
+                          showFormattingToolbar={false}
+                          disabled={showTextStyleControls}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </SettingsPanel>
+              );
+            })()}
 
             {/* Locale Label Panel - only show for localeSelector layers */}
             {selectedLayer && selectedLayer.name === 'localeSelector' && (
@@ -2382,6 +2570,13 @@ const RightSidebar = React.memo(function RightSidebar({
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Component Variables Dialog */}
+      <ComponentVariablesDialog
+        open={variablesDialogOpen}
+        onOpenChange={setVariablesDialogOpen}
+        componentId={editingComponentId}
+      />
     </div>
   );
 });

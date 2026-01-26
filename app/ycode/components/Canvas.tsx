@@ -19,7 +19,7 @@ import LayerRenderer from '@/components/LayerRenderer';
 import { serializeLayers } from '@/lib/layer-utils';
 import { cn } from '@/lib/utils';
 
-import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, Asset } from '@/types';
+import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, Asset, ComponentVariable } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 
@@ -88,6 +88,8 @@ interface CanvasProps {
   onLayerHover?: (layerId: string | null) => void;
   /** Callback when any click occurs inside the canvas (for closing panels) */
   onCanvasClick?: () => void;
+  /** Component variables when editing a component (for default value display) */
+  editingComponentVariables?: ComponentVariable[];
 }
 
 /**
@@ -104,6 +106,7 @@ interface CanvasContentProps {
   onLayerHover: (layerId: string | null) => void;
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
+  editingComponentVariables?: ComponentVariable[];
 }
 
 function CanvasContent({
@@ -117,6 +120,7 @@ function CanvasContent({
   onLayerHover,
   liveLayerUpdates,
   liveComponentUpdates,
+  editingComponentVariables,
 }: CanvasContentProps) {
   // Handle click on canvas body (select body when clicking on empty space)
   const handleBodyClick = (event: React.MouseEvent) => {
@@ -147,6 +151,7 @@ function CanvasContent({
           pageCollectionItemData={pageCollectionItemData}
           liveLayerUpdates={liveLayerUpdates}
           liveComponentUpdates={liveComponentUpdates}
+          editingComponentVariables={editingComponentVariables}
         />
       ) : (
         <div className="flex items-center justify-center min-h-[200px] text-gray-400">
@@ -194,6 +199,7 @@ export default function Canvas({
   onIframeReady,
   onLayerHover,
   onCanvasClick,
+  editingComponentVariables,
 }: CanvasProps) {
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -354,11 +360,13 @@ export default function Canvas({
         onLayerHover={handleLayerHover}
         liveLayerUpdates={liveLayerUpdates}
         liveComponentUpdates={liveComponentUpdates}
+        editingComponentVariables={editingComponentVariables}
       />
     );
   }, [
     iframeReady,
     resolvedLayers,
+    editingComponentVariables,
     selectedLayerId,
     effectiveHoveredLayerId,
     pageId,

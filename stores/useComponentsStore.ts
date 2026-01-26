@@ -12,6 +12,7 @@ import {
   replaceLayerWithComponentInstance,
   findLayerById,
 } from '@/lib/layer-utils';
+import { generateId } from '@/lib/utils';
 
 interface ComponentsState {
   components: Component[];
@@ -72,6 +73,11 @@ interface ComponentsActions {
   getComponentById: (id: string) => Component | undefined;
   createComponentFromLayer: (componentId: string, layerId: string, componentName: string) => Promise<string | null>;
   restoreComponents: (componentIds: string[]) => Promise<string[]>;
+
+  // Text variables
+  addTextVariable: (componentId: string, name: string) => Promise<string | null>;
+  updateTextVariable: (componentId: string, variableId: string, updates: { name?: string; default_value?: any }) => Promise<void>;
+  deleteTextVariable: (componentId: string, variableId: string) => Promise<void>;
 
   // State management
   setError: (error: string | null) => void;
@@ -577,6 +583,185 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     }
 
     return restoredIds;
+  },
+
+  // Add a text variable to a component
+  addTextVariable: async (componentId, name) => {
+    const component = get().getComponentById(componentId);
+    if (!component) return null;
+
+    const variableId = generateId('cpv'); // CPV = Component Variable
+    const newVariable = { id: variableId, name };
+    const updatedVariables = [...(component.variables || []), newVariable];
+
+    try {
+      const response = await fetch(`/api/components/${componentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variables: updatedVariables }),
+      });
+
+      const result = await response.json();
+      if (result.error) {
+        console.error('Failed to add text variable:', result.error);
+        return null;
+      }
+
+      // Update local state
+      set((state) => ({
+        components: state.components.map((c) =>
+          c.id === componentId ? { ...c, variables: updatedVariables } : c
+        ),
+      }));
+
+      return variableId;
+    } catch (error) {
+      console.error('Failed to add text variable:', error);
+      return null;
+    }
+  },
+
+  // Update a text variable's name and/or default value
+  updateTextVariable: async (componentId, variableId, updates) => {
+    const component = get().getComponentById(componentId);
+    if (!component) return;
+
+    const updatedVariables = (component.variables || []).map((v) =>
+      v.id === variableId ? { ...v, ...updates } : v
+    );
+
+    try {
+      const response = await fetch(`/api/components/${componentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variables: updatedVariables }),
+      });
+
+      const result = await response.json();
+      if (result.error) {
+        console.error('Failed to update text variable:', result.error);
+        return;
+      }
+
+      set((state) => ({
+        components: state.components.map((c) =>
+          c.id === componentId ? { ...c, variables: updatedVariables } : c
+        ),
+      }));
+    } catch (error) {
+      console.error('Failed to update text variable:', error);
+    }
+  },
+
+  // Delete a text variable
+  deleteTextVariable: async (componentId, variableId) => {
+    const component = get().getComponentById(componentId);
+    if (!component) return;
+
+    const updatedVariables = (component.variables || []).filter((v) => v.id !== variableId);
+
+    // Helper to unlink layers from the deleted variable
+    const unlinkLayersFromVariable = (layers: Layer[]): Layer[] => {
+      return layers.map(layer => {
+        const updatedLayer = { ...layer };
+
+        // Unlink if this layer's text variable references the deleted variable
+        const textVar = layer.variables?.text;
+        if (textVar?.id === variableId) {
+          const { id: _, ...textWithoutId } = textVar;
+          updatedLayer.variables = {
+            ...layer.variables,
+            text: textWithoutId as typeof textVar,
+          };
+        }
+
+        // Recursively process children
+        if (layer.children && layer.children.length > 0) {
+          updatedLayer.children = unlinkLayersFromVariable(layer.children);
+        }
+
+        return updatedLayer;
+      });
+    };
+
+    // Clean up component's own layers
+    const updatedLayers = component.layers ? unlinkLayersFromVariable(component.layers) : [];
+
+    try {
+      const response = await fetch(`/api/components/${componentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          variables: updatedVariables,
+          layers: updatedLayers,
+        }),
+      });
+
+      const result = await response.json();
+      if (result.error) {
+        console.error('Failed to delete text variable:', result.error);
+        return;
+      }
+
+      // Update local state
+      set((state) => ({
+        components: state.components.map((c) =>
+          c.id === componentId ? { ...c, variables: updatedVariables, layers: updatedLayers } : c
+        ),
+        // Also update draft if it exists
+        componentDrafts: {
+          ...state.componentDrafts,
+          ...(state.componentDrafts[componentId] ? {
+            [componentId]: unlinkLayersFromVariable(state.componentDrafts[componentId])
+          } : {}),
+        },
+      }));
+
+      // Clean up orphaned overrides from page instances
+      // Import pages store and clean up componentOverrides that reference the deleted variable
+      const { usePagesStore } = await import('./usePagesStore');
+      const pagesState = usePagesStore.getState();
+
+      // Helper to clean overrides from layers
+      const cleanOverridesFromLayers = (layers: Layer[]): Layer[] => {
+        return layers.map(layer => {
+          const updatedLayer = { ...layer };
+
+          // If this is an instance of our component, clean up the override
+          if (layer.componentId === componentId && layer.componentOverrides?.text?.[variableId] !== undefined) {
+            const { [variableId]: _, ...remainingOverrides } = layer.componentOverrides.text;
+            updatedLayer.componentOverrides = {
+              ...layer.componentOverrides,
+              text: Object.keys(remainingOverrides).length > 0 ? remainingOverrides : undefined,
+            };
+            // Clean up empty componentOverrides
+            if (!updatedLayer.componentOverrides?.text) {
+              delete updatedLayer.componentOverrides;
+            }
+          }
+
+          // Recursively process children
+          if (layer.children && layer.children.length > 0) {
+            updatedLayer.children = cleanOverridesFromLayers(layer.children);
+          }
+
+          return updatedLayer;
+        });
+      };
+
+      // Update all page drafts that might have instances of this component
+      Object.entries(pagesState.draftsByPageId).forEach(([pageId, draft]) => {
+        if (draft && draft.layers) {
+          const cleanedLayers = cleanOverridesFromLayers(draft.layers);
+          // Only update if something changed (simple stringify comparison)
+          if (JSON.stringify(cleanedLayers) !== JSON.stringify(draft.layers)) {
+            pagesState.setDraftLayers(pageId, cleanedLayers);
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Failed to delete text variable:', error);
+    }
   },
 
   // Error management

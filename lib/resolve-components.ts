@@ -1,9 +1,45 @@
 /**
  * Server-side utility to resolve component instances in layer tree
  * Replaces layers with componentId with the actual component layers
+ * Applies component variable overrides during resolution
  */
 
 import type { Layer, Component } from '@/types';
+
+/**
+ * Apply component variable overrides to layers
+ * Recursively finds layers with variables.text.id and applies override values
+ */
+function applyComponentOverrides(
+  layers: Layer[],
+  overrides?: Layer['componentOverrides']
+): Layer[] {
+  if (!overrides?.text) return layers;
+
+  return layers.map(layer => {
+    let updatedLayer = { ...layer };
+
+    // Check if this layer has a text variable that needs to be overridden
+    const linkedVariableId = layer.variables?.text?.id;
+    if (linkedVariableId && overrides.text?.[linkedVariableId]) {
+      // Apply the override value to this layer's text variable
+      updatedLayer = {
+        ...updatedLayer,
+        variables: {
+          ...updatedLayer.variables,
+          text: overrides.text[linkedVariableId],
+        },
+      };
+    }
+
+    // Recursively process children
+    if (updatedLayer.children) {
+      updatedLayer.children = applyComponentOverrides(updatedLayer.children, overrides);
+    }
+
+    return updatedLayer;
+  });
+}
 
 /**
  * Tag layers with their master component ID for translation lookups
@@ -41,12 +77,20 @@ export function resolveComponents(layers: Layer[], components: Component[]): Lay
         // The component's first layer is the actual content (Section, etc.)
         const componentContent = component.layers[0];
 
-        // Recursively resolve nested components, then tag with master component ID
+        // Recursively resolve nested components
         const nestedResolved = componentContent.children
           ? resolveComponents(componentContent.children, components)
           : [];
-        const resolvedChildren = nestedResolved.length
-          ? tagLayersWithComponentId(nestedResolved, component.id)
+
+        // Apply component variable overrides before tagging
+        const overriddenChildren = applyComponentOverrides(
+          nestedResolved,
+          layer.componentOverrides
+        );
+
+        // Tag with master component ID for translation lookups
+        const resolvedChildren = overriddenChildren.length
+          ? tagLayersWithComponentId(overriddenChildren, component.id)
           : [];
 
         // Merge component content with instance layer, keeping instance ID
