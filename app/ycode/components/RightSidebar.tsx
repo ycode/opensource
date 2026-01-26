@@ -2073,7 +2073,6 @@ const RightSidebar = React.memo(function RightSidebar({
                             <Button
                               className="!size-4 !p-0"
                               variant="outline"
-                              onClick={handleUnlinkVariable}
                             >
                               <Icon name="x" className="size-2" />
                             </Button>
