@@ -1602,10 +1602,8 @@ const RightSidebar = React.memo(function RightSidebar({
 
     return (
       <div className="w-64 shrink-0 bg-background border-l flex flex-col p-4 pb-0 h-full overflow-hidden">
-
         <Tabs className="flex flex-col min-h-0 !gap-0">
-
-          <div className="">
+          <div>
             <TabsList className="w-full">
               <TabsTrigger value="design">Design</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -1616,39 +1614,36 @@ const RightSidebar = React.memo(function RightSidebar({
           <hr className="mt-4" />
 
           <div className="flex flex-col divide-y">
-
             <SettingsPanel
               title="Variables"
               isOpen={variablesOpen}
               onToggle={() => setVariablesOpen(!variablesOpen)}
             >
-
-            {/* Variable overrides */}
-            {textVariables.length > 0 && (
-              <div className="flex flex-col gap-2">
-                {textVariables.map((variable) => (
-                  <div key={variable.id} className="grid grid-cols-3 gap-2">
-                    <Label variant="muted" className="truncate">
-                      {variable.name}
-                    </Label>
-                    <div className="col-span-2 *:w-full">
-                      <InputWithInlineVariables
-                        value={getOverrideValue(variable.id)}
-                        onChange={(val) => handleVariableOverrideChange(variable.id, val)}
-                        placeholder="Enter value..."
-                        fields={[]}
-                        allFields={fields}
-                        collections={collections}
-                        withFormatting={true}
-                        showFormattingToolbar={false}
-                      />
+              {/* Variable overrides */}
+              {textVariables.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {textVariables.map((variable) => (
+                    <div key={variable.id} className="grid grid-cols-3 gap-2">
+                      <Label variant="muted" className="truncate">
+                        {variable.name}
+                      </Label>
+                      <div className="col-span-2 *:w-full">
+                        <InputWithInlineVariables
+                          value={getOverrideValue(variable.id)}
+                          onChange={(val) => handleVariableOverrideChange(variable.id, val)}
+                          placeholder="Enter value..."
+                          fields={[]}
+                          allFields={fields}
+                          collections={collections}
+                          withFormatting={true}
+                          showFormattingToolbar={false}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-          </SettingsPanel>
+                  ))}
+                </div>
+              )}
+            </SettingsPanel>
 
             <div className="flex-1 flex items-center justify-center">
               <Empty>
@@ -1670,11 +1665,8 @@ const RightSidebar = React.memo(function RightSidebar({
                 </div>
               </Empty>
             </div>
-
           </div>
-
         </Tabs>
-
       </div>
     );
   }
@@ -2017,7 +2009,7 @@ const RightSidebar = React.memo(function RightSidebar({
                   onToggle={() => setContentOpen(!contentOpen)}
                 >
                   <div className="grid grid-cols-3">
-                    <div className="flex items-center gap-1 items-start py-1">
+                    <div className="flex items-start gap-1 py-1">
                       {editingComponentId ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
