@@ -515,6 +515,13 @@ export interface SiteSettings {
   logo_url?: string;
 }
 
+export interface Redirect {
+  id: string;
+  oldUrl: string;   // Internal path only, e.g. "/about-us"
+  newUrl: string;   // Internal path "/about" OR external URL "https://example.com"
+  type?: '301' | '302'; // Permanent vs temporary (default 301)
+}
+
 // Editor State Types
 export interface EditorState {
   selectedLayerId: string | null; // Legacy - kept for backward compatibility
