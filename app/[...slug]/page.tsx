@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect, permanentRedirect } from 'next/navigation';
 import { unstable_cache, unstable_noStore } from 'next/cache';
 import type { Metadata } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
@@ -7,7 +7,7 @@ import { generatePageMetadata } from '@/lib/generate-page-metadata';
 import { fetchPageByPath, fetchErrorPage, PaginationContext } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import type { Page, PageFolder, Translation } from '@/types';
+import type { Page, PageFolder, Translation, Redirect as RedirectType } from '@/types';
 
 // Static by default for performance, dynamic only when pagination is requested
 export const revalidate = 3600; // Revalidate every hour
@@ -176,6 +176,21 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
+
+  // Check for redirects before processing the page
+  const currentPath = `/${slugPath}`;
+  const redirects = await getSettingByKey('redirects') as RedirectType[] | null;
+  if (redirects && Array.isArray(redirects)) {
+    const matchedRedirect = redirects.find((r) => r.oldUrl === currentPath);
+    if (matchedRedirect) {
+      // Use permanentRedirect for 301 (default), redirect for 302
+      if (matchedRedirect.type === '302') {
+        redirect(matchedRedirect.newUrl);
+      } else {
+        permanentRedirect(matchedRedirect.newUrl);
+      }
+    }
+  }
 
   // Parse layer-specific pagination params (p_LAYER_ID=N)
   // This enables independent pagination for multiple collections on the same page
