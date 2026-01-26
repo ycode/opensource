@@ -53,6 +53,10 @@ export function useLayerLocks(): UseLayerLocksReturn {
     const updateActivity = () => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
+        // Only update if user already exists in store (don't create incomplete users)
+        const existingUser = useCollaborationPresenceStore.getState().users[currentUserId];
+        if (!existingUser) return;
+        
         lastActivity.current = Date.now();
         updateUser(currentUserId, { last_active: Date.now() });
       }, 1000); // Throttle to once per second

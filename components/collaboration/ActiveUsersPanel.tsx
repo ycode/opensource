@@ -166,7 +166,7 @@ export const ActiveUsersPanel: React.FC<ActiveUsersPanelProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-white truncate">
-                      {getDisplayName(user.email || '')}
+                      {user.display_name || getDisplayName(user.email || '')}
                     </span>
                     {user.user_id === currentUserId && (
                       <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">

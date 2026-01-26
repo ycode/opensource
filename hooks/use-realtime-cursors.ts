@@ -142,7 +142,14 @@ export const useRealtimeCursors = ({
 
       // Update collaboration store
       if (user) {
+        // Always include email and essential user info to prevent "Unknown" user issues
+        // This ensures if the user is created here (before subscribe callback), they have complete data
         updateUser(user.id, {
+          user_id: user.id,
+          email: user.email,
+          display_name: user.user_metadata?.display_name || '',
+          avatar_url: user.user_metadata?.avatar_url || null,
+          color: color,
           cursor: { x: clientX, y: clientY },
           selected_layer_id: selectedLayerId,
           last_active: Date.now()
@@ -224,6 +231,7 @@ export const useRealtimeCursors = ({
         })
         .on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: any[] }) => {
           const { removeUser } = useCollaborationPresenceStore.getState();
+          const currentAuthId = userRef.current?.id;
           
           leftPresences.forEach(function (element: any) {
             // Remove cursor when user leaves
@@ -235,7 +243,8 @@ export const useRealtimeCursors = ({
             })
             
             // Remove user from collaboration store (locks are handled by use-layer-locks.ts)
-            if (element.authId) {
+            // Don't remove the current user - they might just be reconnecting
+            if (element.authId && element.authId !== currentAuthId) {
               removeUser(element.authId);
             }
           })
@@ -298,11 +307,13 @@ export const useRealtimeCursors = ({
             // Set current user in collaboration store
             if (currentUser && currentUser.email) {
               const avatarUrl = currentUser.user_metadata?.avatar_url || null;
+              const displayName = currentUser.user_metadata?.display_name || '';
               setCurrentUser(currentUser.id, currentUser.email, avatarUrl)
-              // Also add current user to users object with email and avatar
+              // Also add current user to users object with email, display name, and avatar
               updateUser(currentUser.id, {
                 user_id: currentUser.id,
                 email: currentUser.email,
+                display_name: displayName,
                 avatar_url: avatarUrl,
                 color: color,
                 last_active: Date.now()

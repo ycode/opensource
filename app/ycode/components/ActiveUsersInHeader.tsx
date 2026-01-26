@@ -157,7 +157,7 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
 
                   <div className="flex items-center gap-2">
                     <Label>
-                      {user.email || 'Unknown user'}
+                      {user.display_name || user.email || 'Unknown user'}
                     </Label>
                     {user.user_id === currentUserId && (
                       <span className="text-xs opacity-50">

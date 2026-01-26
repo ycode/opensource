@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 export interface CollaboratorInfo {
   userId: string;
   email?: string;
+  displayName?: string;
   color?: string;
 }
 
@@ -38,15 +39,15 @@ export function CollaboratorBadge({
   tooltipPrefix = 'Editing by',
   className,
 }: CollaboratorBadgeProps) {
-  const { email, color } = collaborator;
+  const { email, displayName, color } = collaborator;
   
   const userColor = color || '#ef4444';
-  const userInitial = email 
-    ? getUserInitials(email).charAt(0).toUpperCase()
-    : '?';
-  const userName = email 
-    ? getDisplayName(email) 
-    : 'Another user';
+  const userInitial = displayName 
+    ? getUserInitials(email, displayName).charAt(0).toUpperCase()
+    : email 
+      ? getUserInitials(email).charAt(0).toUpperCase()
+      : '?';
+  const userName = displayName || (email ? getDisplayName(email) : 'Another user');
 
   const badge = (
     <div 
