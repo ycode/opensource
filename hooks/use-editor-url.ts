@@ -6,6 +6,35 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 
 /**
+ * Update URL query parameter using browser history API
+ * Can be called from anywhere (including Zustand stores) without React hooks
+ * 
+ * @param key - Query parameter key
+ * @param value - Query parameter value (null/undefined to remove)
+ */
+export function updateUrlQueryParam(key: string, value: string | null | undefined): void {
+  if (typeof window === 'undefined') return;
+
+  const currentSearchParams = new URLSearchParams(window.location.search);
+  const currentValue = currentSearchParams.get(key);
+
+  // Only update if value actually changed
+  if (value === currentValue) return;
+
+  if (value) {
+    currentSearchParams.set(key, value);
+  } else {
+    currentSearchParams.delete(key);
+  }
+
+  const query = currentSearchParams.toString();
+  const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+  
+  // Use replaceState to avoid adding to history
+  window.history.replaceState({ ...window.history.state }, '', newUrl);
+}
+
+/**
  * Custom hook for managing editor URL state
  * Handles routing for pages, collections, and components with semantic routes
  */

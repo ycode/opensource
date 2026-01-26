@@ -162,7 +162,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   const previousPageIdRef = useRef<string | null>(null);
   const previousResourceIdRef = useRef<string | null>(null); // Track URL resourceId changes
   const hasInitializedLayerFromUrlRef = useRef(false);
-  const lastUrlLayerIdRef = useRef<string | null>(null);
   const previousIsEditingRef = useRef<boolean | undefined>(undefined);
 
   // Collaboration hooks - enable realtime sync for layers and pages
@@ -285,11 +284,15 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   useEffect(() => {
     // When switching between route types, reset initialization so new route can initialize properly
     hasInitializedLayerFromUrlRef.current = false;
-    lastUrlLayerIdRef.current = null;
   }, [routeType]);
 
-  // Initialize selected layer from URL on mount/navigation
+  // Initialize selected layer from URL ONLY on initial load (not on subsequent URL changes)
   useEffect(() => {
+    // Only run once when the builder first loads
+    if (hasInitializedLayerFromUrlRef.current) {
+      return;
+    }
+
     // Handle layer selection for pages and components
     const isPageOrLayersRoute = routeType === 'page' || routeType === 'layers';
     const isComponentRoute = routeType === 'component';
@@ -310,47 +313,36 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         return; // Not ready yet
       }
 
-      // Only set from URL if the URL layer ID actually changed (not from our own sync)
-      if (urlState.layerId !== lastUrlLayerIdRef.current) {
-        lastUrlLayerIdRef.current = urlState.layerId;
+      // Validate that the layer exists in current page/component
+      const layers = getCurrentLayers();
+      const layerExists = findLayerById(layers, urlState.layerId);
 
-        // Validate that the layer exists in current page/component
-        const layers = getCurrentLayers();
-        const layerExists = findLayerById(layers, urlState.layerId);
-
-        if (layerExists) {
-          // Layer found - use it
-          console.log('[Editor] Setting layer from URL:', urlState.layerId);
-          setSelectedLayerId(urlState.layerId);
-          hasInitializedLayerFromUrlRef.current = true;
-        } else {
-          // Layer not found - clear selection and update URL
-          console.warn(`[Editor] Layer "${urlState.layerId}" not found, clearing selection`);
-          setSelectedLayerId(null);
-          hasInitializedLayerFromUrlRef.current = true;
-          updateQueryParams({ layer: undefined });
-          lastUrlLayerIdRef.current = null;
-        }
+      if (layerExists) {
+        // Layer found - use it
+        console.log('[Editor] Setting layer from URL (initial load):', urlState.layerId);
+        setSelectedLayerId(urlState.layerId);
+      } else {
+        // Layer not found - clear selection
+        console.warn(`[Editor] Layer "${urlState.layerId}" not found on initial load, clearing selection`);
+        setSelectedLayerId(null);
       }
+      
+      hasInitializedLayerFromUrlRef.current = true;
     } else if ((isPageOrLayersRoute || isComponentRoute) && !urlState.layerId) {
       // No layer in URL - mark as initialized so clicks will update URL from now on
       if (isPageOrLayersRoute && currentPageId) {
         const draft = draftsByPageId[currentPageId];
         if (draft && draft.layers) {
-          // Once the draft is loaded, mark as initialized even without a layer param
           hasInitializedLayerFromUrlRef.current = true;
-          lastUrlLayerIdRef.current = null;
         }
       } else if (isComponentRoute && editingComponentId) {
         const componentDrafts = useComponentsStore.getState().componentDrafts;
         if (componentDrafts[editingComponentId]) {
-          // Once the component draft is loaded, mark as initialized
           hasInitializedLayerFromUrlRef.current = true;
-          lastUrlLayerIdRef.current = null;
         }
       }
     }
-  }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, updateQueryParams, currentPageId, editingComponentId, draftsByPageId, getCurrentLayers]);
+  }, [urlState.layerId, resourceId, routeType, setSelectedLayerId, currentPageId, editingComponentId, draftsByPageId, getCurrentLayers]);
 
   // Sync selected layer to URL (but only after initialization from URL, skip when in page settings mode or during edit mode transition)
   useEffect(() => {
@@ -367,7 +359,6 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       // Only update if the layer has actually changed from URL
       if (urlState.layerId !== layerParam) {
         updateQueryParams({ layer: layerParam });
-        lastUrlLayerIdRef.current = layerParam || null;
       }
     }
   }, [selectedLayerId, routeType, updateQueryParams, urlState.layerId, urlState.isEditing, justExitedEditMode]);
