@@ -96,7 +96,12 @@ export default function CollectionItemSheet({
   const currentPage = currentPageId ? pages.find(p => p.id === currentPageId) : null;
   const isPageLevelItem = currentPage?.is_dynamic && currentPage?.settings?.cms?.collection_id === collectionId;
 
-  // Find slug field for validation
+  // Find name and slug fields for validation
+  const nameField = useMemo(
+    () => collectionFields.find(f => f.key === 'name'),
+    [collectionFields]
+  );
+
   const slugField = useMemo(
     () => collectionFields.find(f => f.key === 'slug'),
     [collectionFields]
@@ -215,17 +220,39 @@ export default function CollectionItemSheet({
   const handleSubmit = async (values: Record<string, any>) => {
     if (!collectionId) return;
 
-    // Validate slug uniqueness
+    let hasErrors = false;
+
+    // Validate required fields
+    if (nameField) {
+      const nameValue = values[nameField.id]?.trim();
+      if (!nameValue) {
+        form.setError(nameField.id, {
+          type: 'manual',
+          message: 'Name is required',
+        });
+        hasErrors = true;
+      }
+    }
+
     if (slugField) {
-      const slugValue = values[slugField.id];
-      if (!validateSlugUniqueness(slugValue, slugField.id)) {
+      const slugValue = values[slugField.id]?.trim();
+      if (!slugValue) {
+        form.setError(slugField.id, {
+          type: 'manual',
+          message: 'Slug is required',
+        });
+        hasErrors = true;
+      } else if (!validateSlugUniqueness(slugValue, slugField.id)) {
+        // Validate slug uniqueness
         form.setError(slugField.id, {
           type: 'manual',
           message: 'This slug already exists in this collection',
         });
-        return;
+        hasErrors = true;
       }
     }
+
+    if (hasErrors) return;
 
     try {
       if (editingItem) {
