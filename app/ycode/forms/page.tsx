@@ -36,6 +36,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import type { FormSubmission, FormSummary, FormSubmissionStatus } from '@/types';
 
 // API functions
@@ -77,6 +79,15 @@ type SortConfig = {
   direction: 'asc' | 'desc';
 } | null;
 
+// API function to delete all submissions for a form
+async function deleteForm(formId: string): Promise<void> {
+  const response = await fetch(`/api/form-submissions?form_id=${encodeURIComponent(formId)}`, {
+    method: 'DELETE',
+  });
+  const data = await response.json();
+  if (data.error) throw new Error(data.error);
+}
+
 export default function FormsPage() {
   const [summaries, setSummaries] = useState<FormSummary[]>([]);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
@@ -87,6 +98,13 @@ export default function FormsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'created_at', direction: 'desc' });
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [showDeleteFormDialog, setShowDeleteFormDialog] = useState(false);
+  const [formToDelete, setFormToDelete] = useState<string | null>(null);
+  const [showDeleteSubmissionDialog, setShowDeleteSubmissionDialog] = useState(false);
+  const [submissionToDelete, setSubmissionToDelete] = useState<string | null>(null);
+  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
 
   // Load form summaries on mount
   useEffect(() => {
@@ -230,17 +248,22 @@ export default function FormsPage() {
     }
   };
 
-  const handleDelete = async (submissionId: string) => {
-    if (!confirm('Are you sure you want to delete this submission?')) return;
+  const handleDelete = (submissionId: string) => {
+    setSubmissionToDelete(submissionId);
+    setShowDeleteSubmissionDialog(true);
+  };
+
+  const handleConfirmDeleteSubmission = async () => {
+    if (!submissionToDelete) return;
 
     try {
       // Find the submission to check if it was 'new'
-      const deletedSubmission = submissions.find((sub) => sub.id === submissionId);
+      const deletedSubmission = submissions.find((sub) => sub.id === submissionToDelete);
       const wasNew = deletedSubmission?.status === 'new';
 
-      await deleteSubmission(submissionId);
-      setSubmissions((prev) => prev.filter((sub) => sub.id !== submissionId));
-      if (selectedSubmission?.id === submissionId) {
+      await deleteSubmission(submissionToDelete);
+      setSubmissions((prev) => prev.filter((sub) => sub.id !== submissionToDelete));
+      if (selectedSubmission?.id === submissionToDelete) {
         setSelectedSubmission(null);
       }
       // Update summaries count
@@ -256,8 +279,82 @@ export default function FormsPage() {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete submission');
+    } finally {
+      setSubmissionToDelete(null);
+      setShowDeleteSubmissionDialog(false);
     }
   };
+
+  // Toggle individual submission selection
+  const handleToggleSubmissionSelection = (submissionId: string) => {
+    const newSelected = new Set(selectedSubmissionIds);
+    if (newSelected.has(submissionId)) {
+      newSelected.delete(submissionId);
+    } else {
+      newSelected.add(submissionId);
+    }
+    setSelectedSubmissionIds(newSelected);
+  };
+
+  // Select/deselect all submissions
+  const handleSelectAll = () => {
+    if (selectedSubmissionIds.size === filteredSubmissions.length) {
+      setSelectedSubmissionIds(new Set());
+    } else {
+      setSelectedSubmissionIds(new Set(filteredSubmissions.map((s) => s.id)));
+    }
+  };
+
+  // Bulk delete selected submissions
+  const handleDeleteSelected = () => {
+    if (selectedSubmissionIds.size === 0) return;
+    setShowBulkDeleteDialog(true);
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    if (selectedSubmissionIds.size === 0) return;
+
+    try {
+      const ids = Array.from(selectedSubmissionIds);
+      const response = await fetch('/api/form-submissions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+
+      // Count how many were 'new'
+      const deletedNewCount = submissions.filter(
+        (s) => selectedSubmissionIds.has(s.id) && s.status === 'new'
+      ).length;
+
+      // Update local state
+      setSubmissions((prev) => prev.filter((sub) => !selectedSubmissionIds.has(sub.id)));
+      setSelectedSubmissionIds(new Set());
+
+      // Update summaries count
+      setSummaries((prev) =>
+        prev.map((s) => {
+          if (s.form_id !== selectedFormId) return s;
+          return {
+            ...s,
+            submission_count: s.submission_count - ids.length,
+            new_count: Math.max(0, s.new_count - deletedNewCount),
+          };
+        })
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete submissions');
+    } finally {
+      setShowBulkDeleteDialog(false);
+    }
+  };
+
+  // Clear selection when form changes
+  useEffect(() => {
+    setSelectedSubmissionIds(new Set());
+  }, [selectedFormId]);
 
   const getStatusBadgeVariant = (status: FormSubmissionStatus) => {
     switch (status) {
@@ -274,42 +371,117 @@ export default function FormsPage() {
     }
   };
 
-  // Forms sidebar
+  // Delete a form and all its submissions
+  const handleDeleteForm = (formId: string) => {
+    setFormToDelete(formId);
+    setShowDeleteFormDialog(true);
+  };
+
+  const handleConfirmDeleteForm = async () => {
+    if (!formToDelete) return;
+
+    try {
+      await deleteForm(formToDelete);
+      // Remove from summaries
+      setSummaries((prev) => prev.filter((s) => s.form_id !== formToDelete));
+      // Clear submissions if this was the selected form
+      if (selectedFormId === formToDelete) {
+        setSelectedFormId(null);
+        setSubmissions([]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete form');
+    } finally {
+      setFormToDelete(null);
+      setShowDeleteFormDialog(false);
+    }
+  };
+
+  // Refresh form summaries
+  const handleRefresh = async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchFormSummaries();
+      setSummaries(data);
+
+      // Reload submissions if a form is selected
+      if (selectedFormId) {
+        const submissionsData = await fetchFormSubmissions(selectedFormId);
+        setSubmissions(submissionsData);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const formsSidebar = (
     <div className="w-64 shrink-0 bg-background border-r flex flex-col overflow-hidden px-4">
       <header className="py-5 flex items-center justify-between shrink-0">
         <span className="font-medium">Forms</span>
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={handleRefresh}
+          disabled={isLoading}
+        >
+          <Icon name="refresh" className={cn('size-3', isLoading && 'animate-spin')} />
+        </Button>
       </header>
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="flex flex-col">
-          {summaries.map((summary) => (
-            <div
-              key={summary.form_id}
-              className={cn(
-                'px-3 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full cursor-pointer',
-                selectedFormId === summary.form_id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
-              )}
-              onClick={() => setSelectedFormId(summary.form_id)}
-            >
-              <div className="flex gap-2 items-center truncate">
-                <Icon name="form" className="size-3 shrink-0" />
-                <span className="truncate">{summary.form_id}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {summary.new_count > 0 && (
-                  <Badge
-                    variant={selectedFormId === summary.form_id ? 'secondary' : 'default'}
-                    className="text-[10px] px-1.5"
-                  >
-                    {summary.new_count}
-                  </Badge>
+          {summaries.map((summary) => {
+            const isSelected = selectedFormId === summary.form_id;
+            return (
+              <div
+                key={summary.form_id}
+                className={cn(
+                  'group px-3 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full cursor-pointer',
+                  isSelected
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
                 )}
-                <span className="text-xs opacity-50">{summary.submission_count}</span>
+                onClick={() => setSelectedFormId(summary.form_id)}
+              >
+                <div className="flex gap-2 items-center truncate">
+                  <Icon name="form" className="size-3 shrink-0" />
+                  <span className="truncate">{summary.form_id}</span>
+                </div>
+                <div className="relative flex items-center">
+                  <span className="text-xs opacity-50 group-hover:opacity-0">{summary.submission_count}</span>
+
+                  <div className="absolute right-0 opacity-0 group-hover:opacity-100">
+                    <DropdownMenu
+                      open={openDropdownId === summary.form_id}
+                      onOpenChange={(open) => setOpenDropdownId(open ? summary.form_id : null)}
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="xs"
+                          variant={isSelected ? 'default' : 'ghost'}
+                          onClick={(e) => e.stopPropagation()}
+                          className="-mr-2"
+                        >
+                          <Icon name="more" className="size-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteForm(summary.form_id);
+                          }}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {summaries.length === 0 && !isLoading && (
             <Empty>
@@ -369,7 +541,19 @@ export default function FormsPage() {
             </InputGroup>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {selectedSubmissionIds.size > 0 && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleDeleteSelected}
+              >
+                Delete
+                <Badge variant="secondary" className="text-[10px] px-1.5 ml-1">
+                  {selectedSubmissionIds.size}
+                </Badge>
+              </Button>
+            )}
             <span className="text-xs text-muted-foreground">
               {filteredSubmissions.length} submission{filteredSubmissions.length !== 1 ? 's' : ''}
             </span>
@@ -397,6 +581,14 @@ export default function FormsPage() {
             <table className="w-full">
               <thead className="border-b sticky top-0 bg-background">
                 <tr>
+                  <th className="pl-5 pr-3 py-5 text-left font-normal w-12">
+                    <div className="flex">
+                      <Checkbox
+                        checked={filteredSubmissions.length > 0 && selectedSubmissionIds.size === filteredSubmissions.length}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </div>
+                  </th>
                   <th className="px-4 py-5 text-left font-normal">
                     <button
                       onClick={() => handleColumnClick('status')}
@@ -448,6 +640,15 @@ export default function FormsPage() {
                       }
                     }}
                   >
+                    <td className="pl-5 pr-3 py-3">
+                      <div className="flex">
+                        <Checkbox
+                          checked={selectedSubmissionIds.has(submission.id)}
+                          onCheckedChange={() => handleToggleSubmissionSelection(submission.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <Badge variant={getStatusBadgeVariant(submission.status)}>
                         {submission.status}
@@ -624,6 +825,39 @@ export default function FormsPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Delete Form Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDeleteFormDialog}
+        onOpenChange={setShowDeleteFormDialog}
+        title="Delete form?"
+        description={`Are you sure you want to delete "${formToDelete}"? This will permanently delete all ${summaries.find(s => s.form_id === formToDelete)?.submission_count || 0} submissions. This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={handleConfirmDeleteForm}
+      />
+
+      {/* Delete Submission Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDeleteSubmissionDialog}
+        onOpenChange={setShowDeleteSubmissionDialog}
+        title="Delete submission?"
+        description="Are you sure you want to delete this submission? This action cannot be undone."
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={handleConfirmDeleteSubmission}
+      />
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={showBulkDeleteDialog}
+        onOpenChange={setShowBulkDeleteDialog}
+        title={`Delete ${selectedSubmissionIds.size} submission${selectedSubmissionIds.size !== 1 ? 's' : ''}?`}
+        description={`Are you sure you want to delete ${selectedSubmissionIds.size} submission${selectedSubmissionIds.size !== 1 ? 's' : ''}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={handleConfirmBulkDelete}
+      />
     </div>
   );
 }

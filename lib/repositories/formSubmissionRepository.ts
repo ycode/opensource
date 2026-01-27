@@ -199,6 +199,28 @@ export async function deleteFormSubmission(id: string): Promise<void> {
 }
 
 /**
+ * Bulk delete form submissions by IDs
+ */
+export async function bulkDeleteFormSubmissions(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  const { error } = await client
+    .from('form_submissions')
+    .delete()
+    .in('id', ids);
+
+  if (error) {
+    throw new Error(`Failed to bulk delete form submissions: ${error.message}`);
+  }
+}
+
+/**
  * Delete all submissions for a form
  */
 export async function deleteFormSubmissionsByFormId(formId: string): Promise<void> {

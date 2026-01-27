@@ -11,7 +11,166 @@ export const formTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'form',
       classes: ['space-y-4'],
-      children: [],
+      children: [
+        // Name input group
+        {
+          name: 'div',
+          classes: ['flex', 'flex-col', 'gap-1'],
+          children: [
+            {
+              name: 'label',
+              classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+              attributes: {
+                for: 'name'
+              },
+              variables: {
+                text: {
+                  type: 'dynamic_text',
+                  data: {
+                    content: 'Full name'
+                  }
+                }
+              }
+            },
+            {
+              name: 'input',
+              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'cursor-text'],
+              attributes: {
+                type: 'text',
+                name: 'name',
+                id: 'name',
+                placeholder: 'Full Name'
+              }
+            }
+          ],
+          design: {
+            layout: {
+              isActive: true,
+              display: 'Flex',
+              flexDirection: 'column',
+              gap: '0.25rem'
+            }
+          }
+        },
+        // Email input group
+        {
+          name: 'div',
+          classes: ['flex', 'flex-col', 'gap-1'],
+          children: [
+            {
+              name: 'label',
+              classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+              attributes: {
+                for: 'email'
+              },
+              variables: {
+                text: {
+                  type: 'dynamic_text',
+                  data: {
+                    content: 'Email'
+                  }
+                }
+              }
+            },
+            {
+              name: 'input',
+              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'cursor-text'],
+              attributes: {
+                type: 'email',
+                name: 'email',
+                id: 'email',
+                placeholder: 'Email'
+              }
+            }
+          ],
+          design: {
+            layout: {
+              isActive: true,
+              display: 'Flex',
+              flexDirection: 'column',
+              gap: '0.25rem'
+            }
+          }
+        },
+        // Message textarea group
+        {
+          name: 'div',
+          classes: ['flex', 'flex-col', 'gap-1'],
+          children: [
+            {
+              name: 'label',
+              classes: ['text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'cursor-pointer'],
+              attributes: {
+                for: 'message'
+              },
+              variables: {
+                text: {
+                  type: 'dynamic_text',
+                  data: {
+                    content: 'Message'
+                  }
+                }
+              }
+            },
+            {
+              name: 'textarea',
+              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'cursor-text'],
+              attributes: {
+                name: 'message',
+                id: 'message',
+                placeholder: 'Message',
+                rows: 4
+              }
+            }
+          ],
+          design: {
+            layout: {
+              isActive: true,
+              display: 'Flex',
+              flexDirection: 'column',
+              gap: '0.25rem'
+            }
+          }
+        },
+        // Submit button
+        {
+          name: 'button',
+          classes: ['px-[1.5rem]', 'py-[0.75rem]', 'bg-[#2563eb]', 'text-[#ffffff]', 'rounded-[0.5rem]', 'font-[500]', 'hover:bg-[#1d4ed8]', 'cursor-pointer'],
+          attributes: {
+            type: 'submit'
+          },
+          variables: {
+            text: {
+              type: 'dynamic_text',
+              data: {
+                content: 'Submit'
+              }
+            }
+          },
+          design: {
+            spacing: {
+              isActive: true,
+              paddingLeft: '1.5rem',
+              paddingRight: '1.5rem',
+              paddingTop: '0.75rem',
+              paddingBottom: '0.75rem'
+            },
+            backgrounds: {
+              isActive: true,
+              backgroundColor: '#2563eb'
+            },
+            typography: {
+              isActive: true,
+              color: '#ffffff',
+              fontWeight: '500'
+            },
+            borders: {
+              isActive: true,
+              borderRadius: '0.5rem'
+            }
+          }
+        }
+      ] as any[],
       attributes: {
         method: 'POST',
         action: ''

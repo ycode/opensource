@@ -3,6 +3,8 @@ import {
   getAllFormSubmissions,
   getFormSummaries,
   createFormSubmission,
+  deleteFormSubmissionsByFormId,
+  bulkDeleteFormSubmissions,
 } from '@/lib/repositories/formSubmissionRepository';
 import { noCache } from '@/lib/api-response';
 
@@ -92,6 +94,46 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to submit form' },
       { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/form-submissions
+ * Delete submissions - either by form_id (all submissions) or by ids (bulk delete)
+ *
+ * Query params:
+ * - form_id: string - Delete all submissions for this form
+ *
+ * OR Body:
+ * - ids: string[] - Array of submission IDs to delete
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const formId = searchParams.get('form_id');
+
+    // If form_id is provided, delete all submissions for that form
+    if (formId) {
+      await deleteFormSubmissionsByFormId(formId);
+      return noCache({ message: 'All submissions for form deleted successfully' });
+    }
+
+    // Otherwise, try to parse body for bulk delete
+    const body = await request.json().catch(() => ({}));
+    const ids = body.ids;
+
+    if (Array.isArray(ids) && ids.length > 0) {
+      await bulkDeleteFormSubmissions(ids);
+      return noCache({ message: `${ids.length} submissions deleted successfully` });
+    }
+
+    return noCache({ error: 'Missing required param: form_id or ids in body' }, 400);
+  } catch (error) {
+    console.error('Error deleting form submissions:', error);
+    return noCache(
+      { error: error instanceof Error ? error.message : 'Failed to delete form submissions' },
+      500
     );
   }
 }

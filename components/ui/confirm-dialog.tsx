@@ -107,7 +107,7 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
-        <DialogDescription>{description}</DialogDescription>
+        <DialogDescription className="leading-relaxed">{description}</DialogDescription>
 
         <DialogFooter className="sm:justify-between">
           <Button

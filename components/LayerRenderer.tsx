@@ -733,24 +733,33 @@ const LayerItem: React.FC<{
     const Tag = htmlTag as any;
     const { style: attrStyle, ...otherAttributes } = layer.attributes || {};
 
-    // Convert string boolean values to actual booleans
+    // Map HTML attributes to React JSX equivalents
+    const htmlToJsxAttrMap: Record<string, string> = {
+      'for': 'htmlFor',
+      'class': 'className',
+    };
+
+    // Convert string boolean values to actual booleans and map HTML attrs to JSX
     const normalizedAttributes = Object.fromEntries(
       Object.entries(otherAttributes).map(([key, value]) => {
+        // Map HTML attribute names to JSX equivalents
+        const jsxKey = htmlToJsxAttrMap[key] || key;
+
         // If value is already a boolean, keep it
         if (typeof value === 'boolean') {
-          return [key, value];
+          return [jsxKey, value];
         }
         // If value is a string that looks like a boolean, convert it
         if (typeof value === 'string') {
           if (value === 'true') {
-            return [key, true];
+            return [jsxKey, true];
           }
           if (value === 'false') {
-            return [key, false];
+            return [jsxKey, false];
           }
         }
         // For all other values, keep them as-is
-        return [key, value];
+        return [jsxKey, value];
       })
     );
 
@@ -925,11 +934,12 @@ const LayerItem: React.FC<{
       return <Tag {...elementProps} />;
     }
 
-    // Handle textarea - auto-set name for form submission
+    // Handle textarea - auto-set name for form submission and return early (no children)
     if (htmlTag === 'textarea') {
       if (isInsideForm && !elementProps.name) {
         elementProps.name = layer.settings?.id || layer.id;
       }
+      return <Tag {...elementProps} />;
     }
 
     // Handle select - auto-set name for form submission
