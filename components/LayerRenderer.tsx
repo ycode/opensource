@@ -35,12 +35,18 @@ import { buildSlugPath, buildDynamicPageUrl } from '@/lib/page-utils';
 
 /**
  * Generate href from layer link settings
+ * @param collectionItemId - Current collection layer's item ID (for 'current-collection' links)
+ * @param pageCollectionItemId - Page-level collection item ID (for 'current-page' links on dynamic pages)
+ * @param collectionItemData - Current collection layer's item data (for field-based links)
+ * @param pageCollectionItemData - Page-level collection item data (for field-based links on dynamic pages)
  */
 function generateLinkHref(
   linkSettings: LinkSettings | undefined,
   getAsset: (id: string) => any,
-  collectionItemData?: Record<string, string>,
   collectionItemId?: string,
+  pageCollectionItemId?: string,
+  collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string>,
   pages?: any[],
   folders?: any[],
   collectionItemSlugs?: Record<string, string>,
@@ -74,10 +80,12 @@ function generateLinkHref(
           if (page.is_dynamic && linkSettings.page.collection_item_id && collectionItemSlugs) {
             let itemSlug: string | undefined;
 
-            // Handle special "current" keywords - use the current collection item ID
-            if (linkSettings.page.collection_item_id === 'current-page' ||
-                linkSettings.page.collection_item_id === 'current-collection') {
-              // Use the current collection item's slug (from collectionItemId parameter)
+            // Handle special "current" keywords
+            if (linkSettings.page.collection_item_id === 'current-page') {
+              // Use the page's collection item (for dynamic pages)
+              itemSlug = pageCollectionItemId ? collectionItemSlugs[pageCollectionItemId] : undefined;
+            } else if (linkSettings.page.collection_item_id === 'current-collection') {
+              // Use the current collection layer's item
               itemSlug = collectionItemId ? collectionItemSlugs[collectionItemId] : undefined;
             } else {
               // Use the specific item slug
@@ -98,15 +106,17 @@ function generateLinkHref(
       }
       break;
     case 'field':
-      if (linkSettings.field?.data?.field_id && collectionItemData) {
+      // For field-based links, prefer collection layer data, fall back to page data
+      const fieldData = collectionItemData || pageCollectionItemData;
+      if (linkSettings.field?.data?.field_id && fieldData) {
         const fieldId = linkSettings.field.data.field_id;
         const relationships = linkSettings.field.data.relationships || [];
 
         if (relationships.length > 0) {
           const fullPath = [fieldId, ...relationships].join('.');
-          href = collectionItemData[fullPath] || '';
+          href = fieldData[fullPath] || '';
         } else {
-          href = collectionItemData[fieldId] || '';
+          href = fieldData[fieldId] || '';
         }
       }
       break;
@@ -138,9 +148,10 @@ interface LayerRendererProps {
   activeLayerId?: string | null;
   projected?: { depth: number; parentId: string | null } | null;
   pageId?: string;
-  collectionItemData?: Record<string, string>; // Collection item field values (field_id -> value)
-  collectionItemId?: string; // The ID of the current collection item being rendered
-  pageCollectionItemData?: Record<string, string> | null;
+  collectionItemData?: Record<string, string>; // Collection layer item field values (field_id -> value)
+  collectionItemId?: string; // The ID of the current collection layer item being rendered
+  pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
+  pageCollectionItemData?: Record<string, string> | null; // Page's collection item data (for dynamic pages)
   hiddenLayerIds?: string[]; // Layer IDs that should start hidden for animations
   currentLocale?: Locale | null;
   availableLocales?: Locale[];
@@ -172,6 +183,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   pageId = '',
   collectionItemData,
   collectionItemId,
+  pageCollectionItemId,
   pageCollectionItemData,
   collectionItemSlugs,
   hiddenLayerIds,
@@ -267,6 +279,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         pageId={pageId}
         collectionItemData={collectionItemData}
         collectionItemId={collectionItemId}
+        pageCollectionItemId={pageCollectionItemId}
         pageCollectionItemData={pageCollectionItemData}
         hiddenLayerIds={hiddenLayerIds}
         currentLocale={currentLocale}
@@ -314,7 +327,8 @@ const LayerItem: React.FC<{
   setEditingClickCoords: (coords: { x: number; y: number } | null) => void;
   pageId: string;
   collectionItemData?: Record<string, string>;
-  collectionItemId?: string; // The ID of the current collection item being rendered
+  collectionItemId?: string; // The ID of the current collection layer item being rendered
+  pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
   pageCollectionItemData?: Record<string, string> | null;
   hiddenLayerIds?: string[];
   currentLocale?: Locale | null;
@@ -351,6 +365,7 @@ const LayerItem: React.FC<{
   pageId,
   collectionItemData,
   collectionItemId,
+  pageCollectionItemId,
   pageCollectionItemData,
   hiddenLayerIds,
   currentLocale,
@@ -380,7 +395,10 @@ const LayerItem: React.FC<{
   // Check if locked by another user (only compute when lock exists)
   const isLockedByOther = !!(lock && lock.user_id !== currentUserId && Date.now() <= lock.expires_at);
   const classesString = getClassesString(layer);
-  const effectiveCollectionItemData = collectionItemData || pageCollectionItemData || undefined;
+  // Keep collection layer data and page data separate for different link contexts
+  // Use layer's _collectionItemId if present (from server-resolved collection layers)
+  const effectiveCollectionItemId = layer._collectionItemId || collectionItemId;
+  const effectiveCollectionItemData = layer._collectionItemValues || collectionItemData;
   const getAsset = useAssetsStore((state) => state.getAsset);
   const assetsById = useAssetsStore((state) => state.assetsById);
   const openFileManager = useEditorStore((state) => state.openFileManager);
@@ -830,7 +848,8 @@ const LayerItem: React.FC<{
           projected={projected}
           pageId={pageId}
           collectionItemData={effectiveCollectionItemData}
-          collectionItemId={collectionItemId}
+          collectionItemId={effectiveCollectionItemId}
+          pageCollectionItemId={pageCollectionItemId}
           pageCollectionItemData={pageCollectionItemData}
           hiddenLayerIds={hiddenLayerIds}
           currentLocale={currentLocale}
@@ -1339,7 +1358,8 @@ const LayerItem: React.FC<{
               projected={projected}
               pageId={pageId}
               collectionItemData={effectiveCollectionItemData}
-              collectionItemId={collectionItemId}
+              collectionItemId={effectiveCollectionItemId}
+              pageCollectionItemId={pageCollectionItemId}
               pageCollectionItemData={pageCollectionItemData}
               pages={pages}
               folders={folders}
@@ -1454,6 +1474,7 @@ const LayerItem: React.FC<{
                   pageId={pageId}
                   collectionItemData={item.values}
                   collectionItemId={item.id}
+                  pageCollectionItemId={pageCollectionItemId}
                   pageCollectionItemData={pageCollectionItemData}
                   hiddenLayerIds={hiddenLayerIds}
                   currentLocale={currentLocale}
@@ -1505,7 +1526,8 @@ const LayerItem: React.FC<{
               projected={projected}
               pageId={pageId}
               collectionItemData={effectiveCollectionItemData}
-              collectionItemId={collectionItemId}
+              collectionItemId={effectiveCollectionItemId}
+              pageCollectionItemId={pageCollectionItemId}
               pageCollectionItemData={pageCollectionItemData}
               pages={pages}
               folders={folders}
@@ -1563,7 +1585,8 @@ const LayerItem: React.FC<{
             projected={projected}
             pageId={pageId}
             collectionItemData={effectiveCollectionItemData}
-            collectionItemId={collectionItemId}
+            collectionItemId={effectiveCollectionItemId}
+            pageCollectionItemId={pageCollectionItemId}
             pageCollectionItemData={pageCollectionItemData}
             hiddenLayerIds={hiddenLayerIds}
             currentLocale={currentLocale}
@@ -1603,8 +1626,10 @@ const LayerItem: React.FC<{
     const linkHref = generateLinkHref(
       linkSettings,
       getAsset,
+      effectiveCollectionItemId,
+      pageCollectionItemId,
       effectiveCollectionItemData,
-      collectionItemId,
+      pageCollectionItemData || undefined,
       pages,
       folders,
       collectionItemSlugs,

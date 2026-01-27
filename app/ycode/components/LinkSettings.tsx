@@ -36,7 +36,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { ASSET_CATEGORIES, getAssetIcon } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 import { collectionsApi, pagesApi } from '@/lib/api';
-import { getLayerIcon, getLayerName, hasLinkInTree, findAncestor, hasLinkSettings as hasLinkSettingsUtil } from '@/lib/layer-utils';
+import { getLayerIcon, getLayerName, hasLinkInTree, findAncestor, hasLinkSettings as hasLinkSettingsUtil, getCollectionVariable } from '@/lib/layer-utils';
 import { getPageIcon } from '@/lib/page-utils';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -169,8 +169,13 @@ export default function LinkSettings({
   // Check if selected page is dynamic
   const isDynamicPage = selectedPage?.is_dynamic || false;
 
+  // Check if the layer itself is a collection layer
+  const isCollectionLayer = !!(layer && getCollectionVariable(layer));
+  
   // Check if we have collection fields available (from collection layer context)
+  // Show current-collection option when inside a collection layer OR when the layer IS a collection layer
   const hasCollectionFields = !!(fields && fields.length > 0 && isInsideCollectionLayer);
+  const canUseCurrentCollectionItem = hasCollectionFields || isCollectionLayer;
 
   // Get collection ID from dynamic page settings
   const pageCollectionId = selectedPage?.settings?.cms?.collection_id || null;
@@ -726,15 +731,15 @@ export default function LinkSettings({
                           </div>
                         </SelectItem>
                       )}
-                      {/* Current collection item option (when inside a collection layer, not just on dynamic page) */}
-                      {hasCollectionFields && (
+                      {/* Current collection item option (when inside a collection layer OR when the layer IS a collection layer) */}
+                      {canUseCurrentCollectionItem && (
                         <SelectItem value="current-collection">
                           <div className="flex items-center gap-2">
                             Current collection item
                           </div>
                         </SelectItem>
                       )}
-                      {(isDynamicPage || hasCollectionFields) && <SelectSeparator />}
+                      {(isDynamicPage || canUseCurrentCollectionItem) && <SelectSeparator />}
                       {collectionItems.map((item) => (
                         <SelectItem key={item.id} value={item.id}>
                           {getItemDisplayName(item.id)}

@@ -283,6 +283,10 @@ export interface Layer {
   _collectionItems?: CollectionItemWithValues[];
   // SSR-only property for collection item values (used for visibility filtering)
   _collectionItemValues?: Record<string, string>;
+  // SSR-only property for collection item ID (used for link URL building)
+  _collectionItemId?: string;
+  // SSR-only property for collection item slug (used for link URL building)
+  _collectionItemSlug?: string;
   // SSR-only property for master component ID (for translation lookups)
   _masterComponentId?: string;
   // SSR-only property for pagination metadata (when pagination is enabled)

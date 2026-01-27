@@ -88,11 +88,34 @@ export default async function PageRenderer({
     return itemIds;
   };
 
+  // Extract collection item slugs from resolved collection layers
+  // These are populated by resolveCollectionLayers with `_collectionItemId` and `_collectionItemSlug`
+  const extractCollectionItemSlugs = (layers: Layer[]): Record<string, string> => {
+    const slugs: Record<string, string> = {};
+    const scan = (layer: Layer) => {
+      // Check for SSR-resolved collection item with ID and slug
+      const itemId = layer._collectionItemId;
+      const itemSlug = layer._collectionItemSlug;
+      if (itemId && itemSlug) {
+        slugs[itemId] = itemSlug;
+      }
+      if (layer.children) {
+        layer.children.forEach(scan);
+      }
+    };
+    layers.forEach(scan);
+    return slugs;
+  };
+
   const referencedItemIds = findCollectionItemIds(resolvedLayers);
 
   // Build collection item slugs map
   const collectionItemSlugs: Record<string, string> = {};
-  
+
+  // Add slugs from resolved collection layers (for 'current-collection' links)
+  const resolvedSlugs = extractCollectionItemSlugs(resolvedLayers);
+  Object.assign(collectionItemSlugs, resolvedSlugs);
+
   // Add current page's collection item if available
   if (collectionItem && collectionFields) {
     const slugField = collectionFields.find(f => f.key === 'slug');
@@ -119,15 +142,15 @@ export default async function PageRenderer({
       const itemsWithValues = await Promise.all(
         Array.from(referencedItemIds).map(itemId => getItemWithValues(itemId, false))
       );
-      
+
       // For each item, find its collection's slug field and extract the slug
       for (const item of itemsWithValues) {
         if (!item) continue;
-        
+
         // Get the slug field for this item's collection
         const fields = await getFieldsByCollectionId(item.collection_id, false);
         const slugField = fields.find(f => f.key === 'slug');
-        
+
         if (slugField && item.values[slugField.id]) {
           collectionItemSlugs[item.id] = item.values[slugField.id];
         }
@@ -189,7 +212,7 @@ export default async function PageRenderer({
           layers={normalizedLayers}
           isEditMode={false}
           isPublished={page.is_published}
-          collectionItemId={collectionItem?.id}
+          pageCollectionItemId={collectionItem?.id}
           pageCollectionItemData={collectionItem?.values || undefined}
           hiddenLayerIds={hiddenLayerIds}
           currentLocale={locale}

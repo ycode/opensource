@@ -1336,6 +1336,9 @@ export async function resolveCollectionLayers(
 
           // Fetch collection fields for reference resolution
           const collectionFields = await getFieldsByCollectionId(collectionVariable.id, isPublished);
+          
+          // Find slug field for building collection item URLs
+          const slugField = collectionFields.find(f => f.key === 'slug');
 
           // Clone the collection layer for each item (design settings apply to each repeated item)
           // For each item, resolve nested collection layers with that item's values
@@ -1344,6 +1347,9 @@ export async function resolveCollectionLayers(
             sortedItems.map(async (item) => {
               // Apply CMS translations to item values before using them
               const translatedValues = applyCmsTranslations(item.id, item.values, collectionFields, translations);
+              
+              // Extract slug for URL building
+              const itemSlug = slugField ? (translatedValues[slugField.id] || item.values[slugField.id]) : undefined;
 
               // Resolve children for THIS specific item's values
               // This ensures nested collection layers filter based on this item's reference fields
@@ -1372,6 +1378,9 @@ export async function resolveCollectionLayers(
                 children: injectedChildren,
                 // Store translated item values for visibility filtering (SSR only, not serialized to client)
                 _collectionItemValues: translatedValues,
+                // Store item ID and slug for URL building in link resolution (SSR only)
+                _collectionItemId: item.id,
+                _collectionItemSlug: itemSlug,
               } as Layer;
             })
           );
