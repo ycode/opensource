@@ -82,7 +82,7 @@ function SheetHeader({ className, children, ...props }: React.ComponentProps<'di
   return (
     <div
       data-slot="sheet-header"
-      className={cn('flex flex-row items-center justify-between gap-4 border-b border-border h-14 -mt-6 pl-9 shrink-0 bg-background sticky -top-6 z-10', className)}
+      className={cn('flex flex-row items-center justify-between gap-2 border-b border-border h-14 -mt-6 pl-9 shrink-0 bg-background sticky -top-6 z-10', className)}
       {...props}
     >
       <SheetPrimitive.Close asChild className="disabled:pointer-events-none -ml-9 mr-2">
