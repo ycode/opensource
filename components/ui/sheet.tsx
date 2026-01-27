@@ -59,7 +59,7 @@ function SheetContent({
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 p-6',
+          'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 p-6 overflow-y-auto',
           side === 'right' &&
             'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full border-l w-full max-w-4xl',
           side === 'left' &&
@@ -73,23 +73,25 @@ function SheetContent({
         {...props}
       >
         {children}
-        <SheetPrimitive.Close asChild className="absolute top-4 left-6 disabled:pointer-events-none">
-          <Button size="xs" variant="secondary">
-            <Icon name="x" />
-          </Button>
-        </SheetPrimitive.Close>
       </SheetPrimitive.Content>
     </SheetPortal>
   )
 }
 
-function SheetHeader({ className, ...props }: React.ComponentProps<'div'>) {
+function SheetHeader({ className, children, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="sheet-header"
-      className={cn('flex flex-row items-center justify-between gap-4 border-b border-border h-14 -mt-6 pl-9', className)}
+      className={cn('flex flex-row items-center justify-between gap-4 border-b border-border h-14 -mt-6 pl-9 shrink-0 bg-background sticky -top-6 z-10', className)}
       {...props}
-    />
+    >
+      <SheetPrimitive.Close asChild className="disabled:pointer-events-none -ml-9 mr-2">
+        <Button size="xs" variant="secondary">
+          <Icon name="x" />
+        </Button>
+      </SheetPrimitive.Close>
+      {children}
+    </div>
   )
 }
 

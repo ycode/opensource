@@ -272,7 +272,7 @@ export default function CollectionItemSheet({
           <form
             id="collection-item-form"
             onSubmit={form.handleSubmit(handleSubmit)}
-            className="flex flex-col gap-4 flex-1 mt-6"
+            className="flex flex-col gap-4 flex-1"
           >
             <div className="flex-1 flex flex-col gap-6">
               {collectionFields
