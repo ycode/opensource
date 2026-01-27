@@ -27,6 +27,7 @@ interface CollectionsActions {
   createCollection: (data: CreateCollectionData) => Promise<Collection>;
   updateCollection: (id: string, data: UpdateCollectionData) => Promise<void>;
   deleteCollection: (id: string) => Promise<void>;
+  reorderCollections: (collectionIds: string[]) => Promise<void>;
   setSelectedCollectionId: (id: string | null) => void;
 
   // Fields
@@ -279,6 +280,33 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete collection';
       set({ error: errorMessage, isLoading: false });
       throw error;
+    }
+  },
+
+  reorderCollections: async (collectionIds: string[]) => {
+    // Optimistically reorder collections
+    set(state => {
+      const reorderedCollections = collectionIds
+        .map((id, index) => {
+          const collection = state.collections.find(c => c.id === id);
+          return collection ? { ...collection, order: index } : null;
+        })
+        .filter((c): c is Collection => c !== null);
+
+      return { collections: reorderedCollections };
+    });
+
+    try {
+      const response = await collectionsApi.reorder(collectionIds);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+    } catch (error) {
+      // Reload collections to revert optimistic update
+      await get().loadCollections();
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reorder collections';
+      set({ error: errorMessage });
     }
   },
 
