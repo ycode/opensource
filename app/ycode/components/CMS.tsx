@@ -1094,12 +1094,31 @@ const CMS = React.memo(function CMS() {
                             className="px-4 py-5 text-muted-foreground"
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
+                            
                             <ReferenceFieldCell
                               value={value}
                               field={field}
                               referenceItemsCache={referenceItemsCache}
                               fields={fields}
                             />
+                          </td>
+                        );
+                      }
+
+                      // Rich text fields - strip HTML and truncate
+                      if (field.type === 'rich_text') {
+                        const plainText = value
+                          ? String(value).replace(/<[^>]*>/g, '').trim()
+                          : '';
+                        return (
+                          <td
+                            key={field.id}
+                            className="px-4 py-5 text-muted-foreground max-w-[200px]"
+                            onClick={() => !isManualMode && handleEditItem(item)}
+                          >
+                            <span className="block truncate">
+                              {plainText || '-'}
+                            </span>
                           </td>
                         );
                       }
