@@ -756,8 +756,8 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         <EditorContent editor={editor} />
       </div>
 
-      {/* Inline Variable Button - absolute positioned (only when no formatting toolbar) */}
-      {!disabled && !withFormatting && (() => {
+      {/* Inline Variable Button - absolute positioned (when no formatting toolbar visible) */}
+      {!disabled && (!withFormatting || !showFormattingToolbar) && (() => {
         // Check if there are any displayable fields (exclude multi_reference)
         const displayableFields = fields?.filter((f) => f.type !== 'multi_reference') || [];
         const hasDisplayableFields = displayableFields.length > 0;
