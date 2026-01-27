@@ -1755,24 +1755,24 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         signOut={signOut}
         showPageDropdown={showPageDropdown}
         setShowPageDropdown={setShowPageDropdown}
-        currentPage={routeType === 'settings' || routeType === 'profile' ? undefined : currentPage}
-        currentPageId={routeType === 'settings' || routeType === 'profile' ? null : currentPageId}
-        pages={routeType === 'settings' || routeType === 'profile' ? [] : pages}
-        setCurrentPageId={routeType === 'settings' || routeType === 'profile' ? () => {} : setCurrentPageId}
-        isSaving={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? false : isCurrentlySaving}
-        hasUnsavedChanges={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? false : hasUnsavedChanges}
-        lastSaved={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? null : lastSaved}
-        isPublishing={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? false : isPublishing}
-        setIsPublishing={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? () => {} : setIsPublishing}
-        saveImmediately={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? async () => {} : saveImmediately}
-        activeTab={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? 'pages' : activeTab}
+        currentPage={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' ? undefined : currentPage}
+        currentPageId={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' ? null : currentPageId}
+        pages={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' ? [] : pages}
+        setCurrentPageId={routeType === 'settings' || routeType === 'profile' || routeType === 'forms' ? () => {} : setCurrentPageId}
+        isSaving={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? false : isCurrentlySaving}
+        hasUnsavedChanges={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? false : hasUnsavedChanges}
+        lastSaved={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? null : lastSaved}
+        isPublishing={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? false : isPublishing}
+        setIsPublishing={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? () => {} : setIsPublishing}
+        saveImmediately={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? async () => {} : saveImmediately}
+        activeTab={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? 'pages' : activeTab}
         onExitComponentEditMode={handleExitComponentEditMode}
-        publishCount={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? 0 : publishCount}
-        onPublishSuccess={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' ? () => {} : () => {
+        publishCount={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? 0 : publishCount}
+        onPublishSuccess={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms' ? () => {} : () => {
           loadPublishCounts();
           // No need to reload pages - publish already updates store state
         }}
-        isSettingsRoute={routeType === 'settings' || routeType === 'localization' || routeType === 'profile'}
+        isSettingsRoute={routeType === 'settings' || routeType === 'localization' || routeType === 'profile' || routeType === 'forms'}
       />
 
       {/* Main Content Area */}
@@ -1784,6 +1784,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           <LocalizationContent>{children}</LocalizationContent>
         ) : routeType === 'profile' ? (
           <ProfileContent>{children}</ProfileContent>
+        ) : routeType === 'forms' ? (
+          <>{children}</>
         ) : (
           <>
             {/* Left Sidebar - Pages & Layers (hidden in preview mode and CMS) */}

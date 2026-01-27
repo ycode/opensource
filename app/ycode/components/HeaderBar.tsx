@@ -487,6 +487,16 @@ export default function HeaderBar({
             <Icon name="database" />
             CMS
           </Button>
+          <Button
+            variant={routeType === 'forms' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => {
+              router.push('/ycode/forms');
+            }}
+          >
+            <Icon name="form" />
+            Forms
+          </Button>
         </div>
       </div>
 

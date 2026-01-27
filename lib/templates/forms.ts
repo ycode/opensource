@@ -29,7 +29,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
     name: 'Input',
     template: {
       name: 'input',
-      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent'],
+      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'cursor-text'],
       attributes: {
         type: 'text',
         placeholder: 'Enter text...'
@@ -61,7 +61,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
     name: 'Textarea',
     template: {
       name: 'textarea',
-      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent'],
+      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'cursor-text'],
       attributes: {
         placeholder: 'Enter text...',
         rows: 4
@@ -93,7 +93,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
     name: 'Select',
     template: {
       name: 'select',
-      classes: ['w-full', 'px-4', 'py-2', 'border', 'border-[#d1d5db]', 'rounded-lg', 'focus:ring-2', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'bg-white'],
+      classes: ['w-full', 'px-4', 'py-2', 'border', 'border-[#d1d5db]', 'rounded-lg', 'focus:ring-2', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'bg-white', 'cursor-pointer'],
       children: [
         {
           name: 'option',
@@ -155,7 +155,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             type: 'checkbox',
             id: 'checkbox'
           },
-          classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'rounded-[0.25rem]', 'focus:ring-[#3b82f6]']
+          classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'rounded-[0.25rem]', 'focus:ring-[#3b82f6]', 'cursor-pointer']
         },
         {
           name: 'label',
@@ -163,7 +163,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
           attributes: {
             for: 'checkbox'
           },
-          classes: ['text-[0.875rem]', 'text-[#111827]'],
+          classes: ['text-[0.875rem]', 'text-[#111827]', 'cursor-pointer'],
           variables: {
             text: {
               type: 'dynamic_text',
@@ -199,7 +199,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
             id: 'radio',
             name: 'radio-group'
           },
-          classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'focus:ring-[#3b82f6]']
+          classes: ['w-[1rem]', 'h-[1rem]', 'text-[#2563eb]', 'border-[#d1d5db]', 'focus:ring-[#3b82f6]', 'cursor-pointer']
         },
         {
           name: 'label',
@@ -207,7 +207,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
           attributes: {
             for: 'radio'
           },
-          classes: ['text-[0.875rem]', 'text-[#111827]'],
+          classes: ['text-[0.875rem]', 'text-[#111827]', 'cursor-pointer'],
           variables: {
             text: {
               type: 'dynamic_text',
@@ -234,7 +234,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
     name: 'Label',
     template: {
       name: 'label',
-      classes: ['block', 'text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'mb-[0.25rem]'],
+      classes: ['block', 'text-[0.875rem]', 'font-[500]', 'text-[#111827]', 'mb-[0.25rem]', 'cursor-pointer'],
       children: [], // Labels can wrap inputs
       design: {
         typography: {

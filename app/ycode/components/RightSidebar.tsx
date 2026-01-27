@@ -34,6 +34,7 @@ import ImageSettings from './ImageSettings';
 import VideoSettings from './VideoSettings';
 import AudioSettings from './AudioSettings';
 import IconSettings from './IconSettings';
+import FormSettings from './FormSettings';
 import HTMLEmbedSettings from './HTMLEmbedSettings';
 import InputWithInlineVariables from './InputWithInlineVariables';
 import InteractionsPanel from './InteractionsPanel';
@@ -2615,6 +2616,11 @@ const RightSidebar = React.memo(function RightSidebar({
             />
 
             <HTMLEmbedSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+            />
+
+            <FormSettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
             />

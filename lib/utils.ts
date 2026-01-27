@@ -173,14 +173,30 @@ export function formatDate(date: string | Date | null | undefined, format: strin
     'a': isPM ? 'pm' : 'am',
   };
 
-  // Replace tokens in format string
+  // Replace tokens in format string using placeholders to avoid double-replacement
+  // (e.g., 'a' in 'Jan' being replaced by AM/PM token)
   let result = format;
+  const placeholders: string[] = [];
 
   // Sort by length (longest first) to avoid partial replacements
   const sortedTokens = Object.keys(tokens).sort((a, b) => b.length - a.length);
 
-  for (const token of sortedTokens) {
-    result = result.replace(new RegExp(token, 'g'), tokens[token]);
+  // First pass: replace tokens with unique placeholders
+  for (let i = 0; i < sortedTokens.length; i++) {
+    const token = sortedTokens[i];
+    const placeholder = `\x00${i}\x00`; // Use null bytes as unique markers
+    if (result.includes(token)) {
+      result = result.split(token).join(placeholder);
+      placeholders[i] = tokens[token];
+    }
+  }
+
+  // Second pass: replace placeholders with actual values
+  for (let i = 0; i < sortedTokens.length; i++) {
+    if (placeholders[i] !== undefined) {
+      const placeholder = `\x00${i}\x00`;
+      result = result.split(placeholder).join(placeholders[i]);
+    }
   }
 
   return result;

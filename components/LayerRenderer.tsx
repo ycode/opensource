@@ -8,7 +8,7 @@ import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import type { Layer, Locale, ComponentVariable } from '@/types';
+import type { Layer, Locale, ComponentVariable, FormSettings } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
@@ -56,6 +56,8 @@ interface LayerRendererProps {
   parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
   parentComponentVariables?: ComponentVariable[]; // Component's variables for default value lookup
   editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
+  isInsideForm?: boolean; // Whether this layer is inside a form (for button type handling)
+  parentFormSettings?: FormSettings; // Form settings from parent form layer
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -83,6 +85,8 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   parentComponentOverrides,
   parentComponentVariables,
   editingComponentVariables,
+  isInsideForm = false,
+  parentFormSettings,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -166,6 +170,8 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         parentComponentOverrides={parentComponentOverrides}
         parentComponentVariables={parentComponentVariables}
         editingComponentVariables={editingComponentVariables}
+        isInsideForm={isInsideForm}
+        parentFormSettings={parentFormSettings}
       />
     );
   };
@@ -209,6 +215,8 @@ const LayerItem: React.FC<{
   parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
   parentComponentVariables?: ComponentVariable[]; // Component's variables for default value lookup
   editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
+  isInsideForm?: boolean; // Whether this layer is inside a form
+  parentFormSettings?: FormSettings; // Form settings from parent form layer
 }> = ({
   layer,
   isEditMode,
@@ -240,6 +248,8 @@ const LayerItem: React.FC<{
   parentComponentOverrides,
   parentComponentVariables,
   editingComponentVariables,
+  isInsideForm = false,
+  parentFormSettings,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isHovered = hoveredLayerId === layer.id;
@@ -714,6 +724,8 @@ const LayerItem: React.FC<{
           parentComponentLayerId={layer.id}
           parentComponentOverrides={layer.componentOverrides}
           parentComponentVariables={component.variables}
+          isInsideForm={isInsideForm}
+          parentFormSettings={parentFormSettings}
         />
       );
     }
@@ -906,7 +918,99 @@ const LayerItem: React.FC<{
     }
 
     if (htmlTag === 'input') {
+      // Auto-set name attribute for form inputs if not already set
+      if (isInsideForm && !elementProps.name) {
+        elementProps.name = layer.settings?.id || layer.id;
+      }
       return <Tag {...elementProps} />;
+    }
+
+    // Handle textarea - auto-set name for form submission
+    if (htmlTag === 'textarea') {
+      if (isInsideForm && !elementProps.name) {
+        elementProps.name = layer.settings?.id || layer.id;
+      }
+    }
+
+    // Handle select - auto-set name for form submission
+    if (htmlTag === 'select') {
+      if (isInsideForm && !elementProps.name) {
+        elementProps.name = layer.settings?.id || layer.id;
+      }
+    }
+
+    // Handle button inside form - set type="submit" if not explicitly set
+    if (htmlTag === 'button' && isInsideForm && !isEditMode) {
+      // Only override if type is not explicitly set or is 'button'
+      if (!normalizedAttributes.type || normalizedAttributes.type === 'button') {
+        elementProps.type = 'submit';
+      }
+    }
+
+    // Handle form submission in published mode
+    if (htmlTag === 'form' && isPublished && !isEditMode) {
+      const formId = layer.settings?.id;
+      const formSettings = layer.settings?.form;
+
+      elementProps.onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+
+        const form = e.currentTarget;
+        const formData = new FormData(form);
+        const payload: Record<string, any> = {};
+
+        // Convert FormData to object
+        formData.forEach((value, key) => {
+          // Handle multiple values (e.g., checkboxes with same name)
+          if (payload[key]) {
+            if (Array.isArray(payload[key])) {
+              payload[key].push(value);
+            } else {
+              payload[key] = [payload[key], value];
+            }
+          } else {
+            payload[key] = value;
+          }
+        });
+
+        try {
+          const response = await fetch('/api/form-submissions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              form_id: formId || 'unnamed-form',
+              payload,
+              metadata: {
+                page_url: typeof window !== 'undefined' ? window.location.href : undefined,
+              },
+            }),
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            // Success handling
+            if (formSettings?.redirect_url) {
+              window.location.href = formSettings.redirect_url;
+            } else if (formSettings?.success_message) {
+              // Show success message - could use toast or inline message
+              alert(formSettings.success_message);
+            }
+            // Reset the form
+            form.reset();
+          } else {
+            // Error handling
+            if (formSettings?.error_message) {
+              alert(formSettings.error_message);
+            }
+          }
+        } catch (error) {
+          console.error('Form submission error:', error);
+          if (formSettings?.error_message) {
+            alert(formSettings.error_message);
+          }
+        }
+      };
     }
 
     // Handle icon layers (check layer.name, not htmlTag since settings.tag might be 'div')
@@ -1214,6 +1318,8 @@ const LayerItem: React.FC<{
               availableLocales={availableLocales}
               localeSelectorFormat={localeSelectorFormat}
               liveLayerUpdates={liveLayerUpdates}
+              isInsideForm={isInsideForm}
+              parentFormSettings={parentFormSettings}
             />
           )}
         </Tag>
@@ -1326,6 +1432,8 @@ const LayerItem: React.FC<{
                   parentComponentOverrides={parentComponentOverrides}
                   parentComponentVariables={parentComponentVariables}
                   editingComponentVariables={editingComponentVariables}
+                  isInsideForm={isInsideForm || htmlTag === 'form'}
+                  parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
                 />
               )}
             </Tag>
@@ -1374,6 +1482,8 @@ const LayerItem: React.FC<{
               parentComponentOverrides={parentComponentOverrides}
               parentComponentVariables={parentComponentVariables}
               editingComponentVariables={editingComponentVariables}
+              isInsideForm={isInsideForm || htmlTag === 'form'}
+              parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
             />
           )}
 
@@ -1427,6 +1537,8 @@ const LayerItem: React.FC<{
             parentComponentOverrides={parentComponentOverrides}
             parentComponentVariables={parentComponentVariables}
             editingComponentVariables={editingComponentVariables}
+            isInsideForm={isInsideForm || htmlTag === 'form'}
+            parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
           />
         )}
       </Tag>

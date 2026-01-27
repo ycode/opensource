@@ -131,6 +131,17 @@ export interface DesignProperties {
   positioning?: PositioningDesign;
 }
 
+export interface FormSettings {
+  success_message?: string; // Message shown on successful submission
+  error_message?: string; // Message shown on failed submission
+  redirect_url?: string; // URL to redirect after successful submission
+  email_notification?: {
+    enabled: boolean;
+    to: string; // Email address to send notifications to
+    subject?: string; // Email subject line
+  };
+}
+
 export interface LayerSettings {
   id?: string; // Custom HTML ID attribute
   hidden?: boolean; // Element visibility in canvas
@@ -142,6 +153,7 @@ export interface LayerSettings {
   htmlEmbed?: {
     code?: string; // Custom HTML code to embed
   };
+  form?: FormSettings; // Form-specific settings (only for form layers)
 }
 
 // Layer Style Types
@@ -1051,4 +1063,41 @@ export interface VersionHistoryItem {
   action_type: VersionActionType;
   description: string | null;
   created_at: string;
+}
+
+// Form Submission Types
+export type FormSubmissionStatus = 'new' | 'read' | 'archived' | 'spam';
+
+export interface FormSubmissionMetadata {
+  ip?: string;
+  user_agent?: string;
+  referrer?: string;
+  page_url?: string;
+}
+
+export interface FormSubmission {
+  id: string;
+  form_id: string;
+  payload: Record<string, any>;
+  metadata: FormSubmissionMetadata | null;
+  status: FormSubmissionStatus;
+  created_at: string;
+}
+
+export interface CreateFormSubmissionData {
+  form_id: string;
+  payload: Record<string, any>;
+  metadata?: FormSubmissionMetadata;
+}
+
+export interface UpdateFormSubmissionData {
+  status?: FormSubmissionStatus;
+}
+
+// Form summary for listing (grouped by form_id)
+export interface FormSummary {
+  form_id: string;
+  submission_count: number;
+  new_count: number;
+  latest_submission: string | null;
 }
