@@ -8,6 +8,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // 4. Internal components
 import LayersTree from './LayersTree';
@@ -29,7 +32,7 @@ import { useLayerLocks } from '@/hooks/use-layer-locks';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 
 // 6. Types
-import type { Layer } from '@/types';
+import type { Layer, Collection } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
@@ -43,6 +46,122 @@ interface LeftSidebarProps {
   onPageSelect: (pageId: string) => void;
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
+}
+
+// Sortable collection item component for drag-and-drop reordering
+interface SortableCollectionItemProps {
+  collection: Collection;
+  isSelected: boolean;
+  isHovered: boolean;
+  openDropdownId: string | null;
+  onSelect: () => void;
+  onContextMenu: () => void;
+  onDoubleClick: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onDropdownOpenChange: (open: boolean) => void;
+  onRename: () => void;
+  onDelete: () => void;
+}
+
+function SortableCollectionItem({
+  collection,
+  isSelected,
+  isHovered,
+  openDropdownId,
+  onSelect,
+  onContextMenu,
+  onDoubleClick,
+  onMouseEnter,
+  onMouseLeave,
+  onDropdownOpenChange,
+  onRename,
+  onDelete,
+}: SortableCollectionItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: collection.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={setNodeRef}
+          style={style}
+          {...attributes}
+          {...listeners}
+          className={cn(
+            'px-3 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full group cursor-grab active:cursor-grabbing',
+            isSelected
+              ? 'bg-primary text-primary-foreground'
+              : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
+          )}
+          onClick={onSelect}
+          onContextMenu={onContextMenu}
+          onDoubleClick={onDoubleClick}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
+        >
+          <div className="flex gap-2 items-center">
+            <Icon name="database" className="size-3" />
+            <span>{collection.name}</span>
+          </div>
+
+          <div className="group-hover:opacity-100 opacity-0">
+            <DropdownMenu
+              open={openDropdownId === collection.id}
+              onOpenChange={onDropdownOpenChange}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="xs"
+                  variant={isSelected ? 'default' : 'ghost'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  className="-mr-2"
+                >
+                  <Icon name="more" className="size-3" />
+                </Button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={onRename}>
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onDelete}>
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <span className="group-hover:hidden block text-xs opacity-50">
+            {collection.draft_items_count}
+          </span>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={onRename}>
+          Rename
+        </ContextMenuItem>
+        <ContextMenuItem onClick={onDelete}>
+          Delete
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 }
 
 const LeftSidebar = React.memo(function LeftSidebar({
@@ -107,6 +226,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
   const createCollection = useCollectionsStore((state) => state.createCollection);
   const updateCollection = useCollectionsStore((state) => state.updateCollection);
   const deleteCollection = useCollectionsStore((state) => state.deleteCollection);
+  const reorderCollections = useCollectionsStore((state) => state.reorderCollections);
 
   // Collaboration hooks - re-enabled
   const layerLocks = useLayerLocks();
@@ -355,6 +475,39 @@ const LeftSidebar = React.memo(function LeftSidebar({
     }
   };
 
+  // Drag-and-drop sensors for collection reordering
+  const collectionSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Require 5px drag before activating
+      },
+    })
+  );
+
+  // Handle collection drag end
+  const handleCollectionDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = collections.findIndex(c => c.id === active.id);
+    const newIndex = collections.findIndex(c => c.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) {
+      return;
+    }
+
+    // Create new order
+    const newOrder = [...collections];
+    const [movedItem] = newOrder.splice(oldIndex, 1);
+    newOrder.splice(newIndex, 0, movedItem);
+
+    // Update with new order
+    reorderCollections(newOrder.map(c => c.id));
+  }, [collections, reorderCollections]);
+
   // Handle asset selection
   const handleAssetSelect = (asset: { id: string; public_url: string; filename: string }) => {
     if (!currentPageId) {
@@ -535,116 +688,71 @@ const LeftSidebar = React.memo(function LeftSidebar({
                 </div>
               </header>
 
-              <div className="flex flex-col">
-                {collections.map((collection) => {
-                  const isSelected = selectedCollectionId === collection.id;
-                  const isRenaming = renamingCollectionId === collection.id;
-                  const isHovered = hoveredCollectionId === collection.id;
+              <DndContext
+                sensors={collectionSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleCollectionDragEnd}
+              >
+                <SortableContext
+                  items={collections.map(c => c.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="flex flex-col">
+                    {collections.map((collection) => {
+                      const isSelected = selectedCollectionId === collection.id;
+                      const isRenaming = renamingCollectionId === collection.id;
+                      const isHovered = hoveredCollectionId === collection.id;
 
-                  return (
-                    <div key={collection.id}>
-                      {isRenaming ? (
-                        <div className="pl-3 pr-1.5 h-8 rounded-lg flex gap-2 items-center bg-secondary/50">
-                          <Icon name="database" className="size-3 shrink-0" />
-                          <Input
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleRenameSubmit();
-                              } else if (e.key === 'Escape') {
-                                handleRenameCancel();
-                              }
-                            }}
-                            onBlur={handleRenameCancel}
-                            autoFocus
-                            className="h-6 px-1 py-0 text-xs rounded-md -ml-1"
-                          />
-                        </div>
-                      ) : (
-                        <ContextMenu>
-                          <ContextMenuTrigger asChild>
-                            <div
-                              className={cn(
-                                'px-3 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full group cursor-pointer',
-                                isSelected
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
-                              )}
-                              onClick={() => {
-                                openCollection(collection.id);
+                      if (isRenaming) {
+                        return (
+                          <div key={collection.id} className="pl-3 pr-1.5 h-8 rounded-lg flex gap-2 items-center bg-secondary/50">
+                            <Icon name="database" className="size-3 shrink-0" />
+                            <Input
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleRenameSubmit();
+                                } else if (e.key === 'Escape') {
+                                  handleRenameCancel();
+                                }
                               }}
-                              onContextMenu={() => {
-                                setSelectedCollectionId(collection.id);
-                              }}
-                              onDoubleClick={() => handleCollectionDoubleClick(collection)}
-                              onMouseEnter={() => setHoveredCollectionId(collection.id)}
-                              onMouseLeave={() => setHoveredCollectionId(null)}
-                            >
-                              <div className="flex gap-2 items-center">
-                                <Icon name="database" className="size-3" />
-                                <span>{collection.name}</span>
-                              </div>
+                              onBlur={handleRenameCancel}
+                              autoFocus
+                              className="h-6 px-1 py-0 text-xs rounded-md -ml-1"
+                            />
+                          </div>
+                        );
+                      }
 
-                              <div className="group-hover:opacity-100 opacity-0">
+                      return (
+                        <SortableCollectionItem
+                          key={collection.id}
+                          collection={collection}
+                          isSelected={isSelected}
+                          isHovered={isHovered}
+                          openDropdownId={openDropdownId}
+                          onSelect={() => openCollection(collection.id)}
+                          onContextMenu={() => setSelectedCollectionId(collection.id)}
+                          onDoubleClick={() => handleCollectionDoubleClick(collection)}
+                          onMouseEnter={() => setHoveredCollectionId(collection.id)}
+                          onMouseLeave={() => setHoveredCollectionId(null)}
+                          onDropdownOpenChange={(open) => setOpenDropdownId(open ? collection.id : null)}
+                          onRename={() => handleCollectionDoubleClick(collection)}
+                          onDelete={() => handleCollectionDelete(collection.id)}
+                        />
+                      );
+                    })}
 
-                                <DropdownMenu
-                                  open={openDropdownId === collection.id}
-                                  onOpenChange={(open) => setOpenDropdownId(open ? collection.id : null)}
-                                >
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      size="xs"
-                                      variant={isSelected ? 'default' : 'ghost'}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                      }}
-                                      className="-mr-2"
-                                    >
-                                      <Icon name="more" className="size-3" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-
-                                  <DropdownMenuContent>
-                                    <DropdownMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
-                                      Rename
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleCollectionDelete(collection.id)}>
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-
-                                </DropdownMenu>
-
-                              </div>
-
-                              <span className="group-hover:hidden block text-xs opacity-50">
-                                {collection.draft_items_count}
-                              </span>
-
-                            </div>
-                          </ContextMenuTrigger>
-                          <ContextMenuContent>
-                            <ContextMenuItem onClick={() => handleCollectionDoubleClick(collection)}>
-                              Rename
-                            </ContextMenuItem>
-                            <ContextMenuItem onClick={() => handleCollectionDelete(collection.id)}>
-                              Delete
-                            </ContextMenuItem>
-                          </ContextMenuContent>
-                        </ContextMenu>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {collections.length === 0 && (
-                  <Empty>
-                    <EmptyTitle>Collections</EmptyTitle>
-                    <EmptyDescription>No collections yet. Click + to create new.</EmptyDescription>
-                  </Empty>
-                )}
-              </div>
+                    {collections.length === 0 && (
+                      <Empty>
+                        <EmptyTitle>Collections</EmptyTitle>
+                        <EmptyDescription>No collections yet. Click + to create new.</EmptyDescription>
+                      </Empty>
+                    )}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </TabsContent>
           </Tabs>
         </div>

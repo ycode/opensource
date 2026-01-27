@@ -196,7 +196,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'type': 'dynamic_rich_text'
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -569,7 +569,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'type': 'dynamic_rich_text'
                     }
                   },
-                  'customName': 'Paragraph',
+                  'customName': 'Text',
                   'restrictions': {
                     'editText': true
                   }
@@ -886,7 +886,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -1271,7 +1271,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -1656,7 +1656,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       'type': 'dynamic_rich_text'
                     }
                   },
-                  'customName': 'Paragraph',
+                  'customName': 'Text',
                   'restrictions': {
                     'editText': true
                   }
@@ -1902,7 +1902,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       }
                     }
                   },
-                  'customName': 'Paragraph'
+                  'customName': 'Text'
                 },
                 {
                   'name': 'text',
@@ -1979,7 +1979,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       }
                     }
                   },
-                  'customName': 'Paragraph',
+                  'customName': 'Text',
                   'restrictions': {
                     'editText': true
                   }
@@ -2287,7 +2287,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       }
                     }
                   },
-                  'customName': 'Paragraph',
+                  'customName': 'Text',
                   'restrictions': {
                     'editText': true
                   }
@@ -2417,7 +2417,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph'
+                      'customName': 'Text'
                     },
                     {
                       'name': 'text',
@@ -2526,7 +2526,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'type': 'dynamic_rich_text'
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -2814,7 +2814,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       }
                     }
                   },
-                  'customName': 'Paragraph'
+                  'customName': 'Text'
                 },
                 {
                   'name': 'text',
@@ -2892,7 +2892,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       }
                     }
                   },
-                  'customName': 'Paragraph',
+                  'customName': 'Text',
                   'restrictions': {
                     'editText': true
                   }
@@ -3272,7 +3272,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -3481,7 +3481,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -3584,7 +3584,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph'
+                      'customName': 'Text'
                     },
                     {
                       'name': 'text',
@@ -3663,7 +3663,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -3720,7 +3720,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -3770,7 +3770,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         }
                       ],
                       'design': {
@@ -3829,7 +3829,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -3879,7 +3879,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         }
                       ],
                       'design': {
@@ -3938,7 +3938,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -3988,7 +3988,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         }
                       ],
                       'design': {
@@ -4148,7 +4148,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'text',
@@ -4225,7 +4225,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -4282,7 +4282,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       }
                                     }
                                   },
-                                  'customName': 'Paragraph'
+                                  'customName': 'Text'
                                 }
                               ],
                               'design': {
@@ -4332,7 +4332,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -4391,7 +4391,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       }
                                     }
                                   },
-                                  'customName': 'Paragraph'
+                                  'customName': 'Text'
                                 }
                               ],
                               'design': {
@@ -4441,7 +4441,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -4500,7 +4500,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       }
                                     }
                                   },
-                                  'customName': 'Paragraph'
+                                  'customName': 'Text'
                                 }
                               ],
                               'design': {
@@ -4550,7 +4550,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -4609,7 +4609,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       }
                                     }
                                   },
-                                  'customName': 'Paragraph'
+                                  'customName': 'Text'
                                 }
                               ],
                               'design': {
@@ -4659,7 +4659,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -4925,7 +4925,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -5007,7 +5007,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -5172,7 +5172,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -5214,7 +5214,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -5435,7 +5435,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -5477,7 +5477,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -5698,7 +5698,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -5740,7 +5740,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -5962,7 +5962,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'text',
@@ -6039,7 +6039,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -6260,7 +6260,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -6302,7 +6302,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'type': 'dynamic_rich_text'
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -6369,7 +6369,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -6411,7 +6411,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'type': 'dynamic_rich_text'
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -6478,7 +6478,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -6520,7 +6520,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'type': 'dynamic_rich_text'
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -6685,7 +6685,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -6836,7 +6836,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'text',
@@ -6876,7 +6876,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         }
                       ]
                     },
@@ -6963,7 +6963,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'text',
@@ -7003,7 +7003,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         }
                       ]
                     },
@@ -7090,7 +7090,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'text',
@@ -7130,7 +7130,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         }
                       ]
                     },
@@ -7217,7 +7217,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'text',
@@ -7257,7 +7257,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         }
                       ]
                     }
@@ -7434,7 +7434,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -7516,7 +7516,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -7665,7 +7665,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -7704,7 +7704,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -7838,7 +7838,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -7877,7 +7877,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -8011,7 +8011,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -8050,7 +8050,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -8184,7 +8184,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -8223,7 +8223,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -8441,7 +8441,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'text',
@@ -8518,7 +8518,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -8635,7 +8635,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ]
                         },
@@ -8731,7 +8731,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ]
                         },
@@ -8827,7 +8827,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ]
                         }
@@ -9120,7 +9120,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -9202,7 +9202,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -9351,7 +9351,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -9390,7 +9390,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -9524,7 +9524,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -9563,7 +9563,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -9697,7 +9697,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -9736,7 +9736,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -9870,7 +9870,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -9909,7 +9909,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -10043,7 +10043,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -10082,7 +10082,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -10216,7 +10216,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -10255,7 +10255,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -10543,7 +10543,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -10582,7 +10582,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -10716,7 +10716,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -10755,7 +10755,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -10889,7 +10889,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -10928,7 +10928,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -11062,7 +11062,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -11101,7 +11101,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -11332,7 +11332,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -11501,7 +11501,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -11540,7 +11540,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -11674,7 +11674,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -11713,7 +11713,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -11847,7 +11847,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -11886,7 +11886,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -12020,7 +12020,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -12059,7 +12059,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -12202,7 +12202,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -12284,7 +12284,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -12592,7 +12592,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -12631,7 +12631,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -12770,7 +12770,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -12809,7 +12809,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -12948,7 +12948,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -12987,7 +12987,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -13173,7 +13173,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -13339,7 +13339,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -13420,7 +13420,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -13644,7 +13644,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -13725,7 +13725,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -13949,7 +13949,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -14030,7 +14030,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -14254,7 +14254,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -14335,7 +14335,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -14592,7 +14592,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -14754,7 +14754,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -14835,7 +14835,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -14959,7 +14959,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           'type': 'dynamic_rich_text'
                                         }
                                       },
-                                      'customName': 'Paragraph',
+                                      'customName': 'Text',
                                       'restrictions': {
                                         'editText': true
                                       }
@@ -14998,7 +14998,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           'type': 'dynamic_rich_text'
                                         }
                                       },
-                                      'customName': 'Paragraph',
+                                      'customName': 'Text',
                                       'restrictions': {
                                         'editText': true
                                       }
@@ -15152,7 +15152,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -15233,7 +15233,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -15357,7 +15357,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           'type': 'dynamic_rich_text'
                                         }
                                       },
-                                      'customName': 'Paragraph',
+                                      'customName': 'Text',
                                       'restrictions': {
                                         'editText': true
                                       }
@@ -15396,7 +15396,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           'type': 'dynamic_rich_text'
                                         }
                                       },
-                                      'customName': 'Paragraph',
+                                      'customName': 'Text',
                                       'restrictions': {
                                         'editText': true
                                       }
@@ -15591,7 +15591,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -15686,7 +15686,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -15767,7 +15767,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -15891,7 +15891,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -15930,7 +15930,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -16012,7 +16012,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -16093,7 +16093,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -16217,7 +16217,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -16256,7 +16256,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -16339,7 +16339,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -16420,7 +16420,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -16544,7 +16544,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       }
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -16583,7 +16583,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       }
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -16771,7 +16771,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -16938,7 +16938,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -17019,7 +17019,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -17159,7 +17159,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           'type': 'dynamic_rich_text'
                                         }
                                       },
-                                      'customName': 'Paragraph',
+                                      'customName': 'Text',
                                       'restrictions': {
                                         'editText': true
                                       }
@@ -17198,7 +17198,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           'type': 'dynamic_rich_text'
                                         }
                                       },
-                                      'customName': 'Paragraph',
+                                      'customName': 'Text',
                                       'restrictions': {
                                         'editText': true
                                       }
@@ -17353,7 +17353,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -17434,7 +17434,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -17574,7 +17574,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           'type': 'dynamic_rich_text'
                                         }
                                       },
-                                      'customName': 'Paragraph',
+                                      'customName': 'Text',
                                       'restrictions': {
                                         'editText': true
                                       }
@@ -17613,7 +17613,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           'type': 'dynamic_rich_text'
                                         }
                                       },
-                                      'customName': 'Paragraph',
+                                      'customName': 'Text',
                                       'restrictions': {
                                         'editText': true
                                       }
@@ -17768,7 +17768,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -17849,7 +17849,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -17988,7 +17988,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           }
                                         }
                                       },
-                                      'customName': 'Paragraph',
+                                      'customName': 'Text',
                                       'restrictions': {
                                         'editText': true
                                       }
@@ -18027,7 +18027,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                           }
                                         }
                                       },
-                                      'customName': 'Paragraph',
+                                      'customName': 'Text',
                                       'restrictions': {
                                         'editText': true
                                       }
@@ -18212,7 +18212,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -18374,7 +18374,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -18455,7 +18455,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -18606,7 +18606,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -18687,7 +18687,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -18838,7 +18838,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -18919,7 +18919,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       }
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -19067,7 +19067,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -19149,7 +19149,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -19401,7 +19401,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -19482,7 +19482,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -19707,7 +19707,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -19788,7 +19788,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -20013,7 +20013,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -20094,7 +20094,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -20306,7 +20306,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph'
+                      'customName': 'Text'
                     },
                     {
                       'name': 'text',
@@ -20465,7 +20465,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -20504,7 +20504,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -20694,7 +20694,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -20818,7 +20818,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ]
                         },
@@ -20855,7 +20855,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -21045,7 +21045,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -21166,7 +21166,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -21206,7 +21206,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -21402,7 +21402,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       }
                     }
                   },
-                  'customName': 'Paragraph'
+                  'customName': 'Text'
                 },
                 {
                   'name': 'text',
@@ -21570,7 +21570,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'type': 'dynamic_rich_text'
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -21622,7 +21622,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -21679,7 +21679,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -21906,7 +21906,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -22001,7 +22001,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'text',
@@ -22043,7 +22043,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         }
                       ]
                     },
@@ -22117,7 +22117,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'text',
@@ -22159,7 +22159,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         }
                       ]
                     },
@@ -22233,7 +22233,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'text',
@@ -22275,7 +22275,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         }
                       ]
                     },
@@ -22349,7 +22349,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'text',
@@ -22391,7 +22391,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         }
                       ]
                     }
@@ -22526,7 +22526,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -22608,7 +22608,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -22704,7 +22704,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'type': 'dynamic_rich_text'
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -22746,7 +22746,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'type': 'dynamic_rich_text'
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -22825,7 +22825,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -22867,7 +22867,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -22946,7 +22946,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -22988,7 +22988,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -23067,7 +23067,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -23109,7 +23109,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -23245,7 +23245,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -23327,7 +23327,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -23489,7 +23489,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -23531,7 +23531,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -23606,7 +23606,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -23648,7 +23648,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -23723,7 +23723,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -23765,7 +23765,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -23840,7 +23840,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -23882,7 +23882,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -24025,7 +24025,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -24107,7 +24107,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -24205,7 +24205,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -24244,7 +24244,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'open': false
@@ -24291,7 +24291,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -24329,7 +24329,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -24384,7 +24384,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -24423,7 +24423,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -24462,7 +24462,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -24501,7 +24501,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -24657,7 +24657,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -24696,7 +24696,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'open': false
@@ -24743,7 +24743,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -24781,7 +24781,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -24836,7 +24836,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -24875,7 +24875,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -24914,7 +24914,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -24953,7 +24953,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -25110,7 +25110,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -25149,7 +25149,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'open': false
@@ -25196,7 +25196,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -25234,7 +25234,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -25289,7 +25289,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -25328,7 +25328,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -25367,7 +25367,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             },
                             {
                               'name': 'text',
@@ -25406,7 +25406,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph'
+                              'customName': 'Text'
                             }
                           ],
                           'design': {
@@ -25663,7 +25663,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -25804,7 +25804,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -25843,7 +25843,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -25970,7 +25970,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -26009,7 +26009,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -26136,7 +26136,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -26175,7 +26175,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -26302,7 +26302,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -26341,7 +26341,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -26468,7 +26468,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -26507,7 +26507,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -26634,7 +26634,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -26673,7 +26673,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -26863,7 +26863,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -27006,7 +27006,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -27046,7 +27046,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -27175,7 +27175,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -27215,7 +27215,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -27344,7 +27344,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -27384,7 +27384,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -27513,7 +27513,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -27553,7 +27553,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -27751,7 +27751,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                       }
                     }
                   },
-                  'customName': 'Paragraph'
+                  'customName': 'Text'
                 },
                 {
                   'name': 'div',
@@ -27801,7 +27801,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -27841,7 +27841,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -27927,7 +27927,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph'
+                      'customName': 'Text'
                     },
                     {
                       'name': 'text',
@@ -28019,7 +28019,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'div',
@@ -28137,7 +28137,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -28176,7 +28176,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -28240,7 +28240,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'div',
@@ -28358,7 +28358,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -28397,7 +28397,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -28461,7 +28461,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph'
+                          'customName': 'Text'
                         },
                         {
                           'name': 'div',
@@ -28579,7 +28579,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -28618,7 +28618,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -28875,7 +28875,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -29265,7 +29265,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               'type': 'dynamic_rich_text'
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -29386,7 +29386,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -29425,7 +29425,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -29657,7 +29657,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                               }
                             }
                           },
-                          'customName': 'Paragraph',
+                          'customName': 'Text',
                           'restrictions': {
                             'editText': true
                           }
@@ -29778,7 +29778,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -29817,7 +29817,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -30327,7 +30327,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -30396,7 +30396,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -30435,7 +30435,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   'type': 'dynamic_rich_text'
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -30638,7 +30638,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           }
                         }
                       },
-                      'customName': 'Paragraph'
+                      'customName': 'Text'
                     },
                     {
                       'name': 'text',
@@ -30717,7 +30717,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                           'type': 'dynamic_rich_text'
                         }
                       },
-                      'customName': 'Paragraph',
+                      'customName': 'Text',
                       'restrictions': {
                         'editText': true
                       }
@@ -30975,7 +30975,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -31100,7 +31100,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -31139,7 +31139,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -31384,7 +31384,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -31509,7 +31509,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -31548,7 +31548,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -31793,7 +31793,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -31918,7 +31918,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       }
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -31957,7 +31957,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       }
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -32202,7 +32202,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -32326,7 +32326,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -32365,7 +32365,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -32611,7 +32611,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -32735,7 +32735,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -32774,7 +32774,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -33020,7 +33020,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                   }
                                 }
                               },
-                              'customName': 'Paragraph',
+                              'customName': 'Text',
                               'restrictions': {
                                 'editText': true
                               }
@@ -33144,7 +33144,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
@@ -33183,7 +33183,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                                       'type': 'dynamic_rich_text'
                                     }
                                   },
-                                  'customName': 'Paragraph',
+                                  'customName': 'Text',
                                   'restrictions': {
                                     'editText': true
                                   }
