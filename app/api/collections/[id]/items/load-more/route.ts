@@ -3,7 +3,7 @@ import { getItemsWithValues } from '@/lib/repositories/collectionItemRepository'
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import { getAllPages } from '@/lib/repositories/pageRepository';
 import { getAllPageFolders } from '@/lib/repositories/pageFolderRepository';
-import { renderCollectionItemsToHtml } from '@/lib/page-fetcher';
+import { renderCollectionItemsToHtml, loadTranslationsForLocale } from '@/lib/page-fetcher';
 import { noCache } from '@/lib/api-response';
 import type { Layer, Page, PageFolder } from '@/types';
 
@@ -41,6 +41,7 @@ export async function POST(
       layerTemplate,
       collectionLayerId,
       published = true,
+      localeCode,
     } = body;
 
     // Validate required fields
@@ -101,6 +102,15 @@ export async function POST(
       getAllPageFolders(),
     ]);
 
+    // Load locale and translations if locale code is provided
+    let locale = null;
+    let translations: Record<string, any> | undefined;
+    if (localeCode) {
+      const localeData = await loadTranslationsForLocale(localeCode, published);
+      locale = localeData.locale;
+      translations = localeData.translations;
+    }
+
     // Render items to HTML using the provided template
     const html = await renderCollectionItemsToHtml(
       items,
@@ -110,7 +120,9 @@ export async function POST(
       published,
       pages,
       folders,
-      collectionItemSlugs
+      collectionItemSlugs,
+      locale,
+      translations
     );
 
     return noCache({

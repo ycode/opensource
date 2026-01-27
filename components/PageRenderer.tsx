@@ -20,6 +20,7 @@ interface PageRendererProps {
   locale?: Locale | null;
   availableLocales?: Locale[];
   isPreview?: boolean; // Whether we're in preview mode (use draft data)
+  translations?: Record<string, any> | null; // Translations for localized URL generation
 }
 
 /**
@@ -63,6 +64,7 @@ export default async function PageRenderer({
   locale,
   availableLocales = [],
   isPreview = false,
+  translations,
 }: PageRendererProps) {
   // Resolve component instances in the layer tree before rendering
   // If components array is empty, they're already resolved server-side
@@ -221,6 +223,7 @@ export default async function PageRenderer({
           folders={folders as any}
           collectionItemSlugs={collectionItemSlugs}
           isPreview={isPreview}
+          translations={translations}
         />
       </div>
 

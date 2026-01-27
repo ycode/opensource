@@ -31,7 +31,7 @@ import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
 import LocaleSelector from '@/components/layers/LocaleSelector';
 import { usePagesStore } from '@/stores/usePagesStore';
-import { buildSlugPath, buildDynamicPageUrl } from '@/lib/page-utils';
+import { buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 
 /**
  * Generate href from layer link settings
@@ -50,7 +50,9 @@ function generateLinkHref(
   pages?: any[],
   folders?: any[],
   collectionItemSlugs?: Record<string, string>,
-  isPreview?: boolean
+  isPreview?: boolean,
+  locale?: any | null,
+  translations?: Record<string, any> | null
 ): string | null {
   if (!linkSettings || !linkSettings.type) return null;
 
@@ -92,10 +94,10 @@ function generateLinkHref(
               itemSlug = collectionItemSlugs[linkSettings.page.collection_item_id];
             }
 
-            href = buildDynamicPageUrl(page, folders, itemSlug || null);
+            href = buildLocalizedDynamicPageUrl(page, folders, itemSlug || null, locale, translations || undefined);
           } else {
             // Static page or dynamic page without specific item
-            href = buildSlugPath(page, folders, 'page');
+            href = buildLocalizedSlugPath(page, folders, 'page', locale, translations || undefined);
           }
 
           // Prefix with /ycode/preview in preview mode
@@ -166,6 +168,7 @@ interface LayerRendererProps {
   folders?: any[]; // Folders for link resolution
   collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
   isPreview?: boolean; // Whether we're in preview mode (prefix links with /ycode/preview)
+  translations?: Record<string, any> | null; // Translations for localized URL generation
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -199,6 +202,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   pages: pagesProp,
   folders: foldersProp,
   isPreview = false,
+  translations,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -295,6 +299,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         folders={folders}
         collectionItemSlugs={collectionItemSlugs}
         isPreview={isPreview}
+        translations={translations}
       />
     );
   };
@@ -344,6 +349,7 @@ const LayerItem: React.FC<{
   folders?: any[]; // Folders for link resolution
   collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
   isPreview?: boolean; // Whether we're in preview mode
+  translations?: Record<string, any> | null; // Translations for localized URL generation
 }> = ({
   layer,
   isEditMode,
@@ -381,6 +387,7 @@ const LayerItem: React.FC<{
   folders,
   collectionItemSlugs,
   isPreview,
+  translations,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isHovered = hoveredLayerId === layer.id;
@@ -403,7 +410,7 @@ const LayerItem: React.FC<{
   const assetsById = useAssetsStore((state) => state.assetsById);
   const openFileManager = useEditorStore((state) => state.openFileManager);
   const allTranslations = useLocalisationStore((state) => state.translations);
-  const translations = isEditMode && currentLocale ? allTranslations[currentLocale.id] : null;
+  const editModeTranslations = isEditMode && currentLocale ? allTranslations[currentLocale.id] : null;
   let htmlTag = getLayerHtmlTag(layer);
 
   // Check if we need to override the tag for rich text with block elements
@@ -864,6 +871,7 @@ const LayerItem: React.FC<{
           folders={folders}
           collectionItemSlugs={collectionItemSlugs}
           isPreview={isPreview}
+          translations={translations}
         />
       );
     }
@@ -1365,6 +1373,7 @@ const LayerItem: React.FC<{
               folders={folders}
               collectionItemSlugs={collectionItemSlugs}
               isPreview={isPreview}
+              translations={translations}
               hiddenLayerIds={hiddenLayerIds}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
@@ -1488,6 +1497,7 @@ const LayerItem: React.FC<{
                   folders={folders}
                   collectionItemSlugs={collectionItemSlugs}
                   isPreview={isPreview}
+                  translations={translations}
                 />
               )}
             </Tag>
@@ -1533,6 +1543,7 @@ const LayerItem: React.FC<{
               folders={folders}
               collectionItemSlugs={collectionItemSlugs}
               isPreview={isPreview}
+              translations={translations}
               hiddenLayerIds={hiddenLayerIds}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
@@ -1601,6 +1612,7 @@ const LayerItem: React.FC<{
             folders={folders}
             collectionItemSlugs={collectionItemSlugs}
             isPreview={isPreview}
+            translations={translations}
           />
         )}
       </Tag>
@@ -1633,7 +1645,9 @@ const LayerItem: React.FC<{
       pages,
       folders,
       collectionItemSlugs,
-      isPreview
+      isPreview,
+      currentLocale,
+      translations
     );
 
     if (linkHref) {

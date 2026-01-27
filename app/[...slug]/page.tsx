@@ -241,7 +241,7 @@ export default async function Page({ params, searchParams }: PageProps) {
     notFound();
   }
 
-  const { page, pageLayers, components, collectionItem, collectionFields, locale, availableLocales } = data;
+  const { page, pageLayers, components, collectionItem, collectionFields, locale, availableLocales, translations } = data;
 
   // Load published CSS from settings
   const publishedCSS = await getSettingByKey('published_css');
@@ -256,6 +256,7 @@ export default async function Page({ params, searchParams }: PageProps) {
       collectionFields={collectionFields}
       locale={locale}
       availableLocales={availableLocales}
+      translations={translations}
     />
   );
 }
