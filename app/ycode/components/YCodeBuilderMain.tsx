@@ -41,6 +41,7 @@ const CollectionItemSheet = lazy(() => import('../components/CollectionItemSheet
 const FileManagerDialog = lazy(() => import('../components/FileManagerDialog'));
 const KeyboardShortcutsDialog = lazy(() => import('../components/KeyboardShortcutsDialog'));
 const CreateComponentDialog = lazy(() => import('../components/CreateComponentDialog'));
+const DragPreviewPortal = lazy(() => import('@/components/DragPreviewPortal'));
 
 // Collaboration components (lazy-loaded)
 const RealtimeCursors = lazy(() => import('@/components/realtime-cursors').then(m => ({ default: m.RealtimeCursors })));
@@ -1949,6 +1950,12 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
     {/* Toast notifications */}
     <Toaster />
+
+    {/* Drag preview portal - follows cursor during element drag */}
+    <Suspense fallback={null}>
+      <DragPreviewPortal />
+    </Suspense>
+
     </>
   );
 }

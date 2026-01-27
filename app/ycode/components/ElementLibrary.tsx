@@ -3,10 +3,11 @@
 /**
  * Element Library Slide-Out Panel
  *
- * Displays categorized list of available elements that can be added to the page
+ * Displays categorized list of available elements that can be added to the page.
+ * Uses custom pointer-based drag-and-drop for cross-iframe dragging to canvas.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,103 @@ import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useEditorActions } from '@/hooks/use-editor-url';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 
+/**
+ * Element Button with drag support
+ * Uses simple mousedown handler to start drag
+ */
+interface ElementButtonProps {
+  elementType: string;
+  source: 'elements' | 'layouts' | 'components';
+  name: string;
+  icon: React.ComponentProps<typeof Icon>['name'];
+  onClick: () => void;
+  onDragStart: (e: React.MouseEvent, elementType: string, source: 'elements' | 'layouts' | 'components', name: string) => void;
+  children?: React.ReactNode;
+  className?: string;
+  variant?: 'default' | 'card';
+}
+
+function ElementButton({
+  elementType,
+  source,
+  name,
+  icon,
+  onClick,
+  onDragStart,
+  children,
+  className,
+  variant = 'default',
+}: ElementButtonProps) {
+  const isDraggingRef = useRef(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only handle left mouse button
+    if (e.button !== 0) return;
+    
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const DRAG_THRESHOLD = 5;
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (!isDraggingRef.current && distance > DRAG_THRESHOLD) {
+        isDraggingRef.current = true;
+        // Create a synthetic React event for the onDragStart callback
+        onDragStart(e, elementType, source, name);
+      }
+    };
+    
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      
+      // If we didn't drag, trigger click
+      if (!isDraggingRef.current) {
+        onClick();
+      }
+      
+      isDraggingRef.current = false;
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  if (variant === 'card') {
+    return (
+      <Button
+        onMouseDown={handleMouseDown}
+        size="sm"
+        variant="secondary"
+        className={cn(
+          'justify-start flex-col items-start p-1.5 overflow-hidden hover:opacity-90 transition-opacity rounded-[10px] !h-auto cursor-grab active:cursor-grabbing select-none',
+          className
+        )}
+      >
+        {children}
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      onMouseDown={handleMouseDown}
+      size="sm"
+      variant="secondary"
+      className={cn(
+        'justify-start cursor-grab active:cursor-grabbing select-none',
+        className
+      )}
+    >
+      <Icon name={icon} />
+      <span className="truncate">{name}</span>
+    </Button>
+  );
+}
+
 interface ElementLibraryProps {
   isOpen: boolean;
   onClose: () => void;
@@ -59,7 +157,7 @@ const elementCategories: Record<string, string[]> = {
 
 export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements', liveLayerUpdates }: ElementLibraryProps) {
   const { addLayerFromTemplate, updateLayer, setDraftLayers, draftsByPageId, pages } = usePagesStore();
-  const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId, activeBreakpoint, pushComponentNavigation } = useEditorStore();
+  const { currentPageId, selectedLayerId, setSelectedLayerId, editingComponentId, activeBreakpoint, pushComponentNavigation, startCanvasDrag, endCanvasDrag } = useEditorStore();
   const { components, componentDrafts, updateComponentDraft, deleteComponent, getDeletePreview, loadComponentDraft, getComponentById } = useComponentsStore();
   const { openComponent } = useEditorActions();
 
@@ -127,6 +225,20 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       return next;
     });
   };
+
+  // Handle drag start from element buttons
+  // This is called when the mouse moves past the drag threshold
+  const handleElementDragStart = useCallback((
+    e: React.MouseEvent,
+    elementType: string,
+    source: 'elements' | 'layouts' | 'components',
+    displayName: string
+  ) => {
+    // Set drag state in store - this triggers the DragPreviewPortal and hit-testing
+    startCanvasDrag(elementType, source, displayName, { x: e.clientX, y: e.clientY });
+    // Close sidebar when drag starts
+    onClose();
+  }, [startCanvasDrag, onClose]);
 
   const handleAddElement = (elementType: string) => {
     // If editing component, use component draft instead
@@ -916,16 +1028,15 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                 </header>
                 <div className="grid grid-cols-2 gap-2">
                   {elements.map((el) => (
-                    <Button
+                    <ElementButton
                       key={el}
+                      elementType={el}
+                      source="elements"
+                      name={getBlockName(el) || el}
+                      icon={getBlockIcon(el)}
                       onClick={() => handleAddElement(el)}
-                      size="sm"
-                      variant="secondary"
-                      className="justify-start"
-                    >
-                      <Icon name={getBlockIcon(el)} />
-                      <span className="truncate">{getBlockName(el)}</span>
-                    </Button>
+                      onDragStart={handleElementDragStart}
+                    />
                   ))}
                 </div>
               </div>
@@ -966,11 +1077,14 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                         return (
                           <ContextMenu key={layoutKey}>
                             <ContextMenuTrigger asChild>
-                              <Button
+                              <ElementButton
+                                elementType={layoutKey}
+                                source="layouts"
+                                name={layoutKey}
+                                icon="layout"
                                 onClick={() => handleAddLayout(layoutKey)}
-                                size="sm"
-                                variant="secondary"
-                                className="justify-start flex-col items-start p-1.5 overflow-hidden hover:opacity-90 transition-opacity rounded-[10px] !h-auto"
+                                onDragStart={handleElementDragStart}
+                                variant="card"
                               >
                                 {previewImage && (
                                   <Image
@@ -978,10 +1092,10 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                                     width={640}
                                     height={262}
                                     alt="Layout preview"
-                                    className="object-contain w-full h-full rounded"
+                                    className="object-contain w-full h-full rounded pointer-events-none"
                                   />
                                 )}
-                              </Button>
+                              </ElementButton>
                             </ContextMenuTrigger>
 
                             <ContextMenuContent>
@@ -1035,11 +1149,14 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                 <div className="grid grid-cols-1 gap-1.5 pb-5">
                   {components.map((component) => (
                     <div key={component.id} className="group flex flex-col gap-1.5">
-                      <Button
+                      <ElementButton
+                        elementType={component.id}
+                        source="components"
+                        name={component.name}
+                        icon="component"
                         onClick={() => handleAddComponent(component.id)}
-                        size="sm"
-                        variant="secondary"
-                        className="justify-start flex-col items-start p-1.5 overflow-hidden hover:opacity-90 transition-opacity rounded-[10px] !h-auto"
+                        onDragStart={handleElementDragStart}
+                        variant="card"
                       >
                         <Image
                           src={DEFAULT_ASSETS.IMAGE}
@@ -1047,9 +1164,9 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                           width={640}
                           height={262}
                           unoptimized
-                          className="object-contain w-full h-full rounded"
+                          className="object-contain w-full h-full rounded pointer-events-none"
                         />
-                      </Button>
+                      </ElementButton>
                       <div className="flex items-center gap-1 px-0.5 min-w-0">
                         <span className="flex-1 truncate text-xs font-medium" title={component.name}>
                           {component.name}

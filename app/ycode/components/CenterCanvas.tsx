@@ -59,6 +59,8 @@ import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
 import { getCollectionVariable, canDeleteLayer, findLayerById, findParentCollectionLayer } from '@/lib/layer-utils';
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
+import { DropContainerIndicator, DropLineIndicator } from '@/components/DropIndicators';
+import { DragCaptureOverlay } from '@/components/DragCaptureOverlay';
 
 // 7. Types
 import type { Layer, Page, PageFolder, CollectionField, Asset } from '@/types';
@@ -85,6 +87,7 @@ type ViewportMode = 'desktop' | 'tablet' | 'mobile';
 
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
+import { useCanvasDropDetection } from '@/hooks/use-canvas-drop-detection';
 
 interface CenterCanvasProps {
   selectedLayerId: string | null;
@@ -103,6 +106,74 @@ const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: 
   tablet: { width: '768px', label: 'Tablet', icon: '📱' },
   mobile: { width: '375px', label: 'Mobile', icon: '📱' },
 };
+
+// Import the drop target type from the store
+import type { CanvasDropTarget } from '@/stores/useEditorStore';
+
+/**
+ * Canvas Drop Indicator Overlay
+ * 
+ * Subscribes to store directly to avoid re-rendering the parent CenterCanvas component.
+ * Renders drop indicators inside the scaled canvas div during drag-and-drop.
+ */
+interface CanvasDropIndicatorOverlayProps {
+  iframeElement: HTMLIFrameElement | null;
+}
+
+function CanvasDropIndicatorOverlay({
+  iframeElement,
+}: CanvasDropIndicatorOverlayProps) {
+  // Subscribe to store directly - only this component re-renders on changes
+  const isDraggingToCanvas = useEditorStore((state) => state.isDraggingToCanvas);
+  const dropTarget = useEditorStore((state) => state.canvasDropTarget);
+
+  if (!isDraggingToCanvas || !dropTarget || !iframeElement) return null;
+
+  // Use display name from drop target (already computed during hit-testing)
+  const displayName = dropTarget.targetDisplayName || '';
+
+  // Find element in iframe and calculate position
+  const iframeDoc = iframeElement.contentDocument;
+  if (!iframeDoc) return null;
+
+  const targetElement = iframeDoc.querySelector(`[data-layer-id="${dropTarget.layerId}"]`) as HTMLElement;
+  if (!targetElement) return null;
+
+  // Get element rect in iframe's internal coordinate system
+  // Since this overlay is inside the same scaled container as the iframe,
+  // we use the element's position directly (relative to iframe's top-left)
+  const elementRect = targetElement.getBoundingClientRect();
+  
+  // The elementRect is in the iframe's viewport coordinates (iframe top-left = 0,0)
+  // This works because the overlay is positioned absolute within the same container
+  const top = elementRect.top;
+  const left = elementRect.left;
+  const width = elementRect.width;
+  const height = elementRect.height;
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-visible z-50">
+      <div
+        style={{
+          position: 'absolute',
+          top: `${top}px`,
+          left: `${left}px`,
+          width: `${width}px`,
+          height: `${height}px`,
+        }}
+      >
+        {dropTarget.position === 'inside' ? (
+          <DropContainerIndicator 
+            label={`Add in ${displayName}`} 
+            variant="dashed"
+          />
+        ) : (
+          <DropLineIndicator position={dropTarget.position} />
+        )}
+      </div>
+    </div>
+  );
+}
 
 const CenterCanvas = React.memo(function CenterCanvas({
   selectedLayerId,
@@ -166,6 +237,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const setHoveredLayerId = useEditorStore((state) => state.setHoveredLayerId);
   const isPreviewMode = useEditorStore((state) => state.isPreviewMode);
   const assets = useAssetsStore((state) => state.assets);
+
+  // Note: Canvas drag-and-drop state is handled by useCanvasDropDetection hook
+  // and CanvasDropIndicatorOverlay component (they subscribe to store directly)
 
   // Text editor toolbar state from store
   const isTextEditing = useCanvasTextEditorStore((state) => state.isEditing);
@@ -779,6 +853,64 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (!canRedo || isUndoRedoLoading) return;
     await performRedo();
   }, [canRedo, isUndoRedoLoading, performRedo]);
+
+  // Handle drop callback for useCanvasDropDetection
+  const handleCanvasDrop = useCallback((
+    elementType: string,
+    source: 'elements' | 'layouts' | 'components',
+    parentId: string | null
+  ) => {
+    if (!currentPageId) return;
+
+    if (source === 'elements') {
+      const result = addLayerFromTemplate(currentPageId, parentId, elementType);
+      if (result) {
+        setSelectedLayerId(result.newLayerId);
+        // Expand parent if needed
+        if (result.parentToExpand) {
+          window.dispatchEvent(new CustomEvent('expandLayer', {
+            detail: { layerId: result.parentToExpand }
+          }));
+        }
+        // Broadcast to collaborators
+        if (liveLayerUpdates) {
+          const freshDraft = usePagesStore.getState().draftsByPageId[currentPageId];
+          if (freshDraft) {
+            const findLayerWithParent = (layersList: Layer[], id: string, parent: Layer | null = null): { layer: Layer; parent: Layer | null } | null => {
+              for (const layer of layersList) {
+                if (layer.id === id) return { layer, parent };
+                if (layer.children) {
+                  const found = findLayerWithParent(layer.children, id, layer);
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+            const found = findLayerWithParent(freshDraft.layers, result.newLayerId);
+            if (found?.layer) {
+              const actualParentId = found.parent?.id || null;
+              liveLayerUpdates.broadcastLayerAdd(currentPageId, actualParentId, elementType, found.layer);
+            }
+          }
+        }
+      }
+    } else if (source === 'layouts') {
+      // TODO: Add layout using similar logic
+      console.log('Layout drop not yet implemented:', elementType);
+    } else if (source === 'components') {
+      // TODO: Add component using similar logic
+      console.log('Component drop not yet implemented:', elementType);
+    }
+  }, [currentPageId, addLayerFromTemplate, setSelectedLayerId, liveLayerUpdates]);
+
+  // Use the canvas drop detection hook for throttled hit-testing
+  useCanvasDropDetection({
+    iframeElement: canvasIframeElement,
+    zoom,
+    layers,
+    pageId: currentPageId,
+    onDrop: handleCanvasDrop,
+  });
 
   // Calculate parent layer ID for selection overlay (one level up from selected)
   const parentLayerId = useMemo(() => {
@@ -1659,6 +1791,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
           />
         )}
 
+        {/* Drag capture overlay - prevents iframe from swallowing mouse events during drag */}
+        {!isPreviewMode && <DragCaptureOverlay />}
+
         {/* Scrollable container with hidden scrollbars */}
         <div
           ref={scrollContainerRef}
@@ -1813,6 +1948,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         onCanvasClick={handleCanvasClick}
                         editingComponentVariables={editingComponentVariables}
                       />
+
+                      {/* Drop indicator overlay - subscribes to store directly */}
+                      <CanvasDropIndicatorOverlay iframeElement={canvasIframeElement} />
 
                       {/* Empty overlay when only Body with no children */}
                       {isCanvasEmpty && (

@@ -39,6 +39,7 @@ import { getUserInitials, getDisplayName } from '@/lib/collaboration-utils';
 import { getBreakpointPrefix } from '@/lib/breakpoint-utils';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge';
+import { DropLineIndicator, DropContainerIndicator } from '@/components/DropIndicators';
 
 // 7. Types
 import type { Layer, Breakpoint } from '@/types';
@@ -237,35 +238,15 @@ const LayerRow = React.memo(function LayerRow({
           </>
         )}
 
-        {/* Drop Indicators */}
+        {/* Drop Indicators - using shared components */}
         {isOver && dropPosition === 'above' && (
-          <div
-            className={cn('absolute top-0 left-0 right-0 h-[1.5px] z-50 bg-primary')}
-            style={{
-              marginLeft: `${node.depth * 14 + 8}px`,
-            }}
-          >
-            <div
-              className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary"
-            />
-          </div>
+          <DropLineIndicator position="above" offsetLeft={node.depth * 14 + 8} />
         )}
         {isOver && dropPosition === 'below' && (
-          <div
-            className="absolute bottom-0 left-0 right-0 h-[1.5px] z-50 bg-primary"
-            style={{
-              marginLeft: `${node.depth * 14 + 8}px`,
-            }}
-          >
-            <div
-              className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary"
-            />
-          </div>
+          <DropLineIndicator position="below" offsetLeft={node.depth * 14 + 8} />
         )}
         {isOver && dropPosition === 'inside' && (
-          <div
-            className="absolute inset-0 border-[1.5px] rounded-lg z-40 pointer-events-none border-primary"
-          />
+          <DropContainerIndicator />
         )}
 
         {/* Main Row */}

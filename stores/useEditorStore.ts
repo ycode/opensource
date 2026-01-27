@@ -24,6 +24,21 @@ export interface ComponentNavigationEntry {
 
 export type EditorSidebarTab = 'layers' | 'pages' | 'cms';
 
+export type CanvasDropPosition = 'above' | 'below' | 'inside';
+
+export interface CanvasDropTarget {
+  layerId: string;
+  position: CanvasDropPosition;
+  parentId: string | null;
+  /** Display name of the target layer for "Add in [Name]" label */
+  targetDisplayName?: string;
+}
+
+export interface DragPosition {
+  x: number;
+  y: number;
+}
+
 interface EditorActions {
   setSelectedLayerId: (id: string | null) => void;
   setSelectedLayerIds: (ids: string[]) => void;
@@ -60,6 +75,11 @@ interface EditorActions {
   setKeyboardShortcutsOpen: (open: boolean) => void;
   openCreateComponentDialog: (layerId: string, defaultName: string) => void;
   closeCreateComponentDialog: () => void;
+  // Canvas drag-and-drop actions (pointer-based)
+  startCanvasDrag: (elementType: string, source: 'elements' | 'layouts' | 'components', elementName: string, initialPosition: DragPosition) => void;
+  updateDragPosition: (position: DragPosition) => void;
+  updateCanvasDropTarget: (target: CanvasDropTarget | null) => void;
+  endCanvasDrag: () => void;
 }
 
 interface EditorStoreWithHistory extends EditorState {
@@ -97,6 +117,13 @@ interface EditorStoreWithHistory extends EditorState {
     layerId: string | null;
     defaultName: string;
   };
+  // Canvas drag-and-drop state (pointer-based)
+  isDraggingToCanvas: boolean;
+  dragElementType: string | null;
+  dragElementName: string | null;
+  dragElementSource: 'elements' | 'layouts' | 'components' | null;
+  dragPosition: DragPosition | null;
+  canvasDropTarget: CanvasDropTarget | null;
   // Computed getters
   showTextStyleControls: () => boolean;
 }
@@ -143,6 +170,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     layerId: null,
     defaultName: '',
   },
+  // Canvas drag-and-drop initial state (pointer-based)
+  isDraggingToCanvas: false,
+  dragElementType: null,
+  dragElementName: null,
+  dragElementSource: null,
+  dragPosition: null,
+  canvasDropTarget: null,
 
   // Computed getter: Returns true when text style controls should be shown
   // This happens when:
@@ -437,5 +471,32 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       layerId: null,
       defaultName: '',
     },
+  }),
+
+  // Canvas drag-and-drop actions (pointer-based)
+  startCanvasDrag: (elementType, source, elementName, initialPosition) => set({
+    isDraggingToCanvas: true,
+    dragElementType: elementType,
+    dragElementName: elementName,
+    dragElementSource: source,
+    dragPosition: initialPosition,
+    canvasDropTarget: null,
+  }),
+
+  updateDragPosition: (position) => set({
+    dragPosition: position,
+  }),
+
+  updateCanvasDropTarget: (target) => set({
+    canvasDropTarget: target,
+  }),
+
+  endCanvasDrag: () => set({
+    isDraggingToCanvas: false,
+    dragElementType: null,
+    dragElementName: null,
+    dragElementSource: null,
+    dragPosition: null,
+    canvasDropTarget: null,
   }),
 }));
