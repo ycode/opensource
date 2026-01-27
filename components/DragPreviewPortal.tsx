@@ -30,9 +30,8 @@ export function DragPreviewPortal() {
 
     const handleMouseMove = (e: MouseEvent) => {
       if (previewRef.current) {
-        // Direct DOM manipulation for 60fps performance
-        previewRef.current.style.left = `${e.clientX}px`;
-        previewRef.current.style.top = `${e.clientY}px`;
+        // Use transform for GPU-accelerated positioning (no layout recalculation)
+        previewRef.current.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -50%)`;
       }
     };
 
@@ -62,11 +61,13 @@ export function DragPreviewPortal() {
       ref={previewRef}
       className="fixed pointer-events-none z-[9999]"
       style={{
+        // Position at origin, transform will move it
+        left: 0,
+        top: 0,
         // Start off-screen, will be positioned by mousemove
-        left: '-1000px',
-        top: '-1000px',
-        // Center on cursor
-        transform: 'translate(-50%, -50%)',
+        transform: 'translate(-1000px, -1000px)',
+        // Hint for GPU acceleration
+        willChange: 'transform',
       }}
     >
       <div className="flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg bg-primary text-primary-foreground text-sm font-medium whitespace-nowrap">

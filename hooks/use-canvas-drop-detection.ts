@@ -11,14 +11,20 @@
  * - Uses refs to avoid re-creating callbacks
  * - Only updates store when drop target actually changes
  * - Uses requestAnimationFrame for smooth throttling
+ * - Caches iframe rect during drag (doesn't change)
+ * - Builds layer lookup Map for O(1) layer access
+ * - Skips processing for minimal mouse movements
  */
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 import { useEditorStore } from '@/stores/useEditorStore';
-import { findLayerById, canHaveChildren } from '@/lib/layer-utils';
+import { canHaveChildren } from '@/lib/layer-utils';
 import { calculateDropPosition, validateDrop, getDropTargetDisplayName } from '@/lib/drop-utils';
 import type { Layer } from '@/types';
 import type { CanvasDropTarget } from '@/stores/useEditorStore';
+
+// Minimum pixel movement required to trigger hit-testing
+const MOVEMENT_THRESHOLD = 2;
 
 interface UseCanvasDropDetectionOptions {
   /** Reference to the canvas iframe element */
@@ -33,6 +39,25 @@ interface UseCanvasDropDetectionOptions {
   onDrop?: (elementType: string, source: 'elements' | 'layouts' | 'components', parentId: string | null) => void;
 }
 
+/**
+ * Build a Map for O(1) layer lookup by ID
+ */
+function buildLayerMap(layers: Layer[]): Map<string, Layer> {
+  const map = new Map<string, Layer>();
+  
+  const traverse = (layerList: Layer[]) => {
+    for (const layer of layerList) {
+      map.set(layer.id, layer);
+      if (layer.children && layer.children.length > 0) {
+        traverse(layer.children);
+      }
+    }
+  };
+  
+  traverse(layers);
+  return map;
+}
+
 export function useCanvasDropDetection({
   iframeElement,
   zoom,
@@ -43,14 +68,24 @@ export function useCanvasDropDetection({
   const isDraggingToCanvas = useEditorStore((state) => state.isDraggingToCanvas);
   const canvasDropTarget = useEditorStore((state) => state.canvasDropTarget);
 
+  // Build layer lookup map - O(1) access instead of O(n) tree traversal
+  const layerMap = useMemo(() => buildLayerMap(layers), [layers]);
+
   // Use refs to store values that shouldn't trigger effect re-runs
   const iframeRef = useRef(iframeElement);
   const zoomRef = useRef(zoom);
   const layersRef = useRef(layers);
+  const layerMapRef = useRef(layerMap);
   const onDropRef = useRef(onDrop);
   
   // Track current drop target to avoid unnecessary updates
   const currentTargetRef = useRef<{ layerId: string; position: string } | null>(null);
+  
+  // Cache iframe rect during drag (it doesn't change)
+  const cachedIframeRectRef = useRef<DOMRect | null>(null);
+  
+  // Track last mouse position for movement threshold
+  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
   
   // RAF handle for cleanup
   const rafRef = useRef<number | null>(null);
@@ -58,6 +93,8 @@ export function useCanvasDropDetection({
   // Update refs when props change
   useEffect(() => {
     iframeRef.current = iframeElement;
+    // Invalidate cached rect when iframe changes
+    cachedIframeRectRef.current = null;
   }, [iframeElement]);
 
   useEffect(() => {
@@ -66,7 +103,8 @@ export function useCanvasDropDetection({
 
   useEffect(() => {
     layersRef.current = layers;
-  }, [layers]);
+    layerMapRef.current = layerMap;
+  }, [layers, layerMap]);
 
   useEffect(() => {
     onDropRef.current = onDrop;
@@ -76,6 +114,9 @@ export function useCanvasDropDetection({
   useEffect(() => {
     if (!isDraggingToCanvas) {
       currentTargetRef.current = null;
+      // Clear cached values when drag ends
+      cachedIframeRectRef.current = null;
+      lastMousePosRef.current = null;
       return;
     }
 
@@ -85,6 +126,7 @@ export function useCanvasDropDetection({
     const performHitTest = (clientX: number, clientY: number) => {
       const iframe = iframeRef.current;
       const currentZoom = zoomRef.current;
+      const currentLayerMap = layerMapRef.current;
       const currentLayers = layersRef.current;
       
       if (!iframe) {
@@ -103,7 +145,11 @@ export function useCanvasDropDetection({
         return;
       }
 
-      const iframeRect = iframe.getBoundingClientRect();
+      // Use cached iframe rect or compute and cache it
+      if (!cachedIframeRectRef.current) {
+        cachedIframeRectRef.current = iframe.getBoundingClientRect();
+      }
+      const iframeRect = cachedIframeRectRef.current;
       const scale = currentZoom / 100;
 
       // Check if cursor is over the iframe
@@ -122,8 +168,6 @@ export function useCanvasDropDetection({
       }
 
       // Convert to iframe coordinates (accounting for zoom)
-      // getBoundingClientRect returns visual (scaled) coordinates
-      // We need to convert to internal iframe coordinates
       const iframeX = (clientX - iframeRect.left) / scale;
       const iframeY = (clientY - iframeRect.top) / scale;
 
@@ -144,8 +188,8 @@ export function useCanvasDropDetection({
       const rect = layerElement.getBoundingClientRect();
       const relativeY = (iframeY - rect.top) / rect.height;
 
-      // Find the target layer in our data
-      const targetLayer = findLayerById(currentLayers, layerId);
+      // O(1) layer lookup using Map instead of O(n) tree traversal
+      const targetLayer = currentLayerMap.get(layerId);
       if (!targetLayer) {
         if (currentTargetRef.current !== null) {
           currentTargetRef.current = null;
@@ -201,6 +245,17 @@ export function useCanvasDropDetection({
     };
 
     const handleMouseMove = (e: MouseEvent) => {
+      // Check movement threshold - skip if mouse hasn't moved enough
+      const lastPos = lastMousePosRef.current;
+      if (lastPos) {
+        const dx = Math.abs(e.clientX - lastPos.x);
+        const dy = Math.abs(e.clientY - lastPos.y);
+        if (dx < MOVEMENT_THRESHOLD && dy < MOVEMENT_THRESHOLD) {
+          return; // Skip processing for minimal movement
+        }
+      }
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+      
       // Cancel any pending RAF
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
@@ -227,6 +282,8 @@ export function useCanvasDropDetection({
       
       // Clear state
       currentTargetRef.current = null;
+      cachedIframeRectRef.current = null;
+      lastMousePosRef.current = null;
       updateCanvasDropTarget(null);
       endCanvasDrag();
     };
@@ -235,6 +292,8 @@ export function useCanvasDropDetection({
       // Escape key cancels drag
       if (e.key === 'Escape') {
         currentTargetRef.current = null;
+        cachedIframeRectRef.current = null;
+        lastMousePosRef.current = null;
         updateCanvasDropTarget(null);
         endCanvasDrag();
       }

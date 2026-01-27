@@ -140,12 +140,8 @@ function CanvasDropIndicatorOverlay({
   if (!targetElement) return null;
 
   // Get element rect in iframe's internal coordinate system
-  // Since this overlay is inside the same scaled container as the iframe,
-  // we use the element's position directly (relative to iframe's top-left)
   const elementRect = targetElement.getBoundingClientRect();
   
-  // The elementRect is in the iframe's viewport coordinates (iframe top-left = 0,0)
-  // This works because the overlay is positioned absolute within the same container
   const top = elementRect.top;
   const left = elementRect.left;
   const width = elementRect.width;
@@ -156,10 +152,14 @@ function CanvasDropIndicatorOverlay({
       <div
         style={{
           position: 'absolute',
-          top: `${top}px`,
-          left: `${left}px`,
+          // Use transform for GPU-accelerated positioning
+          transform: `translate(${left}px, ${top}px)`,
           width: `${width}px`,
           height: `${height}px`,
+          // Hint to browser for GPU layer promotion
+          willChange: 'transform',
+          // Ensure it's on its own compositing layer
+          contain: 'layout style',
         }}
       >
         {dropTarget.position === 'inside' ? (
