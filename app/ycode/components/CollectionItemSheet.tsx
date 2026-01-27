@@ -7,7 +7,7 @@
  * Can be used from CMS page or triggered from builder canvas.
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -96,6 +96,25 @@ export default function CollectionItemSheet({
   const currentPage = currentPageId ? pages.find(p => p.id === currentPageId) : null;
   const isPageLevelItem = currentPage?.is_dynamic && currentPage?.settings?.cms?.collection_id === collectionId;
 
+  // Find slug field for validation
+  const slugField = useMemo(
+    () => collectionFields.find(f => f.key === 'slug'),
+    [collectionFields]
+  );
+
+  // Validate slug uniqueness
+  const validateSlugUniqueness = useCallback(
+    (value: string, fieldId: string) => {
+      if (!value) return true; // Allow empty (other validation can handle required)
+      // Check if slug exists in other items (exclude current item when editing)
+      const existingItem = collectionItems.find(
+        item => item.values[fieldId] === value && item.id !== editingItem?.id
+      );
+      return !existingItem;
+    },
+    [collectionItems, editingItem?.id]
+  );
+
   const form = useForm();
 
   // Load item data if editing
@@ -156,23 +175,39 @@ export default function CollectionItemSheet({
     }
   }, [editingItem, collectionFields, form]);
 
-  // Auto-fill slug field based on name field
+  // Auto-fill slug field based on name field (debounced to avoid race conditions)
   useEffect(() => {
     if (!editingItem) {
       const nameField = collectionFields.find(f => f.key === 'name');
-      const slugField = collectionFields.find(f => f.key === 'slug');
+      const localSlugField = collectionFields.find(f => f.key === 'slug');
 
-      if (nameField && slugField) {
+      if (nameField && localSlugField) {
+        let timeoutId: NodeJS.Timeout | null = null;
+
         const subscription = form.watch((value, { name }) => {
           if (name === nameField.id) {
-            const nameValue = value[nameField.id];
-            if (nameValue && typeof nameValue === 'string') {
-              const slugValue = slugify(nameValue);
-              form.setValue(slugField.id, slugValue);
+            // Clear any pending timeout
+            if (timeoutId) {
+              clearTimeout(timeoutId);
             }
+
+            // Debounce the slug update to ensure we have the latest value
+            timeoutId = setTimeout(() => {
+              const nameValue = form.getValues(nameField.id);
+              if (nameValue && typeof nameValue === 'string') {
+                const slugValue = slugify(nameValue);
+                form.setValue(localSlugField.id, slugValue);
+              }
+            }, 50);
           }
         });
-        return () => subscription.unsubscribe();
+
+        return () => {
+          subscription.unsubscribe();
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+        };
       }
     }
   }, [form, editingItem, collectionFields]);
@@ -180,14 +215,16 @@ export default function CollectionItemSheet({
   const handleSubmit = async (values: Record<string, any>) => {
     if (!collectionId) return;
 
-    // Close sheet immediately for instant feedback
-    onOpenChange(false);
-    setEditingItem(null);
-    form.reset();
-
-    // Call success callback immediately
-    if (onSuccess) {
-      onSuccess();
+    // Validate slug uniqueness
+    if (slugField) {
+      const slugValue = values[slugField.id];
+      if (!validateSlugUniqueness(slugValue, slugField.id)) {
+        form.setError(slugField.id, {
+          type: 'manual',
+          message: 'This slug already exists in this collection',
+        });
+        return;
+      }
     }
 
     try {
@@ -244,14 +281,35 @@ export default function CollectionItemSheet({
           }
         }, 100);
       }
+
+      // Close sheet after successful save
+      onOpenChange(false);
+      setEditingItem(null);
+      form.reset();
+
+      // Call success callback
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (error) {
       console.error('Failed to save item:', error);
-      alert('Failed to save item. Please try again.');
+      toast.error('Failed to save item', {
+        description: 'Please try again.',
+      });
     }
   };
 
+  // Handle sheet close - reset form errors
+  const handleOpenChange = useCallback((isOpen: boolean) => {
+    if (!isOpen) {
+      // Reset form errors when closing
+      form.clearErrors();
+    }
+    onOpenChange(isOpen);
+  }, [onOpenChange, form]);
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>
