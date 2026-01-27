@@ -646,8 +646,6 @@ const LayerItem: React.FC<{
   // Use cn() for cleaner conditional class handling and automatic conflict resolution
   const fullClassName = isEditMode ? cn(
     classesString,
-    'transition-all',
-    'duration-100',
     enableDragDrop && !isEditing && !isLockedByOther && 'cursor-default',
     // Selection/hover outlines are now rendered by SelectionOverlay component (outside iframe)
     isDragging && 'opacity-30',
