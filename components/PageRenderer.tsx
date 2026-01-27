@@ -4,7 +4,11 @@ import LayerRenderer from '@/components/LayerRenderer';
 import { resolveComponents } from '@/lib/resolve-components';
 import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
 import { generateInitialAnimationCSS } from '@/lib/animation-utils';
-import type { Layer, Component, Page, CollectionItemWithValues, CollectionField, Locale } from '@/types';
+import { getAllPages } from '@/lib/repositories/pageRepository';
+import { getAllPageFolders } from '@/lib/repositories/pageFolderRepository';
+import { getItemWithValues } from '@/lib/repositories/collectionItemRepository';
+import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
+import type { Layer, Component, Page, CollectionItemWithValues, CollectionField, Locale, PageFolder } from '@/types';
 
 interface PageRendererProps {
   page: Page;
@@ -15,6 +19,7 @@ interface PageRendererProps {
   collectionFields?: CollectionField[];
   locale?: Locale | null;
   availableLocales?: Locale[];
+  isPreview?: boolean; // Whether we're in preview mode (use draft data)
 }
 
 /**
@@ -48,7 +53,7 @@ function normalizeRootLayers(layerTree: Layer[]): Layer[] {
   ];
 }
 
-export default function PageRenderer({
+export default async function PageRenderer({
   page,
   layers,
   components,
@@ -57,12 +62,80 @@ export default function PageRenderer({
   collectionFields = [],
   locale,
   availableLocales = [],
+  isPreview = false,
 }: PageRendererProps) {
   // Resolve component instances in the layer tree before rendering
   // If components array is empty, they're already resolved server-side
   const resolvedLayers = components.length > 0
     ? resolveComponents(layers || [], components)
     : layers || [];
+
+  // Scan layers for collection_item_ids referenced in link settings
+  // Excludes special keywords like 'current-page' and 'current-collection' which are resolved at runtime
+  const findCollectionItemIds = (layers: Layer[]): Set<string> => {
+    const itemIds = new Set<string>();
+    const specialKeywords = ['current-page', 'current-collection'];
+    const scan = (layer: Layer) => {
+      const itemId = layer.variables?.link?.page?.collection_item_id;
+      if (layer.variables?.link?.type === 'page' && itemId && !specialKeywords.includes(itemId)) {
+        itemIds.add(itemId);
+      }
+      if (layer.children) {
+        layer.children.forEach(scan);
+      }
+    };
+    layers.forEach(scan);
+    return itemIds;
+  };
+
+  const referencedItemIds = findCollectionItemIds(resolvedLayers);
+
+  // Build collection item slugs map
+  const collectionItemSlugs: Record<string, string> = {};
+  
+  // Add current page's collection item if available
+  if (collectionItem && collectionFields) {
+    const slugField = collectionFields.find(f => f.key === 'slug');
+    if (slugField && collectionItem.values[slugField.id]) {
+      collectionItemSlugs[collectionItem.id] = collectionItem.values[slugField.id];
+    }
+  }
+
+  // Fetch pages and folders for link resolution using repository functions
+  // These are needed to resolve page links to their URLs
+  let pages: Page[] = [];
+  let folders: PageFolder[] = [];
+
+  try {
+    // Use repository functions which work reliably
+    [pages, folders] = await Promise.all([
+      getAllPages(),
+      getAllPageFolders(),
+    ]);
+
+    // Fetch collection items if we have references to them
+    if (referencedItemIds.size > 0) {
+      // Fetch items using repository function which handles EAV properly
+      const itemsWithValues = await Promise.all(
+        Array.from(referencedItemIds).map(itemId => getItemWithValues(itemId, false))
+      );
+      
+      // For each item, find its collection's slug field and extract the slug
+      for (const item of itemsWithValues) {
+        if (!item) continue;
+        
+        // Get the slug field for this item's collection
+        const fields = await getFieldsByCollectionId(item.collection_id, false);
+        const slugField = fields.find(f => f.key === 'slug');
+        
+        if (slugField && item.values[slugField.id]) {
+          collectionItemSlugs[item.id] = item.values[slugField.id];
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[PageRenderer] Error fetching link resolution data:', error);
+  }
 
   // Extract custom code from page settings and resolve placeholders for dynamic pages
   const rawCustomCodeHead = page.settings?.custom_code?.head || '';
@@ -116,10 +189,15 @@ export default function PageRenderer({
           layers={normalizedLayers}
           isEditMode={false}
           isPublished={page.is_published}
+          collectionItemId={collectionItem?.id}
           pageCollectionItemData={collectionItem?.values || undefined}
           hiddenLayerIds={hiddenLayerIds}
           currentLocale={locale}
           availableLocales={availableLocales}
+          pages={pages as any}
+          folders={folders as any}
+          collectionItemSlugs={collectionItemSlugs}
+          isPreview={isPreview}
         />
       </div>
 

@@ -47,6 +47,7 @@ export default async function ErrorPagePreview({ params }: ErrorPagePreviewProps
       generatedCss={generatedCss}
       locale={locale}
       availableLocales={availableLocales}
+      isPreview={true}
     />
   );
 }

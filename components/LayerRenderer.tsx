@@ -8,11 +8,11 @@ import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import type { Layer, Locale, ComponentVariable } from '@/types';
+import type { Layer, Locale, ComponentVariable, LinkSettings } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
-import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent, createAssetVariable, createDynamicTextVariable } from '@/lib/variable-utils';
+import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent, createAssetVariable, createDynamicTextVariable, hasLinkSettings } from '@/lib/variable-utils';
 import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-utils';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
@@ -30,6 +30,100 @@ import { cn } from '@/lib/utils';
 import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
 import LocaleSelector from '@/components/layers/LocaleSelector';
+import { usePagesStore } from '@/stores/usePagesStore';
+import { buildSlugPath, buildDynamicPageUrl } from '@/lib/page-utils';
+
+/**
+ * Generate href from layer link settings
+ */
+function generateLinkHref(
+  linkSettings: LinkSettings | undefined,
+  getAsset: (id: string) => any,
+  collectionItemData?: Record<string, string>,
+  collectionItemId?: string,
+  pages?: any[],
+  folders?: any[],
+  collectionItemSlugs?: Record<string, string>,
+  isPreview?: boolean
+): string | null {
+  if (!linkSettings || !linkSettings.type) return null;
+
+  let href = '';
+
+  switch (linkSettings.type) {
+    case 'url':
+      href = linkSettings.url?.data?.content || '';
+      break;
+    case 'email':
+      href = linkSettings.email?.data?.content ? `mailto:${linkSettings.email.data.content}` : '';
+      break;
+    case 'phone':
+      href = linkSettings.phone?.data?.content ? `tel:${linkSettings.phone.data.content}` : '';
+      break;
+    case 'asset':
+      if (linkSettings.asset?.id) {
+        const asset = getAsset(linkSettings.asset.id);
+        href = asset?.public_url || '';
+      }
+      break;
+    case 'page':
+      if (linkSettings.page?.id && pages && folders) {
+        const page = pages.find(p => p.id === linkSettings.page?.id);
+        if (page) {
+          // Check if this is a dynamic page with a specific collection item
+          if (page.is_dynamic && linkSettings.page.collection_item_id && collectionItemSlugs) {
+            let itemSlug: string | undefined;
+
+            // Handle special "current" keywords - use the current collection item ID
+            if (linkSettings.page.collection_item_id === 'current-page' ||
+                linkSettings.page.collection_item_id === 'current-collection') {
+              // Use the current collection item's slug (from collectionItemId parameter)
+              itemSlug = collectionItemId ? collectionItemSlugs[collectionItemId] : undefined;
+            } else {
+              // Use the specific item slug
+              itemSlug = collectionItemSlugs[linkSettings.page.collection_item_id];
+            }
+
+            href = buildDynamicPageUrl(page, folders, itemSlug || null);
+          } else {
+            // Static page or dynamic page without specific item
+            href = buildSlugPath(page, folders, 'page');
+          }
+
+          // Prefix with /ycode/preview in preview mode
+          if (isPreview && href) {
+            href = `/ycode/preview${href}`;
+          }
+        }
+      }
+      break;
+    case 'field':
+      if (linkSettings.field?.data?.field_id && collectionItemData) {
+        const fieldId = linkSettings.field.data.field_id;
+        const relationships = linkSettings.field.data.relationships || [];
+
+        if (relationships.length > 0) {
+          const fullPath = [fieldId, ...relationships].join('.');
+          href = collectionItemData[fullPath] || '';
+        } else {
+          href = collectionItemData[fieldId] || '';
+        }
+      }
+      break;
+  }
+
+  // Append anchor if present (anchor_layer_id references a layer's ID attribute)
+  // For now, use anchor_layer_id directly as the anchor value
+  // TODO: Resolve anchor_layer_id to actual layer.attributes.id value
+  if (linkSettings.anchor_layer_id && href) {
+    href = `${href}#${linkSettings.anchor_layer_id}`;
+  } else if (linkSettings.anchor_layer_id && !href) {
+    // Anchor-only link (same page)
+    href = `#${linkSettings.anchor_layer_id}`;
+  }
+
+  return href || null;
+}
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -45,6 +139,7 @@ interface LayerRendererProps {
   projected?: { depth: number; parentId: string | null } | null;
   pageId?: string;
   collectionItemData?: Record<string, string>; // Collection item field values (field_id -> value)
+  collectionItemId?: string; // The ID of the current collection item being rendered
   pageCollectionItemData?: Record<string, string> | null;
   hiddenLayerIds?: string[]; // Layer IDs that should start hidden for animations
   currentLocale?: Locale | null;
@@ -56,6 +151,10 @@ interface LayerRendererProps {
   parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
   parentComponentVariables?: ComponentVariable[]; // Component's variables for default value lookup
   editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
+  pages?: any[]; // Pages for link resolution
+  folders?: any[]; // Folders for link resolution
+  collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
+  isPreview?: boolean; // Whether we're in preview mode (prefix links with /ycode/preview)
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -72,7 +171,9 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   projected = null,
   pageId = '',
   collectionItemData,
+  collectionItemId,
   pageCollectionItemData,
+  collectionItemSlugs,
   hiddenLayerIds,
   currentLocale,
   availableLocales = [],
@@ -83,10 +184,20 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   parentComponentOverrides,
   parentComponentVariables,
   editingComponentVariables,
+  pages: pagesProp,
+  folders: foldersProp,
+  isPreview = false,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
   const [editingClickCoords, setEditingClickCoords] = useState<{ x: number; y: number } | null>(null);
+
+  // Get pages and folders for link resolution
+  // Use props if provided (SSR/preview), otherwise use store (editor)
+  const storePages = usePagesStore((state) => state.pages);
+  const storeFolders = usePagesStore((state) => state.folders);
+  const pages = pagesProp || storePages;
+  const folders = foldersProp || storeFolders;
 
   // Helper to render a layer or unwrap fragments
   const renderLayer = (layer: Layer): React.ReactNode => {
@@ -155,6 +266,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         setEditingClickCoords={setEditingClickCoords}
         pageId={pageId}
         collectionItemData={collectionItemData}
+        collectionItemId={collectionItemId}
         pageCollectionItemData={pageCollectionItemData}
         hiddenLayerIds={hiddenLayerIds}
         currentLocale={currentLocale}
@@ -166,6 +278,10 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         parentComponentOverrides={parentComponentOverrides}
         parentComponentVariables={parentComponentVariables}
         editingComponentVariables={editingComponentVariables}
+        pages={pages}
+        folders={folders}
+        collectionItemSlugs={collectionItemSlugs}
+        isPreview={isPreview}
       />
     );
   };
@@ -198,6 +314,7 @@ const LayerItem: React.FC<{
   setEditingClickCoords: (coords: { x: number; y: number } | null) => void;
   pageId: string;
   collectionItemData?: Record<string, string>;
+  collectionItemId?: string; // The ID of the current collection item being rendered
   pageCollectionItemData?: Record<string, string> | null;
   hiddenLayerIds?: string[];
   currentLocale?: Locale | null;
@@ -209,6 +326,10 @@ const LayerItem: React.FC<{
   parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
   parentComponentVariables?: ComponentVariable[]; // Component's variables for default value lookup
   editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
+  pages?: any[]; // Pages for link resolution
+  folders?: any[]; // Folders for link resolution
+  collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
+  isPreview?: boolean; // Whether we're in preview mode
 }> = ({
   layer,
   isEditMode,
@@ -229,6 +350,7 @@ const LayerItem: React.FC<{
   setEditingClickCoords,
   pageId,
   collectionItemData,
+  collectionItemId,
   pageCollectionItemData,
   hiddenLayerIds,
   currentLocale,
@@ -240,6 +362,10 @@ const LayerItem: React.FC<{
   parentComponentOverrides,
   parentComponentVariables,
   editingComponentVariables,
+  pages,
+  folders,
+  collectionItemSlugs,
+  isPreview,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isHovered = hoveredLayerId === layer.id;
@@ -615,7 +741,7 @@ const LayerItem: React.FC<{
     if (editingLayerId === layer.id && onLayerUpdate) {
       setEditingLayerId(null);
     }
-  }, [editingLayerId, layer.id, onLayerUpdate]);
+  }, [editingLayerId, layer.id, onLayerUpdate, setEditingLayerId]);
 
   // Handle content change from CanvasTextEditor
   const handleEditorChange = useCallback((newContent: any) => {
@@ -706,6 +832,7 @@ const LayerItem: React.FC<{
           projected={projected}
           pageId={pageId}
           collectionItemData={effectiveCollectionItemData}
+          collectionItemId={collectionItemId}
           pageCollectionItemData={pageCollectionItemData}
           hiddenLayerIds={hiddenLayerIds}
           currentLocale={currentLocale}
@@ -716,6 +843,10 @@ const LayerItem: React.FC<{
           parentComponentLayerId={layer.id}
           parentComponentOverrides={layer.componentOverrides}
           parentComponentVariables={component.variables}
+          pages={pages}
+          folders={folders}
+          collectionItemSlugs={collectionItemSlugs}
+          isPreview={isPreview}
         />
       );
     }
@@ -783,9 +914,9 @@ const LayerItem: React.FC<{
       elementProps['data-gsap-hidden'] = '';
     }
 
-    // Apply custom ID from settings
-    if (layer.settings?.id) {
-      elementProps.id = layer.settings.id;
+    // Apply custom ID from attributes
+    if (layer.attributes?.id) {
+      elementProps.id = layer.attributes.id;
     }
 
     // Apply custom attributes from settings
@@ -1018,9 +1149,9 @@ const LayerItem: React.FC<{
             allowFullScreen: true,
           };
 
-          // Apply custom ID from settings
-          if (layer.settings?.id) {
-            iframeProps.id = layer.settings.id;
+          // Apply custom ID from attributes
+          if (layer.attributes?.id) {
+            iframeProps.id = layer.attributes.id;
           }
 
           // Apply custom attributes from settings
@@ -1210,7 +1341,12 @@ const LayerItem: React.FC<{
               projected={projected}
               pageId={pageId}
               collectionItemData={effectiveCollectionItemData}
+              collectionItemId={collectionItemId}
               pageCollectionItemData={pageCollectionItemData}
+              pages={pages}
+              folders={folders}
+              collectionItemSlugs={collectionItemSlugs}
+              isPreview={isPreview}
               hiddenLayerIds={hiddenLayerIds}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
@@ -1319,6 +1455,7 @@ const LayerItem: React.FC<{
                   projected={projected}
                   pageId={pageId}
                   collectionItemData={item.values}
+                  collectionItemId={item.id}
                   pageCollectionItemData={pageCollectionItemData}
                   hiddenLayerIds={hiddenLayerIds}
                   currentLocale={currentLocale}
@@ -1328,6 +1465,10 @@ const LayerItem: React.FC<{
                   parentComponentOverrides={parentComponentOverrides}
                   parentComponentVariables={parentComponentVariables}
                   editingComponentVariables={editingComponentVariables}
+                  pages={pages}
+                  folders={folders}
+                  collectionItemSlugs={collectionItemSlugs}
+                  isPreview={isPreview}
                 />
               )}
             </Tag>
@@ -1366,7 +1507,12 @@ const LayerItem: React.FC<{
               projected={projected}
               pageId={pageId}
               collectionItemData={effectiveCollectionItemData}
+              collectionItemId={collectionItemId}
               pageCollectionItemData={pageCollectionItemData}
+              pages={pages}
+              folders={folders}
+              collectionItemSlugs={collectionItemSlugs}
+              isPreview={isPreview}
               hiddenLayerIds={hiddenLayerIds}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
@@ -1419,6 +1565,7 @@ const LayerItem: React.FC<{
             projected={projected}
             pageId={pageId}
             collectionItemData={effectiveCollectionItemData}
+            collectionItemId={collectionItemId}
             pageCollectionItemData={pageCollectionItemData}
             hiddenLayerIds={hiddenLayerIds}
             currentLocale={currentLocale}
@@ -1429,6 +1576,10 @@ const LayerItem: React.FC<{
             parentComponentOverrides={parentComponentOverrides}
             parentComponentVariables={parentComponentVariables}
             editingComponentVariables={editingComponentVariables}
+            pages={pages}
+            folders={folders}
+            collectionItemSlugs={collectionItemSlugs}
+            isPreview={isPreview}
           />
         )}
       </Tag>
@@ -1443,7 +1594,43 @@ const LayerItem: React.FC<{
 
   // Wrap with context menu in edit mode
   // Don't wrap layers inside component instances (they're not directly editable)
-  const content = renderContent();
+  let content = renderContent();
+
+  // Wrap with link if layer has link settings (published mode only)
+  // In edit mode, links are not interactive to allow layer selection
+  const linkSettings = layer.variables?.link;
+  const shouldWrapWithLink = !isEditMode && hasLinkSettings(linkSettings) && !layer.componentId;
+
+  if (shouldWrapWithLink && linkSettings) {
+    const linkHref = generateLinkHref(
+      linkSettings,
+      getAsset,
+      effectiveCollectionItemData,
+      collectionItemId,
+      pages,
+      folders,
+      collectionItemSlugs,
+      isPreview
+    );
+
+    if (linkHref) {
+      const linkTarget = linkSettings.target || '_self';
+      const linkRel = linkSettings.rel || (linkTarget === '_blank' ? 'noopener noreferrer' : undefined);
+      const linkDownload = linkSettings.download;
+
+      content = (
+        <a
+          href={linkHref}
+          target={linkTarget}
+          rel={linkRel}
+          download={linkDownload || undefined}
+          className="contents"
+        >
+          {content}
+        </a>
+      );
+    }
+  }
 
   if (isEditMode && pageId && !isEditing && !parentComponentLayerId) {
     const isLocked = layer.id === 'body';

@@ -101,13 +101,27 @@ export function findAncestorByName(layers: Layer[], layerId: string, ancestorNam
 }
 
 /**
- * Check if a layer can be moved to a new parent based on ancestor restrictions
+ * Check if a layer can be moved to a new parent based on ancestor restrictions and link nesting
  */
 export function canMoveLayer(layers: Layer[], layerId: string, newParentId: string | null): boolean {
   const layer = findLayerById(layers, layerId);
   if (!layer) return false;
 
-  // No ancestor restriction - can move anywhere
+  // Check link nesting restrictions (can't have <a> inside <a>)
+  if (newParentId !== null) {
+    const newParent = findLayerById(layers, newParentId);
+    if (newParent && !canAddChild(newParent, layer)) {
+      return false;
+    }
+
+    // Also check if any ancestor of the new parent has link settings
+    const hasLinkAncestor = findAncestor(layers, newParentId, (ancestor) => hasLinkSettings(ancestor));
+    if (hasLinkAncestor && hasLinkInTree(layer)) {
+      return false;
+    }
+  }
+
+  // No ancestor restriction - can move anywhere (as long as link nesting is valid)
   if (!layer.restrictions?.ancestor) return true;
 
   const requiredAncestor = layer.restrictions.ancestor;
@@ -279,6 +293,47 @@ export function getText(layer: Layer): string | undefined {
     return textVariable.data.content;
   }
   return undefined;
+}
+
+/**
+ * Check if a layer has link settings
+ */
+export function hasLinkSettings(layer: Layer): boolean {
+  return !!(layer.variables?.link && layer.variables.link.type);
+}
+
+/**
+ * Check if a layer or any of its descendants has link settings
+ */
+export function hasLinkInTree(layer: Layer): boolean {
+  if (hasLinkSettings(layer)) {
+    return true;
+  }
+
+  if (layer.children) {
+    return layer.children.some(child => hasLinkInTree(child));
+  }
+
+  return false;
+}
+
+/**
+ * Check if a layer can have a specific child layer
+ * @param parent - The parent layer
+ * @param child - The child layer to check
+ * @returns true if the child can be added to the parent
+ */
+export function canAddChild(parent: Layer, child: Layer): boolean {
+  // Links cannot be nested (can't have <a> inside <a>)
+  if (hasLinkSettings(parent) && hasLinkInTree(child)) {
+    return false;
+  }
+
+  if (hasLinkSettings(child) && hasLinkSettings(parent)) {
+    return false;
+  }
+
+  return true;
 }
 
 /**

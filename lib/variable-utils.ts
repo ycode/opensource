@@ -345,3 +345,111 @@ export function getIframeUrlFromVariable(
 
   return undefined;
 }
+
+/**
+ * Link Variable Utilities
+ */
+
+import type { LinkSettings, LinkType } from '@/types';
+
+/**
+ * Create a URL link settings object
+ */
+export function createUrlLinkSettings(url: string, anchorLayerId?: string | null): LinkSettings {
+  return {
+    type: 'url',
+    url: createDynamicTextVariable(url),
+    anchor_layer_id: anchorLayerId || null,
+  };
+}
+
+/**
+ * Create an email link settings object
+ */
+export function createEmailLinkSettings(email: string): LinkSettings {
+  return {
+    type: 'email',
+    email: createDynamicTextVariable(email),
+  };
+}
+
+/**
+ * Create a phone link settings object
+ */
+export function createPhoneLinkSettings(phone: string): LinkSettings {
+  return {
+    type: 'phone',
+    phone: createDynamicTextVariable(phone),
+  };
+}
+
+/**
+ * Create an asset link settings object
+ */
+export function createAssetLinkSettings(assetId: string): LinkSettings {
+  return {
+    type: 'asset',
+    asset: { id: assetId },
+  };
+}
+
+/**
+ * Create a page link settings object
+ */
+export function createPageLinkSettings(
+  pageId: string,
+  collectionItemId?: string | null,
+  anchorLayerId?: string | null
+): LinkSettings {
+  return {
+    type: 'page',
+    page: {
+      id: pageId,
+      collection_item_id: collectionItemId || null,
+    },
+    anchor_layer_id: anchorLayerId || null,
+  };
+}
+
+/**
+ * Create a field link settings object (CMS field containing URL)
+ */
+export function createFieldLinkSettings(
+  fieldId: string,
+  relationships: string[] = []
+): LinkSettings {
+  return {
+    type: 'field',
+    field: {
+      type: 'field',
+      data: {
+        field_id: fieldId,
+        relationships,
+      },
+    },
+  };
+}
+
+/**
+ * Check if a layer has link settings
+ */
+export function hasLinkSettings(link: LinkSettings | undefined | null): boolean {
+  if (!link || !link.type) return false;
+
+  switch (link.type) {
+    case 'url':
+      return !!link.url?.data?.content;
+    case 'email':
+      return !!link.email?.data?.content;
+    case 'phone':
+      return !!link.phone?.data?.content;
+    case 'asset':
+      return !!link.asset?.id;
+    case 'page':
+      return !!link.page?.id;
+    case 'field':
+      return !!link.field?.data?.field_id;
+    default:
+      return false;
+  }
+}

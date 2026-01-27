@@ -33,6 +33,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           layers={pageLayers.layers || []}
           components={components}
           generatedCss={draftCSS}
+          isPreview={true}
         />
       );
     }
@@ -57,6 +58,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       collectionFields={collectionFields}
       locale={locale}
       availableLocales={availableLocales}
+      isPreview={true}
     />
   );
 }

@@ -35,6 +35,7 @@ import VideoSettings from './VideoSettings';
 import AudioSettings from './AudioSettings';
 import IconSettings from './IconSettings';
 import HTMLEmbedSettings from './HTMLEmbedSettings';
+import LinkSettings from './LinkSettings';
 import InputWithInlineVariables from './InputWithInlineVariables';
 import InteractionsPanel from './InteractionsPanel';
 import LayoutControls from './LayoutControls';
@@ -61,6 +62,7 @@ import { useLayerLocks } from '@/hooks/use-layer-locks';
 // 6. Utils, APIs, lib
 import { classesToDesign, mergeDesign, removeConflictsForClass, getRemovedPropertyClasses } from '@/lib/tailwind-class-mapper';
 import { cn } from '@/lib/utils';
+import { sanitizeHtmlId } from '@/lib/html-utils';
 import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTextEditable, findLayerWithParent } from '@/lib/layer-utils';
 import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
@@ -617,7 +619,7 @@ const RightSidebar = React.memo(function RightSidebar({
   const [prevSelectedLayerId, setPrevSelectedLayerId] = useState<string | null>(null);
   if (selectedLayerId !== prevSelectedLayerId) {
     setPrevSelectedLayerId(selectedLayerId);
-    setCustomId(selectedLayer?.settings?.id || '');
+    setCustomId(sanitizeHtmlId(selectedLayer?.attributes?.id || ''));
     setIsHidden(selectedLayer?.settings?.hidden || false);
     setContainerTag(selectedLayer?.settings?.tag || getDefaultContainerTag(selectedLayer));
     setTextTag(selectedLayer?.settings?.tag || getDefaultTextTag(selectedLayer));
@@ -715,25 +717,14 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   }, [addClass, currentClassInput]);
 
-  // Add classes function
-  const addClasses = useCallback((classes: string[]) => {
-    setClassesInput(prev => {
-      const currentClasses = prev.split(' ').filter(cls => cls.trim() !== '');
-      const updatedClasses = [...currentClasses, ...classes].join(' ');
-      if (selectedLayerId) {
-        handleLayerUpdate(selectedLayerId, { classes: updatedClasses });
-      }
-      return updatedClasses;
-    });
-  }, [selectedLayerId, handleLayerUpdate]);
-
   // Handle custom ID change
   const handleIdChange = (value: string) => {
-    setCustomId(value);
+    const sanitizedId = sanitizeHtmlId(value);
+    setCustomId(sanitizedId);
     if (selectedLayerId) {
-      const currentSettings = selectedLayer?.settings || {};
+      const currentAttributes = selectedLayer?.attributes || {};
       handleLayerUpdate(selectedLayerId, {
-        settings: { ...currentSettings, id: value }
+        attributes: { ...currentAttributes, id: sanitizedId }
       });
     }
   };
@@ -2493,6 +2484,70 @@ const RightSidebar = React.memo(function RightSidebar({
               </SettingsPanel>
             )}
 
+            <ImageSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+              fields={parentCollectionFields}
+              fieldSourceLabel={fieldSourceLabel}
+              allFields={fields}
+              collections={collections}
+            />
+
+            <VideoSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+              fields={parentCollectionFields}
+              fieldSourceLabel={fieldSourceLabel}
+              allFields={fields}
+              collections={collections}
+            />
+
+            <AudioSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+              fields={parentCollectionFields}
+              fieldSourceLabel={fieldSourceLabel}
+              allFields={fields}
+              collections={collections}
+            />
+
+            <IconSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+            />
+
+            <HTMLEmbedSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+            />
+
+            <LinkSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+              fields={parentCollectionFields}
+              fieldSourceLabel={fieldSourceLabel}
+              allFields={fields}
+              collections={collections}
+              isLockedByOther={isLockedByOther}
+              isInsideCollectionLayer={!!parentCollectionLayer}
+            />
+
+            {/* Collection Filters - only for collection layers */}
+            {selectedLayer && getCollectionVariable(selectedLayer)?.id && (
+              <CollectionFiltersSettings
+                layer={selectedLayer}
+                onLayerUpdate={handleLayerUpdate}
+                collectionId={getCollectionVariable(selectedLayer)!.id}
+              />
+            )}
+
+            <ConditionalVisibilitySettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+              fields={parentCollectionFields}
+              fieldSourceLabel={fieldSourceLabel}
+            />
+
             {/* Custom Attributes Panel */}
             <SettingsPanel
               title="Custom attributes"
@@ -2581,60 +2636,6 @@ const RightSidebar = React.memo(function RightSidebar({
                 </Empty>
                 )}
             </SettingsPanel>
-
-            <ImageSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-              fields={parentCollectionFields}
-              fieldSourceLabel={fieldSourceLabel}
-              allFields={fields}
-              collections={collections}
-            />
-
-            <VideoSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-              fields={parentCollectionFields}
-              fieldSourceLabel={fieldSourceLabel}
-              allFields={fields}
-              collections={collections}
-            />
-
-            <AudioSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-              fields={parentCollectionFields}
-              fieldSourceLabel={fieldSourceLabel}
-              allFields={fields}
-              collections={collections}
-            />
-
-            <IconSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-            />
-
-            <HTMLEmbedSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-            />
-
-            {/* Collection Filters - only for collection layers */}
-            {selectedLayer && getCollectionVariable(selectedLayer)?.id && (
-              <CollectionFiltersSettings
-                layer={selectedLayer}
-                onLayerUpdate={handleLayerUpdate}
-                collectionId={getCollectionVariable(selectedLayer)!.id}
-              />
-            )}
-
-            <ConditionalVisibilitySettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-              fields={parentCollectionFields}
-              fieldSourceLabel={fieldSourceLabel}
-            />
-
           </div>
         </TabsContent>
 

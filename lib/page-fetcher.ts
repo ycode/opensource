@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { buildSlugPath, detectLocaleFromPath, matchPageWithTranslatedSlugs, matchDynamicPageWithTranslatedSlugs } from '@/lib/page-utils';
+import { buildSlugPath, buildDynamicPageUrl, detectLocaleFromPath, matchPageWithTranslatedSlugs, matchDynamicPageWithTranslatedSlugs } from '@/lib/page-utils';
 import { getItemWithValues, getItemsWithValues } from '@/lib/repositories/collectionItemRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import type { Page, PageFolder, PageLayers, Component, CollectionItemWithValues, CollectionField, Layer, CollectionPaginationMeta, Translation, Locale } from '@/types';
@@ -1215,23 +1215,7 @@ export async function resolveCollectionLayers(
   paginationContext?: PaginationContext,
   translations?: Record<string, Translation>
 ): Promise<Layer[]> {
-  console.log('[resolveCollectionLayers] ===== START =====');
-  console.log('[resolveCollectionLayers] Processing layers:', {
-    layerCount: layers.length,
-    isPublished,
-    topLevelLayerIds: layers.map(l => l.id),
-    hasParentItemValues: !!parentItemValues,
-  });
-
   const resolveLayer = async (layer: Layer, itemValues?: Record<string, string>): Promise<Layer> => {
-    console.log('[resolveCollectionLayers] Processing layer:', {
-      layerId: layer.id,
-      layerName: layer.name,
-      hasVariables: !!layer.variables,
-      hasCollectionVariable: !!layer.variables?.collection,
-      collectionId: layer.variables?.collection?.id,
-    });
-
     // Check if this is a collection layer
     const isCollectionLayer = !!layer.variables?.collection?.id;
 
@@ -1283,21 +1267,14 @@ export async function resolveCollectionLayers(
               if (sourceFieldType === 'reference') {
                 // Single reference: only one item ID
                 allowedItemIds = [refValue];
-                console.log(`[resolveCollectionLayers] Single reference filter for field ${sourceFieldId}:`, {
-                  refItemId: refValue,
-                });
               } else {
                 // Multi-reference: parse JSON array of item IDs
                 try {
                   const parsedIds = JSON.parse(refValue);
                   if (Array.isArray(parsedIds)) {
                     allowedItemIds = parsedIds;
-                    console.log(`[resolveCollectionLayers] Multi-reference filter for field ${sourceFieldId}:`, {
-                      allowedIds: parsedIds,
-                    });
                   }
                 } catch {
-                  console.warn(`[resolveCollectionLayers] Failed to parse multi-reference value for field ${sourceFieldId}`);
                   allowedItemIds = []; // No valid items
                 }
               }
@@ -1321,21 +1298,6 @@ export async function resolveCollectionLayers(
           let items = fetchResult.items;
           const totalItems = fetchResult.total;
 
-          console.log(`[resolveCollectionLayers] Fetched items for layer ${layer.id}:`, {
-            collectionId: collectionVariable.id,
-            itemsCount: items.length,
-            totalItems,
-            sortBy,
-            sortOrder,
-            limit,
-            offset,
-            sourceFieldId,
-            sourceFieldType,
-            isPaginated,
-            currentPage,
-            hasItemIdFilter: !!allowedItemIds,
-          });
-
           // Apply collection filters (evaluate against each item's own values)
           const collectionFilters = collectionVariable.filters;
           if (collectionFilters?.groups?.length) {
@@ -1345,10 +1307,6 @@ export async function resolveCollectionLayers(
                 pageCollectionCounts: {},
               })
             );
-            console.log(`[resolveCollectionLayers] Applied collection filters for layer ${layer.id}:`, {
-              filterGroupCount: collectionFilters.groups.length,
-              filteredCount: items.length,
-            });
           }
 
           // Apply sorting if specified (since API doesn't handle sortBy yet)
@@ -1378,11 +1336,6 @@ export async function resolveCollectionLayers(
 
           // Fetch collection fields for reference resolution
           const collectionFields = await getFieldsByCollectionId(collectionVariable.id, isPublished);
-
-          console.log(`[resolveCollectionLayers] Resolving children for layer ${layer.id}:`, {
-            childrenCount: layer.children?.length || 0,
-            sortedItemsCount: sortedItems.length,
-          });
 
           // Clone the collection layer for each item (design settings apply to each repeated item)
           // For each item, resolve nested collection layers with that item's values
@@ -1423,8 +1376,6 @@ export async function resolveCollectionLayers(
             })
           );
 
-          console.log(`[resolveCollectionLayers] Cloned collection layer into ${clonedLayers.length} items`);
-
           // Build pagination metadata if pagination is enabled
           let paginationMeta: CollectionPaginationMeta | undefined;
           if (isPaginated && paginationConfig) {
@@ -1441,7 +1392,6 @@ export async function resolveCollectionLayers(
               // Store the original layer template for load_more client-side rendering
               layerTemplate: paginationConfig.mode === 'load_more' ? layer.children : undefined,
             };
-            console.log(`[resolveCollectionLayers] Pagination meta for layer ${layer.id}:`, paginationMeta);
           }
 
           // Build children array - just the cloned items
@@ -1486,8 +1436,6 @@ export async function resolveCollectionLayers(
   };
 
   const result = await Promise.all(layers.map(layer => resolveLayer(layer, parentItemValues)));
-  console.log('[resolveCollectionLayers] ===== END =====');
-  console.log('[resolveCollectionLayers] Processed layers count:', result.length);
 
   // Collect pagination metadata from all fragments
   const paginationMetaMap: Record<string, CollectionPaginationMeta> = {};
@@ -1810,7 +1758,10 @@ export async function renderCollectionItemsToHtml(
   layerTemplate: Layer[],
   collectionId: string,
   collectionLayerId: string,
-  isPublished: boolean
+  isPublished: boolean,
+  pages?: Page[],
+  folders?: PageFolder[],
+  collectionItemSlugs?: Record<string, string>
 ): Promise<string> {
   // Fetch collection fields for field resolution
   const collectionFields = await getFieldsByCollectionId(collectionId, isPublished);
@@ -1839,7 +1790,7 @@ export async function renderCollectionItemsToHtml(
       );
 
       // Convert layers to HTML (handles fragments from resolved collections)
-      const itemHtml = resolvedLayers.map(layer => layerToHtml(layer, item.id)).join('');
+      const itemHtml = resolvedLayers.map(layer => layerToHtml(layer, item.id, pages, folders, collectionItemSlugs)).join('');
 
       // Wrap in collection item container with the proper layer ID format
       const itemWrapperId = `${collectionLayerId}-item-${item.id}`;
@@ -2116,11 +2067,17 @@ async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
  * Convert a Layer to HTML string
  * Handles common layer types and their attributes
  */
-function layerToHtml(layer: Layer, collectionItemId?: string): string {
+function layerToHtml(
+  layer: Layer,
+  collectionItemId?: string,
+  pages?: Page[],
+  folders?: PageFolder[],
+  collectionItemSlugs?: Record<string, string>
+): string {
   // Handle fragment layers (created by resolveCollectionLayers for nested collections)
   // Fragments render their children directly without a wrapper element
   if (layer.name === '_fragment' && layer.children) {
-    return layer.children.map(child => layerToHtml(child, collectionItemId)).join('');
+    return layer.children.map(child => layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs)).join('');
   }
 
   // Get the HTML tag
@@ -2145,8 +2102,8 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
     attrs.push(`class="${escapeHtml(classesStr)}"`);
   }
 
-  if (layer.settings?.id) {
-    attrs.push(`id="${escapeHtml(layer.settings.id)}"`);
+  if (layer.attributes?.id) {
+    attrs.push(`id="${escapeHtml(layer.attributes.id)}"`);
   }
 
   // Handle images (variables structure)
@@ -2234,24 +2191,85 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
 
   // Handle links (variables structure)
   if (tag === 'a') {
-    const linkHref = layer.variables?.link?.href;
-    if (linkHref) {
-      // Extract string value from variable (FieldVariable or DynamicTextVariable)
+    const linkSettings = layer.variables?.link;
+    if (linkSettings) {
       let hrefValue = '';
-      if (linkHref.type === 'dynamic_text') {
-        hrefValue = linkHref.data.content;
+
+      switch (linkSettings.type) {
+        case 'url':
+          if (linkSettings.url?.data?.content) {
+            hrefValue = linkSettings.url.data.content;
+          }
+          break;
+        case 'email':
+          if (linkSettings.email?.data?.content) {
+            hrefValue = `mailto:${linkSettings.email.data.content}`;
+          }
+          break;
+        case 'phone':
+          if (linkSettings.phone?.data?.content) {
+            hrefValue = `tel:${linkSettings.phone.data.content}`;
+          }
+          break;
+        case 'asset':
+          // Asset URLs should be resolved elsewhere (resolveAllAssets)
+          break;
+        case 'page':
+          // Resolve page URL using pages and folders
+          if (linkSettings.page?.id && pages && folders) {
+            const linkedPage = pages.find(p => p.id === linkSettings.page?.id);
+            if (linkedPage) {
+              // Check if this is a dynamic page with a specific collection item
+              if (linkedPage.is_dynamic && linkSettings.page.collection_item_id && collectionItemSlugs) {
+                let itemSlug: string | undefined;
+                
+                // Handle special "current" keywords - use the current collection item ID
+                if (linkSettings.page.collection_item_id === 'current-page' || 
+                    linkSettings.page.collection_item_id === 'current-collection') {
+                  // Use the current collection item's slug (from collectionItemId parameter)
+                  itemSlug = collectionItemId ? collectionItemSlugs[collectionItemId] : undefined;
+                } else {
+                  // Use the specific item slug
+                  itemSlug = collectionItemSlugs[linkSettings.page.collection_item_id];
+                }
+                
+                hrefValue = buildDynamicPageUrl(linkedPage, folders, itemSlug || null);
+              } else {
+                // Static page or dynamic page without specific item
+                hrefValue = buildSlugPath(linkedPage, folders, 'page');
+              }
+            }
+          }
+          break;
+        case 'field':
+          // Field values should be resolved elsewhere
+          break;
       }
+
+      // Append anchor if present (anchor_layer_id references a layer's ID attribute)
+      // TODO: Resolve anchor_layer_id to actual layer.attributes.id value
+      if (linkSettings.anchor_layer_id && hrefValue) {
+        hrefValue = `${hrefValue}#${linkSettings.anchor_layer_id}`;
+      } else if (linkSettings.anchor_layer_id && !hrefValue) {
+        hrefValue = `#${linkSettings.anchor_layer_id}`;
+      }
+
       if (hrefValue) {
         attrs.push(`href="${escapeHtml(hrefValue)}"`);
       }
-    }
-    const linkTarget = layer.attributes?.target;
-    if (linkTarget) {
-      attrs.push(`target="${escapeHtml(linkTarget as string)}"`);
-    }
-    const linkRel = layer.attributes?.rel;
-    if (linkRel) {
-      attrs.push(`rel="${escapeHtml(linkRel as string)}"`);
+
+      // Link behavior attributes from linkSettings
+      const linkTarget = linkSettings.target;
+      if (linkTarget) {
+        attrs.push(`target="${escapeHtml(linkTarget)}"`);
+      }
+      const linkRel = linkSettings.rel || (linkTarget === '_blank' ? 'noopener noreferrer' : '');
+      if (linkRel) {
+        attrs.push(`rel="${escapeHtml(linkRel)}"`);
+      }
+      if (linkSettings.download) {
+        attrs.push('download');
+      }
     }
   }
 
@@ -2266,7 +2284,7 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
 
   // Render children
   const childrenHtml = layer.children
-    ? layer.children.map(child => layerToHtml(child, collectionItemId)).join('')
+    ? layer.children.map(child => layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs)).join('')
     : '';
 
   // Get text content from variables.text
@@ -2283,11 +2301,70 @@ function layerToHtml(layer: Layer, collectionItemId?: string): string {
   const attrsStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
 
   // For icon layers, use raw iconHtml (don't escape SVG content)
+  let elementHtml = '';
   if (layer.name === 'icon' && iconHtml) {
-    return `<${tag}${attrsStr}>${iconHtml}${childrenHtml}</${tag}>`;
+    elementHtml = `<${tag}${attrsStr}>${iconHtml}${childrenHtml}</${tag}>`;
+  } else {
+    elementHtml = `<${tag}${attrsStr}>${escapeHtml(textContent)}${childrenHtml}</${tag}>`;
   }
 
-  return `<${tag}${attrsStr}>${escapeHtml(textContent)}${childrenHtml}</${tag}>`;
+  // Wrap with link if layer has link settings (but is not already an <a> tag)
+  const linkSettings = layer.variables?.link;
+  if (tag !== 'a' && linkSettings && linkSettings.type) {
+    let linkHref = '';
+
+    switch (linkSettings.type) {
+      case 'url':
+        linkHref = linkSettings.url?.data?.content || '';
+        break;
+      case 'email':
+        linkHref = linkSettings.email?.data?.content ? `mailto:${linkSettings.email.data.content}` : '';
+        break;
+      case 'phone':
+        linkHref = linkSettings.phone?.data?.content ? `tel:${linkSettings.phone.data.content}` : '';
+        break;
+      case 'page':
+        if (linkSettings.page?.id && pages && folders) {
+          const linkedPage = pages.find(p => p.id === linkSettings.page?.id);
+          if (linkedPage) {
+            linkHref = buildSlugPath(linkedPage, folders, 'page');
+          }
+        }
+        break;
+      // asset and field types would need additional resolution
+    }
+
+    // Append anchor if present
+    if (linkSettings.anchor_layer_id && linkHref) {
+      linkHref = `${linkHref}#${linkSettings.anchor_layer_id}`;
+    } else if (linkSettings.anchor_layer_id && !linkHref) {
+      linkHref = `#${linkSettings.anchor_layer_id}`;
+    }
+
+    // Wrap content in <a> tag if we have a valid href
+    if (linkHref) {
+      const linkAttrs: string[] = [`href="${escapeHtml(linkHref)}"`];
+
+      if (linkSettings.target) {
+        linkAttrs.push(`target="${escapeHtml(linkSettings.target)}"`);
+      }
+
+      const linkRel = linkSettings.rel || (linkSettings.target === '_blank' ? 'noopener noreferrer' : '');
+      if (linkRel) {
+        linkAttrs.push(`rel="${escapeHtml(linkRel)}"`);
+      }
+
+      if (linkSettings.download) {
+        linkAttrs.push('download');
+      }
+
+      linkAttrs.push('class="contents"');
+
+      elementHtml = `<a ${linkAttrs.join(' ')}>${elementHtml}</a>`;
+    }
+  }
+
+  return elementHtml;
 }
 
 /**
