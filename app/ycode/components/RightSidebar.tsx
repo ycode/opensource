@@ -395,6 +395,12 @@ const RightSidebar = React.memo(function RightSidebar({
     return layer.name === 'image' || layer.settings?.tag === 'img';
   };
 
+  // Helper function to check if layer is a form input element (label, input, textarea, select)
+  const isFormInputLayer = (layer: Layer | null): boolean => {
+    if (!layer) return false;
+    return layer.name === 'label' || layer.name === 'input' || layer.name === 'textarea' || layer.name === 'select';
+  };
+
   // Control visibility rules based on layer type
   const shouldShowControl = (controlName: string, layer: Layer | null): boolean => {
     if (!layer) return false;
@@ -419,11 +425,11 @@ const RightSidebar = React.memo(function RightSidebar({
         return true;
 
       case 'typography':
-        // Typography controls: show in text edit mode or for text elements, buttons, and icons
+        // Typography controls: show in text edit mode or for text elements, buttons, icons, and form inputs
         // In text edit mode, shows: font, size, weight, color, letter spacing, line height
         // (text align is hidden by internal logic for inline styles)
         if (showTextStyleControls) return true;
-        return isTextLayer(layer) || isButtonLayer(layer) || isIconLayer(layer);
+        return isTextLayer(layer) || isButtonLayer(layer) || isIconLayer(layer) || isFormInputLayer(layer);
 
       case 'backgrounds':
         // Background controls: hide for text elements (show for buttons and containers)
@@ -2494,6 +2500,11 @@ const RightSidebar = React.memo(function RightSidebar({
               </SettingsPanel>
             )}
 
+            <FormSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+            />
+
             {/* Custom Attributes Panel */}
             <SettingsPanel
               title="Custom attributes"
@@ -2616,11 +2627,6 @@ const RightSidebar = React.memo(function RightSidebar({
             />
 
             <HTMLEmbedSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-            />
-
-            <FormSettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
             />

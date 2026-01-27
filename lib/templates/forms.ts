@@ -11,6 +11,9 @@ export const formTemplates: Record<string, BlockTemplate> = {
     template: {
       name: 'form',
       classes: ['space-y-4'],
+      settings: {
+        id: 'contact-form'
+      },
       children: [
         // Name input group
         {
@@ -34,12 +37,15 @@ export const formTemplates: Record<string, BlockTemplate> = {
             },
             {
               name: 'input',
-              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'cursor-text'],
+              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text'],
               attributes: {
                 type: 'text',
                 name: 'name',
                 id: 'name',
                 placeholder: 'Full Name'
+              },
+              settings: {
+                id: 'name'
               }
             }
           ],
@@ -74,12 +80,15 @@ export const formTemplates: Record<string, BlockTemplate> = {
             },
             {
               name: 'input',
-              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'cursor-text'],
+              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text'],
               attributes: {
                 type: 'email',
                 name: 'email',
                 id: 'email',
                 placeholder: 'Email'
+              },
+              settings: {
+                id: 'email'
               }
             }
           ],
@@ -114,12 +123,15 @@ export const formTemplates: Record<string, BlockTemplate> = {
             },
             {
               name: 'textarea',
-              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'cursor-text'],
+              classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text'],
               attributes: {
                 name: 'message',
                 id: 'message',
                 placeholder: 'Message',
                 rows: 4
+              },
+              settings: {
+                id: 'message'
               }
             }
           ],
@@ -137,7 +149,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
           name: 'button',
           classes: ['px-[1.5rem]', 'py-[0.75rem]', 'bg-[#2563eb]', 'text-[#ffffff]', 'rounded-[0.5rem]', 'font-[500]', 'hover:bg-[#1d4ed8]', 'cursor-pointer'],
           attributes: {
-            type: 'submit'
+            type: 'button'
           },
           variables: {
             text: {
@@ -188,7 +200,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
     name: 'Input',
     template: {
       name: 'input',
-      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'cursor-text'],
+      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text', 'text-[0.875rem]', 'text-[#111827]'],
       attributes: {
         type: 'text',
         placeholder: 'Enter text...'
@@ -210,6 +222,11 @@ export const formTemplates: Record<string, BlockTemplate> = {
           borderWidth: '1px',
           borderColor: '#d1d5db',
           borderRadius: '0.5rem'
+        },
+        typography: {
+          isActive: true,
+          fontSize: '0.875rem',
+          color: '#111827'
         }
       }
     }
@@ -220,7 +237,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
     name: 'Textarea',
     template: {
       name: 'textarea',
-      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'cursor-text'],
+      classes: ['w-[100%]', 'px-[1rem]', 'py-[0.5rem]', 'border', 'border-[#d1d5db]', 'rounded-[0.5rem]', 'focus:ring-[2px]', 'focus:ring-[#3b82f6]', 'cursor-text', 'text-[0.875rem]', 'text-[#111827]'],
       attributes: {
         placeholder: 'Enter text...',
         rows: 4
@@ -242,6 +259,11 @@ export const formTemplates: Record<string, BlockTemplate> = {
           borderWidth: '1px',
           borderColor: '#d1d5db',
           borderRadius: '0.5rem'
+        },
+        typography: {
+          isActive: true,
+          fontSize: '0.875rem',
+          color: '#111827'
         }
       }
     }
@@ -252,7 +274,7 @@ export const formTemplates: Record<string, BlockTemplate> = {
     name: 'Select',
     template: {
       name: 'select',
-      classes: ['w-full', 'px-4', 'py-2', 'border', 'border-[#d1d5db]', 'rounded-lg', 'focus:ring-2', 'focus:ring-[#3b82f6]', 'focus:border-transparent', 'bg-white', 'cursor-pointer'],
+      classes: ['w-full', 'px-4', 'py-2', 'border', 'border-[#d1d5db]', 'rounded-lg', 'focus:ring-2', 'focus:ring-[#3b82f6]', 'bg-white', 'cursor-pointer', 'text-[0.875rem]', 'text-[#111827]'],
       children: [
         {
           name: 'option',
@@ -296,6 +318,11 @@ export const formTemplates: Record<string, BlockTemplate> = {
           borderWidth: '1px',
           borderColor: '#d1d5db',
           borderRadius: '0.5rem'
+        },
+        typography: {
+          isActive: true,
+          fontSize: '0.875rem',
+          color: '#111827'
         }
       }
     }

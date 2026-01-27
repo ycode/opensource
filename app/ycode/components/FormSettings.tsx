@@ -79,17 +79,9 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
       onToggle={() => setIsOpen(!isOpen)}
     >
       <div className="flex flex-col gap-4">
-        {/* Form ID Notice */}
-        <div className="text-xs text-muted-foreground bg-secondary/30 p-3 rounded-lg">
-          <p>
-            Set a custom <strong>ID</strong> in Element Settings to identify this form.
-            Submissions will be grouped by this ID.
-          </p>
-        </div>
-
         {/* Success Message */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="success-message" className="text-xs">
+          <Label htmlFor="success-message" className="text-xs font-normal">
             Success Message
           </Label>
           <Textarea
@@ -103,7 +95,7 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
 
         {/* Error Message */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="error-message" className="text-xs">
+          <Label htmlFor="error-message" className="text-xs font-normal">
             Error Message
           </Label>
           <Textarea
@@ -117,7 +109,7 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
 
         {/* Redirect URL */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="redirect-url" className="text-xs">
+          <Label htmlFor="redirect-url" className="text-xs font-normal">
             Redirect URL (optional)
           </Label>
           <Input

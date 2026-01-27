@@ -828,6 +828,10 @@ const LayerItem: React.FC<{
         // Only handle if not a context menu trigger
         if (e.button !== 2) {
           e.stopPropagation();
+          // Prevent default behavior for labels (which would focus the associated input)
+          if (htmlTag === 'label') {
+            e.preventDefault();
+          }
           // If this layer is inside a component, select the component layer instead
           const layerIdToSelect = parentComponentLayerId || layer.id;
 
@@ -949,7 +953,7 @@ const LayerItem: React.FC<{
       }
     }
 
-    // Handle button inside form - set type="submit" if not explicitly set
+    // Handle button inside form - set type="submit" only when not in edit mode (preview and published)
     if (htmlTag === 'button' && isInsideForm && !isEditMode) {
       // Only override if type is not explicitly set or is 'button'
       if (!normalizedAttributes.type || normalizedAttributes.type === 'button') {
@@ -957,8 +961,15 @@ const LayerItem: React.FC<{
       }
     }
 
-    // Handle form submission in published mode
-    if (htmlTag === 'form' && isPublished && !isEditMode) {
+    // Block form submission in edit mode
+    if (htmlTag === 'form' && isEditMode) {
+      elementProps.onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+      };
+    }
+
+    // Handle form submission when not in edit mode (preview and published)
+    if (htmlTag === 'form' && !isEditMode) {
       const formId = layer.settings?.id;
       const formSettings = layer.settings?.form;
 

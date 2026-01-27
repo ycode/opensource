@@ -116,3 +116,11 @@
 .ycode-text-editor br.ProseMirror-trailingBreak {
   display: inline !important;
 }
+
+/* Remove browser focus outline from form elements in canvas */
+input:focus,
+textarea:focus,
+select:focus,
+button:focus {
+  outline: none !important;
+}
