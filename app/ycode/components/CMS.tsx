@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { cn } from '@/lib/utils';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue, SelectGroup } from '@/components/ui/select';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -33,7 +35,7 @@ import FieldFormPopover from './FieldFormPopover';
 import CollectionItemSheet from './CollectionItemSheet';
 import { CollaboratorBadge } from '@/components/collaboration/CollaboratorBadge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import type { CollectionItemWithValues, CollectionField } from '@/types';
+import type { CollectionItemWithValues, CollectionField, Collection } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Badge } from '@/components/ui/badge';
@@ -152,9 +154,155 @@ function SortableRow({ item, isManualMode, children, onDuplicate, onDelete, lock
   );
 }
 
+// Sortable collection item component for sidebar drag-and-drop reordering
+interface SortableCollectionItemProps {
+  collection: Collection;
+  isSelected: boolean;
+  isHovered: boolean;
+  openDropdownId: string | null;
+  isRenaming: boolean;
+  renameValue: string;
+  onRenameValueChange: (value: string) => void;
+  onSelect: () => void;
+  onDoubleClick: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onDropdownOpenChange: (open: boolean) => void;
+  onRename: () => void;
+  onRenameSubmit: () => void;
+  onRenameCancel: () => void;
+  onDelete: () => void;
+}
+
+function SortableCollectionItem({
+  collection,
+  isSelected,
+  isHovered,
+  openDropdownId,
+  isRenaming,
+  renameValue,
+  onRenameValueChange,
+  onSelect,
+  onDoubleClick,
+  onMouseEnter,
+  onMouseLeave,
+  onDropdownOpenChange,
+  onRename,
+  onRenameSubmit,
+  onRenameCancel,
+  onDelete,
+}: SortableCollectionItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: collection.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  if (isRenaming) {
+    return (
+      <div className="pl-3 pr-1.5 h-8 rounded-lg flex gap-2 items-center bg-secondary/50">
+        <Icon name="database" className="size-3 shrink-0" />
+        <Input
+          value={renameValue}
+          onChange={(e) => onRenameValueChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              onRenameSubmit();
+            } else if (e.key === 'Escape') {
+              onRenameCancel();
+            }
+          }}
+          onBlur={onRenameCancel}
+          autoFocus
+          className="h-6 px-1 py-0 text-xs rounded-md -ml-1"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={setNodeRef}
+          style={style}
+          {...attributes}
+          {...listeners}
+          className={cn(
+            'px-3 h-8 rounded-lg flex gap-2 items-center justify-between text-left w-full group cursor-grab active:cursor-grabbing',
+            isSelected
+              ? 'bg-primary text-primary-foreground'
+              : 'hover:bg-secondary/50 text-secondary-foreground/80 dark:text-muted-foreground'
+          )}
+          onClick={onSelect}
+          onDoubleClick={onDoubleClick}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
+        >
+          <div className="flex gap-2 items-center">
+            <Icon name="database" className="size-3" />
+            <span>{collection.name}</span>
+          </div>
+
+          <div className="group-hover:opacity-100 opacity-0">
+            <DropdownMenu
+              open={openDropdownId === collection.id}
+              onOpenChange={onDropdownOpenChange}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="xs"
+                  variant={isSelected ? 'default' : 'ghost'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  className="-mr-2"
+                >
+                  <Icon name="more" className="size-3" />
+                </Button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={onRename}>
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onDelete}>
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <span className="group-hover:hidden block text-xs opacity-50">
+            {collection.draft_items_count}
+          </span>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={onRename}>
+          Rename
+        </ContextMenuItem>
+        <ContextMenuItem onClick={onDelete}>
+          Delete
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
 const CMS = React.memo(function CMS() {
   const {
     selectedCollectionId,
+    setSelectedCollectionId,
     collections,
     fields,
     items,
@@ -172,6 +320,10 @@ const CMS = React.memo(function CMS() {
     updateCollectionSorting,
     reorderItems,
     searchItems,
+    createCollection,
+    updateCollection,
+    deleteCollection,
+    reorderCollections,
   } = useCollectionsStore();
 
   // Collection collaboration sync
@@ -188,7 +340,7 @@ const CMS = React.memo(function CMS() {
   const collaborationUsers = useCollaborationPresenceStore((state) => state.users);
   const getAsset = useAssetsStore((state) => state.getAsset);
 
-  const { urlState, navigateToCollection, navigateToCollectionItem, navigateToNewCollectionItem } = useEditorUrl();
+  const { urlState, navigateToCollection, navigateToCollectionItem, navigateToNewCollectionItem, navigateToCollections } = useEditorUrl();
 
   // Track previous collection ID to prevent unnecessary reloads
   const prevCollectionIdRef = React.useRef<string | null>(null);
@@ -208,6 +360,12 @@ const CMS = React.memo(function CMS() {
   const [showSkeleton, setShowSkeleton] = useState(false);
   // Cache for reference item display names: { collectionId: { itemId: displayName } }
   const [referenceItemsCache, setReferenceItemsCache] = useState<Record<string, Record<string, string>>>({});
+
+  // Collection sidebar state
+  const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [hoveredCollectionId, setHoveredCollectionId] = useState<string | null>(null);
+  const [collectionDropdownId, setCollectionDropdownId] = useState<string | null>(null);
 
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = useMemo(
@@ -848,6 +1006,125 @@ const CMS = React.memo(function CMS() {
     }
   };
 
+  // Collection sidebar handlers
+  const handleCreateCollection = async () => {
+    try {
+      const baseName = 'Collection';
+      let collectionName = baseName;
+      let counter = 1;
+
+      while (collections.some(c => c.name === collectionName)) {
+        collectionName = `${baseName} ${counter}`;
+        counter++;
+      }
+
+      const newCollection = await createCollection({
+        name: collectionName,
+        sorting: null,
+        order: collections.length,
+      });
+
+      if (liveCollectionUpdates) {
+        liveCollectionUpdates.broadcastCollectionCreate(newCollection);
+      }
+
+      navigateToCollection(newCollection.id);
+      setRenamingCollectionId(newCollection.id);
+      setRenameValue(newCollection.name);
+    } catch (error) {
+      console.error('Failed to create collection:', error);
+    }
+  };
+
+  const handleCollectionDoubleClick = (collection: { id: string; name: string }) => {
+    setRenamingCollectionId(collection.id);
+    setRenameValue(collection.name);
+  };
+
+  const handleRenameSubmit = async () => {
+    if (!renamingCollectionId || !renameValue.trim()) {
+      setRenamingCollectionId(null);
+      setRenameValue('');
+      return;
+    }
+
+    try {
+      const updatedName = renameValue.trim();
+      await updateCollection(renamingCollectionId, { name: updatedName });
+
+      if (liveCollectionUpdates) {
+        liveCollectionUpdates.broadcastCollectionUpdate(renamingCollectionId, { name: updatedName });
+      }
+
+      setRenamingCollectionId(null);
+      setRenameValue('');
+    } catch (error) {
+      console.error('Failed to rename collection:', error);
+    }
+  };
+
+  const handleRenameCancel = () => {
+    setRenamingCollectionId(null);
+    setRenameValue('');
+  };
+
+  const handleCollectionDelete = async (collectionId: string) => {
+    if (!confirm('Are you sure you want to delete this collection? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await deleteCollection(collectionId);
+
+      if (liveCollectionUpdates) {
+        liveCollectionUpdates.broadcastCollectionDelete(collectionId);
+      }
+
+      // If deleting the currently selected collection, navigate to base
+      if (selectedCollectionId === collectionId) {
+        navigateToCollections();
+      }
+    } catch (error) {
+      console.error('Failed to delete collection:', error);
+      alert('Failed to delete collection. Please try again.');
+    }
+  };
+
+  const handleCollectionSelect = (collectionId: string) => {
+    setSelectedCollectionId(collectionId);
+    navigateToCollection(collectionId);
+  };
+
+  // Collection drag and drop sensors
+  const collectionSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    })
+  );
+
+  const handleCollectionDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = collections.findIndex(c => c.id === active.id);
+    const newIndex = collections.findIndex(c => c.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) {
+      return;
+    }
+
+    const newOrder = [...collections];
+    const [movedItem] = newOrder.splice(oldIndex, 1);
+    newOrder.splice(newIndex, 0, movedItem);
+
+    reorderCollections(newOrder.map(c => c.id));
+  };
+
   const handleEditFieldClick = (field: CollectionField) => {
     // Close the dropdown
     setOpenDropdownId(null);
@@ -1094,7 +1371,7 @@ const CMS = React.memo(function CMS() {
                             className="px-4 py-5 text-muted-foreground"
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
-                            
+
                             <ReferenceFieldCell
                               value={value}
                               field={field}
@@ -1156,22 +1433,86 @@ const CMS = React.memo(function CMS() {
     );
   }, [sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, createFieldPopoverOpen, searchQuery, collectionItems.length, showSkeleton, totalItems, pageSize, handleSelectAll, handleColumnClick, handleEditFieldClick, handleDuplicateField, handleHideField, handleDeleteField, handleCreateFieldFromPopover, handleDragEnd, handleDuplicateItem, handleDeleteItem, handleEditItem, handleToggleItemSelection, sensors]);
 
-  // No collection selected
+  // Collections sidebar component
+  const collectionsSidebar = (
+    <div className="w-64 shrink-0 bg-background border-r flex flex-col overflow-hidden px-4">
+      <header className="py-5 flex items-center justify-between shrink-0">
+        <span className="font-medium">Collections</span>
+          <Button
+            size="xs"
+            variant="secondary"
+            onClick={handleCreateCollection}
+          >
+            <Icon name="plus" />
+          </Button>
+      </header>
+      <div className="flex-1 overflow-y-auto no-scrollbar">
+        <DndContext
+          sensors={collectionSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleCollectionDragEnd}
+        >
+          <SortableContext
+            items={collections.map(c => c.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="flex flex-col">
+              {collections.map((collection) => (
+                <SortableCollectionItem
+                  key={collection.id}
+                  collection={collection}
+                  isSelected={selectedCollectionId === collection.id}
+                  isHovered={hoveredCollectionId === collection.id}
+                  openDropdownId={collectionDropdownId}
+                  isRenaming={renamingCollectionId === collection.id}
+                  renameValue={renameValue}
+                  onRenameValueChange={setRenameValue}
+                  onSelect={() => handleCollectionSelect(collection.id)}
+                  onDoubleClick={() => handleCollectionDoubleClick(collection)}
+                  onMouseEnter={() => setHoveredCollectionId(collection.id)}
+                  onMouseLeave={() => setHoveredCollectionId(null)}
+                  onDropdownOpenChange={(open) => setCollectionDropdownId(open ? collection.id : null)}
+                  onRename={() => handleCollectionDoubleClick(collection)}
+                  onRenameSubmit={handleRenameSubmit}
+                  onRenameCancel={handleRenameCancel}
+                  onDelete={() => handleCollectionDelete(collection.id)}
+                />
+              ))}
+
+              {collections.length === 0 && (
+                <Empty>
+                  <EmptyTitle>Collections</EmptyTitle>
+                  <EmptyDescription>No collections yet. Click + to create new.</EmptyDescription>
+                </Empty>
+              )}
+            </div>
+          </SortableContext>
+        </DndContext>
+      </div>
+    </div>
+  );
+
+  // No collection selected - show sidebar with empty state
   if (!selectedCollectionId) {
     return (
-      <div className="flex-1 bg-background flex items-center justify-center">
-        <Empty>
-          <EmptyTitle>No Collection Selected</EmptyTitle>
-          <EmptyDescription>
-            Select a collection from the sidebar to manage its items
-          </EmptyDescription>
-        </Empty>
+      <div className="flex-1 bg-background flex">
+        {collectionsSidebar}
+        <div className="flex-1 flex items-center justify-center">
+          <Empty>
+            <EmptyTitle>No Collection Selected</EmptyTitle>
+            <EmptyDescription>
+              Select a collection from the sidebar to manage its items
+            </EmptyDescription>
+          </Empty>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 bg-background flex flex-col">
+    <div className="flex-1 bg-background flex">
+      {collectionsSidebar}
+      <div className="flex-1 flex flex-col">
 
       <div className="p-4 flex items-center justify-between border-b">
 
@@ -1370,6 +1711,7 @@ const CMS = React.memo(function CMS() {
           useDialog={true}
         />
       )}
+      </div>
     </div>
   );
 });

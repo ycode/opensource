@@ -454,7 +454,7 @@ export default function LocalizationContent({ children }: LocalizationContentPro
   return (
     <div className="flex flex-1 overflow-hidden">
       {/* Left Sidebar */}
-      <div className="w-60 border-r flex flex-col px-4">
+      <div className="w-64 border-r flex flex-col px-4">
         <header className="py-5 flex justify-between items-center">
           <span className="font-medium">Localization</span>
           <Button

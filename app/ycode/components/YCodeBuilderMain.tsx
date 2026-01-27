@@ -1786,78 +1786,81 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           <ProfileContent>{children}</ProfileContent>
         ) : (
           <>
-            {/* Left Sidebar - Pages & Layers (hidden in preview mode) */}
+            {/* Left Sidebar - Pages & Layers (hidden in preview mode and CMS) */}
             {!isPreviewMode && (
-              <LeftSidebar
-                selectedLayerId={selectedLayerId}
-                selectedLayerIds={selectedLayerIds}
-                onLayerSelect={setSelectedLayerId}
-                currentPageId={currentPageId}
-                onPageSelect={setCurrentPageId}
-                liveLayerUpdates={liveLayerUpdates}
-                liveComponentUpdates={liveComponentUpdates}
-              />
-            )}
-
-            {/* Conditional Content Based on Active Tab */}
-            {activeTab === 'cms' ? (
-              <Suspense fallback={null}>
-                <CMS />
-              </Suspense>
-            ) : (
-              <>
-                {/* Center Canvas - Preview */}
-                <CenterCanvas
+              <div className={activeTab === 'cms' ? 'hidden' : 'contents'}>
+                <LeftSidebar
                   selectedLayerId={selectedLayerId}
+                  selectedLayerIds={selectedLayerIds}
+                  onLayerSelect={setSelectedLayerId}
                   currentPageId={currentPageId}
-                  viewportMode={viewportMode}
-                  setViewportMode={setViewportMode}
-                  onExitComponentEditMode={handleExitComponentEditMode}
+                  onPageSelect={setCurrentPageId}
                   liveLayerUpdates={liveLayerUpdates}
                   liveComponentUpdates={liveComponentUpdates}
                 />
-
-                {/* Right Sidebar - Properties (lazy loaded, hidden in preview mode) */}
-                {!isPreviewMode && (
-                  <Suspense fallback={<div className="w-72 shrink-0 bg-background border-l" />}>
-                    <RightSidebar
-                      selectedLayerId={selectedLayerId}
-                      onLayerUpdate={(layerId, updates) => {
-                        // If editing component, update component draft
-                        if (editingComponentId) {
-                          const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
-                          const layers = componentDrafts[editingComponentId] || [];
-
-                          // Find and update layer in tree
-                          const updateLayerInTree = (tree: Layer[]): Layer[] => {
-                            return tree.map(layer => {
-                              if (layer.id === layerId) {
-                                return { ...layer, ...updates };
-                              }
-                              if (layer.children) {
-                                return { ...layer, children: updateLayerInTree(layer.children) };
-                              }
-                              return layer;
-                            });
-                          };
-
-                          const updatedLayers = updateLayerInTree(layers);
-                          updateComponentDraft(editingComponentId, updatedLayers);
-                        } else if (currentPageId) {
-                          // Regular page mode
-                          updateLayer(currentPageId, layerId, updates);
-
-                          // Broadcast to other collaborators
-                          if (liveLayerUpdates) {
-                            liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
-                          }
-                        }
-                      }}
-                    />
-                  </Suspense>
-                )}
-              </>
+              </div>
             )}
+
+            {/* CMS View - kept mounted for instant switching */}
+            <div className={activeTab === 'cms' ? 'flex flex-1' : 'hidden'}>
+              <Suspense fallback={null}>
+                <CMS />
+              </Suspense>
+            </div>
+
+            {/* Design View - kept mounted for instant switching */}
+            <div className={activeTab !== 'cms' ? 'contents' : 'hidden'}>
+              {/* Center Canvas - Preview */}
+              <CenterCanvas
+                selectedLayerId={selectedLayerId}
+                currentPageId={currentPageId}
+                viewportMode={viewportMode}
+                setViewportMode={setViewportMode}
+                onExitComponentEditMode={handleExitComponentEditMode}
+                liveLayerUpdates={liveLayerUpdates}
+                liveComponentUpdates={liveComponentUpdates}
+              />
+
+              {/* Right Sidebar - Properties (lazy loaded, hidden in preview mode) */}
+              {!isPreviewMode && (
+                <Suspense fallback={<div className="w-72 shrink-0 bg-background border-l" />}>
+                  <RightSidebar
+                    selectedLayerId={selectedLayerId}
+                    onLayerUpdate={(layerId, updates) => {
+                      // If editing component, update component draft
+                      if (editingComponentId) {
+                        const { componentDrafts, updateComponentDraft } = useComponentsStore.getState();
+                        const layers = componentDrafts[editingComponentId] || [];
+
+                        // Find and update layer in tree
+                        const updateLayerInTree = (tree: Layer[]): Layer[] => {
+                          return tree.map(layer => {
+                            if (layer.id === layerId) {
+                              return { ...layer, ...updates };
+                            }
+                            if (layer.children) {
+                              return { ...layer, children: updateLayerInTree(layer.children) };
+                            }
+                            return layer;
+                          });
+                        };
+
+                        const updatedLayers = updateLayerInTree(layers);
+                        updateComponentDraft(editingComponentId, updatedLayers);
+                      } else if (currentPageId) {
+                        // Regular page mode
+                        updateLayer(currentPageId, layerId, updates);
+
+                        // Broadcast to other collaborators
+                        if (liveLayerUpdates) {
+                          liveLayerUpdates.broadcastLayerUpdate(layerId, updates);
+                        }
+                      }
+                    }}
+                  />
+                  </Suspense>
+              )}
+            </div>
           </>
         )}
       </div>
