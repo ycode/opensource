@@ -1763,8 +1763,11 @@ export async function renderCollectionItemsToHtml(
         undefined // TODO: Add translation support for Load More pagination
       );
 
+      // Build anchor map for O(1) anchor resolution
+      const anchorMap = buildAnchorMap(resolvedLayers);
+
       // Convert layers to HTML (handles fragments from resolved collections)
-      const itemHtml = resolvedLayers.map(layer => layerToHtml(layer, item.id, pages, folders, collectionItemSlugs, locale, translations)).join('');
+      const itemHtml = resolvedLayers.map(layer => layerToHtml(layer, item.id, pages, folders, collectionItemSlugs, locale, translations, anchorMap)).join('');
 
       // Wrap in collection item container with the proper layer ID format
       const itemWrapperId = `${collectionLayerId}-item-${item.id}`;
@@ -2038,6 +2041,27 @@ async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
 }
 
 /**
+ * Build a map of layerId -> anchor value (attributes.id) for O(1) anchor resolution
+ */
+function buildAnchorMap(layers: Layer[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  
+  const traverse = (layerList: Layer[]) => {
+    for (const layer of layerList) {
+      if (layer.attributes?.id) {
+        map[layer.id] = layer.attributes.id;
+      }
+      if (layer.children) {
+        traverse(layer.children);
+      }
+    }
+  };
+  
+  traverse(layers);
+  return map;
+}
+
+/**
  * Convert a Layer to HTML string
  * Handles common layer types and their attributes
  */
@@ -2048,12 +2072,13 @@ function layerToHtml(
   folders?: PageFolder[],
   collectionItemSlugs?: Record<string, string>,
   locale?: Locale | null,
-  translations?: Record<string, Translation>
+  translations?: Record<string, Translation>,
+  anchorMap?: Record<string, string>
 ): string {
   // Handle fragment layers (created by resolveCollectionLayers for nested collections)
   // Fragments render their children directly without a wrapper element
   if (layer.name === '_fragment' && layer.children) {
-    return layer.children.map(child => layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations)).join('');
+    return layer.children.map(child => layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap)).join('');
   }
 
   // Get the HTML tag
@@ -2224,11 +2249,14 @@ function layerToHtml(
       }
 
       // Append anchor if present (anchor_layer_id references a layer's ID attribute)
-      // TODO: Resolve anchor_layer_id to actual layer.attributes.id value
-      if (linkSettings.anchor_layer_id && hrefValue) {
-        hrefValue = `${hrefValue}#${linkSettings.anchor_layer_id}`;
-      } else if (linkSettings.anchor_layer_id && !hrefValue) {
-        hrefValue = `#${linkSettings.anchor_layer_id}`;
+      // Resolve layer ID to actual anchor value using pre-built map (O(1) lookup)
+      if (linkSettings.anchor_layer_id) {
+        const anchorValue = anchorMap?.[linkSettings.anchor_layer_id] || linkSettings.anchor_layer_id;
+        if (hrefValue) {
+          hrefValue = `${hrefValue}#${anchorValue}`;
+        } else {
+          hrefValue = `#${anchorValue}`;
+        }
       }
 
       if (hrefValue) {
@@ -2261,7 +2289,7 @@ function layerToHtml(
 
   // Render children
   const childrenHtml = layer.children
-    ? layer.children.map(child => layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations)).join('')
+    ? layer.children.map(child => layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap)).join('')
     : '';
 
   // Get text content from variables.text
@@ -2312,11 +2340,14 @@ function layerToHtml(
       // asset and field types would need additional resolution
     }
 
-    // Append anchor if present
-    if (linkSettings.anchor_layer_id && linkHref) {
-      linkHref = `${linkHref}#${linkSettings.anchor_layer_id}`;
-    } else if (linkSettings.anchor_layer_id && !linkHref) {
-      linkHref = `#${linkSettings.anchor_layer_id}`;
+    // Append anchor if present - resolve layer ID to actual anchor value
+    if (linkSettings.anchor_layer_id) {
+      const anchorValue = anchorMap?.[linkSettings.anchor_layer_id] || linkSettings.anchor_layer_id;
+      if (linkHref) {
+        linkHref = `${linkHref}#${anchorValue}`;
+      } else {
+        linkHref = `#${anchorValue}`;
+      }
     }
 
     // Wrap content in <a> tag if we have a valid href

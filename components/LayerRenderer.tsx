@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import LayerLockIndicator from '@/components/collaboration/LayerLockIndicator';
@@ -34,6 +34,29 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 
 /**
+ * Build a map of layerId -> anchor value (attributes.id) for O(1) anchor resolution
+ * Recursively traverses the layer tree once
+ */
+function buildAnchorMap(layers: Layer[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  
+  const traverse = (layerList: Layer[]) => {
+    for (const layer of layerList) {
+      // Only add to map if layer has a custom id attribute set
+      if (layer.attributes?.id) {
+        map[layer.id] = layer.attributes.id;
+      }
+      if (layer.children) {
+        traverse(layer.children);
+      }
+    }
+  };
+  
+  traverse(layers);
+  return map;
+}
+
+/**
  * Generate href from layer link settings
  * @param collectionItemId - Current collection layer's item ID (for 'current-collection' links)
  * @param pageCollectionItemId - Page-level collection item ID (for 'current-page' links on dynamic pages)
@@ -52,7 +75,8 @@ function generateLinkHref(
   collectionItemSlugs?: Record<string, string>,
   isPreview?: boolean,
   locale?: any | null,
-  translations?: Record<string, any> | null
+  translations?: Record<string, any> | null,
+  anchorMap?: Record<string, string>
 ): string | null {
   if (!linkSettings || !linkSettings.type) return null;
 
@@ -125,13 +149,15 @@ function generateLinkHref(
   }
 
   // Append anchor if present (anchor_layer_id references a layer's ID attribute)
-  // For now, use anchor_layer_id directly as the anchor value
-  // TODO: Resolve anchor_layer_id to actual layer.attributes.id value
-  if (linkSettings.anchor_layer_id && href) {
-    href = `${href}#${linkSettings.anchor_layer_id}`;
-  } else if (linkSettings.anchor_layer_id && !href) {
-    // Anchor-only link (same page)
-    href = `#${linkSettings.anchor_layer_id}`;
+  // Resolve layer ID to actual anchor value using pre-built map (O(1) lookup)
+  if (linkSettings.anchor_layer_id) {
+    const anchorValue = anchorMap?.[linkSettings.anchor_layer_id] || linkSettings.anchor_layer_id;
+    if (href) {
+      href = `${href}#${anchorValue}`;
+    } else {
+      // Anchor-only link (same page)
+      href = `#${anchorValue}`;
+    }
   }
 
   return href || null;
@@ -169,6 +195,7 @@ interface LayerRendererProps {
   collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
   isPreview?: boolean; // Whether we're in preview mode (prefix links with /ycode/preview)
   translations?: Record<string, any> | null; // Translations for localized URL generation
+  anchorMap?: Record<string, string>; // Pre-built map of layerId -> anchor value for O(1) lookups
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -203,6 +230,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   folders: foldersProp,
   isPreview = false,
   translations,
+  anchorMap: anchorMapProp,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -214,6 +242,12 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   const storeFolders = usePagesStore((state) => state.folders);
   const pages = pagesProp || storePages;
   const folders = foldersProp || storeFolders;
+
+  // Build anchor map once at top level for O(1) anchor resolution
+  // Use prop if provided (recursive calls), otherwise build from layers
+  const anchorMap = useMemo(() => {
+    return anchorMapProp || buildAnchorMap(layers);
+  }, [anchorMapProp, layers]);
 
   // Helper to render a layer or unwrap fragments
   const renderLayer = (layer: Layer): React.ReactNode => {
@@ -300,6 +334,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         collectionItemSlugs={collectionItemSlugs}
         isPreview={isPreview}
         translations={translations}
+        anchorMap={anchorMap}
       />
     );
   };
@@ -350,6 +385,7 @@ const LayerItem: React.FC<{
   collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
   isPreview?: boolean; // Whether we're in preview mode
   translations?: Record<string, any> | null; // Translations for localized URL generation
+  anchorMap?: Record<string, string>; // Pre-built map of layerId -> anchor value
 }> = ({
   layer,
   isEditMode,
@@ -388,6 +424,7 @@ const LayerItem: React.FC<{
   collectionItemSlugs,
   isPreview,
   translations,
+  anchorMap,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isHovered = hoveredLayerId === layer.id;
@@ -872,6 +909,7 @@ const LayerItem: React.FC<{
           collectionItemSlugs={collectionItemSlugs}
           isPreview={isPreview}
           translations={translations}
+          anchorMap={anchorMap}
         />
       );
     }
@@ -1374,6 +1412,7 @@ const LayerItem: React.FC<{
               collectionItemSlugs={collectionItemSlugs}
               isPreview={isPreview}
               translations={translations}
+              anchorMap={anchorMap}
               hiddenLayerIds={hiddenLayerIds}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
@@ -1498,6 +1537,7 @@ const LayerItem: React.FC<{
                   collectionItemSlugs={collectionItemSlugs}
                   isPreview={isPreview}
                   translations={translations}
+                  anchorMap={anchorMap}
                 />
               )}
             </Tag>
@@ -1544,6 +1584,7 @@ const LayerItem: React.FC<{
               collectionItemSlugs={collectionItemSlugs}
               isPreview={isPreview}
               translations={translations}
+              anchorMap={anchorMap}
               hiddenLayerIds={hiddenLayerIds}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
@@ -1613,6 +1654,7 @@ const LayerItem: React.FC<{
             collectionItemSlugs={collectionItemSlugs}
             isPreview={isPreview}
             translations={translations}
+            anchorMap={anchorMap}
           />
         )}
       </Tag>
@@ -1647,7 +1689,8 @@ const LayerItem: React.FC<{
       collectionItemSlugs,
       isPreview,
       currentLocale,
-      translations
+      translations,
+      anchorMap
     );
 
     if (linkHref) {
