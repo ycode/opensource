@@ -88,12 +88,12 @@ export default function HeaderBar({
   const router = useRouter();
   const pathname = usePathname();
   const pageDropdownRef = useRef<HTMLDivElement>(null);
-  const { currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode, openFileManager, setKeyboardShortcutsOpen } = useEditorStore();
+  const { currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode, openFileManager, setKeyboardShortcutsOpen, setActiveSidebarTab } = useEditorStore();
   const { folders, pages: storePages } = usePagesStore();
   const { items, fields } = useCollectionsStore();
   const { locales, selectedLocaleId, setSelectedLocaleId, translations } = useLocalisationStore();
   const { getSettingByKey, updateSetting } = useSettingsStore();
-  const { navigateToLayers, updateQueryParams } = useEditorUrl();
+  const { navigateToLayers, navigateToCollections, updateQueryParams, routeType } = useEditorUrl();
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [showPublishPopover, setShowPublishPopover] = useState(false);
   const [changesCount, setChangesCount] = useState(0);
@@ -461,26 +461,33 @@ export default function HeaderBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Back Button (Settings) */}
-        {isSettingsRoute && (
+        <div className="flex gap-1">
           <Button
-            variant="secondary"
+            variant={routeType === 'layers' || routeType === 'page' || routeType === 'component' || routeType === null ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => {
-              // Use store's currentPageId (persists even on settings route) or fallback to homepage/first page
               const targetPageId = storeCurrentPageId || findHomepage(storePages)?.id || storePages[0]?.id;
-
               if (targetPageId) {
+                setActiveSidebarTab('layers');
                 navigateToLayers(targetPageId);
-              } else {
-                router.push('/ycode');
               }
             }}
           >
-            <Icon name="arrowLeft" />
-            Go back
+            <Icon name="cursor-default" />
+            Design
           </Button>
-        )}
+          <Button
+            variant={routeType === 'collection' || routeType === 'collections-base' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => {
+              setActiveSidebarTab('cms');
+              navigateToCollections();
+            }}
+          >
+            <Icon name="database" />
+            CMS
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-1.5 items-center justify-center">
