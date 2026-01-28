@@ -30,7 +30,7 @@ import ComponentVariablesDialog from './ComponentVariablesDialog';
 import EffectControls from './EffectControls';
 import CollectionFiltersSettings from './CollectionFiltersSettings';
 import ConditionalVisibilitySettings from './ConditionalVisibilitySettings';
-import ImageSettings from './ImageSettings';
+import ImageSettings, { type ImageSettingsValue } from './ImageSettings';
 import VideoSettings from './VideoSettings';
 import AudioSettings from './AudioSettings';
 import IconSettings from './IconSettings';
@@ -1572,13 +1572,16 @@ const RightSidebar = React.memo(function RightSidebar({
       }
     };
 
-    const textVariables = component.variables || [];
-    const currentOverrides = selectedLayer.componentOverrides?.text || {};
+    const allVariables = component.variables || [];
+    const textVariables = allVariables.filter(v => v.type !== 'image');
+    const imageVariables = allVariables.filter(v => v.type === 'image');
+    const currentTextOverrides = selectedLayer.componentOverrides?.text || {};
+    const currentImageOverrides = selectedLayer.componentOverrides?.image || {};
 
     // Extract Tiptap content from text ComponentVariableValue
     // Falls back to variable's default_value if no override is set
     const getOverrideValue = (variableId: string) => {
-      const overrideValue = currentOverrides[variableId];
+      const overrideValue = currentTextOverrides[variableId];
       const variableDef = textVariables.find(v => v.id === variableId);
 
       // Use override if set, otherwise fall back to default value
@@ -1586,6 +1589,15 @@ const RightSidebar = React.memo(function RightSidebar({
 
       // Extract Tiptap content using utility function
       return extractTiptapFromComponentVariable(value);
+    };
+
+    // Get image override value (ImageSettingsValue)
+    const getImageOverrideValue = (variableId: string) => {
+      const overrideValue = currentImageOverrides[variableId];
+      const variableDef = imageVariables.find(v => v.id === variableId);
+
+      // Use override if set, otherwise fall back to default value
+      return (overrideValue ?? variableDef?.default_value) as ImageSettingsValue | undefined;
     };
 
     // Store override as text ComponentVariableValue (DynamicRichTextVariable)
@@ -1596,8 +1608,21 @@ const RightSidebar = React.memo(function RightSidebar({
         componentOverrides: {
           ...selectedLayer.componentOverrides,
           text: {
-            ...currentOverrides,
+            ...currentTextOverrides,
             [variableId]: variableValue,
+          },
+        },
+      });
+    };
+
+    // Store image override as ImageSettingsValue
+    const handleImageVariableOverrideChange = (variableId: string, value: ImageSettingsValue) => {
+      onLayerUpdate(selectedLayerId!, {
+        componentOverrides: {
+          ...selectedLayer.componentOverrides,
+          image: {
+            ...currentImageOverrides,
+            [variableId]: value,
           },
         },
       });
@@ -1626,11 +1651,12 @@ const RightSidebar = React.memo(function RightSidebar({
     const handleResetAllOverrides = () => {
       if (!selectedLayerId) return;
 
-      // Clear all text overrides - values will fall back to defaults
+      // Clear all text and image overrides - values will fall back to defaults
       onLayerUpdate(selectedLayerId, {
         componentOverrides: {
           ...selectedLayer.componentOverrides,
           text: {},
+          image: {},
         },
       });
     };
@@ -1665,7 +1691,7 @@ const RightSidebar = React.memo(function RightSidebar({
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
                         onClick={handleResetAllOverrides}
-                        disabled={Object.keys(currentOverrides).length === 0}
+                        disabled={Object.keys(currentTextOverrides).length === 0 && Object.keys(currentImageOverrides).length === 0}
                       >
                         <Icon name="undo" />
                         Reset all overrides
@@ -1684,7 +1710,7 @@ const RightSidebar = React.memo(function RightSidebar({
                   <Icon name="component" className="size-3" />
                 </div>
                 <span>{component.name}</span>
-                {Object.keys(currentOverrides).length > 0 && (
+                {(Object.keys(currentTextOverrides).length > 0 || Object.keys(currentImageOverrides).length > 0) && (
                     <span className="ml-auto text-[10px] italic text-orange-600 dark:text-orange-200">Overridden</span>
                 )}
               </div>
@@ -1704,7 +1730,7 @@ const RightSidebar = React.memo(function RightSidebar({
               isOpen={variablesOpen}
               onToggle={() => setVariablesOpen(!variablesOpen)}
             >
-              {/* Variable overrides */}
+              {/* Text variable overrides */}
               {textVariables.length > 0 && (
                 <div className="flex flex-col gap-2">
                   {textVariables.map((variable) => (
@@ -1730,7 +1756,31 @@ const RightSidebar = React.memo(function RightSidebar({
                 </div>
               )}
 
-              {textVariables.length === 0 && (
+              {/* Image variable overrides */}
+              {imageVariables.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {imageVariables.map((variable) => (
+                    <div key={variable.id} className="grid grid-cols-3 gap-2 items-start">
+                      <Label variant="muted" className="truncate pt-2">
+                        {variable.name}
+                      </Label>
+                      <div className="col-span-2">
+                        <ImageSettings
+                          mode="standalone"
+                          value={getImageOverrideValue(variable.id)}
+                          onChange={(val) => handleImageVariableOverrideChange(variable.id, val)}
+                          fields={parentCollectionFields}
+                          fieldSourceLabel={fieldSourceLabel}
+                          allFields={fields}
+                          collections={collections}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {allVariables.length === 0 && (
                 <div className="flex-1 flex items-center justify-center">
                   <Empty>
                     <EmptyMedia variant="icon">
@@ -2060,9 +2110,10 @@ const RightSidebar = React.memo(function RightSidebar({
 
             {/* Content Panel - show for text-editable layers */}
             {selectedLayer && isTextEditable(selectedLayer) && (() => {
-              // Get component variables if editing a component
+              // Get component variables if editing a component (only text variables for text content)
               const editingComponent = editingComponentId ? getComponentById(editingComponentId) : undefined;
-              const componentVariables = editingComponent?.variables || [];
+              const allComponentVariables = editingComponent?.variables || [];
+              const componentVariables = allComponentVariables.filter(v => v.type !== 'image');
               const linkedVariableId = selectedLayer.variables?.text?.id;
               const linkedVariable = componentVariables.find(v => v.id === linkedVariableId);
 
@@ -2590,6 +2641,7 @@ const RightSidebar = React.memo(function RightSidebar({
               fieldSourceLabel={fieldSourceLabel}
               allFields={fields}
               collections={collections}
+              onOpenVariablesDialog={() => setVariablesDialogOpen(true)}
             />
 
             <VideoSettings

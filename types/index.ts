@@ -265,7 +265,8 @@ export interface Layer {
   // Components (reusable layer trees)
   componentId?: string; // Reference to applied Component
   componentOverrides?: {
-    text?: Record<string, ComponentVariableValue>; // ComponentVariable.id → override value
+    text?: Record<string, ComponentVariableValue>; // ComponentVariable.id → override value (text)
+    image?: Record<string, ComponentVariableValue>; // ComponentVariable.id → override value (image)
   };
 
   // Collection binding (for collection layers)
@@ -339,6 +340,7 @@ export interface BlockTemplate {
 export interface ComponentVariable {
   id: string;        // Unique variable ID
   name: string;      // Display name (e.g., "Button title")
+  type?: 'text' | 'image'; // Variable type (defaults to 'text' for backwards compatibility)
   default_value?: ComponentVariableValue; // Default value
 }
 
@@ -837,8 +839,17 @@ export interface StaticTextVariable extends VariableType {
 
 export type InlineVariable = FieldVariable;
 
-// Component variable value type (text variables for now, expandable in future)
-export type ComponentVariableValue = DynamicTextVariable | DynamicRichTextVariable;
+// Image settings value for component variables
+export interface ImageSettingsValue {
+  src?: AssetVariable | DynamicTextVariable | FieldVariable;
+  alt?: DynamicTextVariable;
+  width?: string;
+  height?: string;
+  loading?: 'lazy' | 'eager';
+}
+
+// Component variable value type (text and image variables)
+export type ComponentVariableValue = DynamicTextVariable | DynamicRichTextVariable | ImageSettingsValue;
 
 // Pagination Layer Definition (partial Layer for styling pagination controls)
 export interface PaginationLayerConfig {
