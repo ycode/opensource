@@ -93,13 +93,14 @@ export function extractTiptapFromComponentVariable(value?: ComponentVariableValu
   
   if (!value) return emptyDoc;
   
-  if (value.type === 'dynamic_rich_text') {
-    return value.data.content;
+  // Check if value is a text variable (has 'type' property) vs ImageSettingsValue (has 'src' property)
+  if ('type' in value && value.type === 'dynamic_rich_text') {
+    return (value as DynamicRichTextVariable).data.content;
   }
   
-  if (value.type === 'dynamic_text') {
+  if ('type' in value && value.type === 'dynamic_text') {
     // Convert plain text to Tiptap format
-    return stringToTiptapContent(value.data.content);
+    return stringToTiptapContent((value as DynamicTextVariable).data.content);
   }
   
   return emptyDoc;

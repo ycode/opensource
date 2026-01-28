@@ -4,37 +4,77 @@
  * Applies component variable overrides during resolution
  */
 
-import type { Layer, Component } from '@/types';
+import type { Layer, Component, ComponentVariable } from '@/types';
 
 /**
- * Apply component variable overrides to layers
- * Recursively finds layers with variables.text.id and applies override values
+ * Apply component variable overrides (or defaults) to layers
+ * Recursively finds layers with variables.text.id or variables.image.src.id and applies override or default values
  */
 function applyComponentOverrides(
   layers: Layer[],
-  overrides?: Layer['componentOverrides']
+  overrides?: Layer['componentOverrides'],
+  componentVariables?: ComponentVariable[]
 ): Layer[] {
-  if (!overrides?.text) return layers;
-
   return layers.map(layer => {
     let updatedLayer = { ...layer };
 
-    // Check if this layer has a text variable that needs to be overridden
-    const linkedVariableId = layer.variables?.text?.id;
-    if (linkedVariableId && overrides.text?.[linkedVariableId]) {
-      // Apply the override value to this layer's text variable
-      updatedLayer = {
-        ...updatedLayer,
-        variables: {
-          ...updatedLayer.variables,
-          text: overrides.text[linkedVariableId],
-        },
-      };
+    // Check if this layer has a text variable linked
+    const linkedTextVariableId = layer.variables?.text?.id;
+    if (linkedTextVariableId) {
+      // Check for override first, then fall back to variable's default value
+      const overrideValue = overrides?.text?.[linkedTextVariableId];
+      const variableDef = componentVariables?.find(v => v.id === linkedTextVariableId);
+      const valueToApply = overrideValue ?? variableDef?.default_value;
+      
+      // Only apply if it's a text variable (has 'type' property, not ImageSettingsValue)
+      if (valueToApply && 'type' in valueToApply) {
+        // Apply the value to this layer's text variable
+        updatedLayer = {
+          ...updatedLayer,
+          variables: {
+            ...updatedLayer.variables,
+            text: valueToApply as any,
+          },
+        };
+      }
+    }
+
+    // Check if this layer has an image variable linked
+    const linkedImageVariableId = (layer.variables?.image?.src as any)?.id;
+    if (linkedImageVariableId) {
+      // Check for override first, then fall back to variable's default value
+      const overrideValue = overrides?.image?.[linkedImageVariableId];
+      const variableDef = componentVariables?.find(v => v.id === linkedImageVariableId);
+      const imageValue = (overrideValue ?? variableDef?.default_value) as any;
+      
+      if (imageValue) {
+        // Apply the value to this layer's image variable
+        updatedLayer = {
+          ...updatedLayer,
+          variables: {
+            ...updatedLayer.variables,
+            image: {
+              ...updatedLayer.variables?.image,
+              // Apply src from value, keeping the variable ID for reference
+              src: imageValue.src ? { ...imageValue.src, id: linkedImageVariableId } : updatedLayer.variables?.image?.src,
+              // Apply alt from value if present
+              alt: imageValue.alt ?? updatedLayer.variables?.image?.alt,
+            },
+          },
+          // Apply width/height attributes from value if present
+          attributes: {
+            ...updatedLayer.attributes,
+            ...(imageValue.width && { width: imageValue.width }),
+            ...(imageValue.height && { height: imageValue.height }),
+            ...(imageValue.loading && { loading: imageValue.loading }),
+          },
+        };
+      }
     }
 
     // Recursively process children
     if (updatedLayer.children) {
-      updatedLayer.children = applyComponentOverrides(updatedLayer.children, overrides);
+      updatedLayer.children = applyComponentOverrides(updatedLayer.children, overrides, componentVariables);
     }
 
     return updatedLayer;
@@ -75,10 +115,11 @@ export function resolveComponents(layers: Layer[], components: Component[]): Lay
           ? resolveComponents(componentContent.children, components)
           : [];
 
-        // Apply component variable overrides before tagging
+        // Apply component variable overrides (or defaults) before tagging
         const overriddenChildren = applyComponentOverrides(
           nestedResolved,
-          layer.componentOverrides
+          layer.componentOverrides,
+          component.variables
         );
 
         // Tag with master component ID for translation lookups

@@ -825,6 +825,8 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
           (g) => g.fields.filter((f) => f.type !== 'multi_reference').length > 0
         ) ?? false;
 
+        if (!hasDisplayableFields) return null;
+
         return (
           <div className="absolute top-1 right-1">
             <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
@@ -832,8 +834,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
                 <Button
                   variant="secondary"
                   size="xs"
-                  disabled={!hasDisplayableFields}
-                  title={hasDisplayableFields ? 'Insert Variable' : 'No variables available'}
+                  title="Insert Variable"
                 >
                   <Icon name="database" className="size-2.5" />
                 </Button>

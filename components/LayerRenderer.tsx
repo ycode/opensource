@@ -570,12 +570,12 @@ const LayerItem: React.FC<{
       const valueToRender = overrideValue ?? variableDef?.default_value;
 
       if (valueToRender !== undefined) {
-        // Value is now typed as ComponentVariableValue (DynamicTextVariable | DynamicRichTextVariable)
-        if (valueToRender.type === 'dynamic_rich_text') {
+        // Value is typed as ComponentVariableValue - check if it's a text variable (has 'type' property)
+        if ('type' in valueToRender && valueToRender.type === 'dynamic_rich_text') {
           return renderRichText(valueToRender as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode);
         }
-        if (valueToRender.type === 'dynamic_text') {
-          return valueToRender.data.content;
+        if ('type' in valueToRender && valueToRender.type === 'dynamic_text') {
+          return (valueToRender as any).data.content;
         }
       }
 
@@ -619,9 +619,30 @@ const LayerItem: React.FC<{
     return undefined;
   })();
 
+  // Resolve image source - check for linked component variable first
+  const componentVariables = parentComponentVariables || editingComponentVariables;
+  const linkedImageVariableId = (layer.variables?.image?.src as any)?.id;
+
+  // Get effective image settings (from component variable or layer)
+  const effectiveImageSettings = (() => {
+    if (linkedImageVariableId && componentVariables) {
+      // Check for override value first (only when viewing an instance)
+      const overrideValue = parentComponentOverrides?.image?.[linkedImageVariableId];
+      const variableDef = componentVariables.find(v => v.id === linkedImageVariableId);
+      const valueToUse = overrideValue ?? variableDef?.default_value;
+
+      // ImageSettingsValue has src, alt, width, height, loading
+      if (valueToUse && typeof valueToUse === 'object' && 'src' in valueToUse) {
+        return valueToUse as { src?: any; alt?: any; width?: string; height?: string; loading?: string };
+      }
+    }
+    // Fall back to layer's image settings
+    return layer.variables?.image;
+  })();
+
   // Get image asset ID and apply translation if available
-  const originalImageAssetId = layer.variables?.image?.src?.type === 'asset'
-    ? layer.variables.image.src.data?.asset_id
+  const originalImageAssetId = effectiveImageSettings?.src?.type === 'asset'
+    ? effectiveImageSettings.src.data?.asset_id
     : undefined;
   const translatedImageAssetId = getTranslatedAssetId(
     originalImageAssetId || undefined,
@@ -633,8 +654,8 @@ const LayerItem: React.FC<{
 
   // Build image variable with translated asset ID
   const imageVariable = originalImageAssetId && translatedImageAssetId && translatedImageAssetId !== originalImageAssetId
-    ? { ...layer.variables?.image?.src, type: 'asset' as const, data: { asset_id: translatedImageAssetId } }
-    : layer.variables?.image?.src;
+    ? { ...effectiveImageSettings?.src, type: 'asset' as const, data: { asset_id: translatedImageAssetId } }
+    : effectiveImageSettings?.src;
 
   const imageUrl = getImageUrlFromVariable(
     imageVariable,
@@ -644,7 +665,7 @@ const LayerItem: React.FC<{
   );
 
   // Get image alt text and apply translation if available
-  const originalImageAlt = getDynamicTextContent(layer.variables?.image?.alt) || 'Image';
+  const originalImageAlt = getDynamicTextContent(effectiveImageSettings?.alt) || 'Image';
   const translatedImageAlt = getTranslatedText(
     originalImageAlt,
     `layer:${layer.id}:image_alt`,
