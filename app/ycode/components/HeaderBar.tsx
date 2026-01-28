@@ -41,6 +41,7 @@ import InviteUserButton from './InviteUserButton';
 import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 
 interface HeaderBarProps {
   user: User | null;
@@ -107,6 +108,7 @@ export default function HeaderBar({
   });
   const [baseUrl, setBaseUrl] = useState<string>('');
   const [hasUpdate, setHasUpdate] = useState(false);
+  const [publishSuccess, setPublishSuccess] = useState(false);
 
   // Get published_at from settings store (loaded on builder init)
   const publishedAt = getSettingByKey('published_at');
@@ -350,9 +352,20 @@ export default function HeaderBar({
       // Success callback
       onPublishSuccess();
 
-      // Close popover and refresh count
-      setShowPublishPopover(false);
+      // Refresh count
       await loadChangesCount();
+
+      // Show success toast with action to open the site
+      toast.success('Website published successfully', {
+        action: {
+          label: 'Open',
+          onClick: () => window.open(baseUrl + publishedUrl, '_blank'),
+        },
+      });
+
+      // Show success state on button for a few seconds
+      setPublishSuccess(true);
+      setTimeout(() => setPublishSuccess(false), 3000);
     } catch (error) {
       console.error('Failed to publish all:', error);
     } finally {
@@ -684,14 +697,14 @@ export default function HeaderBar({
               size="sm"
               className="w-full"
               onClick={handlePublishAll}
-              disabled={isPublishing}
+              disabled={isPublishing || publishSuccess}
             >
               {isPublishing ? (
-                <>
-                  <Spinner />
-                </>
+                <Spinner />
+              ) : publishSuccess ? (
+                <Icon name="check" />
               ) : (
-                'Publish'
+                publishedAt ? 'Update' : 'Publish'
               )}
             </Button>
           </PopoverContent>
