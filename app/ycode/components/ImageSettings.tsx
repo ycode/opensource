@@ -12,6 +12,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
 import InputWithInlineVariables from './InputWithInlineVariables';
+import type { FieldGroup } from './FieldTreeSelect';
 import type { Layer, CollectionField, Collection } from '@/types';
 import { createDynamicTextVariable, getDynamicTextContent, createAssetVariable, getImageUrlFromVariable, isAssetVariable, getAssetId, isDynamicTextVariable, isFieldVariable } from '@/lib/variable-utils';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
@@ -35,13 +36,13 @@ import { Separator } from '@/components/ui/separator';
 interface ImageSettingsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
-  fields?: CollectionField[];
-  fieldSourceLabel?: string;
+  /** Field groups with labels and sources for inline variable selection */
+  fieldGroups?: FieldGroup[];
   allFields?: Record<string, CollectionField[]>;
   collections?: Collection[];
 }
 
-export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourceLabel, allFields, collections }: ImageSettingsProps) {
+export default function ImageSettings({ layer, onLayerUpdate, fieldGroups, allFields, collections }: ImageSettingsProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const openFileManager = useEditorStore((state) => state.openFileManager);
@@ -50,13 +51,18 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
   // Get image source variable
   const imageSrc = layer?.variables?.image?.src;
 
+  // Derive collection fields from fieldGroups (for CMS field selection)
+  const collectionFields = useMemo(() => {
+    const collectionGroup = fieldGroups?.find(g => g.source === 'collection');
+    return collectionGroup?.fields || [];
+  }, [fieldGroups]);
+
   // Filter fields to only show image/asset type fields
   // Note: Currently using 'text' type fields as image fields don't have a dedicated type
   const imageFields = useMemo(() => {
-    if (!fields) return [];
     // For now, show all text fields that could contain image URLs or asset IDs
-    return fields.filter((field) => field.type === 'text');
-  }, [fields]);
+    return collectionFields.filter((field) => field.type === 'text');
+  }, [collectionFields]);
 
   // Detect current field ID if using FieldVariable
   const currentFieldId = useMemo(() => {
@@ -373,8 +379,7 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
                   value={customUrlValue}
                   onChange={handleUrlChange}
                   placeholder="https://example.com/image.jpg"
-                  fields={fields}
-                  fieldSourceLabel={fieldSourceLabel}
+                  fieldGroups={fieldGroups}
                   allFields={allFields}
                   collections={collections}
                 />
@@ -415,8 +420,7 @@ export default function ImageSettings({ layer, onLayerUpdate, fields, fieldSourc
                 value={altValue}
                 onChange={handleAltChange}
                 placeholder="Image description"
-                fields={fields}
-                fieldSourceLabel={fieldSourceLabel}
+                fieldGroups={fieldGroups}
                 allFields={allFields}
                 collections={collections}
               />

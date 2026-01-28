@@ -16,6 +16,16 @@ import type { CollectionField, Collection } from '@/types';
 import type { IconProps } from '@/components/ui/icon';
 import { getFieldIcon } from '@/lib/field-types-config';
 
+/** Field source for inline variable resolution */
+export type FieldSourceType = 'page' | 'collection';
+
+/** A group of fields with a source and label */
+export interface FieldGroup {
+  fields: CollectionField[];
+  label?: string;
+  source?: FieldSourceType;
+}
+
 interface FieldTreeSelectProps {
   /** Fields to display at the current level */
   fields: CollectionField[];
@@ -23,12 +33,14 @@ interface FieldTreeSelectProps {
   allFields: Record<string, CollectionField[]>;
   /** All collections for looking up collection names */
   collections: Collection[];
-  /** Callback when a field is selected */
-  onSelect: (fieldId: string, relationshipPath: string[]) => void;
+  /** Callback when a field is selected (source is passed when available) */
+  onSelect: (fieldId: string, relationshipPath: string[], source?: FieldSourceType) => void;
   /** Current relationship path (used internally for recursion) */
   relationshipPath?: string[];
   /** Label for the current collection group */
   collectionLabel?: string;
+  /** Source type for these fields (used internally for recursion) */
+  source?: FieldSourceType;
   /** Depth level for indentation (used internally) */
   depth?: number;
 }
@@ -66,13 +78,15 @@ function ReferenceFieldGroup({
   collections,
   onSelect,
   relationshipPath,
+  source,
   depth = 0,
 }: {
   field: CollectionField;
   allFields: Record<string, CollectionField[]>;
   collections: Collection[];
-  onSelect: (fieldId: string, relationshipPath: string[]) => void;
+  onSelect: (fieldId: string, relationshipPath: string[], source?: FieldSourceType) => void;
   relationshipPath: string[];
+  source?: FieldSourceType;
   depth?: number;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -132,6 +146,7 @@ function ReferenceFieldGroup({
             collections={collections}
             onSelect={onSelect}
             relationshipPath={[...relationshipPath, field.id]}
+            source={source}
             depth={depth + 1}
           />
         </div>
@@ -149,6 +164,7 @@ function FieldTreeSelectInner({
   collections,
   onSelect,
   relationshipPath = [],
+  source,
   depth = 0,
 }: FieldTreeSelectProps) {
   // Filter out multi-reference fields
@@ -167,6 +183,7 @@ function FieldTreeSelectInner({
               collections={collections}
               onSelect={onSelect}
               relationshipPath={relationshipPath}
+              source={source}
               depth={depth}
             />
           );
@@ -181,10 +198,10 @@ function FieldTreeSelectInner({
             onSelect={() => {
               if (relationshipPath.length > 0) {
                 // Nested field: include relationship path
-                onSelect(relationshipPath[0], [...relationshipPath.slice(1), field.id]);
+                onSelect(relationshipPath[0], [...relationshipPath.slice(1), field.id], source);
               } else {
                 // Root field: no relationship path
-                onSelect(field.id, []);
+                onSelect(field.id, [], source);
               }
             }}
           />
@@ -206,6 +223,7 @@ export default function FieldTreeSelect({
   collections,
   onSelect,
   collectionLabel,
+  source,
   relationshipPath = [],
   depth = 0,
 }: FieldTreeSelectProps) {
@@ -231,8 +249,63 @@ export default function FieldTreeSelect({
         collections={collections}
         onSelect={onSelect}
         relationshipPath={relationshipPath}
+        source={source}
         depth={depth}
       />
+    </div>
+  );
+}
+
+interface MultiSourceFieldTreeSelectProps {
+  /** Field groups to display, each with their own source and label */
+  fieldGroups: FieldGroup[];
+  /** All fields keyed by collection ID for resolving nested references */
+  allFields: Record<string, CollectionField[]>;
+  /** All collections for looking up collection names */
+  collections: Collection[];
+  /** Callback when a field is selected */
+  onSelect: (fieldId: string, relationshipPath: string[], source?: FieldSourceType) => void;
+}
+
+/**
+ * Multi-source Field Tree Select
+ *
+ * Renders multiple field groups with different sources (e.g., collection layer + page collection).
+ * Each group is displayed under its own label.
+ */
+export function MultiSourceFieldTreeSelect({
+  fieldGroups,
+  allFields,
+  collections,
+  onSelect,
+}: MultiSourceFieldTreeSelectProps) {
+  // Filter out empty groups
+  const nonEmptyGroups = fieldGroups.filter(
+    (group) => group.fields.filter((f) => f.type !== 'multi_reference').length > 0
+  );
+
+  if (nonEmptyGroups.length === 0) {
+    return (
+      <div className="px-3 py-2 text-xs text-zinc-500">
+        No fields available
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-1">
+      {nonEmptyGroups.map((group, index) => (
+        <div key={group.label || index}>
+          <FieldTreeSelect
+            fields={group.fields}
+            allFields={allFields}
+            collections={collections}
+            onSelect={onSelect}
+            collectionLabel={group.label}
+            source={group.source}
+          />
+        </div>
+      ))}
     </div>
   );
 }

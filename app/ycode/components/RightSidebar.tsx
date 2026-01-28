@@ -54,6 +54,7 @@ import { useComponentsStore } from '@/stores/useComponentsStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
+import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 import { useEditorActions, useEditorUrl } from '@/hooks/use-editor-url';
 
 // 5.5 Hooks
@@ -66,6 +67,7 @@ import { sanitizeHtmlId } from '@/lib/html-utils';
 import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTextEditable, findLayerWithParent } from '@/lib/layer-utils';
 import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
+import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 
 // 7. Types
 import type { Layer, FieldVariable, CollectionField } from '@/types';
@@ -165,6 +167,10 @@ const RightSidebar = React.memo(function RightSidebar({
   const clearActiveInteraction = useEditorStore((state) => state.clearActiveInteraction);
   const activeTextStyleKey = useEditorStore((state) => state.activeTextStyleKey);
   const showTextStyleControls = useEditorStore((state) => state.showTextStyleControls());
+
+  // Check if text is being edited on canvas
+  const isTextEditingOnCanvas = useCanvasTextEditorStore((state) => state.isEditing);
+  const editingLayerIdOnCanvas = useCanvasTextEditorStore((state) => state.editingLayerId);
 
   // Collaboration hooks - re-enabled
   const layerLocks = useLayerLocks();
@@ -655,14 +661,16 @@ const RightSidebar = React.memo(function RightSidebar({
     const newClasses = [...classesWithoutConflicts, trimmedClass].join(' ');
 
     // In text edit mode with a text style selected, update the text style
+    // Initialize with DEFAULT_TEXT_STYLES if layer doesn't have textStyles yet
     if (showTextStyleControls && activeTextStyleKey) {
       const parsedDesign = classesToDesign([trimmedClass]);
-      const currentTextStyle = selectedLayer.textStyles?.[activeTextStyleKey] || { design: {}, classes: '' };
+      const currentTextStyles = selectedLayer.textStyles ?? { ...DEFAULT_TEXT_STYLES };
+      const currentTextStyle = currentTextStyles[activeTextStyleKey] || { design: {}, classes: '' };
       const updatedDesign = mergeDesign(currentTextStyle.design, parsedDesign);
 
       handleLayerUpdate(selectedLayer.id, {
         textStyles: {
-          ...selectedLayer.textStyles,
+          ...currentTextStyles,
           [activeTextStyleKey]: {
             ...currentTextStyle,
             classes: newClasses,
@@ -692,11 +700,13 @@ const RightSidebar = React.memo(function RightSidebar({
     setClassesInput(newClasses);
 
     // In text edit mode with a text style selected, update the text style
+    // Initialize with DEFAULT_TEXT_STYLES if layer doesn't have textStyles yet
     if (showTextStyleControls && activeTextStyleKey) {
-      const currentTextStyle = selectedLayer.textStyles?.[activeTextStyleKey] || { design: {}, classes: '' };
+      const currentTextStyles = selectedLayer.textStyles ?? { ...DEFAULT_TEXT_STYLES };
+      const currentTextStyle = currentTextStyles[activeTextStyleKey] || { design: {}, classes: '' };
       handleLayerUpdate(selectedLayer.id, {
         textStyles: {
-          ...selectedLayer.textStyles,
+          ...currentTextStyles,
           [activeTextStyleKey]: {
             ...currentTextStyle,
             classes: newClasses,
@@ -1380,24 +1390,49 @@ const RightSidebar = React.memo(function RightSidebar({
     return fields[collectionId] || [];
   }, [parentCollectionLayer, fields, currentPage]);
 
-  const fieldSourceLabel = useMemo(() => {
-    // Check if fields come from parent collection layer
+  // Build field groups for multi-source inline variable selection
+  // This allows showing both collection layer fields AND page collection fields when applicable
+  const fieldGroups = useMemo(() => {
+    const groups: { fields: CollectionField[]; label?: string; source?: 'page' | 'collection' }[] = [];
+
+    // Add collection layer fields if inside a collection layer
     if (parentCollectionLayer) {
       const collectionVariable = getCollectionVariable(parentCollectionLayer);
       const collectionId = collectionVariable?.id;
       if (collectionId) {
+        const collectionFields = fields[collectionId] || [];
         const collection = collections.find(c => c.id === collectionId);
-        return collection?.name; // Returns collection name like "Blog Posts"
+        if (collectionFields.length > 0) {
+          groups.push({
+            fields: collectionFields,
+            label: collection?.name || 'Collection',
+            source: 'collection',
+          });
+        }
       }
     }
 
-    // Check if fields come from dynamic page
+    // Add page collection fields if on a dynamic page
     if (currentPage?.is_dynamic && currentPage?.settings?.cms?.collection_id) {
-      return 'CMS page data';
+      const pageCollectionId = currentPage.settings.cms.collection_id;
+      const pageCollectionFields = fields[pageCollectionId] || [];
+      // Only add if different from collection layer fields or not inside a collection layer
+      if (pageCollectionFields.length > 0) {
+        const collectionVariable = parentCollectionLayer ? getCollectionVariable(parentCollectionLayer) : null;
+        const collectionLayerCollectionId = collectionVariable?.id;
+        // Avoid duplicating if same collection
+        if (pageCollectionId !== collectionLayerCollectionId) {
+          groups.push({
+            fields: pageCollectionFields,
+            label: 'Page data',
+            source: 'page',
+          });
+        }
+      }
     }
 
-    return undefined; // No label
-  }, [parentCollectionLayer, currentPage, collections]);
+    return groups.length > 0 ? groups : undefined;
+  }, [parentCollectionLayer, currentPage, fields, collections]);
 
   // Get collection fields for the currently selected collection layer (for Sort By dropdown)
   const selectedCollectionFields = useMemo(() => {
@@ -1708,7 +1743,7 @@ const RightSidebar = React.memo(function RightSidebar({
                           value={getOverrideValue(variable.id)}
                           onChange={(val) => handleVariableOverrideChange(variable.id, val)}
                           placeholder="Enter value..."
-                          fields={[]}
+                          fieldGroups={fieldGroups}
                           allFields={fields}
                           collections={collections}
                           withFormatting={true}
@@ -2090,50 +2125,53 @@ const RightSidebar = React.memo(function RightSidebar({
                   onToggle={() => setContentOpen(!contentOpen)}
                 >
                   <div className="grid grid-cols-3">
-                    <div className="flex items-start gap-1 py-1">
-                      {editingComponentId ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="variable"
-                              size="xs"
-                              className="has-[>svg]:px-0 py-"
-                            >
-                              <Icon name="plus-circle-solid" />
-                              Content
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {componentVariables.length > 0 && (
-                              <DropdownMenuSub>
-                                <DropdownMenuSubTrigger>Link to variable</DropdownMenuSubTrigger>
-                                <DropdownMenuPortal>
-                                  <DropdownMenuSubContent>
-                                    {componentVariables.map((variable) => (
-                                      <DropdownMenuItem
-                                        key={variable.id}
-                                        onClick={() => handleLinkVariable(variable.id)}
-                                      >
-                                        {variable.name}
-                                        {linkedVariableId === variable.id && (
-                                          <Icon name="check" className="ml-auto size-3" />
-                                        )}
-                                      </DropdownMenuItem>
-                                    ))}
-                                  </DropdownMenuSubContent>
-                                </DropdownMenuPortal>
-                              </DropdownMenuSub>
-                            )}
-                            <DropdownMenuItem onClick={() => setVariablesDialogOpen(true)}>
-                              Manage variables
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : (
-                        <Label variant="muted">Content</Label>
-                      )}
-                    </div>
-                    <div className="col-span-2 *:w-full">
+                    {!(isTextEditingOnCanvas && editingLayerIdOnCanvas === selectedLayerId) && (
+                      <div className="flex items-start gap-1 py-1">
+                        {editingComponentId ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="variable"
+                                size="xs"
+                                className="has-[>svg]:px-0 py-"
+                              >
+                                <Icon name="plus-circle-solid" />
+                                Content
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {componentVariables.length > 0 && (
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger>Link to variable</DropdownMenuSubTrigger>
+                                  <DropdownMenuPortal>
+                                    <DropdownMenuSubContent>
+                                      {componentVariables.map((variable) => (
+                                        <DropdownMenuItem
+                                          key={variable.id}
+                                          onClick={() => handleLinkVariable(variable.id)}
+                                        >
+                                          {variable.name}
+                                          {linkedVariableId === variable.id && (
+                                            <Icon name="check" className="ml-auto size-3" />
+                                          )}
+                                        </DropdownMenuItem>
+                                      ))}
+                                    </DropdownMenuSubContent>
+                                  </DropdownMenuPortal>
+                                </DropdownMenuSub>
+                              )}
+                              <DropdownMenuItem onClick={() => setVariablesDialogOpen(true)}>
+                                Manage variables
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <Label variant="muted">Content</Label>
+                        )}
+                      </div>
+                    )}
+
+                    <div className={isTextEditingOnCanvas && editingLayerIdOnCanvas === selectedLayerId ? 'col-span-3' : 'col-span-2 *:w-full'}>
                       {linkedVariable ? (
                         <Button
                           asChild
@@ -2151,13 +2189,18 @@ const RightSidebar = React.memo(function RightSidebar({
                             </Button>
                           </div>
                         </Button>
+                      ) : (isTextEditingOnCanvas && editingLayerIdOnCanvas === selectedLayerId) ? (
+                        // Don't render InputWithInlineVariables while canvas text editor is active
+                        // to prevent race conditions when saving
+                        <Empty className="min-h-[2rem] py-2">
+                          <EmptyDescription>You are editing the text directly on canvas.</EmptyDescription>
+                        </Empty>
                       ) : (
                         <InputWithInlineVariables
                           value={getContentValue(selectedLayer)}
                           onChange={handleContentChange}
                           placeholder="Enter text..."
-                          fields={parentCollectionFields}
-                          fieldSourceLabel={fieldSourceLabel}
+                          fieldGroups={fieldGroups}
                           allFields={fields}
                           collections={collections}
                           withFormatting={true}
@@ -2487,8 +2530,7 @@ const RightSidebar = React.memo(function RightSidebar({
             <ImageSettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
-              fields={parentCollectionFields}
-              fieldSourceLabel={fieldSourceLabel}
+              fieldGroups={fieldGroups}
               allFields={fields}
               collections={collections}
             />
@@ -2496,8 +2538,7 @@ const RightSidebar = React.memo(function RightSidebar({
             <VideoSettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
-              fields={parentCollectionFields}
-              fieldSourceLabel={fieldSourceLabel}
+              fieldGroups={fieldGroups}
               allFields={fields}
               collections={collections}
             />
@@ -2505,8 +2546,7 @@ const RightSidebar = React.memo(function RightSidebar({
             <AudioSettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
-              fields={parentCollectionFields}
-              fieldSourceLabel={fieldSourceLabel}
+              fieldGroups={fieldGroups}
               allFields={fields}
               collections={collections}
             />
@@ -2524,8 +2564,7 @@ const RightSidebar = React.memo(function RightSidebar({
             <LinkSettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
-              fields={parentCollectionFields}
-              fieldSourceLabel={fieldSourceLabel}
+              fieldGroups={fieldGroups}
               allFields={fields}
               collections={collections}
               isLockedByOther={isLockedByOther}
@@ -2544,8 +2583,7 @@ const RightSidebar = React.memo(function RightSidebar({
             <ConditionalVisibilitySettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
-              fields={parentCollectionFields}
-              fieldSourceLabel={fieldSourceLabel}
+              fieldGroups={fieldGroups}
             />
 
             {/* Custom Attributes Panel */}

@@ -15,6 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import Icon, { type IconProps } from '@/components/ui/icon';
 import SettingsPanel from './SettingsPanel';
 import InputWithInlineVariables from './InputWithInlineVariables';
+import type { FieldGroup } from './FieldTreeSelect';
 import {
   Select,
   SelectContent,
@@ -44,8 +45,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 interface LinkSettingsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
-  fields?: CollectionField[];
-  fieldSourceLabel?: string;
+  /** Field groups with labels and sources for inline variable selection */
+  fieldGroups?: FieldGroup[];
   allFields?: Record<string, CollectionField[]>;
   collections?: Collection[];
   isLockedByOther?: boolean;
@@ -55,8 +56,7 @@ interface LinkSettingsProps {
 export default function LinkSettings({
   layer,
   onLayerUpdate,
-  fields,
-  fieldSourceLabel,
+  fieldGroups,
   allFields,
   collections,
   isLockedByOther,
@@ -171,10 +171,16 @@ export default function LinkSettings({
 
   // Check if the layer itself is a collection layer
   const isCollectionLayer = !!(layer && getCollectionVariable(layer));
-  
+
+  // Derive collection fields from fieldGroups (for internal use like CMS field link)
+  const collectionFields = useMemo(() => {
+    const collectionGroup = fieldGroups?.find(g => g.source === 'collection');
+    return collectionGroup?.fields || [];
+  }, [fieldGroups]);
+
   // Check if we have collection fields available (from collection layer context)
   // Show current-collection option when inside a collection layer OR when the layer IS a collection layer
-  const hasCollectionFields = !!(fields && fields.length > 0 && isInsideCollectionLayer);
+  const hasCollectionFields = !!(collectionFields.length > 0 && isInsideCollectionLayer);
   const canUseCurrentCollectionItem = hasCollectionFields || isCollectionLayer;
 
   // Get collection ID from dynamic page settings
@@ -206,9 +212,8 @@ export default function LinkSettings({
 
   // Filter fields to show only text/URL fields for CMS field link
   const urlFields = useMemo(() => {
-    if (!fields) return [];
-    return fields.filter((field) => field.type === 'text');
-  }, [fields]);
+    return collectionFields.filter((field) => field.type === 'text');
+  }, [collectionFields]);
 
   // Check if link settings should be disabled due to nesting restrictions
   const linkNestingIssue = useMemo(() => {
@@ -611,8 +616,7 @@ export default function LinkSettings({
                 value={urlValue}
                 onChange={handleUrlChange}
                 placeholder="https://example.com"
-                fields={fields}
-                fieldSourceLabel={fieldSourceLabel}
+                fieldGroups={fieldGroups}
                 allFields={allFields}
                 collections={collections}
                 disabled={isLockedByOther}
@@ -630,8 +634,7 @@ export default function LinkSettings({
                 value={emailValue}
                 onChange={handleEmailChange}
                 placeholder="email@example.com"
-                fields={fields}
-                fieldSourceLabel={fieldSourceLabel}
+                fieldGroups={fieldGroups}
                 allFields={allFields}
                 collections={collections}
                 disabled={isLockedByOther}
@@ -649,8 +652,7 @@ export default function LinkSettings({
                 value={phoneValue}
                 onChange={handlePhoneChange}
                 placeholder="+1234567890"
-                fields={fields}
-                fieldSourceLabel={fieldSourceLabel}
+                fieldGroups={fieldGroups}
                 allFields={allFields}
                 collections={collections}
                 disabled={isLockedByOther}

@@ -119,16 +119,16 @@ export default function ComponentVariablesDialog({
   // Save default value on blur
   const handleDefaultValueBlur = async (tiptapContent: any) => {
     if (!componentId || !selectedVariableId) return;
-    
+
     // Check if value has changed
     const currentValue = selectedVariable?.default_value;
     const currentTiptap = extractTiptapFromComponentVariable(currentValue);
-    
+
     // Simple comparison - stringify and compare
     if (JSON.stringify(currentTiptap) === JSON.stringify(tiptapContent)) {
       return; // No change, skip API call
     }
-    
+
     // Wrap Tiptap content in proper ComponentVariableValue structure (text variable)
     const variableValue = createTextComponentVariableValue(tiptapContent);
     await updateTextVariable(componentId, selectedVariableId, { default_value: variableValue });
@@ -221,7 +221,6 @@ export default function ComponentVariablesDialog({
                       onChange={handleDefaultValueChange}
                       onBlur={handleDefaultValueBlur}
                       placeholder="Default value..."
-                      fields={[]}
                       allFields={fields}
                       collections={collections}
                       withFormatting={true}

@@ -832,6 +832,8 @@ export interface FieldVariable extends VariableType {
     field_id: string | null;
     relationships: string[];
     format?: string;
+    /** Source of the field data: 'page' for page collection, 'collection' for collection layer */
+    source?: 'page' | 'collection';
   };
 }
 

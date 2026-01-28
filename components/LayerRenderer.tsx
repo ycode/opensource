@@ -39,7 +39,7 @@ import { buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page
  */
 function buildAnchorMap(layers: Layer[]): Record<string, string> {
   const map: Record<string, string> = {};
-  
+
   const traverse = (layerList: Layer[]) => {
     for (const layer of layerList) {
       // Only add to map if layer has a custom id attribute set
@@ -51,7 +51,7 @@ function buildAnchorMap(layers: Layer[]): Record<string, string> {
       }
     }
   };
-  
+
   traverse(layers);
   return map;
 }
@@ -572,7 +572,7 @@ const LayerItem: React.FC<{
       if (valueToRender !== undefined) {
         // Value is now typed as ComponentVariableValue (DynamicTextVariable | DynamicRichTextVariable)
         if (valueToRender.type === 'dynamic_rich_text') {
-          return renderRichText(valueToRender as any, effectiveCollectionItemData, layer.textStyles, useSpanForParagraphs, isEditMode);
+          return renderRichText(valueToRender as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode);
         }
         if (valueToRender.type === 'dynamic_text') {
           return valueToRender.data.content;
@@ -587,7 +587,7 @@ const LayerItem: React.FC<{
     if (textVariable?.type === 'dynamic_rich_text') {
       // Render rich text with formatting (bold, italic, etc.) and inline variables
       // In edit mode, adds data-style attributes for style selection
-      return renderRichText(textVariable as any, effectiveCollectionItemData, layer.textStyles, useSpanForParagraphs, isEditMode);
+      return renderRichText(textVariable as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode);
     }
 
     // Check for inline variables in DynamicTextVariable format (legacy)
@@ -800,17 +800,17 @@ const LayerItem: React.FC<{
   }, [isEditMode, isLockedByOther, onLayerUpdate, layer, openFileManager]);
 
   const finishEditing = useCallback(() => {
-    if (editingLayerId === layer.id && onLayerUpdate) {
+    if (editingLayerId === layer.id) {
       setEditingLayerId(null);
     }
-  }, [editingLayerId, layer.id, onLayerUpdate, setEditingLayerId]);
+  }, [editingLayerId, layer.id, setEditingLayerId]);
 
   // Handle content change from CanvasTextEditor
   const handleEditorChange = useCallback((newContent: any) => {
     if (!onLayerUpdate) return;
 
-    // Update with rich text format
-    onLayerUpdate(layer.id, {
+    // Use callback form to ensure we get the latest layer data
+    const updates: Partial<Layer> = {
       variables: {
         ...layer.variables,
         text: {
@@ -818,7 +818,9 @@ const LayerItem: React.FC<{
           data: { content: newContent },
         },
       },
-    });
+    };
+
+    onLayerUpdate(layer.id, updates);
   }, [layer.id, layer.variables, onLayerUpdate]);
 
   const style = enableDragDrop ? {

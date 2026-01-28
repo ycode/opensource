@@ -12,6 +12,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
 import InputWithInlineVariables from './InputWithInlineVariables';
+import type { FieldGroup } from './FieldTreeSelect';
 import type { Layer, CollectionField, Collection, VideoVariable } from '@/types';
 import { createAssetVariable, createDynamicTextVariable, getDynamicTextContent, isAssetVariable, getAssetId, isFieldVariable, isDynamicTextVariable } from '@/lib/variable-utils';
 import { Button } from '@/components/ui/button';
@@ -42,13 +43,13 @@ import { Input } from '@/components/ui/input';
 interface VideoSettingsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
-  fields?: CollectionField[];
-  fieldSourceLabel?: string;
+  /** Field groups with labels and sources for inline variable selection */
+  fieldGroups?: FieldGroup[];
   allFields?: Record<string, CollectionField[]>;
   collections?: Collection[];
 }
 
-export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourceLabel, allFields, collections }: VideoSettingsProps) {
+export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFields, collections }: VideoSettingsProps) {
   const [isOpen, setIsOpen] = useState(true);
 
   // Initialize selectedField from current field variable if it exists
@@ -384,6 +385,17 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
     });
   }, [layer, onLayerUpdate]);
 
+  // Derive collection fields from fieldGroups (for CMS field selection)
+  const collectionFields = useMemo(() => {
+    const collectionGroup = fieldGroups?.find(g => g.source === 'collection');
+    return collectionGroup?.fields || [];
+  }, [fieldGroups]);
+
+  // Get video fields (image type fields can store any asset including videos)
+  const videoFields = useMemo(() => {
+    return collectionFields.filter(f => f.type === 'image');
+  }, [collectionFields]);
+
   // Only show for video layers
   if (!layer || layer.name !== 'video') {
     return null;
@@ -394,9 +406,6 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
   const currentFieldId = isFieldVariableSrc && videoSrc && 'data' in videoSrc && 'field_id' in videoSrc.data
     ? videoSrc.data.field_id
     : null;
-
-  // Get video fields (image type fields can store any asset including videos)
-  const videoFields = fields?.filter(f => f.type === 'image') || [];
 
   // Get current behavior values from attributes
   const isMuted = layer.attributes?.muted === true;
@@ -564,8 +573,7 @@ export default function VideoSettings({ layer, onLayerUpdate, fields, fieldSourc
                   value={customUrlValue}
                   onChange={handleCustomUrlChange}
                   placeholder="https://example.com/video.mp4"
-                  fields={fields}
-                  fieldSourceLabel={fieldSourceLabel}
+                  fieldGroups={fieldGroups}
                   allFields={allFields}
                   collections={collections}
                 />
