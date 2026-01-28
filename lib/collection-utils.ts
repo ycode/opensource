@@ -67,6 +67,14 @@ export function castValue(value: string | null, type: CollectionFieldType): any 
         return value;
       }
 
+    case 'link':
+      // Parse link settings from stored JSON
+      try {
+        return JSON.parse(value);
+      } catch {
+        return null;
+      }
+
     case 'text':
     default:
       // Try to parse JSON for text fields that might contain JSON objects
@@ -111,6 +119,13 @@ export function valueToString(value: any, type: CollectionFieldType): string | n
 
     case 'reference':
       // Store ID as string
+      return String(value);
+
+    case 'link':
+      // Store link settings as JSON
+      if (typeof value === 'object') {
+        return JSON.stringify(value);
+      }
       return String(value);
 
     case 'rich_text':

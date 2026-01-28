@@ -52,7 +52,7 @@ export async function PUT(
 
     // Validate field type if provided
     if (body.type) {
-      const validTypes = ['text', 'rich_text', 'number', 'boolean', 'date', 'reference', 'multi_reference', 'image'];
+      const validTypes = ['text', 'rich_text', 'number', 'boolean', 'date', 'link', 'reference', 'multi_reference', 'image'];
       if (!validTypes.includes(body.type)) {
         return noCache(
           { error: `Invalid field type. Must be one of: ${validTypes.join(', ')}` },

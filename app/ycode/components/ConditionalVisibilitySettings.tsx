@@ -149,6 +149,7 @@ function getFieldIcon(fieldType: CollectionFieldType | undefined): IconProps['na
     case 'multi_reference': return 'database';
     case 'image': return 'image';
     case 'rich_text': return 'textAlignLeft';
+    case 'link': return 'link';
     case 'text':
     default:
       return 'text';

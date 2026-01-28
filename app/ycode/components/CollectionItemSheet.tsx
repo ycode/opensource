@@ -38,6 +38,7 @@ import { slugify } from '@/lib/collection-utils';
 import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
+import CollectionLinkFieldInput from './CollectionLinkFieldInput';
 import type { CollectionItemWithValues } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -394,6 +395,11 @@ export default function CollectionItemSheet({
                               onChange={formField.onChange}
                               isMulti={true}
                               placeholder={`Select ${field.name.toLowerCase()}...`}
+                            />
+                          ) : field.type === 'link' ? (
+                            <CollectionLinkFieldInput
+                              value={formField.value || ''}
+                              onChange={formField.onChange}
                             />
                           ) : field.type === 'image' ? (
                             /* Image Field - File Manager UI */

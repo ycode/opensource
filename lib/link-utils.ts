@@ -1,4 +1,4 @@
-import type { Page, PageFolder, Locale, LinkSettings, Layer, DynamicTextVariable } from '@/types';
+import type { Page, PageFolder, Locale, LinkSettings, Layer, DynamicTextVariable, CollectionLinkValue } from '@/types';
 import { buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 
 // ============================================================================
@@ -239,6 +239,87 @@ function resolveInlineVariables(
 }
 
 /**
+ * Parse a string or object value as CollectionLinkValue
+ * Returns null if the value is not a valid CollectionLinkValue
+ */
+export function parseCollectionLinkValue(value: string | CollectionLinkValue | unknown): CollectionLinkValue | null {
+  if (!value) return null;
+
+  // If already an object, validate and return it
+  if (typeof value === 'object' && 'type' in value) {
+    if (value.type === 'url' || value.type === 'page') {
+      return value as CollectionLinkValue;
+    }
+    return null;
+  }
+
+  // If string, parse JSON
+  if (typeof value === 'string') {
+    if (!value.startsWith('{')) return null;
+    try {
+      const parsed = JSON.parse(value);
+      // Validate it has the expected structure
+      if (parsed && typeof parsed === 'object' && 'type' in parsed) {
+        if (parsed.type === 'url' || parsed.type === 'page') {
+          return parsed as CollectionLinkValue;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Resolve a CollectionLinkValue to an href string
+ */
+export function resolveCollectionLinkValue(
+  linkValue: CollectionLinkValue,
+  context: LinkResolutionContext
+): string | null {
+  const { pages, folders, collectionItemSlugs, isPreview, locale, translations } = context;
+
+  if (linkValue.type === 'url') {
+    return linkValue.url || null;
+  }
+
+  if (linkValue.type === 'page') {
+    if (!linkValue.page?.id || !pages || !folders) return null;
+
+    const page = pages.find(p => p.id === linkValue.page?.id);
+    if (!page) return null;
+
+    let href: string;
+
+    // Handle dynamic pages with specific collection item
+    if (page.is_dynamic && linkValue.page.collection_item_id && collectionItemSlugs) {
+      const itemSlug = collectionItemSlugs[linkValue.page.collection_item_id];
+      href = buildLocalizedDynamicPageUrl(page, folders, itemSlug || null, locale, translations || undefined);
+    } else {
+      // Static page or dynamic page without specific item
+      href = buildLocalizedSlugPath(page, folders, 'page', locale, translations || undefined);
+    }
+
+    // Prefix with /ycode/preview in preview mode
+    if (isPreview && href) {
+      href = `/ycode/preview${href}`;
+    }
+
+    // Append anchor if present
+    if (href && linkValue.page.anchor_layer_id) {
+      href = `${href}#${linkValue.page.anchor_layer_id}`;
+    }
+
+    return href || null;
+  }
+
+  return null;
+}
+
+/**
  * Generate href from link settings using provided context
  * Shared utility for both layer-level links and rich text links
  */
@@ -329,11 +410,24 @@ export function generateLinkHref(
         const fieldId = linkSettings.field.data.field_id;
         const relationships = linkSettings.field.data.relationships || [];
 
+        let rawValue: string | undefined;
         if (relationships.length > 0) {
           const fullPath = [fieldId, ...relationships].join('.');
-          href = fieldData[fullPath] || '';
+          rawValue = fieldData[fullPath];
         } else {
-          href = fieldData[fieldId] || '';
+          rawValue = fieldData[fieldId];
+        }
+
+        if (rawValue) {
+          // Check if value is a CollectionLinkValue JSON (for 'link' field type)
+          const linkValue = parseCollectionLinkValue(rawValue);
+          if (linkValue) {
+            // Resolve the link value using the same context
+            href = resolveCollectionLinkValue(linkValue, context) || '';
+          } else {
+            // Use raw value directly (for text fields containing URLs)
+            href = rawValue;
+          }
         }
       }
       break;

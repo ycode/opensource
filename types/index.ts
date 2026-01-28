@@ -324,6 +324,25 @@ export interface LayerVariables {
 // Link type discriminator
 export type LinkType = 'url' | 'email' | 'phone' | 'asset' | 'page' | 'field';
 
+// Collection link field types (simplified for CMS fields)
+export type CollectionLinkType = 'url' | 'page';
+
+// Collection Link Field Value (stored as JSON in collection item values)
+// Note: Link behavior (target, rel) is set on the layer, not in the CMS value
+export interface CollectionLinkValue {
+  type: CollectionLinkType;
+
+  // URL link - simple string URL
+  url?: string;
+
+  // Page link - link to a page (static or dynamic with static item)
+  page?: {
+    id: string; // Page ID
+    collection_item_id?: string | null; // Static collection item ID (no current-page/current-collection)
+    anchor_layer_id?: string | null; // Optional layer ID for anchor links
+  };
+}
+
 // Reusable link settings structure
 export interface LinkSettings {
   type: LinkType;
@@ -707,7 +726,7 @@ export interface ActivityNotification {
 }
 
 // Collection Types (EAV Architecture)
-export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image';
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'link';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {

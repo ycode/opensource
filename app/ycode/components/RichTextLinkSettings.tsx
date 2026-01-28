@@ -216,9 +216,9 @@ export default function RichTextLinkSettings({
     loadItems();
   }, [pageCollectionId, isDynamicPage]);
 
-  // Filter fields to show only text/URL fields for CMS field link
-  const urlFields = useMemo(() => {
-    return collectionFields.filter((field) => field.type === 'text');
+  // Filter fields to show only link fields for CMS field link
+  const linkFields = useMemo(() => {
+    return collectionFields.filter((field) => field.type === 'link');
   }, [collectionFields]);
 
   // Link type options for the dropdown
@@ -233,13 +233,13 @@ export default function RichTextLinkSettings({
       { type: 'separator' },
       { value: 'page', label: 'Page', icon: 'page' },
       { value: 'asset', label: 'Asset', icon: 'paperclip' },
-      { value: 'field', label: 'CMS field', icon: 'database', disabled: urlFields.length === 0 },
+      { value: 'field', label: 'CMS field', icon: 'database', disabled: linkFields.length === 0 },
       { type: 'separator' },
       { value: 'url', label: 'URL', icon: 'link' },
       { value: 'email', label: 'Email', icon: 'email' },
       { value: 'phone', label: 'Phone', icon: 'phone' },
     ];
-  }, [urlFields]);
+  }, [linkFields]);
 
   // Handle link type change
   const handleLinkTypeChange = useCallback(
@@ -404,7 +404,7 @@ export default function RichTextLinkSettings({
 
       onChange({
         ...linkSettings,
-        anchor_layer_id: newValue || null,
+        anchor_layer_id: newValue === 'none' ? null : newValue,
       });
     },
     [linkSettings, onChange]
@@ -679,15 +679,15 @@ export default function RichTextLinkSettings({
             <Select
               value={fieldId || ''}
               onValueChange={handleFieldChange}
-              disabled={urlFields.length === 0}
+              disabled={linkFields.length === 0}
             >
               <SelectTrigger className="w-full">
                 <SelectValue
-                  placeholder={urlFields.length === 0 ? 'No URL fields' : 'Select field'}
+                  placeholder={linkFields.length === 0 ? 'No link fields' : 'Select field'}
                 />
               </SelectTrigger>
               <SelectContent>
-                {urlFields.map((field) => (
+                {linkFields.map((field) => (
                   <SelectItem key={field.id} value={field.id}>
                     {field.name}
                   </SelectItem>
@@ -713,20 +713,20 @@ export default function RichTextLinkSettings({
 
           <div className="col-span-2">
             <Select
-              value={anchorLayerId || undefined}
+              value={anchorLayerId || 'none'}
               onValueChange={handleAnchorLayerIdChange}
-              disabled={anchorLayers.length === 0}
+              disabled={false}
             >
               <SelectTrigger className="w-full">
-                <SelectValue
-                  placeholder={
-                    anchorLayers.length === 0
-                      ? 'Page has no anchors'
-                      : 'Select anchor'
-                  }
-                />
+                <SelectValue placeholder="Select anchor" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">
+                  <div className="flex items-center gap-2">
+                    <Icon name="none" className="size-3" />
+                    <span>No anchor</span>
+                  </div>
+                </SelectItem>
                 {anchorLayers.map(({ layer: anchorLayer, id }) => (
                   <SelectItem key={id} value={id}>
                     <div className="flex items-center gap-2">

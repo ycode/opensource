@@ -14,6 +14,7 @@ export const FIELD_TYPES = [
   { value: 'number', label: 'Number' },
   { value: 'boolean', label: 'Boolean' },
   { value: 'date', label: 'Date' },
+  { value: 'link', label: 'Link' },
   { value: 'reference', label: 'Reference' },
   { value: 'multi_reference', label: 'Multi-Reference' },
   { value: 'image', label: 'Image' },
@@ -37,6 +38,8 @@ export function getFieldIcon(field: CollectionField): IconProps['name'] {
       return 'calendar';
     case 'image':
       return 'image';
+    case 'link':
+      return 'link';
     case 'reference':
       return 'database';
     default:
