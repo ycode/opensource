@@ -12,14 +12,15 @@ import type { Layer, Locale, ComponentVariable, LinkSettings } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
-import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent, createAssetVariable, createDynamicTextVariable, hasLinkSettings } from '@/lib/variable-utils';
+import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent, createAssetVariable, createDynamicTextVariable } from '@/lib/variable-utils';
 import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-utils';
+import { isValidLinkSettings } from '@/lib/link-utils';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { toast } from 'sonner';
 import { resolveInlineVariables } from '@/lib/inline-variables';
-import { renderRichText, hasBlockElements } from '@/lib/text-format-utils';
+import { renderRichText, hasBlockElements, type RichTextLinkContext } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
 import { useComponentsStore } from '@/stores/useComponentsStore';
@@ -31,7 +32,7 @@ import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
 import LocaleSelector from '@/components/layers/LocaleSelector';
 import { usePagesStore } from '@/stores/usePagesStore';
-import { buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
+import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
 
 /**
  * Build a map of layerId -> anchor value (attributes.id) for O(1) anchor resolution
@@ -54,113 +55,6 @@ function buildAnchorMap(layers: Layer[]): Record<string, string> {
 
   traverse(layers);
   return map;
-}
-
-/**
- * Generate href from layer link settings
- * @param collectionItemId - Current collection layer's item ID (for 'current-collection' links)
- * @param pageCollectionItemId - Page-level collection item ID (for 'current-page' links on dynamic pages)
- * @param collectionItemData - Current collection layer's item data (for field-based links)
- * @param pageCollectionItemData - Page-level collection item data (for field-based links on dynamic pages)
- */
-function generateLinkHref(
-  linkSettings: LinkSettings | undefined,
-  getAsset: (id: string) => any,
-  collectionItemId?: string,
-  pageCollectionItemId?: string,
-  collectionItemData?: Record<string, string>,
-  pageCollectionItemData?: Record<string, string>,
-  pages?: any[],
-  folders?: any[],
-  collectionItemSlugs?: Record<string, string>,
-  isPreview?: boolean,
-  locale?: any | null,
-  translations?: Record<string, any> | null,
-  anchorMap?: Record<string, string>
-): string | null {
-  if (!linkSettings || !linkSettings.type) return null;
-
-  let href = '';
-
-  switch (linkSettings.type) {
-    case 'url':
-      href = linkSettings.url?.data?.content || '';
-      break;
-    case 'email':
-      href = linkSettings.email?.data?.content ? `mailto:${linkSettings.email.data.content}` : '';
-      break;
-    case 'phone':
-      href = linkSettings.phone?.data?.content ? `tel:${linkSettings.phone.data.content}` : '';
-      break;
-    case 'asset':
-      if (linkSettings.asset?.id) {
-        const asset = getAsset(linkSettings.asset.id);
-        href = asset?.public_url || '';
-      }
-      break;
-    case 'page':
-      if (linkSettings.page?.id && pages && folders) {
-        const page = pages.find(p => p.id === linkSettings.page?.id);
-        if (page) {
-          // Check if this is a dynamic page with a specific collection item
-          if (page.is_dynamic && linkSettings.page.collection_item_id && collectionItemSlugs) {
-            let itemSlug: string | undefined;
-
-            // Handle special "current" keywords
-            if (linkSettings.page.collection_item_id === 'current-page') {
-              // Use the page's collection item (for dynamic pages)
-              itemSlug = pageCollectionItemId ? collectionItemSlugs[pageCollectionItemId] : undefined;
-            } else if (linkSettings.page.collection_item_id === 'current-collection') {
-              // Use the current collection layer's item
-              itemSlug = collectionItemId ? collectionItemSlugs[collectionItemId] : undefined;
-            } else {
-              // Use the specific item slug
-              itemSlug = collectionItemSlugs[linkSettings.page.collection_item_id];
-            }
-
-            href = buildLocalizedDynamicPageUrl(page, folders, itemSlug || null, locale, translations || undefined);
-          } else {
-            // Static page or dynamic page without specific item
-            href = buildLocalizedSlugPath(page, folders, 'page', locale, translations || undefined);
-          }
-
-          // Prefix with /ycode/preview in preview mode
-          if (isPreview && href) {
-            href = `/ycode/preview${href}`;
-          }
-        }
-      }
-      break;
-    case 'field':
-      // For field-based links, prefer collection layer data, fall back to page data
-      const fieldData = collectionItemData || pageCollectionItemData;
-      if (linkSettings.field?.data?.field_id && fieldData) {
-        const fieldId = linkSettings.field.data.field_id;
-        const relationships = linkSettings.field.data.relationships || [];
-
-        if (relationships.length > 0) {
-          const fullPath = [fieldId, ...relationships].join('.');
-          href = fieldData[fullPath] || '';
-        } else {
-          href = fieldData[fieldId] || '';
-        }
-      }
-      break;
-  }
-
-  // Append anchor if present (anchor_layer_id references a layer's ID attribute)
-  // Resolve layer ID to actual anchor value using pre-built map (O(1) lookup)
-  if (linkSettings.anchor_layer_id) {
-    const anchorValue = anchorMap?.[linkSettings.anchor_layer_id] || linkSettings.anchor_layer_id;
-    if (href) {
-      href = `${href}#${anchorValue}`;
-    } else {
-      // Anchor-only link (same page)
-      href = `#${anchorValue}`;
-    }
-  }
-
-  return href || null;
 }
 
 interface LayerRendererProps {
@@ -557,6 +451,23 @@ const LayerItem: React.FC<{
       return format === 'code' ? displayLocale.code.toUpperCase() : displayLocale.label;
     }
 
+    // Build link context for resolving page/asset/field links in rich text
+    // Skip building context in edit mode since links are disabled and use '#'
+    const linkContext: RichTextLinkContext | undefined = isEditMode
+      ? undefined
+      : {
+        pages,
+        folders,
+        collectionItemSlugs,
+        collectionItemId: effectiveCollectionItemId,
+        pageCollectionItemId,
+        isPreview,
+        locale: currentLocale,
+        translations,
+        getAsset,
+        anchorMap,
+      };
+
     // Check for component variable override or default value
     // This handles both:
     // 1. Component instances on a page (parentComponentVariables is set)
@@ -572,7 +483,7 @@ const LayerItem: React.FC<{
       if (valueToRender !== undefined) {
         // Value is typed as ComponentVariableValue - check if it's a text variable (has 'type' property)
         if ('type' in valueToRender && valueToRender.type === 'dynamic_rich_text') {
-          return renderRichText(valueToRender as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode);
+          return renderRichText(valueToRender as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext);
         }
         if ('type' in valueToRender && valueToRender.type === 'dynamic_text') {
           return (valueToRender as any).data.content;
@@ -587,7 +498,7 @@ const LayerItem: React.FC<{
     if (textVariable?.type === 'dynamic_rich_text') {
       // Render rich text with formatting (bold, italic, etc.) and inline variables
       // In edit mode, adds data-style attributes for style selection
-      return renderRichText(textVariable as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode);
+      return renderRichText(textVariable as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext);
     }
 
     // Check for inline variables in DynamicTextVariable format (legacy)
@@ -1697,24 +1608,25 @@ const LayerItem: React.FC<{
   // Wrap with link if layer has link settings (published mode only)
   // In edit mode, links are not interactive to allow layer selection
   const linkSettings = layer.variables?.link;
-  const shouldWrapWithLink = !isEditMode && hasLinkSettings(linkSettings) && !layer.componentId;
+  const shouldWrapWithLink = !isEditMode && isValidLinkSettings(linkSettings) && !layer.componentId;
 
   if (shouldWrapWithLink && linkSettings) {
-    const linkHref = generateLinkHref(
-      linkSettings,
-      getAsset,
-      effectiveCollectionItemId,
-      pageCollectionItemId,
-      effectiveCollectionItemData,
-      pageCollectionItemData || undefined,
+    // Build link context for layer-level link resolution
+    const layerLinkContext: LinkResolutionContext = {
       pages,
       folders,
       collectionItemSlugs,
+      collectionItemId: effectiveCollectionItemId,
+      pageCollectionItemId,
+      collectionItemData: effectiveCollectionItemData,
+      pageCollectionItemData: pageCollectionItemData || undefined,
       isPreview,
-      currentLocale,
+      locale: currentLocale,
       translations,
-      anchorMap
-    );
+      getAsset,
+      anchorMap,
+    };
+    const linkHref = generateLinkHref(linkSettings, layerLinkContext);
 
     if (linkHref) {
       const linkTarget = linkSettings.target || '_self';

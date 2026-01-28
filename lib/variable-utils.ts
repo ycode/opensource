@@ -65,7 +65,7 @@ export function createAssetVariable(assetId: string): AssetVariable {
 
 /**
  * Component Variable Utilities
- * 
+ *
  * ComponentVariableValue currently supports text variables (DynamicTextVariable | DynamicRichTextVariable)
  * but will be expanded to support other types (image, link, etc.) in the future
  */
@@ -90,19 +90,19 @@ export function createTextComponentVariableValue(tiptapContent: object): Compone
  */
 export function extractTiptapFromComponentVariable(value?: ComponentVariableValue): object {
   const emptyDoc = { type: 'doc', content: [{ type: 'paragraph' }] };
-  
+
   if (!value) return emptyDoc;
-  
+
   // Check if value is a text variable (has 'type' property) vs ImageSettingsValue (has 'src' property)
   if ('type' in value && value.type === 'dynamic_rich_text') {
     return (value as DynamicRichTextVariable).data.content;
   }
-  
+
   if ('type' in value && value.type === 'dynamic_text') {
     // Convert plain text to Tiptap format
     return stringToTiptapContent((value as DynamicTextVariable).data.content);
   }
-  
+
   return emptyDoc;
 }
 
@@ -352,105 +352,3 @@ export function getIframeUrlFromVariable(
  */
 
 import type { LinkSettings, LinkType } from '@/types';
-
-/**
- * Create a URL link settings object
- */
-export function createUrlLinkSettings(url: string, anchorLayerId?: string | null): LinkSettings {
-  return {
-    type: 'url',
-    url: createDynamicTextVariable(url),
-    anchor_layer_id: anchorLayerId || null,
-  };
-}
-
-/**
- * Create an email link settings object
- */
-export function createEmailLinkSettings(email: string): LinkSettings {
-  return {
-    type: 'email',
-    email: createDynamicTextVariable(email),
-  };
-}
-
-/**
- * Create a phone link settings object
- */
-export function createPhoneLinkSettings(phone: string): LinkSettings {
-  return {
-    type: 'phone',
-    phone: createDynamicTextVariable(phone),
-  };
-}
-
-/**
- * Create an asset link settings object
- */
-export function createAssetLinkSettings(assetId: string): LinkSettings {
-  return {
-    type: 'asset',
-    asset: { id: assetId },
-  };
-}
-
-/**
- * Create a page link settings object
- */
-export function createPageLinkSettings(
-  pageId: string,
-  collectionItemId?: string | null,
-  anchorLayerId?: string | null
-): LinkSettings {
-  return {
-    type: 'page',
-    page: {
-      id: pageId,
-      collection_item_id: collectionItemId || null,
-    },
-    anchor_layer_id: anchorLayerId || null,
-  };
-}
-
-/**
- * Create a field link settings object (CMS field containing URL)
- */
-export function createFieldLinkSettings(
-  fieldId: string,
-  relationships: string[] = []
-): LinkSettings {
-  return {
-    type: 'field',
-    field: {
-      type: 'field',
-      data: {
-        field_id: fieldId,
-        relationships,
-      },
-    },
-  };
-}
-
-/**
- * Check if a layer has link settings
- */
-export function hasLinkSettings(link: LinkSettings | undefined | null): boolean {
-  if (!link || !link.type) return false;
-
-  switch (link.type) {
-    case 'url':
-      return !!link.url?.data?.content;
-    case 'email':
-      return !!link.email?.data?.content;
-    case 'phone':
-      return !!link.phone?.data?.content;
-    case 'asset':
-      return !!link.asset?.id;
-    case 'page':
-      return !!link.page?.id;
-    case 'field':
-      return !!link.field?.data?.field_id;
-    default:
-      return false;
-  }
-}

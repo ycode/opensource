@@ -172,6 +172,10 @@ export default function RichTextLinkSettings({
   // Check if selected page is dynamic
   const isDynamicPage = selectedPage?.is_dynamic || false;
 
+  // Check if the current page is dynamic
+  const currentPage = currentPageId ? pages.find(p => p.id === currentPageId) : null;
+  const isCurrentPageDynamic = currentPage?.is_dynamic || false;
+
   // Check if the layer itself is a collection layer
   const isCollectionLayer = !!(layer && getCollectionVariable(layer));
 
@@ -639,7 +643,7 @@ export default function RichTextLinkSettings({
                     <SelectValue placeholder={loadingItems ? 'Loading...' : 'Select a CMS item'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {isDynamicPage && (
+                    {isDynamicPage && isCurrentPageDynamic && (
                       <SelectItem value="current-page">
                         <div className="flex items-center gap-2">
                           Current page item
@@ -653,7 +657,7 @@ export default function RichTextLinkSettings({
                         </div>
                       </SelectItem>
                     )}
-                    {(isDynamicPage || canUseCurrentCollectionItem) && <SelectSeparator />}
+                    {((isDynamicPage && isCurrentPageDynamic) || canUseCurrentCollectionItem) && <SelectSeparator />}
                     {collectionItems.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
                         {getItemDisplayName(item.id)}

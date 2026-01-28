@@ -1,6 +1,12 @@
 import React from 'react';
-import type { TextStyle, DynamicRichTextVariable } from '@/types';
+import type { TextStyle, DynamicRichTextVariable, LinkSettings } from '@/types';
 import { cn } from '@/lib/utils';
+import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
+
+/**
+ * Context for resolving rich text links - re-exports LinkResolutionContext for backwards compatibility
+ */
+export type RichTextLinkContext = LinkResolutionContext;
 
 /**
  * Resolve inline variables in a text string using collection item data
@@ -247,7 +253,8 @@ function renderTextNode(
   textStyles?: Record<string, TextStyle>,
   isEditMode = false,
   collectionItemData?: Record<string, string>,
-  pageCollectionItemData?: Record<string, string>
+  pageCollectionItemData?: Record<string, string>,
+  linkContext?: RichTextLinkContext
 ): React.ReactNode {
   let text: React.ReactNode = node.text || '';
 
@@ -315,35 +322,19 @@ function renderTextNode(
         }
         case 'richTextLink': {
           // Rich text link with full LinkSettings stored in attrs
-          const linkType = mark.attrs?.type;
-          let href = '#';
-
-          switch (linkType) {
-            case 'url': {
-              const urlContent = mark.attrs?.url?.data?.content || '';
-              // Resolve inline variables in the URL (pass both collection and page data)
-              href = resolveInlineVariablesFromData(urlContent, collectionItemData, pageCollectionItemData) || '#';
-              break;
-            }
-            case 'email': {
-              const emailContent = mark.attrs?.email?.data?.content || '';
-              // Resolve inline variables in the email
-              const resolvedEmail = resolveInlineVariablesFromData(emailContent, collectionItemData, pageCollectionItemData);
-              href = resolvedEmail ? `mailto:${resolvedEmail}` : '#';
-              break;
-            }
-            case 'phone': {
-              const phoneContent = mark.attrs?.phone?.data?.content || '';
-              // Resolve inline variables in the phone number
-              const resolvedPhone = resolveInlineVariablesFromData(phoneContent, collectionItemData, pageCollectionItemData);
-              href = resolvedPhone ? `tel:${resolvedPhone}` : '#';
-              break;
-            }
-            // page, asset, field types need more context to resolve - use placeholder
-            default:
-              href = '#';
-              break;
-          }
+          // In edit mode, skip expensive link resolution and just use '#'
+          const href = isEditMode
+            ? '#'
+            : (() => {
+              // Build context with collection item data for inline variable resolution
+              const fullContext: LinkResolutionContext = {
+                ...linkContext,
+                collectionItemData,
+                pageCollectionItemData,
+              };
+              // Use shared link generation utility
+              return generateLinkHref(mark.attrs as LinkSettings, fullContext) || '#';
+            })();
 
           const linkProps: Record<string, any> = {
             key: `${key}-richTextLink`,
@@ -385,13 +376,14 @@ function renderInlineContent(
   collectionItemData?: Record<string, string>,
   pageCollectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
-  isEditMode = false
+  isEditMode = false,
+  linkContext?: RichTextLinkContext
 ): React.ReactNode[] {
   return content.map((node, idx) => {
     const key = `node-${idx}`;
 
     if (node.type === 'text') {
-      return renderTextNode(node, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData);
+      return renderTextNode(node, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData, linkContext);
     }
 
     if (node.type === 'dynamicVariable') {
@@ -419,7 +411,8 @@ function renderBlock(
   pageCollectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
   useSpanForParagraphs = false,
-  isEditMode = false
+  isEditMode = false,
+  linkContext?: RichTextLinkContext
 ): React.ReactNode {
   const key = `block-${idx}`;
 
@@ -432,9 +425,9 @@ function renderBlock(
     }
     // Use span with block class when inside restrictive tags
     if (useSpanForParagraphs) {
-      return React.createElement('span', { key, className: 'block' }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode));
+      return React.createElement('span', { key, className: 'block' }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext));
     }
-    return React.createElement('p', { key }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode));
+    return React.createElement('p', { key }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext));
   }
 
   if (block.type === 'bulletList') {
@@ -449,7 +442,7 @@ function renderBlock(
       'ul',
       ulProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext)
       )
     );
   }
@@ -466,7 +459,7 @@ function renderBlock(
       'ol',
       olProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext)
       )
     );
   }
@@ -483,16 +476,17 @@ function renderListItem(
   collectionItemData?: Record<string, string>,
   pageCollectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
-  isEditMode = false
+  isEditMode = false,
+  linkContext?: RichTextLinkContext
 ): React.ReactNode {
   if (item.type !== 'listItem') return null;
 
   const children = item.content?.flatMap((block: any, idx: number) => {
     if (block.type === 'paragraph') {
       // For list items, render paragraph content without <p> wrapper
-      return renderInlineContent(block.content || [], collectionItemData, pageCollectionItemData, textStyles, isEditMode);
+      return renderInlineContent(block.content || [], collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext);
     }
-    return renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, false, isEditMode);
+    return renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, false, isEditMode, linkContext);
   });
 
   const liProps: Record<string, any> = {
@@ -534,6 +528,7 @@ export function hasBlockElements(variable: DynamicRichTextVariable): boolean {
  * @param pageCollectionItemData - Data from page collection (dynamic pages)
  * @param useSpanForParagraphs - If true, renders paragraphs as <span class="block"> instead of <p>
  * @param isEditMode - If true, adds data-style attributes for style selection on canvas
+ * @param linkContext - Context for resolving page/asset/field links
  */
 export function renderRichText(
   variable: DynamicRichTextVariable,
@@ -541,7 +536,8 @@ export function renderRichText(
   pageCollectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
   useSpanForParagraphs = false,
-  isEditMode = false
+  isEditMode = false,
+  linkContext?: RichTextLinkContext
 ): React.ReactNode {
   const content = variable.data.content;
 
@@ -561,11 +557,11 @@ export function renderRichText(
     if (!paragraph.content || paragraph.content.length === 0) {
       return null;
     }
-    return renderInlineContent(paragraph.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode);
+    return renderInlineContent(paragraph.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext);
   }
 
   return doc.content.map((block: any, idx: number) =>
-    renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode)
+    renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode, linkContext)
   );
 }
 

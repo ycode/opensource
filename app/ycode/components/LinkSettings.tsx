@@ -28,7 +28,6 @@ import type { Layer, CollectionField, Collection, Page, LinkSettings as LinkSett
 import {
   createDynamicTextVariable,
   getDynamicTextContent,
-  hasLinkSettings,
 } from '@/lib/variable-utils';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
@@ -37,7 +36,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { ASSET_CATEGORIES, getAssetIcon } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 import { collectionsApi, pagesApi } from '@/lib/api';
-import { getLayerIcon, getLayerName, hasLinkInTree, findAncestor, hasLinkSettings as hasLinkSettingsUtil, getCollectionVariable } from '@/lib/layer-utils';
+import { getLayerIcon, getLayerName, canLayerHaveLink, getCollectionVariable } from '@/lib/layer-utils';
 import { getPageIcon } from '@/lib/page-utils';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -169,6 +168,10 @@ export default function LinkSettings({
   // Check if selected page is dynamic
   const isDynamicPage = selectedPage?.is_dynamic || false;
 
+  // Check if the current page is dynamic
+  const currentPage = currentPageId ? pages.find(p => p.id === currentPageId) : null;
+  const isCurrentPageDynamic = currentPage?.is_dynamic || false;
+
   // Check if the layer itself is a collection layer
   const isCollectionLayer = !!(layer && getCollectionVariable(layer));
 
@@ -222,33 +225,16 @@ export default function LinkSettings({
     const draft = draftsByPageId[currentPageId];
     if (!draft || !draft.layers) return null;
 
-    // Check if any ancestor has link settings
-    const hasAncestorWithLink = findAncestor(
-      draft.layers,
-      layer.id,
-      (ancestor) => hasLinkSettingsUtil(ancestor)
-    );
+    // Check if layer can have a layer-level link (includes rich text links check)
+    const { canHaveLinks, issue } = canLayerHaveLink(layer, draft.layers);
 
-    if (hasAncestorWithLink) {
-      return {
-        type: 'ancestor' as const,
-        layerName: getLayerName(hasAncestorWithLink),
-      };
-    }
-
-    // Check if any child has link settings
-    if (layer.children && layer.children.length > 0) {
-      const hasChildWithLink = layer.children.some(child => hasLinkInTree(child));
-
-      if (hasChildWithLink) {
-        return {
-          type: 'child' as const,
-        };
-      }
+    // Only show issue if there's no existing link (allow editing existing links)
+    if (!canHaveLinks && issue && linkType === 'none') {
+      return issue;
     }
 
     return null;
-  }, [layer, currentPageId, draftsByPageId]);
+  }, [layer, currentPageId, draftsByPageId, linkType]);
 
   // Link type options for the dropdown
   const linkTypeOptions = useMemo<
@@ -553,9 +539,11 @@ export default function LinkSettings({
       >
         <Empty>
           <EmptyDescription>
-            {linkNestingIssue.type === 'ancestor'
-              ? `Links cannot be nested. This layer is inside a "${linkNestingIssue.layerName}" layer that already has a link.`
-              : 'Links cannot be nested. This layer contains child layers with links.'}
+            {linkNestingIssue.type === 'richText'
+              ? 'Cannot add a link to a layer that contains rich text links. Remove the rich text links first.'
+              : linkNestingIssue.type === 'ancestor'
+                ? `Links cannot be nested. This layer is inside a "${linkNestingIssue.layerName}" layer that already has a link.`
+                : 'Links cannot be nested. This layer contains child layers with links.'}
           </EmptyDescription>
         </Empty>
       </SettingsPanel>
@@ -620,6 +608,7 @@ export default function LinkSettings({
                 allFields={allFields}
                 collections={collections}
                 disabled={isLockedByOther}
+                disableLinks
               />
             </div>
           </div>
@@ -638,6 +627,7 @@ export default function LinkSettings({
                 allFields={allFields}
                 collections={collections}
                 disabled={isLockedByOther}
+                disableLinks
               />
             </div>
           </div>
@@ -656,6 +646,7 @@ export default function LinkSettings({
                 allFields={allFields}
                 collections={collections}
                 disabled={isLockedByOther}
+                disableLinks
               />
             </div>
           </div>
@@ -725,8 +716,8 @@ export default function LinkSettings({
                       <SelectValue placeholder={loadingItems ? 'Loading...' : 'Select a CMS item'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {/* Current page item option (when on a dynamic page) */}
-                      {isDynamicPage && (
+                      {/* Current page item option (when on a dynamic page AND linking to a dynamic page) */}
+                      {isDynamicPage && isCurrentPageDynamic && (
                         <SelectItem value="current-page">
                           <div className="flex items-center gap-2">
                             Current page item
@@ -741,7 +732,7 @@ export default function LinkSettings({
                           </div>
                         </SelectItem>
                       )}
-                      {(isDynamicPage || canUseCurrentCollectionItem) && <SelectSeparator />}
+                      {((isDynamicPage && isCurrentPageDynamic) || canUseCurrentCollectionItem) && <SelectSeparator />}
                       {collectionItems.map((item) => (
                         <SelectItem key={item.id} value={item.id}>
                           {getItemDisplayName(item.id)}

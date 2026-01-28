@@ -345,8 +345,7 @@ export default function LayerContextMenu({
 
   const handleShowJSON = () => {
     if (!layer) return;
-    console.log('Layer JSON:', JSON.stringify(layer, null, 2));
-    console.log('Layer Object:', layer);
+    console.log('Layer object:', layer);
   };
 
   const handleSaveAsLayout = () => {

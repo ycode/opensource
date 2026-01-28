@@ -38,6 +38,8 @@ export interface RichTextLinkPopoverProps {
   open?: boolean;
   /** Callback when open state changes (controlled) */
   onOpenChange?: (open: boolean) => void;
+  /** Whether the link button is disabled */
+  disabled?: boolean;
 }
 
 /**
@@ -53,6 +55,7 @@ export default function RichTextLinkPopover({
   trigger,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
+  disabled = false,
 }: RichTextLinkPopoverProps) {
   // Use controlled state if provided, otherwise internal state
   const [internalOpen, setInternalOpen] = useState(false);
@@ -71,6 +74,11 @@ export default function RichTextLinkPopover({
 
   // Custom open change handler that captures selection before opening
   const handleOpenChange = useCallback((newOpen: boolean) => {
+    // Prevent opening if disabled
+    if (newOpen && disabled) {
+      return;
+    }
+
     if (newOpen) {
       // Capture selection and link state BEFORE opening
       let { from, to } = editor.state.selection;
@@ -136,7 +144,7 @@ export default function RichTextLinkPopover({
     } else {
       setInternalOpen(newOpen);
     }
-  }, [editor, isControlled, controlledOnOpenChange]);
+  }, [editor, isControlled, controlledOnOpenChange, disabled]);
 
   // For closing without going through handleOpenChange
   const closePopover = useCallback(() => {
@@ -220,7 +228,8 @@ export default function RichTextLinkPopover({
       variant={hasLink ? 'default' : 'ghost'}
       size="icon"
       className="size-7"
-      title="Link"
+      title={disabled ? 'Links cannot be nested' : 'Link'}
+      disabled={disabled}
     >
       <Icon name="link" className="size-3.5" />
     </Button>

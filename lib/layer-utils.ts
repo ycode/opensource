@@ -9,6 +9,10 @@ import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import { getInheritedValue } from '@/lib/tailwind-class-mapper';
 import { cloneDeep } from 'lodash';
+import { layerHasLink, hasLinkInTree, hasRichTextLinks } from '@/lib/link-utils';
+
+// Alias for backwards compatibility within this file
+const hasLinkSettings = layerHasLink;
 
 /**
  * Strip UI-only properties from layers before comparison/hashing
@@ -115,7 +119,7 @@ export function canMoveLayer(layers: Layer[], layerId: string, newParentId: stri
     }
 
     // Also check if any ancestor of the new parent has link settings
-    const hasLinkAncestor = findAncestor(layers, newParentId, (ancestor) => hasLinkSettings(ancestor));
+    const hasLinkAncestor = findAncestor(layers, newParentId, (ancestor) => layerHasLink(ancestor));
     if (hasLinkAncestor && hasLinkInTree(layer)) {
       return false;
     }
@@ -296,25 +300,90 @@ export function getText(layer: Layer): string | undefined {
 }
 
 /**
- * Check if a layer has link settings
+ * Check if a layer can have a link added
+ * @param layer - The layer to check
+ * @param allLayers - All layers in the current context (page or component)
+ * @param type - Type of link to add: 'layer' (layer-level link) or 'richText' (rich text links)
+ * @returns Object with canHaveLinks boolean and optional issue details
  */
-export function hasLinkSettings(layer: Layer): boolean {
-  return !!(layer.variables?.link && layer.variables.link.type);
-}
+export function canLayerHaveLink(
+  layer: Layer,
+  allLayers: Layer[],
+  type: 'layer' | 'richText' = 'layer'
+): { canHaveLinks: boolean; issue?: { type: 'self' | 'ancestor' | 'child' | 'richText'; layerName?: string } } {
+  if (type === 'layer') {
+    // Checking if a layer-level link can be added
+    // Can't add layer link if the layer has rich text links
+    if (hasRichTextLinks(layer)) {
+      return {
+        canHaveLinks: false,
+        issue: { type: 'richText' }
+      };
+    }
 
-/**
- * Check if a layer or any of its descendants has link settings
- */
-export function hasLinkInTree(layer: Layer): boolean {
+    // Can't add layer link if any ancestor has link settings
+    const hasAncestorWithLink = findAncestor(
+      allLayers,
+      layer.id,
+      (ancestor) => hasLinkSettings(ancestor)
+    );
+
+    if (hasAncestorWithLink) {
+      return {
+        canHaveLinks: false,
+        issue: { type: 'ancestor', layerName: getLayerName(hasAncestorWithLink) }
+      };
+    }
+
+    // Can't add layer link if any child has link settings or rich text links
+    if (layer.children && layer.children.length > 0) {
+      const hasChildWithLink = layer.children.some(child => hasLinkInTree(child));
+      if (hasChildWithLink) {
+        return {
+          canHaveLinks: false,
+          issue: { type: 'child' }
+        };
+      }
+    }
+
+    return { canHaveLinks: true };
+  }
+
+  // Checking if rich text links can be added
+  // Can't add rich text links if the layer itself is a link
   if (hasLinkSettings(layer)) {
-    return true;
+    return {
+      canHaveLinks: false,
+      issue: { type: 'self', layerName: getLayerName(layer) }
+    };
   }
 
-  if (layer.children) {
-    return layer.children.some(child => hasLinkInTree(child));
+  // Can't add rich text links if any ancestor has link settings
+  const hasAncestorWithLink = findAncestor(
+    allLayers,
+    layer.id,
+    (ancestor) => hasLinkSettings(ancestor)
+  );
+
+  if (hasAncestorWithLink) {
+    return {
+      canHaveLinks: false,
+      issue: { type: 'ancestor', layerName: getLayerName(hasAncestorWithLink) }
+    };
   }
 
-  return false;
+  // Can't add rich text links if any child has link settings or rich text links
+  if (layer.children && layer.children.length > 0) {
+    const hasChildWithLink = layer.children.some(child => hasLinkInTree(child));
+    if (hasChildWithLink) {
+      return {
+        canHaveLinks: false,
+        issue: { type: 'child' }
+      };
+    }
+  }
+
+  return { canHaveLinks: true };
 }
 
 /**
@@ -325,11 +394,11 @@ export function hasLinkInTree(layer: Layer): boolean {
  */
 export function canAddChild(parent: Layer, child: Layer): boolean {
   // Links cannot be nested (can't have <a> inside <a>)
-  if (hasLinkSettings(parent) && hasLinkInTree(child)) {
+  if (layerHasLink(parent) && hasLinkInTree(child)) {
     return false;
   }
 
-  if (hasLinkSettings(child) && hasLinkSettings(parent)) {
+  if (layerHasLink(child) && layerHasLink(parent)) {
     return false;
   }
 
