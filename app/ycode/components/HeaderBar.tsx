@@ -621,7 +621,12 @@ export default function HeaderBar({
 
           <PopoverContent className="mr-4 mt-0.5">
             <div>
-              <Label>{baseUrl}</Label>
+              <Label>          <a
+                href={baseUrl + publishedUrl} target="_blank"
+                rel="noopener noreferrer"
+                               >
+            {baseUrl}
+          </a></Label>
               <span className="text-popover-foreground text-[10px]">{publishedAt ? `Published ${formatRelativeTime(publishedAt, false)}` : 'Never published'}</span>
             </div>
 
