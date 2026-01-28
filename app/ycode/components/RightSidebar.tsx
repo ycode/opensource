@@ -35,7 +35,9 @@ import VideoSettings from './VideoSettings';
 import AudioSettings from './AudioSettings';
 import IconSettings from './IconSettings';
 import FormSettings from './FormSettings';
+import AlertSettings from './AlertSettings';
 import HTMLEmbedSettings from './HTMLEmbedSettings';
+import InputSettings from './InputSettings';
 import InputWithInlineVariables from './InputWithInlineVariables';
 import InteractionsPanel from './InteractionsPanel';
 import LayoutControls from './LayoutControls';
@@ -399,6 +401,12 @@ const RightSidebar = React.memo(function RightSidebar({
   const isFormInputLayer = (layer: Layer | null): boolean => {
     if (!layer) return false;
     return layer.name === 'label' || layer.name === 'input' || layer.name === 'textarea' || layer.name === 'select';
+  };
+
+  // Helper function to check if layer is an alert element
+  const isAlertLayer = (layer: Layer | null): boolean => {
+    if (!layer) return false;
+    return !!layer.alertType;
   };
 
   // Control visibility rules based on layer type
@@ -1988,22 +1996,25 @@ const RightSidebar = React.memo(function RightSidebar({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3">
-                <Label variant="muted">Element</Label>
-                <div className="col-span-2 *:w-full">
-                  <ToggleGroup
-                    options={[
-                      { label: 'Shown', value: false },
-                      { label: 'Hidden', value: true },
-                    ]}
-                    value={isHidden}
-                    onChange={(value) => handleVisibilityChange(value as boolean)}
-                  />
+              {/* Element visibility toggle - hide for alert layers (they have built-in show/hide logic) */}
+              {!isAlertLayer(selectedLayer) && (
+                <div className="grid grid-cols-3">
+                  <Label variant="muted">Element</Label>
+                  <div className="col-span-2 *:w-full">
+                    <ToggleGroup
+                      options={[
+                        { label: 'Shown', value: false },
+                        { label: 'Hidden', value: true },
+                      ]}
+                      value={isHidden}
+                      onChange={(value) => handleVisibilityChange(value as boolean)}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Container Tag Selector - Only for containers/sections/blocks */}
-              {isContainerLayer(selectedLayer) && !isHeadingLayer(selectedLayer) && (
+              {/* Container Tag Selector - Only for containers/sections/blocks, hide for alerts */}
+              {isContainerLayer(selectedLayer) && !isHeadingLayer(selectedLayer) && !isAlertLayer(selectedLayer) && (
                 <div className="grid grid-cols-3">
                   <Label variant="muted">Tag</Label>
                   <div className="col-span-2 *:w-full">
@@ -2501,6 +2512,16 @@ const RightSidebar = React.memo(function RightSidebar({
             )}
 
             <FormSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+            />
+
+            <AlertSettings
+              layer={selectedLayer}
+              onLayerUpdate={handleLayerUpdate}
+            />
+
+            <InputSettings
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
             />

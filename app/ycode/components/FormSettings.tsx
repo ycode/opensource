@@ -11,7 +11,7 @@ import React, { useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SettingsPanel from './SettingsPanel';
 import type { Layer, FormSettings as FormSettingsType } from '@/types';
 
@@ -25,6 +25,7 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
 
   // Get current form settings
   const formSettings: FormSettingsType = layer?.settings?.form || {};
+  const successAction = formSettings.success_action || 'message';
 
   const handleSettingChange = useCallback(
     (key: keyof FormSettingsType, value: any) => {
@@ -79,57 +80,57 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
       onToggle={() => setIsOpen(!isOpen)}
     >
       <div className="flex flex-col gap-4">
-        {/* Success Message */}
+        {/* Success Action Toggle */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="success-message" className="text-xs font-normal">
-            Success Message
+          <Label className="text-xs font-normal">
+            On Success
           </Label>
-          <Textarea
-            id="success-message"
-            value={formSettings.success_message || ''}
-            onChange={(e) => handleSettingChange('success_message', e.target.value)}
-            placeholder="Thank you for your submission!"
-            className="text-xs min-h-[60px] resize-none"
-          />
-        </div>
-
-        {/* Error Message */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="error-message" className="text-xs font-normal">
-            Error Message
-          </Label>
-          <Textarea
-            id="error-message"
-            value={formSettings.error_message || ''}
-            onChange={(e) => handleSettingChange('error_message', e.target.value)}
-            placeholder="Something went wrong. Please try again."
-            className="text-xs min-h-[60px] resize-none"
-          />
-        </div>
-
-        {/* Redirect URL */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="redirect-url" className="text-xs font-normal">
-            Redirect URL (optional)
-          </Label>
-          <Input
-            id="redirect-url"
-            value={formSettings.redirect_url || ''}
-            onChange={(e) => handleSettingChange('redirect_url', e.target.value)}
-            placeholder="/thank-you"
-            className="text-xs"
-          />
+          <Tabs
+            value={successAction}
+            onValueChange={(value) => handleSettingChange('success_action', value)}
+            className="w-full"
+          >
+            <TabsList className="w-full">
+              <TabsTrigger value="message" className="flex-1 text-xs">
+                Message
+              </TabsTrigger>
+              <TabsTrigger value="redirect" className="flex-1 text-xs">
+                Redirect
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
           <p className="text-[10px] text-muted-foreground">
-            Leave empty to show success message instead
+            {successAction === 'message'
+              ? 'Shows the Success Alert inside the form'
+              : 'Redirects to a URL after submission'}
           </p>
         </div>
+
+        {/* Redirect URL - only show when redirect is selected */}
+        {successAction === 'redirect' && (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="redirect-url" className="text-xs font-normal">
+              Redirect URL
+            </Label>
+            <Input
+              id="redirect-url"
+              value={formSettings.redirect_url || ''}
+              onChange={(e) => handleSettingChange('redirect_url', e.target.value)}
+              placeholder="/thank-you"
+              className="text-xs"
+            />
+          </div>
+        )}
 
         {/* Email Notification Section */}
         <div className="border-t pt-4 mt-2">
           <div className="flex items-center justify-between mb-3">
-            <Label htmlFor="email-enabled" className="text-xs">
-              Email Notification
-            </Label>
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="email-enabled" className="text-xs">
+                Email Notification
+              </Label>
+              <span className="text-[10px] text-muted-foreground">Coming soon</span>
+            </div>
             <Switch
               id="email-enabled"
               checked={emailNotification.enabled}

@@ -15,6 +15,96 @@ export const formTemplates: Record<string, BlockTemplate> = {
         id: 'contact-form'
       },
       children: [
+        // Error Alert (hidden by default)
+        {
+          name: 'div',
+          customName: 'Error alert',
+          alertType: 'error',
+          hiddenGenerated: true,
+          classes: ['bg-[#fee2e2]', 'text-[#991b1b]', 'text-[1rem]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
+          children: [
+            {
+              name: 'span',
+              customName: 'Message',
+              variables: {
+                text: {
+                  type: 'dynamic_text',
+                  data: {
+                    content: 'Something went wrong! Try submitting form once again.'
+                  }
+                }
+              }
+            }
+          ],
+          design: {
+            spacing: {
+              isActive: true,
+              paddingTop: '1rem',
+              paddingBottom: '1rem',
+              paddingLeft: '1.5rem',
+              paddingRight: '1.5rem'
+            },
+            backgrounds: {
+              isActive: true,
+              backgroundColor: '#fee2e2'
+            },
+            typography: {
+              isActive: true,
+              fontSize: '1rem',
+              color: '#991b1b',
+              fontWeight: '500'
+            },
+            borders: {
+              isActive: true,
+              borderRadius: '0.75rem'
+            }
+          }
+        },
+        // Success Alert (hidden by default)
+        {
+          name: 'div',
+          customName: 'Success alert',
+          alertType: 'success',
+          hiddenGenerated: true,
+          classes: ['bg-[#d1fae5]', 'text-[#065f46]', 'text-[1rem]', 'font-[500]', 'px-[1.5rem]', 'py-[1rem]', 'rounded-[0.75rem]'],
+          children: [
+            {
+              name: 'span',
+              customName: 'Message',
+              variables: {
+                text: {
+                  type: 'dynamic_text',
+                  data: {
+                    content: 'Successfully submitted.'
+                  }
+                }
+              }
+            }
+          ],
+          design: {
+            spacing: {
+              isActive: true,
+              paddingTop: '1rem',
+              paddingBottom: '1rem',
+              paddingLeft: '1.5rem',
+              paddingRight: '1.5rem'
+            },
+            backgrounds: {
+              isActive: true,
+              backgroundColor: '#d1fae5'
+            },
+            typography: {
+              isActive: true,
+              fontSize: '1rem',
+              color: '#065f46',
+              fontWeight: '500'
+            },
+            borders: {
+              isActive: true,
+              borderRadius: '0.75rem'
+            }
+          }
+        },
         // Name input group
         {
           name: 'div',

@@ -802,6 +802,17 @@ const LayerItem: React.FC<{
       elementProps['data-gsap-hidden'] = '';
     }
 
+    // Handle alert elements (for form success/error messages)
+    if (layer.alertType) {
+      elementProps['data-alert-type'] = layer.alertType;
+    }
+
+    // Hide elements with hiddenGenerated: true by default (in all modes)
+    if (layer.hiddenGenerated) {
+      const existingStyle = typeof elementProps.style === 'object' ? elementProps.style : {};
+      elementProps.style = { ...existingStyle, display: 'none' };
+    }
+
     // Apply custom ID from settings
     if (layer.settings?.id) {
       elementProps.id = layer.settings.id;
@@ -1009,26 +1020,41 @@ const LayerItem: React.FC<{
 
           const result = await response.json();
 
+          // Find alert elements within the form
+          const errorAlert = form.querySelector('[data-alert-type="error"]') as HTMLElement | null;
+          const successAlert = form.querySelector('[data-alert-type="success"]') as HTMLElement | null;
+
+          // Hide both alerts first
+          if (errorAlert) errorAlert.style.display = 'none';
+          if (successAlert) successAlert.style.display = 'none';
+
           if (response.ok) {
             // Success handling
-            if (formSettings?.redirect_url) {
+            const successAction = formSettings?.success_action || 'message';
+
+            if (successAction === 'redirect' && formSettings?.redirect_url) {
+              // Redirect to the specified URL
               window.location.href = formSettings.redirect_url;
-            } else if (formSettings?.success_message) {
-              // Show success message - could use toast or inline message
-              alert(formSettings.success_message);
+            } else {
+              // Show success alert
+              if (successAlert) {
+                successAlert.style.display = '';
+              }
             }
             // Reset the form
             form.reset();
           } else {
-            // Error handling
-            if (formSettings?.error_message) {
-              alert(formSettings.error_message);
+            // Error handling - show error alert
+            if (errorAlert) {
+              errorAlert.style.display = '';
             }
           }
         } catch (error) {
           console.error('Form submission error:', error);
-          if (formSettings?.error_message) {
-            alert(formSettings.error_message);
+          // Show error alert on catch
+          const errorAlert = form.querySelector('[data-alert-type="error"]') as HTMLElement | null;
+          if (errorAlert) {
+            errorAlert.style.display = '';
           }
         }
       };

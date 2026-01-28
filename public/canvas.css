@@ -36,6 +36,14 @@
 }
 
 
+/* Force default cursor on all elements in canvas edit mode */
+#canvas-body,
+#canvas-body *,
+.ycode-layer,
+.ycode-layer * {
+  cursor: default !important;
+}
+
 /* Empty element styling (exclude Body layer) */
 .ycode-layer:empty:not([data-layer-id="body"])::before {
   content: ' ';
@@ -109,6 +117,11 @@
   width: 100%;
   outline: 1px solid #0b7efd !important;
   outline-offset: 0 !important;
+  cursor: text !important;
+}
+
+.ycode-text-editor * {
+  cursor: text !important;
 }
 
 /* Hide ProseMirror trailing breaks in text editor */

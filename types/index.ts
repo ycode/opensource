@@ -132,8 +132,9 @@ export interface DesignProperties {
 }
 
 export interface FormSettings {
-  success_message?: string; // Message shown on successful submission
-  error_message?: string; // Message shown on failed submission
+  success_action?: 'message' | 'redirect'; // What happens on successful submission (default: 'message')
+  success_message?: string; // Message shown on successful submission (deprecated - now uses alert child)
+  error_message?: string; // Message shown on failed submission (deprecated - now uses alert child)
   redirect_url?: string; // URL to redirect after successful submission
   email_notification?: {
     enabled: boolean;
@@ -247,6 +248,8 @@ export interface Layer {
   // Special properties
   open?: boolean; // Collapsed/expanded state in tree
   hidden?: boolean;
+  hiddenGenerated?: boolean; // Hidden by default, shown via form actions (for alerts)
+  alertType?: 'success' | 'error'; // Type of alert (for form success/error messages)
 
   // Attributes (for HTML elements)
   attributes?: Record<string, any> & {
