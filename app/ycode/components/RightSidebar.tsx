@@ -1717,7 +1717,8 @@ const RightSidebar = React.memo(function RightSidebar({
                           value={getOverrideValue(variable.id)}
                           onChange={(val) => handleVariableOverrideChange(variable.id, val)}
                           placeholder="Enter value..."
-                          fields={[]}
+                          fields={parentCollectionFields}
+                          fieldSourceLabel={fieldSourceLabel}
                           allFields={fields}
                           collections={collections}
                           withFormatting={true}
