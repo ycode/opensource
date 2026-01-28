@@ -88,6 +88,7 @@ type ViewportMode = 'desktop' | 'tablet' | 'mobile';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { useCanvasDropDetection } from '@/hooks/use-canvas-drop-detection';
+import { useCanvasSiblingReorder } from '@/hooks/use-canvas-sibling-reorder';
 
 interface CenterCanvasProps {
   selectedLayerId: string | null;
@@ -175,6 +176,316 @@ function CanvasDropIndicatorOverlay({
   );
 }
 
+/**
+ * Canvas Sibling Reorder Effect
+ * 
+ * Applies CSS transforms to siblings in the iframe during drag to show
+ * a real-time preview of the reordered layout. Also makes the dragged
+ * element semi-transparent.
+ * 
+ * This is implemented as an effect-only component (no visible render)
+ * because we're manipulating iframe DOM directly for performance.
+ */
+interface CanvasSiblingReorderOverlayProps {
+  iframeElement: HTMLIFrameElement | null;
+}
+
+function CanvasSiblingReorderOverlay({
+  iframeElement,
+}: CanvasSiblingReorderOverlayProps) {
+  // Subscribe to store for drag state
+  const isDragging = useEditorStore((state) => state.isDraggingLayerOnCanvas);
+  const draggedId = useEditorStore((state) => state.draggedLayerId);
+  const parentId = useEditorStore((state) => state.draggedLayerParentId);
+  const originalIndex = useEditorStore((state) => state.draggedLayerOriginalIndex);
+  const siblingIds = useEditorStore((state) => state.siblingLayerIds);
+  const dropTarget = useEditorStore((state) => state.canvasSiblingDropTarget);
+  
+  const projectedIndex = dropTarget?.projectedIndex ?? null;
+
+  // State for visual indicator positions
+  const [parentRect, setParentRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const [dropLineY, setDropLineY] = useState<number | null>(null);
+  const [dropzoneHeight, setDropzoneHeight] = useState<number>(0);
+
+  // Cache element references and heights to avoid repeated DOM queries
+  const cachedDataRef = useRef<{
+    elements: Map<string, HTMLElement>;
+    heights: Map<string, number>;
+    tops: Map<string, number>;
+    draggedHeight: number;
+    parentElement: HTMLElement | null;
+  } | null>(null);
+  
+  // Track previous projected index to avoid unnecessary updates
+  const prevProjectedIndexRef = useRef<number | null>(null);
+  
+  // Store siblingIds in a ref for cleanup (since store clears them before cleanup runs)
+  const siblingIdsRef = useRef<string[]>([]);
+
+  // Change cursor to "grabbing" when dragging
+  useEffect(() => {
+    if (!isDragging) return;
+    
+    // Add grabbing cursor to body and iframe
+    document.body.style.cursor = 'grabbing';
+    
+    const iframeDoc = iframeElement?.contentDocument;
+    if (iframeDoc?.body) {
+      iframeDoc.body.style.cursor = 'grabbing';
+    }
+    
+    return () => {
+      // Reset cursor when drag ends
+      document.body.style.cursor = '';
+      if (iframeDoc?.body) {
+        iframeDoc.body.style.cursor = '';
+      }
+    };
+  }, [isDragging, iframeElement]);
+
+  // Cache elements and heights when drag starts
+  useEffect(() => {
+    if (!iframeElement) return;
+    
+    const iframeDoc = iframeElement.contentDocument;
+    if (!iframeDoc) return;
+
+    if (isDragging && draggedId && siblingIds.length > 0) {
+      // Store siblingIds in ref for cleanup (before store clears them)
+      siblingIdsRef.current = [...siblingIds];
+      
+      // Build cache on drag start
+      const elements = new Map<string, HTMLElement>();
+      const heights = new Map<string, number>();
+      const tops = new Map<string, number>();
+      let draggedHeight = 0;
+      
+      siblingIds.forEach(id => {
+        const el = iframeDoc.querySelector(`[data-layer-id="${id}"]`) as HTMLElement;
+        if (el) {
+          elements.set(id, el);
+          const rect = el.getBoundingClientRect();
+          heights.set(id, rect.height);
+          tops.set(id, rect.top);
+          if (id === draggedId) {
+            draggedHeight = rect.height;
+          }
+        }
+      });
+      
+      // Find and cache parent element
+      let parentElement: HTMLElement | null = null;
+      if (parentId) {
+        parentElement = iframeDoc.querySelector(`[data-layer-id="${parentId}"]`) as HTMLElement;
+      }
+      
+      cachedDataRef.current = { elements, heights, tops, draggedHeight, parentElement };
+      prevProjectedIndexRef.current = null;
+      
+      // Set dropzone height to match dragged element
+      setDropzoneHeight(draggedHeight);
+      
+      // Set initial parent rect
+      if (parentElement) {
+        const rect = parentElement.getBoundingClientRect();
+        setParentRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+      }
+    } else {
+      // Clear cache and visual state when drag ends
+      cachedDataRef.current = null;
+      prevProjectedIndexRef.current = null;
+      setParentRect(null);
+      setDropLineY(null);
+      setDropzoneHeight(0);
+    }
+  }, [iframeElement, isDragging, draggedId, parentId, siblingIds]);
+
+  // Update dropzone box position and shift siblings when projectedIndex changes
+  useEffect(() => {
+    const cache = cachedDataRef.current;
+    if (!cache || !isDragging || originalIndex === null) {
+      return;
+    }
+
+    // For free-drag behavior: if projectedIndex is null during active drag,
+    // keep the last valid projected index (preserve visual state)
+    if (projectedIndex === null && prevProjectedIndexRef.current !== null) {
+      // Still dragging but cursor moved outside valid positions - keep current visual state
+      return;
+    }
+    
+    const currentProjectedIndex = projectedIndex ?? originalIndex;
+    
+    // Skip if projected index hasn't changed
+    if (currentProjectedIndex === prevProjectedIndexRef.current) {
+      return;
+    }
+    prevProjectedIndexRef.current = currentProjectedIndex;
+
+    const { elements, heights, tops, draggedHeight } = cache;
+    
+    // Calculate dropzone Y position (where the blue box should appear)
+    // The dropzone ALWAYS shows - at original position when first dragging,
+    // then moves as you drag to different positions
+    let lineY: number | null = null;
+    
+    if (currentProjectedIndex === originalIndex) {
+      // Dropzone at original position (element "picked up", its spot is available)
+      const draggedId = siblingIds[originalIndex];
+      const draggedTop = tops.get(draggedId);
+      if (draggedTop !== undefined) {
+        lineY = draggedTop;
+      }
+    } else {
+      const isDraggingDown = currentProjectedIndex > originalIndex;
+      
+      if (isDraggingDown) {
+        // When dragging down, elements have shifted UP
+        // The dropzone appears after the last shifted-up element
+        if (currentProjectedIndex < siblingIds.length) {
+          const targetId = siblingIds[currentProjectedIndex];
+          const targetTop = tops.get(targetId);
+          const targetHeight = heights.get(targetId);
+          if (targetTop !== undefined && targetHeight !== undefined) {
+            // Position at bottom of the target element, minus its shift
+            lineY = targetTop + targetHeight - draggedHeight;
+          }
+        } else {
+          // Dropping at the end
+          const lastId = siblingIds[siblingIds.length - 1];
+          const lastTop = tops.get(lastId);
+          const lastHeight = heights.get(lastId);
+          if (lastTop !== undefined && lastHeight !== undefined) {
+            lineY = lastTop + lastHeight - draggedHeight;
+          }
+        }
+      } else {
+        // When dragging up, dropzone appears at the target position
+        if (currentProjectedIndex < siblingIds.length) {
+          const targetId = siblingIds[currentProjectedIndex];
+          const targetTop = tops.get(targetId);
+          if (targetTop !== undefined) {
+            lineY = targetTop;
+          }
+        }
+      }
+    }
+    setDropLineY(lineY);
+
+    // Apply transforms to shift siblings and make space for dropzone
+    siblingIds.forEach((layerId, index) => {
+      const el = elements.get(layerId);
+      if (!el) return;
+
+      // The dragged element itself - hide it completely
+      // Its position becomes the dropzone (element is "picked up")
+      if (layerId === draggedId) {
+        el.style.opacity = '0';
+        el.style.transition = 'opacity 100ms ease-out';
+        return;
+      }
+
+      // Calculate shift amount based on direction of movement
+      let shiftAmount = 0;
+      
+      if (currentProjectedIndex !== originalIndex) {
+        const isDraggingDown = currentProjectedIndex > originalIndex;
+        
+        if (isDraggingDown) {
+          // Dragging DOWN: elements between original and projected shift UP to fill gap
+          // Elements at projected and after shift DOWN for dropzone (dropzone height = dragged element height)
+          if (index > originalIndex && index <= currentProjectedIndex) {
+            // These elements shift UP to fill the gap left by dragged element
+            shiftAmount = -draggedHeight;
+          }
+          if (index > currentProjectedIndex) {
+            // These elements shift DOWN for the dropzone
+            // Since dropzone height = draggedHeight, net shift is 0
+            shiftAmount = 0;
+          }
+        } else {
+          // Dragging UP: elements between projected and original shift DOWN
+          if (index >= currentProjectedIndex && index < originalIndex) {
+            // These elements shift DOWN to make room for dropzone (dropzone height = dragged element height)
+            shiftAmount = draggedHeight;
+          }
+        }
+      }
+
+      el.style.transition = 'transform 150ms ease-out';
+      el.style.willChange = 'transform';
+      el.style.transform = shiftAmount !== 0 ? `translate3d(0, ${shiftAmount}px, 0)` : '';
+    });
+  }, [isDragging, draggedId, originalIndex, siblingIds, projectedIndex]);
+
+  // Cleanup effect - reset styles when drag ends with smooth animation
+  // Uses siblingIdsRef because store clears siblingIds before this effect runs
+  useEffect(() => {
+    if (!iframeElement) return;
+    
+    const iframeDoc = iframeElement.contentDocument;
+    if (!iframeDoc) return;
+
+    // Only clean up when drag ends - use ref since store already cleared siblingIds
+    if (!isDragging && siblingIdsRef.current.length > 0) {
+      // First pass: add transition and animate back to normal
+      siblingIdsRef.current.forEach(id => {
+        const el = iframeDoc.querySelector(`[data-layer-id="${id}"]`) as HTMLElement;
+        if (el) {
+          // Add smooth transition for the "drop" animation
+          el.style.transition = 'opacity 200ms ease-out, transform 200ms ease-out';
+          el.style.opacity = '1';
+          el.style.transform = '';
+        }
+      });
+      
+      // Second pass: clean up all styles after animation completes
+      const cleanupTimeout = setTimeout(() => {
+        siblingIdsRef.current.forEach(id => {
+          const el = iframeDoc.querySelector(`[data-layer-id="${id}"]`) as HTMLElement;
+          if (el) {
+            el.style.opacity = '';
+            el.style.transition = '';
+            el.style.transform = '';
+            el.style.willChange = '';
+          }
+        });
+        // Clear the ref after cleanup
+        siblingIdsRef.current = [];
+      }, 220); // Slightly longer than transition to ensure it completes
+      
+      return () => clearTimeout(cleanupTimeout);
+    }
+  }, [iframeElement, isDragging]);
+
+  // Don't render anything if not dragging
+  if (!isDragging || !parentRect) return null;
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-visible z-50">
+      {/* Blue dropzone box - shows where element will be inserted */}
+      {dropLineY !== null && dropzoneHeight > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            transform: `translate(${parentRect.left}px, ${dropLineY}px)`,
+            width: `${parentRect.width}px`,
+            height: `${dropzoneHeight}px`,
+            willChange: 'transform',
+            transition: 'transform 150ms ease-out',
+          }}
+        >
+          <div className="absolute inset-0 bg-blue-100 rounded-sm border border-blue-300 border-dashed" />
+        </div>
+      )}
+    </div>
+  );
+
+  // This component doesn't render anything visible - it only applies effects
+  return null;
+}
+
 const CenterCanvas = React.memo(function CenterCanvas({
   selectedLayerId,
   currentPageId,
@@ -214,6 +525,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const updateLayer = usePagesStore((state) => state.updateLayer);
   const deleteLayer = usePagesStore((state) => state.deleteLayer);
   const deleteLayers = usePagesStore((state) => state.deleteLayers);
+  const setDraftLayers = usePagesStore((state) => state.setDraftLayers);
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
 
@@ -725,6 +1037,12 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   // Canvas callback handlers
   const handleCanvasLayerClick = useCallback((layerId: string, event?: React.MouseEvent) => {
+    // Skip selection changes during drag operations
+    const { isDraggingLayerOnCanvas, isDraggingToCanvas } = useEditorStore.getState();
+    if (isDraggingLayerOnCanvas || isDraggingToCanvas) {
+      return;
+    }
+    
     if (!isPreviewMode) {
       setSelectedLayerId(layerId);
       // Switch to Layers tab when a layer is clicked on canvas
@@ -912,6 +1230,31 @@ const CenterCanvas = React.memo(function CenterCanvas({
     onDrop: handleCanvasDrop,
   });
 
+  // Handle layer reorder callback for sibling reordering on canvas
+  const handleLayerReorder = useCallback((newLayers: Layer[]) => {
+    if (!currentPageId) return;
+    
+    // If editing component, would need to update component draft instead
+    if (editingComponentId) {
+      // TODO: Support component editing
+      console.log('Sibling reorder in component not yet implemented');
+      return;
+    }
+    
+    setDraftLayers(currentPageId, newLayers);
+  }, [currentPageId, editingComponentId, setDraftLayers]);
+
+  // Use the canvas sibling reorder hook for drag-to-reorder within same parent
+  useCanvasSiblingReorder({
+    iframeElement: canvasIframeElement,
+    zoom,
+    layers,
+    pageId: currentPageId,
+    selectedLayerId,
+    onReorder: handleLayerReorder,
+    onLayerSelect: setSelectedLayerId,
+  });
+
   // Calculate parent layer ID for selection overlay (one level up from selected)
   const parentLayerId = useMemo(() => {
     if (!selectedLayerId || !currentPageId) return null;
@@ -946,6 +1289,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
     const result = findParentId(layersToSearch, selectedLayerId);
     return result === undefined ? null : result;
   }, [selectedLayerId, currentPageId, editingComponentId, componentDrafts, draftsByPageId]);
+
+  // Get selected layer name for drag preview
+  const selectedLayerName = useMemo(() => {
+    if (!selectedLayerId) return null;
+    const layer = findLayerById(layers, selectedLayerId);
+    // Use layer's name property (e.g., 'div', 'section', 'heading')
+    return layer?.name || null;
+  }, [selectedLayerId, layers]);
 
   // Get selected locale and translations
   const selectedLocale = getSelectedLocale();
@@ -1951,6 +2302,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
                       {/* Drop indicator overlay - subscribes to store directly */}
                       <CanvasDropIndicatorOverlay iframeElement={canvasIframeElement} />
+
+                      {/* Sibling reorder indicator overlay - for drag-to-reorder on canvas */}
+                      <CanvasSiblingReorderOverlay iframeElement={canvasIframeElement} />
 
                       {/* Empty overlay when only Body with no children */}
                       {isCanvasEmpty && (

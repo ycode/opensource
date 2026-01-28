@@ -325,6 +325,142 @@ export function removeLayerById(layers: Layer[], id: string): Layer[] {
 }
 
 /**
+ * Reorder siblings within the same parent.
+ * Moves a layer to be above or below a target sibling.
+ * 
+ * @param layers - The full layer tree
+ * @param movedLayerId - ID of the layer being moved
+ * @param targetSiblingId - ID of the sibling to drop relative to
+ * @param position - Whether to place above or below the target
+ * @returns Updated layer tree with reordered children, or original if move fails
+ */
+export function reorderSiblings(
+  layers: Layer[],
+  movedLayerId: string,
+  targetSiblingId: string,
+  position: 'above' | 'below'
+): Layer[] {
+  // Don't move if same layer
+  if (movedLayerId === targetSiblingId) {
+    return layers;
+  }
+
+  // Find the parent containing both layers
+  const findParentWithChild = (
+    layerList: Layer[],
+    childId: string,
+    parent: Layer | null = null
+  ): { parent: Layer | null; index: number } | null => {
+    for (let i = 0; i < layerList.length; i++) {
+      if (layerList[i].id === childId) {
+        return { parent, index: i };
+      }
+      if (layerList[i].children) {
+        const found = findParentWithChild(layerList[i].children!, childId, layerList[i]);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const movedInfo = findParentWithChild(layers, movedLayerId);
+  const targetInfo = findParentWithChild(layers, targetSiblingId);
+
+  // Both must exist and have the same parent
+  if (!movedInfo || !targetInfo) {
+    console.warn('[reorderSiblings] Could not find one or both layers');
+    return layers;
+  }
+
+  const movedParentId = movedInfo.parent?.id ?? null;
+  const targetParentId = targetInfo.parent?.id ?? null;
+
+  if (movedParentId !== targetParentId) {
+    console.warn('[reorderSiblings] Layers have different parents - cannot reorder');
+    return layers;
+  }
+
+  // Deep clone the tree to avoid mutations
+  const cloneLayer = (layer: Layer): Layer => ({
+    ...layer,
+    children: layer.children ? layer.children.map(cloneLayer) : undefined,
+  });
+  const newLayers = layers.map(cloneLayer);
+
+  // Find the parent in the cloned tree
+  const parentLayer = movedParentId 
+    ? findLayerById(newLayers, movedParentId) 
+    : null;
+  
+  const childrenArray = parentLayer ? parentLayer.children : newLayers;
+  
+  if (!childrenArray) {
+    console.warn('[reorderSiblings] Parent has no children array');
+    return layers;
+  }
+
+  // Find current indices
+  const movedIndex = childrenArray.findIndex(l => l.id === movedLayerId);
+  const targetIndex = childrenArray.findIndex(l => l.id === targetSiblingId);
+
+  if (movedIndex === -1 || targetIndex === -1) {
+    console.warn('[reorderSiblings] Could not find indices in children array');
+    return layers;
+  }
+
+  // Remove the moved layer
+  const [movedLayer] = childrenArray.splice(movedIndex, 1);
+
+  // Calculate new index (account for the removal)
+  let newIndex = targetIndex;
+  if (movedIndex < targetIndex) {
+    // Moving down - target index shifted by -1 due to removal
+    newIndex = position === 'above' ? targetIndex - 1 : targetIndex;
+  } else {
+    // Moving up - target index unchanged
+    newIndex = position === 'above' ? targetIndex : targetIndex + 1;
+  }
+
+  // Ensure newIndex is valid
+  newIndex = Math.max(0, Math.min(newIndex, childrenArray.length));
+
+  // Insert at new position
+  childrenArray.splice(newIndex, 0, movedLayer);
+
+  return newLayers;
+}
+
+/**
+ * Get all sibling layer IDs for a given layer.
+ * 
+ * @param layers - The full layer tree
+ * @param layerId - ID of the layer to find siblings for
+ * @returns Array of sibling layer IDs (excluding the layer itself)
+ */
+export function getSiblingIds(layers: Layer[], layerId: string): string[] {
+  const findSiblings = (
+    layerList: Layer[],
+    targetId: string,
+    parent: Layer | null = null
+  ): string[] | null => {
+    for (const layer of layerList) {
+      if (layer.id === targetId) {
+        // Found it - return sibling IDs from the same level
+        const siblings = parent?.children ?? layerList;
+        return siblings.filter(l => l.id !== targetId).map(l => l.id);
+      }
+      if (layer.children) {
+        const found = findSiblings(layer.children, targetId, layer);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  return findSiblings(layers, layerId) ?? [];
+}
+
+/**
  * Resolve field value from collection item data
  * @param fieldVariable - The FieldVariable containing field_id to resolve
  * @param collectionItemData - The collection item with values (field_id -> value)

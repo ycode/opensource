@@ -16,9 +16,13 @@ import { useEditorStore } from '@/stores/useEditorStore';
 
 export function DragCaptureOverlay() {
   // Subscribe directly to store to avoid parent re-renders
-  const isDragging = useEditorStore((state) => state.isDraggingToCanvas);
+  const isDraggingToCanvas = useEditorStore((state) => state.isDraggingToCanvas);
+  const isDraggingLayerOnCanvas = useEditorStore((state) => state.isDraggingLayerOnCanvas);
+  
+  // Show overlay for both element-to-canvas drag AND sibling reorder drag
+  const isDragging = isDraggingToCanvas || isDraggingLayerOnCanvas;
 
-  // Only render when actively dragging to canvas
+  // Only render when actively dragging
   if (!isDragging) return null;
 
   return (

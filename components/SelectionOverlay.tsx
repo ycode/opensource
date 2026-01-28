@@ -5,9 +5,13 @@
  *
  * Renders selection, hover, and parent outlines on top of the canvas iframe.
  * Uses direct DOM manipulation for instant updates during scrolling.
+ * 
+ * Note: Drag initiation for sibling reordering is handled by the
+ * useCanvasSiblingReorder hook, which listens to iframe mousedown events.
  */
 
 import React, { useEffect, useRef, useCallback } from 'react';
+import { useEditorStore } from '@/stores/useEditorStore';
 
 interface SelectionOverlayProps {
   /** Reference to the canvas iframe element */
@@ -36,6 +40,9 @@ export function SelectionOverlay({
   const selectedRef = useRef<HTMLDivElement>(null);
   const hoveredRef = useRef<HTMLDivElement>(null);
   const parentRef = useRef<HTMLDivElement>(null);
+  
+  // Track drag state for scroll/mutation handlers
+  const isDraggingRef = useRef(false);
 
   // Update a single outline element's position directly via DOM
   const updateOutline = useCallback((
@@ -80,7 +87,7 @@ export function SelectionOverlay({
   }, []);
 
   // Update all outlines
-  const updateAllOutlines = useCallback(() => {
+  const updateAllOutlines = useCallback((skipSolidBorders = false) => {
     if (!iframeElement || !containerElement) {
       if (selectedRef.current) selectedRef.current.style.display = 'none';
       if (hoveredRef.current) hoveredRef.current.style.display = 'none';
@@ -98,14 +105,16 @@ export function SelectionOverlay({
 
     const scale = zoom / 100;
 
-    // Update selected outline
-    updateOutline(selectedRef.current, selectedLayerId, iframeDoc, iframeElement, containerElement, scale);
+    // Update selected outline (skip during drag)
+    if (!skipSolidBorders) {
+      updateOutline(selectedRef.current, selectedLayerId, iframeDoc, iframeElement, containerElement, scale);
 
-    // Update hovered outline (only if different from selected)
-    const effectiveHoveredId = hoveredLayerId !== selectedLayerId ? hoveredLayerId : null;
-    updateOutline(hoveredRef.current, effectiveHoveredId, iframeDoc, iframeElement, containerElement, scale);
+      // Update hovered outline (only if different from selected)
+      const effectiveHoveredId = hoveredLayerId !== selectedLayerId ? hoveredLayerId : null;
+      updateOutline(hoveredRef.current, effectiveHoveredId, iframeDoc, iframeElement, containerElement, scale);
+    }
 
-    // Update parent outline (only if different from selected)
+    // Update parent outline (only if different from selected) - always visible
     const effectiveParentId = parentLayerId !== selectedLayerId ? parentLayerId : null;
     updateOutline(parentRef.current, effectiveParentId, iframeDoc, iframeElement, containerElement, scale);
   }, [iframeElement, containerElement, selectedLayerId, hoveredLayerId, parentLayerId, zoom, updateOutline]);
@@ -138,13 +147,15 @@ export function SelectionOverlay({
 
       // Show outlines after scrolling stops (150ms delay)
       scrollTimeout = setTimeout(() => {
-        updateAllOutlines();
+        // Skip solid borders if dragging
+        updateAllOutlines(isDraggingRef.current);
       }, 150);
     };
 
     // MutationObserver for DOM changes inside iframe
     const mutationObserver = new MutationObserver(() => {
-      updateAllOutlines();
+      // Skip solid borders if dragging
+      updateAllOutlines(isDraggingRef.current);
     });
 
     // Observe the iframe body for changes
@@ -172,23 +183,42 @@ export function SelectionOverlay({
     };
   }, [iframeElement, containerElement, updateAllOutlines]);
 
+  // Check if layer dragging is active (to hide selection during drag)
+  const isDraggingLayerOnCanvas = useEditorStore((state) => state.isDraggingLayerOnCanvas);
+
+  // Hide solid selection/hover outlines during drag, but keep dashed parent outline
+  useEffect(() => {
+    isDraggingRef.current = isDraggingLayerOnCanvas;
+    
+    if (isDraggingLayerOnCanvas) {
+      // Hide solid borders during drag
+      if (selectedRef.current) selectedRef.current.style.display = 'none';
+      if (hoveredRef.current) hoveredRef.current.style.display = 'none';
+      // Keep parent dashed outline visible - update just the parent
+      updateAllOutlines(true); // skipSolidBorders = true
+    } else {
+      // Re-show all outlines when drag ends
+      updateAllOutlines(false);
+    }
+  }, [isDraggingLayerOnCanvas, updateAllOutlines]);
+
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden z-40">
-      {/* Parent outline (dashed) */}
+      {/* Parent outline (dashed) - visible during drag */}
       <div
         ref={parentRef}
         className="absolute outline outline-1 outline-dashed outline-blue-400"
         style={{ display: 'none' }}
       />
 
-      {/* Hover outline */}
+      {/* Hover outline - hidden during drag */}
       <div
         ref={hoveredRef}
         className="absolute outline outline-1 outline-blue-400/50"
         style={{ display: 'none' }}
       />
 
-      {/* Selection outline */}
+      {/* Selection outline - hidden during drag */}
       <div
         ref={selectedRef}
         className="absolute outline outline-1 outline-blue-500"

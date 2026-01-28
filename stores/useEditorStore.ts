@@ -34,6 +34,13 @@ export interface CanvasDropTarget {
   targetDisplayName?: string;
 }
 
+export interface CanvasSiblingDropTarget {
+  layerId: string;
+  position: 'above' | 'below';
+  /** Projected index where the dragged element would be inserted */
+  projectedIndex: number;
+}
+
 export interface DragPosition {
   x: number;
   y: number;
@@ -80,6 +87,10 @@ interface EditorActions {
   updateDragPosition: (position: DragPosition) => void;
   updateCanvasDropTarget: (target: CanvasDropTarget | null) => void;
   endCanvasDrag: () => void;
+  // Canvas sibling reorder actions
+  startCanvasLayerDrag: (layerId: string, layerName: string, parentId: string | null, originalIndex: number, siblingIds: string[]) => void;
+  updateCanvasSiblingDropTarget: (target: CanvasSiblingDropTarget | null) => void;
+  endCanvasLayerDrag: () => void;
 }
 
 interface EditorStoreWithHistory extends EditorState {
@@ -124,6 +135,14 @@ interface EditorStoreWithHistory extends EditorState {
   dragElementSource: 'elements' | 'layouts' | 'components' | null;
   dragPosition: DragPosition | null;
   canvasDropTarget: CanvasDropTarget | null;
+  // Canvas sibling reorder state
+  isDraggingLayerOnCanvas: boolean;
+  draggedLayerId: string | null;
+  draggedLayerName: string | null;
+  draggedLayerParentId: string | null;
+  draggedLayerOriginalIndex: number | null;
+  siblingLayerIds: string[];
+  canvasSiblingDropTarget: CanvasSiblingDropTarget | null;
   // Computed getters
   showTextStyleControls: () => boolean;
 }
@@ -177,6 +196,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   dragElementSource: null,
   dragPosition: null,
   canvasDropTarget: null,
+  // Canvas sibling reorder initial state
+  isDraggingLayerOnCanvas: false,
+  draggedLayerId: null,
+  draggedLayerName: null,
+  draggedLayerParentId: null,
+  draggedLayerOriginalIndex: null,
+  siblingLayerIds: [],
+  canvasSiblingDropTarget: null,
 
   // Computed getter: Returns true when text style controls should be shown
   // This happens when:
@@ -498,5 +525,30 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     dragElementSource: null,
     dragPosition: null,
     canvasDropTarget: null,
+  }),
+
+  // Canvas sibling reorder actions
+  startCanvasLayerDrag: (layerId, layerName, parentId, originalIndex, siblingIds) => set({
+    isDraggingLayerOnCanvas: true,
+    draggedLayerId: layerId,
+    draggedLayerName: layerName,
+    draggedLayerParentId: parentId,
+    draggedLayerOriginalIndex: originalIndex,
+    siblingLayerIds: siblingIds,
+    canvasSiblingDropTarget: null,
+  }),
+
+  updateCanvasSiblingDropTarget: (target) => set({
+    canvasSiblingDropTarget: target,
+  }),
+
+  endCanvasLayerDrag: () => set({
+    isDraggingLayerOnCanvas: false,
+    draggedLayerId: null,
+    draggedLayerName: null,
+    draggedLayerParentId: null,
+    draggedLayerOriginalIndex: null,
+    siblingLayerIds: [],
+    canvasSiblingDropTarget: null,
   }),
 }));
