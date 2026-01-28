@@ -762,6 +762,8 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         const displayableFields = fields?.filter((f) => f.type !== 'multi_reference') || [];
         const hasDisplayableFields = displayableFields.length > 0;
 
+        if (!hasDisplayableFields) return null;
+
         return (
           <div className="absolute top-1 right-1">
             <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
@@ -769,28 +771,25 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
                 <Button
                   variant="secondary"
                   size="xs"
-                  disabled={!hasDisplayableFields}
-                  title={hasDisplayableFields ? 'Insert Variable' : 'No variables available'}
+                  title="Insert Variable"
                 >
                   <Icon name="database" className="size-2.5" />
                 </Button>
               </DropdownMenuTrigger>
 
-              {hasDisplayableFields && (
-                <DropdownMenuContent
-                  className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
-                  align="end"
-                  sideOffset={4}
-                >
-                  <FieldTreeSelect
-                    fields={fields || []}
-                    allFields={allFields || {}}
-                    collections={collections || []}
-                    onSelect={handleFieldSelect}
-                    collectionLabel={fieldSourceLabel}
-                  />
-                </DropdownMenuContent>
-              )}
+              <DropdownMenuContent
+                className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                align="end"
+                sideOffset={4}
+              >
+                <FieldTreeSelect
+                  fields={fields || []}
+                  allFields={allFields || {}}
+                  collections={collections || []}
+                  onSelect={handleFieldSelect}
+                  collectionLabel={fieldSourceLabel}
+                />
+              </DropdownMenuContent>
             </DropdownMenu>
           </div>
         );
