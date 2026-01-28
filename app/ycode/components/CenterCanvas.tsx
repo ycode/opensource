@@ -1610,7 +1610,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               </>
             )}
 
-            {/* Inline Variable Button - matches InputWithInlineVariables behavior */}
+            {/* Inline Variable Button - matches RichTextEditor behavior */}
             {(() => {
               // Check if there are any displayable fields (exclude multi_reference)
               const hasDisplayableFields = fieldGroups?.some(

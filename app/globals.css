@@ -159,53 +159,53 @@
   fill: currentColor;
 }
 
-/* InputWithInlineVariables Editor Styles */
+/* RichTextEditor Styles */
 
-.input-with-inline-variables-editor.ProseMirror {
+.rich-text-editor.ProseMirror {
   @apply outline-none w-full min-h-full;
 }
 
-.input-with-inline-variables-editor.ProseMirror p {
+.rich-text-editor.ProseMirror p {
   @apply block m-0 p-0;
 }
 
-.input-with-inline-variables-editor.ProseMirror p.is-editor-empty:first-child {
+.rich-text-editor.ProseMirror p.is-editor-empty:first-child {
   @apply relative;
 }
 
-.input-with-inline-variables-editor.ProseMirror p.is-editor-empty:first-child::before {
+.rich-text-editor.ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   @apply absolute left-0 top-1/2 -translate-y-1/2 text-current/25 pointer-events-none text-xs leading-[1.375rem] whitespace-nowrap overflow-hidden text-ellipsis max-w-full;
 }
 
-.input-with-inline-variables-editor.ProseMirror ul {
+.rich-text-editor.ProseMirror ul {
   @apply my-0 pl-[0.5rem] list-inside list-disc;
 }
 
-.input-with-inline-variables-editor.ProseMirror ol {
+.rich-text-editor.ProseMirror ol {
   @apply my-0 pl-[0.5rem] list-inside list-decimal;
 }
 
-.input-with-inline-variables-editor.ProseMirror li {
+.rich-text-editor.ProseMirror li {
   @apply my-0 min-h-[1.375rem];
 }
 
-.input-with-inline-variables-editor.ProseMirror li p {
+.rich-text-editor.ProseMirror li p {
   @apply inline;
 }
 
-.input-with-inline-variables-editor.ProseMirror strong {
+.rich-text-editor.ProseMirror strong {
   @apply font-bold;
 }
 
-.input-with-inline-variables-editor.ProseMirror em {
+.rich-text-editor.ProseMirror em {
   @apply italic;
 }
 
-.input-with-inline-variables-editor.ProseMirror u {
+.rich-text-editor.ProseMirror u {
   @apply underline;
 }
 
-.input-with-inline-variables-editor.ProseMirror s {
+.rich-text-editor.ProseMirror s {
   @apply line-through;
 }

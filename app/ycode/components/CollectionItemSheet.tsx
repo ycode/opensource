@@ -26,7 +26,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { TiptapEditor } from '@/components/ui/tiptap-editor';
+import RichTextEditor from './RichTextEditor';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { usePagesStore } from '@/stores/usePagesStore';
@@ -372,10 +372,12 @@ export default function CollectionItemSheet({
                         <FormLabel>{field.name}</FormLabel>
                         <FormControl>
                           {field.type === 'rich_text' ? (
-                            <TiptapEditor
+                            <RichTextEditor
                               value={formField.value || ''}
                               onChange={formField.onChange}
                               placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
+                              variant="full"
+                              withFormatting={true}
                             />
                           ) : field.type === 'reference' && field.reference_collection_id ? (
                             <ReferenceFieldCombobox

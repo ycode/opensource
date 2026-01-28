@@ -45,7 +45,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { uploadFileApi, deleteAssetApi } from '@/lib/api';
 import { useAsset } from '@/hooks/use-asset';
 import { useAssetsStore } from '@/stores/useAssetsStore';
-import InputWithInlineVariables from './InputWithInlineVariables';
+import RichTextEditor from './RichTextEditor';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
@@ -1528,7 +1528,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                         Appears in search results and browser tabs. Page name is used when empty.
                       </FieldDescription>
                       {isDynamicPage ? (
-                        <InputWithInlineVariables
+                        <RichTextEditor
                           value={seoTitle}
                           onChange={setSeoTitle}
                           placeholder={name || 'Page title'}
@@ -1559,7 +1559,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                         Brief description for search engines (generally 150 to 160 characters).
                       </FieldDescription>
                       {isDynamicPage ? (
-                        <InputWithInlineVariables
+                        <RichTextEditor
                           value={seoDescription}
                           onChange={setSeoDescription}
                           className="min-h-18"

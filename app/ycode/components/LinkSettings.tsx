@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import Icon, { type IconProps } from '@/components/ui/icon';
 import SettingsPanel from './SettingsPanel';
-import InputWithInlineVariables from './InputWithInlineVariables';
+import RichTextEditor from './RichTextEditor';
 import type { FieldGroup } from './FieldTreeSelect';
 import {
   Select,
@@ -612,7 +612,7 @@ export default function LinkSettings({
           <div className="grid grid-cols-3 items-center gap-2">
             <Label className="text-xs text-muted-foreground">URL</Label>
             <div className="col-span-2">
-              <InputWithInlineVariables
+              <RichTextEditor
                 value={urlValue}
                 onChange={handleUrlChange}
                 placeholder="https://example.com"
@@ -630,7 +630,7 @@ export default function LinkSettings({
           <div className="grid grid-cols-3 items-center gap-2">
             <Label className="text-xs text-muted-foreground">Email</Label>
             <div className="col-span-2">
-              <InputWithInlineVariables
+              <RichTextEditor
                 value={emailValue}
                 onChange={handleEmailChange}
                 placeholder="email@example.com"
@@ -648,7 +648,7 @@ export default function LinkSettings({
           <div className="grid grid-cols-3 items-center gap-2">
             <Label className="text-xs text-muted-foreground">Phone</Label>
             <div className="col-span-2">
-              <InputWithInlineVariables
+              <RichTextEditor
                 value={phoneValue}
                 onChange={handlePhoneChange}
                 placeholder="+1234567890"

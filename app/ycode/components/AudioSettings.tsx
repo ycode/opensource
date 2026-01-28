@@ -10,7 +10,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 
 import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
-import InputWithInlineVariables from './InputWithInlineVariables';
+import RichTextEditor from './RichTextEditor';
 import type { FieldGroup } from './FieldTreeSelect';
 import type { Layer, CollectionField, Collection } from '@/types';
 import { createAssetVariable, createDynamicTextVariable, getDynamicTextContent, isAssetVariable, getAssetId, isFieldVariable, isDynamicTextVariable } from '@/lib/variable-utils';
@@ -193,7 +193,7 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
   const handleUrlChange = useCallback((value: string) => {
     if (!layer) return;
 
-    // Value is already a string from InputWithInlineVariables (already converted from Tiptap JSON)
+    // Value is already a string from RichTextEditor (already converted from Tiptap JSON)
     // Create DynamicTextVariable directly from the string value
     const srcVariable = createDynamicTextVariable(value);
 
@@ -341,7 +341,7 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
             <Label variant="muted" className="pt-2">URL</Label>
 
             <div className="col-span-2">
-              <InputWithInlineVariables
+              <RichTextEditor
                 value={customUrlValue}
                 onChange={handleUrlChange}
                 placeholder="https://example.com/audio.mp3"

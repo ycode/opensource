@@ -23,7 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import InputWithInlineVariables from './InputWithInlineVariables';
+import RichTextEditor from './RichTextEditor';
 import ImageSettings, { type ImageSettingsValue } from './ImageSettings';
 
 import { useComponentsStore } from '@/stores/useComponentsStore';
@@ -251,8 +251,8 @@ export default function ComponentVariablesDialog({
                         collections={collections}
                       />
                     ) : (
-                      // Text variable - use InputWithInlineVariables
-                      <InputWithInlineVariables
+                      // Text variable - use RichTextEditor
+                      <RichTextEditor
                         value={editingDefaultValue}
                         onChange={handleDefaultValueChange}
                         onBlur={handleDefaultValueBlur}

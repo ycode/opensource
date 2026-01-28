@@ -12,7 +12,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 
 import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
-import InputWithInlineVariables from './InputWithInlineVariables';
+import RichTextEditor from './RichTextEditor';
 import type { FieldGroup } from './FieldTreeSelect';
 import type { Layer, CollectionField, Collection, AssetVariable, DynamicTextVariable, FieldVariable, ImageSettingsValue } from '@/types';
 import { createDynamicTextVariable, getDynamicTextContent, createAssetVariable, getImageUrlFromVariable, isAssetVariable, getAssetId, isDynamicTextVariable, isFieldVariable } from '@/lib/variable-utils';
@@ -484,7 +484,7 @@ export default function ImageSettings(props: ImageSettingsProps) {
           {!isStandaloneMode && <Label variant="muted" className="pt-2">URL</Label>}
 
           <div className={isStandaloneMode ? '' : 'col-span-2'}>
-            <InputWithInlineVariables
+            <RichTextEditor
               value={customUrlValue}
               onChange={handleUrlChange}
               placeholder="https://example.com/image.jpg"
@@ -531,7 +531,7 @@ export default function ImageSettings(props: ImageSettingsProps) {
         {isStandaloneMode && <Label variant="muted" className="mb-1.5">ALT</Label>}
 
         <div className={isStandaloneMode ? '' : 'col-span-2 *:w-full'}>
-          <InputWithInlineVariables
+          <RichTextEditor
             value={altValue}
             onChange={handleAltChange}
             placeholder="Image description"

@@ -36,7 +36,7 @@ import AudioSettings from './AudioSettings';
 import IconSettings from './IconSettings';
 import HTMLEmbedSettings from './HTMLEmbedSettings';
 import LinkSettings from './LinkSettings';
-import InputWithInlineVariables from './InputWithInlineVariables';
+import RichTextEditor from './RichTextEditor';
 import InteractionsPanel from './InteractionsPanel';
 import LayoutControls from './LayoutControls';
 import LayerStylesPanel from './LayerStylesPanel';
@@ -808,7 +808,7 @@ const RightSidebar = React.memo(function RightSidebar({
     if (layer.variables?.text) {
       // DynamicRichTextVariable (new format with formatting support)
       if (layer.variables.text.type === 'dynamic_rich_text') {
-        // Return Tiptap JSON directly for InputWithInlineVariables (withFormatting mode)
+        // Return Tiptap JSON directly for RichTextEditor (withFormatting mode)
         return layer.variables.text.data.content;
       } else if (layer.variables.text.type === 'dynamic_text') {
         // Return string for DynamicTextVariable
@@ -1765,7 +1765,7 @@ const RightSidebar = React.memo(function RightSidebar({
                         {variable.name}
                       </Label>
                       <div className="col-span-2 *:w-full">
-                        <InputWithInlineVariables
+                        <RichTextEditor
                           value={getOverrideValue(variable.id)}
                           onChange={(val) => handleVariableOverrideChange(variable.id, val)}
                           placeholder="Enter value..."
@@ -2240,13 +2240,13 @@ const RightSidebar = React.memo(function RightSidebar({
                           </div>
                         </Button>
                       ) : (isTextEditingOnCanvas && editingLayerIdOnCanvas === selectedLayerId) ? (
-                        // Don't render InputWithInlineVariables while canvas text editor is active
+                        // Don't render RichTextEditor while canvas text editor is active
                         // to prevent race conditions when saving
                         <Empty className="min-h-[2rem] py-2">
                           <EmptyDescription>You are editing the text directly on canvas.</EmptyDescription>
                         </Empty>
                       ) : (
-                        <InputWithInlineVariables
+                        <RichTextEditor
                           value={getContentValue(selectedLayer)}
                           onChange={handleContentChange}
                           placeholder="Enter text..."

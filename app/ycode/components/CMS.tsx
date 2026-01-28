@@ -28,6 +28,7 @@ import { collectionsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { slugify } from '@/lib/collection-utils';
 import { FIELD_TYPES, type FieldType } from '@/lib/field-types-config';
+import { extractPlainTextFromContent } from '@/lib/cms-variables-utils';
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
@@ -1382,11 +1383,9 @@ const CMS = React.memo(function CMS() {
                         );
                       }
 
-                      // Rich text fields - strip HTML and truncate
+                      // Rich text fields - extract plain text and truncate
                       if (field.type === 'rich_text') {
-                        const plainText = value
-                          ? String(value).replace(/<[^>]*>/g, '').trim()
-                          : '';
+                        const plainText = extractPlainTextFromContent(value);
                         return (
                           <td
                             key={field.id}

@@ -59,8 +59,24 @@ export function castValue(value: string | null, type: CollectionFieldType): any 
       const refId = parseInt(value, 10);
       return isNaN(refId) ? null : refId;
 
+    case 'rich_text':
+      // Parse TipTap JSON from stored string
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+
     case 'text':
     default:
+      // Try to parse JSON for text fields that might contain JSON objects
+      if (value.startsWith('{') || value.startsWith('[')) {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return value;
+        }
+      }
       return value;
   }
 }
@@ -73,6 +89,11 @@ export function castValue(value: string | null, type: CollectionFieldType): any 
  */
 export function valueToString(value: any, type: CollectionFieldType): string | null {
   if (value === null || value === undefined) return null;
+
+  // Always JSON.stringify objects to prevent [object Object]
+  if (typeof value === 'object') {
+    return JSON.stringify(value);
+  }
 
   switch (type) {
     case 'boolean':
@@ -92,6 +113,7 @@ export function valueToString(value: any, type: CollectionFieldType): string | n
       // Store ID as string
       return String(value);
 
+    case 'rich_text':
     case 'text':
     default:
       return String(value);
@@ -103,7 +125,7 @@ export function valueToString(value: any, type: CollectionFieldType): string | n
  * Uses the same transliteration logic as page slugs
  * @param name - The name to slugify
  * @returns URL-safe slug with transliterated characters
- * 
+ *
  * @example
  * slugify('Apie mus') // 'apie-mus'
  * slugify('О нас') // 'o-nas'

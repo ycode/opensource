@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Icon } from '@/components/ui/icon';
 import { Spinner } from '@/components/ui/spinner';
 import { Separator } from '@/components/ui/separator';
-import InputWithInlineVariables from '@/app/ycode/components/InputWithInlineVariables';
+import RichTextEditor from '@/app/ycode/components/RichTextEditor';
 import type { FieldGroup } from '@/app/ycode/components/FieldTreeSelect';
 import FileManagerDialog from '@/app/ycode/components/FileManagerDialog';
 import { sanitizeSlug, checkDuplicatePageSlug, checkDuplicateFolderSlug, type ValidationResult } from '@/lib/page-utils';
@@ -42,7 +42,7 @@ interface TranslationRowProps {
 
 /**
  * Reusable component for rendering a translation row
- * Uses InputWithInlineVariables for consistent styling across all content types
+ * Uses RichTextEditor for consistent styling across all content types
  */
 export default function TranslationRow({
   item,
@@ -101,7 +101,7 @@ export default function TranslationRow({
     ? localInputValues[item.key]
     : storeValue;
 
-  // For rich text, parse JSON string to Tiptap JSON object for InputWithInlineVariables
+  // For rich text, parse JSON string to Tiptap JSON object for RichTextEditor
   let translationValueForEditor: string | any = translationValue;
   if (isRichText) {
     if (translationValue && typeof translationValue === 'string') {
@@ -535,7 +535,7 @@ export default function TranslationRow({
             </div>
           ) : (
             <div className="text-sm opacity-50">
-              <InputWithInlineVariables
+              <RichTextEditor
                 value={originalValueForEditor}
                 onChange={() => {}} // Read-only on left side
                 placeholder=""
@@ -562,7 +562,7 @@ export default function TranslationRow({
                 )}
               </div>
             ) : (
-              <InputWithInlineVariables
+              <RichTextEditor
                 value={translationValueForEditor}
                 onChange={handleTranslationChange}
                 onBlur={handleTranslationBlur}

@@ -620,7 +620,7 @@ export function extractPlainText(variable: DynamicRichTextVariable): string {
 
 /**
  * Convert Tiptap JSON content to string format with inline variables
- * Used for InputWithInlineVariables component
+ * Used for RichTextEditor component
  */
 export function tiptapContentToString(content: any): string {
   if (!content || typeof content !== 'object' || content.type !== 'doc') {

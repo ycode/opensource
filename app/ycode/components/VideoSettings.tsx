@@ -11,7 +11,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 
 import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
-import InputWithInlineVariables from './InputWithInlineVariables';
+import RichTextEditor from './RichTextEditor';
 import type { FieldGroup } from './FieldTreeSelect';
 import type { Layer, CollectionField, Collection, VideoVariable } from '@/types';
 import { createAssetVariable, createDynamicTextVariable, getDynamicTextContent, isAssetVariable, getAssetId, isFieldVariable, isDynamicTextVariable } from '@/lib/variable-utils';
@@ -369,7 +369,7 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
   const handleCustomUrlChange = useCallback((value: string) => {
     if (!layer) return;
 
-    // Value is already a string from InputWithInlineVariables (already converted from Tiptap JSON)
+    // Value is already a string from RichTextEditor (already converted from Tiptap JSON)
     // Create DynamicTextVariable directly from the string value
     const urlVariable = createDynamicTextVariable(value);
 
@@ -569,7 +569,7 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
               <Label variant="muted" className="pt-2">URL</Label>
 
               <div className="col-span-2">
-                <InputWithInlineVariables
+                <RichTextEditor
                   value={customUrlValue}
                   onChange={handleCustomUrlChange}
                   placeholder="https://example.com/video.mp4"
