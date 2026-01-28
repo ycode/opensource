@@ -101,6 +101,7 @@ export default async function Home({ searchParams }: HomeProps) {
       generatedCss={publishedCSS}
       locale={data.locale}
       availableLocales={data.availableLocales}
+      translations={data.translations}
     />
   );
 }

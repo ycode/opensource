@@ -106,13 +106,6 @@ export function resolveComponents(layers: Layer[], components: Component[]): Lay
     if (layer.componentId) {
       const component = components.find(c => c.id === layer.componentId);
 
-      console.log('[resolveComponents] Found component instance:', {
-        layerId: layer.id,
-        componentId: layer.componentId,
-        componentFound: !!component,
-        componentLayersCount: component?.layers?.length || 0
-      });
-
       if (component?.layers?.length) {
         // The component's first layer is the actual content (Section, etc.)
         const componentContent = component.layers[0];

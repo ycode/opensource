@@ -247,7 +247,6 @@ export default function ComponentVariablesDialog({
                         mode="standalone"
                         value={selectedVariable.default_value as ImageSettingsValue}
                         onChange={handleImageDefaultValueChange}
-                        fields={[]}
                         allFields={fields}
                         collections={collections}
                       />
@@ -258,7 +257,6 @@ export default function ComponentVariablesDialog({
                         onChange={handleDefaultValueChange}
                         onBlur={handleDefaultValueBlur}
                         placeholder="Default value..."
-                        fields={[]}
                         allFields={fields}
                         collections={collections}
                         withFormatting={true}

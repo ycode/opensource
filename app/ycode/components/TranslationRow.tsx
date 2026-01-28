@@ -5,6 +5,7 @@ import { Icon } from '@/components/ui/icon';
 import { Spinner } from '@/components/ui/spinner';
 import { Separator } from '@/components/ui/separator';
 import InputWithInlineVariables from '@/app/ycode/components/InputWithInlineVariables';
+import type { FieldGroup } from '@/app/ycode/components/FieldTreeSelect';
 import FileManagerDialog from '@/app/ycode/components/FileManagerDialog';
 import { sanitizeSlug, checkDuplicatePageSlug, checkDuplicateFolderSlug, type ValidationResult } from '@/lib/page-utils';
 import type { TranslatableItem } from '@/lib/localisation-utils';
@@ -30,8 +31,7 @@ interface TranslationRowProps {
   updateTranslationStatus: (translation: Translation, isCompleted: boolean) => Promise<void>;
   deleteTranslation: (translation: Translation) => Promise<void>;
   // Optional: For pages with CMS fields and inline variables support
-  pageFields?: CollectionField[];
-  fieldSourceLabel?: string;
+  fieldGroups?: FieldGroup[];
   allFields?: Record<string, CollectionField[]>;
   collections?: Collection[];
   // For slug validation
@@ -56,8 +56,7 @@ export default function TranslationRow({
   updateTranslationValue,
   updateTranslationStatus,
   deleteTranslation,
-  pageFields,
-  fieldSourceLabel,
+  fieldGroups,
   allFields,
   collections,
   pages = [],
@@ -540,8 +539,7 @@ export default function TranslationRow({
                 value={originalValueForEditor}
                 onChange={() => {}} // Read-only on left side
                 placeholder=""
-                fields={pageFields}
-                fieldSourceLabel={fieldSourceLabel}
+                fieldGroups={fieldGroups}
                 allFields={allFields}
                 collections={collections}
                 disabled={true}
@@ -576,8 +574,7 @@ export default function TranslationRow({
                 className={`min-h-[28px] [&_.ProseMirror]:py-1 [&_.ProseMirror]:px-2.5 [&_.ProseMirror]:!bg-transparent ${
                   validationError ? '[&_.ProseMirror]:!border-destructive' : ''
                 }`}
-                fields={pageFields}
-                fieldSourceLabel={fieldSourceLabel}
+                fieldGroups={fieldGroups}
                 allFields={allFields}
                 collections={collections}
                 withFormatting={isRichText}

@@ -3,6 +3,60 @@ import type { TextStyle, DynamicRichTextVariable } from '@/types';
 import { cn } from '@/lib/utils';
 
 /**
+ * Resolve inline variables in a text string using collection item data
+ * Replaces <ycode-inline-variable>{"type":"field","data":{"field_id":"...","source":"page|collection"}}</ycode-inline-variable>
+ * with actual field values from the appropriate data source
+ * @param text - Text containing inline variable tags
+ * @param collectionItemData - Data from collection layer items
+ * @param pageCollectionItemData - Data from page collection (dynamic pages)
+ */
+function resolveInlineVariablesFromData(
+  text: string,
+  collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string>
+): string {
+  if (!text) {
+    return '';
+  }
+
+  // If no data sources available, just remove the variable tags
+  if (!collectionItemData && !pageCollectionItemData) {
+    return text.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+  }
+
+  const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
+  return text.replace(regex, (match, variableContent) => {
+    try {
+      const parsed = JSON.parse(variableContent.trim());
+
+      if (parsed.type === 'field' && parsed.data?.field_id) {
+        const fieldId = parsed.data.field_id;
+        const source = parsed.data.source;
+
+        // Select the appropriate data source based on the source field
+        let fieldValue: string | undefined;
+        if (source === 'page') {
+          // Explicitly from page collection
+          fieldValue = pageCollectionItemData?.[fieldId];
+        } else if (source === 'collection') {
+          // Explicitly from collection layer
+          fieldValue = collectionItemData?.[fieldId];
+        } else {
+          // No source specified - try collection first, then page (backwards compatibility)
+          fieldValue = collectionItemData?.[fieldId] ?? pageCollectionItemData?.[fieldId];
+        }
+
+        return fieldValue || '';
+      }
+    } catch {
+      // Invalid JSON or not a field variable, leave as is
+    }
+
+    return match;
+  });
+}
+
+/**
  * Get a human-readable label for a text style
  * Returns the style.label if it exists, otherwise formats the key (camelCase to Title Case)
  * @param key - The text style key (e.g., 'bold', 'bulletList')
@@ -85,6 +139,16 @@ export const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
       borders: { borderRadius: 'rounded' },
     },
   },
+  link: {
+    label: 'Link',
+    classes: 'text-[#1c70d7] underline underline-offset-2',
+    design: {
+      typography: {
+        textDecoration: 'underline',
+        color: '#1c70d7',
+      },
+    },
+  },
   bulletList: {
     label: 'Bullet List',
     classes: 'ml-2 pl-4 list-disc',
@@ -129,23 +193,43 @@ export function getTiptapTextContent(text: string): {
 
 /**
  * Resolve inline variable in Tiptap node
+ * @param node - TipTap dynamicVariable node
+ * @param collectionItemData - Data from collection layer items
+ * @param pageCollectionItemData - Data from page collection (dynamic pages)
  */
 function resolveVariableNode(
   node: any,
-  collectionItemData?: Record<string, string>
+  collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string>
 ): string {
   if (node.attrs?.variable?.type === 'field' && node.attrs.variable.data?.field_id) {
     const fieldId = node.attrs.variable.data.field_id;
     const relationships = node.attrs.variable.data.relationships || [];
+    const source = node.attrs.variable.data.source;
+
+    // Select the appropriate data source based on the source field
+    let dataSource: Record<string, string> | undefined;
+    if (source === 'page') {
+      dataSource = pageCollectionItemData;
+    } else if (source === 'collection') {
+      dataSource = collectionItemData;
+    } else {
+      // No source specified - try collection first, then page (backwards compatibility)
+      dataSource = collectionItemData || pageCollectionItemData;
+    }
+
+    if (!dataSource) {
+      return '';
+    }
 
     // Build the full path for relationship resolution
-    if (relationships.length > 0 && collectionItemData) {
+    if (relationships.length > 0) {
       const fullPath = [fieldId, ...relationships].join('.');
-      return collectionItemData[fullPath] || '';
+      return dataSource[fullPath] || '';
     }
 
     // Simple field lookup
-    return collectionItemData?.[fieldId] || '';
+    return dataSource[fieldId] || '';
   }
 
   return '';
@@ -154,17 +238,22 @@ function resolveVariableNode(
 /**
  * Render a text node with its marks (bold, italic, underline, strike)
  * @param isEditMode - If true, adds data-style attributes for style selection on canvas
+ * @param collectionItemData - Collection layer item values for resolving inline variables
+ * @param pageCollectionItemData - Page collection item values for resolving inline variables (dynamic pages)
  */
 function renderTextNode(
   node: any,
   key: string,
   textStyles?: Record<string, TextStyle>,
-  isEditMode = false
+  isEditMode = false,
+  collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string>
 ): React.ReactNode {
   let text: React.ReactNode = node.text || '';
 
-  // Merge with defaults
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
+  // Helper: use layer textStyles if set, otherwise fall back to DEFAULT_TEXT_STYLES
+  const getMarkClass = (markKey: string) =>
+    textStyles?.[markKey]?.classes ?? DEFAULT_TEXT_STYLES[markKey]?.classes;
 
   // Apply marks in reverse order (innermost to outermost)
   if (node.marks && Array.isArray(node.marks)) {
@@ -181,22 +270,22 @@ function renderTextNode(
 
       switch (mark.type) {
         case 'bold':
-          text = React.createElement('strong', buildProps('bold', styles.bold?.classes), text);
+          text = React.createElement('strong', buildProps('bold', getMarkClass('bold')), text);
           break;
         case 'italic':
-          text = React.createElement('em', buildProps('italic', styles.italic?.classes), text);
+          text = React.createElement('em', buildProps('italic', getMarkClass('italic')), text);
           break;
         case 'underline':
-          text = React.createElement('u', buildProps('underline', styles.underline?.classes), text);
+          text = React.createElement('u', buildProps('underline', getMarkClass('underline')), text);
           break;
         case 'strike':
-          text = React.createElement('s', buildProps('strike', styles.strike?.classes), text);
+          text = React.createElement('s', buildProps('strike', getMarkClass('strike')), text);
           break;
         case 'subscript':
-          text = React.createElement('sub', buildProps('subscript', styles.subscript?.classes), text);
+          text = React.createElement('sub', buildProps('subscript', getMarkClass('subscript')), text);
           break;
         case 'superscript':
-          text = React.createElement('sup', buildProps('superscript', styles.superscript?.classes), text);
+          text = React.createElement('sup', buildProps('superscript', getMarkClass('superscript')), text);
           break;
         case 'dynamicStyle': {
           // Dynamic style stores an array of styleKeys
@@ -207,8 +296,9 @@ function renderTextNode(
           }
           // Combine classes from all styleKeys using cn() for intelligent merging
           // Later styles override earlier ones for conflicting properties
+          const mergedStyles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
           const classesArray = styleKeys
-            .map(k => styles[k]?.classes || '')
+            .map(k => mergedStyles[k]?.classes || '')
             .filter(Boolean);
           const styleClasses = cn(...classesArray);
           const lastKey = styleKeys[styleKeys.length - 1];
@@ -221,6 +311,63 @@ function renderTextNode(
             props['data-style-key'] = lastKey; // For click detection
           }
           text = React.createElement('span', props, text);
+          break;
+        }
+        case 'richTextLink': {
+          // Rich text link with full LinkSettings stored in attrs
+          const linkType = mark.attrs?.type;
+          let href = '#';
+
+          switch (linkType) {
+            case 'url': {
+              const urlContent = mark.attrs?.url?.data?.content || '';
+              // Resolve inline variables in the URL (pass both collection and page data)
+              href = resolveInlineVariablesFromData(urlContent, collectionItemData, pageCollectionItemData) || '#';
+              break;
+            }
+            case 'email': {
+              const emailContent = mark.attrs?.email?.data?.content || '';
+              // Resolve inline variables in the email
+              const resolvedEmail = resolveInlineVariablesFromData(emailContent, collectionItemData, pageCollectionItemData);
+              href = resolvedEmail ? `mailto:${resolvedEmail}` : '#';
+              break;
+            }
+            case 'phone': {
+              const phoneContent = mark.attrs?.phone?.data?.content || '';
+              // Resolve inline variables in the phone number
+              const resolvedPhone = resolveInlineVariablesFromData(phoneContent, collectionItemData, pageCollectionItemData);
+              href = resolvedPhone ? `tel:${resolvedPhone}` : '#';
+              break;
+            }
+            // page, asset, field types need more context to resolve - use placeholder
+            default:
+              href = '#';
+              break;
+          }
+
+          const linkProps: Record<string, any> = {
+            key: `${key}-richTextLink`,
+            href,
+            className: getMarkClass('link'),
+          };
+
+          if (mark.attrs?.target) {
+            linkProps.target = mark.attrs.target;
+          }
+          if (mark.attrs?.rel || mark.attrs?.target === '_blank') {
+            linkProps.rel = mark.attrs.rel || 'noopener noreferrer';
+          }
+          if (mark.attrs?.download) {
+            linkProps.download = true;
+          }
+
+          // In edit mode, prevent navigation and add data-style for styling
+          if (isEditMode) {
+            linkProps.onClick = (e: React.MouseEvent) => e.preventDefault();
+            linkProps['data-style'] = 'link';
+          }
+
+          text = React.createElement('a', linkProps, text);
           break;
         }
       }
@@ -236,6 +383,7 @@ function renderTextNode(
 function renderInlineContent(
   content: any[],
   collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
   isEditMode = false
 ): React.ReactNode[] {
@@ -243,18 +391,18 @@ function renderInlineContent(
     const key = `node-${idx}`;
 
     if (node.type === 'text') {
-      return renderTextNode(node, key, textStyles, isEditMode);
+      return renderTextNode(node, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData);
     }
 
     if (node.type === 'dynamicVariable') {
-      const value = resolveVariableNode(node, collectionItemData);
+      const value = resolveVariableNode(node, collectionItemData, pageCollectionItemData);
       // Create a text node structure with the resolved value and preserve marks
       const textNode = {
         type: 'text',
         text: value,
         marks: node.marks || [],
       };
-      return renderTextNode(textNode, key, textStyles, isEditMode);
+      return renderTextNode(textNode, key, textStyles, isEditMode, collectionItemData, pageCollectionItemData);
     }
 
     return null;
@@ -268,12 +416,12 @@ function renderBlock(
   block: any,
   idx: number,
   collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
   useSpanForParagraphs = false,
   isEditMode = false
 ): React.ReactNode {
   const key = `block-${idx}`;
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
 
   if (block.type === 'paragraph') {
     if (!block.content || block.content.length === 0) {
@@ -284,15 +432,15 @@ function renderBlock(
     }
     // Use span with block class when inside restrictive tags
     if (useSpanForParagraphs) {
-      return React.createElement('span', { key, className: 'block' }, ...renderInlineContent(block.content, collectionItemData, textStyles, isEditMode));
+      return React.createElement('span', { key, className: 'block' }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode));
     }
-    return React.createElement('p', { key }, ...renderInlineContent(block.content, collectionItemData, textStyles, isEditMode));
+    return React.createElement('p', { key }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode));
   }
 
   if (block.type === 'bulletList') {
     const ulProps: Record<string, any> = {
       key,
-      className: styles.bulletList?.classes || DEFAULT_TEXT_STYLES.bulletList?.classes,
+      className: textStyles?.bulletList?.classes ?? DEFAULT_TEXT_STYLES.bulletList?.classes,
     };
     if (isEditMode) {
       ulProps['data-style'] = 'bulletList';
@@ -301,7 +449,7 @@ function renderBlock(
       'ul',
       ulProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, textStyles, isEditMode)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode)
       )
     );
   }
@@ -309,7 +457,7 @@ function renderBlock(
   if (block.type === 'orderedList') {
     const olProps: Record<string, any> = {
       key,
-      className: styles.orderedList?.classes || DEFAULT_TEXT_STYLES.orderedList?.classes,
+      className: textStyles?.orderedList?.classes ?? DEFAULT_TEXT_STYLES.orderedList?.classes,
     };
     if (isEditMode) {
       olProps['data-style'] = 'orderedList';
@@ -318,7 +466,7 @@ function renderBlock(
       'ol',
       olProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, textStyles, isEditMode)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode)
       )
     );
   }
@@ -333,24 +481,23 @@ function renderListItem(
   item: any,
   key: string,
   collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
   isEditMode = false
 ): React.ReactNode {
   if (item.type !== 'listItem') return null;
 
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
-
   const children = item.content?.flatMap((block: any, idx: number) => {
     if (block.type === 'paragraph') {
       // For list items, render paragraph content without <p> wrapper
-      return renderInlineContent(block.content || [], collectionItemData, textStyles, isEditMode);
+      return renderInlineContent(block.content || [], collectionItemData, pageCollectionItemData, textStyles, isEditMode);
     }
-    return renderBlock(block, idx, collectionItemData, textStyles, false, isEditMode);
+    return renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, false, isEditMode);
   });
 
   const liProps: Record<string, any> = {
     key,
-    className: styles.listItem?.classes || DEFAULT_TEXT_STYLES.listItem?.classes,
+    className: textStyles?.listItem?.classes ?? DEFAULT_TEXT_STYLES.listItem?.classes,
   };
   if (isEditMode) {
     liProps['data-style'] = 'listItem';
@@ -383,12 +530,15 @@ export function hasBlockElements(variable: DynamicRichTextVariable): boolean {
 
 /**
  * Render DynamicRichTextVariable content to React elements
+ * @param collectionItemData - Data from collection layer items
+ * @param pageCollectionItemData - Data from page collection (dynamic pages)
  * @param useSpanForParagraphs - If true, renders paragraphs as <span class="block"> instead of <p>
  * @param isEditMode - If true, adds data-style attributes for style selection on canvas
  */
 export function renderRichText(
   variable: DynamicRichTextVariable,
   collectionItemData?: Record<string, string>,
+  pageCollectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
   useSpanForParagraphs = false,
   isEditMode = false
@@ -411,11 +561,11 @@ export function renderRichText(
     if (!paragraph.content || paragraph.content.length === 0) {
       return null;
     }
-    return renderInlineContent(paragraph.content, collectionItemData, textStyles, isEditMode);
+    return renderInlineContent(paragraph.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode);
   }
 
   return doc.content.map((block: any, idx: number) =>
-    renderBlock(block, idx, collectionItemData, textStyles, useSpanForParagraphs, isEditMode)
+    renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode)
   );
 }
 

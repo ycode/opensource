@@ -663,10 +663,15 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                             </header>
 
                             {isExpanded && (() => {
-                              // Get fields for this page's collection (if dynamic)
+                              // Build field groups for this page's collection (if dynamic)
                               const pageCollectionId = page.settings?.cms?.collection_id;
                               const pageFields = pageCollectionId ? (allFields[pageCollectionId] || []) : [];
                               const collection = pageCollectionId ? collections.find(c => c.id === pageCollectionId) : null;
+                              const pageFieldGroups = pageFields.length > 0 ? [{
+                                fields: pageFields,
+                                label: collection?.name || 'Page data',
+                                source: 'page' as const,
+                              }] : undefined;
 
                               return (
                                 <ul className="border-b px-4 py-5 flex flex-col gap-5">
@@ -684,8 +689,7 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                       updateTranslationValue={updateTranslationValue}
                                       updateTranslationStatus={updateTranslationStatus}
                                       deleteTranslation={deleteTranslation}
-                                      pageFields={pageFields}
-                                      fieldSourceLabel={collection?.name}
+                                      fieldGroups={pageFieldGroups}
                                       allFields={allFields}
                                       collections={collections}
                                       pages={storePages}
@@ -905,7 +909,6 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                                     updateTranslationValue={updateTranslationValue}
                                     updateTranslationStatus={updateTranslationStatus}
                                     deleteTranslation={deleteTranslation}
-                                    pageFields={[]}
                                     allFields={allFields}
                                     collections={collections}
                                     pages={storePages}

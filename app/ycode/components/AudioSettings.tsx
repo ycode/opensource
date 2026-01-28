@@ -11,6 +11,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
 import InputWithInlineVariables from './InputWithInlineVariables';
+import type { FieldGroup } from './FieldTreeSelect';
 import type { Layer, CollectionField, Collection } from '@/types';
 import { createAssetVariable, createDynamicTextVariable, getDynamicTextContent, isAssetVariable, getAssetId, isFieldVariable, isDynamicTextVariable } from '@/lib/variable-utils';
 import { Button } from '@/components/ui/button';
@@ -32,13 +33,13 @@ import { Slider } from '@/components/ui/slider';
 interface AudioSettingsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
-  fields?: CollectionField[];
-  fieldSourceLabel?: string;
+  /** Field groups with labels and sources for inline variable selection */
+  fieldGroups?: FieldGroup[];
   allFields?: Record<string, CollectionField[]>;
   collections?: Collection[];
 }
 
-export default function AudioSettings({ layer, onLayerUpdate, fields, fieldSourceLabel, allFields, collections }: AudioSettingsProps) {
+export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFields, collections }: AudioSettingsProps) {
   const [isOpen, setIsOpen] = useState(true);
 
   // Get audio source variable
@@ -53,11 +54,16 @@ export default function AudioSettings({ layer, onLayerUpdate, fields, fieldSourc
   const openFileManager = useEditorStore((state) => state.openFileManager);
   const getAsset = useAssetsStore((state) => state.getAsset);
 
+  // Derive collection fields from fieldGroups (for CMS field selection)
+  const collectionFields = useMemo(() => {
+    const collectionGroup = fieldGroups?.find(g => g.source === 'collection');
+    return collectionGroup?.fields || [];
+  }, [fieldGroups]);
+
   // Filter fields to only show audio/asset type fields
   const audioFields = useMemo(() => {
-    if (!fields) return [];
-    return fields.filter((field) => field.type === 'text');
-  }, [fields]);
+    return collectionFields.filter((field) => field.type === 'text');
+  }, [collectionFields]);
 
   // Detect current field ID if using FieldVariable
   const currentFieldId = useMemo(() => {
@@ -339,8 +345,7 @@ export default function AudioSettings({ layer, onLayerUpdate, fields, fieldSourc
                 value={customUrlValue}
                 onChange={handleUrlChange}
                 placeholder="https://example.com/audio.mp3"
-                fields={fields}
-                fieldSourceLabel={fieldSourceLabel}
+                fieldGroups={fieldGroups}
                 allFields={allFields}
                 collections={collections}
               />

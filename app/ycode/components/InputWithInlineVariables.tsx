@@ -41,7 +41,11 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import FieldTreeSelect from './FieldTreeSelect';
+import FieldTreeSelect, { MultiSourceFieldTreeSelect, type FieldGroup, type FieldSourceType } from './FieldTreeSelect';
+import { RichTextLink, getLinkSettingsFromMark } from '@/lib/tiptap-extensions/rich-text-link';
+import RichTextLinkPopover from './RichTextLinkPopover';
+import type { Layer, LinkSettings } from '@/types';
+import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 
 interface InputWithInlineVariablesProps {
   value: string | any; // string for simple text, Tiptap JSON when withFormatting=true
@@ -49,8 +53,8 @@ interface InputWithInlineVariablesProps {
   onBlur?: (value: string | any) => void;
   placeholder?: string;
   className?: string;
-  fields?: CollectionField[];
-  fieldSourceLabel?: string;
+  /** Field groups with labels and sources for inline variable selection */
+  fieldGroups?: FieldGroup[];
   /** All fields keyed by collection ID for resolving nested references */
   allFields?: Record<string, CollectionField[]>;
   /** All collections for reference field lookups */
@@ -61,6 +65,12 @@ interface InputWithInlineVariablesProps {
   withFormatting?: boolean;
   /** Show or hide the formatting toolbar (defaults to true when withFormatting is enabled) */
   showFormattingToolbar?: boolean;
+  /** Disable link support (useful when InputWithInlineVariables is used inside link settings) */
+  disableLinks?: boolean;
+  /** Whether this is inside a collection layer */
+  isInsideCollectionLayer?: boolean;
+  /** Current layer for context */
+  layer?: Layer | null;
 }
 
 export interface InputWithInlineVariablesHandle {
@@ -261,17 +271,25 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
   onBlur: onBlurProp,
   placeholder = '',
   className,
-  fields,
-  fieldSourceLabel,
+  fieldGroups,
   allFields,
   collections,
   disabled = false,
   withFormatting = false,
   showFormattingToolbar = true,
+  disableLinks = false,
+  isInsideCollectionLayer = false,
+  layer,
 }, ref) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [linkPopoverOpen, setLinkPopoverOpen] = useState(false);
   // Track if update is coming from editor to prevent infinite loop
   const isInternalUpdateRef = useRef(false);
+
+  // Derive a flat list of fields from fieldGroups (for internal use like parseValueToContent)
+  const fields = useMemo(() => {
+    return fieldGroups?.flatMap(g => g.fields) || [];
+  }, [fieldGroups]);
 
   const extensions = useMemo(() => {
     const baseExtensions = [
@@ -286,7 +304,7 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
     ];
 
     if (withFormatting) {
-      return [
+      const formattingExtensions = [
         ...baseExtensions,
         Bold,
         Italic,
@@ -298,10 +316,28 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         OrderedList,
         ListItem,
       ];
+
+      // Add link extension unless explicitly disabled
+      if (!disableLinks) {
+        formattingExtensions.push(
+          RichTextLink.extend({
+            addOptions() {
+              return {
+                ...this.parent?.(),
+                HTMLAttributes: {
+                  class: DEFAULT_TEXT_STYLES.link?.classes || '',
+                },
+              };
+            },
+          })
+        );
+      }
+
+      return formattingExtensions;
     }
 
     return baseExtensions;
-  }, [placeholder, withFormatting]);
+  }, [placeholder, withFormatting, disableLinks]);
 
   const editor = useEditor({
     immediatelyRender: true,
@@ -560,14 +596,13 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
     return null;
   }
 
-  const handleFieldSelect = (fieldId: string, relationshipPath: string[]) => {
-    if (!fields) return;
-
+  const handleFieldSelect = (fieldId: string, relationshipPath: string[], source?: FieldSourceType) => {
     addFieldVariableInternal({
       type: 'field',
       data: {
         field_id: fieldId,
         relationships: relationshipPath,
+        source,
       },
     });
 
@@ -711,8 +746,9 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
           {/* Inline Variable Button - in formatting toolbar */}
           {(() => {
             // Check if there are any displayable fields (exclude multi_reference)
-            const displayableFields = fields?.filter((f) => f.type !== 'multi_reference') || [];
-            const hasDisplayableFields = displayableFields.length > 0;
+            const hasDisplayableFields = fieldGroups?.some(
+              (g) => g.fields.filter((f) => f.type !== 'multi_reference').length > 0
+            ) ?? false;
 
             return (
               <>
@@ -730,18 +766,17 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
                     </Button>
                   </DropdownMenuTrigger>
 
-                  {hasDisplayableFields && (
+                  {hasDisplayableFields && fieldGroups && (
                     <DropdownMenuContent
                       className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
                       align="start"
                       sideOffset={4}
                     >
-                      <FieldTreeSelect
-                        fields={fields || []}
+                      <MultiSourceFieldTreeSelect
+                        fieldGroups={fieldGroups}
                         allFields={allFields || {}}
                         collections={collections || []}
                         onSelect={handleFieldSelect}
-                        collectionLabel={fieldSourceLabel}
                       />
                     </DropdownMenuContent>
                   )}
@@ -749,6 +784,34 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
               </>
             );
           })()}
+
+          {/* Link Button */}
+          {!disableLinks && (
+            <>
+              <div className="w-px h-4 bg-border mx-0.5" />
+              <RichTextLinkPopover
+                editor={editor}
+                fieldGroups={fieldGroups}
+                allFields={allFields}
+                collections={collections}
+                isInsideCollectionLayer={isInsideCollectionLayer}
+                layer={layer}
+                open={linkPopoverOpen}
+                onOpenChange={setLinkPopoverOpen}
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className={cn('!size-6', editor.isActive('richTextLink') && 'bg-accent')}
+                    disabled={disabled}
+                    title="Link"
+                  >
+                    <Icon name="link" className="size-3" />
+                  </Button>
+                }
+              />
+            </>
+          )}
         </div>
       )}
 
@@ -756,11 +819,11 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
         <EditorContent editor={editor} />
       </div>
 
-      {/* Inline Variable Button - absolute positioned (when no formatting toolbar visible) */}
+      {/* Inline Variable Button - absolute positioned (when no formatting toolbar is shown) */}
       {!disabled && (!withFormatting || !showFormattingToolbar) && (() => {
-        // Check if there are any displayable fields (exclude multi_reference)
-        const displayableFields = fields?.filter((f) => f.type !== 'multi_reference') || [];
-        const hasDisplayableFields = displayableFields.length > 0;
+        const hasDisplayableFields = fieldGroups?.some(
+          (g) => g.fields.filter((f) => f.type !== 'multi_reference').length > 0
+        ) ?? false;
 
         if (!hasDisplayableFields) return null;
 
@@ -777,19 +840,20 @@ const InputWithInlineVariables = forwardRef<InputWithInlineVariablesHandle, Inpu
                 </Button>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent
-                className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
-                align="end"
-                sideOffset={4}
-              >
-                <FieldTreeSelect
-                  fields={fields || []}
-                  allFields={allFields || {}}
-                  collections={collections || []}
-                  onSelect={handleFieldSelect}
-                  collectionLabel={fieldSourceLabel}
-                />
-              </DropdownMenuContent>
+              {hasDisplayableFields && fieldGroups && (
+                <DropdownMenuContent
+                  className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                  align="end"
+                  sideOffset={4}
+                >
+                  <MultiSourceFieldTreeSelect
+                    fieldGroups={fieldGroups}
+                    allFields={allFields || {}}
+                    collections={collections || []}
+                    onSelect={handleFieldSelect}
+                  />
+                </DropdownMenuContent>
+              )}
             </DropdownMenu>
           </div>
         );

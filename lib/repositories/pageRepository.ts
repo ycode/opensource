@@ -88,8 +88,6 @@ export async function getAllPages(filters?: QueryFilters): Promise<Page[]> {
     throw new Error('Supabase not configured');
   }
 
-  console.log('[pageRepository.getAllPages] Querying pages table...', filters ? `with filters: ${JSON.stringify(filters)}` : 'no filters');
-
   let query = client
     .from('pages')
     .select('*')
