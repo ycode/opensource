@@ -55,7 +55,7 @@ import {
 import FieldTreeSelect, { MultiSourceFieldTreeSelect, type FieldGroup, type FieldSourceType } from './FieldTreeSelect';
 import { RichTextLink, getLinkSettingsFromMark } from '@/lib/tiptap-extensions/rich-text-link';
 import RichTextLinkPopover from './RichTextLinkPopover';
-import type { Layer, LinkSettings } from '@/types';
+import type { Layer, LinkSettings, LinkType } from '@/types';
 import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 
 interface RichTextEditorProps {
@@ -84,6 +84,8 @@ interface RichTextEditorProps {
   layer?: Layer | null;
   /** UI variant: 'compact' for layer content, 'full' for CMS rich-text fields */
   variant?: 'compact' | 'full';
+  /** Link types to exclude from the link settings dropdown */
+  excludedLinkTypes?: LinkType[];
 }
 
 export interface RichTextEditorHandle {
@@ -294,6 +296,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
   isInsideCollectionLayer = false,
   layer,
   variant = 'compact',
+  excludedLinkTypes = [],
 }, ref) => {
   const isFullVariant = variant === 'full';
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -756,6 +759,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
                 layer={layer}
                 open={linkPopoverOpen}
                 onOpenChange={setLinkPopoverOpen}
+                excludedLinkTypes={excludedLinkTypes}
                 trigger={
                   <ToggleGroupItem
                     value="link"
@@ -1117,6 +1121,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
                 layer={layer}
                 open={linkPopoverOpen}
                 onOpenChange={setLinkPopoverOpen}
+                excludedLinkTypes={excludedLinkTypes}
                 trigger={
                   <Button
                     type="button"

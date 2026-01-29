@@ -54,6 +54,8 @@ export interface RichTextLinkSettingsProps {
   isInsideCollectionLayer?: boolean;
   /** Current layer (for context - collection layer detection) */
   layer?: Layer | null;
+  /** Link types to exclude from the dropdown */
+  excludedLinkTypes?: LinkType[];
 }
 
 /**
@@ -67,6 +69,7 @@ export default function RichTextLinkSettings({
   collections,
   isInsideCollectionLayer = false,
   layer,
+  excludedLinkTypes = [],
 }: RichTextLinkSettingsProps) {
   const [collectionItems, setCollectionItems] = useState<CollectionItemWithValues[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -228,7 +231,7 @@ export default function RichTextLinkSettings({
       | { type: 'separator' }
     >
   >(() => {
-    return [
+    const allOptions = [
       { value: 'none', label: 'No link set', icon: 'none' },
       { type: 'separator' },
       { value: 'page', label: 'Page', icon: 'page' },
@@ -238,8 +241,19 @@ export default function RichTextLinkSettings({
       { value: 'url', label: 'URL', icon: 'link' },
       { value: 'email', label: 'Email', icon: 'email' },
       { value: 'phone', label: 'Phone', icon: 'phone' },
-    ];
-  }, [linkFields]);
+    ] as Array<
+      | { value: LinkType | 'none'; label: string; icon: string; disabled?: boolean }
+      | { type: 'separator' }
+    >;
+
+    // Filter out excluded link types
+    return allOptions.filter((option) => {
+      if ('type' in option && option.type === 'separator') return true;
+      if ('value' in option && option.value === 'none') return true;
+      if ('value' in option && excludedLinkTypes.includes(option.value as LinkType)) return false;
+      return true;
+    });
+  }, [linkFields, excludedLinkTypes]);
 
   // Handle link type change
   const handleLinkTypeChange = useCallback(
