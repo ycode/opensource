@@ -322,6 +322,10 @@ function CanvasSiblingReorderOverlay({
     if (currentProjectedIndex === prevProjectedIndexRef.current) {
       return;
     }
+    
+    // Check if this is the FIRST positioning (no previous index)
+    // On first positioning, skip transition to avoid "jump" animation
+    const isFirstPositioning = prevProjectedIndexRef.current === null;
     prevProjectedIndexRef.current = currentProjectedIndex;
 
     const { elements, heights, tops, draggedHeight } = cache;
@@ -383,7 +387,8 @@ function CanvasSiblingReorderOverlay({
       // Its position becomes the dropzone (element is "picked up")
       if (layerId === draggedId) {
         el.style.opacity = '0';
-        el.style.transition = 'opacity 100ms ease-out';
+        // Only animate opacity after first frame to avoid initial "pop"
+        el.style.transition = isFirstPositioning ? 'none' : 'opacity 100ms ease-out';
         return;
       }
 
@@ -414,7 +419,8 @@ function CanvasSiblingReorderOverlay({
         }
       }
 
-      el.style.transition = 'transform 150ms ease-out';
+      // Only animate after first frame to avoid initial "jump"
+      el.style.transition = isFirstPositioning ? 'none' : 'transform 150ms ease-out';
       el.style.willChange = 'transform';
       el.style.transform = shiftAmount !== 0 ? `translate3d(0, ${shiftAmount}px, 0)` : '';
     });
@@ -430,33 +436,20 @@ function CanvasSiblingReorderOverlay({
 
     // Only clean up when drag ends - use ref since store already cleared siblingIds
     if (!isDragging && siblingIdsRef.current.length > 0) {
-      // First pass: add transition and animate back to normal
+      // Remove transforms INSTANTLY (no transition) to prevent "jump" on drop
+      // The DOM reorder changes element positions, so animating transforms causes glitches
       siblingIdsRef.current.forEach(id => {
         const el = iframeDoc.querySelector(`[data-layer-id="${id}"]`) as HTMLElement;
         if (el) {
-          // Add smooth transition for the "drop" animation
-          el.style.transition = 'opacity 200ms ease-out, transform 200ms ease-out';
+          el.style.transition = 'none';
           el.style.opacity = '1';
           el.style.transform = '';
+          el.style.willChange = '';
         }
       });
       
-      // Second pass: clean up all styles after animation completes
-      const cleanupTimeout = setTimeout(() => {
-        siblingIdsRef.current.forEach(id => {
-          const el = iframeDoc.querySelector(`[data-layer-id="${id}"]`) as HTMLElement;
-          if (el) {
-            el.style.opacity = '';
-            el.style.transition = '';
-            el.style.transform = '';
-            el.style.willChange = '';
-          }
-        });
-        // Clear the ref after cleanup
-        siblingIdsRef.current = [];
-      }, 220); // Slightly longer than transition to ensure it completes
-      
-      return () => clearTimeout(cleanupTimeout);
+      // Clear the ref after cleanup
+      siblingIdsRef.current = [];
     }
   }, [iframeElement, isDragging]);
 
