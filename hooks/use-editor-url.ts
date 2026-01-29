@@ -39,7 +39,7 @@ export function updateUrlQueryParam(key: string, value: string | null | undefine
  * Handles routing for pages, collections, and components with semantic routes
  */
 
-export type EditorRouteType = 'page' | 'layers' | 'collection' | 'collections-base' | 'component' | 'settings' | 'localization' | 'profile' | null;
+export type EditorRouteType = 'page' | 'layers' | 'collection' | 'collections-base' | 'component' | 'settings' | 'localization' | 'profile' | 'forms' | null;
 export type PageSettingsTab = 'general' | 'seo' | 'custom-code';
 export type EditorTab = 'layers' | 'pages' | 'cms';
 
@@ -178,6 +178,18 @@ export function useEditorUrl() {
         tab: null,
         page: null,
         sidebarTab: 'pages', // Profile uses pages sidebar
+      };
+    }
+
+    // Forms route matching
+    const formsMatch = pathname?.match(/^\/ycode\/forms(?:\/([^/]+))?$/);
+    if (formsMatch) {
+      return {
+        type: 'forms',
+        resourceId: formsMatch[1] || null, // e.g., form_id or null for base
+        tab: null,
+        page: null,
+        sidebarTab: 'pages', // Forms uses pages sidebar for now
       };
     }
 
