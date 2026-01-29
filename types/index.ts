@@ -764,7 +764,7 @@ export interface ActivityNotification {
 }
 
 // Collection Types (EAV Architecture)
-export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'link';
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'link' | 'email' | 'phone';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {
@@ -884,7 +884,7 @@ export interface VariableType {
   data: object;
 }
 
-// CMS Field Variable, used for inline variables (text contents)
+// CMS Field Variable, used for CMS data binding and inline variables (rich-text contents)
 export interface FieldVariable extends VariableType {
   type: 'field';
   data: {

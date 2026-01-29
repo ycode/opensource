@@ -60,6 +60,7 @@ import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
 import { getCollectionVariable, canDeleteLayer, findLayerById, findParentCollectionLayer, canLayerHaveLink } from '@/lib/layer-utils';
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
+import { buildFieldGroups, hasFieldsMatching, flattenFieldGroups, DISPLAYABLE_FIELD_TYPES } from '@/lib/collection-field-utils';
 
 // 7. Types
 import type { Layer, Page, PageFolder, CollectionField, Asset } from '@/types';
@@ -614,43 +615,15 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   // Build field groups for multi-source inline variable selection
   const fieldGroups = useMemo(() => {
-    const groups: { fields: CollectionField[]; label?: string; source?: 'page' | 'collection' }[] = [];
-
-    // Add collection layer fields if inside a collection layer
-    if (editingLayerParentCollection) {
-      const collectionVariable = getCollectionVariable(editingLayerParentCollection);
-      const collectionId = collectionVariable?.id;
-      if (collectionId) {
-        const collectionFields = collectionFieldsFromStore[collectionId] || [];
-        const collection = collectionsFromStore.find(c => c.id === collectionId);
-        if (collectionFields.length > 0) {
-          groups.push({
-            fields: collectionFields,
-            label: collection?.name || 'Collection',
-            source: 'collection',
-          });
-        }
-      }
-    }
-
-    // Add page collection fields if on a dynamic page
-    if (currentPage?.is_dynamic && currentPage?.settings?.cms?.collection_id) {
-      const pageCollectionId = currentPage.settings.cms.collection_id;
-      const pageCollectionFields = collectionFieldsFromStore[pageCollectionId] || [];
-      if (pageCollectionFields.length > 0) {
-        const collectionVariable = editingLayerParentCollection ? getCollectionVariable(editingLayerParentCollection) : null;
-        const collectionLayerCollectionId = collectionVariable?.id;
-        if (pageCollectionId !== collectionLayerCollectionId) {
-          groups.push({
-            fields: pageCollectionFields,
-            label: 'Page data',
-            source: 'page',
-          });
-        }
-      }
-    }
-
-    return groups.length > 0 ? groups : undefined;
+    const collectionVariable = editingLayerParentCollection
+      ? getCollectionVariable(editingLayerParentCollection)
+      : null;
+    return buildFieldGroups({
+      collectionLayer: collectionVariable ? { collectionId: collectionVariable.id } : null,
+      page: currentPage,
+      fieldsByCollectionId: collectionFieldsFromStore,
+      collections: collectionsFromStore,
+    });
   }, [editingLayerParentCollection, currentPage, collectionFieldsFromStore, collectionsFromStore]);
 
   // Create assets map for Canvas (asset ID -> asset)
@@ -1678,79 +1651,68 @@ const CenterCanvas = React.memo(function CenterCanvas({
             })()}
 
             {/* Inline Variable Button - matches RichTextEditor behavior */}
-            {(() => {
-              // Check if there are any displayable fields (exclude multi_reference)
-              const hasDisplayableFields = fieldGroups?.some(
-                (g) => g.fields.filter((f) => f.type !== 'multi_reference').length > 0
-              ) ?? false;
+            <div className="h-5 shrink-0 flex items-center justify-center">
+              <Separator orientation="vertical" className="mx-1 bg-secondary" />
+            </div>
+            {hasFieldsMatching(fieldGroups, f => DISPLAYABLE_FIELD_TYPES.includes(f.type)) ? (
+              <DropdownMenu
+                open={textEditorVariableDropdownOpen}
+                onOpenChange={setTextEditorVariableDropdownOpen}
+              >
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="!size-6"
+                  >
+                    <Icon name="database" className="size-3" />
+                  </Button>
+                </DropdownMenuTrigger>
 
-              return (
-                <>
-                  <div className="h-5 shrink-0 flex items-center justify-center">
-                    <Separator orientation="vertical" className="mx-1 bg-secondary" />
-                  </div>
-                  {hasDisplayableFields ? (
-                    <DropdownMenu
-                      open={textEditorVariableDropdownOpen}
-                      onOpenChange={setTextEditorVariableDropdownOpen}
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className="!size-6"
-                        >
-                          <Icon name="database" className="size-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-
-                      {fieldGroups && (
-                        <DropdownMenuContent
-                          className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
-                          align="start"
-                          sideOffset={4}
-                        >
-                          <MultiSourceFieldTreeSelect
-                            fieldGroups={fieldGroups}
-                            allFields={collectionFieldsFromStore}
-                            collections={collectionsFromStore}
-                            onSelect={(fieldId, relationshipPath, source) => {
-                              addFieldVariable(
-                                {
-                                  type: 'field',
-                                  data: {
-                                    field_id: fieldId,
-                                    relationships: relationshipPath,
-                                    source,
-                                  },
-                                },
-                                fieldGroups.flatMap(g => g.fields),
-                                collectionFieldsFromStore
-                              );
-                              setTextEditorVariableDropdownOpen(false);
-                            }}
-                          />
-                        </DropdownMenuContent>
-                      )}
-                    </DropdownMenu>
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className="!size-6"
-                          disabled={true}
-                        >
-                          <Icon name="database" className="size-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>No variables available</TooltipContent>
-                    </Tooltip>
-                  )}
-                </>
-              );
-            })()}
+                {fieldGroups && (
+                  <DropdownMenuContent
+                    className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                    align="start"
+                    sideOffset={4}
+                  >
+                    <MultiSourceFieldTreeSelect
+                      fieldGroups={fieldGroups}
+                      allFields={collectionFieldsFromStore}
+                      collections={collectionsFromStore}
+                      onSelect={(fieldId, relationshipPath, source) => {
+                        addFieldVariable(
+                          {
+                            type: 'field',
+                            data: {
+                              field_id: fieldId,
+                              relationships: relationshipPath,
+                              source,
+                            },
+                          },
+                          flattenFieldGroups(fieldGroups),
+                          collectionFieldsFromStore
+                        );
+                        setTextEditorVariableDropdownOpen(false);
+                      }}
+                    />
+                  </DropdownMenuContent>
+                )}
+              </DropdownMenu>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="!size-6"
+                    disabled={true}
+                  >
+                    <Icon name="database" className="size-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>No variables available</TooltipContent>
+              </Tooltip>
+            )}
           </div>
 
           <div className="flex-1" />

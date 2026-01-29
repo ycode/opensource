@@ -224,6 +224,11 @@ export default async function PageRenderer({
           collectionItemSlugs={collectionItemSlugs}
           isPreview={isPreview}
           translations={translations}
+          fieldsByFieldId={
+            collectionFields.length > 0
+              ? Object.fromEntries(collectionFields.map((f) => [f.id, { type: f.type }]))
+              : undefined
+          }
         />
       </div>
 

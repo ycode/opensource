@@ -24,12 +24,27 @@ export const FIELD_TYPES = [
   { value: 'boolean', label: 'Boolean', icon: 'check' },
   { value: 'date', label: 'Date', icon: 'calendar' },
   { value: 'link', label: 'Link', icon: 'link' },
+  { value: 'email', label: 'Email', icon: 'email' },
+  { value: 'phone', label: 'Phone', icon: 'phone' },
+  { value: 'image', label: 'Image', icon: 'image' },
   { value: 'reference', label: 'Reference', icon: 'database' },
   { value: 'multi_reference', label: 'Multi-Reference', icon: 'database' },
-  { value: 'image', label: 'Image', icon: 'image' },
 ] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number]['value'];
+
+/** Valid field type values for API validation */
+export const VALID_FIELD_TYPES: readonly string[] = FIELD_TYPES.map((t) => t.value);
+
+/** Field types that can be displayed in variable selectors (excludes multi_reference) */
+export const DISPLAYABLE_FIELD_TYPES: CollectionFieldType[] = FIELD_TYPES
+  .filter(t => t.value !== 'multi_reference')
+  .map(t => t.value) as CollectionFieldType[];
+
+/** Check if a string is a valid field type */
+export function isValidFieldType(type: string): type is FieldType {
+  return VALID_FIELD_TYPES.includes(type);
+}
 
 const FIELD_TYPES_BY_VALUE: Record<FieldType, (typeof FIELD_TYPES)[number]> =
   Object.fromEntries(FIELD_TYPES.map((t) => [t.value, t])) as Record<
@@ -133,6 +148,8 @@ export function getOperatorsForFieldType(
       return MULTI_REFERENCE_OPERATORS;
     case 'text':
     case 'rich_text':
+    case 'email':
+    case 'phone':
     default:
       return TEXT_OPERATORS;
   }
@@ -193,6 +210,32 @@ export function isReferenceType(fieldType: CollectionFieldType | undefined): boo
   return fieldType === 'reference' || fieldType === 'multi_reference';
 }
 
+/** Validate field value. Returns null if valid, error message if invalid. Only email and phone have validation. */
+export function validateFieldValue(
+  fieldType: CollectionFieldType,
+  value: string
+): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  switch (fieldType) {
+    case 'email': {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(trimmed) ? null : 'Invalid email format';
+    }
+    case 'phone': {
+      const phoneRegex = /^[\d\s\-\(\)\+\.]*$/;
+      const digitCount = (trimmed.match(/\d/g) || []).length;
+      if (!phoneRegex.test(trimmed) || digitCount < 7) {
+        return 'Phone must contain at least 7 digits';
+      }
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+
 // =============================================================================
 // Display Field Utilities
 // =============================================================================
@@ -210,7 +253,9 @@ export function findDisplayField(
   const nameField = fields.find((f) => f.key === 'name');
   if (nameField) return nameField;
 
-  const textField = fields.find((f) => f.type === 'text' && f.fillable);
+  const textField = fields.find(
+    (f) => (f.type === 'text' || f.type === 'email' || f.type === 'phone') && f.fillable
+  );
   if (textField) return textField;
 
   return fields[0] ?? null;
@@ -223,4 +268,107 @@ export function getItemDisplayName(
 ): string {
   if (!displayField) return 'Untitled';
   return item.values[displayField.id] || 'Untitled';
+}
+
+// =============================================================================
+// Field Groups Utilities
+// =============================================================================
+
+/** Source of field data: 'page' for dynamic page data, 'collection' for collection layer data */
+export type FieldSourceType = 'page' | 'collection';
+
+/** A group of fields with a source and label */
+export interface FieldGroup {
+  fields: CollectionField[];
+  label?: string;
+  source?: FieldSourceType;
+}
+
+/** Configuration for building field groups */
+export interface BuildFieldGroupsConfig {
+  /** Parent collection layer (if editing inside a collection layer) */
+  collectionLayer?: { collectionId?: string } | null;
+  /** Current page (for dynamic page collection) */
+  page?: { is_dynamic?: boolean; settings?: { cms?: { collection_id?: string } } } | null;
+  /** All collection fields keyed by collection ID */
+  fieldsByCollectionId: Record<string, CollectionField[]>;
+  /** All collections for looking up names */
+  collections: { id: string; name: string }[];
+}
+
+/**
+ * Build field groups for multi-source field selection.
+ * Returns groups for collection layer fields and/or page collection fields.
+ */
+export function buildFieldGroups(config: BuildFieldGroupsConfig): FieldGroup[] | undefined {
+  const { collectionLayer, page, fieldsByCollectionId, collections } = config;
+  const groups: FieldGroup[] = [];
+
+  // Add collection layer fields if inside a collection layer
+  if (collectionLayer?.collectionId) {
+    const collectionId = collectionLayer.collectionId;
+    const collectionFields = fieldsByCollectionId[collectionId] || [];
+    const collection = collections.find(c => c.id === collectionId);
+    if (collectionFields.length > 0) {
+      groups.push({
+        fields: collectionFields,
+        label: collection?.name || 'Collection',
+        source: 'collection',
+      });
+    }
+  }
+
+  // Add page collection fields if on a dynamic page
+  // Always add even if same collection as layer - page data differs from collection layer data
+  if (page?.is_dynamic && page?.settings?.cms?.collection_id) {
+    const pageCollectionId = page.settings.cms.collection_id;
+    const pageCollectionFields = fieldsByCollectionId[pageCollectionId] || [];
+    if (pageCollectionFields.length > 0) {
+      groups.push({
+        fields: pageCollectionFields,
+        label: 'Page data',
+        source: 'page',
+      });
+    }
+  }
+
+  return groups.length > 0 ? groups : undefined;
+}
+
+/** Field types that can be used as link targets */
+export const LINK_FIELD_TYPES: CollectionFieldType[] = ['link', 'email', 'phone', 'image'];
+
+/**
+ * Filter field groups to only include fields of specified types.
+ * Returns empty array if no matching fields exist.
+ */
+export function filterFieldGroupsByType(
+  fieldGroups: FieldGroup[] | undefined,
+  allowedTypes: CollectionFieldType[]
+): FieldGroup[] {
+  if (!fieldGroups || fieldGroups.length === 0) return [];
+
+  return fieldGroups
+    .map(group => ({
+      ...group,
+      fields: group.fields.filter(field => allowedTypes.includes(field.type)),
+    }))
+    .filter(group => group.fields.length > 0);
+}
+
+/**
+ * Flatten field groups into a single array of fields.
+ */
+export function flattenFieldGroups(fieldGroups: FieldGroup[] | undefined): CollectionField[] {
+  return fieldGroups?.flatMap(g => g.fields) || [];
+}
+
+/**
+ * Check if any fields match a predicate across all groups.
+ */
+export function hasFieldsMatching(
+  fieldGroups: FieldGroup[] | undefined,
+  predicate: (field: CollectionField) => boolean
+): boolean {
+  return fieldGroups?.some(g => g.fields.some(predicate)) ?? false;
 }

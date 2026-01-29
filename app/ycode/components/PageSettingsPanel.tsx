@@ -1538,7 +1538,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                             const collection = collections.find(c => c.id === activeCollectionId);
                             return pageFields.length > 0 ? [{
                               fields: pageFields,
-                              label: collection?.name || 'Page data',
+                              label: collection?.name || 'Page collection fields',
                               source: 'page' as const,
                             }] : undefined;
                           })()}
@@ -1574,7 +1574,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                             const collection = collections.find(c => c.id === activeCollectionId);
                             return pageFields.length > 0 ? [{
                               fields: pageFields,
-                              label: collection?.name || 'Page data',
+                              label: collection?.name || 'Page collection fields',
                               source: 'page' as const,
                             }] : undefined;
                           })()}

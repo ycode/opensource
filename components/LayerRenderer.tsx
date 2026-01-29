@@ -8,7 +8,7 @@ import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings, Breakpoint } from '@/types';
+import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings, Breakpoint, CollectionFieldType } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
@@ -32,6 +32,7 @@ import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
 import LocaleSelector from '@/components/layers/LocaleSelector';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
 import type { HiddenLayerInfo } from '@/lib/animation-utils';
 
@@ -47,7 +48,7 @@ function transformComponentLayersForInstance(
 ): Layer[] {
   // Build ID map: original ID -> instance-specific ID
   const idMap = new Map<string, string>();
-  
+
   // First pass: collect all layer IDs and generate new ones
   const collectIds = (layerList: Layer[]) => {
     for (const layer of layerList) {
@@ -60,16 +61,16 @@ function transformComponentLayersForInstance(
     }
   };
   collectIds(layers);
-  
+
   // Second pass: transform layers with new IDs and remapped interactions
   const transformLayer = (layer: Layer): Layer => {
     const newId = idMap.get(layer.id) || layer.id;
-    
+
     const transformedLayer: Layer = {
       ...layer,
       id: newId,
     };
-    
+
     // Remap interaction IDs and tween layer_id references
     // Interaction IDs must be unique per instance to prevent timeline caching issues
     if (layer.interactions && layer.interactions.length > 0) {
@@ -82,15 +83,15 @@ function transformComponentLayersForInstance(
         })),
       }));
     }
-    
+
     // Recursively transform children
     if (layer.children) {
       transformedLayer.children = layer.children.map(transformLayer);
     }
-    
+
     return transformedLayer;
   };
-  
+
   return layers.map(transformLayer);
 }
 
@@ -154,6 +155,8 @@ interface LayerRendererProps {
   isPreview?: boolean; // Whether we're in preview mode (prefix links with /ycode/preview)
   translations?: Record<string, any> | null; // Translations for localized URL generation
   anchorMap?: Record<string, string>; // Pre-built map of layerId -> anchor value for O(1) lookups
+  /** Map field_id to field type for mailto:/tel: prefix when resolving field links */
+  fieldsByFieldId?: Record<string, { type: CollectionFieldType }>;
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -193,6 +196,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   isPreview = false,
   translations,
   anchorMap: anchorMapProp,
+  fieldsByFieldId: fieldsByFieldIdProp,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -210,6 +214,20 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   const anchorMap = useMemo(() => {
     return anchorMapProp || buildAnchorMap(layers);
   }, [anchorMapProp, layers]);
+
+  // Build fieldsByFieldId for link resolution (mailto:/tel: based on field type)
+  // Use prop if provided (SSR), otherwise build from collections store (client)
+  const fieldsStore = useCollectionsStore((state) => state.fields);
+  const fieldsByFieldId = useMemo(() => {
+    if (fieldsByFieldIdProp) return fieldsByFieldIdProp;
+    const map: Record<string, { type: CollectionFieldType }> = {};
+    Object.values(fieldsStore).forEach((fields) => {
+      fields.forEach((f) => {
+        map[f.id] = { type: f.type };
+      });
+    });
+    return Object.keys(map).length > 0 ? map : undefined;
+  }, [fieldsByFieldIdProp, fieldsStore]);
 
   // Helper to render a layer or unwrap fragments
   const renderLayer = (layer: Layer): React.ReactNode => {
@@ -301,6 +319,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         isPreview={isPreview}
         translations={translations}
         anchorMap={anchorMap}
+        fieldsByFieldId={fieldsByFieldId}
       />
     );
   };
@@ -356,6 +375,7 @@ const LayerItem: React.FC<{
   isPreview?: boolean; // Whether we're in preview mode
   translations?: Record<string, any> | null; // Translations for localized URL generation
   anchorMap?: Record<string, string>; // Pre-built map of layerId -> anchor value
+  fieldsByFieldId?: Record<string, { type: CollectionFieldType }>;
 }> = ({
   layer,
   isEditMode,
@@ -399,6 +419,7 @@ const LayerItem: React.FC<{
   isPreview,
   translations,
   anchorMap,
+  fieldsByFieldId,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isHovered = hoveredLayerId === layer.id;
@@ -546,6 +567,7 @@ const LayerItem: React.FC<{
         translations,
         getAsset,
         anchorMap,
+        fieldsByFieldId,
       };
 
     // Check for component variable override or default value
@@ -670,7 +692,7 @@ const LayerItem: React.FC<{
   // In published pages, components are pre-resolved server-side via resolveComponents()
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const component = (isEditMode && layer.componentId) ? getComponentById(layer.componentId) : null;
-  
+
   // Transform component layers for this instance to ensure unique IDs per instance
   // This enables animations to target the correct elements when multiple instances exist
   const transformedComponentLayers = useMemo(() => {
@@ -938,6 +960,7 @@ const LayerItem: React.FC<{
           isPreview={isPreview}
           translations={translations}
           anchorMap={anchorMap}
+          fieldsByFieldId={fieldsByFieldId}
         />
       );
     }
@@ -1616,6 +1639,7 @@ const LayerItem: React.FC<{
               isPreview={isPreview}
               translations={translations}
               anchorMap={anchorMap}
+              fieldsByFieldId={fieldsByFieldId}
               hiddenLayerInfo={hiddenLayerInfo}
               editorHiddenLayerIds={editorHiddenLayerIds}
               editorBreakpoint={editorBreakpoint}
@@ -1749,6 +1773,7 @@ const LayerItem: React.FC<{
                   isPreview={isPreview}
                   translations={translations}
                   anchorMap={anchorMap}
+                  fieldsByFieldId={fieldsByFieldId}
                 />
               )}
             </Tag>
@@ -1796,6 +1821,7 @@ const LayerItem: React.FC<{
               isPreview={isPreview}
               translations={translations}
               anchorMap={anchorMap}
+              fieldsByFieldId={fieldsByFieldId}
               hiddenLayerInfo={hiddenLayerInfo}
               editorHiddenLayerIds={editorHiddenLayerIds}
               editorBreakpoint={editorBreakpoint}
@@ -1874,6 +1900,7 @@ const LayerItem: React.FC<{
             isPreview={isPreview}
             translations={translations}
             anchorMap={anchorMap}
+            fieldsByFieldId={fieldsByFieldId}
           />
         )}
       </Tag>
@@ -1910,6 +1937,7 @@ const LayerItem: React.FC<{
       translations,
       getAsset,
       anchorMap,
+      fieldsByFieldId,
     };
     const linkHref = generateLinkHref(linkSettings, layerLinkContext);
 

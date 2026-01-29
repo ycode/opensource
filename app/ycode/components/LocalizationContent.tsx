@@ -669,7 +669,7 @@ export default function LocalizationContent({ children }: LocalizationContentPro
                               const collection = pageCollectionId ? collections.find(c => c.id === pageCollectionId) : null;
                               const pageFieldGroups = pageFields.length > 0 ? [{
                                 fields: pageFields,
-                                label: collection?.name || 'Page data',
+                                label: collection?.name || 'Page collection fields',
                                 source: 'page' as const,
                               }] : undefined;
 

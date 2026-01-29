@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import Icon from '@/components/ui/icon';
 import { FIELD_TYPES, type FieldType } from '@/lib/collection-field-utils';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import type { CollectionField } from '@/types';
@@ -195,7 +196,10 @@ export default function FieldFormPopover({
               <SelectGroup>
                 {FIELD_TYPES.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
-                    {type.label}
+                    <span className="flex items-center gap-2">
+                      <Icon name={type.icon} className="size-3 shrink-0 opacity-60" />
+                      {type.label}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectGroup>

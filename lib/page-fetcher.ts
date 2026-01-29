@@ -15,6 +15,7 @@ export interface PaginationContext {
   // Default page number for all collection layers (from URL ?page=N)
   defaultPage?: number;
 }
+import { parseCollectionLinkValue, resolveCollectionLinkValue, looksLikeEmail, looksLikePhone } from '@/lib/link-utils';
 import { resolveInlineVariables } from '@/lib/inline-variables';
 import { buildLayerTranslationKey, getTranslationByKey, hasValidTranslationValue, getTranslationValue } from '@/lib/localisation-utils';
 
@@ -1297,7 +1298,7 @@ export async function resolveCollectionLayers(
 
           // Fetch collection fields for reference resolution
           const collectionFields = await getFieldsByCollectionId(collectionVariable.id, isPublished);
-          
+
           // Find slug field for building collection item URLs
           const slugField = collectionFields.find(f => f.key === 'slug');
 
@@ -1766,8 +1767,18 @@ export async function renderCollectionItemsToHtml(
       // Build anchor map for O(1) anchor resolution
       const anchorMap = buildAnchorMap(resolvedLayers);
 
+      // Build fieldsByFieldId for mailto:/tel: resolution
+      const fieldsByFieldId =
+        collectionFields.length > 0
+          ? Object.fromEntries(collectionFields.map((f) => [f.id, { type: f.type }]))
+          : undefined;
+
       // Convert layers to HTML (handles fragments from resolved collections)
-      const itemHtml = resolvedLayers.map(layer => layerToHtml(layer, item.id, pages, folders, collectionItemSlugs, locale, translations, anchorMap)).join('');
+      const itemHtml = resolvedLayers
+        .map((layer) =>
+          layerToHtml(layer, item.id, pages, folders, collectionItemSlugs, locale, translations, anchorMap, item.values, fieldsByFieldId)
+        )
+        .join('');
 
       // Wrap in collection item container with the proper layer ID format
       const itemWrapperId = `${collectionLayerId}-item-${item.id}`;
@@ -2045,7 +2056,7 @@ async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
  */
 function buildAnchorMap(layers: Layer[]): Record<string, string> {
   const map: Record<string, string> = {};
-  
+
   const traverse = (layerList: Layer[]) => {
     for (const layer of layerList) {
       if (layer.attributes?.id) {
@@ -2056,7 +2067,7 @@ function buildAnchorMap(layers: Layer[]): Record<string, string> {
       }
     }
   };
-  
+
   traverse(layers);
   return map;
 }
@@ -2073,12 +2084,19 @@ function layerToHtml(
   collectionItemSlugs?: Record<string, string>,
   locale?: Locale | null,
   translations?: Record<string, Translation>,
-  anchorMap?: Record<string, string>
+  anchorMap?: Record<string, string>,
+  collectionItemData?: Record<string, string>,
+  fieldsByFieldId?: Record<string, { type: import('@/types').CollectionFieldType }>,
+  pageCollectionItemData?: Record<string, string>
 ): string {
   // Handle fragment layers (created by resolveCollectionLayers for nested collections)
   // Fragments render their children directly without a wrapper element
   if (layer.name === '_fragment' && layer.children) {
-    return layer.children.map(child => layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap)).join('');
+    return layer.children
+      .map((child) =>
+        layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, fieldsByFieldId, pageCollectionItemData)
+      )
+      .join('');
   }
 
   // Get the HTML tag
@@ -2223,9 +2241,9 @@ function layerToHtml(
               // Check if this is a dynamic page with a specific collection item
               if (linkedPage.is_dynamic && linkSettings.page.collection_item_id && collectionItemSlugs) {
                 let itemSlug: string | undefined;
-                
+
                 // Handle special "current" keywords - use the current collection item ID
-                if (linkSettings.page.collection_item_id === 'current-page' || 
+                if (linkSettings.page.collection_item_id === 'current-page' ||
                     linkSettings.page.collection_item_id === 'current-collection') {
                   // Use the current collection item's slug (from collectionItemId parameter)
                   itemSlug = collectionItemId ? collectionItemSlugs[collectionItemId] : undefined;
@@ -2233,7 +2251,7 @@ function layerToHtml(
                   // Use the specific item slug
                   itemSlug = collectionItemSlugs[linkSettings.page.collection_item_id];
                 }
-                
+
                 // Use localized URL if locale is active
                 hrefValue = buildLocalizedDynamicPageUrl(linkedPage, folders, itemSlug || null, locale, translations);
               } else {
@@ -2243,9 +2261,38 @@ function layerToHtml(
             }
           }
           break;
-        case 'field':
-          // Field values should be resolved elsewhere
+        case 'field': {
+          const fieldData = collectionItemData;
+          const fieldId = linkSettings.field?.data?.field_id;
+          if (fieldId && fieldData) {
+            const rawValue = fieldData[fieldId];
+            const fieldType = fieldsByFieldId?.[fieldId]?.type;
+            if (rawValue) {
+              const linkValue = parseCollectionLinkValue(rawValue);
+              if (linkValue) {
+                hrefValue =
+                  resolveCollectionLinkValue(linkValue, {
+                    pages: pages || [],
+                    folders: folders || [],
+                    collectionItemSlugs,
+                    locale,
+                    translations,
+                    isPreview: false,
+                  }) || '';
+              } else if (fieldType === 'email' || looksLikeEmail(rawValue)) {
+                hrefValue = `mailto:${rawValue}`;
+              } else if (fieldType === 'phone' || looksLikePhone(rawValue)) {
+                hrefValue = `tel:${rawValue}`;
+              } else if (fieldType === 'image') {
+                // Image field stores asset ID - layerToHtml is sync; asset URL resolution happens in LayerRenderer
+                hrefValue = rawValue;
+              } else {
+                hrefValue = rawValue;
+              }
+            }
+          }
           break;
+        }
       }
 
       // Append anchor if present (anchor_layer_id references a layer's ID attribute)
@@ -2289,7 +2336,11 @@ function layerToHtml(
 
   // Render children
   const childrenHtml = layer.children
-    ? layer.children.map(child => layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap)).join('')
+    ? layer.children
+      .map((child) =>
+        layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, fieldsByFieldId, pageCollectionItemData)
+      )
+      .join('')
     : '';
 
   // Get text content from variables.text

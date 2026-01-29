@@ -52,7 +52,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import FieldTreeSelect, { MultiSourceFieldTreeSelect, type FieldGroup, type FieldSourceType } from './FieldTreeSelect';
+import FieldTreeSelect, { MultiSourceFieldTreeSelect, type FieldSourceType } from './FieldTreeSelect';
+import { flattenFieldGroups, hasFieldsMatching, DISPLAYABLE_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
 import { RichTextLink, getLinkSettingsFromMark } from '@/lib/tiptap-extensions/rich-text-link';
 import RichTextLinkPopover from './RichTextLinkPopover';
 import type { Layer, LinkSettings, LinkType } from '@/types';
@@ -305,9 +306,13 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
   const isInternalUpdateRef = useRef(false);
 
   // Derive a flat list of fields from fieldGroups (for internal use like parseValueToContent)
-  const fields = useMemo(() => {
-    return fieldGroups?.flatMap(g => g.fields) || [];
-  }, [fieldGroups]);
+  const fields = useMemo(() => flattenFieldGroups(fieldGroups), [fieldGroups]);
+
+  // Check if there are any displayable fields (exclude multi_reference)
+  const canShowVariables = useMemo(
+    () => hasFieldsMatching(fieldGroups, f => DISPLAYABLE_FIELD_TYPES.includes(f.type)),
+    [fieldGroups]
+  );
 
   const extensions = useMemo(() => {
     const baseExtensions = [
@@ -878,51 +883,43 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
           </ToggleGroup>
 
           {/* Inline Variable Button */}
-          {(() => {
-            const hasDisplayableFields = fieldGroups?.some(
-              (g) => g.fields.filter((f) => f.type !== 'multi_reference').length > 0
-            ) ?? false;
-
-            if (!hasDisplayableFields) return null;
-
-            return (
-              <ToggleGroup
-                type="single"
-                size="xs"
-                variant="secondary"
-                spacing={1}
-              >
-                <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <ToggleGroupItem value="variable" asChild>
-                      <button
-                        type="button"
-                        title="Insert Variable"
-                        disabled={disabled}
-                        className="w-auto min-w-0 shrink-0"
-                      >
-                        <Icon name="database" className="size-3" />
-                      </button>
-                    </ToggleGroupItem>
-                  </DropdownMenuTrigger>
-                  {fieldGroups && (
-                    <DropdownMenuContent
-                      className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
-                      align="start"
-                      sideOffset={4}
+          {canShowVariables && (
+            <ToggleGroup
+              type="single"
+              size="xs"
+              variant="secondary"
+              spacing={1}
+            >
+              <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+                <DropdownMenuTrigger asChild>
+                  <ToggleGroupItem value="variable" asChild>
+                    <button
+                      type="button"
+                      title="Insert Variable"
+                      disabled={disabled}
+                      className="w-auto min-w-0 shrink-0"
                     >
-                      <MultiSourceFieldTreeSelect
-                        fieldGroups={fieldGroups}
-                        allFields={allFields || {}}
-                        collections={collections || []}
-                        onSelect={handleFieldSelect}
-                      />
-                    </DropdownMenuContent>
-                  )}
-                </DropdownMenu>
-              </ToggleGroup>
-            );
-          })()}
+                      <Icon name="database" className="size-3" />
+                    </button>
+                  </ToggleGroupItem>
+                </DropdownMenuTrigger>
+                {fieldGroups && (
+                  <DropdownMenuContent
+                    className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                    align="start"
+                    sideOffset={4}
+                  >
+                    <MultiSourceFieldTreeSelect
+                      fieldGroups={fieldGroups}
+                      allFields={allFields || {}}
+                      collections={collections || []}
+                      onSelect={handleFieldSelect}
+                    />
+                  </DropdownMenuContent>
+                )}
+              </DropdownMenu>
+            </ToggleGroup>
+          )}
         </div>
       )}
 
@@ -1066,47 +1063,36 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
           </Button>
 
           {/* Inline Variable Button - in formatting toolbar */}
-          {(() => {
-            // Check if there are any displayable fields (exclude multi_reference)
-            const hasDisplayableFields = fieldGroups?.some(
-              (g) => g.fields.filter((f) => f.type !== 'multi_reference').length > 0
-            ) ?? false;
+          <div className="w-px h-4 bg-border mx-0.5" />
+          <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                className="!size-6"
+                title={canShowVariables ? 'Insert Variable' : 'No variables available'}
+                disabled={!canShowVariables || disabled}
+              >
+                <Icon name="database" className="size-3" />
+              </Button>
+            </DropdownMenuTrigger>
 
-            return (
-              <>
-                <div className="w-px h-4 bg-border mx-0.5" />
-                <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="xs"
-                      className="!size-6"
-                      title={hasDisplayableFields ? 'Insert Variable' : 'No variables available'}
-                      disabled={!hasDisplayableFields || disabled}
-                    >
-                      <Icon name="database" className="size-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-
-                  {hasDisplayableFields && fieldGroups && (
-                    <DropdownMenuContent
-                      className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
-                      align="start"
-                      sideOffset={4}
-                    >
-                      <MultiSourceFieldTreeSelect
-                        fieldGroups={fieldGroups}
-                        allFields={allFields || {}}
-                        collections={collections || []}
-                        onSelect={handleFieldSelect}
-                      />
-                    </DropdownMenuContent>
-                  )}
-                </DropdownMenu>
-              </>
-            );
-          })()}
+            {canShowVariables && fieldGroups && (
+              <DropdownMenuContent
+                className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                align="start"
+                sideOffset={4}
+              >
+                <MultiSourceFieldTreeSelect
+                  fieldGroups={fieldGroups}
+                  allFields={allFields || {}}
+                  collections={collections || []}
+                  onSelect={handleFieldSelect}
+                />
+              </DropdownMenuContent>
+            )}
+          </DropdownMenu>
 
           {/* Link Button */}
           {!disableLinks && (
@@ -1145,45 +1131,37 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
       </div>
 
       {/* Inline Variable Button - absolute positioned (when no formatting toolbar is shown) */}
-      {!disabled && (!withFormatting || !showFormattingToolbar) && (() => {
-        const hasDisplayableFields = fieldGroups?.some(
-          (g) => g.fields.filter((f) => f.type !== 'multi_reference').length > 0
-        ) ?? false;
+      {!disabled && (!withFormatting || !showFormattingToolbar) && canShowVariables && (
+        <div className="absolute top-1 right-1">
+          <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="secondary"
+                size="xs"
+                title="Insert Variable"
+              >
+                <Icon name="database" className="size-2.5" />
+              </Button>
+            </DropdownMenuTrigger>
 
-        if (!hasDisplayableFields) return null;
-
-        return (
-          <div className="absolute top-1 right-1">
-            <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="xs"
-                  title="Insert Variable"
-                >
-                  <Icon name="database" className="size-2.5" />
-                </Button>
-              </DropdownMenuTrigger>
-
-              {hasDisplayableFields && fieldGroups && (
-                <DropdownMenuContent
-                  className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
-                  align="end"
-                  sideOffset={4}
-                >
-                  <MultiSourceFieldTreeSelect
-                    fieldGroups={fieldGroups}
-                    allFields={allFields || {}}
-                    collections={collections || []}
-                    onSelect={handleFieldSelect}
-                  />
-                </DropdownMenuContent>
-              )}
-            </DropdownMenu>
-          </div>
-        );
-      })()}
+            {fieldGroups && (
+              <DropdownMenuContent
+                className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                align="end"
+                sideOffset={4}
+              >
+                <MultiSourceFieldTreeSelect
+                  fieldGroups={fieldGroups}
+                  allFields={allFields || {}}
+                  collections={collections || []}
+                  onSelect={handleFieldSelect}
+                />
+              </DropdownMenuContent>
+            )}
+          </DropdownMenu>
+        </div>
+      )}
     </div>
   );
 });

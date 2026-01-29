@@ -44,6 +44,7 @@ import {
   operatorRequiresSecondValue,
   findDisplayField,
   getItemDisplayName,
+  flattenFieldGroups,
   COMPARE_OPERATORS,
   PAGE_COLLECTION_OPERATORS,
 } from '@/lib/collection-field-utils';
@@ -205,10 +206,8 @@ export default function ConditionalVisibilitySettings({
 }: ConditionalVisibilitySettingsProps) {
   const [isOpen, setIsOpen] = useState(true);
 
-  // Derive flat list of fields and collection label from fieldGroups
-  const allFieldsFromGroups = useMemo(() => {
-    return fieldGroups?.flatMap(g => g.fields) || [];
-  }, [fieldGroups]);
+  // Derive flat list of fields from fieldGroups
+  const allFieldsFromGroups = useMemo(() => flattenFieldGroups(fieldGroups), [fieldGroups]);
 
   // Get current page layers for page collections
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);

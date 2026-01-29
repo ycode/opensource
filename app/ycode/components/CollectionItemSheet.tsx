@@ -36,6 +36,7 @@ import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
 import { slugify } from '@/lib/collection-utils';
+import { validateFieldValue } from '@/lib/collection-field-utils';
 import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
@@ -402,6 +403,18 @@ export default function CollectionItemSheet({
                             <CollectionLinkFieldInput
                               value={formField.value || ''}
                               onChange={formField.onChange}
+                            />
+                          ) : field.type === 'email' ? (
+                            <Input
+                              type="email"
+                              placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
+                              {...formField}
+                            />
+                          ) : field.type === 'phone' ? (
+                            <Input
+                              type="tel"
+                              placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
+                              {...formField}
                             />
                           ) : field.type === 'image' ? (
                             /* Image Field - File Manager UI */
