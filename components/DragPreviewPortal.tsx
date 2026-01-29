@@ -134,11 +134,13 @@ export function DragPreviewPortal() {
       clone.style.margin = '0';
       clone.style.position = 'relative';
       clone.style.pointerEvents = 'none';
-      clone.style.opacity = '0.7';
-      clone.style.filter = 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))';
+      clone.style.opacity = '0.8';
+      clone.style.filter = 'drop-shadow(0 8px 24px rgba(0,0,0,0.2))';
       
+      // Initial scale (will animate to pickup scale)
       clone.style.transform = `scale(${scale})`;
       clone.style.transformOrigin = 'top left';
+      clone.style.transition = 'transform 150ms ease-out, opacity 150ms ease-out, filter 150ms ease-out';
       
       // Set up the container
       cloneContainerRef.current.innerHTML = '';
@@ -146,6 +148,15 @@ export function DragPreviewPortal() {
       cloneContainerRef.current.style.height = `${cloneHeight}px`;
       cloneContainerRef.current.style.overflow = 'visible';
       cloneContainerRef.current.appendChild(clone);
+      
+      // Animate to "picked up" state after a frame (pickup animation)
+      requestAnimationFrame(() => {
+        if (clone && clone.parentNode) {
+          // Subtle scale-up (2%) for "lift" effect
+          clone.style.transform = `scale(${scale * 1.02})`;
+          clone.style.filter = 'drop-shadow(0 12px 32px rgba(0,0,0,0.25))';
+        }
+      });
       
       const size = { width: cloneWidth, height: cloneHeight };
       cloneSizeRef.current = size;
@@ -179,12 +190,30 @@ export function DragPreviewPortal() {
 
     return () => {
       cancelAnimationFrame(rafId);
-      if (cloneContainerRef.current) {
-        cloneContainerRef.current.innerHTML = '';
+      
+      // Animate the ghost on drop (scale down and fade out)
+      const container = cloneContainerRef.current;
+      const preview = previewRef.current;
+      const clone = container?.firstChild as HTMLElement | null;
+      
+      if (clone && preview && preview.style.visibility === 'visible') {
+        // Quick drop animation - scale down and fade
+        clone.style.transition = 'transform 120ms ease-in, opacity 120ms ease-in, filter 120ms ease-in';
+        clone.style.transform = `scale(${clone.style.transform.match(/scale\(([\d.]+)\)/)?.[1] || 1})`;
+        clone.style.opacity = '0';
+        clone.style.filter = 'drop-shadow(0 2px 8px rgba(0,0,0,0.1))';
+        
+        // Clean up after animation completes
+        setTimeout(() => {
+          if (container) container.innerHTML = '';
+          if (preview) preview.style.visibility = 'hidden';
+        }, 120);
+      } else {
+        // Immediate cleanup if no animation needed
+        if (container) container.innerHTML = '';
+        if (preview) preview.style.visibility = 'hidden';
       }
-      if (previewRef.current) {
-        previewRef.current.style.visibility = 'hidden';
-      }
+      
       cloneSizeRef.current = null;
       initialPositionRef.current = null;
       dragOffsetRef.current = null;
