@@ -224,7 +224,7 @@ export default function ApiKeysSettingsPage() {
         </header>
 
         <div className="flex flex-col gap-8 bg-secondary/20 p-8 rounded-lg text-sm">
-          
+
           {/* Authentication */}
           <section>
             <h3 className="font-medium mb-2">Authentication</h3>
@@ -240,7 +240,7 @@ export default function ApiKeysSettingsPage() {
           <section>
             <h3 className="font-medium mb-2">Endpoints</h3>
             <div className="space-y-4">
-              
+
               <div>
                 <h4 className="text-muted-foreground mb-1">Collections</h4>
                 <div className="bg-secondary p-3 rounded-lg space-y-1 text-xs font-mono">
@@ -258,6 +258,25 @@ export default function ApiKeysSettingsPage() {
                   <div><span className="text-yellow-500">PUT</span> /api/v1/collections/{'{collection_id}'}/items/{'{item_id}'}</div>
                   <div><span className="text-yellow-500">PATCH</span> /api/v1/collections/{'{collection_id}'}/items/{'{item_id}'}</div>
                   <div><span className="text-red-500">DELETE</span> /api/v1/collections/{'{collection_id}'}/items/{'{item_id}'}</div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-muted-foreground mb-1">Forms</h4>
+                <div className="bg-secondary p-3 rounded-lg space-y-1 text-xs font-mono">
+                  <div><span className="text-green-500">GET</span> /api/v1/forms</div>
+                  <div><span className="text-green-500">GET</span> /api/v1/forms/{'{form_id}'}</div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-muted-foreground mb-1">Form Submissions</h4>
+                <div className="bg-secondary p-3 rounded-lg space-y-1 text-xs font-mono">
+                  <div><span className="text-green-500">GET</span> /api/v1/forms/{'{form_id}'}/submissions</div>
+                  <div><span className="text-blue-500">POST</span> /api/v1/forms/{'{form_id}'}/submissions</div>
+                  <div><span className="text-green-500">GET</span> /api/v1/forms/{'{form_id}'}/submissions/{'{submission_id}'}</div>
+                  <div><span className="text-yellow-500">PATCH</span> /api/v1/forms/{'{form_id}'}/submissions/{'{submission_id}'}</div>
+                  <div><span className="text-red-500">DELETE</span> /api/v1/forms/{'{form_id}'}/submissions/{'{submission_id}'}</div>
                 </div>
               </div>
 
@@ -426,6 +445,123 @@ Content-Type: application/json
               <div><code className="text-blue-400">ID</code> - Auto-incrementing number, assigned on creation</div>
               <div><code className="text-blue-400">Created Date</code> - Set automatically when item is created</div>
               <div><code className="text-blue-400">Updated Date</code> - Updated automatically on every change</div>
+            </div>
+          </section>
+
+          {/* Forms API */}
+          <section>
+            <h3 className="font-medium mb-2">Forms API</h3>
+            <p className="text-muted-foreground mb-3">
+              Access form submissions programmatically. Forms are identified by their <code className="text-xs bg-secondary px-1 py-0.5 rounded">form_id</code> (set in the form element settings).
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <div className="font-medium text-xs mb-2">List All Forms</div>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`GET /api/v1/forms
+
+// Response:
+{
+  "forms": [
+    {
+      "id": "contact-form",
+      "submissionCount": 42,
+      "newCount": 5,
+      "latestSubmission": "2026-01-29T10:30:00.000Z"
+    }
+  ]
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">Get Form Details</div>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`GET /api/v1/forms/{form_id}
+
+// Response:
+{
+  "id": "contact-form",
+  "submissionCount": 42,
+  "statusCounts": {
+    "new": 5,
+    "read": 30,
+    "archived": 7,
+    "spam": 0
+  },
+  "latestSubmission": "2026-01-29T10:30:00.000Z"
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">List Submissions</div>
+                <p className="text-muted-foreground text-xs mb-2">
+                  Supports pagination and status filtering.
+                </p>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`GET /api/v1/forms/{form_id}/submissions?page=1&per_page=50&status=new
+
+// Response:
+{
+  "submissions": [
+    {
+      "id": "uuid",
+      "formId": "contact-form",
+      "payload": { "name": "John", "email": "john@example.com" },
+      "metadata": { "user_agent": "...", "referrer": "..." },
+      "status": "new",
+      "createdAt": "2026-01-29T10:30:00.000Z"
+    }
+  ],
+  "pagination": { "page": 1, "perPage": 50, "total": 42 }
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">Create Submission</div>
+                <p className="text-muted-foreground text-xs mb-2">
+                  Submit form data programmatically (e.g., from external frontends or integrations).
+                </p>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`POST /api/v1/forms/{form_id}/submissions
+Content-Type: application/json
+
+{
+  "payload": {
+    "name": "John Doe",
+    "email": "john@example.com",
+    "message": "Hello!"
+  },
+  "metadata": {
+    "page_url": "/contact"
+  }
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">Update Submission Status</div>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`PATCH /api/v1/forms/{form_id}/submissions/{submission_id}
+Content-Type: application/json
+
+{
+  "status": "read"  // new, read, archived, spam
+}`}
+                </pre>
+              </div>
+
+              <div>
+                <div className="font-medium text-xs mb-2">Delete Submission</div>
+                <pre className="bg-secondary p-3 rounded-lg text-xs overflow-x-auto">
+{`DELETE /api/v1/forms/{form_id}/submissions/{submission_id}
+
+// Returns 204 No Content on success`}
+                </pre>
+              </div>
             </div>
           </section>
 
