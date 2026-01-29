@@ -3,7 +3,7 @@ import ContentHeightReporter from '@/components/ContentHeightReporter';
 import LayerRenderer from '@/components/LayerRenderer';
 import { resolveComponents } from '@/lib/resolve-components';
 import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
-import { generateInitialAnimationCSS } from '@/lib/animation-utils';
+import { generateInitialAnimationCSS, type HiddenLayerInfo } from '@/lib/animation-utils';
 import { getAllPages } from '@/lib/repositories/pageRepository';
 import { getAllPageFolders } from '@/lib/repositories/pageFolderRepository';
 import { getItemWithValues } from '@/lib/repositories/collectionItemRepository';
@@ -178,7 +178,7 @@ export default async function PageRenderer({
   const hasLayers = normalizedLayers.length > 0;
 
   // Generate CSS for initial animation states to prevent flickering
-  const { css: initialAnimationCSS, hiddenLayerIds } = generateInitialAnimationCSS(resolvedLayers);
+  const { css: initialAnimationCSS, hiddenLayerInfo } = generateInitialAnimationCSS(resolvedLayers);
 
   return (
     <>
@@ -216,7 +216,7 @@ export default async function PageRenderer({
           isPublished={page.is_published}
           pageCollectionItemId={collectionItem?.id}
           pageCollectionItemData={collectionItem?.values || undefined}
-          hiddenLayerIds={hiddenLayerIds}
+          hiddenLayerInfo={hiddenLayerInfo}
           currentLocale={locale}
           availableLocales={availableLocales}
           pages={pages as any}

@@ -2,7 +2,8 @@
  * Animation utility functions and constants for GSAP interactions
  */
 
-import type { InteractionTween, TweenProperties, Layer } from '@/types';
+import type { InteractionTween, TweenProperties, Layer, Breakpoint } from '@/types';
+import { BREAKPOINTS } from '@/lib/breakpoint-utils';
 
 /**
  * Creates a SplitText instance with responsive animation support
@@ -277,27 +278,78 @@ export interface GsapAnimationProps {
 /**
  * Result of generating initial animation CSS
  */
+export interface HiddenLayerInfo {
+  layerId: string;
+  breakpoints: string | null; // null = all breakpoints, otherwise space-separated like "mobile" or "mobile tablet"
+}
+
 export interface InitialAnimationResult {
   css: string;
-  hiddenLayerIds: string[];
+  hiddenLayerInfo: HiddenLayerInfo[];
+}
+
+/**
+ * Generate a media query for a set of breakpoints
+ * Returns null if no restriction (all breakpoints), or the appropriate media query
+ */
+function getMediaQueryForBreakpoints(breakpoints: Breakpoint[] | undefined): string | null {
+  // No restriction - apply to all breakpoints
+  if (!breakpoints || breakpoints.length === 0 || breakpoints.length === 3) {
+    return null;
+  }
+
+  const hasMobile = breakpoints.includes('mobile');
+  const hasTablet = breakpoints.includes('tablet');
+  const hasDesktop = breakpoints.includes('desktop');
+
+  // Single breakpoint cases
+  if (breakpoints.length === 1) {
+    if (hasMobile) return '@media (max-width: 767px)';
+    if (hasTablet) return '@media (min-width: 768px) and (max-width: 1023px)';
+    if (hasDesktop) return '@media (min-width: 1024px)';
+  }
+
+  // Two breakpoint cases
+  if (breakpoints.length === 2) {
+    if (hasMobile && hasTablet) return '@media (max-width: 1023px)';
+    if (hasTablet && hasDesktop) return '@media (min-width: 768px)';
+    // Mobile + Desktop is a weird case - we'd need two separate rules
+    // For now, return null and apply everywhere (better than breaking)
+    if (hasMobile && hasDesktop) return null;
+  }
+
+  return null;
 }
 
 /**
  * Generate CSS for initial animation states (apply_styles: 'on-load')
  * This prevents flickering by applying styles server-side before JS loads.
  * Now checks per-property apply_styles on each tween.
+ * Respects breakpoint restrictions on animations.
  */
 export function generateInitialAnimationCSS(layers: Layer[]): InitialAnimationResult {
   const cssRules: string[] = [];
-  const hiddenLayerIds: string[] = [];
+  const hiddenLayerInfo: HiddenLayerInfo[] = [];
 
-  // CSS rule for hidden elements via data attribute
-  cssRules.push('[data-gsap-hidden] { display: none !important; }');
+  // Group rules by media query
+  const rulesByMediaQuery = new Map<string | null, string[]>();
+
+  // CSS rules for hidden elements via data attribute with breakpoint support
+  // Global (all breakpoints)
+  cssRules.push('[data-gsap-hidden=""] { display: none !important; }');
+  // Per-breakpoint rules
+  cssRules.push('@media (max-width: 767px) { [data-gsap-hidden~="mobile"] { display: none !important; } }');
+  cssRules.push('@media (min-width: 768px) and (max-width: 1023px) { [data-gsap-hidden~="tablet"] { display: none !important; } }');
+  cssRules.push('@media (min-width: 1024px) { [data-gsap-hidden~="desktop"] { display: none !important; } }');
 
   const collectStyles = (layerList: Layer[]) => {
     layerList.forEach((layer) => {
       if (layer.interactions) {
         layer.interactions.forEach((interaction) => {
+          // Get the media query for this interaction's breakpoints
+          const mediaQuery = getMediaQueryForBreakpoints(interaction.timeline?.breakpoints);
+          const breakpointValue = interaction.timeline?.breakpoints?.join(' ') || null;
+
           (interaction.tweens || []).forEach((tween) => {
             const styles: string[] = [];
             const transforms: string[] = [];
@@ -331,9 +383,12 @@ export function generateInitialAnimationCSS(layers: Layer[]): InitialAnimationRe
                     styles.push(`visibility: hidden`);
                   }
                 } else if (prop.key === 'display') {
-                  // Track elements that should start hidden
+                  // Track elements that should start hidden using data attribute
                   if (value === 'hidden') {
-                    hiddenLayerIds.push(tween.layer_id);
+                    hiddenLayerInfo.push({
+                      layerId: tween.layer_id,
+                      breakpoints: breakpointValue,
+                    });
                   }
                 }
               });
@@ -345,7 +400,13 @@ export function generateInitialAnimationCSS(layers: Layer[]): InitialAnimationRe
             }
 
             if (styles.length > 0) {
-              cssRules.push(`[data-layer-id="${tween.layer_id}"] { ${styles.join('; ')}; }`);
+              const rule = `[data-layer-id="${tween.layer_id}"] { ${styles.join('; ')}; }`;
+
+              // Group by media query
+              if (!rulesByMediaQuery.has(mediaQuery)) {
+                rulesByMediaQuery.set(mediaQuery, []);
+              }
+              rulesByMediaQuery.get(mediaQuery)!.push(rule);
             }
           });
         });
@@ -358,7 +419,19 @@ export function generateInitialAnimationCSS(layers: Layer[]): InitialAnimationRe
   };
 
   collectStyles(layers);
-  return { css: cssRules.join('\n'), hiddenLayerIds };
+
+  // Generate final CSS with media queries
+  rulesByMediaQuery.forEach((rules, mediaQuery) => {
+    if (mediaQuery) {
+      // Wrap in media query
+      cssRules.push(`${mediaQuery} { ${rules.join(' ')} }`);
+    } else {
+      // No media query - add directly
+      cssRules.push(...rules);
+    }
+  });
+
+  return { css: cssRules.join('\n'), hiddenLayerInfo };
 }
 
 export function buildGsapProps(tween: InteractionTween): GsapAnimationProps {
