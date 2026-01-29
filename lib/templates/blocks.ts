@@ -172,6 +172,7 @@ export function getAllBlockTypes(): string[] {
 
 /**
  * Get layout template by key
+ * Assigns new IDs to all layers and remaps interaction tween layer_id references
  */
 export function getLayoutTemplate(key: string): Layer | null {
   const layout = layoutTemplates[key as keyof typeof layoutTemplates];
@@ -182,9 +183,20 @@ export function getLayoutTemplate(key: string): Layer | null {
   // Resolve any template references first
   const resolvedTemplate = resolveTemplateRefs(template);
 
-  // Recursively assign IDs to all nested children
+  // Track old layer ID -> new layer ID mapping for interaction remapping
+  const idMap = new Map<string, string>();
+
+  // First pass: assign new IDs to all layers and build mapping
   const assignIds = (layer: LayerTemplate): Layer => {
-    const layerWithId = { ...layer, id: generateId('lyr') } as Layer;
+    const oldId = (layer as any).id as string | undefined;
+    const newId = generateId('lyr');
+
+    // Track the mapping if the layer had an existing ID
+    if (oldId) {
+      idMap.set(oldId, newId);
+    }
+
+    const layerWithId = { ...layer, id: newId } as Layer;
 
     if (layerWithId.children && Array.isArray(layerWithId.children)) {
       layerWithId.children = layerWithId.children.map((child) => assignIds(child as LayerTemplate)) as Layer[];
@@ -193,7 +205,42 @@ export function getLayoutTemplate(key: string): Layer | null {
     return layerWithId;
   };
 
-  return assignIds(resolvedTemplate as LayerTemplate);
+  const layerWithNewIds = assignIds(resolvedTemplate as LayerTemplate);
+
+  // Second pass: remap interaction tween layer_id references
+  const remapInteractions = (layer: Layer): Layer => {
+    let updatedLayer = layer;
+
+    // If layer has interactions, remap tween layer_ids
+    if (layer.interactions && layer.interactions.length > 0) {
+      updatedLayer = {
+        ...updatedLayer,
+        interactions: layer.interactions.map(interaction => ({
+          ...interaction,
+          id: generateId('int'), // Regenerate interaction ID
+          tweens: interaction.tweens.map(tween => ({
+            ...tween,
+            id: generateId('twn'), // Regenerate tween ID
+            layer_id: idMap.has(tween.layer_id)
+              ? idMap.get(tween.layer_id)!
+              : tween.layer_id, // Keep external references unchanged
+          })),
+        })),
+      };
+    }
+
+    // Recursively process children
+    if (updatedLayer.children) {
+      updatedLayer = {
+        ...updatedLayer,
+        children: updatedLayer.children.map(remapInteractions),
+      };
+    }
+
+    return updatedLayer;
+  };
+
+  return remapInteractions(layerWithNewIds);
 }
 
 /**
@@ -279,14 +326,14 @@ export function getLayoutsByCategory(): Record<string, string[]> {
   // Sort categories by defined order
   const sortedCategories: Record<string, string[]> = {};
   const categoryKeys = Object.keys(categories);
-  
+
   // First add categories in the defined order
   CATEGORY_ORDER.forEach((cat) => {
     if (categories[cat]) {
       sortedCategories[cat] = categories[cat];
     }
   });
-  
+
   // Then add any remaining categories not in the order list
   categoryKeys.forEach((cat) => {
     if (!sortedCategories[cat]) {

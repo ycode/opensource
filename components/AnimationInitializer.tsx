@@ -8,7 +8,7 @@
  * to prevent flickering. This component only handles animation triggers.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { SplitText } from 'gsap/SplitText';
@@ -52,10 +52,10 @@ function collectInteractions(layers: Layer[]): CollectedInteraction[] {
   return interactions;
 }
 
-/** Check if interaction should run on current breakpoint */
-function shouldRunOnBreakpoint(interaction: LayerInteraction): boolean {
+/** Check if interaction should run on specified breakpoint */
+function shouldRunOnBreakpoint(interaction: LayerInteraction, breakpoint: Breakpoint): boolean {
   if (!interaction.timeline?.breakpoints) return true;
-  return interaction.timeline.breakpoints.includes(getCurrentBreakpoint());
+  return interaction.timeline.breakpoints.includes(breakpoint);
 }
 
 /** Get element by layer ID */
@@ -225,6 +225,18 @@ function buildTimeline(interaction: LayerInteraction): gsap.core.Timeline | null
 export default function AnimationInitializer({ layers }: AnimationInitializerProps) {
   const cleanupRef = useRef<(() => void)[]>([]);
   const timelinesRef = useRef<Map<string, gsap.core.Timeline>>(new Map());
+  const [currentBreakpoint, setCurrentBreakpoint] = useState<Breakpoint>(() => getCurrentBreakpoint());
+
+  // Listen for breakpoint changes on resize
+  useEffect(() => {
+    const handleResize = () => {
+      const newBreakpoint = getCurrentBreakpoint();
+      setCurrentBreakpoint((prev) => (prev !== newBreakpoint ? newBreakpoint : prev));
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const collectedInteractions = collectInteractions(layers);
@@ -236,8 +248,6 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
     timelinesRef.current.clear();
 
     collectedInteractions.forEach(({ triggerLayerId, interaction }) => {
-      if (!shouldRunOnBreakpoint(interaction)) return;
-
       const triggerElement = getElement(triggerLayerId);
       if (!triggerElement) return;
 
@@ -256,6 +266,9 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
 
       switch (trigger) {
         case 'load': {
+          // Skip if breakpoint restriction not met
+          if (!shouldRunOnBreakpoint(interaction, currentBreakpoint)) break;
+
           const timeline = getTimeline();
           timeline?.play();
           break;
@@ -266,6 +279,9 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
           const isLooped = (interaction.timeline?.repeat ?? 0) !== 0;
 
           const handleClick = () => {
+            // Check breakpoint at trigger time for interactive triggers
+            if (!shouldRunOnBreakpoint(interaction, getCurrentBreakpoint())) return;
+
             const timeline = getTimeline();
             if (!timeline) return;
 
@@ -293,8 +309,14 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
         }
 
         case 'hover': {
-          const handleMouseEnter = () => getTimeline()?.play();
+          const handleMouseEnter = () => {
+            // Check breakpoint at trigger time for interactive triggers
+            if (!shouldRunOnBreakpoint(interaction, getCurrentBreakpoint())) return;
+            getTimeline()?.play();
+          };
           const handleMouseLeave = () => {
+            // Check breakpoint at trigger time for interactive triggers
+            if (!shouldRunOnBreakpoint(interaction, getCurrentBreakpoint())) return;
             if (interaction.timeline?.yoyo) {
               timelinesRef.current.get(interaction.id)?.reverse();
             }
@@ -310,6 +332,9 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
         }
 
         case 'scroll-into-view': {
+          // Skip if breakpoint restriction not met
+          if (!shouldRunOnBreakpoint(interaction, currentBreakpoint)) break;
+
           const scrollStart = interaction.timeline?.scrollStart || 'top 80%';
           const toggleActions = interaction.timeline?.toggleActions || 'play none none none';
 
@@ -329,6 +354,9 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
         }
 
         case 'while-scrolling': {
+          // Skip if breakpoint restriction not met
+          if (!shouldRunOnBreakpoint(interaction, currentBreakpoint)) break;
+
           // Scrub animations require timeline upfront
           const timeline = getTimeline();
           if (!timeline) break;
@@ -360,7 +388,7 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
       timelines.forEach((tl) => tl.kill());
       ScrollTrigger.getAll().forEach((st) => st.kill());
     };
-  }, [layers]);
+  }, [layers, currentBreakpoint]);
 
   return null;
 }

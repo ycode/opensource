@@ -396,7 +396,9 @@ export interface LinkSettings {
 }
 
 // Essentially a layer without ID (that can have children without IDs)
+// Optional id is allowed for templates with animations that reference specific layers
 export interface LayerTemplate extends Omit<Layer, 'id' | 'children'> {
+  id?: string; // Optional: used when animations reference specific layers
   children?: Array<LayerTemplate | LayerTemplateRef>;
 }
 

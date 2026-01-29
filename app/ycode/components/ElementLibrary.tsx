@@ -397,6 +397,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
         return normalized;
       };
 
+      // getLayoutTemplate already handles ID regeneration and interaction remapping
       const newLayer = normalizeLayerWithUniqueIds(layoutTemplate);
 
       // Find parent layer and check if it can have children
@@ -534,6 +535,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       return normalized;
     };
 
+    // getLayoutTemplate already handles ID regeneration and interaction remapping
     const newLayer = normalizeLayerWithUniqueIds(layoutTemplate);
 
     // Find parent layer

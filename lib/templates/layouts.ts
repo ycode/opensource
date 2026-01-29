@@ -33392,6 +33392,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
                   'open': false
                 },
                 {
+                  'id': 'lyr-mkza00p8rwaj9y',
                   'name': 'div',
                   'classes': 'flex gap-[16px] items-center justify-between w-[100%] max-md:flex max-md:flex-col max-md:items-start',
                   'children': [
