@@ -6,7 +6,7 @@
  * Dialog for managing files and assets
  */
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -532,10 +532,12 @@ export default function FileManagerDialog({
   const [showBulkDeleteConfirmDialog, setShowBulkDeleteConfirmDialog] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Get folders and assets from store
+  // Get folders and store actions
   const folders = useAssetsStore((state) => state.folders);
   const setFolders = useAssetsStore((state) => state.setFolders);
-  const storeAssets = useAssetsStore((state) => state.assets);
+  const fetchAssets = useAssetsStore((state) => state.fetchAssets);
+  const getAsset = useAssetsStore((state) => state.getAsset);
+  const assetsById = useAssetsStore((state) => state.assetsById);
   const addFolder = useAssetsStore((state) => state.addFolder);
   const updateFolder = useAssetsStore((state) => state.updateFolder);
   const deleteFolder = useAssetsStore((state) => state.deleteFolder);
@@ -543,6 +545,16 @@ export default function FileManagerDialog({
   const addAsset = useAssetsStore((state) => state.addAsset);
   const updateAsset = useAssetsStore((state) => state.updateAsset);
   const removeAsset = useAssetsStore((state) => state.removeAsset);
+
+  // Pagination state
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+  const [hasMoreAssets, setHasMoreAssets] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalAssets, setTotalAssets] = useState(0);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const ASSETS_PER_PAGE = 50;
 
   // Get all descendant folder IDs for a folder (including the folder itself)
   const getAllDescendantFolderIds = useCallback((folderId: string | null): string[] => {
@@ -561,51 +573,95 @@ export default function FileManagerDialog({
     return descendants;
   }, [folders]);
 
-  // Filter assets by selected folder, search query, and category
-  const assets = useMemo(() => {
-    let filteredAssets: typeof storeAssets;
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-    if (searchQuery.trim()) {
-      // Search mode: include assets from current folder and all descendants
-      const searchLower = searchQuery.toLowerCase().trim();
-      const allowedFolderIds = getAllDescendantFolderIds(selectedFolderId);
-
-      filteredAssets = storeAssets.filter((asset) => {
-        // Check if asset is in current folder or descendants
-        const assetFolderId = asset.asset_folder_id || 'root';
-        const isInScope = allowedFolderIds.includes(assetFolderId);
-
-        // Check if filename matches search query
-        const matchesSearch = asset.filename.toLowerCase().includes(searchLower);
-
-        // Check if asset matches selected category
-        let matchesCategory = false;
-        if (selectedCategory === 'all') {
-          matchesCategory = true;
-        } else {
-          const assetCategory = getAssetCategoryFromMimeType(asset.mime_type);
-          matchesCategory = assetCategory === selectedCategory;
-        }
-
-        return isInScope && matchesSearch && matchesCategory;
+  // Load assets when folder, search, or category changes
+  const loadAssets = useCallback(async (page: number, reset: boolean = false) => {
+    if (isLoadingAssets && !reset) return;
+    
+    setIsLoadingAssets(true);
+    
+    try {
+      // Build folder IDs for search (include descendants)
+      let folderIds: string[] | undefined;
+      let folderId: string | null | undefined;
+      
+      if (debouncedSearch.trim()) {
+        // Search mode: include current folder and all descendants
+        folderIds = getAllDescendantFolderIds(selectedFolderId);
+      } else {
+        // Normal mode: only current folder
+        folderId = selectedFolderId;
+      }
+      
+      const result = await fetchAssets({
+        folderId,
+        folderIds,
+        search: debouncedSearch.trim() || undefined,
+        page,
+        limit: ASSETS_PER_PAGE,
       });
-    } else {
-      // Normal mode: only show assets in current folder (not descendants)
-      filteredAssets = selectedFolderId === null
-        ? storeAssets.filter((asset) => !asset.asset_folder_id)
-        : storeAssets.filter((asset) => asset.asset_folder_id === selectedFolderId);
-
-      // Apply category filter
+      
+      // Filter by category client-side (since category is UI-specific)
+      let filteredAssets = result.assets;
       if (selectedCategory !== 'all') {
-        filteredAssets = filteredAssets.filter((asset) => {
+        filteredAssets = result.assets.filter((asset) => {
           const assetCategory = getAssetCategoryFromMimeType(asset.mime_type);
           return assetCategory === selectedCategory;
         });
       }
+      
+      if (reset || page === 1) {
+        setAssets(filteredAssets);
+      } else {
+        // Deduplicate when appending to avoid duplicate key errors
+        setAssets(prev => {
+          const existingIds = new Set(prev.map(a => a.id));
+          const newAssets = filteredAssets.filter(a => !existingIds.has(a.id));
+          return [...prev, ...newAssets];
+        });
+      }
+      
+      setTotalAssets(result.total);
+      setHasMoreAssets(result.hasMore);
+      setCurrentPage(page);
+    } catch (error) {
+      console.error('Failed to load assets:', error);
+    } finally {
+      setIsLoadingAssets(false);
     }
+  }, [fetchAssets, selectedFolderId, debouncedSearch, selectedCategory, getAllDescendantFolderIds, isLoadingAssets]);
 
-    return filteredAssets;
-  }, [storeAssets, selectedFolderId, searchQuery, selectedCategory, getAllDescendantFolderIds]);
+  // Reset and reload when folder, search, or category changes
+  useEffect(() => {
+    setAssets([]);
+    setCurrentPage(1);
+    setHasMoreAssets(true);
+    loadAssets(1, true);
+  }, [selectedFolderId, debouncedSearch, selectedCategory]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMoreAssets || isLoadingAssets) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreAssets && !isLoadingAssets) {
+          loadAssets(currentPage + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [hasMoreAssets, isLoadingAssets, currentPage, loadAssets]);
 
   // Get uploading assets for the current folder
   const currentUploadingAssets = useMemo(() => {
@@ -617,18 +673,19 @@ export default function FileManagerDialog({
     return folders.filter((folder) => folder.asset_folder_id === selectedFolderId);
   }, [folders, selectedFolderId]);
 
-  // Calculate asset counts for each folder
+  // Calculate asset counts for each folder from currently loaded assets
+  // Note: This only shows counts from loaded assets, not total counts
   const folderAssetCounts = useMemo(() => {
     const counts: Record<string, number> = {};
 
-    // Count assets per folder (including root)
-    storeAssets.forEach((asset) => {
+    // Count assets per folder from cache
+    Object.values(assetsById).forEach((asset) => {
       const folderId = asset.asset_folder_id || 'root';
       counts[folderId] = (counts[folderId] || 0) + 1;
     });
 
     return counts;
-  }, [storeAssets]);
+  }, [assetsById]);
 
   // Build flattened folder tree with virtual "All Files" root
   const flattenedFolders = useMemo(() => {
@@ -747,7 +804,7 @@ export default function FileManagerDialog({
   // When dialog opens with an assetId, navigate to that asset's folder
   useEffect(() => {
     if (open && assetId) {
-      const asset = storeAssets.find(a => a.id === assetId);
+      const asset = assetsById[assetId] || getAsset(assetId);
       if (asset) {
         const assetFolderId = asset.asset_folder_id || null;
 
@@ -779,7 +836,7 @@ export default function FileManagerDialog({
         }
       }
     }
-  }, [open, assetId, storeAssets, folders]);
+  }, [open, assetId, assetsById, getAsset, folders]);
 
   // Build breadcrumb path from root to selected folder
   const breadcrumbPath = useMemo(() => {
@@ -970,12 +1027,13 @@ export default function FileManagerDialog({
     if (!deletingAssetId) return;
 
     // Save asset for rollback if needed
-    const assetToDelete = storeAssets.find((a) => a.id === deletingAssetId);
+    const assetToDelete = assetsById[deletingAssetId] || assets.find((a) => a.id === deletingAssetId);
     if (!assetToDelete) return;
 
     try {
-      // Optimistically remove from store
+      // Optimistically remove from store and local state
       removeAsset(deletingAssetId);
+      setAssets(prev => prev.filter(a => a.id !== deletingAssetId));
       setDeletingAssetId(null);
 
       // Make API call
@@ -983,14 +1041,16 @@ export default function FileManagerDialog({
 
       if (response.error) {
         console.error('Failed to delete asset:', response.error);
-        // Rollback: add asset back to store
+        // Rollback: add asset back to store and local state
         addAsset(assetToDelete);
+        setAssets(prev => [assetToDelete, ...prev]);
         return;
       }
     } catch (error) {
       console.error('Failed to delete asset:', error);
-      // Rollback: add asset back to store
+      // Rollback: add asset back to store and local state
       addAsset(assetToDelete);
+      setAssets(prev => [assetToDelete, ...prev]);
     }
   };
 
@@ -1002,7 +1062,7 @@ export default function FileManagerDialog({
 
     // Save assets for rollback
     const assetsToDelete = idsToDelete.map((id) => {
-      const asset = storeAssets.find((a) => a.id === id);
+      const asset = assetsById[id] || assets.find((a) => a.id === id);
       return { id, asset };
     }).filter((item) => item.asset) as Array<{ id: string; asset: Asset }>;
 
@@ -1069,7 +1129,7 @@ export default function FileManagerDialog({
 
     // Save original folder IDs for rollback
     const assetsToMove = idsToMove.map((id) => {
-      const asset = storeAssets.find((a) => a.id === id);
+      const asset = assetsById[id] || assets.find((a) => a.id === id);
       return { id, asset, originalFolderId: asset?.asset_folder_id };
     }).filter((item) => item.asset) as Array<{ id: string; asset: Asset; originalFolderId: string | null | undefined }>;
 
@@ -1147,7 +1207,7 @@ export default function FileManagerDialog({
   // Start editing asset
   const handleEditAsset = (id: string) => {
     setIsCreateSvgMode(false);
-    const asset = storeAssets.find(a => a.id === id);
+    const asset = assetsById[id] || assets.find(a => a.id === id);
     if (asset) {
       setEditingAssetId(id);
       setEditAssetName(asset.filename);
@@ -1177,7 +1237,17 @@ export default function FileManagerDialog({
       }
 
       if (response.data) {
-        addAsset(response.data);
+        const newAsset = response.data;
+        addAsset(newAsset);
+        // Add to local assets if in the same folder (avoid duplicates)
+        if (newAsset.asset_folder_id === selectedFolderId || 
+            (newAsset.asset_folder_id === null && selectedFolderId === null)) {
+          setAssets(prev => {
+            if (prev.some(a => a.id === newAsset.id)) return prev;
+            return [newAsset, ...prev];
+          });
+          setTotalAssets(prev => prev + 1);
+        }
       }
 
       setShowEditAssetDialog(false);
@@ -1203,7 +1273,7 @@ export default function FileManagerDialog({
     if (!editingAssetId || !newName.trim()) return;
 
     // Save original asset for rollback
-    const originalAsset = storeAssets.find(a => a.id === editingAssetId);
+    const originalAsset = assetsById[editingAssetId] || assets.find(a => a.id === editingAssetId);
     if (!originalAsset) return;
 
     try {
@@ -1320,6 +1390,12 @@ export default function FileManagerDialog({
 
           if (asset) {
             addAsset(asset);
+            // Add to local assets list (avoid duplicates)
+            setAssets(prev => {
+              if (prev.some(a => a.id === asset.id)) return prev;
+              return [asset, ...prev];
+            });
+            setTotalAssets(prev => prev + 1);
             setUploadProgress((prev) => prev ? { ...prev, current: prev.current + 1 } : null);
 
             // Remove the temp asset once real asset is added
@@ -1599,6 +1675,15 @@ export default function FileManagerDialog({
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Show asset count */}
+                {totalAssets > 0 && selectedAssetIds.size === 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {assets.length === totalAssets
+                      ? `${totalAssets} files`
+                      : `${assets.length} of ${totalAssets} files`}
+                  </span>
+                )}
+
                 {selectedAssetIds.size > 0 ? (
                   <>
                     <span className="text-xs text-muted-foreground">
@@ -1650,7 +1735,12 @@ export default function FileManagerDialog({
               </div>
             </div>
 
-            {(searchQuery.trim() ? true : childFolders.length === 0) && assets.length === 0 && currentUploadingAssets.length === 0 ? (
+            {/* Loading indicator for initial load - show ONLY this, nothing else */}
+            {isLoadingAssets && assets.length === 0 && currentUploadingAssets.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center">
+                <Spinner />
+              </div>
+            ) : (searchQuery.trim() ? true : childFolders.length === 0) && assets.length === 0 && currentUploadingAssets.length === 0 ? (
               <div className="flex-1 flex flex-col">
                 <div className="flex-1 w-full flex-col flex gap-1 items-center justify-center">
                   <div>
@@ -1727,6 +1817,20 @@ export default function FileManagerDialog({
                     onDelete={() => handleDeleteAsset(asset.id)}
                   />
                 ))}
+
+                {/* Infinite scroll trigger */}
+                {hasMoreAssets && (
+                  <div
+                    ref={loadMoreRef}
+                    className="col-span-full flex items-center justify-center py-4"
+                  >
+                    {isLoadingAssets ? (
+                      <Spinner />
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Scroll for more</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1766,7 +1870,8 @@ export default function FileManagerDialog({
           if (!deletingFolderId) return 'Are you sure you want to delete this folder?';
 
           const descendantIds = getDescendantFolderIds(deletingFolderId);
-          const assetsCount = storeAssets.filter(asset =>
+          // Count assets from cache (may not include all assets)
+          const assetsCount = Object.values(assetsById).filter(asset =>
             asset.asset_folder_id === deletingFolderId ||
             descendantIds.includes(asset.asset_folder_id || '')
           ).length;

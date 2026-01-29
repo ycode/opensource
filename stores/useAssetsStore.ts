@@ -16,12 +16,30 @@ interface AssetsState {
   error: string | null;
 }
 
+export interface FetchAssetsParams {
+  folderId?: string | null;
+  folderIds?: string[];
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface FetchAssetsResult {
+  assets: Asset[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
 interface AssetsActions {
   loadAssets: () => Promise<void>;
+  fetchAssets: (params: FetchAssetsParams) => Promise<FetchAssetsResult>;
   setAssets: (assets: Asset[]) => void;
   setFolders: (folders: AssetFolder[]) => void;
   getAsset: (id: string) => Asset | null;
   addAsset: (asset: Asset) => void;
+  addAssetsToCache: (assets: Asset[]) => void;
   updateAsset: (assetId: string, updates: Partial<Asset>) => void;
   removeAsset: (id: string) => void;
   addFolder: (folder: AssetFolder) => void;
@@ -70,7 +88,7 @@ export const useAssetsStore = create<AssetsStore>((set, get) => ({
   },
 
   /**
-   * Load all assets from API (fallback if not preloaded)
+   * Load folders from API (assets are loaded on-demand via fetchAssets)
    */
   loadAssets: async () => {
     // Don't reload if already loaded or currently loading
@@ -81,23 +99,17 @@ export const useAssetsStore = create<AssetsStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await fetch('/api/assets');
+      // Only load folders initially - assets are loaded on-demand
+      const foldersResponse = await fetch('/api/asset-folders');
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch assets');
+      if (!foldersResponse.ok) {
+        throw new Error('Failed to fetch folders');
       }
 
-      const { data: assets } = await response.json();
-      
-      // Create lookup map
-      const assetsById: Record<string, Asset> = {};
-      assets.forEach((asset: Asset) => {
-        assetsById[asset.id] = asset;
-      });
+      const { data: folders } = await foldersResponse.json();
 
       set({
-        assets,
-        assetsById,
+        folders,
         isLoading: false,
         isLoaded: true,
         error: null,
@@ -108,6 +120,71 @@ export const useAssetsStore = create<AssetsStore>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to load assets',
       });
     }
+  },
+
+  /**
+   * Fetch assets with pagination and search support
+   * Results are also added to the global cache for quick lookups
+   */
+  fetchAssets: async (params: FetchAssetsParams): Promise<FetchAssetsResult> => {
+    const { folderId, folderIds, search, page = 1, limit = 50 } = params;
+    
+    // Build query params
+    const queryParams = new URLSearchParams();
+    
+    if (folderIds && folderIds.length > 0) {
+      queryParams.set('folderIds', folderIds.join(','));
+    } else if (folderId !== undefined) {
+      queryParams.set('folderId', folderId === null ? 'null' : folderId);
+    }
+    
+    if (search) {
+      queryParams.set('search', search);
+    }
+    
+    queryParams.set('page', page.toString());
+    queryParams.set('limit', limit.toString());
+    
+    const response = await fetch(`/api/assets?${queryParams.toString()}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch assets');
+    }
+    
+    const result = await response.json();
+    
+    // Add fetched assets to the global cache
+    if (result.data && result.data.length > 0) {
+      const state = get();
+      const newAssetsById = { ...state.assetsById };
+      
+      result.data.forEach((asset: Asset) => {
+        newAssetsById[asset.id] = asset;
+      });
+      
+      set({ assetsById: newAssetsById });
+    }
+    
+    return {
+      assets: result.data || [],
+      total: result.total || 0,
+      page: result.page || page,
+      limit: result.limit || limit,
+      hasMore: result.hasMore ?? false,
+    };
+  },
+
+  /**
+   * Add multiple assets to the cache (without affecting the assets array)
+   */
+  addAssetsToCache: (assets: Asset[]) => {
+    set((state) => {
+      const newAssetsById = { ...state.assetsById };
+      assets.forEach((asset) => {
+        newAssetsById[asset.id] = asset;
+      });
+      return { assetsById: newAssetsById };
+    });
   },
 
   /**
