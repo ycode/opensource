@@ -104,7 +104,12 @@ function inlineComponents(
     console.log(`[inlineComponents] Found component instance: ${newLayer.componentId}`);
     const component = componentsMap[newLayer.componentId];
     if (component && component.layers?.length > 0) {
-      console.log(`[inlineComponents] Inlining component "${component.name}" with ${component.layers.length} layers`);
+      // Check if layers have interactions
+      const checkInteractions = (layers: any[]): boolean => {
+        return layers.some(l => l.interactions?.length > 0 || (l.children && checkInteractions(l.children)));
+      };
+      const hasInteractions = checkInteractions(component.layers);
+      console.log(`[inlineComponents] Inlining component "${component.name}" with ${component.layers.length} layers, hasInteractions: ${hasInteractions}`);
       // Store the component name for recreation later
       (newLayer as any)._inlinedComponentName = component.name;
       // Store component variables if they exist

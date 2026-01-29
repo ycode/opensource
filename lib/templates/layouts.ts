@@ -33702,5 +33702,1052 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
       'customName': 'Section',
       'open': false
     }
+  },
+
+  'faq-001': {
+    category: 'FAQ',
+    previewImage: '/layouts/faq-001.webp',
+    template: {
+      'name': 'section',
+      'classes': 'flex flex-col items-center w-[100%] pt-[140px] pb-[140px] bg-[#ffffff]',
+      'children': [
+        {
+          'name': 'div',
+          'classes': 'flex flex-col max-w-[1280px] w-[100%] pl-[32px] pr-[32px]',
+          'children': [
+            {
+              'name': 'div',
+              'classes': 'flex flex-col items-center gap-[72px]',
+              'children': [
+                {
+                  'name': 'div',
+                  'open': false,
+                  'design': {
+                    'layout': {
+                      'gap': '16px',
+                      'display': 'Flex',
+                      'isActive': true,
+                      'flexDirection': 'column',
+                      'alignItems': 'center'
+                    },
+                    'sizing': {
+                      'width': '[100%]',
+                      'isActive': true
+                    }
+                  },
+                  'classes': 'flex flex-col gap-[16px] w-[100%] items-center',
+                  'children': [
+                    {
+                      'name': 'text',
+                      'design': {
+                        'typography': {
+                          'isActive': true,
+                          'fontWeight': '700',
+                          'lineHeight': '1.1',
+                          'letterSpacing': '-0.02',
+                          'textAlign': 'center',
+                          'fontSize': '48'
+                        }
+                      },
+                      'classes': 'font-[700] tracking-[-0.02em] max-md:text-[36px] text-center text-[48px] leading-[1.1]',
+                      'settings': {
+                        'tag': 'h1'
+                      },
+                      'variables': {
+                        'text': {
+                          'type': 'dynamic_rich_text',
+                          'data': {
+                            'content': {
+                              'type': 'doc',
+                              'content': [
+                                {
+                                  'type': 'paragraph',
+                                  'content': [
+                                    {
+                                      'type': 'text',
+                                      'text': 'FAQ'
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      'customName': 'Heading',
+                      'restrictions': {
+                        'editText': true
+                      }
+                    }
+                  ],
+                  'customName': 'Rows'
+                },
+                {
+                  'name': 'div',
+                  'classes': 'flex flex-col w-[100%] max-w-[640px] gap-[8px]',
+                  'children': [
+                    {
+                      'name': 'div',
+                      'classes': 'flex flex-col rounded-[20px] bg-[#e5e5e5]',
+                      'children': [
+                        {
+                          'id': 'lyr-mkzioa021egu4a',
+                          'name': 'div',
+                          'open': true,
+                          'design': {
+                            'layout': {
+                              'display': 'Flex',
+                              'isActive': true,
+                              'flexDirection': 'column'
+                            },
+                            'borders': {
+                              'isActive': true,
+                              'borderRadius': '20'
+                            },
+                            'spacing': {
+                              'isActive': true,
+                              'paddingMode': 'all'
+                            },
+                            'backgrounds': {
+                              'isActive': true,
+                              'backgroundColor': '#e5e5e5'
+                            }
+                          },
+                          'classes': 'flex flex-col rounded-[20px] bg-[#e5e5e5]',
+                          'children': [
+                            {
+                              'id': 'lyr-mkzioa02iw5i65',
+                              'name': 'div',
+                              'open': true,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                },
+                                'spacing': {
+                                  'padding': '20',
+                                  'isActive': true,
+                                  'paddingMode': 'all'
+                                }
+                              },
+                              'classes': 'flex flex-col p-[20px]',
+                              'children': [
+                                {
+                                  'id': 'lyr-mkzioitvd9dux2',
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'fontSize': '16px',
+                                      'isActive': true
+                                    }
+                                  },
+                                  'classes': 'text-[16px]',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'id': 'cpv-mkziuek3ik8xjc',
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Question',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Text',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                }
+                              ],
+                              'interactions': [
+                                {
+                                  'id': 'int-mkziridh5yi5p1',
+                                  'tweens': [
+                                    {
+                                      'id': 'anm-mkzirlzkb0a5op',
+                                      'to': {
+                                        'display': 'visible'
+                                      },
+                                      'ease': 'power1.out',
+                                      'from': {
+                                        'display': 'hidden'
+                                      },
+                                      'duration': 0,
+                                      'layer_id': 'lyr-mkzioa022ejbz0',
+                                      'position': '>',
+                                      'apply_styles': {
+                                        'x': 'on-trigger',
+                                        'y': 'on-trigger',
+                                        'scale': 'on-trigger',
+                                        'skewX': 'on-trigger',
+                                        'skewY': 'on-trigger',
+                                        'display': 'on-load',
+                                        'rotation': 'on-trigger',
+                                        'autoAlpha': 'on-trigger'
+                                      }
+                                    }
+                                  ],
+                                  'trigger': 'click',
+                                  'timeline': {
+                                    'yoyo': true,
+                                    'repeat': 0,
+                                    'breakpoints': [
+                                      'mobile',
+                                      'tablet',
+                                      'desktop'
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              'id': 'lyr-mkzioa022ejbz0',
+                              'name': 'div',
+                              'open': true,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                },
+                                'spacing': {
+                                  'isActive': true,
+                                  'paddingLeft': '20px',
+                                  'paddingMode': 'individual',
+                                  'paddingRight': '20px',
+                                  'paddingBottom': '20px'
+                                }
+                              },
+                              'classes': 'flex flex-col pr-[20px] pb-[20px] pl-[20px]',
+                              'children': [
+                                {
+                                  'id': 'lyr-mkzion66tavm9k',
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'color': '#000000/60',
+                                      'fontSize': '16px',
+                                      'isActive': true
+                                    }
+                                  },
+                                  'classes': 'text-[16px] text-[#000000]/60',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'id': 'cpv-mkziuirebpnjf',
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Answer',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Text',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                }
+                              ]
+                            }
+                          ],
+                          'customName': 'Rows'
+                        }
+                      ],
+                      'design': {
+                        'layout': {
+                          'isActive': true,
+                          'display': 'Flex',
+                          'flexDirection': 'column'
+                        },
+                        'spacing': {
+                          'paddingMode': 'all',
+                          'isActive': true
+                        },
+                        'borders': {
+                          'borderRadius': '20',
+                          'isActive': true
+                        },
+                        'backgrounds': {
+                          'backgroundColor': '#e5e5e5',
+                          'isActive': true
+                        }
+                      },
+                      'customName': 'Rows',
+                      'open': false,
+                      'componentOverrides': {
+                        'text': {
+                          'cpv-mkziuirebpnjf': {
+                            'type': 'dynamic_rich_text',
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'type': 'text',
+                                        'text': 'Ycode is a no-code platform that allows users to build fully responsive websites without writing code.'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          'cpv-mkziuek3ik8xjc': {
+                            'type': 'dynamic_rich_text',
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'type': 'text',
+                                        'text': 'What is Ycode?'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      },
+                      '_inlinedComponentName': 'FAQ',
+                      '_inlinedComponentVariables': [
+                        {
+                          'id': 'cpv-mkziuek3ik8xjc',
+                          'name': 'Question',
+                          'default_value': {
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'text': 'Question',
+                                        'type': 'text'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            },
+                            'type': 'dynamic_rich_text'
+                          }
+                        },
+                        {
+                          'id': 'cpv-mkziuirebpnjf',
+                          'name': 'Answer',
+                          'default_value': {
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'text': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
+                                        'type': 'text'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            },
+                            'type': 'dynamic_rich_text'
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      'name': 'div',
+                      'customName': 'FAQ',
+                      'classes': [
+                        'block'
+                      ],
+                      'children': [
+                        {
+                          'id': 'lyr-mkzioa021egu4a',
+                          'name': 'div',
+                          'open': true,
+                          'design': {
+                            'layout': {
+                              'display': 'Flex',
+                              'isActive': true,
+                              'flexDirection': 'column'
+                            },
+                            'borders': {
+                              'isActive': true,
+                              'borderRadius': '20'
+                            },
+                            'spacing': {
+                              'isActive': true,
+                              'paddingMode': 'all'
+                            },
+                            'backgrounds': {
+                              'isActive': true,
+                              'backgroundColor': '#e5e5e5'
+                            }
+                          },
+                          'classes': 'flex flex-col rounded-[20px] bg-[#e5e5e5]',
+                          'children': [
+                            {
+                              'id': 'lyr-mkzioa02iw5i65',
+                              'name': 'div',
+                              'open': true,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                },
+                                'spacing': {
+                                  'padding': '20',
+                                  'isActive': true,
+                                  'paddingMode': 'all'
+                                }
+                              },
+                              'classes': 'flex flex-col p-[20px]',
+                              'children': [
+                                {
+                                  'id': 'lyr-mkzioitvd9dux2',
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'fontSize': '16px',
+                                      'isActive': true
+                                    }
+                                  },
+                                  'classes': 'text-[16px]',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'id': 'cpv-mkziuek3ik8xjc',
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Question',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Text',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                }
+                              ],
+                              'interactions': [
+                                {
+                                  'id': 'int-mkziridh5yi5p1',
+                                  'tweens': [
+                                    {
+                                      'id': 'anm-mkzirlzkb0a5op',
+                                      'to': {
+                                        'display': 'visible'
+                                      },
+                                      'ease': 'power1.out',
+                                      'from': {
+                                        'display': 'hidden'
+                                      },
+                                      'duration': 0,
+                                      'layer_id': 'lyr-mkzioa022ejbz0',
+                                      'position': '>',
+                                      'apply_styles': {
+                                        'x': 'on-trigger',
+                                        'y': 'on-trigger',
+                                        'scale': 'on-trigger',
+                                        'skewX': 'on-trigger',
+                                        'skewY': 'on-trigger',
+                                        'display': 'on-load',
+                                        'rotation': 'on-trigger',
+                                        'autoAlpha': 'on-trigger'
+                                      }
+                                    }
+                                  ],
+                                  'trigger': 'click',
+                                  'timeline': {
+                                    'yoyo': true,
+                                    'repeat': 0,
+                                    'breakpoints': [
+                                      'mobile',
+                                      'tablet',
+                                      'desktop'
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              'id': 'lyr-mkzioa022ejbz0',
+                              'name': 'div',
+                              'open': true,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                },
+                                'spacing': {
+                                  'isActive': true,
+                                  'paddingLeft': '20px',
+                                  'paddingMode': 'individual',
+                                  'paddingRight': '20px',
+                                  'paddingBottom': '20px'
+                                }
+                              },
+                              'classes': 'flex flex-col pr-[20px] pb-[20px] pl-[20px]',
+                              'children': [
+                                {
+                                  'id': 'lyr-mkzion66tavm9k',
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'color': '#000000/60',
+                                      'fontSize': '16px',
+                                      'isActive': true
+                                    }
+                                  },
+                                  'classes': 'text-[16px] text-[#000000]/60',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'id': 'cpv-mkziuirebpnjf',
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Answer',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Text',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                }
+                              ]
+                            }
+                          ],
+                          'customName': 'Rows'
+                        }
+                      ],
+                      'componentOverrides': {
+                        'text': {
+                          'cpv-mkziuirebpnjf': {
+                            'type': 'dynamic_rich_text',
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'type': 'text',
+                                        'text': 'No, Ycode is designed for non-developers and does not require any coding experience to build and launch websites.'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          'cpv-mkziuek3ik8xjc': {
+                            'type': 'dynamic_rich_text',
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'type': 'text',
+                                        'text': 'Do I need coding knowledge to use Ycode?'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      },
+                      '_inlinedComponentName': 'FAQ',
+                      '_inlinedComponentVariables': [
+                        {
+                          'id': 'cpv-mkziuek3ik8xjc',
+                          'name': 'Question',
+                          'default_value': {
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'text': 'Question',
+                                        'type': 'text'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            },
+                            'type': 'dynamic_rich_text'
+                          }
+                        },
+                        {
+                          'id': 'cpv-mkziuirebpnjf',
+                          'name': 'Answer',
+                          'default_value': {
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'text': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
+                                        'type': 'text'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            },
+                            'type': 'dynamic_rich_text'
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      'name': 'div',
+                      'customName': 'FAQ',
+                      'classes': [
+                        'block'
+                      ],
+                      'children': [
+                        {
+                          'id': 'lyr-mkzioa021egu4a',
+                          'name': 'div',
+                          'open': true,
+                          'design': {
+                            'layout': {
+                              'display': 'Flex',
+                              'isActive': true,
+                              'flexDirection': 'column'
+                            },
+                            'borders': {
+                              'isActive': true,
+                              'borderRadius': '20'
+                            },
+                            'spacing': {
+                              'isActive': true,
+                              'paddingMode': 'all'
+                            },
+                            'backgrounds': {
+                              'isActive': true,
+                              'backgroundColor': '#e5e5e5'
+                            }
+                          },
+                          'classes': 'flex flex-col rounded-[20px] bg-[#e5e5e5]',
+                          'children': [
+                            {
+                              'id': 'lyr-mkzioa02iw5i65',
+                              'name': 'div',
+                              'open': true,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                },
+                                'spacing': {
+                                  'padding': '20',
+                                  'isActive': true,
+                                  'paddingMode': 'all'
+                                }
+                              },
+                              'classes': 'flex flex-col p-[20px]',
+                              'children': [
+                                {
+                                  'id': 'lyr-mkzioitvd9dux2',
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'fontSize': '16px',
+                                      'isActive': true
+                                    }
+                                  },
+                                  'classes': 'text-[16px]',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'id': 'cpv-mkziuek3ik8xjc',
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Question',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Text',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                }
+                              ],
+                              'interactions': [
+                                {
+                                  'id': 'int-mkziridh5yi5p1',
+                                  'tweens': [
+                                    {
+                                      'id': 'anm-mkzirlzkb0a5op',
+                                      'to': {
+                                        'display': 'visible'
+                                      },
+                                      'ease': 'power1.out',
+                                      'from': {
+                                        'display': 'hidden'
+                                      },
+                                      'duration': 0,
+                                      'layer_id': 'lyr-mkzioa022ejbz0',
+                                      'position': '>',
+                                      'apply_styles': {
+                                        'x': 'on-trigger',
+                                        'y': 'on-trigger',
+                                        'scale': 'on-trigger',
+                                        'skewX': 'on-trigger',
+                                        'skewY': 'on-trigger',
+                                        'display': 'on-load',
+                                        'rotation': 'on-trigger',
+                                        'autoAlpha': 'on-trigger'
+                                      }
+                                    }
+                                  ],
+                                  'trigger': 'click',
+                                  'timeline': {
+                                    'yoyo': true,
+                                    'repeat': 0,
+                                    'breakpoints': [
+                                      'mobile',
+                                      'tablet',
+                                      'desktop'
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              'id': 'lyr-mkzioa022ejbz0',
+                              'name': 'div',
+                              'open': true,
+                              'design': {
+                                'layout': {
+                                  'display': 'Flex',
+                                  'isActive': true,
+                                  'flexDirection': 'column'
+                                },
+                                'spacing': {
+                                  'isActive': true,
+                                  'paddingLeft': '20px',
+                                  'paddingMode': 'individual',
+                                  'paddingRight': '20px',
+                                  'paddingBottom': '20px'
+                                }
+                              },
+                              'classes': 'flex flex-col pr-[20px] pb-[20px] pl-[20px]',
+                              'children': [
+                                {
+                                  'id': 'lyr-mkzion66tavm9k',
+                                  'name': 'text',
+                                  'design': {
+                                    'typography': {
+                                      'color': '#000000/60',
+                                      'fontSize': '16px',
+                                      'isActive': true
+                                    }
+                                  },
+                                  'classes': 'text-[16px] text-[#000000]/60',
+                                  'settings': {
+                                    'tag': 'p'
+                                  },
+                                  'variables': {
+                                    'text': {
+                                      'id': 'cpv-mkziuirebpnjf',
+                                      'data': {
+                                        'content': {
+                                          'type': 'doc',
+                                          'content': [
+                                            {
+                                              'type': 'paragraph',
+                                              'content': [
+                                                {
+                                                  'text': 'Answer',
+                                                  'type': 'text'
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      'type': 'dynamic_rich_text'
+                                    }
+                                  },
+                                  'customName': 'Text',
+                                  'restrictions': {
+                                    'editText': true
+                                  }
+                                }
+                              ]
+                            }
+                          ],
+                          'customName': 'Rows'
+                        }
+                      ],
+                      'componentOverrides': {
+                        'text': {
+                          'cpv-mkziuirebpnjf': {
+                            'type': 'dynamic_rich_text',
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'type': 'text',
+                                        'text': 'Yes, Ycode allows team collaboration for free! Enabling multiple users to work on the same project simultaneously.'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          'cpv-mkziuek3ik8xjc': {
+                            'type': 'dynamic_rich_text',
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'type': 'text',
+                                        'text': 'Can I collaborate with a team on Ycode projects?'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      },
+                      '_inlinedComponentName': 'FAQ',
+                      '_inlinedComponentVariables': [
+                        {
+                          'id': 'cpv-mkziuek3ik8xjc',
+                          'name': 'Question',
+                          'default_value': {
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'text': 'Question',
+                                        'type': 'text'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            },
+                            'type': 'dynamic_rich_text'
+                          }
+                        },
+                        {
+                          'id': 'cpv-mkziuirebpnjf',
+                          'name': 'Answer',
+                          'default_value': {
+                            'data': {
+                              'content': {
+                                'type': 'doc',
+                                'content': [
+                                  {
+                                    'type': 'paragraph',
+                                    'content': [
+                                      {
+                                        'text': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
+                                        'type': 'text'
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            },
+                            'type': 'dynamic_rich_text'
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  'design': {
+                    'layout': {
+                      'isActive': true,
+                      'display': 'Flex',
+                      'flexDirection': 'column',
+                      'gap': '8'
+                    },
+                    'sizing': {
+                      'width': '[100%]',
+                      'isActive': true,
+                      'maxWidth': '640'
+                    }
+                  },
+                  'customName': 'Rows',
+                  'open': false
+                }
+              ],
+              'design': {
+                'layout': {
+                  'isActive': true,
+                  'display': 'Flex',
+                  'flexDirection': 'column',
+                  'alignItems': 'center',
+                  'gap': '72'
+                }
+              },
+              'customName': 'Rows',
+              'open': false
+            }
+          ],
+          'design': {
+            'layout': {
+              'isActive': true,
+              'display': 'Flex',
+              'flexDirection': 'column'
+            },
+            'sizing': {
+              'isActive': true,
+              'width': '100%',
+              'maxWidth': '1280px'
+            },
+            'spacing': {
+              'isActive': true,
+              'paddingLeft': '32px',
+              'paddingRight': '32px'
+            }
+          },
+          'customName': 'Container',
+          'open': false
+        }
+      ],
+      'design': {
+        'layout': {
+          'isActive': true,
+          'display': 'Flex',
+          'flexDirection': 'column',
+          'alignItems': 'center'
+        },
+        'spacing': {
+          'isActive': true,
+          'paddingTop': '140',
+          'paddingBottom': '140'
+        },
+        'backgrounds': {
+          'backgroundColor': '#ffffff',
+          'isActive': true
+        }
+      },
+      'customName': 'Section',
+      'open': false
+    }
   }
 };

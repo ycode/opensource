@@ -104,6 +104,40 @@ async function restoreInlinedComponents(
       } else {
         // Create new component from inlined layers (including variables)
         try {
+          // Debug: check if layers have interactions and log layer IDs
+          const collectLayerIds = (layers: any[]): string[] => {
+            const ids: string[] = [];
+            for (const l of layers) {
+              if (l.id) ids.push(l.id);
+              if (l.children) ids.push(...collectLayerIds(l.children));
+            }
+            return ids;
+          };
+          const collectInteractionTargets = (layers: any[]): string[] => {
+            const targets: string[] = [];
+            for (const l of layers) {
+              if (l.interactions) {
+                for (const int of l.interactions) {
+                  for (const tween of int.tweens || []) {
+                    if (tween.layer_id) targets.push(tween.layer_id);
+                  }
+                }
+              }
+              if (l.children) targets.push(...collectInteractionTargets(l.children));
+            }
+            return targets;
+          };
+          
+          const layerIds = collectLayerIds(newLayer.children || []);
+          const interactionTargets = collectInteractionTargets(newLayer.children || []);
+          const missingTargets = interactionTargets.filter(t => !layerIds.includes(t));
+          
+          console.log(`[restoreInlinedComponents] Layer IDs in component:`, layerIds);
+          console.log(`[restoreInlinedComponents] Interaction targets:`, interactionTargets);
+          if (missingTargets.length > 0) {
+            console.warn(`[restoreInlinedComponents] ⚠️ Missing layer targets:`, missingTargets);
+          }
+          
           const result = await componentsApi.create({
             name: componentName,
             layers: newLayer.children,

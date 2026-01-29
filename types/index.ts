@@ -404,6 +404,9 @@ export interface LinkSettings {
 export interface LayerTemplate extends Omit<Layer, 'id' | 'children'> {
   id?: string; // Optional: used when animations reference specific layers
   children?: Array<LayerTemplate | LayerTemplateRef>;
+  // Inlined component metadata (for portable layouts)
+  _inlinedComponentName?: string; // Component name when inlined for portability
+  _inlinedComponentVariables?: ComponentVariable[]; // Component variables when inlined
 }
 
 // Template reference marker (lazy reference resolved during template instantiation)
