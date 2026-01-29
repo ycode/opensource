@@ -5,15 +5,19 @@
  * Uses multiple approaches to ensure the cursor is set correctly:
  * 1. Style tag with !important for global override
  * 2. Direct style on body elements for immediate effect
+ * 3. Direct style on iframe element itself (in parent document)
  */
 
 const CURSOR_STYLE_ID = 'drag-cursor-override';
 
+// Store reference to iframe element for cleanup
+let currentIframeElement: HTMLIFrameElement | null = null;
+
 /**
  * Set the cursor to "grabbing" globally during a drag operation.
- * Applies to both the main document and optionally an iframe document.
+ * Applies to the main document, the iframe element, and the iframe's document.
  */
-export function setDragCursor(iframeDoc?: Document | null): void {
+export function setDragCursor(iframeDoc?: Document | null, iframeElement?: HTMLIFrameElement | null): void {
   // Main document - style tag
   let styleEl = document.getElementById(CURSOR_STYLE_ID) as HTMLStyleElement | null;
   if (!styleEl) {
@@ -21,13 +25,27 @@ export function setDragCursor(iframeDoc?: Document | null): void {
     styleEl.id = CURSOR_STYLE_ID;
     document.head.appendChild(styleEl);
   }
-  styleEl.textContent = 'html, body, * { cursor: grabbing !important; }';
+  styleEl.textContent = 'html, body, *, iframe { cursor: grabbing !important; }';
   
   // Main document - direct body style for immediate effect
   document.body.style.cursor = 'grabbing';
   document.documentElement.style.cursor = 'grabbing';
   
-  // Iframe document (if provided)
+  // Set cursor directly on the iframe ELEMENT in the parent document
+  // This is critical because the iframe element itself renders the cursor
+  if (iframeElement) {
+    currentIframeElement = iframeElement;
+    iframeElement.style.cursor = 'grabbing';
+  } else {
+    // Try to find iframe if not passed
+    const iframe = document.querySelector('iframe[title="Canvas Editor"]') as HTMLIFrameElement | null;
+    if (iframe) {
+      currentIframeElement = iframe;
+      iframe.style.cursor = 'grabbing';
+    }
+  }
+  
+  // Iframe document (if provided) - set cursor on internal elements
   if (iframeDoc?.head) {
     const iframeStyleId = `${CURSOR_STYLE_ID}-iframe`;
     let iframeStyleEl = iframeDoc.getElementById(iframeStyleId) as HTMLStyleElement | null;
@@ -58,6 +76,17 @@ export function clearDragCursor(iframeDoc?: Document | null): void {
   // Main document - clear direct styles
   document.body.style.cursor = '';
   document.documentElement.style.cursor = '';
+  
+  // Clear cursor on the iframe ELEMENT in the parent document
+  if (currentIframeElement) {
+    currentIframeElement.style.cursor = '';
+    currentIframeElement = null;
+  }
+  // Also try to find and clear any iframe that might have cursor set
+  const iframe = document.querySelector('iframe[title="Canvas Editor"]') as HTMLIFrameElement | null;
+  if (iframe) {
+    iframe.style.cursor = '';
+  }
   
   // Iframe document (if provided)
   if (iframeDoc) {

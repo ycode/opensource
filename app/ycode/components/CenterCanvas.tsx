@@ -234,7 +234,8 @@ function CanvasSiblingReorderOverlay({
     if (!isDragging) return;
     
     const iframeDoc = iframeElement?.contentDocument;
-    setDragCursor(iframeDoc);
+    // Pass both iframe document and iframe element for comprehensive cursor setting
+    setDragCursor(iframeDoc, iframeElement);
     
     return () => {
       clearDragCursor(iframeDoc);

@@ -30,11 +30,12 @@ export function DragCaptureOverlay() {
   useEffect(() => {
     if (!isDragging) return;
     
-    // Find the canvas iframe and set cursor on its document
+    // Find the canvas iframe and set cursor on its document AND the iframe element itself
     const iframe = document.querySelector('iframe[title="Canvas Editor"]') as HTMLIFrameElement | null;
     const iframeDoc = iframe?.contentDocument;
     
-    setDragCursor(iframeDoc);
+    // Pass both iframe document and iframe element for comprehensive cursor setting
+    setDragCursor(iframeDoc, iframe);
     
     return () => {
       clearDragCursor(iframeDoc);

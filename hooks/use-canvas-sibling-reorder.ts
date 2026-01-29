@@ -310,7 +310,8 @@ export function useCanvasSiblingReorder({
             hasDragStartedRef.current = true;
             
             // Set grabbing cursor immediately when drag starts
-            setDragCursor(iframeDoc);
+            // Pass both iframe doc AND iframe element for comprehensive cursor setting
+            setDragCursor(iframeDoc, currentIframe);
           }
         }
       }
