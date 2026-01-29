@@ -166,6 +166,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const hoveredLayerId = useEditorStore((state) => state.hoveredLayerId);
   const setHoveredLayerId = useEditorStore((state) => state.setHoveredLayerId);
   const isPreviewMode = useEditorStore((state) => state.isPreviewMode);
+  const activeInteractionTriggerLayerId = useEditorStore((state) => state.activeInteractionTriggerLayerId);
   const assets = useAssetsStore((state) => state.assets);
 
   // Text editor toolbar state from store
@@ -1950,6 +1951,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         onLayerHover={handleCanvasLayerHover}
                         onCanvasClick={handleCanvasClick}
                         editingComponentVariables={editingComponentVariables}
+                        disableEditorHiddenLayers={!!activeInteractionTriggerLayerId}
                       />
 
                       {/* Empty overlay when only Body with no children */}

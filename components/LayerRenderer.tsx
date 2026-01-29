@@ -8,7 +8,7 @@ import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings } from '@/types';
+import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings, Breakpoint } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
@@ -135,6 +135,8 @@ interface LayerRendererProps {
   pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
   pageCollectionItemData?: Record<string, string> | null; // Page's collection item data (for dynamic pages)
   hiddenLayerInfo?: HiddenLayerInfo[]; // Layer IDs with breakpoint info for animations
+  editorHiddenLayerIds?: Map<string, Breakpoint[]>; // Layer IDs to hide on canvas (edit mode only) with breakpoint info
+  editorBreakpoint?: Breakpoint; // Current breakpoint in editor
   currentLocale?: Locale | null;
   availableLocales?: Locale[];
   localeSelectorFormat?: 'locale' | 'code'; // Format for locale selector label (inherited from parent)
@@ -173,6 +175,8 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   pageCollectionItemData,
   collectionItemSlugs,
   hiddenLayerInfo,
+  editorHiddenLayerIds,
+  editorBreakpoint,
   currentLocale,
   availableLocales = [],
   localeSelectorFormat,
@@ -278,6 +282,8 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         pageCollectionItemId={pageCollectionItemId}
         pageCollectionItemData={pageCollectionItemData}
         hiddenLayerInfo={hiddenLayerInfo}
+        editorHiddenLayerIds={editorHiddenLayerIds}
+        editorBreakpoint={editorBreakpoint}
         currentLocale={currentLocale}
         availableLocales={availableLocales}
         localeSelectorFormat={localeSelectorFormat}
@@ -331,6 +337,8 @@ const LayerItem: React.FC<{
   pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
   pageCollectionItemData?: Record<string, string> | null;
   hiddenLayerInfo?: HiddenLayerInfo[];
+  editorHiddenLayerIds?: Map<string, Breakpoint[]>;
+  editorBreakpoint?: Breakpoint;
   currentLocale?: Locale | null;
   availableLocales?: Locale[];
   localeSelectorFormat?: 'locale' | 'code';
@@ -372,6 +380,8 @@ const LayerItem: React.FC<{
   pageCollectionItemId,
   pageCollectionItemData,
   hiddenLayerInfo,
+  editorHiddenLayerIds,
+  editorBreakpoint,
   currentLocale,
   availableLocales,
   localeSelectorFormat,
@@ -910,6 +920,8 @@ const LayerItem: React.FC<{
           pageCollectionItemId={pageCollectionItemId}
           pageCollectionItemData={pageCollectionItemData}
           hiddenLayerInfo={hiddenLayerInfo}
+          editorHiddenLayerIds={editorHiddenLayerIds}
+          editorBreakpoint={editorBreakpoint}
           currentLocale={currentLocale}
           availableLocales={availableLocales}
           localeSelectorFormat={localeSelectorFormat}
@@ -1013,6 +1025,36 @@ const LayerItem: React.FC<{
     if (layer.hiddenGenerated) {
       const existingStyle = typeof elementProps.style === 'object' ? elementProps.style : {};
       elementProps.style = { ...existingStyle, display: 'none' };
+    }
+
+    // Hide elements that have display: hidden animation with on-load apply style (edit mode only)
+    // Show them when selected or when a child is selected
+    // Only hide on the breakpoints the animation applies to
+    if (isEditMode && editorHiddenLayerIds?.has(layer.id)) {
+      const hiddenBreakpoints = editorHiddenLayerIds.get(layer.id) || [];
+      // Empty array means all breakpoints, otherwise check if current breakpoint matches
+      const shouldHideOnBreakpoint = hiddenBreakpoints.length === 0 ||
+        (editorBreakpoint && hiddenBreakpoints.includes(editorBreakpoint));
+
+      if (shouldHideOnBreakpoint) {
+        const isSelectedOrChildSelected = isSelected || (selectedLayerId && (() => {
+          // Check if selectedLayerId is a descendant of this layer
+          const checkDescendants = (children: Layer[] | undefined): boolean => {
+            if (!children) return false;
+            for (const child of children) {
+              if (child.id === selectedLayerId) return true;
+              if (checkDescendants(child.children)) return true;
+            }
+            return false;
+          };
+          return checkDescendants(layer.children);
+        })());
+
+        if (!isSelectedOrChildSelected) {
+          const existingStyle = typeof elementProps.style === 'object' ? elementProps.style : {};
+          elementProps.style = { ...existingStyle, display: 'none' };
+        }
+      }
     }
 
     // Apply custom ID from settings or attributes
@@ -1574,6 +1616,8 @@ const LayerItem: React.FC<{
               translations={translations}
               anchorMap={anchorMap}
               hiddenLayerInfo={hiddenLayerInfo}
+              editorHiddenLayerIds={editorHiddenLayerIds}
+              editorBreakpoint={editorBreakpoint}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
               localeSelectorFormat={localeSelectorFormat}
@@ -1687,6 +1731,8 @@ const LayerItem: React.FC<{
                   pageCollectionItemId={pageCollectionItemId}
                   pageCollectionItemData={pageCollectionItemData}
                   hiddenLayerInfo={hiddenLayerInfo}
+                  editorHiddenLayerIds={editorHiddenLayerIds}
+                  editorBreakpoint={editorBreakpoint}
                   currentLocale={currentLocale}
                   availableLocales={availableLocales}
                   liveLayerUpdates={liveLayerUpdates}
@@ -1750,6 +1796,8 @@ const LayerItem: React.FC<{
               translations={translations}
               anchorMap={anchorMap}
               hiddenLayerInfo={hiddenLayerInfo}
+              editorHiddenLayerIds={editorHiddenLayerIds}
+              editorBreakpoint={editorBreakpoint}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
               localeSelectorFormat={format}
@@ -1807,6 +1855,8 @@ const LayerItem: React.FC<{
             pageCollectionItemId={pageCollectionItemId}
             pageCollectionItemData={pageCollectionItemData}
             hiddenLayerInfo={hiddenLayerInfo}
+            editorHiddenLayerIds={editorHiddenLayerIds}
+            editorBreakpoint={editorBreakpoint}
             currentLocale={currentLocale}
             availableLocales={availableLocales}
             localeSelectorFormat={localeSelectorFormat}

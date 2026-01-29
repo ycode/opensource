@@ -289,6 +289,106 @@ export interface InitialAnimationResult {
 }
 
 /**
+ * Info about a layer that should be hidden on canvas in edit mode
+ */
+export interface EditorHiddenLayerInfo {
+  layerId: string;
+  breakpoints: Breakpoint[]; // Empty array means all breakpoints
+}
+
+/**
+ * Collect layer IDs that should be visually hidden on canvas in edit mode
+ * These are layers with display: hidden animation and apply_styles: on-load
+ * Returns a Map of layerId -> breakpoints (empty = all breakpoints)
+ */
+export function collectEditorHiddenLayerIds(layers: Layer[]): Map<string, Breakpoint[]> {
+  const hiddenLayerMap = new Map<string, Breakpoint[]>();
+
+  const traverse = (layerList: Layer[]) => {
+    layerList.forEach((layer) => {
+      if (layer.interactions) {
+        layer.interactions.forEach((interaction) => {
+          (interaction.tweens || []).forEach((tween) => {
+            // Check if display: hidden with on-load apply style
+            if (
+              tween.from?.display === 'hidden' &&
+              tween.apply_styles?.display === 'on-load'
+            ) {
+              const breakpoints = interaction.timeline?.breakpoints || [];
+              const existing = hiddenLayerMap.get(tween.layer_id);
+
+              if (existing !== undefined) {
+                // If we already have an entry:
+                // - If either has empty breakpoints (all), result is all
+                // - Otherwise merge breakpoints
+                if (existing.length === 0 || breakpoints.length === 0) {
+                  hiddenLayerMap.set(tween.layer_id, []);
+                } else {
+                  // Merge unique breakpoints
+                  const merged = [...new Set([...existing, ...breakpoints])];
+                  hiddenLayerMap.set(tween.layer_id, merged as Breakpoint[]);
+                }
+              } else {
+                hiddenLayerMap.set(tween.layer_id, breakpoints);
+              }
+            }
+          });
+        });
+      }
+
+      if (layer.children) {
+        traverse(layer.children);
+      }
+    });
+  };
+
+  traverse(layers);
+  return hiddenLayerMap;
+}
+
+/**
+ * Check if a layer ID or any of its ancestors is in the selection path
+ */
+export function isLayerOrAncestorSelected(
+  layerId: string,
+  selectedLayerId: string | null,
+  layers: Layer[]
+): boolean {
+  if (!selectedLayerId) return false;
+  if (layerId === selectedLayerId) return true;
+
+  // Check if selectedLayerId is a descendant of layerId
+  const findLayerById = (layerList: Layer[], targetId: string): Layer | null => {
+    for (const layer of layerList) {
+      if (layer.id === targetId) return layer;
+      if (layer.children) {
+        const found = findLayerById(layer.children, targetId);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const isDescendant = (parentId: string, childId: string, layerList: Layer[]): boolean => {
+    const parent = findLayerById(layerList, parentId);
+    if (!parent || !parent.children) return false;
+
+    const checkChildren = (children: Layer[]): boolean => {
+      for (const child of children) {
+        if (child.id === childId) return true;
+        if (child.children && checkChildren(child.children)) return true;
+      }
+      return false;
+    };
+
+    return checkChildren(parent.children);
+  };
+
+  // Return true if selectedLayerId is a descendant of layerId
+  return isDescendant(layerId, selectedLayerId, layers);
+}
+
+/**
  * Generate a media query for a set of breakpoints
  * Returns null if no restriction (all breakpoints), or the appropriate media query
  */
