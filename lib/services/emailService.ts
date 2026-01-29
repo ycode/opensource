@@ -29,6 +29,23 @@ export interface FormSubmissionEmailData {
     referrer?: string;
     submitted_at: string;
   };
+  replyTo?: string;
+}
+
+/**
+ * Extract the first valid email address from form payload
+ * Used to set Reply-To so recipients can reply directly to form submitters
+ */
+export function extractReplyToEmail(payload: Record<string, unknown>): string | undefined {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  for (const value of Object.values(payload)) {
+    if (typeof value === 'string' && emailRegex.test(value.trim())) {
+      return value.trim();
+    }
+  }
+
+  return undefined;
 }
 
 /**
@@ -193,6 +210,7 @@ export async function sendFormSubmissionEmail(
       from: fromAddress,
       to,
       subject: subject || `New form submission: ${data.formId}`,
+      replyTo: data.replyTo,
       text: generateEmailText(data),
       html: generateEmailHtml(data),
     });
