@@ -625,4 +625,11 @@ export function addTweenToTimeline(
       hasFromTo || hasFromOnly ? '<' : position
     );
   }
+
+  // If no GSAP properties exist (e.g., display-only animation), add a minimal tween
+  // to ensure the timeline has proper duration for callbacks (onStart, onReverseComplete)
+  if (!hasFromTo && !hasFromOnly && !hasToOnly) {
+    // Use a "to" tween with empty props - GSAP will wait for duration
+    timeline.to(element, { duration: safeDur, onComplete }, position);
+  }
 }

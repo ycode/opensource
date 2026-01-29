@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 /**
@@ -379,6 +380,7 @@ export default function CollectionItemSheet({
                               placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
                               variant="full"
                               withFormatting={true}
+                              excludedLinkTypes={['asset', 'field']}
                             />
                           ) : field.type === 'reference' && field.reference_collection_id ? (
                             <ReferenceFieldCombobox

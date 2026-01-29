@@ -272,9 +272,9 @@ export default function CollectionLinkFieldInput({
 
   // Link type options
   const linkTypeOptions = [
-    { value: 'none', label: 'No link', icon: 'none' },
-    { value: 'url', label: 'URL', icon: 'link' },
-    { value: 'page', label: 'Page', icon: 'page' },
+    { value: 'none', label: 'No link', detail: null, icon: 'none' },
+    { value: 'page', label: 'Page', detail: 'Link to a regular or dynamic page', icon: 'page' },
+    { value: 'url', label: 'URL', detail: 'Link to a custom URL', icon: 'link' },
   ];
 
   return (
@@ -294,7 +294,13 @@ export default function CollectionLinkFieldInput({
               <SelectItem key={option.value} value={option.value}>
                 <div className="flex items-center gap-2">
                   <Icon name={option.icon as any} className="size-3" />
-                  {option.label}
+                  <span>{option.label}</span>
+                  {option.detail && (
+                    <>
+                      <span className="text-xs text-muted-foreground">-</span>
+                      <span className="text-xs text-muted-foreground">{option.detail}</span>
+                    </>
+                  )}
                 </div>
               </SelectItem>
             ))}
@@ -317,89 +323,95 @@ export default function CollectionLinkFieldInput({
 
       {/* Page Selection */}
       {linkType === 'page' && (
-        <>
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Page</Label>
-            <Select
-              value={pageId}
-              onValueChange={handlePageChange}
-              disabled={disabled}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select page" />
-              </SelectTrigger>
-              <SelectContent>
-                {linkablePages.map((page) => (
-                  <SelectItem key={page.id} value={page.id}>
-                    <div className="flex items-center gap-2">
-                      <Icon
-                        name={getPageIcon(page)}
-                        className="size-3"
-                      />
-                      {page.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Collection Item Selection (for dynamic pages) */}
-          {isDynamicPage && pageId && (
+        <div className="flex flex-wrap gap-3">
+          <div className="flex-1 min-w-0">
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs text-muted-foreground">CMS item</Label>
+              <Label className="text-xs text-muted-foreground">Page</Label>
               <Select
-                value={collectionItemId || ''}
-                onValueChange={handleCollectionItemChange}
-                disabled={disabled || loadingItems}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={loadingItems ? 'Loading...' : 'Select a CMS item'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {collectionItems.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {getItemDisplayName(item.id)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Anchor selection (for page links) */}
-          {pageId && (
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs text-muted-foreground">Anchor</Label>
-              <Select
-                value={anchorLayerId || 'none'}
-                onValueChange={handleAnchorLayerIdChange}
+                value={pageId}
+                onValueChange={handlePageChange}
                 disabled={disabled}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select anchor" />
+                  <SelectValue placeholder="Select page" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">
-                    <div className="flex items-center gap-2">
-                      <Icon name="none" className="size-3" />
-                      <span>No anchor</span>
-                    </div>
-                  </SelectItem>
-                  {anchorLayers.map(({ layer, id }) => (
-                    <SelectItem key={id} value={id}>
+                  {linkablePages.map((page) => (
+                    <SelectItem key={page.id} value={page.id}>
                       <div className="flex items-center gap-2">
-                        <Icon name={getLayerIcon(layer)} className="size-3" />
-                        <span>{getLayerName(layer)}</span>
-                        <span className="text-xs text-muted-foreground">#{id}</span>
+                        <Icon
+                          name={getPageIcon(page)}
+                          className="size-3"
+                        />
+                        {page.name}
                       </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Collection Item Selection (for dynamic pages) */}
+          {isDynamicPage && pageId && (
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs text-muted-foreground">CMS item</Label>
+                <Select
+                  value={collectionItemId || ''}
+                  onValueChange={handleCollectionItemChange}
+                  disabled={disabled || loadingItems}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={loadingItems ? 'Loading...' : 'Select a CMS item'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {collectionItems.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {getItemDisplayName(item.id)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           )}
-        </>
+
+          {/* Anchor selection (for page links) */}
+          {pageId && (
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs text-muted-foreground">Anchor</Label>
+                <Select
+                  value={anchorLayerId || 'none'}
+                  onValueChange={handleAnchorLayerIdChange}
+                  disabled={disabled}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select anchor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">
+                      <div className="flex items-center gap-2">
+                        <Icon name="none" className="size-3" />
+                        <span>No anchor</span>
+                      </div>
+                    </SelectItem>
+                    {anchorLayers.map(({ layer, id }) => (
+                      <SelectItem key={id} value={id}>
+                        <div className="flex items-center gap-2">
+                          <Icon name={getLayerIcon(layer)} className="size-3" />
+                          <span>{getLayerName(layer)}</span>
+                          <span className="text-xs text-muted-foreground">#{id}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

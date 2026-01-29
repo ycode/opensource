@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Separator } from '@/components/ui/separator';
 import RichTextLinkSettings from './RichTextLinkSettings';
 import { getLinkSettingsFromMark } from '@/lib/tiptap-extensions/rich-text-link';
-import type { Layer, CollectionField, Collection, LinkSettings } from '@/types';
+import type { Layer, CollectionField, Collection, LinkSettings, LinkType } from '@/types';
 import type { FieldGroup } from './FieldTreeSelect';
 
 export interface RichTextLinkPopoverProps {
@@ -40,6 +40,8 @@ export interface RichTextLinkPopoverProps {
   onOpenChange?: (open: boolean) => void;
   /** Whether the link button is disabled */
   disabled?: boolean;
+  /** Link types to exclude from the dropdown */
+  excludedLinkTypes?: LinkType[];
 }
 
 /**
@@ -56,6 +58,7 @@ export default function RichTextLinkPopover({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
   disabled = false,
+  excludedLinkTypes = [],
 }: RichTextLinkPopoverProps) {
   // Use controlled state if provided, otherwise internal state
   const [internalOpen, setInternalOpen] = useState(false);
@@ -264,6 +267,7 @@ export default function RichTextLinkPopover({
               collections={collections}
               isInsideCollectionLayer={isInsideCollectionLayer}
               layer={layer}
+              excludedLinkTypes={excludedLinkTypes}
             />
           </div>
 
