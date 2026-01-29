@@ -7,11 +7,14 @@ import { getLayerFromTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
 import {
   canHaveChildren,
+  canAddChild,
   regenerateIdsWithInteractionRemapping,
   canMoveLayer,
   findLayerById,
   createComponentViaApi,
   replaceLayerWithComponentInstance,
+  collectAllSettingsIds,
+  generateUniqueSettingsId,
 } from '../lib/layer-utils';
 import { generateId } from '../lib/utils';
 import { getDescendantFolderIds, isHomepage, findHomepage, findNextSelection } from '../lib/page-utils';
@@ -578,12 +581,27 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
     const displayName = getBlockName(templateId);
 
-    // Set the display name for the root layer
+    // Collect all existing settings IDs from the draft to generate unique IDs
+    const existingSettingsIds = collectAllSettingsIds(draft.layers);
+    // Track IDs used during this normalization (for templates with multiple elements)
+    const usedSettingsIds = new Set<string>(existingSettingsIds);
+
+    // Set the display name for the root layer and generate unique settings IDs
     const normalizeLayer = (layer: Layer, isRoot: boolean = true): Layer => {
       const normalized = { ...layer };
 
       if (isRoot && displayName) {
         normalized.customName = displayName;
+      }
+
+      // Generate unique settings.id if the layer has one
+      if (normalized.settings?.id) {
+        const uniqueId = generateUniqueSettingsId(normalized.settings.id, usedSettingsIds);
+        usedSettingsIds.add(uniqueId);
+        normalized.settings = {
+          ...normalized.settings,
+          id: uniqueId,
+        };
       }
 
       // Recursively normalize children
@@ -644,8 +662,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
         const result = findLayerWithParent(draft.layers, parentLayerId);
 
-        // Check if parent can have children
-        if (result && !canHaveChildren(result.layer, newLayer.name)) {
+        // Check if parent can have children or if link nesting would occur
+        const cannotAddAsChild = result && (
+          !canHaveChildren(result.layer, newLayer.name) ||
+          !canAddChild(result.layer, newLayer)
+        );
+
+        if (cannotAddAsChild) {
 
           // If parent exists (not root level), insert after the selected layer
           if (result.parent) {

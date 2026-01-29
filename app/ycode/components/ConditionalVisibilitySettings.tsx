@@ -14,14 +14,14 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SettingsPanel from './SettingsPanel';
-import type { 
-  Layer, 
-  CollectionField, 
+import type {
+  Layer,
+  CollectionField,
   CollectionFieldType,
-  VisibilityCondition, 
+  VisibilityCondition,
   VisibilityConditionGroup,
   ConditionalVisibility,
-  VisibilityOperator 
+  VisibilityOperator
 } from '@/types';
 import { Button } from '@/components/ui/button';
 import Icon, { IconProps } from '@/components/ui/icon';
@@ -47,8 +47,8 @@ import type { CollectionItemWithValues } from '@/types';
 interface ConditionalVisibilitySettingsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
-  fields?: CollectionField[];
-  fieldSourceLabel?: string;
+  /** Field groups with labels and sources for conditional visibility */
+  fieldGroups?: { fields: CollectionField[]; label?: string; source?: 'page' | 'collection' }[];
 }
 
 // Operator definitions by field type
@@ -149,6 +149,7 @@ function getFieldIcon(fieldType: CollectionFieldType | undefined): IconProps['na
     case 'multi_reference': return 'database';
     case 'image': return 'image';
     case 'rich_text': return 'textAlignLeft';
+    case 'link': return 'link';
     case 'text':
     default:
       return 'text';
@@ -257,7 +258,7 @@ function ReferenceItemsSelector({
   // Get display text for closed state
   const getDisplayText = () => {
     if (selectedIds.length === 0) return 'Select items...';
-    
+
     // Find display names for selected items
     const selectedNames = selectedIds
       .map(id => {
@@ -265,13 +266,13 @@ function ReferenceItemsSelector({
         return item ? getItemDisplayName(item) : null;
       })
       .filter(Boolean);
-    
+
     if (selectedNames.length > 0) {
-      return selectedNames.length <= 2 
+      return selectedNames.length <= 2
         ? selectedNames.join(', ')
         : `${selectedNames.length} items selected`;
     }
-    
+
     return `${selectedIds.length} item${selectedIds.length !== 1 ? 's' : ''} selected`;
   };
 
@@ -323,11 +324,15 @@ function ReferenceItemsSelector({
 export default function ConditionalVisibilitySettings({
   layer,
   onLayerUpdate,
-  fields,
-  fieldSourceLabel,
+  fieldGroups,
 }: ConditionalVisibilitySettingsProps) {
   const [isOpen, setIsOpen] = useState(true);
-  
+
+  // Derive flat list of fields and collection label from fieldGroups
+  const allFieldsFromGroups = useMemo(() => {
+    return fieldGroups?.flatMap(g => g.fields) || [];
+  }, [fieldGroups]);
+
   // Get current page layers for page collections
   const draftsByPageId = usePagesStore((state) => state.draftsByPageId);
   const currentPageId = useEditorStore((state) => state.currentPageId);
@@ -337,7 +342,7 @@ export default function ConditionalVisibilitySettings({
   // Get all collection layers on the page
   const pageCollectionLayers = useMemo((): CollectionLayerInfo[] => {
     if (!currentPageId) return [];
-    
+
     let layers: Layer[] = [];
     if (editingComponentId) {
       layers = componentDrafts[editingComponentId] || [];
@@ -345,7 +350,7 @@ export default function ConditionalVisibilitySettings({
       const draft = draftsByPageId[currentPageId];
       layers = draft ? draft.layers : [];
     }
-    
+
     return findAllCollectionLayers(layers);
   }, [currentPageId, editingComponentId, componentDrafts, draftsByPageId]);
 
@@ -357,11 +362,11 @@ export default function ConditionalVisibilitySettings({
   // Helper to update layer with new groups
   const updateGroups = useCallback((newGroups: VisibilityConditionGroup[]) => {
     if (!layer) return;
-    
+
     const conditionalVisibility: ConditionalVisibility = {
       groups: newGroups,
     };
-    
+
     onLayerUpdate(layer.id, {
       variables: {
         ...layer.variables,
@@ -385,12 +390,12 @@ export default function ConditionalVisibilitySettings({
       operator: getOperatorsForFieldType(field.type)[0].value,
       value: (field.type === 'reference' || field.type === 'multi_reference') ? '[]' : '',
     };
-    
+
     const newGroup: VisibilityConditionGroup = {
       id: Date.now().toString(),
       conditions: [newCondition],
     };
-    
+
     updateGroups([...groups, newGroup]);
   };
 
@@ -403,12 +408,12 @@ export default function ConditionalVisibilitySettings({
       collectionLayerName: collectionLayer.layerName,
       operator: 'has_items',
     };
-    
+
     const newGroup: VisibilityConditionGroup = {
       id: Date.now().toString(),
       conditions: [newCondition],
     };
-    
+
     updateGroups([...groups, newGroup]);
   };
 
@@ -487,9 +492,9 @@ export default function ConditionalVisibilitySettings({
           ...group,
           conditions: group.conditions.map(c => {
             if (c.id === conditionId) {
-              return { 
-                ...c, 
-                operator, 
+              return {
+                ...c,
+                operator,
                 value: operatorRequiresValue(operator) ? c.value : undefined,
                 value2: operatorRequiresSecondValue(operator) ? c.value2 : undefined,
               };
@@ -581,13 +586,13 @@ export default function ConditionalVisibilitySettings({
 
   // Get field name by ID
   const getFieldName = (fieldId: string): string => {
-    const field = fields?.find(f => f.id === fieldId);
+    const field = allFieldsFromGroups.find(f => f.id === fieldId);
     return field?.name || 'Unknown field';
   };
 
   // Get field type by ID
   const getFieldType = (fieldId: string): CollectionFieldType | undefined => {
-    const field = fields?.find(f => f.id === fieldId);
+    const field = allFieldsFromGroups.find(f => f.id === fieldId);
     return field?.type;
   };
 
@@ -597,13 +602,14 @@ export default function ConditionalVisibilitySettings({
     onPageCollectionSelect: (layer: CollectionLayerInfo) => void
   ) => (
     <DropdownMenuContent align="end" className="!max-h-[300px] overflow-y-auto">
-      {/* Collection Fields Section */}
-      {fields && fields.length > 0 && (
-        <>
+      {/* Collection Fields Section - render each group */}
+      {fieldGroups?.map((group, groupIndex) => group.fields.length > 0 && (
+        <React.Fragment key={groupIndex}>
+          {groupIndex > 0 && <DropdownMenuSeparator />}
           <DropdownMenuLabel className="text-xs text-muted-foreground">
-            {fieldSourceLabel || 'Collection Fields'}
+            {group.label || 'Collection Fields'}
           </DropdownMenuLabel>
-          {fields.map((field) => (
+          {group.fields.map((field) => (
             <DropdownMenuItem
               key={field.id}
               onClick={() => onFieldSelect(field)}
@@ -613,13 +619,13 @@ export default function ConditionalVisibilitySettings({
               {field.name}
             </DropdownMenuItem>
           ))}
-        </>
-      )}
-      
+        </React.Fragment>
+      ))}
+
       {/* Page Collections Section */}
       {pageCollectionLayers.length > 0 && (
         <>
-          {fields && fields.length > 0 && <DropdownMenuSeparator />}
+          {allFieldsFromGroups.length > 0 && <DropdownMenuSeparator />}
           <DropdownMenuLabel className="text-xs text-muted-foreground">
             Page Collections
           </DropdownMenuLabel>
@@ -635,9 +641,9 @@ export default function ConditionalVisibilitySettings({
           ))}
         </>
       )}
-      
+
       {/* Empty State */}
-      {(!fields || fields.length === 0) && pageCollectionLayers.length === 0 && (
+      {allFieldsFromGroups.length === 0 && pageCollectionLayers.length === 0 && (
         <div className="px-2 py-4 text-xs text-muted-foreground text-center">
           No fields or collections available
         </div>
@@ -652,7 +658,7 @@ export default function ConditionalVisibilitySettings({
     }
     // Fallback: look up from field
     if (condition.fieldId) {
-      const field = fields?.find(f => f.id === condition.fieldId);
+      const field = allFieldsFromGroups.find(f => f.id === condition.fieldId);
       return field?.reference_collection_id || undefined;
     }
     return undefined;
@@ -664,7 +670,7 @@ export default function ConditionalVisibilitySettings({
     const fieldType = isPageCollection ? undefined : condition.fieldType || getFieldType(condition.fieldId || '');
     const operators = isPageCollection ? PAGE_COLLECTION_OPERATORS : getOperatorsForFieldType(fieldType);
     const icon = isPageCollection ? 'database' : getFieldIcon(fieldType);
-    const displayName = isPageCollection 
+    const displayName = isPageCollection
       ? condition.collectionLayerName || 'Collection'
       : getFieldName(condition.fieldId || '');
     const referenceCollectionId = getReferenceCollectionId(condition);
@@ -846,7 +852,7 @@ export default function ConditionalVisibilitySettings({
               )}
               <div className="flex flex-col bg-muted rounded-lg">
                 <ul className="p-2 flex flex-col gap-2">
-                  {group.conditions.map((condition, index) => 
+                  {group.conditions.map((condition, index) =>
                     renderCondition(condition, group, index)
                   )}
 

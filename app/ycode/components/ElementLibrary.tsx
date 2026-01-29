@@ -32,7 +32,7 @@ import type { Component } from '@/types';
 import Image from 'next/image';
 import { getLayerFromTemplate, getBlockName, getBlockIcon, getLayoutTemplate, getLayoutCategory, getLayoutPreviewImage, getLayoutsByCategory, getAllLayoutKeys } from '@/lib/templates/blocks';
 import { DEFAULT_ASSETS } from '@/lib/asset-constants';
-import { canHaveChildren, assignOrderClassToNewLayer } from '@/lib/layer-utils';
+import { canHaveChildren, assignOrderClassToNewLayer, collectAllSettingsIds, generateUniqueSettingsId } from '@/lib/layer-utils';
 import { cn, generateId } from '@/lib/utils';
 import SaveLayoutDialog from './SaveLayoutDialog';
 import { usePagesStore } from '@/stores/usePagesStore';
@@ -149,7 +149,7 @@ interface ElementLibraryProps {
 const elementCategories: Record<string, string[]> = {
   Structure: ['section', 'container', 'div', 'hr', 'columns', 'rows', 'grid', 'collection'],
   Content: ['heading', 'text'],
-  Actions: ['button', 'link'],
+  Actions: ['button'],
   Media: ['image', 'icon', 'video', 'audio'],
   Form: ['form', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label'],
   Utilities: ['localeSelector', 'htmlEmbed'],
@@ -249,8 +249,36 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       // Create new layer from template
       const template = getLayerFromTemplate(elementType);
       const displayName = getBlockName(elementType);
+
+      // Collect existing settings IDs to generate unique ones
+      const existingSettingsIds = collectAllSettingsIds(layers);
+      const usedSettingsIds = new Set<string>(existingSettingsIds);
+
+      // Helper to normalize layer and generate unique settings IDs
+      const normalizeLayerWithUniqueIds = (layer: any): any => {
+        const normalized = { ...layer };
+
+        // Generate unique settings.id if the layer has one
+        if (normalized.settings?.id) {
+          const uniqueId = generateUniqueSettingsId(normalized.settings.id, usedSettingsIds);
+          usedSettingsIds.add(uniqueId);
+          normalized.settings = {
+            ...normalized.settings,
+            id: uniqueId,
+          };
+        }
+
+        // Recursively normalize children
+        if (normalized.children) {
+          normalized.children = normalized.children.map((child: any) => normalizeLayerWithUniqueIds(child));
+        }
+
+        return normalized;
+      };
+
+      const normalizedTemplate = normalizeLayerWithUniqueIds(template);
       const newLayer = {
-        ...template,
+        ...normalizedTemplate,
         id: generateId('lyr'),
         customName: displayName || undefined, // Set display name
       };
@@ -455,9 +483,33 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
         parentId = layers[0]?.id || 'body'; // Add to root/body level
       }
 
-      const newLayer = {
-        ...layoutTemplate,
+      // Collect existing settings IDs to generate unique ones
+      const existingSettingsIds = collectAllSettingsIds(layers);
+      const usedSettingsIds = new Set<string>(existingSettingsIds);
+
+      // Helper to normalize layer and generate unique settings IDs
+      const normalizeLayerWithUniqueIds = (layer: any): any => {
+        const normalized = { ...layer };
+
+        // Generate unique settings.id if the layer has one
+        if (normalized.settings?.id) {
+          const uniqueId = generateUniqueSettingsId(normalized.settings.id, usedSettingsIds);
+          usedSettingsIds.add(uniqueId);
+          normalized.settings = {
+            ...normalized.settings,
+            id: uniqueId,
+          };
+        }
+
+        // Recursively normalize children
+        if (normalized.children) {
+          normalized.children = normalized.children.map((child: any) => normalizeLayerWithUniqueIds(child));
+        }
+
+        return normalized;
       };
+
+      const newLayer = normalizeLayerWithUniqueIds(layoutTemplate);
 
       // Find parent layer and check if it can have children
       const findLayerInTree = (tree: any[], targetId: string): any | null => {
@@ -561,16 +613,40 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       parentId = 'body';
     }
 
-    const newLayer = {
-      ...layoutTemplate,
-    };
-
     // Use the internal addLayerFromTemplate logic but with our layout
     const draft = usePagesStore.getState().draftsByPageId[currentPageId];
     if (!draft) {
       const page = usePagesStore.getState().pages.find(p => p.id === currentPageId);
       if (!page) return;
     }
+
+    // Collect existing settings IDs to generate unique ones
+    const existingSettingsIds = collectAllSettingsIds(draft?.layers || []);
+    const usedSettingsIds = new Set<string>(existingSettingsIds);
+
+    // Helper to normalize layer and generate unique settings IDs
+    const normalizeLayerWithUniqueIds = (layer: any): any => {
+      const normalized = { ...layer };
+
+      // Generate unique settings.id if the layer has one
+      if (normalized.settings?.id) {
+        const uniqueId = generateUniqueSettingsId(normalized.settings.id, usedSettingsIds);
+        usedSettingsIds.add(uniqueId);
+        normalized.settings = {
+          ...normalized.settings,
+          id: uniqueId,
+        };
+      }
+
+      // Recursively normalize children
+      if (normalized.children) {
+        normalized.children = normalized.children.map((child: any) => normalizeLayerWithUniqueIds(child));
+      }
+
+      return normalized;
+    };
+
+    const newLayer = normalizeLayerWithUniqueIds(layoutTemplate);
 
     // Find parent layer
     const findLayerWithParent = (tree: any[], id: string, parent: any | null = null): { layer: any; parent: any | null } | null => {

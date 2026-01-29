@@ -172,3 +172,34 @@ export function convertContentToValue(content: any): string {
 
   return result;
 }
+
+/**
+ * Extracts plain text from TipTap JSON content (for preview/display purposes)
+ */
+export function extractPlainTextFromContent(value: unknown): string {
+  if (!value || typeof value !== 'object') return '';
+
+  const content = value as { type?: string; content?: any[] };
+  if (content.type !== 'doc' || !Array.isArray(content.content)) return '';
+
+  let result = '';
+
+  const extractTextFromNode = (node: any): void => {
+    if (node.type === 'text' && node.text) {
+      result += node.text;
+    } else if (node.type === 'dynamicVariable' && node.attrs?.label) {
+      result += `[${node.attrs.label}]`;
+    } else if (Array.isArray(node.content)) {
+      for (const child of node.content) {
+        extractTextFromNode(child);
+      }
+    }
+  };
+
+  for (const block of content.content) {
+    if (result.length > 0) result += ' ';
+    extractTextFromNode(block);
+  }
+
+  return result.trim();
+}

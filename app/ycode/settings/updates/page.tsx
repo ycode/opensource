@@ -66,6 +66,7 @@ export default function UpdatesSettingsPage() {
   const [releases, setReleases] = useState<Release[]>([]);
   const [loading, setLoading] = useState(true);
   const [releasesLoading, setReleasesLoading] = useState(true);
+  const [releasesError, setReleasesError] = useState<string | null>(null);
 
   useEffect(() => {
     checkForUpdates();
@@ -100,14 +101,22 @@ export default function UpdatesSettingsPage() {
 
   const fetchReleases = async () => {
     setReleasesLoading(true);
+    setReleasesError(null);
     try {
       const response = await fetch('/api/updates/releases');
       if (response.ok) {
         const data: ReleasesResponse = await response.json();
+        console.log('Releases API response:', data);
         setReleases(data.releases || []);
+        if (data.error) {
+          setReleasesError(data.error);
+        }
+      } else {
+        setReleasesError(`Failed to fetch releases: ${response.status}`);
       }
     } catch (error) {
       console.error('Failed to fetch releases:', error);
+      setReleasesError('Failed to fetch releases');
     } finally {
       setReleasesLoading(false);
     }
@@ -273,6 +282,10 @@ export default function UpdatesSettingsPage() {
             {releasesLoading ? (
               <Empty className="bg-input">
                 <Spinner />
+              </Empty>
+            ) : releasesError ? (
+              <Empty className="bg-input">
+                <EmptyTitle>{releasesError}</EmptyTitle>
               </Empty>
             ) : releases.length === 0 ? (
               <Empty className="bg-input">

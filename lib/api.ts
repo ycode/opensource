@@ -421,6 +421,13 @@ export const collectionsApi = {
     });
   },
 
+  async reorder(collectionIds: string[]): Promise<ApiResponse<{ success: boolean }>> {
+    return apiRequest<{ success: boolean }>('/api/collections/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ collection_ids: collectionIds }),
+    });
+  },
+
   // Fields
   async getAllFields(): Promise<ApiResponse<CollectionField[]>> {
     return apiRequest<CollectionField[]>('/api/collections/fields');

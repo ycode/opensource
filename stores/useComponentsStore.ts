@@ -74,8 +74,9 @@ interface ComponentsActions {
   createComponentFromLayer: (componentId: string, layerId: string, componentName: string) => Promise<string | null>;
   restoreComponents: (componentIds: string[]) => Promise<string[]>;
 
-  // Text variables
+  // Component variables
   addTextVariable: (componentId: string, name: string) => Promise<string | null>;
+  addImageVariable: (componentId: string, name: string) => Promise<string | null>;
   updateTextVariable: (componentId: string, variableId: string, updates: { name?: string; default_value?: any }) => Promise<void>;
   deleteTextVariable: (componentId: string, variableId: string) => Promise<void>;
 
@@ -617,6 +618,42 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
       return variableId;
     } catch (error) {
       console.error('Failed to add text variable:', error);
+      return null;
+    }
+  },
+
+  // Add an image variable to a component
+  addImageVariable: async (componentId, name) => {
+    const component = get().getComponentById(componentId);
+    if (!component) return null;
+
+    const variableId = generateId('cpv'); // CPV = Component Variable
+    const newVariable = { id: variableId, name, type: 'image' as const };
+    const updatedVariables = [...(component.variables || []), newVariable];
+
+    try {
+      const response = await fetch(`/api/components/${componentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variables: updatedVariables }),
+      });
+
+      const result = await response.json();
+      if (result.error) {
+        console.error('Failed to add image variable:', result.error);
+        return null;
+      }
+
+      // Update local state
+      set((state) => ({
+        components: state.components.map((c) =>
+          c.id === componentId ? { ...c, variables: updatedVariables } : c
+        ),
+      }));
+
+      return variableId;
+    } catch (error) {
+      console.error('Failed to add image variable:', error);
       return null;
     }
   },

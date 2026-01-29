@@ -47,6 +47,67 @@ import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import Icon from '@/components/ui/icon';
 
+/**
+ * Extract plain text from Tiptap JSON content (for rich text layers)
+ */
+function extractPlainTextFromTiptap(content: any): string {
+  if (!content) return '';
+
+  // If it's a string, return as-is
+  if (typeof content === 'string') return content;
+
+  // If it's an array, process each item
+  if (Array.isArray(content)) {
+    return content.map(extractPlainTextFromTiptap).join('');
+  }
+
+  // If it has text property, return it
+  if (content.text) return content.text;
+
+  // If it has content array, recursively extract
+  if (content.content) {
+    return extractPlainTextFromTiptap(content.content);
+  }
+
+  return '';
+}
+
+/**
+ * Get display label for a layer - returns text content for text layers, otherwise layer name
+ */
+function getLayerDisplayLabel(
+  layer: Layer,
+  context?: {
+    component_name?: string | undefined | null;
+    collection_name?: string | undefined | null;
+  },
+  breakpoint?: Breakpoint
+): string {
+  // For text layers, try to show the actual text content
+  if (layer.name === 'text' && layer.variables?.text) {
+    const textVar = layer.variables.text as { type: string; data?: { content?: any } };
+
+    let textContent = '';
+    if (textVar.type === 'dynamic_rich_text' && textVar.data?.content) {
+      textContent = extractPlainTextFromTiptap(textVar.data.content);
+    } else if ((textVar.type === 'dynamic_text' || textVar.type === 'static_text') && textVar.data?.content) {
+      textContent = String(textVar.data.content);
+    }
+
+    // Trim and truncate long text, return if we have content
+    if (textContent) {
+      const trimmed = textContent.trim();
+      if (trimmed) {
+        // Truncate to ~30 chars for display
+        return trimmed.length > 30 ? trimmed.slice(0, 30) + '...' : trimmed;
+      }
+    }
+  }
+
+  // Fall back to regular layer name
+  return getLayerName(layer, context, breakpoint);
+}
+
 interface LayersTreeProps {
   layers: Layer[];
   selectedLayerId: string | null;
@@ -348,9 +409,9 @@ const LayerRow = React.memo(function LayerRow({
             />
           )}
 
-          {/* Label (breakpoint-aware for layout layers) */}
+          {/* Label (breakpoint-aware for layout layers, text content for text layers) */}
           <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
-            {getLayerName(node.layer, {
+            {getLayerDisplayLabel(node.layer, {
               component_name: appliedComponent?.name,
               collection_name: finalCollectionName,
             }, activeBreakpoint)}
@@ -1498,7 +1559,7 @@ export default function LayersTree({
               );
             })()}
             <span className="pointer-events-none">
-              {getLayerName(activeNode.layer, {
+              {getLayerDisplayLabel(activeNode.layer, {
                 component_name: activeNode.layer.componentId ? getComponentById(activeNode.layer.componentId)?.name : null,
                 collection_name: activeNodeCollectionName,
               }, activeBreakpoint)}

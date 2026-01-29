@@ -38,7 +38,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
 
   text: {
     icon: 'text',
-    name: 'Paragraph',
+    name: 'Text',
     template: {
       name: 'text',
       settings: {
@@ -56,7 +56,7 @@ export const contentTemplates: Record<string, BlockTemplate> = {
         text: {
           type: 'dynamic_rich_text',
           data: {
-            content: getTiptapTextContent('Paragraph')
+            content: getTiptapTextContent('Text')
           }
         }
       }

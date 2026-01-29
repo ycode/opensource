@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 /**
@@ -7,7 +8,7 @@
  * Can be used from CMS page or triggered from builder canvas.
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -26,7 +27,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { TiptapEditor } from '@/components/ui/tiptap-editor';
+import RichTextEditor from './RichTextEditor';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { usePagesStore } from '@/stores/usePagesStore';
@@ -38,6 +39,7 @@ import { slugify } from '@/lib/collection-utils';
 import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
+import CollectionLinkFieldInput from './CollectionLinkFieldInput';
 import type { CollectionItemWithValues } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -95,6 +97,30 @@ export default function CollectionItemSheet({
   // Check if the current page is a dynamic page using this collection
   const currentPage = currentPageId ? pages.find(p => p.id === currentPageId) : null;
   const isPageLevelItem = currentPage?.is_dynamic && currentPage?.settings?.cms?.collection_id === collectionId;
+
+  // Find name and slug fields for validation
+  const nameField = useMemo(
+    () => collectionFields.find(f => f.key === 'name'),
+    [collectionFields]
+  );
+
+  const slugField = useMemo(
+    () => collectionFields.find(f => f.key === 'slug'),
+    [collectionFields]
+  );
+
+  // Validate slug uniqueness
+  const validateSlugUniqueness = useCallback(
+    (value: string, fieldId: string) => {
+      if (!value) return true; // Allow empty (other validation can handle required)
+      // Check if slug exists in other items (exclude current item when editing)
+      const existingItem = collectionItems.find(
+        item => item.values[fieldId] === value && item.id !== editingItem?.id
+      );
+      return !existingItem;
+    },
+    [collectionItems, editingItem?.id]
+  );
 
   const form = useForm();
 
@@ -156,23 +182,39 @@ export default function CollectionItemSheet({
     }
   }, [editingItem, collectionFields, form]);
 
-  // Auto-fill slug field based on name field
+  // Auto-fill slug field based on name field (debounced to avoid race conditions)
   useEffect(() => {
     if (!editingItem) {
       const nameField = collectionFields.find(f => f.key === 'name');
-      const slugField = collectionFields.find(f => f.key === 'slug');
+      const localSlugField = collectionFields.find(f => f.key === 'slug');
 
-      if (nameField && slugField) {
+      if (nameField && localSlugField) {
+        let timeoutId: NodeJS.Timeout | null = null;
+
         const subscription = form.watch((value, { name }) => {
           if (name === nameField.id) {
-            const nameValue = value[nameField.id];
-            if (nameValue && typeof nameValue === 'string') {
-              const slugValue = slugify(nameValue);
-              form.setValue(slugField.id, slugValue);
+            // Clear any pending timeout
+            if (timeoutId) {
+              clearTimeout(timeoutId);
             }
+
+            // Debounce the slug update to ensure we have the latest value
+            timeoutId = setTimeout(() => {
+              const nameValue = form.getValues(nameField.id);
+              if (nameValue && typeof nameValue === 'string') {
+                const slugValue = slugify(nameValue);
+                form.setValue(localSlugField.id, slugValue);
+              }
+            }, 50);
           }
         });
-        return () => subscription.unsubscribe();
+
+        return () => {
+          subscription.unsubscribe();
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+        };
       }
     }
   }, [form, editingItem, collectionFields]);
@@ -180,15 +222,39 @@ export default function CollectionItemSheet({
   const handleSubmit = async (values: Record<string, any>) => {
     if (!collectionId) return;
 
-    // Close sheet immediately for instant feedback
-    onOpenChange(false);
-    setEditingItem(null);
-    form.reset();
+    let hasErrors = false;
 
-    // Call success callback immediately
-    if (onSuccess) {
-      onSuccess();
+    // Validate required fields
+    if (nameField) {
+      const nameValue = values[nameField.id]?.trim();
+      if (!nameValue) {
+        form.setError(nameField.id, {
+          type: 'manual',
+          message: 'Name is required',
+        });
+        hasErrors = true;
+      }
     }
+
+    if (slugField) {
+      const slugValue = values[slugField.id]?.trim();
+      if (!slugValue) {
+        form.setError(slugField.id, {
+          type: 'manual',
+          message: 'Slug is required',
+        });
+        hasErrors = true;
+      } else if (!validateSlugUniqueness(slugValue, slugField.id)) {
+        // Validate slug uniqueness
+        form.setError(slugField.id, {
+          type: 'manual',
+          message: 'This slug already exists in this collection',
+        });
+        hasErrors = true;
+      }
+    }
+
+    if (hasErrors) return;
 
     try {
       if (editingItem) {
@@ -244,14 +310,35 @@ export default function CollectionItemSheet({
           }
         }, 100);
       }
+
+      // Close sheet after successful save
+      onOpenChange(false);
+      setEditingItem(null);
+      form.reset();
+
+      // Call success callback
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (error) {
       console.error('Failed to save item:', error);
-      alert('Failed to save item. Please try again.');
+      toast.error('Failed to save item', {
+        description: 'Please try again.',
+      });
     }
   };
 
+  // Handle sheet close - reset form errors
+  const handleOpenChange = useCallback((isOpen: boolean) => {
+    if (!isOpen) {
+      // Reset form errors when closing
+      form.clearErrors();
+    }
+    onOpenChange(isOpen);
+  }, [onOpenChange, form]);
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>
@@ -272,7 +359,7 @@ export default function CollectionItemSheet({
           <form
             id="collection-item-form"
             onSubmit={form.handleSubmit(handleSubmit)}
-            className="flex flex-col gap-4 flex-1 mt-6"
+            className="flex flex-col gap-4 flex-1"
           >
             <div className="flex-1 flex flex-col gap-6">
               {collectionFields
@@ -287,10 +374,13 @@ export default function CollectionItemSheet({
                         <FormLabel>{field.name}</FormLabel>
                         <FormControl>
                           {field.type === 'rich_text' ? (
-                            <TiptapEditor
+                            <RichTextEditor
                               value={formField.value || ''}
                               onChange={formField.onChange}
                               placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
+                              variant="full"
+                              withFormatting={true}
+                              excludedLinkTypes={['asset', 'field']}
                             />
                           ) : field.type === 'reference' && field.reference_collection_id ? (
                             <ReferenceFieldCombobox
@@ -307,6 +397,11 @@ export default function CollectionItemSheet({
                               onChange={formField.onChange}
                               isMulti={true}
                               placeholder={`Select ${field.name.toLowerCase()}...`}
+                            />
+                          ) : field.type === 'link' ? (
+                            <CollectionLinkFieldInput
+                              value={formField.value || ''}
+                              onChange={formField.onChange}
                             />
                           ) : field.type === 'image' ? (
                             /* Image Field - File Manager UI */

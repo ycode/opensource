@@ -41,6 +41,7 @@ import InviteUserButton from './InviteUserButton';
 import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 
 interface HeaderBarProps {
   user: User | null;
@@ -88,12 +89,12 @@ export default function HeaderBar({
   const router = useRouter();
   const pathname = usePathname();
   const pageDropdownRef = useRef<HTMLDivElement>(null);
-  const { currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode, openFileManager, setKeyboardShortcutsOpen } = useEditorStore();
+  const { currentPageCollectionItemId, currentPageId: storeCurrentPageId, isPreviewMode, setPreviewMode, openFileManager, setKeyboardShortcutsOpen, setActiveSidebarTab } = useEditorStore();
   const { folders, pages: storePages } = usePagesStore();
   const { items, fields } = useCollectionsStore();
   const { locales, selectedLocaleId, setSelectedLocaleId, translations } = useLocalisationStore();
   const { getSettingByKey, updateSetting } = useSettingsStore();
-  const { navigateToLayers, updateQueryParams } = useEditorUrl();
+  const { navigateToLayers, navigateToCollections, updateQueryParams, routeType } = useEditorUrl();
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [showPublishPopover, setShowPublishPopover] = useState(false);
   const [changesCount, setChangesCount] = useState(0);
@@ -107,6 +108,7 @@ export default function HeaderBar({
   });
   const [baseUrl, setBaseUrl] = useState<string>('');
   const [hasUpdate, setHasUpdate] = useState(false);
+  const [publishSuccess, setPublishSuccess] = useState(false);
 
   // Get published_at from settings store (loaded on builder init)
   const publishedAt = getSettingByKey('published_at');
@@ -350,9 +352,20 @@ export default function HeaderBar({
       // Success callback
       onPublishSuccess();
 
-      // Close popover and refresh count
-      setShowPublishPopover(false);
+      // Refresh count
       await loadChangesCount();
+
+      // Show success toast with action to open the site
+      toast.success('Website published successfully', {
+        action: {
+          label: 'Open',
+          onClick: () => window.open(baseUrl + publishedUrl, '_blank'),
+        },
+      });
+
+      // Show success state on button for a few seconds
+      setPublishSuccess(true);
+      setTimeout(() => setPublishSuccess(false), 3000);
     } catch (error) {
       console.error('Failed to publish all:', error);
     } finally {
@@ -461,26 +474,43 @@ export default function HeaderBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Back Button (Settings) */}
-        {isSettingsRoute && (
+        <div className="flex gap-1">
           <Button
-            variant="secondary"
+            variant={routeType === 'layers' || routeType === 'page' || routeType === 'component' || routeType === null ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => {
-              // Use store's currentPageId (persists even on settings route) or fallback to homepage/first page
               const targetPageId = storeCurrentPageId || findHomepage(storePages)?.id || storePages[0]?.id;
-
               if (targetPageId) {
+                setActiveSidebarTab('layers');
                 navigateToLayers(targetPageId);
-              } else {
-                router.push('/ycode');
               }
             }}
           >
-            <Icon name="arrowLeft" />
-            Go back
+            <Icon name="cursor-default" />
+            Design
           </Button>
-        )}
+          <Button
+            variant={routeType === 'collection' || routeType === 'collections-base' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => {
+              setActiveSidebarTab('cms');
+              navigateToCollections();
+            }}
+          >
+            <Icon name="database" />
+            CMS
+          </Button>
+          <Button
+            variant={routeType === 'forms' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => {
+              router.push('/ycode/forms');
+            }}
+          >
+            <Icon name="form" />
+            Forms
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-1.5 items-center justify-center">
@@ -614,7 +644,12 @@ export default function HeaderBar({
 
           <PopoverContent className="mr-4 mt-0.5">
             <div>
-              <Label>{baseUrl}</Label>
+              <Label>          <a
+                href={baseUrl + publishedUrl} target="_blank"
+                rel="noopener noreferrer"
+                               >
+            {baseUrl}
+          </a></Label>
               <span className="text-popover-foreground text-[10px]">{publishedAt ? `Published ${formatRelativeTime(publishedAt, false)}` : 'Never published'}</span>
             </div>
 
@@ -672,14 +707,14 @@ export default function HeaderBar({
               size="sm"
               className="w-full"
               onClick={handlePublishAll}
-              disabled={isPublishing}
+              disabled={isPublishing || publishSuccess}
             >
               {isPublishing ? (
-                <>
-                  <Spinner />
-                </>
+                <Spinner />
+              ) : publishSuccess ? (
+                <Icon name="check" />
               ) : (
-                'Publish'
+                publishedAt ? 'Update' : 'Publish'
               )}
             </Button>
           </PopoverContent>

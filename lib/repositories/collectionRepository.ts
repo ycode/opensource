@@ -406,3 +406,38 @@ export async function getUnpublishedCollections(): Promise<Collection[]> {
 
   return unpublishedCollections;
 }
+
+/**
+ * Reorder collections
+ * Updates the order field for multiple collections
+ * @param isPublished - Whether to update draft (false) or published (true) collections
+ * @param collectionIds - Array of collection IDs in the desired order
+ */
+export async function reorderCollections(isPublished: boolean, collectionIds: string[]): Promise<void> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  // Update order for each collection
+  const updates = collectionIds.map((id, index) =>
+    client
+      .from('collections')
+      .update({
+        order: index,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('is_published', isPublished)
+      .is('deleted_at', null)
+  );
+
+  const results = await Promise.all(updates);
+
+  // Check for errors
+  const errors = results.filter(r => r.error);
+  if (errors.length > 0) {
+    throw new Error(`Failed to reorder collections: ${errors[0].error?.message}`);
+  }
+}
