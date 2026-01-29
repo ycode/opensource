@@ -51,7 +51,7 @@ interface ElementLibraryProps {
 const elementCategories: Record<string, string[]> = {
   Structure: ['section', 'container', 'div', 'hr', 'columns', 'rows', 'grid', 'collection'],
   Content: ['heading', 'text'],
-  Actions: ['button', 'link'],
+  Actions: ['button'],
   Media: ['image', 'icon', 'video', 'audio'],
   Form: ['form', 'input', 'textarea', 'select', 'checkbox', 'radio', 'label'],
   Utilities: ['localeSelector', 'htmlEmbed'],

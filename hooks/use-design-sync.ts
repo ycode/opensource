@@ -18,6 +18,7 @@ import {
 } from '@/lib/tailwind-class-mapper';
 import { updateStyledLayer } from '@/lib/layer-style-utils';
 import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
+import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 
 interface UseDesignSyncProps {
   layer: Layer | null;
@@ -99,8 +100,9 @@ export function useDesignSync({
       const effectiveIsTextStyleMode = !!effectiveTextStyleKey;
 
       // Text Style Mode: Update layer.textStyles[key]
+      // Initialize with DEFAULT_TEXT_STYLES if layer doesn't have textStyles yet
       if (effectiveIsTextStyleMode && effectiveTextStyleKey) {
-        const currentTextStyles = layer.textStyles || {};
+        const currentTextStyles = layer.textStyles ?? { ...DEFAULT_TEXT_STYLES };
         const currentTextStyle = currentTextStyles[effectiveTextStyleKey] || {};
         const currentDesign = currentTextStyle.design || {};
         const categoryData = currentDesign[category] || {};

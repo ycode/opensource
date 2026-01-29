@@ -15,11 +15,11 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SettingsPanel from './SettingsPanel';
-import type { 
-  Layer, 
-  CollectionField, 
+import type {
+  Layer,
+  CollectionField,
   CollectionFieldType,
-  VisibilityCondition, 
+  VisibilityCondition,
   VisibilityConditionGroup,
   ConditionalVisibility,
   VisibilityOperator,
@@ -139,6 +139,7 @@ function getFieldIcon(fieldType: CollectionFieldType | undefined): IconProps['na
     case 'multi_reference': return 'database';
     case 'image': return 'image';
     case 'rich_text': return 'textAlignLeft';
+    case 'link': return 'link';
     case 'text':
     default:
       return 'text';
@@ -247,7 +248,7 @@ function ReferenceItemsSelector({
   // Get display text for closed state
   const getDisplayText = () => {
     if (selectedIds.length === 0) return 'Select items...';
-    
+
     // Find display names for selected items
     const selectedNames = selectedIds
       .map(id => {
@@ -255,13 +256,13 @@ function ReferenceItemsSelector({
         return item ? getItemDisplayName(item) : null;
       })
       .filter(Boolean);
-    
+
     if (selectedNames.length > 0) {
-      return selectedNames.length <= 2 
+      return selectedNames.length <= 2
         ? selectedNames.join(', ')
         : `${selectedNames.length} items selected`;
     }
-    
+
     return `${selectedIds.length} item${selectedIds.length !== 1 ? 's' : ''} selected`;
   };
 
@@ -316,7 +317,7 @@ export default function CollectionFiltersSettings({
   collectionId,
 }: CollectionFiltersSettingsProps) {
   const [isOpen, setIsOpen] = useState(true);
-  
+
   // Get fields from the collections store
   const { fields: allFields, loadFields } = useCollectionsStore();
   const fields = allFields[collectionId] || [];
@@ -339,11 +340,11 @@ export default function CollectionFiltersSettings({
   // Helper to update layer with new filter groups (immediate - for dropdown selections)
   const updateGroups = useCallback((newGroups: VisibilityConditionGroup[]) => {
     if (!layer || !collectionVariable) return;
-    
+
     const filters: ConditionalVisibility = {
       groups: newGroups,
     };
-    
+
     onLayerUpdate(layer.id, {
       variables: {
         ...layer.variables,
@@ -405,12 +406,12 @@ export default function CollectionFiltersSettings({
       operator: getOperatorsForFieldType(field.type)[0].value,
       value: (field.type === 'reference' || field.type === 'multi_reference') ? '[]' : '',
     };
-    
+
     const newGroup: VisibilityConditionGroup = {
       id: Date.now().toString(),
       conditions: [newCondition],
     };
-    
+
     updateGroups([...groups, newGroup]);
   };
 
@@ -463,9 +464,9 @@ export default function CollectionFiltersSettings({
           ...group,
           conditions: group.conditions.map(c => {
             if (c.id === conditionId) {
-              return { 
-                ...c, 
-                operator, 
+              return {
+                ...c,
+                operator,
                 value: operatorRequiresValue(operator) ? c.value : undefined,
                 value2: operatorRequiresSecondValue(operator) ? c.value2 : undefined,
               };
@@ -590,7 +591,7 @@ export default function CollectionFiltersSettings({
           ))}
         </>
       )}
-      
+
       {/* Empty State */}
       {(!fields || fields.length === 0) && (
         <div className="px-2 py-4 text-xs text-muted-foreground text-center">
@@ -795,7 +796,7 @@ export default function CollectionFiltersSettings({
               )}
               <div className="flex flex-col bg-muted rounded-lg">
                 <ul className="p-2 flex flex-col gap-2">
-                  {group.conditions.map((condition, index) => 
+                  {group.conditions.map((condition, index) =>
                     renderCondition(condition, group, index)
                   )}
 

@@ -21,6 +21,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
+import { usePagesStore } from '@/stores/usePagesStore';
 import { useCollaborationPresenceStore, getResourceLockKey } from '@/stores/useCollaborationPresenceStore';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
@@ -28,6 +29,8 @@ import { collectionsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { slugify } from '@/lib/collection-utils';
 import { FIELD_TYPES, type FieldType } from '@/lib/field-types-config';
+import { extractPlainTextFromContent } from '@/lib/cms-variables-utils';
+import { parseCollectionLinkValue, resolveCollectionLinkValue } from '@/lib/link-utils';
 import { useEditorUrl } from '@/hooks/use-editor-url';
 import FieldsDropdown from './FieldsDropdown';
 import CollectionItemContextMenu from './CollectionItemContextMenu';
@@ -339,6 +342,8 @@ const CMS = React.memo(function CMS() {
   const resourceLocks = useCollaborationPresenceStore((state) => state.resourceLocks);
   const collaborationUsers = useCollaborationPresenceStore((state) => state.users);
   const getAsset = useAssetsStore((state) => state.getAsset);
+  const pages = usePagesStore((state) => state.pages);
+  const folders = usePagesStore((state) => state.folders);
 
   const { urlState, navigateToCollection, navigateToCollectionItem, navigateToNewCollectionItem, navigateToCollections } = useEditorUrl();
 
@@ -1382,11 +1387,9 @@ const CMS = React.memo(function CMS() {
                         );
                       }
 
-                      // Rich text fields - strip HTML and truncate
+                      // Rich text fields - extract plain text and truncate
                       if (field.type === 'rich_text') {
-                        const plainText = value
-                          ? String(value).replace(/<[^>]*>/g, '').trim()
-                          : '';
+                        const plainText = extractPlainTextFromContent(value);
                         return (
                           <td
                             key={field.id}
@@ -1395,6 +1398,51 @@ const CMS = React.memo(function CMS() {
                           >
                             <span className="block truncate">
                               {plainText || '-'}
+                            </span>
+                          </td>
+                        );
+                      }
+
+                      // Link fields - format for display
+                      if (field.type === 'link') {
+                        let displayValue = '-';
+                        if (value) {
+                          try {
+                            const linkValue = typeof value === 'string' ? parseCollectionLinkValue(value) : value;
+                            if (linkValue) {
+                              // Build collectionItemSlugs map for dynamic page resolution
+                              const collectionItemSlugs: Record<string, string> = {};
+                              collectionItems.forEach(item => {
+                                const slugField = collectionFields.find(f => f.key === 'slug');
+                                if (slugField && item.values[slugField.id]) {
+                                  collectionItemSlugs[item.id] = item.values[slugField.id];
+                                }
+                              });
+
+                              // Resolve the link to get the actual URL
+                              const resolvedUrl = resolveCollectionLinkValue(linkValue, {
+                                pages,
+                                folders,
+                                collectionItemSlugs,
+                                isPreview: false,
+                                locale: undefined,
+                              });
+
+                              displayValue = resolvedUrl || '-';
+                            }
+                          } catch {
+                            // Invalid JSON, show as-is
+                            displayValue = String(value);
+                          }
+                        }
+                        return (
+                          <td
+                            key={field.id}
+                            className="px-4 py-5 text-muted-foreground max-w-[200px]"
+                            onClick={() => !isManualMode && handleEditItem(item)}
+                          >
+                            <span className="block truncate">
+                              {displayValue}
                             </span>
                           </td>
                         );

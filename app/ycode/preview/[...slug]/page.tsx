@@ -33,6 +33,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           layers={pageLayers.layers || []}
           components={components}
           generatedCss={draftCSS}
+          isPreview={true}
         />
       );
     }
@@ -41,7 +42,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     notFound();
   }
 
-  const { page, pageLayers, components, collectionItem, collectionFields, locale, availableLocales } = data;
+  const { page, pageLayers, components, collectionItem, collectionFields, locale, availableLocales, translations } = data;
 
   // Load draft CSS from settings
   const draftCSS = await getSettingByKey('draft_css');
@@ -57,6 +58,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       collectionFields={collectionFields}
       locale={locale}
       availableLocales={availableLocales}
+      isPreview={true}
+      translations={translations}
     />
   );
 }

@@ -47,6 +47,8 @@ export default async function Home() {
       generatedCss={draftCSS}
       locale={data.locale}
       availableLocales={data.availableLocales}
+      isPreview={true}
+      translations={data.translations}
     />
   );
 }

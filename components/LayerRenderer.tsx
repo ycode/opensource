@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import LayerLockIndicator from '@/components/collaboration/LayerLockIndicator';
@@ -8,18 +8,19 @@ import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import type { Layer, Locale, ComponentVariable, FormSettings } from '@/types';
+import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
 import { getDynamicTextContent, getImageUrlFromVariable, getVideoUrlFromVariable, getIframeUrlFromVariable, isFieldVariable, isAssetVariable, isStaticTextVariable, isDynamicTextVariable, getAssetId, getStaticTextContent, createAssetVariable, createDynamicTextVariable } from '@/lib/variable-utils';
 import { getTranslatedAssetId, getTranslatedText } from '@/lib/localisation-utils';
+import { isValidLinkSettings } from '@/lib/link-utils';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { toast } from 'sonner';
 import { resolveInlineVariables } from '@/lib/inline-variables';
-import { renderRichText, hasBlockElements } from '@/lib/text-format-utils';
+import { renderRichText, hasBlockElements, type RichTextLinkContext } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
 import { useComponentsStore } from '@/stores/useComponentsStore';
@@ -30,6 +31,31 @@ import { cn } from '@/lib/utils';
 import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
 import LocaleSelector from '@/components/layers/LocaleSelector';
+import { usePagesStore } from '@/stores/usePagesStore';
+import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
+
+/**
+ * Build a map of layerId -> anchor value (attributes.id) for O(1) anchor resolution
+ * Recursively traverses the layer tree once
+ */
+function buildAnchorMap(layers: Layer[]): Record<string, string> {
+  const map: Record<string, string> = {};
+
+  const traverse = (layerList: Layer[]) => {
+    for (const layer of layerList) {
+      // Only add to map if layer has a custom id attribute set
+      if (layer.attributes?.id) {
+        map[layer.id] = layer.attributes.id;
+      }
+      if (layer.children) {
+        traverse(layer.children);
+      }
+    }
+  };
+
+  traverse(layers);
+  return map;
+}
 
 interface LayerRendererProps {
   layers: Layer[];
@@ -44,8 +70,10 @@ interface LayerRendererProps {
   activeLayerId?: string | null;
   projected?: { depth: number; parentId: string | null } | null;
   pageId?: string;
-  collectionItemData?: Record<string, string>; // Collection item field values (field_id -> value)
-  pageCollectionItemData?: Record<string, string> | null;
+  collectionItemData?: Record<string, string>; // Collection layer item field values (field_id -> value)
+  collectionItemId?: string; // The ID of the current collection layer item being rendered
+  pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
+  pageCollectionItemData?: Record<string, string> | null; // Page's collection item data (for dynamic pages)
   hiddenLayerIds?: string[]; // Layer IDs that should start hidden for animations
   currentLocale?: Locale | null;
   availableLocales?: Locale[];
@@ -58,6 +86,12 @@ interface LayerRendererProps {
   editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
   isInsideForm?: boolean; // Whether this layer is inside a form (for button type handling)
   parentFormSettings?: FormSettings; // Form settings from parent form layer
+  pages?: any[]; // Pages for link resolution
+  folders?: any[]; // Folders for link resolution
+  collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
+  isPreview?: boolean; // Whether we're in preview mode (prefix links with /ycode/preview)
+  translations?: Record<string, any> | null; // Translations for localized URL generation
+  anchorMap?: Record<string, string>; // Pre-built map of layerId -> anchor value for O(1) lookups
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -74,7 +108,10 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   projected = null,
   pageId = '',
   collectionItemData,
+  collectionItemId,
+  pageCollectionItemId,
   pageCollectionItemData,
+  collectionItemSlugs,
   hiddenLayerIds,
   currentLocale,
   availableLocales = [],
@@ -87,10 +124,28 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   editingComponentVariables,
   isInsideForm = false,
   parentFormSettings,
+  pages: pagesProp,
+  folders: foldersProp,
+  isPreview = false,
+  translations,
+  anchorMap: anchorMapProp,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
   const [editingClickCoords, setEditingClickCoords] = useState<{ x: number; y: number } | null>(null);
+
+  // Get pages and folders for link resolution
+  // Use props if provided (SSR/preview), otherwise use store (editor)
+  const storePages = usePagesStore((state) => state.pages);
+  const storeFolders = usePagesStore((state) => state.folders);
+  const pages = pagesProp || storePages;
+  const folders = foldersProp || storeFolders;
+
+  // Build anchor map once at top level for O(1) anchor resolution
+  // Use prop if provided (recursive calls), otherwise build from layers
+  const anchorMap = useMemo(() => {
+    return anchorMapProp || buildAnchorMap(layers);
+  }, [anchorMapProp, layers]);
 
   // Helper to render a layer or unwrap fragments
   const renderLayer = (layer: Layer): React.ReactNode => {
@@ -159,6 +214,8 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         setEditingClickCoords={setEditingClickCoords}
         pageId={pageId}
         collectionItemData={collectionItemData}
+        collectionItemId={collectionItemId}
+        pageCollectionItemId={pageCollectionItemId}
         pageCollectionItemData={pageCollectionItemData}
         hiddenLayerIds={hiddenLayerIds}
         currentLocale={currentLocale}
@@ -172,6 +229,12 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         editingComponentVariables={editingComponentVariables}
         isInsideForm={isInsideForm}
         parentFormSettings={parentFormSettings}
+        pages={pages}
+        folders={folders}
+        collectionItemSlugs={collectionItemSlugs}
+        isPreview={isPreview}
+        translations={translations}
+        anchorMap={anchorMap}
       />
     );
   };
@@ -204,6 +267,8 @@ const LayerItem: React.FC<{
   setEditingClickCoords: (coords: { x: number; y: number } | null) => void;
   pageId: string;
   collectionItemData?: Record<string, string>;
+  collectionItemId?: string; // The ID of the current collection layer item being rendered
+  pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
   pageCollectionItemData?: Record<string, string> | null;
   hiddenLayerIds?: string[];
   currentLocale?: Locale | null;
@@ -217,6 +282,12 @@ const LayerItem: React.FC<{
   editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
   isInsideForm?: boolean; // Whether this layer is inside a form
   parentFormSettings?: FormSettings; // Form settings from parent form layer
+  pages?: any[]; // Pages for link resolution
+  folders?: any[]; // Folders for link resolution
+  collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
+  isPreview?: boolean; // Whether we're in preview mode
+  translations?: Record<string, any> | null; // Translations for localized URL generation
+  anchorMap?: Record<string, string>; // Pre-built map of layerId -> anchor value
 }> = ({
   layer,
   isEditMode,
@@ -237,6 +308,8 @@ const LayerItem: React.FC<{
   setEditingClickCoords,
   pageId,
   collectionItemData,
+  collectionItemId,
+  pageCollectionItemId,
   pageCollectionItemData,
   hiddenLayerIds,
   currentLocale,
@@ -250,6 +323,12 @@ const LayerItem: React.FC<{
   editingComponentVariables,
   isInsideForm = false,
   parentFormSettings,
+  pages,
+  folders,
+  collectionItemSlugs,
+  isPreview,
+  translations,
+  anchorMap,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isHovered = hoveredLayerId === layer.id;
@@ -264,12 +343,15 @@ const LayerItem: React.FC<{
   // Check if locked by another user (only compute when lock exists)
   const isLockedByOther = !!(lock && lock.user_id !== currentUserId && Date.now() <= lock.expires_at);
   const classesString = getClassesString(layer);
-  const effectiveCollectionItemData = collectionItemData || pageCollectionItemData || undefined;
+  // Keep collection layer data and page data separate for different link contexts
+  // Use layer's _collectionItemId if present (from server-resolved collection layers)
+  const effectiveCollectionItemId = layer._collectionItemId || collectionItemId;
+  const effectiveCollectionItemData = layer._collectionItemValues || collectionItemData;
   const getAsset = useAssetsStore((state) => state.getAsset);
   const assetsById = useAssetsStore((state) => state.assetsById);
   const openFileManager = useEditorStore((state) => state.openFileManager);
   const allTranslations = useLocalisationStore((state) => state.translations);
-  const translations = isEditMode && currentLocale ? allTranslations[currentLocale.id] : null;
+  const editModeTranslations = isEditMode && currentLocale ? allTranslations[currentLocale.id] : null;
   let htmlTag = getLayerHtmlTag(layer);
 
   // Check if we need to override the tag for rich text with block elements
@@ -379,6 +461,23 @@ const LayerItem: React.FC<{
       return format === 'code' ? displayLocale.code.toUpperCase() : displayLocale.label;
     }
 
+    // Build link context for resolving page/asset/field links in rich text
+    // Skip building context in edit mode since links are disabled and use '#'
+    const linkContext: RichTextLinkContext | undefined = isEditMode
+      ? undefined
+      : {
+        pages,
+        folders,
+        collectionItemSlugs,
+        collectionItemId: effectiveCollectionItemId,
+        pageCollectionItemId,
+        isPreview,
+        locale: currentLocale,
+        translations,
+        getAsset,
+        anchorMap,
+      };
+
     // Check for component variable override or default value
     // This handles both:
     // 1. Component instances on a page (parentComponentVariables is set)
@@ -392,12 +491,12 @@ const LayerItem: React.FC<{
       const valueToRender = overrideValue ?? variableDef?.default_value;
 
       if (valueToRender !== undefined) {
-        // Value is now typed as ComponentVariableValue (DynamicTextVariable | DynamicRichTextVariable)
-        if (valueToRender.type === 'dynamic_rich_text') {
-          return renderRichText(valueToRender as any, effectiveCollectionItemData, layer.textStyles, useSpanForParagraphs, isEditMode);
+        // Value is typed as ComponentVariableValue - check if it's a text variable (has 'type' property)
+        if ('type' in valueToRender && valueToRender.type === 'dynamic_rich_text') {
+          return renderRichText(valueToRender as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext);
         }
-        if (valueToRender.type === 'dynamic_text') {
-          return valueToRender.data.content;
+        if ('type' in valueToRender && valueToRender.type === 'dynamic_text') {
+          return (valueToRender as any).data.content;
         }
       }
 
@@ -409,7 +508,7 @@ const LayerItem: React.FC<{
     if (textVariable?.type === 'dynamic_rich_text') {
       // Render rich text with formatting (bold, italic, etc.) and inline variables
       // In edit mode, adds data-style attributes for style selection
-      return renderRichText(textVariable as any, effectiveCollectionItemData, layer.textStyles, useSpanForParagraphs, isEditMode);
+      return renderRichText(textVariable as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext);
     }
 
     // Check for inline variables in DynamicTextVariable format (legacy)
@@ -441,9 +540,30 @@ const LayerItem: React.FC<{
     return undefined;
   })();
 
+  // Resolve image source - check for linked component variable first
+  const componentVariables = parentComponentVariables || editingComponentVariables;
+  const linkedImageVariableId = (layer.variables?.image?.src as any)?.id;
+
+  // Get effective image settings (from component variable or layer)
+  const effectiveImageSettings = (() => {
+    if (linkedImageVariableId && componentVariables) {
+      // Check for override value first (only when viewing an instance)
+      const overrideValue = parentComponentOverrides?.image?.[linkedImageVariableId];
+      const variableDef = componentVariables.find(v => v.id === linkedImageVariableId);
+      const valueToUse = overrideValue ?? variableDef?.default_value;
+
+      // ImageSettingsValue has src, alt, width, height, loading
+      if (valueToUse && typeof valueToUse === 'object' && 'src' in valueToUse) {
+        return valueToUse as { src?: any; alt?: any; width?: string; height?: string; loading?: string };
+      }
+    }
+    // Fall back to layer's image settings
+    return layer.variables?.image;
+  })();
+
   // Get image asset ID and apply translation if available
-  const originalImageAssetId = layer.variables?.image?.src?.type === 'asset'
-    ? layer.variables.image.src.data?.asset_id
+  const originalImageAssetId = effectiveImageSettings?.src?.type === 'asset'
+    ? effectiveImageSettings.src.data?.asset_id
     : undefined;
   const translatedImageAssetId = getTranslatedAssetId(
     originalImageAssetId || undefined,
@@ -455,8 +575,8 @@ const LayerItem: React.FC<{
 
   // Build image variable with translated asset ID
   const imageVariable = originalImageAssetId && translatedImageAssetId && translatedImageAssetId !== originalImageAssetId
-    ? { ...layer.variables?.image?.src, type: 'asset' as const, data: { asset_id: translatedImageAssetId } }
-    : layer.variables?.image?.src;
+    ? { ...effectiveImageSettings?.src, type: 'asset' as const, data: { asset_id: translatedImageAssetId } }
+    : effectiveImageSettings?.src;
 
   const imageUrl = getImageUrlFromVariable(
     imageVariable,
@@ -466,7 +586,7 @@ const LayerItem: React.FC<{
   );
 
   // Get image alt text and apply translation if available
-  const originalImageAlt = getDynamicTextContent(layer.variables?.image?.alt) || 'Image';
+  const originalImageAlt = getDynamicTextContent(effectiveImageSettings?.alt) || 'Image';
   const translatedImageAlt = getTranslatedText(
     originalImageAlt,
     `layer:${layer.id}:image_alt`,
@@ -622,17 +742,17 @@ const LayerItem: React.FC<{
   }, [isEditMode, isLockedByOther, onLayerUpdate, layer, openFileManager]);
 
   const finishEditing = useCallback(() => {
-    if (editingLayerId === layer.id && onLayerUpdate) {
+    if (editingLayerId === layer.id) {
       setEditingLayerId(null);
     }
-  }, [editingLayerId, layer.id, onLayerUpdate]);
+  }, [editingLayerId, layer.id, setEditingLayerId]);
 
   // Handle content change from CanvasTextEditor
   const handleEditorChange = useCallback((newContent: any) => {
     if (!onLayerUpdate) return;
 
-    // Update with rich text format
-    onLayerUpdate(layer.id, {
+    // Use callback form to ensure we get the latest layer data
+    const updates: Partial<Layer> = {
       variables: {
         ...layer.variables,
         text: {
@@ -640,7 +760,9 @@ const LayerItem: React.FC<{
           data: { content: newContent },
         },
       },
-    });
+    };
+
+    onLayerUpdate(layer.id, updates);
   }, [layer.id, layer.variables, onLayerUpdate]);
 
   const style = enableDragDrop ? {
@@ -714,6 +836,8 @@ const LayerItem: React.FC<{
           projected={projected}
           pageId={pageId}
           collectionItemData={effectiveCollectionItemData}
+          collectionItemId={effectiveCollectionItemId}
+          pageCollectionItemId={pageCollectionItemId}
           pageCollectionItemData={pageCollectionItemData}
           hiddenLayerIds={hiddenLayerIds}
           currentLocale={currentLocale}
@@ -726,6 +850,12 @@ const LayerItem: React.FC<{
           parentComponentVariables={component.variables}
           isInsideForm={isInsideForm}
           parentFormSettings={parentFormSettings}
+          pages={pages}
+          folders={folders}
+          collectionItemSlugs={collectionItemSlugs}
+          isPreview={isPreview}
+          translations={translations}
+          anchorMap={anchorMap}
         />
       );
     }
@@ -813,9 +943,11 @@ const LayerItem: React.FC<{
       elementProps.style = { ...existingStyle, display: 'none' };
     }
 
-    // Apply custom ID from settings
+    // Apply custom ID from settings or attributes
     if (layer.settings?.id) {
       elementProps.id = layer.settings.id;
+    } else if (layer.attributes?.id) {
+      elementProps.id = layer.attributes.id;
     }
 
     // Apply custom attributes from settings
@@ -1167,9 +1299,9 @@ const LayerItem: React.FC<{
             allowFullScreen: true,
           };
 
-          // Apply custom ID from settings
-          if (layer.settings?.id) {
-            iframeProps.id = layer.settings.id;
+          // Apply custom ID from attributes
+          if (layer.attributes?.id) {
+            iframeProps.id = layer.attributes.id;
           }
 
           // Apply custom attributes from settings
@@ -1359,7 +1491,15 @@ const LayerItem: React.FC<{
               projected={projected}
               pageId={pageId}
               collectionItemData={effectiveCollectionItemData}
+              collectionItemId={effectiveCollectionItemId}
+              pageCollectionItemId={pageCollectionItemId}
               pageCollectionItemData={pageCollectionItemData}
+              pages={pages}
+              folders={folders}
+              collectionItemSlugs={collectionItemSlugs}
+              isPreview={isPreview}
+              translations={translations}
+              anchorMap={anchorMap}
               hiddenLayerIds={hiddenLayerIds}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
@@ -1470,6 +1610,8 @@ const LayerItem: React.FC<{
                   projected={projected}
                   pageId={pageId}
                   collectionItemData={item.values}
+                  collectionItemId={item.id}
+                  pageCollectionItemId={pageCollectionItemId}
                   pageCollectionItemData={pageCollectionItemData}
                   hiddenLayerIds={hiddenLayerIds}
                   currentLocale={currentLocale}
@@ -1481,6 +1623,12 @@ const LayerItem: React.FC<{
                   editingComponentVariables={editingComponentVariables}
                   isInsideForm={isInsideForm || htmlTag === 'form'}
                   parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
+                  pages={pages}
+                  folders={folders}
+                  collectionItemSlugs={collectionItemSlugs}
+                  isPreview={isPreview}
+                  translations={translations}
+                  anchorMap={anchorMap}
                 />
               )}
             </Tag>
@@ -1519,7 +1667,15 @@ const LayerItem: React.FC<{
               projected={projected}
               pageId={pageId}
               collectionItemData={effectiveCollectionItemData}
+              collectionItemId={effectiveCollectionItemId}
+              pageCollectionItemId={pageCollectionItemId}
               pageCollectionItemData={pageCollectionItemData}
+              pages={pages}
+              folders={folders}
+              collectionItemSlugs={collectionItemSlugs}
+              isPreview={isPreview}
+              translations={translations}
+              anchorMap={anchorMap}
               hiddenLayerIds={hiddenLayerIds}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
@@ -1574,6 +1730,8 @@ const LayerItem: React.FC<{
             projected={projected}
             pageId={pageId}
             collectionItemData={effectiveCollectionItemData}
+            collectionItemId={effectiveCollectionItemId}
+            pageCollectionItemId={pageCollectionItemId}
             pageCollectionItemData={pageCollectionItemData}
             hiddenLayerIds={hiddenLayerIds}
             currentLocale={currentLocale}
@@ -1586,6 +1744,12 @@ const LayerItem: React.FC<{
             editingComponentVariables={editingComponentVariables}
             isInsideForm={isInsideForm || htmlTag === 'form'}
             parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
+            pages={pages}
+            folders={folders}
+            collectionItemSlugs={collectionItemSlugs}
+            isPreview={isPreview}
+            translations={translations}
+            anchorMap={anchorMap}
           />
         )}
       </Tag>
@@ -1600,7 +1764,49 @@ const LayerItem: React.FC<{
 
   // Wrap with context menu in edit mode
   // Don't wrap layers inside component instances (they're not directly editable)
-  const content = renderContent();
+  let content = renderContent();
+
+  // Wrap with link if layer has link settings (published mode only)
+  // In edit mode, links are not interactive to allow layer selection
+  const linkSettings = layer.variables?.link;
+  const shouldWrapWithLink = !isEditMode && isValidLinkSettings(linkSettings) && !layer.componentId;
+
+  if (shouldWrapWithLink && linkSettings) {
+    // Build link context for layer-level link resolution
+    const layerLinkContext: LinkResolutionContext = {
+      pages,
+      folders,
+      collectionItemSlugs,
+      collectionItemId: effectiveCollectionItemId,
+      pageCollectionItemId,
+      collectionItemData: effectiveCollectionItemData,
+      pageCollectionItemData: pageCollectionItemData || undefined,
+      isPreview,
+      locale: currentLocale,
+      translations,
+      getAsset,
+      anchorMap,
+    };
+    const linkHref = generateLinkHref(linkSettings, layerLinkContext);
+
+    if (linkHref) {
+      const linkTarget = linkSettings.target || '_self';
+      const linkRel = linkSettings.rel || (linkTarget === '_blank' ? 'noopener noreferrer' : undefined);
+      const linkDownload = linkSettings.download;
+
+      content = (
+        <a
+          href={linkHref}
+          target={linkTarget}
+          rel={linkRel}
+          download={linkDownload || undefined}
+          className="contents"
+        >
+          {content}
+        </a>
+      );
+    }
+  }
 
   if (isEditMode && pageId && !isEditing && !parentComponentLayerId) {
     const isLocked = layer.id === 'body';

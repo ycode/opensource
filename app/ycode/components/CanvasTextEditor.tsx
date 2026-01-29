@@ -37,6 +37,7 @@ import {
   getVariableLabel,
 } from '@/lib/cms-variables-utils';
 import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
+import { RichTextLink } from '@/lib/tiptap-extensions/rich-text-link';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { cn } from '@/lib/utils';
 
@@ -182,8 +183,7 @@ const DynamicVariable = Node.create({
  * Create custom Bold extension with layer textStyles class
  */
 function createBoldExtension(textStyles?: Record<string, TextStyle>) {
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
-  const boldClass = styles.bold?.classes || 'font-bold';
+  const boldClass = textStyles?.bold?.classes ?? DEFAULT_TEXT_STYLES.bold?.classes;
 
   return Bold.extend({
     renderHTML({ HTMLAttributes }) {
@@ -196,8 +196,7 @@ function createBoldExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom Italic extension with layer textStyles class
  */
 function createItalicExtension(textStyles?: Record<string, TextStyle>) {
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
-  const italicClass = styles.italic?.classes || 'italic';
+  const italicClass = textStyles?.italic?.classes ?? DEFAULT_TEXT_STYLES.italic?.classes;
 
   return Italic.extend({
     renderHTML({ HTMLAttributes }) {
@@ -210,8 +209,7 @@ function createItalicExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom Underline extension with layer textStyles class
  */
 function createUnderlineExtension(textStyles?: Record<string, TextStyle>) {
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
-  const underlineClass = styles.underline?.classes || 'underline';
+  const underlineClass = textStyles?.underline?.classes ?? DEFAULT_TEXT_STYLES.underline?.classes;
 
   return Underline.extend({
     renderHTML({ HTMLAttributes }) {
@@ -224,8 +222,7 @@ function createUnderlineExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom Strike extension with layer textStyles class
  */
 function createStrikeExtension(textStyles?: Record<string, TextStyle>) {
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
-  const strikeClass = styles.strike?.classes || 'line-through';
+  const strikeClass = textStyles?.strike?.classes ?? DEFAULT_TEXT_STYLES.strike?.classes;
 
   return Strike.extend({
     renderHTML({ HTMLAttributes }) {
@@ -238,8 +235,7 @@ function createStrikeExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom Subscript extension with layer textStyles class
  */
 function createSubscriptExtension(textStyles?: Record<string, TextStyle>) {
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
-  const subscriptClass = styles.subscript?.classes || 'align-sub';
+  const subscriptClass = textStyles?.subscript?.classes ?? DEFAULT_TEXT_STYLES.subscript?.classes;
 
   return Subscript.extend({
     renderHTML({ HTMLAttributes }) {
@@ -252,8 +248,7 @@ function createSubscriptExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom Superscript extension with layer textStyles class
  */
 function createSuperscriptExtension(textStyles?: Record<string, TextStyle>) {
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
-  const superscriptClass = styles.superscript?.classes || 'align-super';
+  const superscriptClass = textStyles?.superscript?.classes ?? DEFAULT_TEXT_STYLES.superscript?.classes;
 
   return Superscript.extend({
     renderHTML({ HTMLAttributes }) {
@@ -266,8 +261,7 @@ function createSuperscriptExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom BulletList extension with layer textStyles class
  */
 function createBulletListExtension(textStyles?: Record<string, TextStyle>) {
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
-  const bulletListClass = styles.bulletList?.classes || 'ml-2 pl-4 list-disc';
+  const bulletListClass = textStyles?.bulletList?.classes ?? DEFAULT_TEXT_STYLES.bulletList?.classes;
 
   return BulletList.extend({
     renderHTML({ HTMLAttributes }) {
@@ -280,8 +274,7 @@ function createBulletListExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom OrderedList extension with layer textStyles class
  */
 function createOrderedListExtension(textStyles?: Record<string, TextStyle>) {
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
-  const orderedListClass = styles.orderedList?.classes || 'ml-2 pl-5 list-decimal';
+  const orderedListClass = textStyles?.orderedList?.classes ?? DEFAULT_TEXT_STYLES.orderedList?.classes;
 
   return OrderedList.extend({
     renderHTML({ HTMLAttributes }) {
@@ -294,12 +287,29 @@ function createOrderedListExtension(textStyles?: Record<string, TextStyle>) {
  * Create custom ListItem extension with layer textStyles class
  */
 function createListItemExtension(textStyles?: Record<string, TextStyle>) {
-  const styles = { ...DEFAULT_TEXT_STYLES, ...textStyles };
-  const listItemClass = styles.listItem?.classes || '';
+  const listItemClass = textStyles?.listItem?.classes ?? DEFAULT_TEXT_STYLES.listItem?.classes;
 
   return ListItem.extend({
     renderHTML({ HTMLAttributes }) {
       return ['li', mergeAttributes(HTMLAttributes, { class: listItemClass }), 0];
+    },
+  });
+}
+
+/**
+ * Create custom RichTextLink extension with layer textStyles class
+ */
+function createRichTextLinkExtension(textStyles?: Record<string, TextStyle>) {
+  const linkClass = textStyles?.link?.classes ?? DEFAULT_TEXT_STYLES.link?.classes;
+
+  return RichTextLink.extend({
+    addOptions() {
+      return {
+        ...this.parent?.(),
+        HTMLAttributes: {
+          class: linkClass,
+        },
+      };
     },
   });
 }
@@ -387,10 +397,16 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
   const clickCoordsRef = useRef(clickCoords);
   // Mutable ref for textStyles that gets updated for real-time style changes
   const textStylesRef = useRef(textStyles);
+  // Ref for onFinish callback to avoid stale closures
+  const onFinishRef = useRef(onFinish);
   // Keep textStylesRef in sync with textStyles prop
   useEffect(() => {
     textStylesRef.current = textStyles;
   }, [textStyles]);
+  // Keep onFinishRef in sync with onFinish prop
+  useEffect(() => {
+    onFinishRef.current = onFinish;
+  }, [onFinish]);
 
   // Get store actions
   const setEditor = useCanvasTextEditorStore((s) => s.setEditor);
@@ -415,6 +431,7 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     Paragraph,
     Text,
     DynamicVariable,
+    createRichTextLinkExtension(textStylesRef.current),
     createBoldExtension(textStylesRef.current),
     createItalicExtension(textStylesRef.current),
     createUnderlineExtension(textStylesRef.current),
@@ -578,9 +595,10 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
       startEditing(layer.id);
 
       // Register finish callback so toolbar "Done" button can trigger finish
+      // Use refs to avoid stale closures when onChange/onFinish change identity
       setOnFinishCallback(() => {
         saveChangesRef.current();
-        onFinish?.();
+        onFinishRef.current?.();
       });
 
       // Register save callback so dynamicStyle application can trigger a save
@@ -594,7 +612,7 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
       saveChangesRef.current();
       stopEditing();
     };
-  }, [editor, setEditor, startEditing, stopEditing, setOnFinishCallback, setOnSaveCallback, onFinish, layer.id]);
+  }, [editor, setEditor, startEditing, stopEditing, setOnFinishCallback, setOnSaveCallback, layer.id]);
 
   // Update save function when editor or onChange changes
   useEffect(() => {
@@ -603,6 +621,8 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
         const currentValue = editor.getJSON();
         if (JSON.stringify(currentValue) !== JSON.stringify(valueRef.current)) {
           onChange(currentValue);
+          // Update valueRef to prevent duplicate saves
+          valueRef.current = currentValue;
         }
       }
     };

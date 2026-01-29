@@ -15,6 +15,7 @@ import { pagesApi, collectionsApi, componentsApi, layerStylesApi, publishApi } f
 import type { Page, Collection, Component, LayerStyle, CollectionItemWithValues } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 interface PublishDialogProps {
   isOpen: boolean;
@@ -143,6 +144,9 @@ export default function PublishDialog({
       if (result.error) {
         throw new Error(result.error);
       }
+
+      // Show success toast
+      toast.success('Website published successfully');
 
       // Show success and close
       if (onSuccess) {

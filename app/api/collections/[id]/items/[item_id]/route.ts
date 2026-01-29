@@ -66,18 +66,12 @@ export async function PUT(
       // updated_at is automatically set in updateItem repository function
     });
 
-    // Update field values if provided, and automatically update "Updated Date" field
+    // Update field values if provided
     if (values && typeof values === 'object') {
-      const now = new Date().toISOString();
-      const valuesWithUpdatedDate = {
-        ...values,
-        updated_at: now, // Auto-update the "Updated Date" collection field
-      };
-
       await setValuesByFieldName(
         itemId,
         collectionId,
-        valuesWithUpdatedDate,
+        values,
         {},
         false // is_published (draft)
       );

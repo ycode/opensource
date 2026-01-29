@@ -26,7 +26,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { TiptapEditor } from '@/components/ui/tiptap-editor';
+import RichTextEditor from './RichTextEditor';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { useCollectionLayerStore } from '@/stores/useCollectionLayerStore';
 import { usePagesStore } from '@/stores/usePagesStore';
@@ -38,6 +38,7 @@ import { slugify } from '@/lib/collection-utils';
 import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
+import CollectionLinkFieldInput from './CollectionLinkFieldInput';
 import type { CollectionItemWithValues } from '@/types';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -372,10 +373,12 @@ export default function CollectionItemSheet({
                         <FormLabel>{field.name}</FormLabel>
                         <FormControl>
                           {field.type === 'rich_text' ? (
-                            <TiptapEditor
+                            <RichTextEditor
                               value={formField.value || ''}
                               onChange={formField.onChange}
                               placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
+                              variant="full"
+                              withFormatting={true}
                             />
                           ) : field.type === 'reference' && field.reference_collection_id ? (
                             <ReferenceFieldCombobox
@@ -392,6 +395,11 @@ export default function CollectionItemSheet({
                               onChange={formField.onChange}
                               isMulti={true}
                               placeholder={`Select ${field.name.toLowerCase()}...`}
+                            />
+                          ) : field.type === 'link' ? (
+                            <CollectionLinkFieldInput
+                              value={formField.value || ''}
+                              onChange={formField.onChange}
                             />
                           ) : field.type === 'image' ? (
                             /* Image Field - File Manager UI */

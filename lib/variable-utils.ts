@@ -65,7 +65,7 @@ export function createAssetVariable(assetId: string): AssetVariable {
 
 /**
  * Component Variable Utilities
- * 
+ *
  * ComponentVariableValue currently supports text variables (DynamicTextVariable | DynamicRichTextVariable)
  * but will be expanded to support other types (image, link, etc.) in the future
  */
@@ -90,18 +90,19 @@ export function createTextComponentVariableValue(tiptapContent: object): Compone
  */
 export function extractTiptapFromComponentVariable(value?: ComponentVariableValue): object {
   const emptyDoc = { type: 'doc', content: [{ type: 'paragraph' }] };
-  
+
   if (!value) return emptyDoc;
-  
-  if (value.type === 'dynamic_rich_text') {
-    return value.data.content;
+
+  // Check if value is a text variable (has 'type' property) vs ImageSettingsValue (has 'src' property)
+  if ('type' in value && value.type === 'dynamic_rich_text') {
+    return (value as DynamicRichTextVariable).data.content;
   }
-  
-  if (value.type === 'dynamic_text') {
+
+  if ('type' in value && value.type === 'dynamic_text') {
     // Convert plain text to Tiptap format
-    return stringToTiptapContent(value.data.content);
+    return stringToTiptapContent((value as DynamicTextVariable).data.content);
   }
-  
+
   return emptyDoc;
 }
 
@@ -345,3 +346,9 @@ export function getIframeUrlFromVariable(
 
   return undefined;
 }
+
+/**
+ * Link Variable Utilities
+ */
+
+import type { LinkSettings, LinkType } from '@/types';

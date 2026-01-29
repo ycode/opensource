@@ -7,6 +7,7 @@ import { getLayerFromTemplate, getBlockName } from '../lib/templates/blocks';
 import { cloneDeep } from 'lodash';
 import {
   canHaveChildren,
+  canAddChild,
   regenerateIdsWithInteractionRemapping,
   canMoveLayer,
   findLayerById,
@@ -661,8 +662,13 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
 
         const result = findLayerWithParent(draft.layers, parentLayerId);
 
-        // Check if parent can have children
-        if (result && !canHaveChildren(result.layer, newLayer.name)) {
+        // Check if parent can have children or if link nesting would occur
+        const cannotAddAsChild = result && (
+          !canHaveChildren(result.layer, newLayer.name) ||
+          !canAddChild(result.layer, newLayer)
+        );
+
+        if (cannotAddAsChild) {
 
           // If parent exists (not root level), insert after the selected layer
           if (result.parent) {

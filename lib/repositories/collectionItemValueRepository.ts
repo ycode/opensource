@@ -35,7 +35,7 @@ export interface UpdateCollectionItemValueData {
 export async function getValuesByItemIds(
   item_ids: string[],
   is_published: boolean = false
-): Promise<Record<string, Record<string, string>>> {
+): Promise<Record<string, Record<string, any>>> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
@@ -48,7 +48,7 @@ export async function getValuesByItemIds(
 
   const { data, error } = await client
     .from('collection_item_values')
-    .select('item_id, field_id, value')
+    .select('item_id, field_id, value, collection_fields!inner(type)')
     .in('item_id', item_ids)
     .eq('is_published', is_published)
     .is('deleted_at', null);
@@ -57,14 +57,15 @@ export async function getValuesByItemIds(
     throw new Error(`Failed to fetch item values: ${error.message}`);
   }
 
-  // Transform to { item_id: { field_id: value } } structure
-  const valuesByItem: Record<string, Record<string, string>> = {};
+  // Transform to { item_id: { field_id: value } } structure, casting by type
+  const valuesByItem: Record<string, Record<string, any>> = {};
 
   data?.forEach((row: any) => {
     if (!valuesByItem[row.item_id]) {
       valuesByItem[row.item_id] = {};
     }
-    valuesByItem[row.item_id][row.field_id] = row.value;
+    const fieldType = row.collection_fields?.type;
+    valuesByItem[row.item_id][row.field_id] = castValue(row.value, fieldType || 'text');
   });
 
   return valuesByItem;
@@ -306,10 +307,8 @@ export async function setValuesByFieldName(
   const valuesToSet: Record<string, string | null> = {};
 
   for (const [fieldId, value] of Object.entries(values)) {
-    const type = fieldMap[fieldId] || fieldType[fieldId];
-    if (type) {
-      valuesToSet[fieldId] = valueToString(value, type);
-    }
+    const type = fieldMap[fieldId] || fieldType[fieldId] || 'text';
+    valuesToSet[fieldId] = valueToString(value, type);
   }
 
   // Detect changes and removals for translation management (only for draft)

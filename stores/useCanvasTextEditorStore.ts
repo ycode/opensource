@@ -30,6 +30,8 @@ interface CanvasTextEditorState {
     superscript: boolean;
     bulletList: boolean;
     orderedList: boolean;
+    /** Whether text has a link mark */
+    richTextLink: boolean;
     /** Active dynamic style key (if any) */
     dynamicStyleKey: string | null;
   };
@@ -104,6 +106,7 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
     superscript: false,
     bulletList: false,
     orderedList: false,
+    richTextLink: false,
     dynamicStyleKey: null,
   },
   onFinishCallback: null,
@@ -140,6 +143,7 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
         superscript: false,
         bulletList: false,
         orderedList: false,
+        richTextLink: false,
         dynamicStyleKey: null,
       },
       onFinishCallback: null,
@@ -192,6 +196,7 @@ export const useCanvasTextEditorStore = create<CanvasTextEditorStore>((set, get)
       superscript: editor.isActive('superscript'),
       bulletList: editor.isActive('bulletList'),
       orderedList: editor.isActive('orderedList'),
+      richTextLink: editor.isActive('richTextLink'),
       dynamicStyleKey,
     };
 

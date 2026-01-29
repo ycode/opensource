@@ -144,12 +144,12 @@ export interface FormSettings {
 }
 
 export interface LayerSettings {
-  id?: string; // Custom HTML ID attribute
-  hidden?: boolean; // Element visibility in canvas
+  id?: string; // Custom element ID
   tag?: string; // HTML tag override (e.g., 'h1', 'h2', etc.)
+  hidden?: boolean; // Element visibility in canvas
   customAttributes?: Record<string, string>; // Custom HTML attributes { attributeName: attributeValue }
   locale?: {
-    format?: 'locale' | 'code'; // Display format for locale selector (`locale` => 'English', `code` => 'EN')
+    format?: 'locale' | 'code'; // Display format for `localeSelector` layers (locale => 'English', code => 'EN')
   };
   htmlEmbed?: {
     code?: string; // Custom HTML code to embed
@@ -253,6 +253,8 @@ export interface Layer {
 
   // Attributes (for HTML elements)
   attributes?: Record<string, any> & {
+    id?: string; // Custom HTML ID attribute
+
     // Media element attributes (video/audio)
     muted?: boolean;
     controls?: boolean;
@@ -260,7 +262,6 @@ export interface Layer {
     autoplay?: boolean;
     volume?: string; // Volume as string (0-100)
     preload?: string; // 'none' | 'metadata' | 'auto'
-    // YouTube-specific attributes
     youtubePrivacyMode?: boolean; // Privacy-enhanced mode (uses youtube-nocookie.com)
   };
 
@@ -280,7 +281,8 @@ export interface Layer {
   // Components (reusable layer trees)
   componentId?: string; // Reference to applied Component
   componentOverrides?: {
-    text?: Record<string, ComponentVariableValue>; // ComponentVariable.id → override value
+    text?: Record<string, ComponentVariableValue>; // ComponentVariable.id → override value (text)
+    image?: Record<string, ComponentVariableValue>; // ComponentVariable.id → override value (image)
   };
 
   // Collection binding (for collection layers)
@@ -298,6 +300,10 @@ export interface Layer {
   _collectionItems?: CollectionItemWithValues[];
   // SSR-only property for collection item values (used for visibility filtering)
   _collectionItemValues?: Record<string, string>;
+  // SSR-only property for collection item ID (used for link URL building)
+  _collectionItemId?: string;
+  // SSR-only property for collection item slug (used for link URL building)
+  _collectionItemSlug?: string;
   // SSR-only property for master component ID (for translation lookups)
   _masterComponentId?: string;
   // SSR-only property for pagination metadata (when pagination is enabled)
@@ -328,9 +334,65 @@ export interface LayerVariables {
   iframe?: {
     src: DynamicTextVariable; // Embed URL (allow inline variables)
   };
-  link?: {
-    href: FieldVariable | DynamicTextVariable; // Link href (allow inline variables)
+  link?: LinkSettings;
+}
+
+// Link type discriminator
+export type LinkType = 'url' | 'email' | 'phone' | 'asset' | 'page' | 'field';
+
+// Collection link field types (simplified for CMS fields)
+export type CollectionLinkType = 'url' | 'page';
+
+// Collection Link Field Value (stored as JSON in collection item values)
+// Note: Link behavior (target, rel) is set on the layer, not in the CMS value
+export interface CollectionLinkValue {
+  type: CollectionLinkType;
+
+  // URL link - simple string URL
+  url?: string;
+
+  // Page link - link to a page (static or dynamic with static item)
+  page?: {
+    id: string; // Page ID
+    collection_item_id?: string | null; // Static collection item ID (no current-page/current-collection)
+    anchor_layer_id?: string | null; // Optional layer ID for anchor links
   };
+}
+
+// Reusable link settings structure
+export interface LinkSettings {
+  type: LinkType;
+
+  // URL link - custom URL with inline variables support
+  url?: DynamicTextVariable;
+
+  // Email link - mailto:address (supports inline variables)
+  email?: DynamicTextVariable;
+
+  // Phone link - tel:number (supports inline variables)
+  phone?: DynamicTextVariable;
+
+  // Asset link - link to downloadable asset
+  asset?: {
+    id: StringAssetId | null;
+  };
+
+  // Page link - link to a page (static or dynamic)
+  page?: {
+    id: string; // Page ID (static or dynamic)
+    collection_item_id?: string | null; // Collection item ID (for dynamic pages)
+  };
+
+  // Field link - href from collection field (CMS field containing URL)
+  field?: FieldVariable;
+
+  // Anchor - reference to a layer ID to use as #anchor
+  anchor_layer_id?: string | null;
+
+  // Link behavior
+  target?: '_blank' | '_self' | '_parent' | '_top';
+  download?: boolean; // Force download the linked resource
+  rel?: string; // 'noopener noreferrer' | 'nofollow' | 'sponsored' | 'ugc'
 }
 
 // Essentially a layer without ID (that can have children without IDs)
@@ -354,6 +416,7 @@ export interface BlockTemplate {
 export interface ComponentVariable {
   id: string;        // Unique variable ID
   name: string;      // Display name (e.g., "Button title")
+  type?: 'text' | 'image'; // Variable type (defaults to 'text' for backwards compatibility)
   default_value?: ComponentVariableValue; // Default value
 }
 
@@ -679,7 +742,7 @@ export interface ActivityNotification {
 }
 
 // Collection Types (EAV Architecture)
-export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image';
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'link';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {
@@ -806,6 +869,8 @@ export interface FieldVariable extends VariableType {
     field_id: string | null;
     relationships: string[];
     format?: string;
+    /** Source of the field data: 'page' for page collection, 'collection' for collection layer */
+    source?: 'page' | 'collection';
   };
 }
 
@@ -852,8 +917,17 @@ export interface StaticTextVariable extends VariableType {
 
 export type InlineVariable = FieldVariable;
 
-// Component variable value type (text variables for now, expandable in future)
-export type ComponentVariableValue = DynamicTextVariable | DynamicRichTextVariable;
+// Image settings value for component variables
+export interface ImageSettingsValue {
+  src?: AssetVariable | DynamicTextVariable | FieldVariable;
+  alt?: DynamicTextVariable;
+  width?: string;
+  height?: string;
+  loading?: 'lazy' | 'eager';
+}
+
+// Component variable value type (text and image variables)
+export type ComponentVariableValue = DynamicTextVariable | DynamicRichTextVariable | ImageSettingsValue;
 
 // Pagination Layer Definition (partial Layer for styling pagination controls)
 export interface PaginationLayerConfig {

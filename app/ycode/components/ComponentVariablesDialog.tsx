@@ -23,7 +23,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import InputWithInlineVariables from './InputWithInlineVariables';
+import RichTextEditor from './RichTextEditor';
+import ImageSettings, { type ImageSettingsValue } from './ImageSettings';
 
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
@@ -42,6 +43,7 @@ export default function ComponentVariablesDialog({
 }: ComponentVariablesDialogProps) {
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const addTextVariable = useComponentsStore((state) => state.addTextVariable);
+  const addImageVariable = useComponentsStore((state) => state.addImageVariable);
   const updateTextVariable = useComponentsStore((state) => state.updateTextVariable);
   const deleteTextVariable = useComponentsStore((state) => state.deleteTextVariable);
   const fields = useCollectionsStore((state) => state.fields);
@@ -91,11 +93,28 @@ export default function ComponentVariablesDialog({
   const handleAddTextVariable = async () => {
     if (!componentId) return;
 
-    const newId = await addTextVariable(componentId, 'New Variable');
+    const newId = await addTextVariable(componentId, 'Text');
     if (newId) {
       setSelectedVariableId(newId);
-      setEditingName('New Variable');
+      setEditingName('Text');
     }
+  };
+
+  // Handle creating a new image variable
+  const handleAddImageVariable = async () => {
+    if (!componentId) return;
+
+    const newId = await addImageVariable(componentId, 'Image');
+    if (newId) {
+      setSelectedVariableId(newId);
+      setEditingName('Image');
+    }
+  };
+
+  // Handle image default value change (via ImageSettings standalone mode)
+  const handleImageDefaultValueChange = (value: ImageSettingsValue) => {
+    if (!componentId || !selectedVariableId) return;
+    updateTextVariable(componentId, selectedVariableId, { default_value: value });
   };
 
   // Handle updating variable name (debounced)
@@ -119,16 +138,16 @@ export default function ComponentVariablesDialog({
   // Save default value on blur
   const handleDefaultValueBlur = async (tiptapContent: any) => {
     if (!componentId || !selectedVariableId) return;
-    
+
     // Check if value has changed
     const currentValue = selectedVariable?.default_value;
     const currentTiptap = extractTiptapFromComponentVariable(currentValue);
-    
+
     // Simple comparison - stringify and compare
     if (JSON.stringify(currentTiptap) === JSON.stringify(tiptapContent)) {
       return; // No change, skip API call
     }
-    
+
     // Wrap Tiptap content in proper ComponentVariableValue structure (text variable)
     const variableValue = createTextComponentVariableValue(tiptapContent);
     await updateTextVariable(componentId, selectedVariableId, { default_value: variableValue });
@@ -168,7 +187,12 @@ export default function ComponentVariablesDialog({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={handleAddTextVariable}>
+                      <Icon name="text" className="size-3" />
                       Text
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleAddImageVariable}>
+                      <Icon name="image" className="size-3" />
+                      Image
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -184,6 +208,7 @@ export default function ComponentVariablesDialog({
                   className="justify-start"
                   onClick={() => setSelectedVariableId(variable.id)}
                 >
+                  <Icon name={variable.type === 'image' ? 'image' : 'text'} className="size-3" />
                   {variable.name}
                 </Button>
               ))}
@@ -216,17 +241,28 @@ export default function ComponentVariablesDialog({
                 <div className="grid grid-cols-3">
                   <Label variant="muted">Default</Label>
                   <div className="col-span-2 *:w-full">
-                    <InputWithInlineVariables
-                      value={editingDefaultValue}
-                      onChange={handleDefaultValueChange}
-                      onBlur={handleDefaultValueBlur}
-                      placeholder="Default value..."
-                      fields={[]}
-                      allFields={fields}
-                      collections={collections}
-                      withFormatting={true}
-                      showFormattingToolbar={false}
-                    />
+                    {selectedVariable.type === 'image' ? (
+                      // Image variable - use ImageSettings in standalone mode
+                      <ImageSettings
+                        mode="standalone"
+                        value={selectedVariable.default_value as ImageSettingsValue}
+                        onChange={handleImageDefaultValueChange}
+                        allFields={fields}
+                        collections={collections}
+                      />
+                    ) : (
+                      // Text variable - use RichTextEditor
+                      <RichTextEditor
+                        value={editingDefaultValue}
+                        onChange={handleDefaultValueChange}
+                        onBlur={handleDefaultValueBlur}
+                        placeholder="Default value..."
+                        allFields={fields}
+                        collections={collections}
+                        withFormatting={true}
+                        showFormattingToolbar={false}
+                      />
+                    )}
                   </div>
                 </div>
 

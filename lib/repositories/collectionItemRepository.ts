@@ -3,6 +3,7 @@ import type { CollectionItem, CollectionItemWithValues } from '@/types';
 import { randomUUID } from 'crypto';
 import { getFieldsByCollectionId } from './collectionFieldRepository';
 import { getValuesByFieldId, getValuesByItemIds } from './collectionItemValueRepository';
+import { castValue } from '../collection-utils';
 
 /**
  * Collection Item Repository
@@ -279,10 +280,10 @@ export async function getItemWithValues(id: string, is_published: boolean = fals
   const item = await getItemById(id, is_published);
   if (!item) return null;
 
-  // Build query for values
+  // Build query for values with field type info
   let valuesQuery = client
     .from('collection_item_values')
-    .select('value, field_id')
+    .select('value, field_id, collection_fields!inner(type)')
     .eq('item_id', id)
     .eq('is_published', is_published);
 
@@ -298,11 +299,12 @@ export async function getItemWithValues(id: string, is_published: boolean = fals
     throw new Error(`Failed to fetch item values: ${valuesError.message}`);
   }
 
-  // Transform to { field_id: value } object
-  const values: Record<string, string> = {};
+  // Transform to { field_id: value } object, casting values by type
+  const values: Record<string, any> = {};
   valuesData?.forEach((row: any) => {
     if (row.field_id) {
-      values[row.field_id] = row.value;
+      const fieldType = row.collection_fields?.type;
+      values[row.field_id] = castValue(row.value, fieldType || 'text');
     }
   });
 

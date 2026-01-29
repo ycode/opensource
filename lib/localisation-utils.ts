@@ -706,11 +706,15 @@ export function getTranslationByKey(
 
 /**
  * Check if a translation has a valid non-empty text value
+ * Only returns true if translation is completed and has non-empty content
  * @param translation - Translation object or undefined
- * @returns True if translation exists and has non-empty content_value
+ * @returns True if translation exists, is completed, and has non-empty content_value
  */
 export function hasValidTranslationValue(translation: Translation | undefined): boolean {
-  return !!(translation && translation.content_value && translation.content_value.trim() !== '');
+  if (!translation || !translation.is_completed) {
+    return false;
+  }
+  return !!(translation.content_value && translation.content_value.trim() !== '');
 }
 
 /**

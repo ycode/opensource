@@ -22,6 +22,7 @@ import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Empty,
   EmptyContent,
@@ -48,16 +49,16 @@ import { useCanvasTextEditorStore } from '@/stores/useCanvasTextEditorStore';
 
 // 4b. Internal components
 import Canvas from './Canvas';
-import FieldTreeSelect from './FieldTreeSelect';
+import { MultiSourceFieldTreeSelect } from './FieldTreeSelect';
 import SelectionOverlay from '@/components/SelectionOverlay';
+import RichTextLinkPopover from './RichTextLinkPopover';
 
 // 6. Utils
-import { serializeLayers } from '@/lib/layer-utils';
-import { buildPageTree, getNodeIcon, buildSlugPath, buildDynamicPageUrl, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
+import { buildPageTree, getNodeIcon, buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 import { getTranslationValue } from '@/lib/localisation-utils';
 import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
-import { getCollectionVariable, canDeleteLayer, findLayerById, findParentCollectionLayer } from '@/lib/layer-utils';
+import { getCollectionVariable, canDeleteLayer, findLayerById, findParentCollectionLayer, canLayerHaveLink } from '@/lib/layer-utils';
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
 
 // 7. Types
@@ -182,9 +183,11 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const focusEditor = useCanvasTextEditorStore((state) => state.focusEditor);
   const requestFinishEditing = useCanvasTextEditorStore((state) => state.requestFinish);
   const addFieldVariable = useCanvasTextEditorStore((state) => state.addFieldVariable);
+  const textEditor = useCanvasTextEditorStore((state) => state.editor);
 
   // State for variable dropdown in text editor toolbar
   const [textEditorVariableDropdownOpen, setTextEditorVariableDropdownOpen] = useState(false);
+  const [textEditorLinkPopoverOpen, setTextEditorLinkPopoverOpen] = useState(false);
 
   // Exit text edit mode if a different layer is selected
   useEffect(() => {
@@ -608,31 +611,46 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return findParentCollectionLayer(layersToSearch, editingLayerId);
   }, [editingLayerId, editingComponentId, componentDrafts, currentPageId, draftsByPageId]);
 
-  // Get available collection fields for inline variables in text editor (matches RightSidebar logic)
-  // Priority: 1) Parent collection layer fields, 2) Page collection fields (if dynamic)
-  const availableFieldsForVariables = useMemo(() => {
-    const collectionVariable = editingLayerParentCollection ? getCollectionVariable(editingLayerParentCollection) : null;
-    let collectionId = collectionVariable?.id;
+  // Build field groups for multi-source inline variable selection
+  const fieldGroups = useMemo(() => {
+    const groups: { fields: CollectionField[]; label?: string; source?: 'page' | 'collection' }[] = [];
 
-    if (!collectionId && currentPage?.is_dynamic) {
-      collectionId = currentPage.settings?.cms?.collection_id || undefined;
-    }
-
-    if (!collectionId) return [];
-    return collectionFieldsFromStore[collectionId] || [];
-  }, [editingLayerParentCollection, currentPage, collectionFieldsFromStore]);
-
-  // Label for the field source in the dropdown
-  const fieldSourceLabel = useMemo(() => {
+    // Add collection layer fields if inside a collection layer
     if (editingLayerParentCollection) {
       const collectionVariable = getCollectionVariable(editingLayerParentCollection);
-      if (collectionVariable?.id) {
-        const collection = collectionsFromStore.find(c => c.id === collectionVariable.id);
-        return collection?.name || 'Collection';
+      const collectionId = collectionVariable?.id;
+      if (collectionId) {
+        const collectionFields = collectionFieldsFromStore[collectionId] || [];
+        const collection = collectionsFromStore.find(c => c.id === collectionId);
+        if (collectionFields.length > 0) {
+          groups.push({
+            fields: collectionFields,
+            label: collection?.name || 'Collection',
+            source: 'collection',
+          });
+        }
       }
     }
-    return 'Page Collection';
-  }, [editingLayerParentCollection, collectionsFromStore]);
+
+    // Add page collection fields if on a dynamic page
+    if (currentPage?.is_dynamic && currentPage?.settings?.cms?.collection_id) {
+      const pageCollectionId = currentPage.settings.cms.collection_id;
+      const pageCollectionFields = collectionFieldsFromStore[pageCollectionId] || [];
+      if (pageCollectionFields.length > 0) {
+        const collectionVariable = editingLayerParentCollection ? getCollectionVariable(editingLayerParentCollection) : null;
+        const collectionLayerCollectionId = collectionVariable?.id;
+        if (pageCollectionId !== collectionLayerCollectionId) {
+          groups.push({
+            fields: pageCollectionFields,
+            label: 'Page data',
+            source: 'page',
+          });
+        }
+      }
+    }
+
+    return groups.length > 0 ? groups : undefined;
+  }, [editingLayerParentCollection, currentPage, collectionFieldsFromStore, collectionsFromStore]);
 
   // Create assets map for Canvas (asset ID -> asset)
   const assetsMap = useMemo(() => {
@@ -1334,7 +1352,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
                     <Spinner className="size-3" />
                   ) : (
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <Icon name="database" className="size-3 opacity-50 shrink-0" />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="shrink-0">
+                            <Icon name="database" className="size-3 opacity-50" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Collection item</TooltipContent>
+                      </Tooltip>
                       <span className="truncate">
                         {collectionItems.find(item => item.id === currentPageCollectionItemId)?.label || 'Select item'}
                       </span>
@@ -1444,172 +1469,284 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
       {/* Text Editor Toolbar - shown when editing text */}
       {isTextEditing && !isPreviewMode && (
-        <div className="absolute top-[65px] left-0 right-0 z-50 flex items-center gap-1 px-4 py-3 bg-background border-b">
+        <div className="absolute top-[65px] h-14 left-0 right-0 z-50 flex items-center gap-1 px-4 bg-background border-b">
           <div className="flex items-center justify-center gap-0.5 bg-popover px-1.5 py-0.75 rounded-md">
-            <Button
-              variant="ghost"
-              size="xs"
-              className={cn('!size-6', textEditorActiveMarks.bold && 'bg-accent')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                toggleBold();
-              }}
-              title="Bold (⌘B)"
-            >
-              <Icon name="bold" className="size-3" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={cn('!size-6', textEditorActiveMarks.bold && 'bg-accent')}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    toggleBold();
+                  }}
+                >
+                  <Icon name="bold" className="size-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Bold (⌘B)</TooltipContent>
+            </Tooltip>
 
-            <Button
-              variant="ghost"
-              size="xs"
-              className={cn('!size-6', textEditorActiveMarks.italic && 'bg-accent')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                toggleItalic();
-              }}
-              title="Italic (⌘I)"
-            >
-              <Icon name="italic" className="size-3" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={cn('!size-6', textEditorActiveMarks.italic && 'bg-accent')}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    toggleItalic();
+                  }}
+                >
+                  <Icon name="italic" className="size-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Italic (⌘I)</TooltipContent>
+            </Tooltip>
 
-            <Button
-              variant="ghost"
-              size="xs"
-              className={cn('!size-6', textEditorActiveMarks.underline && 'bg-accent')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                toggleUnderline();
-              }}
-              title="Underline (⌘U)"
-            >
-              <Icon name="underline" className="size-3" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={cn('!size-6', textEditorActiveMarks.underline && 'bg-accent')}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    toggleUnderline();
+                  }}
+                >
+                  <Icon name="underline" className="size-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Underline (⌘U)</TooltipContent>
+            </Tooltip>
 
-            <Button
-              variant="ghost"
-              size="xs"
-              className={cn('!size-6', textEditorActiveMarks.strike && 'bg-accent')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                toggleStrike();
-              }}
-              title="Strikethrough"
-            >
-              <Icon name="strikethrough" className="size-3" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={cn('!size-6', textEditorActiveMarks.strike && 'bg-accent')}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    toggleStrike();
+                  }}
+                >
+                  <Icon name="strikethrough" className="size-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Strikethrough</TooltipContent>
+            </Tooltip>
 
-            <Button
-              variant="ghost"
-              size="xs"
-              className={cn('!size-6', textEditorActiveMarks.superscript && 'bg-accent')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                toggleSuperscript();
-              }}
-              title="Superscript"
-            >
-              <Icon name="superscript" className="size-3" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={cn('!size-6', textEditorActiveMarks.superscript && 'bg-accent')}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    toggleSuperscript();
+                  }}
+                >
+                  <Icon name="superscript" className="size-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Superscript</TooltipContent>
+            </Tooltip>
 
-            <Button
-              variant="ghost"
-              size="xs"
-              className={cn('!size-6', textEditorActiveMarks.subscript && 'bg-accent')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                toggleSubscript();
-              }}
-              title="Subscript"
-            >
-              <Icon name="subscript" className="size-3" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={cn('!size-6', textEditorActiveMarks.subscript && 'bg-accent')}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    toggleSubscript();
+                  }}
+                >
+                  <Icon name="subscript" className="size-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Subscript</TooltipContent>
+            </Tooltip>
 
             <div className="h-5 shrink-0 flex items-center justify-center">
               <Separator orientation="vertical" className="mx-1 bg-secondary" />
             </div>
 
-            <Button
-              variant="ghost"
-              size="xs"
-              className={cn('!size-6', textEditorActiveMarks.bulletList && 'bg-accent')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                toggleBulletList();
-              }}
-              title="Bullet List"
-            >
-              <Icon name="listUnordered" className="size-3" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={cn('!size-6', textEditorActiveMarks.bulletList && 'bg-accent')}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    toggleBulletList();
+                  }}
+                >
+                  <Icon name="listUnordered" className="size-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Bullet List</TooltipContent>
+            </Tooltip>
 
-            <Button
-              variant="ghost"
-              size="xs"
-              className={cn('!size-6', textEditorActiveMarks.orderedList && 'bg-accent')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                toggleOrderedList();
-              }}
-              title="Numbered List"
-            >
-              <Icon name="listOrdered" className="size-3" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={cn('!size-6', textEditorActiveMarks.orderedList && 'bg-accent')}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    toggleOrderedList();
+                  }}
+                >
+                  <Icon name="listOrdered" className="size-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Numbered List</TooltipContent>
+            </Tooltip>
 
-            {/* Inline Variable Button - matches InputWithInlineVariables behavior */}
-            {(() => {
-              // Calculate displayable fields (exclude multi_reference) - same as InputWithInlineVariables
-              const displayableFields = availableFieldsForVariables?.filter((f) => f.type !== 'multi_reference') || [];
-              const hasDisplayableFields = displayableFields.length > 0;
+            {/* Link Button */}
+            {textEditor && (() => {
+              // Find the current layer being edited
+              let editingLayer: Layer | null = null;
+              let layersToSearch: Layer[] = [];
+              if (editingLayerId) {
+                if (editingComponentId) {
+                  layersToSearch = componentDrafts[editingComponentId] || [];
+                } else if (currentPageId) {
+                  const draft = draftsByPageId[currentPageId];
+                  layersToSearch = draft ? draft.layers : [];
+                }
+                editingLayer = findLayerById(layersToSearch, editingLayerId);
+              }
+
+              // Check if layer can have rich text links
+              const { canHaveLinks } = editingLayer
+                ? canLayerHaveLink(editingLayer, layersToSearch, 'richText')
+                : { canHaveLinks: true };
 
               return (
                 <>
                   <div className="h-5 shrink-0 flex items-center justify-center">
                     <Separator orientation="vertical" className="mx-1 bg-secondary" />
                   </div>
-                  <DropdownMenu
-                    open={textEditorVariableDropdownOpen}
-                    onOpenChange={setTextEditorVariableDropdownOpen}
-                  >
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        className="!size-6"
-                        title={hasDisplayableFields ? 'Insert Variable' : 'No variables available'}
-                        disabled={!hasDisplayableFields}
-                      >
-                        <Icon name="database" className="size-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
+                  {canHaveLinks ? (
+                    <RichTextLinkPopover
+                      editor={textEditor}
+                      fieldGroups={fieldGroups}
+                      allFields={collectionFieldsFromStore}
+                      collections={collectionsFromStore}
+                      isInsideCollectionLayer={!!editingLayerParentCollection}
+                      layer={editingLayer}
+                      open={textEditorLinkPopoverOpen}
+                      onOpenChange={setTextEditorLinkPopoverOpen}
+                      disabled={false}
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className={cn('!size-6', textEditorActiveMarks.richTextLink && 'bg-accent')}
+                        >
+                          <Icon name="link" className="size-3" />
+                        </Button>
+                      }
+                    />
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="!size-6"
+                          disabled={true}
+                        >
+                          <Icon name="link" className="size-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Links cannot be nested</TooltipContent>
+                    </Tooltip>
+                  )}
+                </>
+              );
+            })()}
 
-                    {hasDisplayableFields && (
-                      <DropdownMenuContent
-                        className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
-                        align="start"
-                        sideOffset={4}
-                      >
-                        <FieldTreeSelect
-                          fields={availableFieldsForVariables || []}
-                          allFields={collectionFieldsFromStore}
-                          collections={collectionsFromStore}
-                          onSelect={(fieldId, relationshipPath) => {
-                            addFieldVariable(
-                              {
-                                type: 'field',
-                                data: {
-                                  field_id: fieldId,
-                                  relationships: relationshipPath,
+            {/* Inline Variable Button - matches RichTextEditor behavior */}
+            {(() => {
+              // Check if there are any displayable fields (exclude multi_reference)
+              const hasDisplayableFields = fieldGroups?.some(
+                (g) => g.fields.filter((f) => f.type !== 'multi_reference').length > 0
+              ) ?? false;
+
+              return (
+                <>
+                  <div className="h-5 shrink-0 flex items-center justify-center">
+                    <Separator orientation="vertical" className="mx-1 bg-secondary" />
+                  </div>
+                  {hasDisplayableFields ? (
+                    <DropdownMenu
+                      open={textEditorVariableDropdownOpen}
+                      onOpenChange={setTextEditorVariableDropdownOpen}
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="!size-6"
+                        >
+                          <Icon name="database" className="size-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+
+                      {fieldGroups && (
+                        <DropdownMenuContent
+                          className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                          align="start"
+                          sideOffset={4}
+                        >
+                          <MultiSourceFieldTreeSelect
+                            fieldGroups={fieldGroups}
+                            allFields={collectionFieldsFromStore}
+                            collections={collectionsFromStore}
+                            onSelect={(fieldId, relationshipPath, source) => {
+                              addFieldVariable(
+                                {
+                                  type: 'field',
+                                  data: {
+                                    field_id: fieldId,
+                                    relationships: relationshipPath,
+                                    source,
+                                  },
                                 },
-                              },
-                              availableFieldsForVariables,
-                              collectionFieldsFromStore
-                            );
-                            setTextEditorVariableDropdownOpen(false);
-                          }}
-                          collectionLabel={fieldSourceLabel}
-                        />
-                      </DropdownMenuContent>
-                    )}
-                  </DropdownMenu>
+                                fieldGroups.flatMap(g => g.fields),
+                                collectionFieldsFromStore
+                              );
+                              setTextEditorVariableDropdownOpen(false);
+                            }}
+                          />
+                        </DropdownMenuContent>
+                      )}
+                    </DropdownMenu>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="!size-6"
+                          disabled={true}
+                        >
+                          <Icon name="database" className="size-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>No variables available</TooltipContent>
+                    </Tooltip>
+                  )}
                 </>
               );
             })()}
@@ -1737,6 +1874,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 position: 'relative',
                 minWidth: '100%',
                 minHeight: '100%',
+                ...(isTextEditing && !isPreviewMode ? { marginTop: '56px' } : {}), // Text editor toolbar height (h-14, when active)
               }}
             >
               <div
