@@ -306,7 +306,8 @@ export function useCanvasSiblingReorder({
               layerName,
               siblingInfoData.parentId,
               siblingInfoData.originalIndex,
-              siblingInfoData.siblingIds
+              siblingInfoData.siblingIds,
+              { x: clientX, y: clientY } // Pass current mouse position for ghost initial positioning
             );
             hasDragStartedRef.current = true;
           }

@@ -14,7 +14,7 @@
  * Renders as a portal to document.body to ensure it's always on top.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useEditorStore } from '@/stores/useEditorStore';
 import Icon from '@/components/ui/icon';
@@ -38,11 +38,14 @@ export function DragPreviewPortal() {
   // Cache iframe reference to avoid repeated DOM queries
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   
-  // Store the cloned element dimensions for centering
-  const [cloneSize, setCloneSize] = useState<{ width: number; height: number } | null>(null);
-  
-  // Ref to track cloneSize for mousemove handler (avoids stale closure)
+  // Ref to track cloneSize for mousemove handler (no useState = no re-renders)
   const cloneSizeRef = useRef<{ width: number; height: number } | null>(null);
+  
+  // Ref to track the initial position of the ghost (in window coordinates)
+  const initialPositionRef = useRef<{ x: number; y: number } | null>(null);
+  
+  // Ref to track the offset between cursor and ghost position (for drag following)
+  const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
   
   // Ref to track if we're in sibling reorder mode (avoids stale closure)
   const isDraggingLayerRef = useRef(false);
@@ -105,11 +108,28 @@ export function DragPreviewPortal() {
       }
 
       const rect = originalElement.getBoundingClientRect();
+      const iframeRect = iframe.getBoundingClientRect();
       
-      // Get zoom from iframe's CSS transform (scale)
-      const iframeTransform = iframe.style.transform;
-      const scaleMatch = iframeTransform.match(/scale\(([\d.]+)\)/);
+      // Get zoom from the PARENT WRAPPER's CSS transform (not iframe - iframe has no transform)
+      // The scale is applied to the wrapper div that contains the iframe
+      const wrapper = iframe.parentElement;
+      const wrapperTransform = wrapper?.style.transform || '';
+      const scaleMatch = wrapperTransform.match(/scale\(([\d.]+)\)/);
       const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
+      
+      // Calculate element's position in WINDOW coordinates
+      // rect.left/top are in iframe's unscaled coordinate system
+      // Convert to window coords: iframeRect.left + (rect.left * scale)
+      const elementWindowX = iframeRect.left + (rect.left * scale);
+      const elementWindowY = iframeRect.top + (rect.top * scale);
+      
+      // Store the initial position (center of element in window coords)
+      const cloneWidth = rect.width * scale;
+      const cloneHeight = rect.height * scale;
+      initialPositionRef.current = {
+        x: elementWindowX + cloneWidth / 2,
+        y: elementWindowY + cloneHeight / 2,
+      };
       
       // Clone the element with all computed styles
       const clone = cloneElementFromIframe(originalElement, iframeWindow);
@@ -119,10 +139,6 @@ export function DragPreviewPortal() {
       clone.style.position = 'relative';
       clone.style.pointerEvents = 'none';
       clone.style.opacity = '0.6';
-      
-      // Scale to match canvas zoom
-      const cloneWidth = rect.width * scale;
-      const cloneHeight = rect.height * scale;
       
       clone.style.transform = `scale(${scale})`;
       clone.style.transformOrigin = 'top left';
@@ -136,8 +152,19 @@ export function DragPreviewPortal() {
       
       const size = { width: cloneWidth, height: cloneHeight };
       cloneSizeRef.current = size;
-      setCloneSize(size);
       hasClonedRef.current = true;
+      
+      // IMMEDIATELY position the ghost and make it visible (no React state = no re-render issues)
+      if (previewRef.current) {
+        const transformValue = `translate(${elementWindowX}px, ${elementWindowY}px)`;
+        previewRef.current.style.transform = transformValue;
+        previewRef.current.style.visibility = 'visible';
+        
+        // Store the initial ghost position so mousemove can calculate offset
+        initialPositionRef.current = { x: elementWindowX, y: elementWindowY };
+        // dragOffsetRef will be calculated on first mousemove
+        dragOffsetRef.current = null;
+      }
     };
     
     // Start trying after first animation frame (ensures render is complete)
@@ -148,8 +175,12 @@ export function DragPreviewPortal() {
       if (cloneContainerRef.current) {
         cloneContainerRef.current.innerHTML = '';
       }
+      if (previewRef.current) {
+        previewRef.current.style.visibility = 'hidden';
+      }
       cloneSizeRef.current = null;
-      setCloneSize(null);
+      initialPositionRef.current = null;
+      dragOffsetRef.current = null;
       hasClonedRef.current = false;
     };
   }, [isDraggingLayerOnCanvas, draggedLayerId]);
@@ -170,7 +201,22 @@ export function DragPreviewPortal() {
       
       if (isLayerDrag) {
         if (!currentCloneSize) return;
-        previewRef.current.style.transform = `translate(${windowX - currentCloneSize.width / 2}px, ${windowY - currentCloneSize.height / 2}px)`;
+        
+        // On first mousemove after ghost is positioned, calculate the offset
+        // This maintains the relative position between cursor and ghost
+        if (dragOffsetRef.current === null && initialPositionRef.current) {
+          dragOffsetRef.current = {
+            x: windowX - initialPositionRef.current.x,
+            y: windowY - initialPositionRef.current.y,
+          };
+        }
+        
+        // Use the stored offset to position ghost relative to cursor
+        const offset = dragOffsetRef.current || { x: 0, y: 0 };
+        const newX = windowX - offset.x;
+        const newY = windowY - offset.y;
+        
+        previewRef.current.style.transform = `translate(${newX}px, ${newY}px)`;
       } else {
         previewRef.current.style.transform = `translate(${windowX + 15}px, ${windowY + 15}px)`;
       }
@@ -187,9 +233,10 @@ export function DragPreviewPortal() {
       
       const iframeRect = iframe.getBoundingClientRect();
       
-      // Get zoom from iframe's CSS transform (scale)
-      const iframeTransform = iframe.style.transform;
-      const scaleMatch = iframeTransform.match(/scale\(([\d.]+)\)/);
+      // Get zoom from the PARENT WRAPPER's CSS transform (not iframe - iframe has no transform)
+      const wrapper = iframe.parentElement;
+      const wrapperTransform = wrapper?.style.transform || '';
+      const scaleMatch = wrapperTransform.match(/scale\(([\d.]+)\)/);
       const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
       
       // Convert iframe coords to window coords
@@ -224,9 +271,11 @@ export function DragPreviewPortal() {
         style={{
           left: 0,
           top: 0,
-          transform: 'translate(-1000px, -1000px)',
+          // NO transform here - position is set purely via previewRef.current.style.transform
+          // This prevents React from overwriting our imperative DOM updates on re-render
           willChange: 'transform',
-          visibility: cloneSize ? 'visible' : 'hidden',
+          // Start hidden - RAF callback will set visibility: visible after positioning
+          visibility: 'hidden',
         }}
       >
         <div ref={cloneContainerRef} />
