@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { getAssetsByIds } from '@/lib/repositories/assetRepository';
+import { getComponentsByIds } from '@/lib/repositories/componentRepository';
 import type { Layer } from '@/types';
 
 const LAYOUTS_FILE_PATH = path.join(process.cwd(), 'lib', 'templates', 'layouts.ts');
@@ -28,6 +29,27 @@ function collectIconAssetIds(layer: Layer): string[] {
   }
 
   return assetIds;
+}
+
+/**
+ * Collect all component IDs from layers with componentId
+ */
+function collectComponentIds(layer: Layer): string[] {
+  const componentIds: string[] = [];
+
+  // Check if this layer is a component instance
+  if (layer.componentId) {
+    componentIds.push(layer.componentId);
+  }
+
+  // Recursively check children
+  if (layer.children) {
+    for (const child of layer.children) {
+      componentIds.push(...collectComponentIds(child));
+    }
+  }
+
+  return componentIds;
 }
 
 /**
@@ -66,6 +88,49 @@ function inlineIconAssets(layer: Layer, assetsMap: Record<string, { content?: st
   return newLayer;
 }
 
+/**
+ * Replace component instances with inlined component layers for portability.
+ * Stores the component name and variables in _inlinedComponentName and _inlinedComponentVariables
+ * so it can be recreated as a component when the layout is used in another project.
+ */
+function inlineComponents(
+  layer: Layer,
+  componentsMap: Record<string, { name: string; layers: Layer[]; variables?: any[] }>
+): Layer {
+  const newLayer = { ...layer };
+
+  // If this is a component instance, inline its layers
+  if (newLayer.componentId) {
+    console.log(`[inlineComponents] Found component instance: ${newLayer.componentId}`);
+    const component = componentsMap[newLayer.componentId];
+    if (component && component.layers?.length > 0) {
+      console.log(`[inlineComponents] Inlining component "${component.name}" with ${component.layers.length} layers`);
+      // Store the component name for recreation later
+      (newLayer as any)._inlinedComponentName = component.name;
+      // Store component variables if they exist
+      if (component.variables?.length) {
+        (newLayer as any)._inlinedComponentVariables = component.variables;
+        console.log(`[inlineComponents] Stored ${component.variables.length} component variables`);
+      }
+      // Remove the componentId (it won't be valid in other projects)
+      delete newLayer.componentId;
+      // Set the component's layers as children (deep copy and process recursively)
+      newLayer.children = component.layers.map(child => 
+        inlineComponents({ ...child }, componentsMap)
+      );
+    } else {
+      console.log(`[inlineComponents] Component not found in map or has no layers`);
+    }
+  }
+
+  // Recursively process existing children (non-component layers)
+  if (newLayer.children && !newLayer.componentId) {
+    newLayer.children = newLayer.children.map(child => inlineComponents(child, componentsMap));
+  }
+
+  return newLayer;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -85,7 +150,26 @@ export async function POST(request: NextRequest) {
 
     let template = JSON.parse(templateStr);
 
+    // Make components portable: inline component layers with metadata for recreation
+    const componentIds = collectComponentIds(template);
+    console.log(`[layouts API] Found ${componentIds.length} component(s) to inline:`, componentIds);
+    if (componentIds.length > 0) {
+      try {
+        const componentsMap = await getComponentsByIds(componentIds);
+        console.log(`[layouts API] Fetched components:`, Object.keys(componentsMap));
+        template = inlineComponents(template, componentsMap);
+        console.log(`✅ Inlined ${componentIds.length} component(s) for portability`);
+        
+        // After inlining components, re-collect icon asset IDs since components may have icons
+        // We need to inline those icons too
+      } catch (error) {
+        console.warn('Warning: Could not inline components:', error);
+        // Continue without inlining - layout will still save but may not be portable
+      }
+    }
+
     // Make icons portable: collect asset IDs and inline the SVG content
+    // This runs after component inlining to catch icons inside components
     const iconAssetIds = collectIconAssetIds(template);
     if (iconAssetIds.length > 0) {
       try {

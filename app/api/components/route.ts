@@ -26,7 +26,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, layers } = body;
+    const { name, layers, variables } = body;
     
     if (!name || !layers) {
       return NextResponse.json(
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const component = await createComponent({ name, layers });
+    const component = await createComponent({ name, layers, variables });
     
     return NextResponse.json({ data: component }, { status: 201 });
   } catch (error) {

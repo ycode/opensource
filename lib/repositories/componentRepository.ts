@@ -18,6 +18,7 @@ import { extractLayerContentMap } from '../localisation-utils';
 export interface CreateComponentData {
   name: string;
   layers: Layer[];
+  variables?: any[]; // Component variables for exposed properties
 }
 
 /**
@@ -72,6 +73,43 @@ export async function getComponentById(id: string, isPublished: boolean = false)
 }
 
 /**
+ * Get multiple components by IDs (drafts by default, excludes soft deleted)
+ * Returns a map of component ID to component for quick lookup
+ */
+export async function getComponentsByIds(
+  ids: string[],
+  isPublished: boolean = false
+): Promise<Record<string, Component>> {
+  const client = await getSupabaseAdmin();
+  if (!client) {
+    throw new Error('Failed to initialize Supabase client');
+  }
+
+  if (ids.length === 0) {
+    return {};
+  }
+
+  const { data, error } = await client
+    .from('components')
+    .select('*')
+    .in('id', ids)
+    .eq('is_published', isPublished)
+    .is('deleted_at', null);
+
+  if (error) {
+    throw new Error(`Failed to fetch components: ${error.message}`);
+  }
+
+  // Convert array to map for O(1) lookup
+  const componentMap: Record<string, Component> = {};
+  data?.forEach(component => {
+    componentMap[component.id] = component;
+  });
+
+  return componentMap;
+}
+
+/**
  * Create a new component (draft by default)
  */
 export async function createComponent(
@@ -88,14 +126,21 @@ export async function createComponent(
     layers: componentData.layers,
   });
 
+  const insertData: any = {
+    name: componentData.name,
+    layers: componentData.layers,
+    content_hash: contentHash,
+    is_published: false,
+  };
+  
+  // Include variables if provided
+  if (componentData.variables?.length) {
+    insertData.variables = componentData.variables;
+  }
+
   const { data, error } = await client
     .from('components')
-    .insert({
-      name: componentData.name,
-      layers: componentData.layers,
-      content_hash: contentHash,
-      is_published: false,
-    })
+    .insert(insertData)
     .select()
     .single();
 

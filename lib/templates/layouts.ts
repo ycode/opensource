@@ -33701,6 +33701,6 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
       },
       'customName': 'Section',
       'open': false
-    },
-  },
+    }
+  }
 };
