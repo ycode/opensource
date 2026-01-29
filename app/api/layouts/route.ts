@@ -1,8 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getAssetsByIds } from '@/lib/repositories/assetRepository';
+import type { Layer } from '@/types';
 
 const LAYOUTS_FILE_PATH = path.join(process.cwd(), 'lib', 'templates', 'layouts.ts');
+
+/**
+ * Collect all asset IDs from icon layers in the template
+ */
+function collectIconAssetIds(layer: Layer): string[] {
+  const assetIds: string[] = [];
+
+  // Check if this layer has an icon with asset reference
+  if (layer.name === 'icon' && layer.variables?.icon?.src) {
+    const iconSrc = layer.variables.icon.src as { type: string; data?: { asset_id?: string } };
+    if (iconSrc.type === 'asset' && iconSrc.data?.asset_id) {
+      assetIds.push(iconSrc.data.asset_id);
+    }
+  }
+
+  // Recursively check children
+  if (layer.children) {
+    for (const child of layer.children) {
+      assetIds.push(...collectIconAssetIds(child));
+    }
+  }
+
+  return assetIds;
+}
+
+/**
+ * Replace asset references with inline SVG content for portability
+ * This makes layouts work across different projects/databases
+ */
+function inlineIconAssets(layer: Layer, assetsMap: Record<string, { content?: string | null }>): Layer {
+  const newLayer = { ...layer };
+
+  // If this is an icon layer with asset reference, convert to static_text with inline content
+  if (newLayer.name === 'icon' && newLayer.variables?.icon?.src) {
+    const iconSrc = newLayer.variables.icon.src as { type: string; data?: { asset_id?: string } };
+    if (iconSrc.type === 'asset' && iconSrc.data?.asset_id) {
+      const asset = assetsMap[iconSrc.data.asset_id];
+      if (asset?.content) {
+        // Convert to static_text with inline SVG
+        newLayer.variables = {
+          ...newLayer.variables,
+          icon: {
+            ...newLayer.variables.icon,
+            src: {
+              type: 'static_text',
+              data: { content: asset.content },
+            },
+          },
+        };
+      }
+    }
+  }
+
+  // Recursively process children
+  if (newLayer.children) {
+    newLayer.children = newLayer.children.map(child => inlineIconAssets(child, assetsMap));
+  }
+
+  return newLayer;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +83,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const template = JSON.parse(templateStr);
+    let template = JSON.parse(templateStr);
+
+    // Make icons portable: collect asset IDs and inline the SVG content
+    const iconAssetIds = collectIconAssetIds(template);
+    if (iconAssetIds.length > 0) {
+      try {
+        const assetsMap = await getAssetsByIds(iconAssetIds);
+        template = inlineIconAssets(template, assetsMap);
+        console.log(`✅ Inlined ${iconAssetIds.length} icon(s) for portability`);
+      } catch (error) {
+        console.warn('Warning: Could not inline icon assets:', error);
+        // Continue without inlining - layout will still save but may not be portable
+      }
+    }
 
     // Handle image upload if provided
     let imageExtension = '.webp'; // default

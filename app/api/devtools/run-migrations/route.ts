@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { runMigrations } from '@/lib/services/migrationService';
+import { runSeeds } from '@/lib/services/seedService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -7,7 +8,7 @@ export const revalidate = 0;
 /**
  * POST /api/devtools/run-migrations
  *
- * Run all pending database migrations
+ * Run all pending database migrations and seed data
  */
 export async function POST() {
   try {
@@ -30,10 +31,21 @@ export async function POST() {
     console.log('[POST /api/devtools/run-migrations] Migrations completed successfully');
     console.log('[POST /api/devtools/run-migrations] Executed:', result.executed);
 
+    // Run seeds after migrations
+    console.log('[POST /api/devtools/run-migrations] Running seeds...');
+    const seedResult = await runSeeds();
+    
+    if (!seedResult.success) {
+      console.warn('[POST /api/devtools/run-migrations] Some seeds failed:', seedResult.results);
+    } else {
+      console.log('[POST /api/devtools/run-migrations] Seeds completed successfully');
+    }
+
     return NextResponse.json({
       data: {
         message: `Successfully executed ${result.executed.length} migration(s)`,
         executed: result.executed,
+        seeds: seedResult.results,
       }
     });
   } catch (error) {

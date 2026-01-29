@@ -1,10 +1,12 @@
 import { runMigrations } from '@/lib/services/migrationService';
+import { runSeeds } from '@/lib/services/seedService';
 import { noCache } from '@/lib/api-response';
 
 /**
  * POST /api/setup/migrate
  *
  * Automatically runs pending Supabase migrations using Knex, if any
+ * Then runs seed data (like Remix Icons)
  */
 export async function POST() {
   try {
@@ -22,9 +24,17 @@ export async function POST() {
       );
     }
 
+    // Run seeds after migrations
+    const seedResult = await runSeeds();
+    
+    if (!seedResult.success) {
+      console.warn('[setup/migrate] Some seeds failed:', seedResult.results);
+    }
+
     return noCache({
       success: true,
       executed: result.executed,
+      seeds: seedResult.results,
       message: result.executed.length > 0
         ? `Successfully executed ${result.executed.length} migration(s)`
         : 'All migrations already up to date',

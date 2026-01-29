@@ -15424,7 +15424,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
         }
       ],
       'customName': 'Section'
-    },
+    }
   },
 
   'blog-posts-003': {
@@ -16604,7 +16604,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           ]
         }
       ]
-    },
+    }
   },
 
   'blog-posts-004': {
@@ -18049,7 +18049,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           ]
         }
       ]
-    },
+    }
   },
 
   'blog-posts-005': {
@@ -18944,7 +18944,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
         }
       ],
       'customName': 'Section'
-    },
+    }
   },
 
   'blog-posts-006': {
@@ -20189,7 +20189,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
         }
       ],
       'customName': 'Section'
-    },
+    }
   },
 
   'blog-headers-001': {
@@ -20580,7 +20580,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           ]
         }
       ]
-    },
+    }
   },
 
   'blog-headers-002': {
@@ -20927,7 +20927,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           ]
         }
       ]
-    },
+    }
   },
 
   'blog-headers-003': {
@@ -21283,7 +21283,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
         }
       ],
       'customName': 'Section'
-    },
+    }
   },
 
   'blog-headers-004': {
@@ -21743,7 +21743,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           'customName': 'Image'
         }
       ]
-    },
+    }
   },
 
   'stats-001': {
@@ -22402,7 +22402,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           ]
         }
       ]
-    },
+    }
   },
 
   'stats-002': {
@@ -23128,7 +23128,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
         }
       ],
       'customName': 'Section'
-    },
+    }
   },
 
   'stats-003': {
@@ -23904,7 +23904,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
         }
       ],
       'customName': 'Section'
-    },
+    }
   },
 
   'pricing-001': {
@@ -25496,7 +25496,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           ]
         }
       ]
-    },
+    }
   },
 
   'team-001': {
@@ -26695,7 +26695,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
         }
       ],
       'customName': 'Section'
-    },
+    }
   },
 
   'team-002': {
@@ -27575,7 +27575,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
         }
       ],
       'customName': 'Section'
-    },
+    }
   },
 
   'testimonials-001': {
@@ -27853,7 +27853,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           ]
         }
       ]
-    },
+    }
   },
 
   'testimonials-002': {
@@ -28711,7 +28711,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
       },
       'customName': 'Section',
       'open': false
-    },
+    }
   },
 
   'testimonials-003': {
@@ -29983,7 +29983,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           ]
         }
       ]
-    },
+    }
   },
 
   'testimonials-004': {
@@ -30514,7 +30514,7 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           ]
         }
       ]
-    },
+    }
   },
 
   'testimonials-005': {
@@ -33203,6 +33203,6 @@ export const layoutTemplates: Record<string, LayoutTemplate> = {
           ]
         }
       ]
-    },
-  },
+    }
+  }
 };
