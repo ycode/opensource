@@ -36,6 +36,65 @@ import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
 import type { HiddenLayerInfo } from '@/lib/animation-utils';
 
 /**
+ * Transform component layers for a specific instance.
+ * Generates unique layer IDs by combining the instance layer ID with original layer IDs.
+ * Also remaps interaction tween layer_id references to use the new IDs.
+ * This ensures each component instance has unique IDs for proper animation targeting.
+ */
+function transformComponentLayersForInstance(
+  layers: Layer[],
+  instanceLayerId: string
+): Layer[] {
+  // Build ID map: original ID -> instance-specific ID
+  const idMap = new Map<string, string>();
+  
+  // First pass: collect all layer IDs and generate new ones
+  const collectIds = (layerList: Layer[]) => {
+    for (const layer of layerList) {
+      // Create a deterministic instance-specific ID
+      const newId = `${instanceLayerId}_${layer.id}`;
+      idMap.set(layer.id, newId);
+      if (layer.children) {
+        collectIds(layer.children);
+      }
+    }
+  };
+  collectIds(layers);
+  
+  // Second pass: transform layers with new IDs and remapped interactions
+  const transformLayer = (layer: Layer): Layer => {
+    const newId = idMap.get(layer.id) || layer.id;
+    
+    const transformedLayer: Layer = {
+      ...layer,
+      id: newId,
+    };
+    
+    // Remap interaction IDs and tween layer_id references
+    // Interaction IDs must be unique per instance to prevent timeline caching issues
+    if (layer.interactions && layer.interactions.length > 0) {
+      transformedLayer.interactions = layer.interactions.map(interaction => ({
+        ...interaction,
+        id: `${instanceLayerId}_${interaction.id}`,
+        tweens: interaction.tweens.map(tween => ({
+          ...tween,
+          layer_id: idMap.get(tween.layer_id) || tween.layer_id,
+        })),
+      }));
+    }
+    
+    // Recursively transform children
+    if (layer.children) {
+      transformedLayer.children = layer.children.map(transformLayer);
+    }
+    
+    return transformedLayer;
+  };
+  
+  return layers.map(transformLayer);
+}
+
+/**
  * Build a map of layerId -> anchor value (attributes.id) for O(1) anchor resolution
  * Recursively traverses the layer tree once
  */
@@ -601,6 +660,16 @@ const LayerItem: React.FC<{
   // In published pages, components are pre-resolved server-side via resolveComponents()
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const component = (isEditMode && layer.componentId) ? getComponentById(layer.componentId) : null;
+  
+  // Transform component layers for this instance to ensure unique IDs per instance
+  // This enables animations to target the correct elements when multiple instances exist
+  const transformedComponentLayers = useMemo(() => {
+    if (isEditMode && component && component.layers && component.layers.length > 0) {
+      return transformComponentLayersForInstance(component.layers, layer.id);
+    }
+    return null;
+  }, [isEditMode, component, layer.id]);
+
   const collectionVariable = getCollectionVariable(layer);
   const isCollectionLayer = !!collectionVariable;
   const collectionId = collectionVariable?.id;
@@ -821,10 +890,10 @@ const LayerItem: React.FC<{
   const renderContent = () => {
     // Component instances in EDIT MODE: render component's layers directly without wrapper
     // In published mode, components are already resolved server-side into children, so render normally
-    if (isEditMode && component && component.layers && component.layers.length > 0) {
+    if (transformedComponentLayers && transformedComponentLayers.length > 0) {
       return (
         <LayerRenderer
-          layers={component.layers}
+          layers={transformedComponentLayers}
           onLayerClick={onLayerClick}
           onLayerUpdate={onLayerUpdate}
           onLayerHover={onLayerHover}
@@ -848,7 +917,7 @@ const LayerItem: React.FC<{
           liveComponentUpdates={liveComponentUpdates}
           parentComponentLayerId={layer.id}
           parentComponentOverrides={layer.componentOverrides}
-          parentComponentVariables={component.variables}
+          parentComponentVariables={component?.variables}
           isInsideForm={isInsideForm}
           parentFormSettings={parentFormSettings}
           pages={pages}

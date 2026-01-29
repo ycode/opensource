@@ -7,6 +7,62 @@
 import type { Layer, Component, ComponentVariable } from '@/types';
 
 /**
+ * Transform layer IDs to be instance-specific to ensure unique IDs per component instance.
+ * This enables animations to target the correct elements when multiple instances exist.
+ * @param layers - Layers to transform
+ * @param instanceLayerId - The component instance's layer ID used as namespace
+ * @returns Transformed layers with remapped IDs and interaction references
+ */
+function transformLayerIdsForInstance(layers: Layer[], instanceLayerId: string): Layer[] {
+  // Build ID map: original ID -> instance-specific ID
+  const idMap = new Map<string, string>();
+  
+  // First pass: collect all layer IDs and generate new ones
+  const collectIds = (layerList: Layer[]) => {
+    for (const layer of layerList) {
+      const newId = `${instanceLayerId}_${layer.id}`;
+      idMap.set(layer.id, newId);
+      if (layer.children) {
+        collectIds(layer.children);
+      }
+    }
+  };
+  collectIds(layers);
+  
+  // Second pass: transform layers with new IDs and remapped interactions
+  const transformLayer = (layer: Layer): Layer => {
+    const newId = idMap.get(layer.id) || layer.id;
+    
+    const transformedLayer: Layer = {
+      ...layer,
+      id: newId,
+    };
+    
+    // Remap interaction IDs and tween layer_id references
+    // Interaction IDs must be unique per instance to prevent timeline caching issues
+    if (layer.interactions && layer.interactions.length > 0) {
+      transformedLayer.interactions = layer.interactions.map(interaction => ({
+        ...interaction,
+        id: `${instanceLayerId}_${interaction.id}`,
+        tweens: interaction.tweens.map(tween => ({
+          ...tween,
+          layer_id: idMap.get(tween.layer_id) || tween.layer_id,
+        })),
+      }));
+    }
+    
+    // Recursively transform children
+    if (layer.children) {
+      transformedLayer.children = layer.children.map(transformLayer);
+    }
+    
+    return transformedLayer;
+  };
+  
+  return layers.map(transformLayer);
+}
+
+/**
  * Apply component variable overrides (or defaults) to layers
  * Recursively finds layers with variables.text.id or variables.image.src.id and applies override or default values
  */
@@ -123,8 +179,14 @@ export function resolveComponents(layers: Layer[], components: Component[]): Lay
         );
 
         // Tag with master component ID for translation lookups
-        const resolvedChildren = overriddenChildren.length
+        const taggedChildren = overriddenChildren.length
           ? tagLayersWithComponentId(overriddenChildren, component.id)
+          : [];
+
+        // Transform layer IDs to be instance-specific
+        // This ensures each component instance has unique IDs for proper animation targeting
+        const resolvedChildren = taggedChildren.length
+          ? transformLayerIdsForInstance(taggedChildren, layer.id)
           : [];
 
         // Merge component content with instance layer, keeping instance ID
