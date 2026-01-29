@@ -24,6 +24,8 @@
 import { useRef, useEffect, useMemo, useCallback } from 'react';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { findLayerById, getSiblingIds, reorderSiblings } from '@/lib/layer-utils';
+import { iframeToWindowCoords, getIframeScale } from '@/lib/iframe-utils';
+import { setDragCursor, clearDragCursor } from '@/lib/drag-cursor';
 import type { Layer } from '@/types';
 
 // Minimum pixel movement required to trigger hit-testing
@@ -185,10 +187,9 @@ export function useCanvasSiblingReorder({
       let startY = e.clientY;
       
       if (currentIframe) {
-        const iframeRect = currentIframe.getBoundingClientRect();
-        const scale = zoomRef.current / 100;
-        startX = iframeRect.left + (e.clientX * scale);
-        startY = iframeRect.top + (e.clientY * scale);
+        const coords = iframeToWindowCoords(currentIframe, e.clientX, e.clientY);
+        startX = coords.windowX;
+        startY = coords.windowY;
       }
       
       // Store start position in WINDOW coordinates for threshold check
@@ -210,10 +211,9 @@ export function useCanvasSiblingReorder({
         // Event is in iframe coordinates - convert to window coordinates
         const currentIframe = iframeRef.current;
         if (currentIframe) {
-          const iframeRect = currentIframe.getBoundingClientRect();
-          const scale = zoomRef.current / 100;
-          clientX = iframeRect.left + (e.clientX * scale);
-          clientY = iframeRect.top + (e.clientY * scale);
+          const coords = iframeToWindowCoords(currentIframe, e.clientX, e.clientY);
+          clientX = coords.windowX;
+          clientY = coords.windowY;
         }
       }
       
@@ -278,8 +278,7 @@ export function useCanvasSiblingReorder({
             const iframeDoc = iframeElement?.contentDocument;
             const currentIframe = iframeRef.current;
             if (iframeDoc && currentIframe) {
-              const iframeRect = currentIframe.getBoundingClientRect();
-              const scale = zoomRef.current / 100;
+              const scale = getIframeScale(currentIframe);
               
               cachedSiblingRectsRef.current.clear();
               siblingInfoData.siblingIds.forEach(id => {
@@ -287,14 +286,13 @@ export function useCanvasSiblingReorder({
                 if (el) {
                   const rect = el.getBoundingClientRect();
                   // Convert iframe-relative coords to window coords
-                  const windowTop = iframeRect.top + (rect.top * scale);
-                  const windowBottom = iframeRect.top + (rect.bottom * scale);
-                  const windowHeight = rect.height * scale;
+                  const topCoords = iframeToWindowCoords(currentIframe, 0, rect.top);
+                  const bottomCoords = iframeToWindowCoords(currentIframe, 0, rect.bottom);
                   
                   cachedSiblingRectsRef.current.set(id, {
-                    top: windowTop,
-                    bottom: windowBottom,
-                    height: windowHeight,
+                    top: topCoords.windowY,
+                    bottom: bottomCoords.windowY,
+                    height: rect.height * scale,
                   });
                 }
               });
@@ -312,14 +310,7 @@ export function useCanvasSiblingReorder({
             hasDragStartedRef.current = true;
             
             // Set grabbing cursor immediately when drag starts
-            const styleId = 'sibling-drag-cursor';
-            let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
-            if (!styleEl) {
-              styleEl = document.createElement('style');
-              styleEl.id = styleId;
-              document.head.appendChild(styleEl);
-            }
-            styleEl.textContent = 'html, body, * { cursor: grabbing !important; }';
+            setDragCursor(iframeDoc);
           }
         }
       }
@@ -364,9 +355,12 @@ export function useCanvasSiblingReorder({
       }
       
       // Find which sibling the cursor is over using cached positions
+      // First pass: try exact match (cursor within element bounds)
+      // Second pass: find closest element if cursor is in a gap
       let matchedLayerId: string | null = null;
       let matchedPosition: 'above' | 'below' = 'below';
       
+      // First pass: exact match
       for (let i = 0; i < siblingIdsArray.length; i++) {
         const siblingId = siblingIdsArray[i];
         
@@ -405,8 +399,40 @@ export function useCanvasSiblingReorder({
         }
       }
       
-      // If cursor is not directly over a sibling, keep the last valid drop target (free drag behavior)
-      // This allows the user to drag freely anywhere while the dropzone stays stable
+      // Second pass: if no exact match (cursor in gap between elements), find closest sibling
+      if (!matchedLayerId) {
+        let closestDistance = Infinity;
+        let closestSiblingId: string | null = null;
+        let closestIsAbove = false;
+        
+        for (let i = 0; i < siblingIdsArray.length; i++) {
+          const siblingId = siblingIdsArray[i];
+          
+          // Skip the dragged element
+          if (siblingId === currentDraggedLayerId) continue;
+          
+          const cachedRect = cachedRects.get(siblingId);
+          if (!cachedRect) continue;
+          
+          // Calculate distance to this element's center
+          const elementCenter = (cachedRect.top + cachedRect.bottom) / 2;
+          const distance = Math.abs(clientY - elementCenter);
+          
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestSiblingId = siblingId;
+            // If cursor is above the center, position is 'above', else 'below'
+            closestIsAbove = clientY < elementCenter;
+          }
+        }
+        
+        if (closestSiblingId) {
+          matchedLayerId = closestSiblingId;
+          matchedPosition = closestIsAbove ? 'above' : 'below';
+        }
+      }
+      
+      // If still no match (e.g., no siblings other than dragged), keep last valid target
       if (!matchedLayerId) {
         return;
       }
@@ -476,8 +502,7 @@ export function useCanvasSiblingReorder({
         endCanvasLayerDrag();
         
         // Reset cursor
-        const styleEl = document.getElementById('sibling-drag-cursor');
-        if (styleEl) styleEl.remove();
+        clearDragCursor(iframeElement?.contentDocument);
       }
       
       hasDragStartedRef.current = false;
@@ -494,10 +519,11 @@ export function useCanvasSiblingReorder({
     iframeDoc.addEventListener('mousedown', handleIframeMouseDown);
     // Listen to mousemove and mouseup on BOTH documents
     // (iframe events don't bubble to parent document)
-    iframeDoc.addEventListener('mousemove', handleDocumentMouseMove);
+    // Use passive: true for mousemove to improve scroll performance
+    iframeDoc.addEventListener('mousemove', handleDocumentMouseMove, { passive: true });
     iframeDoc.addEventListener('mouseup', handleDocumentMouseUp);
     iframeDoc.addEventListener('selectstart', handleSelectStart);
-    document.addEventListener('mousemove', handleDocumentMouseMove);
+    document.addEventListener('mousemove', handleDocumentMouseMove, { passive: true });
     document.addEventListener('mouseup', handleDocumentMouseUp);
 
     return () => {
@@ -548,8 +574,7 @@ export function useCanvasSiblingReorder({
         endCanvasLayerDrag();
         
         // Reset cursor
-        const styleEl = document.getElementById('sibling-drag-cursor');
-        if (styleEl) styleEl.remove();
+        clearDragCursor();
       }
     };
 

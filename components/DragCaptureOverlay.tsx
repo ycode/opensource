@@ -8,11 +8,15 @@
  * capturing/swallowing mouse events, ensuring they bubble up to the
  * document level where our drag handlers are listening.
  * 
- * Without this overlay, mouse events that enter the iframe's area
- * are captured by the iframe and don't propagate to the parent document.
+ * Renders as a PORTAL to document.body to escape CSS stacking contexts
+ * created by transform (zoom) on the canvas. Without this, the overlay
+ * would be behind the transformed canvas despite having higher z-index.
  */
 
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditorStore } from '@/stores/useEditorStore';
+import { setDragCursor, clearDragCursor } from '@/lib/drag-cursor';
 
 export function DragCaptureOverlay() {
   // Subscribe directly to store to avoid parent re-renders
@@ -22,24 +26,46 @@ export function DragCaptureOverlay() {
   // Show overlay for both element-to-canvas drag AND sibling reorder drag
   const isDragging = isDraggingToCanvas || isDraggingLayerOnCanvas;
 
-  // Only render when actively dragging
-  if (!isDragging) return null;
+  // Set cursor on both documents when overlay appears
+  useEffect(() => {
+    if (!isDragging) return;
+    
+    // Find the canvas iframe and set cursor on its document
+    const iframe = document.querySelector('iframe[title="Canvas Editor"]') as HTMLIFrameElement | null;
+    const iframeDoc = iframe?.contentDocument;
+    
+    setDragCursor(iframeDoc);
+    
+    return () => {
+      clearDragCursor(iframeDoc);
+    };
+  }, [isDragging]);
 
-  return (
+  // Only render when actively dragging
+  if (!isDragging || typeof document === 'undefined') return null;
+
+  // Render as portal to document.body to escape stacking context issues
+  return createPortal(
     <div
-      className="absolute inset-0 z-[100]"
       style={{
-        // Transparent but captures all mouse events
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9998,
+        // Transparent
         background: 'transparent',
         // Ensure pointer events are captured by this overlay
         pointerEvents: 'auto',
-        // Cursor to indicate dragging is active
+        // Cursor to indicate dragging is active - must be grabbing
         cursor: 'grabbing',
       }}
-      // Prevent any click/mousedown from reaching the iframe
+      // Prevent any click/mousedown from reaching elements beneath
       onMouseDown={(e) => e.preventDefault()}
       onClick={(e) => e.preventDefault()}
-    />
+    />,
+    document.body
   );
 }
 

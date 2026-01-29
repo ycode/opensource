@@ -300,7 +300,8 @@ export function useCanvasDropDetection({
     };
 
     // Add listeners
-    document.addEventListener('mousemove', handleMouseMove);
+    // Use passive: true for mousemove to improve scroll performance
+    document.addEventListener('mousemove', handleMouseMove, { passive: true });
     document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('keydown', handleKeyDown);
 

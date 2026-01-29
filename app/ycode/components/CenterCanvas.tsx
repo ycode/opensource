@@ -62,6 +62,7 @@ import { getCollectionVariable, canDeleteLayer, findLayerById, findParentCollect
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
 import { DropContainerIndicator, DropLineIndicator } from '@/components/DropIndicators';
 import { DragCaptureOverlay } from '@/components/DragCaptureOverlay';
+import { setDragCursor, clearDragCursor } from '@/lib/drag-cursor';
 
 // 7. Types
 import type { Layer, Page, PageFolder, CollectionField, Asset } from '@/types';
@@ -232,38 +233,11 @@ function CanvasSiblingReorderOverlay({
   useEffect(() => {
     if (!isDragging) return;
     
-    // Create style tag with !important to override all other cursor styles
-    const styleId = 'drag-grabbing-cursor';
-    let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
-    if (!styleEl) {
-      styleEl = document.createElement('style');
-      styleEl.id = styleId;
-      document.head.appendChild(styleEl);
-    }
-    styleEl.textContent = '* { cursor: grabbing !important; }';
-    
-    // Also add to iframe
     const iframeDoc = iframeElement?.contentDocument;
-    const iframeStyleId = 'drag-grabbing-cursor-iframe';
-    if (iframeDoc?.head) {
-      let iframeStyleEl = iframeDoc.getElementById(iframeStyleId) as HTMLStyleElement | null;
-      if (!iframeStyleEl) {
-        iframeStyleEl = iframeDoc.createElement('style');
-        iframeStyleEl.id = iframeStyleId;
-        iframeDoc.head.appendChild(iframeStyleEl);
-      }
-      iframeStyleEl.textContent = '* { cursor: grabbing !important; }';
-    }
+    setDragCursor(iframeDoc);
     
     return () => {
-      // Remove style tags when drag ends
-      const el = document.getElementById(styleId);
-      if (el) el.remove();
-      
-      if (iframeDoc?.head) {
-        const iframeEl = iframeDoc.getElementById(iframeStyleId);
-        if (iframeEl) iframeEl.remove();
-      }
+      clearDragCursor(iframeDoc);
     };
   }, [isDragging, iframeElement]);
 
@@ -491,6 +465,7 @@ function CanvasSiblingReorderOverlay({
       {/* Blue dropzone box - shows where element will be inserted */}
       {dropLineY !== null && dropzoneHeight > 0 && dropzoneWidth > 0 && (
         <div
+          className="animate-in fade-in duration-100"
           style={{
             position: 'absolute',
             transform: `translate(${dropzoneLeft}px, ${dropLineY}px)`,
@@ -2316,7 +2291,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         <div
           ref={scrollContainerRef}
           className={cn(
-            'absolute inset-0',
+            'absolute inset-0 z-0',
             isPreviewMode ? 'overflow-hidden' : 'overflow-auto'
           )}
           style={{

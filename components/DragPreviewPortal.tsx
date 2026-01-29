@@ -20,6 +20,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import Icon from '@/components/ui/icon';
 import { getBlockIcon } from '@/lib/templates/blocks';
 import { cloneElementFromIframe } from '@/lib/dom-utils';
+import { getIframeScale, iframeToWindowCoords } from '@/lib/iframe-utils';
 
 export function DragPreviewPortal() {
   // Element library drag state
@@ -31,6 +32,7 @@ export function DragPreviewPortal() {
   // Sibling reorder drag state
   const isDraggingLayerOnCanvas = useEditorStore((state) => state.isDraggingLayerOnCanvas);
   const draggedLayerId = useEditorStore((state) => state.draggedLayerId);
+  const layerDragStartPosition = useEditorStore((state) => state.layerDragStartPosition);
   
   const previewRef = useRef<HTMLDivElement>(null);
   const cloneContainerRef = useRef<HTMLDivElement>(null);
@@ -108,20 +110,14 @@ export function DragPreviewPortal() {
       }
 
       const rect = originalElement.getBoundingClientRect();
-      const iframeRect = iframe.getBoundingClientRect();
       
-      // Get zoom from the PARENT WRAPPER's CSS transform (not iframe - iframe has no transform)
-      // The scale is applied to the wrapper div that contains the iframe
-      const wrapper = iframe.parentElement;
-      const wrapperTransform = wrapper?.style.transform || '';
-      const scaleMatch = wrapperTransform.match(/scale\(([\d.]+)\)/);
-      const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
+      // Get zoom from the parent wrapper's CSS transform
+      const scale = getIframeScale(iframe);
       
       // Calculate element's position in WINDOW coordinates
-      // rect.left/top are in iframe's unscaled coordinate system
-      // Convert to window coords: iframeRect.left + (rect.left * scale)
-      const elementWindowX = iframeRect.left + (rect.left * scale);
-      const elementWindowY = iframeRect.top + (rect.top * scale);
+      const coords = iframeToWindowCoords(iframe, rect.left, rect.top);
+      const elementWindowX = coords.windowX;
+      const elementWindowY = coords.windowY;
       
       // Store the initial position (center of element in window coords)
       const cloneWidth = rect.width * scale;
@@ -134,11 +130,12 @@ export function DragPreviewPortal() {
       // Clone the element with all computed styles
       const clone = cloneElementFromIframe(originalElement, iframeWindow);
       
-      // Semi-transparent ghost that follows cursor
+      // Semi-transparent ghost that follows cursor with subtle shadow for "lift" effect
       clone.style.margin = '0';
       clone.style.position = 'relative';
       clone.style.pointerEvents = 'none';
-      clone.style.opacity = '0.6';
+      clone.style.opacity = '0.7';
+      clone.style.filter = 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))';
       
       clone.style.transform = `scale(${scale})`;
       clone.style.transformOrigin = 'top left';
@@ -160,10 +157,20 @@ export function DragPreviewPortal() {
         previewRef.current.style.transform = transformValue;
         previewRef.current.style.visibility = 'visible';
         
-        // Store the initial ghost position so mousemove can calculate offset
+        // Store the initial ghost position
         initialPositionRef.current = { x: elementWindowX, y: elementWindowY };
-        // dragOffsetRef will be calculated on first mousemove
-        dragOffsetRef.current = null;
+        
+        // Calculate offset immediately using the stored drag start position
+        // This ensures the ghost stays "locked" to where the user grabbed it
+        const startPos = useEditorStore.getState().layerDragStartPosition;
+        if (startPos) {
+          dragOffsetRef.current = {
+            x: startPos.x - elementWindowX,
+            y: startPos.y - elementWindowY,
+          };
+        } else {
+          dragOffsetRef.current = null;
+        }
       }
     };
     
@@ -202,16 +209,8 @@ export function DragPreviewPortal() {
       if (isLayerDrag) {
         if (!currentCloneSize) return;
         
-        // On first mousemove after ghost is positioned, calculate the offset
-        // This maintains the relative position between cursor and ghost
-        if (dragOffsetRef.current === null && initialPositionRef.current) {
-          dragOffsetRef.current = {
-            x: windowX - initialPositionRef.current.x,
-            y: windowY - initialPositionRef.current.y,
-          };
-        }
-        
         // Use the stored offset to position ghost relative to cursor
+        // Offset is calculated at clone creation time using layerDragStartPosition
         const offset = dragOffsetRef.current || { x: 0, y: 0 };
         const newX = windowX - offset.x;
         const newY = windowY - offset.y;
@@ -231,25 +230,16 @@ export function DragPreviewPortal() {
     const handleIframeMouseMove = (e: MouseEvent) => {
       if (!iframe) return;
       
-      const iframeRect = iframe.getBoundingClientRect();
-      
-      // Get zoom from the PARENT WRAPPER's CSS transform (not iframe - iframe has no transform)
-      const wrapper = iframe.parentElement;
-      const wrapperTransform = wrapper?.style.transform || '';
-      const scaleMatch = wrapperTransform.match(/scale\(([\d.]+)\)/);
-      const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
-      
-      // Convert iframe coords to window coords
-      const windowX = iframeRect.left + (e.clientX * scale);
-      const windowY = iframeRect.top + (e.clientY * scale);
-      
-      updatePosition(windowX, windowY);
+      // Convert iframe coords to window coords using utility
+      const coords = iframeToWindowCoords(iframe, e.clientX, e.clientY);
+      updatePosition(coords.windowX, coords.windowY);
     };
 
     // Add listeners to both documents
-    document.addEventListener('mousemove', handleDocumentMouseMove);
+    // Use passive: true for better scroll performance
+    document.addEventListener('mousemove', handleDocumentMouseMove, { passive: true });
     if (iframeDoc) {
-      iframeDoc.addEventListener('mousemove', handleIframeMouseMove);
+      iframeDoc.addEventListener('mousemove', handleIframeMouseMove, { passive: true });
     }
 
     return () => {

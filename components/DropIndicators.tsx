@@ -33,6 +33,7 @@ export function DropLineIndicator({
     <div
       className={cn(
         'absolute left-0 right-0 h-[1.5px] z-50 bg-primary',
+        'animate-in fade-in duration-100',
         position === 'above' ? 'top-0' : 'bottom-0',
         className
       )}
@@ -67,6 +68,7 @@ export function DropContainerIndicator({
       <div 
         className={cn(
           'absolute inset-0 z-40 pointer-events-none',
+          'animate-in fade-in duration-100',
           // Canvas variant: blue background fill
           variant === 'dashed' && 'bg-primary/15',
           // Tree variant: solid border
@@ -75,7 +77,7 @@ export function DropContainerIndicator({
         )} 
       />
       {label && (
-        <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded z-50 whitespace-nowrap font-medium">
+        <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded z-50 whitespace-nowrap font-medium animate-in fade-in slide-in-from-top-1 duration-100">
           {label}
         </div>
       )}
