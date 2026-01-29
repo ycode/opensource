@@ -8,7 +8,7 @@ import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import type { Layer, Locale, ComponentVariable, LinkSettings } from '@/types';
+import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
@@ -84,6 +84,8 @@ interface LayerRendererProps {
   parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
   parentComponentVariables?: ComponentVariable[]; // Component's variables for default value lookup
   editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
+  isInsideForm?: boolean; // Whether this layer is inside a form (for button type handling)
+  parentFormSettings?: FormSettings; // Form settings from parent form layer
   pages?: any[]; // Pages for link resolution
   folders?: any[]; // Folders for link resolution
   collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
@@ -120,6 +122,8 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   parentComponentOverrides,
   parentComponentVariables,
   editingComponentVariables,
+  isInsideForm = false,
+  parentFormSettings,
   pages: pagesProp,
   folders: foldersProp,
   isPreview = false,
@@ -223,6 +227,8 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         parentComponentOverrides={parentComponentOverrides}
         parentComponentVariables={parentComponentVariables}
         editingComponentVariables={editingComponentVariables}
+        isInsideForm={isInsideForm}
+        parentFormSettings={parentFormSettings}
         pages={pages}
         folders={folders}
         collectionItemSlugs={collectionItemSlugs}
@@ -274,6 +280,8 @@ const LayerItem: React.FC<{
   parentComponentOverrides?: Layer['componentOverrides']; // Override values from parent component instance
   parentComponentVariables?: ComponentVariable[]; // Component's variables for default value lookup
   editingComponentVariables?: ComponentVariable[]; // Variables when directly editing a component
+  isInsideForm?: boolean; // Whether this layer is inside a form
+  parentFormSettings?: FormSettings; // Form settings from parent form layer
   pages?: any[]; // Pages for link resolution
   folders?: any[]; // Folders for link resolution
   collectionItemSlugs?: Record<string, string>; // Maps collection_item_id -> slug value for link resolution
@@ -313,6 +321,8 @@ const LayerItem: React.FC<{
   parentComponentOverrides,
   parentComponentVariables,
   editingComponentVariables,
+  isInsideForm = false,
+  parentFormSettings,
   pages,
   folders,
   collectionItemSlugs,
@@ -838,6 +848,8 @@ const LayerItem: React.FC<{
           parentComponentLayerId={layer.id}
           parentComponentOverrides={layer.componentOverrides}
           parentComponentVariables={component.variables}
+          isInsideForm={isInsideForm}
+          parentFormSettings={parentFormSettings}
           pages={pages}
           folders={folders}
           collectionItemSlugs={collectionItemSlugs}
@@ -851,24 +863,33 @@ const LayerItem: React.FC<{
     const Tag = htmlTag as any;
     const { style: attrStyle, ...otherAttributes } = layer.attributes || {};
 
-    // Convert string boolean values to actual booleans
+    // Map HTML attributes to React JSX equivalents
+    const htmlToJsxAttrMap: Record<string, string> = {
+      'for': 'htmlFor',
+      'class': 'className',
+    };
+
+    // Convert string boolean values to actual booleans and map HTML attrs to JSX
     const normalizedAttributes = Object.fromEntries(
       Object.entries(otherAttributes).map(([key, value]) => {
+        // Map HTML attribute names to JSX equivalents
+        const jsxKey = htmlToJsxAttrMap[key] || key;
+
         // If value is already a boolean, keep it
         if (typeof value === 'boolean') {
-          return [key, value];
+          return [jsxKey, value];
         }
         // If value is a string that looks like a boolean, convert it
         if (typeof value === 'string') {
           if (value === 'true') {
-            return [key, true];
+            return [jsxKey, true];
           }
           if (value === 'false') {
-            return [key, false];
+            return [jsxKey, false];
           }
         }
         // For all other values, keep them as-is
-        return [key, value];
+        return [jsxKey, value];
       })
     );
 
@@ -911,8 +932,21 @@ const LayerItem: React.FC<{
       elementProps['data-gsap-hidden'] = '';
     }
 
-    // Apply custom ID from attributes
-    if (layer.attributes?.id) {
+    // Handle alert elements (for form success/error messages)
+    if (layer.alertType) {
+      elementProps['data-alert-type'] = layer.alertType;
+    }
+
+    // Hide elements with hiddenGenerated: true by default (in all modes)
+    if (layer.hiddenGenerated) {
+      const existingStyle = typeof elementProps.style === 'object' ? elementProps.style : {};
+      elementProps.style = { ...existingStyle, display: 'none' };
+    }
+
+    // Apply custom ID from settings or attributes
+    if (layer.settings?.id) {
+      elementProps.id = layer.settings.id;
+    } else if (layer.attributes?.id) {
       elementProps.id = layer.attributes.id;
     }
 
@@ -937,6 +971,10 @@ const LayerItem: React.FC<{
         // Only handle if not a context menu trigger
         if (e.button !== 2) {
           e.stopPropagation();
+          // Prevent default behavior for labels (which would focus the associated input)
+          if (htmlTag === 'label') {
+            e.preventDefault();
+          }
           // If this layer is inside a component, select the component layer instead
           const layerIdToSelect = parentComponentLayerId || layer.id;
 
@@ -1036,7 +1074,122 @@ const LayerItem: React.FC<{
     }
 
     if (htmlTag === 'input') {
+      // Auto-set name attribute for form inputs if not already set
+      if (isInsideForm && !elementProps.name) {
+        elementProps.name = layer.settings?.id || layer.id;
+      }
       return <Tag {...elementProps} />;
+    }
+
+    // Handle textarea - auto-set name for form submission and return early (no children)
+    if (htmlTag === 'textarea') {
+      if (isInsideForm && !elementProps.name) {
+        elementProps.name = layer.settings?.id || layer.id;
+      }
+      return <Tag {...elementProps} />;
+    }
+
+    // Handle select - auto-set name for form submission
+    if (htmlTag === 'select') {
+      if (isInsideForm && !elementProps.name) {
+        elementProps.name = layer.settings?.id || layer.id;
+      }
+    }
+
+    // Handle button inside form - set type="submit" only when not in edit mode (preview and published)
+    if (htmlTag === 'button' && isInsideForm && !isEditMode) {
+      // Only override if type is not explicitly set or is 'button'
+      if (!normalizedAttributes.type || normalizedAttributes.type === 'button') {
+        elementProps.type = 'submit';
+      }
+    }
+
+    // Block form submission in edit mode
+    if (htmlTag === 'form' && isEditMode) {
+      elementProps.onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+      };
+    }
+
+    // Handle form submission when not in edit mode (preview and published)
+    if (htmlTag === 'form' && !isEditMode) {
+      const formId = layer.settings?.id;
+      const formSettings = layer.settings?.form;
+
+      elementProps.onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+
+        const form = e.currentTarget;
+        const formData = new FormData(form);
+        const payload: Record<string, any> = {};
+
+        // Convert FormData to object
+        formData.forEach((value, key) => {
+          // Handle multiple values (e.g., checkboxes with same name)
+          if (payload[key]) {
+            if (Array.isArray(payload[key])) {
+              payload[key].push(value);
+            } else {
+              payload[key] = [payload[key], value];
+            }
+          } else {
+            payload[key] = value;
+          }
+        });
+
+        try {
+          const response = await fetch('/api/form-submissions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              form_id: formId || 'unnamed-form',
+              payload,
+              metadata: {
+                page_url: typeof window !== 'undefined' ? window.location.href : undefined,
+              },
+            }),
+          });
+
+          const result = await response.json();
+
+          // Find alert elements within the form
+          const errorAlert = form.querySelector('[data-alert-type="error"]') as HTMLElement | null;
+          const successAlert = form.querySelector('[data-alert-type="success"]') as HTMLElement | null;
+
+          // Hide both alerts first
+          if (errorAlert) errorAlert.style.display = 'none';
+          if (successAlert) successAlert.style.display = 'none';
+
+          if (response.ok) {
+            // Success handling
+            const successAction = formSettings?.success_action || 'message';
+
+            if (successAction === 'redirect' && formSettings?.redirect_url) {
+              // Redirect to the specified URL
+              window.location.href = formSettings.redirect_url;
+            } else {
+              // Show success alert
+              if (successAlert) {
+                successAlert.style.display = '';
+              }
+            }
+            // Reset the form
+            form.reset();
+          } else {
+            // Error handling - show error alert
+            if (errorAlert) {
+              errorAlert.style.display = '';
+            }
+          }
+        } catch (error) {
+          console.error('Form submission error:', error);
+          // Show error alert on catch
+          const errorAlert = form.querySelector('[data-alert-type="error"]') as HTMLElement | null;
+          if (errorAlert) {
+            errorAlert.style.display = '';
+          }
+        }
+      };
     }
 
     // Handle icon layers (check layer.name, not htmlTag since settings.tag might be 'div')
@@ -1352,6 +1505,8 @@ const LayerItem: React.FC<{
               availableLocales={availableLocales}
               localeSelectorFormat={localeSelectorFormat}
               liveLayerUpdates={liveLayerUpdates}
+              isInsideForm={isInsideForm}
+              parentFormSettings={parentFormSettings}
             />
           )}
         </Tag>
@@ -1466,6 +1621,8 @@ const LayerItem: React.FC<{
                   parentComponentOverrides={parentComponentOverrides}
                   parentComponentVariables={parentComponentVariables}
                   editingComponentVariables={editingComponentVariables}
+                  isInsideForm={isInsideForm || htmlTag === 'form'}
+                  parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
                   pages={pages}
                   folders={folders}
                   collectionItemSlugs={collectionItemSlugs}
@@ -1528,6 +1685,8 @@ const LayerItem: React.FC<{
               parentComponentOverrides={parentComponentOverrides}
               parentComponentVariables={parentComponentVariables}
               editingComponentVariables={editingComponentVariables}
+              isInsideForm={isInsideForm || htmlTag === 'form'}
+              parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
             />
           )}
 
@@ -1583,6 +1742,8 @@ const LayerItem: React.FC<{
             parentComponentOverrides={parentComponentOverrides}
             parentComponentVariables={parentComponentVariables}
             editingComponentVariables={editingComponentVariables}
+            isInsideForm={isInsideForm || htmlTag === 'form'}
+            parentFormSettings={htmlTag === 'form' ? layer.settings?.form : parentFormSettings}
             pages={pages}
             folders={folders}
             collectionItemSlugs={collectionItemSlugs}

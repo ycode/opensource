@@ -188,6 +188,45 @@ export function findLayerById(layers: Layer[], id: string): Layer | null {
 }
 
 /**
+ * Collect all settings.id values from a layer tree
+ * Used for generating unique IDs for new elements
+ */
+export function collectAllSettingsIds(layers: Layer[]): Set<string> {
+  const ids = new Set<string>();
+
+  const traverse = (layerList: Layer[]) => {
+    for (const layer of layerList) {
+      if (layer.settings?.id) {
+        ids.add(layer.settings.id);
+      }
+      if (layer.children) {
+        traverse(layer.children);
+      }
+    }
+  };
+
+  traverse(layers);
+  return ids;
+}
+
+/**
+ * Generate a unique settings ID based on a base ID
+ * If "contact-form" exists, returns "contact-form-2", then "contact-form-3", etc.
+ */
+export function generateUniqueSettingsId(baseId: string, existingIds: Set<string>): string {
+  if (!existingIds.has(baseId)) {
+    return baseId;
+  }
+
+  let counter = 2;
+  while (existingIds.has(`${baseId}-${counter}`)) {
+    counter++;
+  }
+
+  return `${baseId}-${counter}`;
+}
+
+/**
  * Helper to find a layer and its parent
  * @param layers - Root layers array
  * @param targetId - ID of the layer to find
