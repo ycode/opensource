@@ -141,6 +141,10 @@ export interface FormSettings {
     to: string; // Email address to send notifications to
     subject?: string; // Email subject line
   };
+  webhook_notification?: {
+    enabled: boolean;
+    url: string; // Webhook URL to send POST request to
+  };
 }
 
 export interface LayerSettings {
