@@ -1262,6 +1262,7 @@ const LayerItem: React.FC<{
                 page_url: typeof window !== 'undefined' ? window.location.href : undefined,
               },
               webhook: formSettings?.webhook_notification,
+              email: formSettings?.email_notification,
             }),
           });
 

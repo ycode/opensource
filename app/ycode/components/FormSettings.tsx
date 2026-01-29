@@ -6,12 +6,14 @@
  * Settings panel for form layers with submission handling configuration
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import Icon from '@/components/ui/icon';
 import SettingsPanel from './SettingsPanel';
 import type { Layer, FormSettings as FormSettingsType } from '@/types';
 
@@ -22,6 +24,26 @@ interface FormSettingsProps {
 
 export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps) {
   const [isOpen, setIsOpen] = useState(true);
+  const [isSmtpEnabled, setIsSmtpEnabled] = useState<boolean | null>(null);
+
+  // Check if SMTP is enabled in global settings
+  useEffect(() => {
+    const checkSmtpSettings = async () => {
+      try {
+        const response = await fetch('/api/settings/email');
+        if (response.ok) {
+          const result = await response.json();
+          setIsSmtpEnabled(result.data?.enabled ?? false);
+        } else {
+          setIsSmtpEnabled(false);
+        }
+      } catch {
+        setIsSmtpEnabled(false);
+      }
+    };
+
+    checkSmtpSettings();
+  }, []);
 
   // Get current form settings
   const formSettings: FormSettingsType = layer?.settings?.form || {};
@@ -150,17 +172,30 @@ export default function FormSettings({ layer, onLayerUpdate }: FormSettingsProps
           {/* Email Notification */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <Label htmlFor="email-enabled" className="text-xs">
-                Email notification
-              </Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="email-enabled" className="text-xs">
+                  Email notification
+                </Label>
+                {!isSmtpEnabled && isSmtpEnabled !== null && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Icon name="info" className="size-3 opacity-70" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Enable SMTP in Settings to use
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
               <Switch
                 id="email-enabled"
-                checked={emailNotification.enabled}
+                checked={emailNotification.enabled && isSmtpEnabled === true}
                 onCheckedChange={(checked) => handleEmailNotificationChange('enabled', checked)}
+                disabled={!isSmtpEnabled}
               />
             </div>
 
-            {emailNotification.enabled && (
+            {emailNotification.enabled && isSmtpEnabled && (
               <div className="flex flex-col gap-3 pl-0">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="email-to" className="text-xs font-normal">

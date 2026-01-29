@@ -7,6 +7,7 @@ import {
   bulkDeleteFormSubmissions,
 } from '@/lib/repositories/formSubmissionRepository';
 import { sendFormSubmissionWebhook } from '@/lib/services/webhookService';
+import { sendFormSubmissionEmail, extractReplyToEmail } from '@/lib/services/emailService';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -95,6 +96,27 @@ export async function POST(request: NextRequest) {
         body.payload,
         metadata,
         submission.created_at
+      );
+    }
+
+    // Send email notification if enabled (fire and forget)
+    if (body.email?.enabled && body.email?.to) {
+      // Extract reply-to email from form payload (first email field found)
+      const replyTo = extractReplyToEmail(body.payload);
+
+      sendFormSubmissionEmail(
+        body.email.to,
+        body.email.subject || `New form submission: ${body.form_id}`,
+        {
+          formId: body.form_id,
+          submissionId: submission.id,
+          payload: body.payload,
+          metadata: {
+            ...metadata,
+            submitted_at: submission.created_at,
+          },
+          replyTo,
+        }
       );
     }
 

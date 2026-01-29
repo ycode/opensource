@@ -609,6 +609,19 @@ export interface Redirect {
   type?: '301' | '302'; // Permanent vs temporary (default 301)
 }
 
+export type SmtpProvider = 'google' | 'microsoft365' | 'mailersend' | 'postmark' | 'sendgrid' | 'mailgun' | 'amazonses' | 'other';
+
+export interface EmailSettings {
+  enabled: boolean;
+  provider: SmtpProvider;
+  smtpHost: string;
+  smtpPort: string;
+  smtpUser: string;
+  smtpPassword: string;
+  fromEmail: string;
+  fromName: string;
+}
+
 // Editor State Types
 export interface EditorState {
   selectedLayerId: string | null; // Legacy - kept for backward compatibility
