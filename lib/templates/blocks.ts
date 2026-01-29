@@ -244,6 +244,25 @@ export function getAllLayoutKeys(): string[] {
 }
 
 /**
+ * Category display order - categories not in this list appear at the end
+ */
+const CATEGORY_ORDER = [
+  'Navigation',
+  'Hero',
+  'Features',
+  'Content',
+  'Blog header',
+  'Blog posts',
+  'Testimonials',
+  'Pricing',
+  'FAQ',
+  'CTA',
+  'Footer',
+  'Custom',
+  'Other',
+];
+
+/**
  * Get layouts grouped by category
  */
 export function getLayoutsByCategory(): Record<string, string[]> {
@@ -257,5 +276,23 @@ export function getLayoutsByCategory(): Record<string, string[]> {
     categories[category].push(key);
   });
 
-  return categories;
+  // Sort categories by defined order
+  const sortedCategories: Record<string, string[]> = {};
+  const categoryKeys = Object.keys(categories);
+  
+  // First add categories in the defined order
+  CATEGORY_ORDER.forEach((cat) => {
+    if (categories[cat]) {
+      sortedCategories[cat] = categories[cat];
+    }
+  });
+  
+  // Then add any remaining categories not in the order list
+  categoryKeys.forEach((cat) => {
+    if (!sortedCategories[cat]) {
+      sortedCategories[cat] = categories[cat];
+    }
+  });
+
+  return sortedCategories;
 }

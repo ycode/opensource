@@ -94,9 +94,9 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
         }
       }
     }
-    // Initialize with all categories collapsed except "Hero", "Blog header" and "Blog posts"
+    // Initialize with all categories collapsed except "Navigation", "Hero", "Blog header" and "Blog posts"
     const allCategories = Object.keys(getLayoutsByCategory());
-    return new Set(allCategories.filter(cat => cat !== 'Hero' && cat !== 'Blog header' && cat !== 'Blog posts'));
+    return new Set(allCategories.filter(cat => cat !== 'Navigation' && cat !== 'Hero' && cat !== 'Blog header' && cat !== 'Blog posts'));
   });
 
   // Persist active tab to sessionStorage
