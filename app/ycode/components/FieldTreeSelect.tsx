@@ -14,7 +14,7 @@ import Icon from '@/components/ui/icon';
 import { DropdownMenuItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import type { CollectionField, Collection } from '@/types';
 import type { IconProps } from '@/components/ui/icon';
-import { getFieldIcon } from '@/lib/field-types-config';
+import { getFieldIcon } from '@/lib/collection-field-utils';
 
 /** Field source for inline variable resolution */
 export type FieldSourceType = 'page' | 'collection';
