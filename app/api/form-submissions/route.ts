@@ -6,6 +6,7 @@ import {
   deleteFormSubmissionsByFormId,
   bulkDeleteFormSubmissions,
 } from '@/lib/repositories/formSubmissionRepository';
+import { sendFormSubmissionWebhook } from '@/lib/services/webhookService';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -84,6 +85,18 @@ export async function POST(request: NextRequest) {
       payload: body.payload,
       metadata,
     });
+
+    // Send webhook notification if enabled (fire and forget)
+    if (body.webhook?.enabled && body.webhook?.url) {
+      sendFormSubmissionWebhook(
+        body.webhook.url,
+        body.form_id,
+        submission.id,
+        body.payload,
+        metadata,
+        submission.created_at
+      );
+    }
 
     return NextResponse.json(
       { data: submission, message: 'Form submitted successfully' },

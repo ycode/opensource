@@ -2644,15 +2644,18 @@ const RightSidebar = React.memo(function RightSidebar({
               onLayerUpdate={handleLayerUpdate}
             />
 
-            <LinkSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-              fieldGroups={fieldGroups}
-              allFields={fields}
-              collections={collections}
-              isLockedByOther={isLockedByOther}
-              isInsideCollectionLayer={!!parentCollectionLayer}
-            />
+            {/* Link Settings - hide for form layers */}
+            {selectedLayer?.name !== 'form' && (
+              <LinkSettings
+                layer={selectedLayer}
+                onLayerUpdate={handleLayerUpdate}
+                fieldGroups={fieldGroups}
+                allFields={fields}
+                collections={collections}
+                isLockedByOther={isLockedByOther}
+                isInsideCollectionLayer={!!parentCollectionLayer}
+              />
+            )}
 
             {/* Collection Filters - only for collection layers */}
             {selectedLayer && getCollectionVariable(selectedLayer)?.id && (
