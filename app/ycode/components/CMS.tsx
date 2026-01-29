@@ -28,7 +28,7 @@ import { useResourceLock } from '@/hooks/use-resource-lock';
 import { collectionsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { slugify } from '@/lib/collection-utils';
-import { FIELD_TYPES, type FieldType } from '@/lib/field-types-config';
+import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName } from '@/lib/collection-field-utils';
 import { extractPlainTextFromContent } from '@/lib/cms-variables-utils';
 import { parseCollectionLinkValue, resolveCollectionLinkValue } from '@/lib/link-utils';
 import { useEditorUrl } from '@/hooks/use-editor-url';
@@ -609,18 +609,12 @@ const CMS = React.memo(function CMS() {
 
           // Get the display field for this collection
           const refCollectionFields = fields[collectionId] || [];
-          const displayField = refCollectionFields.find(f => f.key === 'title')
-            || refCollectionFields.find(f => f.key === 'name')
-            || refCollectionFields.find(f => f.type === 'text' && f.fillable)
-            || refCollectionFields[0];
+          const displayField = findDisplayField(refCollectionFields);
 
           // Build cache entries for all items in the collection
           newCache[collectionId] = {};
           response.data.items.forEach(item => {
-            const displayValue = displayField
-              ? item.values[displayField.id] || 'Untitled'
-              : 'Untitled';
-            newCache[collectionId][item.id] = displayValue;
+            newCache[collectionId][item.id] = getItemDisplayName(item, displayField);
           });
         } catch (error) {
           console.error(`Failed to fetch referenced items for collection ${collectionId}:`, error);

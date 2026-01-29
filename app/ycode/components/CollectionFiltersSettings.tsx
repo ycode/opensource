@@ -26,7 +26,7 @@ import type {
   CollectionVariable
 } from '@/types';
 import { Button } from '@/components/ui/button';
-import Icon, { IconProps } from '@/components/ui/icon';
+import Icon from '@/components/ui/icon';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +38,16 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { collectionsApi } from '@/lib/api';
+import {
+  getFieldIcon,
+  getOperatorsForFieldType,
+  operatorRequiresValue,
+  operatorRequiresItemSelection,
+  operatorRequiresSecondValue,
+  findDisplayField,
+  getItemDisplayName,
+  COMPARE_OPERATORS,
+} from '@/lib/collection-field-utils';
 import { getCollectionVariable } from '@/lib/layer-utils';
 import type { CollectionItemWithValues } from '@/types';
 
@@ -45,126 +55,6 @@ interface CollectionFiltersSettingsProps {
   layer: Layer | null;
   onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
   collectionId: string;
-}
-
-// Operator definitions by field type
-const TEXT_OPERATORS: { value: VisibilityOperator; label: string }[] = [
-  { value: 'is', label: 'is' },
-  { value: 'is_not', label: 'is not' },
-  { value: 'contains', label: 'contains' },
-  { value: 'does_not_contain', label: 'does not contain' },
-  { value: 'is_present', label: 'is present' },
-  { value: 'is_empty', label: 'is empty' },
-];
-
-const NUMBER_OPERATORS: { value: VisibilityOperator; label: string }[] = [
-  { value: 'is', label: 'is' },
-  { value: 'is_not', label: 'is not' },
-  { value: 'lt', label: 'is less than' },
-  { value: 'lte', label: 'is less than or equal to' },
-  { value: 'gt', label: 'is more than' },
-  { value: 'gte', label: 'is more than or equal to' },
-];
-
-const DATE_OPERATORS: { value: VisibilityOperator; label: string }[] = [
-  { value: 'is', label: 'is' },
-  { value: 'is_before', label: 'is before' },
-  { value: 'is_after', label: 'is after' },
-  { value: 'is_between', label: 'is between' },
-  { value: 'is_empty', label: 'is empty' },
-  { value: 'is_not_empty', label: 'is not empty' },
-];
-
-const BOOLEAN_OPERATORS: { value: VisibilityOperator; label: string }[] = [
-  { value: 'is', label: 'is' },
-];
-
-const REFERENCE_OPERATORS: { value: VisibilityOperator; label: string }[] = [
-  { value: 'is_one_of', label: 'is one of' },
-  { value: 'is_not_one_of', label: 'is not one of' },
-  { value: 'exists', label: 'exists' },
-  { value: 'does_not_exist', label: 'does not exist' },
-];
-
-const MULTI_REFERENCE_OPERATORS: { value: VisibilityOperator; label: string }[] = [
-  { value: 'is_one_of', label: 'is one of' },
-  { value: 'is_not_one_of', label: 'is not one of' },
-  { value: 'contains_all_of', label: 'contains all of' },
-  { value: 'contains_exactly', label: 'contains exactly' },
-  { value: 'item_count', label: 'item count' },
-  { value: 'has_items', label: 'has items' },
-  { value: 'has_no_items', label: 'has no items' },
-];
-
-const COMPARE_OPERATORS: { value: string; label: string }[] = [
-  { value: 'eq', label: 'equals' },
-  { value: 'lt', label: 'less than' },
-  { value: 'lte', label: 'less than or equal' },
-  { value: 'gt', label: 'greater than' },
-  { value: 'gte', label: 'greater than or equal' },
-];
-
-/**
- * Get operators available for a given field type
- */
-function getOperatorsForFieldType(fieldType: CollectionFieldType | undefined): { value: VisibilityOperator; label: string }[] {
-  switch (fieldType) {
-    case 'number':
-      return NUMBER_OPERATORS;
-    case 'date':
-      return DATE_OPERATORS;
-    case 'boolean':
-      return BOOLEAN_OPERATORS;
-    case 'reference':
-    case 'image':
-      return REFERENCE_OPERATORS;
-    case 'multi_reference':
-      return MULTI_REFERENCE_OPERATORS;
-    case 'text':
-    case 'rich_text':
-    default:
-      return TEXT_OPERATORS;
-  }
-}
-
-/**
- * Get icon for field type
- */
-function getFieldIcon(fieldType: CollectionFieldType | undefined): IconProps['name'] {
-  switch (fieldType) {
-    case 'number': return 'hash';
-    case 'date': return 'calendar';
-    case 'boolean': return 'check';
-    case 'reference': return 'database';
-    case 'multi_reference': return 'database';
-    case 'image': return 'image';
-    case 'rich_text': return 'textAlignLeft';
-    case 'link': return 'link';
-    case 'text':
-    default:
-      return 'text';
-  }
-}
-
-/**
- * Check if operator requires a value input
- */
-function operatorRequiresValue(operator: VisibilityOperator): boolean {
-  return !['is_present', 'is_empty', 'is_not_empty', 'has_items', 'has_no_items', 'exists', 'does_not_exist'].includes(operator);
-}
-
-/**
- * Check if operator requires collection item selection
- */
-function operatorRequiresItemSelection(operator: VisibilityOperator): boolean {
-  return ['is_one_of', 'is_not_one_of', 'contains_all_of', 'contains_exactly'].includes(operator);
-}
-
-/**
- * Check if operator requires a second value (for date ranges)
- */
-function operatorRequiresSecondValue(operator: VisibilityOperator): boolean {
-  return operator === 'is_between';
 }
 
 /**
@@ -190,15 +80,7 @@ function ReferenceItemsSelector({
   const collectionFields = fields[collectionId] || [];
 
   // Find the title/name field for display
-  const displayField = useMemo(() => {
-    const titleField = collectionFields.find(f => f.key === 'title');
-    if (titleField) return titleField;
-    const nameField = collectionFields.find(f => f.key === 'name');
-    if (nameField) return nameField;
-    const textField = collectionFields.find(f => f.type === 'text' && f.fillable);
-    if (textField) return textField;
-    return collectionFields[0] || null;
-  }, [collectionFields]);
+  const displayField = useMemo(() => findDisplayField(collectionFields), [collectionFields]);
 
   // Parse selected IDs from JSON value
   const selectedIds = useMemo(() => {
@@ -212,10 +94,10 @@ function ReferenceItemsSelector({
   }, [value]);
 
   // Get display name for an item
-  const getItemDisplayName = useCallback((item: CollectionItemWithValues) => {
-    if (!displayField) return 'Untitled';
-    return item.values[displayField.id] || 'Untitled';
-  }, [displayField]);
+  const getDisplayName = useCallback(
+    (item: CollectionItemWithValues) => getItemDisplayName(item, displayField),
+    [displayField]
+  );
 
   // Fetch items when dropdown opens
   useEffect(() => {
@@ -253,7 +135,7 @@ function ReferenceItemsSelector({
     const selectedNames = selectedIds
       .map(id => {
         const item = items.find(i => i.id === id);
-        return item ? getItemDisplayName(item) : null;
+        return item ? getDisplayName(item) : null;
       })
       .filter(Boolean);
 
@@ -301,7 +183,7 @@ function ReferenceItemsSelector({
                 onCheckedChange={() => handleToggle(item.id)}
                 onSelect={(e) => e.preventDefault()}
               >
-                {getItemDisplayName(item)}
+                {getDisplayName(item)}
               </DropdownMenuCheckboxItem>
             );
           })
