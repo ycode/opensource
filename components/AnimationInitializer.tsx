@@ -63,6 +63,68 @@ function getElement(layerId: string): HTMLElement | null {
   return document.querySelector(`[data-layer-id="${layerId}"]`);
 }
 
+/**
+ * Collect info about elements that should start hidden based on interactions
+ * Returns a map of layerId -> breakpoints (null means all breakpoints)
+ */
+function collectHiddenLayerInfo(interactions: CollectedInteraction[]): Map<string, string[] | null> {
+  const hiddenMap = new Map<string, string[] | null>();
+
+  interactions.forEach(({ interaction }) => {
+    const breakpoints = interaction.timeline?.breakpoints || null;
+
+    (interaction.tweens || []).forEach((tween) => {
+      // Check if this tween has display: hidden with on-load apply style
+      if (tween.from?.display === 'hidden' && tween.apply_styles?.display === 'on-load') {
+        hiddenMap.set(tween.layer_id, breakpoints);
+      }
+    });
+  });
+
+  return hiddenMap;
+}
+
+/**
+ * Reset GSAP inline styles and restore initial data attributes for a breakpoint
+ */
+function resetAnimationStates(
+  interactions: CollectedInteraction[],
+  hiddenLayerInfo: Map<string, string[] | null>,
+  newBreakpoint: Breakpoint
+): void {
+  // Collect all layer IDs that are targeted by animations
+  const animatedLayerIds = new Set<string>();
+  interactions.forEach(({ interaction }) => {
+    (interaction.tweens || []).forEach((tween) => {
+      animatedLayerIds.add(tween.layer_id);
+    });
+  });
+
+  // Reset each animated element
+  animatedLayerIds.forEach((layerId) => {
+    const element = getElement(layerId);
+    if (!element) return;
+
+    // Clear GSAP inline styles
+    gsap.set(element, { clearProps: 'all' });
+
+    // Reset data-gsap-hidden attribute based on new breakpoint
+    const hiddenBreakpoints = hiddenLayerInfo.get(layerId);
+    if (hiddenBreakpoints !== undefined) {
+      // Check if element should be hidden for the new breakpoint
+      const shouldBeHidden = hiddenBreakpoints === null || hiddenBreakpoints.includes(newBreakpoint);
+
+      if (shouldBeHidden) {
+        // Restore hidden state with breakpoint info
+        element.setAttribute('data-gsap-hidden', hiddenBreakpoints?.join(' ') || '');
+      } else {
+        // Remove hidden state - not applicable to this breakpoint
+        element.removeAttribute('data-gsap-hidden');
+      }
+    }
+  });
+}
+
 /** Build a GSAP timeline from an interaction */
 function buildTimeline(interaction: LayerInteraction): gsap.core.Timeline | null {
   const isYoyo = interaction.timeline?.yoyo ?? false;
@@ -225,6 +287,7 @@ function buildTimeline(interaction: LayerInteraction): gsap.core.Timeline | null
 export default function AnimationInitializer({ layers }: AnimationInitializerProps) {
   const cleanupRef = useRef<(() => void)[]>([]);
   const timelinesRef = useRef<Map<string, gsap.core.Timeline>>(new Map());
+  const prevBreakpointRef = useRef<Breakpoint | null>(null);
   const [currentBreakpoint, setCurrentBreakpoint] = useState<Breakpoint>(() => getCurrentBreakpoint());
 
   // Listen for breakpoint changes on resize
@@ -240,6 +303,16 @@ export default function AnimationInitializer({ layers }: AnimationInitializerPro
 
   useEffect(() => {
     const collectedInteractions = collectInteractions(layers);
+    const hiddenLayerInfo = collectHiddenLayerInfo(collectedInteractions);
+    const isBreakpointChange = prevBreakpointRef.current !== null && prevBreakpointRef.current !== currentBreakpoint;
+
+    // Reset animation states when breakpoint changes
+    if (isBreakpointChange) {
+      resetAnimationStates(collectedInteractions, hiddenLayerInfo, currentBreakpoint);
+    }
+
+    // Update previous breakpoint reference
+    prevBreakpointRef.current = currentBreakpoint;
 
     // Clean up previous animations
     cleanupRef.current.forEach((cleanup) => cleanup());

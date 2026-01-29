@@ -33,6 +33,7 @@ import LoadMoreCollection from '@/components/LoadMoreCollection';
 import LocaleSelector from '@/components/layers/LocaleSelector';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
+import type { HiddenLayerInfo } from '@/lib/animation-utils';
 
 /**
  * Build a map of layerId -> anchor value (attributes.id) for O(1) anchor resolution
@@ -74,7 +75,7 @@ interface LayerRendererProps {
   collectionItemId?: string; // The ID of the current collection layer item being rendered
   pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
   pageCollectionItemData?: Record<string, string> | null; // Page's collection item data (for dynamic pages)
-  hiddenLayerIds?: string[]; // Layer IDs that should start hidden for animations
+  hiddenLayerInfo?: HiddenLayerInfo[]; // Layer IDs with breakpoint info for animations
   currentLocale?: Locale | null;
   availableLocales?: Locale[];
   localeSelectorFormat?: 'locale' | 'code'; // Format for locale selector label (inherited from parent)
@@ -112,7 +113,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   pageCollectionItemId,
   pageCollectionItemData,
   collectionItemSlugs,
-  hiddenLayerIds,
+  hiddenLayerInfo,
   currentLocale,
   availableLocales = [],
   localeSelectorFormat,
@@ -217,7 +218,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         collectionItemId={collectionItemId}
         pageCollectionItemId={pageCollectionItemId}
         pageCollectionItemData={pageCollectionItemData}
-        hiddenLayerIds={hiddenLayerIds}
+        hiddenLayerInfo={hiddenLayerInfo}
         currentLocale={currentLocale}
         availableLocales={availableLocales}
         localeSelectorFormat={localeSelectorFormat}
@@ -270,7 +271,7 @@ const LayerItem: React.FC<{
   collectionItemId?: string; // The ID of the current collection layer item being rendered
   pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
   pageCollectionItemData?: Record<string, string> | null;
-  hiddenLayerIds?: string[];
+  hiddenLayerInfo?: HiddenLayerInfo[];
   currentLocale?: Locale | null;
   availableLocales?: Locale[];
   localeSelectorFormat?: 'locale' | 'code';
@@ -311,7 +312,7 @@ const LayerItem: React.FC<{
   collectionItemId,
   pageCollectionItemId,
   pageCollectionItemData,
-  hiddenLayerIds,
+  hiddenLayerInfo,
   currentLocale,
   availableLocales,
   localeSelectorFormat,
@@ -839,7 +840,7 @@ const LayerItem: React.FC<{
           collectionItemId={effectiveCollectionItemId}
           pageCollectionItemId={pageCollectionItemId}
           pageCollectionItemData={pageCollectionItemData}
-          hiddenLayerIds={hiddenLayerIds}
+          hiddenLayerInfo={hiddenLayerInfo}
           currentLocale={currentLocale}
           availableLocales={availableLocales}
           localeSelectorFormat={localeSelectorFormat}
@@ -928,8 +929,10 @@ const LayerItem: React.FC<{
     };
 
     // Add data-gsap-hidden attribute for elements that should start hidden
-    if (hiddenLayerIds?.includes(layer.id)) {
-      elementProps['data-gsap-hidden'] = '';
+    const hiddenInfo = hiddenLayerInfo?.find(info => info.layerId === layer.id);
+    if (hiddenInfo) {
+      // Set breakpoints as value (e.g., "mobile" or "mobile tablet") or empty for all
+      elementProps['data-gsap-hidden'] = hiddenInfo.breakpoints || '';
     }
 
     // Handle alert elements (for form success/error messages)
@@ -1501,7 +1504,7 @@ const LayerItem: React.FC<{
               isPreview={isPreview}
               translations={translations}
               anchorMap={anchorMap}
-              hiddenLayerIds={hiddenLayerIds}
+              hiddenLayerInfo={hiddenLayerInfo}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
               localeSelectorFormat={localeSelectorFormat}
@@ -1614,7 +1617,7 @@ const LayerItem: React.FC<{
                   collectionItemId={item.id}
                   pageCollectionItemId={pageCollectionItemId}
                   pageCollectionItemData={pageCollectionItemData}
-                  hiddenLayerIds={hiddenLayerIds}
+                  hiddenLayerInfo={hiddenLayerInfo}
                   currentLocale={currentLocale}
                   availableLocales={availableLocales}
                   liveLayerUpdates={liveLayerUpdates}
@@ -1677,7 +1680,7 @@ const LayerItem: React.FC<{
               isPreview={isPreview}
               translations={translations}
               anchorMap={anchorMap}
-              hiddenLayerIds={hiddenLayerIds}
+              hiddenLayerInfo={hiddenLayerInfo}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
               localeSelectorFormat={format}
@@ -1734,7 +1737,7 @@ const LayerItem: React.FC<{
             collectionItemId={effectiveCollectionItemId}
             pageCollectionItemId={pageCollectionItemId}
             pageCollectionItemData={pageCollectionItemData}
-            hiddenLayerIds={hiddenLayerIds}
+            hiddenLayerInfo={hiddenLayerInfo}
             currentLocale={currentLocale}
             availableLocales={availableLocales}
             localeSelectorFormat={localeSelectorFormat}
