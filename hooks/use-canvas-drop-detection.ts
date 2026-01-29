@@ -36,7 +36,7 @@ interface UseCanvasDropDetectionOptions {
   /** Current page ID */
   pageId: string | null;
   /** Callback when an element should be added */
-  onDrop?: (elementType: string, source: 'elements' | 'layouts' | 'components', parentId: string | null) => void;
+  onDrop?: (elementType: string, source: 'elements' | 'layouts' | 'components', dropTarget: CanvasDropTarget) => void;
 }
 
 /**
@@ -277,7 +277,7 @@ export function useCanvasDropDetection({
       
       // Handle drop
       if (currentDropTarget && onDropRef.current && currentElementType && currentElementSource) {
-        onDropRef.current(currentElementType, currentElementSource, currentDropTarget.parentId);
+        onDropRef.current(currentElementType, currentElementSource, currentDropTarget);
       }
       
       // Clear state

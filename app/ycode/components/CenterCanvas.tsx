@@ -208,6 +208,8 @@ function CanvasSiblingReorderOverlay({
   const [parentRect, setParentRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [dropLineY, setDropLineY] = useState<number | null>(null);
   const [dropzoneHeight, setDropzoneHeight] = useState<number>(0);
+  const [dropzoneWidth, setDropzoneWidth] = useState<number>(0);
+  const [dropzoneLeft, setDropzoneLeft] = useState<number>(0);
 
   // Cache element references and heights to avoid repeated DOM queries
   const cachedDataRef = useRef<{
@@ -215,6 +217,8 @@ function CanvasSiblingReorderOverlay({
     heights: Map<string, number>;
     tops: Map<string, number>;
     draggedHeight: number;
+    draggedWidth: number;
+    draggedLeft: number;
     parentElement: HTMLElement | null;
   } | null>(null);
   
@@ -228,19 +232,37 @@ function CanvasSiblingReorderOverlay({
   useEffect(() => {
     if (!isDragging) return;
     
-    // Add grabbing cursor to body and iframe
-    document.body.style.cursor = 'grabbing';
+    // Create style tag with !important to override all other cursor styles
+    const styleId = 'drag-grabbing-cursor';
+    let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = '* { cursor: grabbing !important; }';
     
+    // Also add to iframe
     const iframeDoc = iframeElement?.contentDocument;
-    if (iframeDoc?.body) {
-      iframeDoc.body.style.cursor = 'grabbing';
+    const iframeStyleId = 'drag-grabbing-cursor-iframe';
+    if (iframeDoc?.head) {
+      let iframeStyleEl = iframeDoc.getElementById(iframeStyleId) as HTMLStyleElement | null;
+      if (!iframeStyleEl) {
+        iframeStyleEl = iframeDoc.createElement('style');
+        iframeStyleEl.id = iframeStyleId;
+        iframeDoc.head.appendChild(iframeStyleEl);
+      }
+      iframeStyleEl.textContent = '* { cursor: grabbing !important; }';
     }
     
     return () => {
-      // Reset cursor when drag ends
-      document.body.style.cursor = '';
-      if (iframeDoc?.body) {
-        iframeDoc.body.style.cursor = '';
+      // Remove style tags when drag ends
+      const el = document.getElementById(styleId);
+      if (el) el.remove();
+      
+      if (iframeDoc?.head) {
+        const iframeEl = iframeDoc.getElementById(iframeStyleId);
+        if (iframeEl) iframeEl.remove();
       }
     };
   }, [isDragging, iframeElement]);
@@ -261,6 +283,8 @@ function CanvasSiblingReorderOverlay({
       const heights = new Map<string, number>();
       const tops = new Map<string, number>();
       let draggedHeight = 0;
+      let draggedWidth = 0;
+      let draggedLeft = 0;
       
       siblingIds.forEach(id => {
         const el = iframeDoc.querySelector(`[data-layer-id="${id}"]`) as HTMLElement;
@@ -271,6 +295,8 @@ function CanvasSiblingReorderOverlay({
           tops.set(id, rect.top);
           if (id === draggedId) {
             draggedHeight = rect.height;
+            draggedWidth = rect.width;
+            draggedLeft = rect.left;
           }
         }
       });
@@ -281,11 +307,13 @@ function CanvasSiblingReorderOverlay({
         parentElement = iframeDoc.querySelector(`[data-layer-id="${parentId}"]`) as HTMLElement;
       }
       
-      cachedDataRef.current = { elements, heights, tops, draggedHeight, parentElement };
+      cachedDataRef.current = { elements, heights, tops, draggedHeight, draggedWidth, draggedLeft, parentElement };
       prevProjectedIndexRef.current = null;
       
-      // Set dropzone height to match dragged element
+      // Set dropzone dimensions to match dragged element
       setDropzoneHeight(draggedHeight);
+      setDropzoneWidth(draggedWidth);
+      setDropzoneLeft(draggedLeft);
       
       // Set initial parent rect
       if (parentElement) {
@@ -299,6 +327,8 @@ function CanvasSiblingReorderOverlay({
       setParentRect(null);
       setDropLineY(null);
       setDropzoneHeight(0);
+      setDropzoneWidth(0);
+      setDropzoneLeft(0);
     }
   }, [iframeElement, isDragging, draggedId, parentId, siblingIds]);
 
@@ -459,12 +489,12 @@ function CanvasSiblingReorderOverlay({
   return (
     <div className="absolute inset-0 pointer-events-none overflow-visible z-50">
       {/* Blue dropzone box - shows where element will be inserted */}
-      {dropLineY !== null && dropzoneHeight > 0 && (
+      {dropLineY !== null && dropzoneHeight > 0 && dropzoneWidth > 0 && (
         <div
           style={{
             position: 'absolute',
-            transform: `translate(${parentRect.left}px, ${dropLineY}px)`,
-            width: `${parentRect.width}px`,
+            transform: `translate(${dropzoneLeft}px, ${dropLineY}px)`,
+            width: `${dropzoneWidth}px`,
             height: `${dropzoneHeight}px`,
             willChange: 'transform',
             transition: 'transform 150ms ease-out',
@@ -1187,12 +1217,19 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const handleCanvasDrop = useCallback((
     elementType: string,
     source: 'elements' | 'layouts' | 'components',
-    parentId: string | null
+    dropTarget: { layerId: string; position: 'above' | 'below' | 'inside'; parentId: string | null }
   ) => {
     if (!currentPageId) return;
 
     if (source === 'elements') {
-      const result = addLayerFromTemplate(currentPageId, parentId, elementType);
+      // Determine insert position based on drop target
+      // If dropping 'inside', no sibling positioning needed
+      // If dropping 'above' or 'below', we need to specify the sibling position
+      const insertPosition = (dropTarget.position === 'above' || dropTarget.position === 'below')
+        ? { siblingId: dropTarget.layerId, position: dropTarget.position as 'above' | 'below' }
+        : undefined;
+      
+      const result = addLayerFromTemplate(currentPageId, dropTarget.parentId, elementType, insertPosition);
       if (result) {
         setSelectedLayerId(result.newLayerId);
         // Expand parent if needed

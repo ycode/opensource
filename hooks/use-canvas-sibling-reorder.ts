@@ -310,6 +310,16 @@ export function useCanvasSiblingReorder({
               { x: clientX, y: clientY } // Pass current mouse position for ghost initial positioning
             );
             hasDragStartedRef.current = true;
+            
+            // Set grabbing cursor immediately when drag starts
+            const styleId = 'sibling-drag-cursor';
+            let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+            if (!styleEl) {
+              styleEl = document.createElement('style');
+              styleEl.id = styleId;
+              document.head.appendChild(styleEl);
+            }
+            styleEl.textContent = 'html, body, * { cursor: grabbing !important; }';
           }
         }
       }
@@ -464,6 +474,10 @@ export function useCanvasSiblingReorder({
         cachedSiblingRectsRef.current.clear();
         updateCanvasSiblingDropTarget(null);
         endCanvasLayerDrag();
+        
+        // Reset cursor
+        const styleEl = document.getElementById('sibling-drag-cursor');
+        if (styleEl) styleEl.remove();
       }
       
       hasDragStartedRef.current = false;
@@ -532,6 +546,10 @@ export function useCanvasSiblingReorder({
         const { updateCanvasSiblingDropTarget, endCanvasLayerDrag } = useEditorStore.getState();
         updateCanvasSiblingDropTarget(null);
         endCanvasLayerDrag();
+        
+        // Reset cursor
+        const styleEl = document.getElementById('sibling-drag-cursor');
+        if (styleEl) styleEl.remove();
       }
     };
 

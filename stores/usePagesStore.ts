@@ -67,7 +67,7 @@ interface PagesActions {
   addLayerWithId: (pageId: string, parentLayerId: string | null, layer: Layer) => void;
 
   // Layer Operations
-  addLayerFromTemplate: (pageId: string, parentLayerId: string | null, templateId: string) => { newLayerId: string; parentToExpand: string | null } | null;
+  addLayerFromTemplate: (pageId: string, parentLayerId: string | null, templateId: string, insertPosition?: { siblingId: string; position: 'above' | 'below' }) => { newLayerId: string; parentToExpand: string | null } | null;
   deleteLayer: (pageId: string, layerId: string) => void;
   deleteLayers: (pageId: string, layerIds: string[]) => void; // New batch delete
   updateLayer: (pageId: string, layerId: string, updates: Partial<Layer>) => void;
@@ -553,7 +553,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     });
   },
 
-  addLayerFromTemplate: (pageId, parentLayerId, templateId) => {
+  addLayerFromTemplate: (pageId, parentLayerId, templateId, insertPosition) => {
     const { draftsByPageId, pages } = get();
     let draft = draftsByPageId[pageId];
 
@@ -689,10 +689,24 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
           }
         } else {
           // Add as child to parent
-          newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => ({
-            ...parent,
-            children: [...(parent.children || []), newLayer],
-          }));
+          newLayers = updateLayerInTree(draft.layers, parentLayerId, (parent) => {
+            const children = parent.children || [];
+            
+            // If insertPosition is provided, insert at the specified sibling position
+            if (insertPosition) {
+              const siblingIndex = children.findIndex(c => c.id === insertPosition.siblingId);
+              if (siblingIndex !== -1) {
+                const newChildren = [...children];
+                // Insert above = at sibling's index, below = after sibling
+                const insertIndex = insertPosition.position === 'above' ? siblingIndex : siblingIndex + 1;
+                newChildren.splice(insertIndex, 0, newLayer);
+                return { ...parent, children: newChildren };
+              }
+            }
+            
+            // Default: append to end
+            return { ...parent, children: [...children, newLayer] };
+          });
           // Expand the parent that we're adding into
           parentToExpand = parentLayerId;
         }
