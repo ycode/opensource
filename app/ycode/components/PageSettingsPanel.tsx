@@ -48,6 +48,7 @@ import { useAssetsStore } from '@/stores/useAssetsStore';
 import RichTextEditor from './RichTextEditor';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { getFieldIcon } from '@/lib/collection-field-utils';
 
 export interface PageSettingsPanelHandle {
   checkUnsavedChanges: () => Promise<boolean>;
@@ -760,11 +761,13 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
               key={isSeoImageFieldVariable(seoImage) ? (seoImage.data.field_id || 'none') : 'none'}
               value={isSeoImageFieldVariable(seoImage) ? (seoImage.data.field_id || undefined) : undefined}
               onValueChange={(fieldId) => {
+                const field = imageFields.find(f => f.id === fieldId);
                 setSeoImage({
                   type: 'field',
                   data: {
                     field_id: fieldId,
                     relationships: [],
+                    field_type: field?.type || null,
                   },
                 });
 
@@ -800,7 +803,10 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                   <>
                     {imageFields.map((field) => (
                       <SelectItem key={field.id} value={field.id}>
-                        {field.name}
+                        <span className="flex items-center gap-2">
+                          <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                          {field.name}
+                        </span>
                       </SelectItem>
                     ))}
                   </>
@@ -1315,7 +1321,10 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                                   if (availableFields.length > 0) {
                                     return availableFields.map((field) => (
                                       <SelectItem key={field.id} value={field.id}>
-                                        {field.name}
+                                        <span className="flex items-center gap-2">
+                                          <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                                          {field.name}
+                                        </span>
                                       </SelectItem>
                                     ));
                                   }

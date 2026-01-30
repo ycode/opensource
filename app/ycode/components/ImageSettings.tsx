@@ -42,7 +42,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
-import { IMAGE_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups } from '@/lib/collection-field-utils';
+import { IMAGE_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import { Separator } from '@/components/ui/separator';
 
@@ -176,20 +176,33 @@ export default function ImageSettings(props: ImageSettingsProps) {
   }, [updateImageSrc]);
 
   const handleFieldSelect = useCallback((fieldId: string) => {
+    const field = imageFields.find(f => f.id === fieldId);
     const fieldVariable: FieldVariable = {
       type: 'field',
       data: {
         field_id: fieldId,
         relationships: [],
+        field_type: field?.type || null,
       },
     };
     updateImageSrc(fieldVariable);
     setSelectedField(fieldId);
-  }, [updateImageSrc]);
+  }, [updateImageSrc, imageFields]);
 
   const handleTypeChange = useCallback((type: 'upload' | 'custom_url' | 'cms') => {
     if (type === 'custom_url') {
       updateImageSrc(createDynamicTextVariable(''));
+    } else if (type === 'cms') {
+      const fieldVariable: FieldVariable = {
+        type: 'field',
+        data: {
+          field_id: null,
+          relationships: [],
+          field_type: null,
+        },
+      };
+      updateImageSrc(fieldVariable);
+      setSelectedField(null);
     } else {
       updateImageSrc(createAssetVariable(''));
       setSelectedField(null);
@@ -495,18 +508,21 @@ export default function ImageSettings(props: ImageSettingsProps) {
         <div className={isStandaloneMode ? '' : 'grid grid-cols-3 items-center'}>
           {!isStandaloneMode && <Label variant="muted">Field</Label>}
 
-          <div className={isStandaloneMode ? '' : 'col-span-2'}>
+          <div className={isStandaloneMode ? 'w-full' : 'col-span-2 w-full'}>
             <Select
               value={selectedField || currentFieldId || ''}
               onValueChange={handleFieldSelect}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select a field" />
               </SelectTrigger>
               <SelectContent>
                 {imageFields.map((field) => (
                   <SelectItem key={field.id} value={field.id}>
-                    {field.name}
+                    <span className="flex items-center gap-2">
+                      <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                      {field.name}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -520,7 +536,7 @@ export default function ImageSettings(props: ImageSettingsProps) {
   // Additional fields content (alt, size, behavior)
   const additionalFieldsContent = (
     <>
-      <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 mt-2.5'}>
+      <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3'}>
         {!isStandaloneMode && <Label variant="muted">ALT</Label>}
         {isStandaloneMode && <Label variant="muted" className="mb-1.5">ALT</Label>}
 
@@ -536,7 +552,7 @@ export default function ImageSettings(props: ImageSettingsProps) {
         </div>
       </div>
 
-      <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 mt-2.5'}>
+      <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3'}>
         {!isStandaloneMode && <Label variant="muted">Size</Label>}
         {isStandaloneMode && <Label variant="muted" className="mb-1.5">Size</Label>}
 
@@ -583,7 +599,7 @@ export default function ImageSettings(props: ImageSettingsProps) {
       </div>
 
       {/* Behavior Section */}
-      <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 gap-2 mt-2.5'}>
+      <div className={isStandaloneMode ? 'mt-2.5' : 'grid grid-cols-3 gap-2'}>
         {!isStandaloneMode && (
           <div className="pt-0.5">
             <Label variant="muted">Behavior</Label>

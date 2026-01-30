@@ -885,11 +885,12 @@ export interface VariableType {
   data: object;
 }
 
-// CMS Field Variable, used for CMS data binding and inline variables (rich-text contents)
+// CMS Field Variable, used for CMS data binding and inline variables
 export interface FieldVariable extends VariableType {
   type: 'field';
   data: {
     field_id: string | null;
+    field_type: CollectionFieldType | null;
     relationships: string[];
     format?: string;
     /** Source of the field data: 'page' for page collection, 'collection' for collection layer */

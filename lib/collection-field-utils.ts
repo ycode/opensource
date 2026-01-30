@@ -342,7 +342,7 @@ export function buildFieldGroups(config: BuildFieldGroupsConfig): FieldGroup[] |
 }
 
 /** Field types that can be used as link targets */
-export const LINK_FIELD_TYPES: CollectionFieldType[] = ['link', 'email', 'phone', 'image', 'document'];
+export const LINK_FIELD_TYPES: CollectionFieldType[] = ['link', 'email', 'phone', 'image', 'audio', 'video', 'document'];
 
 /** Field types that store media assets (image, audio, video) */
 export const MEDIA_FIELD_TYPES: CollectionFieldType[] = ['image', 'audio', 'video'];
@@ -363,13 +363,13 @@ export const VIDEO_FIELD_TYPES: CollectionFieldType[] = ['video'];
 export const DOCUMENT_FIELD_TYPES: CollectionFieldType[] = ['document'];
 
 /** Check if a field type uses asset selector (image, audio, video, document) */
-export function isAssetFieldType(fieldType: CollectionFieldType | undefined): boolean {
-  return fieldType !== undefined && ASSET_FIELD_TYPES.includes(fieldType);
+export function isAssetFieldType(fieldType: CollectionFieldType | undefined | null): boolean {
+  return fieldType != null && ASSET_FIELD_TYPES.includes(fieldType);
 }
 
 /** Check if a field type is a media type (image, audio, video) */
-export function isMediaFieldType(fieldType: CollectionFieldType | undefined): boolean {
-  return fieldType !== undefined && MEDIA_FIELD_TYPES.includes(fieldType);
+export function isMediaFieldType(fieldType: CollectionFieldType | undefined | null): boolean {
+  return fieldType != null && MEDIA_FIELD_TYPES.includes(fieldType);
 }
 
 /**

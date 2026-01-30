@@ -289,7 +289,8 @@ export async function fetchPageByPath(
         }
 
         // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-        processedLayers = await resolveAllAssets(processedLayers);
+        const resolved = await resolveAllAssets(processedLayers);
+        processedLayers = resolved.layers;
 
         return {
           ...homepageData,
@@ -428,7 +429,8 @@ export async function fetchPageByPath(
             }
 
             // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-            resolvedLayers = await resolveAllAssets(resolvedLayers);
+            const resolved = await resolveAllAssets(resolvedLayers);
+            resolvedLayers = resolved.layers;
 
             return {
               page: matchingPage,
@@ -483,7 +485,8 @@ export async function fetchPageByPath(
     }
 
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-    resolvedLayers = await resolveAllAssets(resolvedLayers);
+    const resolved = await resolveAllAssets(resolvedLayers);
+    resolvedLayers = resolved.layers;
 
     return {
       page: matchingPage,
@@ -566,7 +569,8 @@ export async function fetchErrorPage(
       : [];
 
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-    resolvedLayers = await resolveAllAssets(resolvedLayers);
+    const resolved = await resolveAllAssets(resolvedLayers);
+    resolvedLayers = resolved.layers;
 
     return {
       page: errorPage,
@@ -653,7 +657,8 @@ export async function fetchHomepage(
       : [];
 
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-    resolvedLayers = await resolveAllAssets(resolvedLayers);
+    const resolved = await resolveAllAssets(resolvedLayers);
+    resolvedLayers = resolved.layers;
 
     return {
       page: homepage,
@@ -991,34 +996,47 @@ async function injectCollectionData(
 
   // Image src field binding (variables structure)
   const imageSrc = layer.variables?.image?.src;
-  if (imageSrc) {
-    if (isFieldVariable(imageSrc) && imageSrc.data.field_id) {
-      const resolvedUrl = resolveFieldValueWithRelationships(imageSrc, enhancedValues);
-      // Update variables.image.src with resolved URL as DynamicTextVariable
-      updates.variables = {
-        ...layer.variables,
-        image: {
-          src: resolvedUrl ? createDynamicTextVariable(resolvedUrl) : imageSrc,
-          alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
-        },
-      };
-    } else if (isAssetVariable(imageSrc)) {
-      // Resolve AssetVariable to URL (server-side)
-      const { getAssetById } = await import('@/lib/repositories/assetRepository');
-      const assetId = getAssetId(imageSrc);
-      if (assetId) {
-        const asset = await getAssetById(assetId);
-        const resolvedUrl = asset?.public_url || '';
-        // Update variables.image.src with resolved URL as DynamicTextVariable
-        updates.variables = {
-          ...layer.variables,
-          image: {
-            src: createDynamicTextVariable(resolvedUrl),
-            alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
-          },
-        };
-      }
-    }
+  if (imageSrc && isFieldVariable(imageSrc) && imageSrc.data.field_id) {
+    const resolvedAssetId = resolveFieldValueWithRelationships(imageSrc, enhancedValues);
+    // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
+    updates.variables = {
+      ...updates.variables,
+      ...layer.variables,
+      image: {
+        src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : imageSrc,
+        alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+      },
+    };
+  }
+
+  // Video src field binding (variables structure)
+  const videoSrc = layer.variables?.video?.src;
+  if (videoSrc && isFieldVariable(videoSrc) && videoSrc.data.field_id) {
+    const resolvedAssetId = resolveFieldValueWithRelationships(videoSrc, enhancedValues);
+    // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
+    updates.variables = {
+      ...updates.variables,
+      ...layer.variables,
+      video: {
+        ...layer.variables?.video,
+        src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : videoSrc,
+      },
+    };
+  }
+
+  // Audio src field binding (variables structure)
+  const audioSrc = layer.variables?.audio?.src;
+  if (audioSrc && isFieldVariable(audioSrc) && audioSrc.data.field_id) {
+    const resolvedAssetId = resolveFieldValueWithRelationships(audioSrc, enhancedValues);
+    // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
+    updates.variables = {
+      ...updates.variables,
+      ...layer.variables,
+      audio: {
+        ...layer.variables?.audio,
+        src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : audioSrc,
+      },
+    };
   }
 
   // Recursively process children, but SKIP collection layers
@@ -1756,7 +1774,7 @@ export async function renderCollectionItemsToHtml(
 
       // Resolve nested collection layers (sub-collections like "shades" inside "colors")
       // Pass item.values so nested collections can filter based on parent item's field values
-      const resolvedLayers = await resolveCollectionLayers(
+      let resolvedLayers = await resolveCollectionLayers(
         injectedLayers,
         isPublished,
         item.values, // Parent item values for multi-reference filtering
@@ -1764,19 +1782,46 @@ export async function renderCollectionItemsToHtml(
         undefined // TODO: Add translation support for Load More pagination
       );
 
+      // Resolve all AssetVariables to URLs server-side
+      const resolved = await resolveAllAssets(resolvedLayers);
+      resolvedLayers = resolved.layers;
+      let assetMap = resolved.assetMap;
+
       // Build anchor map for O(1) anchor resolution
       const anchorMap = buildAnchorMap(resolvedLayers);
 
-      // Build fieldsByFieldId for mailto:/tel: resolution
-      const fieldsByFieldId =
-        collectionFields.length > 0
-          ? Object.fromEntries(collectionFields.map((f) => [f.id, { type: f.type }]))
-          : undefined;
+      // Collect asset IDs from field links in layers that have asset field_type stored
+      const assetFieldTypes = ['image', 'video', 'audio', 'document'];
+      const collectFieldLinkAssetIds = (layers: Layer[]): string[] => {
+        const assetIds: string[] = [];
+        const scan = (layer: Layer) => {
+          const fieldType = layer.variables?.link?.field?.data?.field_type;
+          const fieldId = layer.variables?.link?.field?.data?.field_id;
+          if (fieldType && assetFieldTypes.includes(fieldType) && fieldId) {
+            const assetId = item.values[fieldId];
+            if (assetId && !assetMap[assetId]) {
+              assetIds.push(assetId);
+            }
+          }
+          layer.children?.forEach(scan);
+        };
+        layers.forEach(scan);
+        return assetIds;
+      };
+
+      const missingAssetIds = collectFieldLinkAssetIds(resolvedLayers);
+
+      // Fetch any missing assets from field links
+      if (missingAssetIds.length > 0) {
+        const { getAssetsByIds } = await import('@/lib/repositories/assetRepository');
+        const additionalAssets = await getAssetsByIds(missingAssetIds);
+        assetMap = { ...assetMap, ...additionalAssets };
+      }
 
       // Convert layers to HTML (handles fragments from resolved collections)
       const itemHtml = resolvedLayers
         .map((layer) =>
-          layerToHtml(layer, item.id, pages, folders, collectionItemSlugs, locale, translations, anchorMap, item.values, fieldsByFieldId)
+          layerToHtml(layer, item.id, pages, folders, collectionItemSlugs, locale, translations, anchorMap, item.values, undefined, assetMap)
         )
         .join('');
 
@@ -1835,41 +1880,64 @@ async function injectCollectionDataForHtml(
 
   // Image src field binding (variables structure)
   const imageSrc = layer.variables?.image?.src;
-  if (imageSrc) {
-    if (isFieldVariable(imageSrc)) {
-      const fieldId = imageSrc.data.field_id;
-      if (!fieldId) {
-        return { ...layer, ...updates };
-      }
-      const relationships = imageSrc.data.relationships || [];
+  if (imageSrc && isFieldVariable(imageSrc) && imageSrc.data.field_id) {
+    const relationships = imageSrc.data.relationships || [];
+    const fullPath = relationships.length > 0
+      ? [imageSrc.data.field_id, ...relationships].join('.')
+      : imageSrc.data.field_id;
+    const resolvedAssetId = enhancedValues[fullPath] || '';
+    // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
+    updates.variables = {
+      ...updates.variables,
+      ...layer.variables,
+      image: {
+        src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : imageSrc,
+        alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+      },
+    };
+  }
+
+  // Video src field binding (variables structure)
+  const videoSrc = layer.variables?.video?.src;
+  if (videoSrc && isFieldVariable(videoSrc)) {
+    const fieldId = videoSrc.data.field_id;
+    if (fieldId) {
+      const relationships = videoSrc.data.relationships || [];
       const fullPath = relationships.length > 0
         ? [fieldId, ...relationships].join('.')
         : fieldId;
-      const resolvedUrl = enhancedValues[fullPath] || '';
-      // Update variables.image.src with resolved URL as DynamicTextVariable
+      const resolvedAssetId = enhancedValues[fullPath] || '';
+      // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
       updates.variables = {
+        ...updates.variables,
         ...layer.variables,
-        image: {
-          src: resolvedUrl ? createDynamicTextVariable(resolvedUrl) : imageSrc,
-          alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
+        video: {
+          ...layer.variables?.video,
+          src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : videoSrc,
         },
       };
-    } else if (isAssetVariable(imageSrc)) {
-      // Resolve AssetVariable to URL (server-side)
-      const { getAssetById } = await import('@/lib/repositories/assetRepository');
-      const assetId = getAssetId(imageSrc);
-      if (assetId) {
-        const asset = await getAssetById(assetId);
-        const resolvedUrl = asset?.public_url || '';
-        // Update variables.image.src with resolved URL as DynamicTextVariable
-        updates.variables = {
-          ...layer.variables,
-          image: {
-            src: createDynamicTextVariable(resolvedUrl),
-            alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
-          },
-        };
-      }
+    }
+  }
+
+  // Audio src field binding (variables structure)
+  const audioSrc = layer.variables?.audio?.src;
+  if (audioSrc && isFieldVariable(audioSrc)) {
+    const fieldId = audioSrc.data.field_id;
+    if (fieldId) {
+      const relationships = audioSrc.data.relationships || [];
+      const fullPath = relationships.length > 0
+        ? [fieldId, ...relationships].join('.')
+        : fieldId;
+      const resolvedAssetId = enhancedValues[fullPath] || '';
+      // The field value is an asset ID - convert to AssetVariable for batch resolution by resolveAllAssets
+      updates.variables = {
+        ...updates.variables,
+        ...layer.variables,
+        audio: {
+          ...layer.variables?.audio,
+          src: resolvedAssetId ? createAssetVariable(resolvedAssetId) : audioSrc,
+        },
+      };
     }
   }
 
@@ -1894,7 +1962,7 @@ async function injectCollectionDataForHtml(
  * This ensures assets are resolved server-side before rendering
  * Should be called after all other layer processing (collections, components, etc.)
  */
-async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
+async function resolveAllAssets(layers: Layer[]): Promise<{ layers: Layer[]; assetMap: Record<string, { public_url: string | null }> }> {
   const { getAssetsByIds } = await import('@/lib/repositories/assetRepository');
 
   // Step 1: Collect all asset IDs from the layer tree
@@ -2048,7 +2116,7 @@ async function resolveAllAssets(layers: Layer[]): Promise<Layer[]> {
     };
   };
 
-  return layers.map(resolveLayer);
+  return { layers: layers.map(resolveLayer), assetMap };
 }
 
 /**
@@ -2086,15 +2154,15 @@ function layerToHtml(
   translations?: Record<string, Translation>,
   anchorMap?: Record<string, string>,
   collectionItemData?: Record<string, string>,
-  fieldsByFieldId?: Record<string, { type: import('@/types').CollectionFieldType }>,
-  pageCollectionItemData?: Record<string, string>
+  pageCollectionItemData?: Record<string, string>,
+  assetMap?: Record<string, { public_url: string | null }>
 ): string {
   // Handle fragment layers (created by resolveCollectionLayers for nested collections)
   // Fragments render their children directly without a wrapper element
   if (layer.name === '_fragment' && layer.children) {
     return layer.children
       .map((child) =>
-        layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, fieldsByFieldId, pageCollectionItemData)
+        layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, pageCollectionItemData, assetMap)
       )
       .join('');
   }
@@ -2153,10 +2221,63 @@ function layerToHtml(
         }
       }
     }
+    // Add data-layer-type for images
+    attrs.push('data-layer-type="image"');
+
     const imageAlt = layer.variables?.image?.alt;
     if (imageAlt && imageAlt.type === 'dynamic_text') {
       attrs.push(`alt="${escapeHtml(imageAlt.data.content)}"`);
     }
+  }
+
+  // Handle video (variables structure)
+  if (tag === 'video') {
+    const videoSrc = layer.variables?.video?.src;
+    if (videoSrc) {
+      // Extract string value from variable (should be DynamicTextVariable after resolution)
+      let srcValue: string | undefined = undefined;
+      if (videoSrc.type === 'dynamic_text') {
+        srcValue = videoSrc.data.content || undefined;
+      } else if (videoSrc.type === 'asset') {
+        // AssetVariable should have been resolved, but if not, skip
+        srcValue = undefined;
+      }
+      if (srcValue && srcValue.trim()) {
+        attrs.push(`src="${escapeHtml(srcValue)}"`);
+      }
+    }
+    // Handle video poster
+    const videoPoster = layer.variables?.video?.poster;
+    if (videoPoster) {
+      let posterValue: string | undefined = undefined;
+      // After resolveAllAssets, poster should be DynamicTextVariable
+      if ((videoPoster as any).type === 'dynamic_text') {
+        posterValue = (videoPoster as any).data?.content || undefined;
+      }
+      if (posterValue && posterValue.trim()) {
+        attrs.push(`poster="${escapeHtml(posterValue)}"`);
+      }
+    }
+    attrs.push('data-layer-type="video"');
+  }
+
+  // Handle audio (variables structure)
+  if (tag === 'audio') {
+    const audioSrc = layer.variables?.audio?.src;
+    if (audioSrc) {
+      // Extract string value from variable (should be DynamicTextVariable after resolution)
+      let srcValue: string | undefined = undefined;
+      if (audioSrc.type === 'dynamic_text') {
+        srcValue = audioSrc.data.content || undefined;
+      } else if (audioSrc.type === 'asset') {
+        // AssetVariable should have been resolved, but if not, skip
+        srcValue = undefined;
+      }
+      if (srcValue && srcValue.trim()) {
+        attrs.push(`src="${escapeHtml(srcValue)}"`);
+      }
+    }
+    attrs.push('data-layer-type="audio"');
   }
 
   // Handle icons (variables structure)
@@ -2266,7 +2387,8 @@ function layerToHtml(
           const fieldId = linkSettings.field?.data?.field_id;
           if (fieldId && fieldData) {
             const rawValue = fieldData[fieldId];
-            const fieldType = fieldsByFieldId?.[fieldId]?.type;
+            // Use field_type stored in link settings (set when field is selected)
+            const fieldType = linkSettings.field?.data?.field_type;
             if (rawValue) {
               const linkValue = parseCollectionLinkValue(rawValue);
               if (linkValue) {
@@ -2283,9 +2405,10 @@ function layerToHtml(
                 hrefValue = `mailto:${rawValue}`;
               } else if (fieldType === 'phone' || looksLikePhone(rawValue)) {
                 hrefValue = `tel:${rawValue}`;
-              } else if (fieldType === 'image') {
-                // Image field stores asset ID - layerToHtml is sync; asset URL resolution happens in LayerRenderer
-                hrefValue = rawValue;
+              } else if (fieldType && ['image', 'video', 'audio', 'document'].includes(fieldType)) {
+                // Media field stores asset ID - resolve to URL using asset map
+                const asset = assetMap?.[rawValue];
+                hrefValue = asset?.public_url || rawValue;
               } else {
                 hrefValue = rawValue;
               }
@@ -2338,7 +2461,7 @@ function layerToHtml(
   const childrenHtml = layer.children
     ? layer.children
       .map((child) =>
-        layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, fieldsByFieldId, pageCollectionItemData)
+        layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, pageCollectionItemData, assetMap)
       )
       .join('')
     : '';

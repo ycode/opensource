@@ -39,7 +39,7 @@ import { collectionsApi } from '@/lib/api';
 import { getLayerIcon, getLayerName, getCollectionVariable } from '@/lib/layer-utils';
 import { getPageIcon } from '@/lib/page-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { filterFieldGroupsByType, LINK_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
+import { filterFieldGroupsByType, getFieldIcon, LINK_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
 
 export interface RichTextLinkSettingsProps {
   /** Current link settings */
@@ -288,7 +288,7 @@ export default function RichTextLinkSettings({
           newSettings.page = { id: '', collection_item_id: null };
           break;
         case 'field':
-          newSettings.field = { type: 'field', data: { field_id: null, relationships: [] } };
+          newSettings.field = { type: 'field', data: { field_id: null, relationships: [], field_type: null } };
           break;
       }
 
@@ -404,6 +404,16 @@ export default function RichTextLinkSettings({
       const source = (parts[0] === 'page' || parts[0] === 'collection') ? parts[0] : undefined;
       const fieldId = source ? parts.slice(1).join('-') : value;
 
+      // Find the field type from linkFieldGroups
+      let fieldType: CollectionField['type'] | undefined;
+      for (const group of linkFieldGroups) {
+        const field = group.fields.find(f => f.id === fieldId);
+        if (field) {
+          fieldType = field.type;
+          break;
+        }
+      }
+
       onChange({
         ...linkSettings,
         field: {
@@ -411,12 +421,13 @@ export default function RichTextLinkSettings({
           data: {
             field_id: fieldId,
             relationships: [],
+            field_type: fieldType || null,
             ...(source && { source }),
           },
         },
       });
     },
-    [linkSettings, onChange]
+    [linkSettings, onChange, linkFieldGroups]
   );
 
   // Handle anchor layer ID change
@@ -714,7 +725,10 @@ export default function RichTextLinkSettings({
                     {group.label && <SelectLabel>{group.label}</SelectLabel>}
                     {group.fields.map((field) => (
                       <SelectItem key={`${groupIdx}-${field.id}`} value={`${group.source}-${field.id}`}>
-                        {field.name}
+                        <span className="flex items-center gap-2">
+                          <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                          {field.name}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectGroup>

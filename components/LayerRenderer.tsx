@@ -8,7 +8,7 @@ import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings, Breakpoint, CollectionFieldType } from '@/types';
+import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings, Breakpoint } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
@@ -32,7 +32,6 @@ import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
 import LocaleSelector from '@/components/layers/LocaleSelector';
 import { usePagesStore } from '@/stores/usePagesStore';
-import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
 import type { HiddenLayerInfo } from '@/lib/animation-utils';
 
@@ -155,8 +154,8 @@ interface LayerRendererProps {
   isPreview?: boolean; // Whether we're in preview mode (prefix links with /ycode/preview)
   translations?: Record<string, any> | null; // Translations for localized URL generation
   anchorMap?: Record<string, string>; // Pre-built map of layerId -> anchor value for O(1) lookups
-  /** Map field_id to field type for mailto:/tel: prefix when resolving field links */
-  fieldsByFieldId?: Record<string, { type: CollectionFieldType }>;
+  /** Pre-resolved asset URLs (asset_id -> public_url) for SSR link resolution */
+  resolvedAssets?: Record<string, string>;
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -196,7 +195,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   isPreview = false,
   translations,
   anchorMap: anchorMapProp,
-  fieldsByFieldId: fieldsByFieldIdProp,
+  resolvedAssets,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -214,20 +213,6 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   const anchorMap = useMemo(() => {
     return anchorMapProp || buildAnchorMap(layers);
   }, [anchorMapProp, layers]);
-
-  // Build fieldsByFieldId for link resolution (mailto:/tel: based on field type)
-  // Use prop if provided (SSR), otherwise build from collections store (client)
-  const fieldsStore = useCollectionsStore((state) => state.fields);
-  const fieldsByFieldId = useMemo(() => {
-    if (fieldsByFieldIdProp) return fieldsByFieldIdProp;
-    const map: Record<string, { type: CollectionFieldType }> = {};
-    Object.values(fieldsStore).forEach((fields) => {
-      fields.forEach((f) => {
-        map[f.id] = { type: f.type };
-      });
-    });
-    return Object.keys(map).length > 0 ? map : undefined;
-  }, [fieldsByFieldIdProp, fieldsStore]);
 
   // Helper to render a layer or unwrap fragments
   const renderLayer = (layer: Layer): React.ReactNode => {
@@ -319,7 +304,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         isPreview={isPreview}
         translations={translations}
         anchorMap={anchorMap}
-        fieldsByFieldId={fieldsByFieldId}
+        resolvedAssets={resolvedAssets}
       />
     );
   };
@@ -375,7 +360,7 @@ const LayerItem: React.FC<{
   isPreview?: boolean; // Whether we're in preview mode
   translations?: Record<string, any> | null; // Translations for localized URL generation
   anchorMap?: Record<string, string>; // Pre-built map of layerId -> anchor value
-  fieldsByFieldId?: Record<string, { type: CollectionFieldType }>;
+  resolvedAssets?: Record<string, string>;
 }> = ({
   layer,
   isEditMode,
@@ -419,7 +404,7 @@ const LayerItem: React.FC<{
   isPreview,
   translations,
   anchorMap,
-  fieldsByFieldId,
+  resolvedAssets,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isHovered = hoveredLayerId === layer.id;
@@ -438,8 +423,18 @@ const LayerItem: React.FC<{
   // Use layer's _collectionItemId if present (from server-resolved collection layers)
   const effectiveCollectionItemId = layer._collectionItemId || collectionItemId;
   const effectiveCollectionItemData = layer._collectionItemValues || collectionItemData;
-  const getAsset = useAssetsStore((state) => state.getAsset);
+  const getAssetFromStore = useAssetsStore((state) => state.getAsset);
   const assetsById = useAssetsStore((state) => state.assetsById);
+
+  // Create asset resolver that checks pre-resolved assets first (SSR), then falls back to store
+  const getAsset = useCallback((id: string) => {
+    // Check pre-resolved assets from server first
+    if (resolvedAssets?.[id]) {
+      return { public_url: resolvedAssets[id] };
+    }
+    // Fall back to store (may trigger async fetch)
+    return getAssetFromStore(id);
+  }, [resolvedAssets, getAssetFromStore]);
   const openFileManager = useEditorStore((state) => state.openFileManager);
   const allTranslations = useLocalisationStore((state) => state.translations);
   const editModeTranslations = isEditMode && currentLocale ? allTranslations[currentLocale.id] : null;
@@ -567,7 +562,7 @@ const LayerItem: React.FC<{
         translations,
         getAsset,
         anchorMap,
-        fieldsByFieldId,
+        resolvedAssets,
       };
 
     // Check for component variable override or default value
@@ -960,7 +955,7 @@ const LayerItem: React.FC<{
           isPreview={isPreview}
           translations={translations}
           anchorMap={anchorMap}
-          fieldsByFieldId={fieldsByFieldId}
+          resolvedAssets={resolvedAssets}
         />
       );
     }
@@ -1482,10 +1477,7 @@ const LayerItem: React.FC<{
       const mediaSrc = (() => {
         if (htmlTag === 'video' && layer.variables?.video?.src) {
           const src = layer.variables.video.src;
-          if (isFieldVariable(src)) {
-            return resolveFieldValue(src, effectiveCollectionItemData) || undefined;
-          }
-          // Skip VideoVariable type (already handled above)
+          // Skip VideoVariable type (already handled above as YouTube iframe)
           if (src.type === 'video') {
             return undefined;
           }
@@ -1506,6 +1498,8 @@ const LayerItem: React.FC<{
             }
           }
 
+          // getVideoUrlFromVariable handles AssetVariable, FieldVariable, and DynamicTextVariable
+          // For FieldVariable, it resolves the field value (asset ID) and looks up the asset URL
           return getVideoUrlFromVariable(
             videoVariable,
             getAsset,
@@ -1515,9 +1509,6 @@ const LayerItem: React.FC<{
         }
         if (htmlTag === 'audio' && layer.variables?.audio?.src) {
           const src = layer.variables.audio.src;
-          if (isFieldVariable(src)) {
-            return resolveFieldValue(src, effectiveCollectionItemData) || undefined;
-          }
 
           // Apply translation for audio asset
           let audioVariable = src;
@@ -1535,6 +1526,8 @@ const LayerItem: React.FC<{
             }
           }
 
+          // getVideoUrlFromVariable handles AssetVariable, FieldVariable, and DynamicTextVariable
+          // For FieldVariable, it resolves the field value (asset ID) and looks up the asset URL
           return getVideoUrlFromVariable(
             audioVariable,
             getAsset,
@@ -1639,7 +1632,7 @@ const LayerItem: React.FC<{
               isPreview={isPreview}
               translations={translations}
               anchorMap={anchorMap}
-              fieldsByFieldId={fieldsByFieldId}
+              resolvedAssets={resolvedAssets}
               hiddenLayerInfo={hiddenLayerInfo}
               editorHiddenLayerIds={editorHiddenLayerIds}
               editorBreakpoint={editorBreakpoint}
@@ -1773,7 +1766,7 @@ const LayerItem: React.FC<{
                   isPreview={isPreview}
                   translations={translations}
                   anchorMap={anchorMap}
-                  fieldsByFieldId={fieldsByFieldId}
+                  resolvedAssets={resolvedAssets}
                 />
               )}
             </Tag>
@@ -1821,7 +1814,7 @@ const LayerItem: React.FC<{
               isPreview={isPreview}
               translations={translations}
               anchorMap={anchorMap}
-              fieldsByFieldId={fieldsByFieldId}
+              resolvedAssets={resolvedAssets}
               hiddenLayerInfo={hiddenLayerInfo}
               editorHiddenLayerIds={editorHiddenLayerIds}
               editorBreakpoint={editorBreakpoint}
@@ -1900,7 +1893,7 @@ const LayerItem: React.FC<{
             isPreview={isPreview}
             translations={translations}
             anchorMap={anchorMap}
-            fieldsByFieldId={fieldsByFieldId}
+            resolvedAssets={resolvedAssets}
           />
         )}
       </Tag>
@@ -1937,7 +1930,7 @@ const LayerItem: React.FC<{
       translations,
       getAsset,
       anchorMap,
-      fieldsByFieldId,
+      resolvedAssets,
     };
     const linkHref = generateLinkHref(linkSettings, layerLinkContext);
 

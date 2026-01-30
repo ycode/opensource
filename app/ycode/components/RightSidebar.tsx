@@ -71,7 +71,7 @@ import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTe
 import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
 import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
-import { buildFieldGroups } from '@/lib/collection-field-utils';
+import { buildFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
 
 // 7. Types
 import type { Layer, FieldVariable, CollectionField } from '@/types';
@@ -1296,77 +1296,6 @@ const RightSidebar = React.memo(function RightSidebar({
     }
   };
 
-  // Handle field binding change
-  const handleFieldBindingChange = (fieldId: string) => {
-    if (selectedLayerId) {
-      if (fieldId && fieldId !== 'none') {
-        handleLayerUpdate(selectedLayerId, {
-          variables: {
-            ...selectedLayer?.variables,
-            text: {
-              type: 'field',
-              data: {
-                field_id: fieldId,
-                relationships: [],
-              }
-            } as any
-          }
-        });
-      } else {
-        // Clear field binding
-        handleLayerUpdate(selectedLayerId, {
-          variables: {
-            ...selectedLayer?.variables,
-            text: undefined
-          }
-        });
-      }
-    }
-  };
-
-  // Handle image field binding change
-  const handleImageFieldBindingChange = (fieldId: string) => {
-    if (selectedLayerId) {
-      if (fieldId && fieldId !== 'none') {
-        handleLayerUpdate(selectedLayerId, {
-          variables: {
-            ...selectedLayer?.variables,
-            image: {
-              src: {
-                type: 'field',
-                data: {
-                  field_id: fieldId,
-                  relationships: [],
-                }
-              } as any,
-              alt: selectedLayer?.variables?.image?.alt || {
-                type: 'dynamic_text',
-                data: { content: '' }
-              }
-            }
-          }
-        });
-      } else {
-        // Clear field binding
-        handleLayerUpdate(selectedLayerId, {
-          variables: {
-            ...selectedLayer?.variables,
-            image: {
-              src: {
-                type: 'dynamic_text',
-                data: { content: '' }
-              },
-              alt: selectedLayer?.variables?.image?.alt || {
-                type: 'dynamic_text',
-                data: { content: '' }
-              }
-            }
-          }
-        });
-      }
-    }
-  };
-
   // Get parent collection layer for the selected layer
   const parentCollectionLayer = useMemo(() => {
     if (!selectedLayerId || !currentPageId) return null;
@@ -1850,48 +1779,6 @@ const RightSidebar = React.memo(function RightSidebar({
             />
           )}
 
-          {/* Field Binding Panel - show for text/image layers inside a collection (hide in text style mode) */}
-          {!showTextStyleControls && selectedLayer && parentCollectionLayer && parentCollectionFields.length > 0 && selectedLayer.name === 'image' && (
-            <SettingsPanel
-              title="Field Binding"
-              isOpen={fieldBindingOpen}
-              onToggle={() => setFieldBindingOpen(!fieldBindingOpen)}
-            >
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-col gap-2">
-                  <Label>Image Field</Label>
-                  <Select
-                    value={(() => {
-                      const imageSrc = selectedLayer.variables?.image?.src;
-                      if (imageSrc && typeof imageSrc === 'object' && imageSrc.type === 'field') {
-                        return imageSrc.data.field_id || 'none';
-                      }
-                      return 'none';
-                    })()}
-                    onValueChange={handleImageFieldBindingChange}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a field" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="none">None (Static image)</SelectItem>
-                        {parentCollectionFields.filter(f => f.type === 'image').map((field) => (
-                          <SelectItem key={field.id} value={field.id}>
-                            {field.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Bind this image to a collection image field
-                  </p>
-                </div>
-              </div>
-            </SettingsPanel>
-          )}
-
           {activeTab === 'design' && (
             <UIStateSelector selectedLayer={selectedLayer} />
           )}
@@ -2346,7 +2233,10 @@ const RightSidebar = React.memo(function RightSidebar({
                               {parentReferenceFields.length > 0 ? (
                                 parentReferenceFields.map((field) => (
                                   <SelectItem key={field.id} value={field.id}>
-                                    {field.name}
+                                    <span className="flex items-center gap-2">
+                                      <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                                      {field.name}
+                                    </span>
                                   </SelectItem>
                                 ))
                               ) : (
@@ -2375,7 +2265,10 @@ const RightSidebar = React.memo(function RightSidebar({
                                 <SelectLabel>CMS page data</SelectLabel>
                                 {dynamicPageReferenceFields.map((field) => (
                                   <SelectItem key={field.id} value={`field:${field.id}`}>
-                                    {field.name}
+                                    <span className="flex items-center gap-2">
+                                      <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                                      {field.name}
+                                    </span>
                                   </SelectItem>
                                 ))}
                               </SelectGroup>
@@ -2449,7 +2342,10 @@ const RightSidebar = React.memo(function RightSidebar({
                                 {selectedCollectionFields.length > 0 &&
                                   selectedCollectionFields.map((field) => (
                                     <SelectItem key={field.id} value={field.id}>
-                                      {field.name}
+                                      <span className="flex items-center gap-2">
+                                        <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                                        {field.name}
+                                      </span>
                                     </SelectItem>
                                   ))}
                               </SelectGroup>

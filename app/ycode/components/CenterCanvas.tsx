@@ -2169,6 +2169,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
                       allFields={collectionFieldsFromStore}
                       collections={collectionsFromStore}
                       onSelect={(fieldId, relationshipPath, source) => {
+                        const flatFields = flattenFieldGroups(fieldGroups);
+                        const field = flatFields.find(f => f.id === fieldId);
                         addFieldVariable(
                           {
                             type: 'field',
@@ -2176,9 +2178,10 @@ const CenterCanvas = React.memo(function CenterCanvas({
                               field_id: fieldId,
                               relationships: relationshipPath,
                               source,
+                              field_type: field?.type || null,
                             },
                           },
-                          flattenFieldGroups(fieldGroups),
+                          flatFields,
                           collectionFieldsFromStore
                         );
                         setTextEditorVariableDropdownOpen(false);

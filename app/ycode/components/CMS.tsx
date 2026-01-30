@@ -1486,7 +1486,7 @@ const CMS = React.memo(function CMS() {
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
                             {asset ? (
-                              <Tooltip>
+                              <Tooltip disableHoverableContent>
                                 <TooltipTrigger asChild>
                                   <div className="relative size-8 rounded-[6px] overflow-hidden bg-secondary/30 -my-1.5 inline-block">
                                     <div className="absolute inset-0 opacity-5 bg-checkerboard" />
@@ -1524,7 +1524,7 @@ const CMS = React.memo(function CMS() {
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
                             {asset ? (
-                              <Tooltip>
+                              <Tooltip disableHoverableContent>
                                 <TooltipTrigger asChild>
                                   <div className="relative size-8 rounded-[6px] overflow-hidden bg-secondary/30 flex items-center justify-center -my-1.5">
                                     <Icon name={getFieldIcon(field.type)} className="size-3.5 text-muted-foreground" />

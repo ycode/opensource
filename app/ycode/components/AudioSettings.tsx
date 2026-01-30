@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
 import RichTextEditor from './RichTextEditor';
 import type { FieldGroup } from './FieldTreeSelect';
-import type { Layer, CollectionField, Collection } from '@/types';
+import type { Layer, CollectionField, Collection, FieldVariable } from '@/types';
 import { createAssetVariable, createDynamicTextVariable, getDynamicTextContent, isAssetVariable, getAssetId, isFieldVariable, isDynamicTextVariable } from '@/lib/variable-utils';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -26,7 +26,7 @@ import {
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
-import { AUDIO_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups } from '@/lib/collection-field-utils';
+import { AUDIO_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { Slider } from '@/components/ui/slider';
@@ -123,11 +123,13 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
     if (!layer) return;
 
     // Create FieldVariable from field ID
-    const fieldVariable: { type: 'field'; data: { field_id: string; relationships: string[] } } = {
+    const field = audioFields.find(f => f.id === fieldId);
+    const fieldVariable: FieldVariable = {
       type: 'field',
       data: {
         field_id: fieldId,
         relationships: [],
+        field_type: field?.type || null,
       },
     };
 
@@ -142,7 +144,7 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
     });
 
     setSelectedField(fieldId);
-  }, [layer, onLayerUpdate]);
+  }, [layer, onLayerUpdate, audioFields]);
 
   const handleTypeChange = useCallback((type: 'upload' | 'custom_url' | 'cms') => {
     if (!layer) return;
@@ -160,13 +162,20 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
         },
       });
     } else if (type === 'cms') {
-      // Switch to CMS - create empty AssetVariable as placeholder
-      const placeholderVariable = createAssetVariable('');
+      // Switch to CMS - create FieldVariable with null field_id (user will select a field)
+      const fieldVariable: FieldVariable = {
+        type: 'field',
+        data: {
+          field_id: null,
+          relationships: [],
+          field_type: null,
+        },
+      };
       onLayerUpdate(layer.id, {
         variables: {
           ...layer.variables,
           audio: {
-            src: placeholderVariable,
+            src: fieldVariable as any,
           },
         },
       });
@@ -354,18 +363,21 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
           <div className="grid grid-cols-3 items-center">
             <Label variant="muted">Field</Label>
 
-            <div className="col-span-2">
+            <div className="col-span-2 w-full">
               <Select
                 value={selectedField || currentFieldId || ''}
                 onValueChange={handleFieldSelect}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a field" />
                 </SelectTrigger>
                 <SelectContent>
                   {audioFields.map((field) => (
                     <SelectItem key={field.id} value={field.id}>
-                      {field.name}
+                      <span className="flex items-center gap-2">
+                        <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                        {field.name}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

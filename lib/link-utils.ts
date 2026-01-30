@@ -9,6 +9,7 @@ import type {
   CollectionFieldType,
 } from '@/types';
 import { buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
+import { isAssetFieldType } from '@/lib/collection-field-utils';
 
 // ============================================================================
 // LinkSettings Validation
@@ -116,7 +117,8 @@ export function createPageLinkSettings(
  */
 export function createFieldLinkSettings(
   fieldId: string,
-  relationships: string[] = []
+  relationships: string[] = [],
+  fieldType: CollectionFieldType | null = null
 ): LinkSettings {
   return {
     type: 'field',
@@ -125,6 +127,7 @@ export function createFieldLinkSettings(
       data: {
         field_id: fieldId,
         relationships,
+        field_type: fieldType,
       },
     },
   };
@@ -206,8 +209,8 @@ export interface LinkResolutionContext {
   translations?: Record<string, any> | null;
   getAsset?: (id: string) => { public_url?: string | null } | null;
   anchorMap?: Record<string, string>;
-  /** Map field_id to field type for mailto:/tel: prefix when resolving field links */
-  fieldsByFieldId?: Record<string, { type: CollectionFieldType }>;
+  /** Pre-resolved asset URLs (asset_id -> public_url) for SSR */
+  resolvedAssets?: Record<string, string>;
 }
 
 /**
@@ -427,7 +430,6 @@ export function generateLinkHref(
         fieldData = collectionItemData || pageCollectionItemData;
       }
 
-      const fieldsByFieldId = context.fieldsByFieldId;
       if (linkSettings.field?.data?.field_id && fieldData) {
         const fieldId = linkSettings.field.data.field_id;
         const relationships = linkSettings.field.data.relationships || [];
@@ -441,7 +443,8 @@ export function generateLinkHref(
         }
 
         if (rawValue) {
-          const fieldType = fieldsByFieldId?.[fieldId]?.type;
+          // Use field_type stored in link settings (set when field is selected)
+          const fieldType = linkSettings.field?.data?.field_type;
           // Check if value is a CollectionLinkValue JSON (for 'link' field type)
           const linkValue = parseCollectionLinkValue(rawValue);
           if (linkValue) {
@@ -450,9 +453,16 @@ export function generateLinkHref(
             href = `mailto:${rawValue}`;
           } else if (fieldType === 'phone' || looksLikePhone(rawValue)) {
             href = `tel:${rawValue}`;
-          } else if (fieldType === 'image' && getAsset) {
-            const asset = getAsset(rawValue);
-            href = asset?.public_url || '';
+          } else if (isAssetFieldType(fieldType)) {
+            // Asset field types (image, video, audio, document) store asset IDs - resolve to URL
+            // Check pre-resolved assets first (SSR), then fall back to getAsset (client-side store)
+            const resolvedUrl = context.resolvedAssets?.[rawValue];
+            if (resolvedUrl) {
+              href = resolvedUrl;
+            } else if (getAsset) {
+              const asset = getAsset(rawValue);
+              href = asset?.public_url || '';
+            }
           } else {
             href = rawValue;
           }

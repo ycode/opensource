@@ -15,7 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import Icon, { type IconProps } from '@/components/ui/icon';
 import SettingsPanel from './SettingsPanel';
 import RichTextEditor from './RichTextEditor';
-import { filterFieldGroupsByType, LINK_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
+import { filterFieldGroupsByType, getFieldIcon, LINK_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
 import {
   Select,
   SelectContent,
@@ -307,7 +307,7 @@ export default function LinkSettings({
           newSettings.page = { id: '', collection_item_id: null };
           break;
         case 'field':
-          newSettings.field = { type: 'field', data: { field_id: null, relationships: [] } };
+          newSettings.field = { type: 'field', data: { field_id: null, relationships: [], field_type: null } };
           break;
       }
 
@@ -414,7 +414,7 @@ export default function LinkSettings({
     [layer, linkSettings, updateLinkSettings]
   );
 
-  // Handle field selection (field type is deduced from field_id via fieldsByFieldId)
+  // Handle field selection (field type is stored for link resolution)
   const handleFieldChange = useCallback(
     (value: string) => {
       if (!layer || !linkSettings) return;
@@ -424,6 +424,16 @@ export default function LinkSettings({
       const source = (parts[0] === 'page' || parts[0] === 'collection') ? parts[0] : undefined;
       const fieldId = source ? parts.slice(1).join('-') : value;
 
+      // Find the field type from linkFieldGroups
+      let fieldType: CollectionField['type'] | undefined;
+      for (const group of linkFieldGroups) {
+        const field = group.fields.find(f => f.id === fieldId);
+        if (field) {
+          fieldType = field.type;
+          break;
+        }
+      }
+
       updateLinkSettings({
         ...linkSettings,
         field: {
@@ -431,12 +441,13 @@ export default function LinkSettings({
           data: {
             field_id: fieldId,
             relationships: [],
+            field_type: fieldType || null,
             ...(source && { source }),
           },
         },
       });
     },
-    [layer, linkSettings, updateLinkSettings]
+    [layer, linkSettings, updateLinkSettings, linkFieldGroups]
   );
 
   // Handle anchor layer ID change
@@ -775,7 +786,10 @@ export default function LinkSettings({
                       {group.label && <SelectLabel>{group.label}</SelectLabel>}
                       {group.fields.map((field) => (
                         <SelectItem key={`${groupIdx}-${field.id}`} value={`${group.source}-${field.id}`}>
-                          {field.name}
+                          <span className="flex items-center gap-2">
+                            <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                            {field.name}
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectGroup>

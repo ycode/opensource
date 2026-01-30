@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import SettingsPanel from './SettingsPanel';
 import RichTextEditor from './RichTextEditor';
 import type { FieldGroup } from './FieldTreeSelect';
-import type { Layer, CollectionField, Collection, VideoVariable } from '@/types';
+import type { Layer, CollectionField, Collection, VideoVariable, FieldVariable } from '@/types';
 import { createAssetVariable, createDynamicTextVariable, getDynamicTextContent, isAssetVariable, getAssetId, isFieldVariable, isDynamicTextVariable } from '@/lib/variable-utils';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -26,17 +26,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ASSET_CATEGORIES, isAssetOfType, DEFAULT_ASSETS } from '@/lib/asset-utils';
-import { VIDEO_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups } from '@/lib/collection-field-utils';
+import { VIDEO_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups, getFieldIcon } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -152,15 +145,23 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
     });
   }, [layer, onLayerUpdate]);
 
+  // Filter fields to only show video-bindable field types
+  const videoFields = useMemo(() => {
+    const filtered = filterFieldGroupsByType(fieldGroups, VIDEO_FIELD_TYPES);
+    return flattenFieldGroups(filtered);
+  }, [fieldGroups]);
+
   const handleFieldSelect = useCallback((fieldId: string) => {
     if (!layer) return;
 
-    // Create FieldVariable from field ID
-    const fieldVariable: { type: 'field'; data: { field_id: string; relationships: string[] } } = {
+    // Create FieldVariable from field ID with actual field type
+    const field = videoFields.find(f => f.id === fieldId);
+    const fieldVariable: FieldVariable = {
       type: 'field',
       data: {
         field_id: fieldId,
         relationships: [],
+        field_type: field?.type || null,
       },
     };
 
@@ -176,7 +177,7 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
     });
 
     setSelectedField(fieldId);
-  }, [layer, onLayerUpdate]);
+  }, [layer, onLayerUpdate, videoFields]);
 
   const handlePosterChange = useCallback((assetId: string) => {
     if (!layer) return;
@@ -303,12 +304,20 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
         },
       });
     } else if (type === 'cms') {
-      // Switch to CMS - clear src (user will need to select a field)
+      // Switch to CMS - create FieldVariable with null field_id (user will select a field)
+      const fieldVariable: FieldVariable = {
+        type: 'field',
+        data: {
+          field_id: null,
+          relationships: [],
+          field_type: null,
+        },
+      };
       onLayerUpdate(layer.id, {
         variables: {
           ...layer.variables,
           video: {
-            src: undefined,
+            src: fieldVariable as any,
             poster: layer.variables?.video?.poster,
           },
         },
@@ -386,12 +395,6 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
     });
   }, [layer, onLayerUpdate]);
 
-  // Filter fields to only show video-bindable field types (video, image for backwards compat, or text for URL)
-  const videoFields = useMemo(() => {
-    const filtered = filterFieldGroupsByType(fieldGroups, VIDEO_FIELD_TYPES);
-    return flattenFieldGroups(filtered);
-  }, [fieldGroups]);
-
   // Only show for video layers
   if (!layer || layer.name !== 'video') {
     return null;
@@ -434,33 +437,6 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
                   <SelectItem value="youtube"><Icon name="video" className="size-3" /> YouTube</SelectItem>
                 </SelectContent>
               </Select>
-
-              {videoType === 'upload' && videoFields.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      aria-label="Select Field"
-                    >
-                      <Icon name="database" />
-                    </Button>
-                  </DropdownMenuTrigger>
-
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuGroup>
-                      {videoFields.map((field) => (
-                        <DropdownMenuItem
-                          key={field.id}
-                          onClick={() => handleFieldSelect(field.id)}
-                        >
-                          {field.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
             </div>
           </div>
 
@@ -582,18 +558,21 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
             <div className="grid grid-cols-3 items-center">
               <Label variant="muted">Field</Label>
 
-              <div className="col-span-2">
+              <div className="col-span-2 w-full">
                 <Select
                   value={selectedField || currentFieldId || ''}
                   onValueChange={handleFieldSelect}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a field" />
                   </SelectTrigger>
                   <SelectContent>
                     {videoFields.map((field) => (
                       <SelectItem key={field.id} value={field.id}>
-                        {field.name}
+                        <span className="flex items-center gap-2">
+                          <Icon name={getFieldIcon(field.type)} className="size-3 text-muted-foreground shrink-0" />
+                          {field.name}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -238,7 +238,20 @@ export function getImageUrlFromVariable(
 
   if (isFieldVariable(src)) {
     if (!resolveFieldValue) return undefined;
-    return resolveFieldValue(src, collectionItemData);
+    const resolvedValue = resolveFieldValue(src, collectionItemData);
+    if (!resolvedValue) return undefined;
+
+    // The field value may be an asset ID - look up the asset to get the URL
+    if (getAsset) {
+      const asset = getAsset(resolvedValue);
+      if (asset?.public_url) {
+        return asset.public_url;
+      }
+    }
+
+    // If getAsset is not available or asset not found, return the raw value
+    // (might be a URL in text fields)
+    return resolvedValue;
   }
 
   if (isDynamicTextVariable(src)) {
@@ -303,7 +316,20 @@ export function getVideoUrlFromVariable(
 
   if (isFieldVariable(src)) {
     if (!resolveFieldValue) return undefined;
-    return resolveFieldValue(src, collectionItemData);
+    const resolvedValue = resolveFieldValue(src, collectionItemData);
+    if (!resolvedValue) return undefined;
+
+    // The field value may be an asset ID - look up the asset to get the URL
+    if (getAsset) {
+      const asset = getAsset(resolvedValue);
+      if (asset?.public_url) {
+        return asset.public_url;
+      }
+    }
+
+    // If getAsset is not available or asset not found, return the raw value
+    // (might be a URL in text fields)
+    return resolvedValue;
   }
 
   if (isDynamicTextVariable(src)) {

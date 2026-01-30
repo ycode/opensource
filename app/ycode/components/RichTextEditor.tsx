@@ -695,12 +695,14 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({
   }
 
   const handleFieldSelect = (fieldId: string, relationshipPath: string[], source?: FieldSourceType) => {
+    const field = fields.find(f => f.id === fieldId);
     addFieldVariableInternal({
       type: 'field',
       data: {
         field_id: fieldId,
         relationships: relationshipPath,
         source,
+        field_type: field?.type || null,
       },
     });
 
