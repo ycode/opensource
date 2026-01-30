@@ -2251,6 +2251,19 @@ const RightSidebar = React.memo(function RightSidebar({
               );
             })()}
 
+            {/* Link Settings - hide for form layers */}
+            {selectedLayer?.name !== 'form' && (
+              <LinkSettings
+                layer={selectedLayer}
+                onLayerUpdate={handleLayerUpdate}
+                fieldGroups={fieldGroups}
+                allFields={fields}
+                collections={collections}
+                isLockedByOther={isLockedByOther}
+                isInsideCollectionLayer={!!parentCollectionLayer}
+              />
+            )}
+
             {/* Locale Label Panel - only show for localeSelector layers */}
             {selectedLayer && selectedLayer.name === 'localeSelector' && (
               <SettingsPanel
@@ -2613,19 +2626,6 @@ const RightSidebar = React.memo(function RightSidebar({
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
             />
-
-            {/* Link Settings - hide for form layers */}
-            {selectedLayer?.name !== 'form' && (
-              <LinkSettings
-                layer={selectedLayer}
-                onLayerUpdate={handleLayerUpdate}
-                fieldGroups={fieldGroups}
-                allFields={fields}
-                collections={collections}
-                isLockedByOther={isLockedByOther}
-                isInsideCollectionLayer={!!parentCollectionLayer}
-              />
-            )}
 
             {/* Collection Filters - only for collection layers */}
             {selectedLayer && getCollectionVariable(selectedLayer)?.id && (
