@@ -125,15 +125,30 @@ export default function CollectionItemSheet({
 
   const form = useForm();
 
-  // Load item data if editing
+  // Helper to detect temporary IDs (from optimistic creates)
+  const isTempId = (id: string | null | undefined): boolean => {
+    return !!id && (id.startsWith('temp-') || id.startsWith('temp-dup-'));
+  };
+
+  // Load item data when sheet opens with an itemId
   useEffect(() => {
+    // Only load item data when sheet is open and we have an itemId
+    if (!open) return;
+    
     if (itemId && collectionItems.length > 0) {
       const item = collectionItems.find(i => i.id === itemId);
+      // If itemId is a temp ID, also try to find by matching the temp pattern
+      // (the item might have been replaced with the real ID)
+      if (!item && isTempId(itemId)) {
+        // Item with temp ID not found - it may have been replaced with real ID
+        // Keep the current editingItem if it exists
+        return;
+      }
       setEditingItem(item || null);
-    } else {
+    } else if (!itemId) {
       setEditingItem(null);
     }
-  }, [itemId, collectionItems]);
+  }, [itemId, open, collectionItems]);
 
   // Acquire/release item lock when sheet opens/closes
   useEffect(() => {
@@ -220,7 +235,7 @@ export default function CollectionItemSheet({
     }
   }, [form, editingItem, collectionFields]);
 
-  const handleSubmit = async (values: Record<string, any>) => {
+  const handleSubmit = (values: Record<string, any>) => {
     if (!collectionId) return;
 
     let hasErrors = false;
@@ -257,75 +272,85 @@ export default function CollectionItemSheet({
 
     if (hasErrors) return;
 
-    try {
-      if (editingItem) {
-        // Update existing item
+    // Store editingItem reference before closing (needed for API call below)
+    const itemToUpdate = editingItem;
 
-        // 1. Optimistically update in collection layer store (for collection layers)
-        updateItemInLayerData(editingItem.id, values);
-
-        // 2. Optimistically update in pages store (for dynamic pages)
-        if (isPageLevelItem && currentPageId) {
-          updatePageCollectionItem(currentPageId, {
-            ...editingItem,
-            values,
-            updated_at: new Date().toISOString(),
-          });
-        }
-
-        // 3. Update in main collections store (API call with optimistic update)
-        await updateItem(collectionId, editingItem.id, values);
-
-        // Broadcast item update to other collaborators
-        if (liveCollectionUpdates) {
-          liveCollectionUpdates.broadcastItemUpdate(collectionId, editingItem.id, { values } as any);
-        }
-
-        // 4. Background refetch for collection layers
-        setTimeout(() => {
-          refetchLayersForCollection(collectionId);
-        }, 100);
-
-        // 5. Background refetch for page-level data (if dynamic page)
-        if (isPageLevelItem && currentPageId) {
-          setTimeout(() => {
-            refetchPageCollectionItem(currentPageId);
-          }, 100);
-        }
-      } else {
-        // Create new item (store adds to local state optimistically)
-        const newItem = await createItem(collectionId, values);
-
-        // Broadcast item creation to other collaborators
-        if (liveCollectionUpdates && newItem) {
-          liveCollectionUpdates.broadcastItemCreate(collectionId, newItem);
-        }
-
-        // Refetch to show the new item
-        setTimeout(() => {
-          refetchLayersForCollection(collectionId);
-
-          // Also refetch page data if on dynamic page
-          if (isPageLevelItem && currentPageId) {
-            refetchPageCollectionItem(currentPageId);
-          }
-        }, 100);
-      }
-
-      // Close sheet after successful save
+    // Close sheet immediately (optimistic UI) - only use onSuccess to avoid double-close race condition
+    setEditingItem(null);
+    form.reset();
+    if (onSuccess) {
+      onSuccess();
+    } else {
       onOpenChange(false);
-      setEditingItem(null);
-      form.reset();
+    }
 
-      // Call success callback
-      if (onSuccess) {
-        onSuccess();
+    if (itemToUpdate) {
+      // Update existing item
+
+      // 1. Optimistically update in collection layer store (for collection layers)
+      updateItemInLayerData(itemToUpdate.id, values);
+
+      // 2. Optimistically update in pages store (for dynamic pages)
+      if (isPageLevelItem && currentPageId) {
+        updatePageCollectionItem(currentPageId, {
+          ...itemToUpdate,
+          values,
+          updated_at: new Date().toISOString(),
+        });
       }
-    } catch (error) {
-      console.error('Failed to save item:', error);
-      toast.error('Failed to save item', {
-        description: 'Please try again.',
-      });
+
+      // 3. Update in main collections store (fire and forget - store handles optimistic update & rollback)
+      const itemId = itemToUpdate.id;
+      updateItem(collectionId, itemId, values)
+        .then(() => {
+          // Broadcast item update to other collaborators
+          if (liveCollectionUpdates) {
+            liveCollectionUpdates.broadcastItemUpdate(collectionId, itemId, { values } as any);
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to update item:', error);
+          toast.error('Failed to save item', {
+            description: 'Changes have been reverted.',
+          });
+        });
+
+      // 4. Background refetch for collection layers
+      setTimeout(() => {
+        refetchLayersForCollection(collectionId);
+      }, 100);
+
+      // 5. Background refetch for page-level data (if dynamic page)
+      if (isPageLevelItem && currentPageId) {
+        setTimeout(() => {
+          refetchPageCollectionItem(currentPageId);
+        }, 100);
+      }
+    } else {
+      // Create new item (store handles optimistic update & rollback)
+      createItem(collectionId, values)
+        .then((newItem) => {
+          // Broadcast item creation to other collaborators
+          if (liveCollectionUpdates && newItem) {
+            liveCollectionUpdates.broadcastItemCreate(collectionId, newItem);
+          }
+
+          // Refetch to sync collection layers
+          setTimeout(() => {
+            refetchLayersForCollection(collectionId);
+
+            // Also refetch page data if on dynamic page
+            if (isPageLevelItem && currentPageId) {
+              refetchPageCollectionItem(currentPageId);
+            }
+          }, 100);
+        })
+        .catch((error) => {
+          console.error('Failed to create item:', error);
+          toast.error('Failed to create item', {
+            description: 'Please try again.',
+          });
+        });
     }
   };
 
@@ -350,8 +375,9 @@ export default function CollectionItemSheet({
               size="sm"
               type="submit"
               form="collection-item-form"
+              disabled={isTempId(editingItem?.id)}
             >
-              {editingItem ? 'Save' : 'Create'}
+              {editingItem ? (isTempId(editingItem.id) ? 'Saving...' : 'Save') : 'Create'}
             </Button>
           </SheetActions>
         </SheetHeader>

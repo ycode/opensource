@@ -608,74 +608,66 @@ export async function duplicateItem(itemId: string, isPublished: boolean = false
     throw new Error('Item not found');
   }
 
+  // Get collection fields to find field IDs by key
+  const fields = await getFieldsByCollectionId(originalItem.collection_id, isPublished);
+  const idField = fields.find(f => f.key === 'id');
+  const nameField = fields.find(f => f.key === 'name');
+  const slugField = fields.find(f => f.key === 'slug');
+  const createdAtField = fields.find(f => f.key === 'created_at');
+  const updatedAtField = fields.find(f => f.key === 'updated_at');
+
   // Get all items in the collection to find existing slugs
   const { items: allItems } = await getItemsWithValues(
     originalItem.collection_id,
-    isPublished, // Filter items and values by is_published
+    isPublished,
     undefined
   );
 
-  // Prepare the new values
+  // Prepare the new values (keyed by field_id)
   const newValues = { ...originalItem.values };
 
   // Auto-increment the ID field
-  if (newValues.id) {
-    // Find the highest ID among all items
+  if (idField && newValues[idField.id]) {
     let highestId = 0;
     allItems.forEach(item => {
-      if (item.values.id) {
-        const itemId = parseInt(item.values.id, 10);
-        if (!isNaN(itemId)) {
-          highestId = Math.max(highestId, itemId);
-        }
+      const val = item.values[idField.id];
+      if (val) {
+        const num = parseInt(String(val), 10);
+        if (!isNaN(num)) highestId = Math.max(highestId, num);
       }
     });
-    // Set new auto-incremented ID
-    newValues.id = String(highestId + 1);
+    newValues[idField.id] = String(highestId + 1);
   }
 
   // Update auto-generated timestamp fields
   const now = new Date().toISOString();
-  if (newValues.created_at) {
-    newValues.created_at = now;
-  }
-  if (newValues.updated_at) {
-    newValues.updated_at = now;
-  }
+  if (createdAtField) newValues[createdAtField.id] = now;
+  if (updatedAtField) newValues[updatedAtField.id] = now;
 
-  // Add " (Copy)" to the name field if it exists
-  if (newValues.name) {
-    newValues.name = `${newValues.name} (Copy)`;
+  // Add " (Copy)" to the name field
+  if (nameField && newValues[nameField.id]) {
+    newValues[nameField.id] = `${newValues[nameField.id]} (Copy)`;
   }
 
-  // Generate unique slug if slug field exists
-  if (newValues.slug) {
-    const originalSlug = newValues.slug;
+  // Generate unique slug (required for uniqueness)
+  if (slugField) {
+    const originalSlug = newValues[slugField.id] ? String(newValues[slugField.id]).trim() : '';
+    const baseSlug = originalSlug || 'copy';
+    const baseSlugClean = baseSlug.replace(/-\d+$/, '');
 
-    // Extract base slug (remove trailing numbers like -1, -2)
-    const baseSlug = originalSlug.replace(/-\d+$/, '');
+    const existingSlugs = new Set(
+      allItems
+        .map(item => item.values[slugField.id])
+        .filter((s): s is string => !!s && typeof s === 'string')
+    );
 
-    // Find all slugs that match the base pattern
-    const matchingSlugs = allItems
-      .map(item => item.values.slug)
-      .filter(slug => slug && (slug === baseSlug || slug.startsWith(`${baseSlug}-`)));
-
-    // Extract numbers from matching slugs and find the highest
-    let highestNumber = 0;
-    matchingSlugs.forEach(slug => {
-      if (slug === baseSlug) {
-        highestNumber = Math.max(highestNumber, 0);
-      } else {
-        const match = slug.match(/-(\d+)$/);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          highestNumber = Math.max(highestNumber, num);
-        }
-      }
-    });
-
-    // Generate new slug with incremented number
-    newValues.slug = `${baseSlug}-${highestNumber + 1}`;
+    let newSlug = `${baseSlugClean}-copy`;
+    if (existingSlugs.has(newSlug)) {
+      let n = 1;
+      while (existingSlugs.has(`${baseSlugClean}-copy-${n}`)) n++;
+      newSlug = `${baseSlugClean}-copy-${n}`;
+    }
+    newValues[slugField.id] = newSlug;
   }
 
   // Create the new item with a new UUID
@@ -697,20 +689,8 @@ export async function duplicateItem(itemId: string, isPublished: boolean = false
     throw new Error(`Failed to create duplicate item: ${itemError.message}`);
   }
 
-  // Get field mappings for the collection
-  const { data: fields, error: fieldsError } = await client
-    .from('collection_fields')
-    .select('id, type')
-    .eq('collection_id', originalItem.collection_id)
-    .eq('is_published', isPublished)
-    .is('deleted_at', null);
-
-  if (fieldsError) {
-    throw new Error(`Failed to fetch fields: ${fieldsError.message}`);
-  }
-
-  // Create set of valid field IDs
-  const validFieldIds = new Set(fields?.map((field: any) => field.id) || []);
+  // Create set of valid field IDs (fields already fetched above)
+  const validFieldIds = new Set(fields.map(f => f.id));
 
   // Create new values for the duplicated item
   const valuesToInsert = Object.entries(newValues)
