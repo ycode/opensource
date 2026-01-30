@@ -182,14 +182,28 @@ export async function seedRemixIcons(): Promise<SeedResult> {
       };
     }
     
-    // Get existing icons to avoid duplicates
-    const { data: existingAssets } = await client
-      .from('assets')
-      .select('filename')
-      .eq('asset_folder_id', remixFolderId)
-      .eq('source', ICON_SOURCE);
+    // Get ALL existing remix icons by source (regardless of folder)
+    // Paginate to get all results since Supabase has a 1000 row limit
+    const existingFilenames = new Set<string>();
+    let offset = 0;
+    const PAGE_SIZE = 1000;
     
-    const existingFilenames = new Set(existingAssets?.map(a => a.filename) || []);
+    while (true) {
+      const { data: existingAssets } = await client
+        .from('assets')
+        .select('filename')
+        .eq('source', ICON_SOURCE)
+        .range(offset, offset + PAGE_SIZE - 1);
+      
+      if (!existingAssets || existingAssets.length === 0) break;
+      
+      existingAssets.forEach(a => existingFilenames.add(a.filename));
+      
+      if (existingAssets.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
+    
+    console.log(`[seedRemixIcons] Found ${existingFilenames.size} existing icons in database`);
     
     // Filter out already existing icons
     const iconsToInsert = icons.filter(icon => !existingFilenames.has(icon.filename));
