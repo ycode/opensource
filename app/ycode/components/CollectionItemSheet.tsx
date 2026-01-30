@@ -84,6 +84,7 @@ export default function CollectionItemSheet({
   const lockedItemIdRef = useRef<string | null>(null);
 
   const [editingItem, setEditingItem] = useState<CollectionItemWithValues | null>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const collection = collections.find(c => c.id === collectionId);
   const collectionFields = useMemo(
@@ -197,6 +198,15 @@ export default function CollectionItemSheet({
       form.reset(defaultValues);
     }
   }, [editingItem, collectionFields, form]);
+
+  // Handle auto-focus on sheet open
+  const handleOpenAutoFocus = useCallback((e: Event) => {
+    // Only focus name field when creating a new item
+    if (!itemId && nameInputRef.current) {
+      e.preventDefault(); // Prevent default focus behavior
+      nameInputRef.current.focus();
+    }
+  }, [itemId]);
 
   // Auto-fill slug field based on name field (debounced to avoid race conditions)
   useEffect(() => {
@@ -365,7 +375,7 @@ export default function CollectionItemSheet({
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent>
+      <SheetContent onOpenAutoFocus={handleOpenAutoFocus}>
         <SheetHeader>
           <SheetTitle>
             {editingItem ? 'Edit' : 'Create'} {collection?.name} Item
@@ -543,6 +553,15 @@ export default function CollectionItemSheet({
                                 </div>
                               );
                             })()
+                          ) : field.key === 'name' ? (
+                            <Input
+                              ref={nameInputRef}
+                              placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
+                              name={formField.name}
+                              value={formField.value}
+                              onChange={formField.onChange}
+                              onBlur={formField.onBlur}
+                            />
                           ) : (
                             <Input
                               placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
