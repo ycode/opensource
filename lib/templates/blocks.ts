@@ -366,11 +366,14 @@ export function getAllLayoutKeys(): string[] {
  */
 const CATEGORY_ORDER = [
   'Navigation',
+  'Header',
   'Hero',
   'Features',
   'Content',
   'Blog header',
   'Blog posts',
+  'Stats',
+  'Team',
   'Testimonials',
   'Pricing',
   'FAQ',

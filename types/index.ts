@@ -14,6 +14,7 @@ export interface LayoutDesign {
   isActive?: boolean;
   display?: string;
   flexDirection?: string;
+  flexWrap?: string;
   justifyContent?: string;
   alignItems?: string;
   gap?: string;
