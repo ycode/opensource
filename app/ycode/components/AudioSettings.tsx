@@ -26,6 +26,7 @@ import {
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
+import { AUDIO_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { Slider } from '@/components/ui/slider';
@@ -54,16 +55,11 @@ export default function AudioSettings({ layer, onLayerUpdate, fieldGroups, allFi
   const openFileManager = useEditorStore((state) => state.openFileManager);
   const getAsset = useAssetsStore((state) => state.getAsset);
 
-  // Derive collection fields from fieldGroups (for CMS field selection)
-  const collectionFields = useMemo(() => {
-    const collectionGroup = fieldGroups?.find(g => g.source === 'collection');
-    return collectionGroup?.fields || [];
-  }, [fieldGroups]);
-
-  // Filter fields to only show audio/asset type fields
+  // Filter fields to only show audio-bindable field types (audio or text for URL)
   const audioFields = useMemo(() => {
-    return collectionFields.filter((field) => field.type === 'text');
-  }, [collectionFields]);
+    const filtered = filterFieldGroupsByType(fieldGroups, AUDIO_FIELD_TYPES);
+    return flattenFieldGroups(filtered);
+  }, [fieldGroups]);
 
   // Detect current field ID if using FieldVariable
   const currentFieldId = useMemo(() => {

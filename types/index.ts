@@ -764,7 +764,7 @@ export interface ActivityNotification {
 }
 
 // Collection Types (EAV Architecture)
-export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'link' | 'email' | 'phone';
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'audio' | 'video' | 'document' | 'link' | 'email' | 'phone';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {

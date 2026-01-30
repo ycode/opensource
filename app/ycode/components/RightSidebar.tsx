@@ -2251,6 +2251,19 @@ const RightSidebar = React.memo(function RightSidebar({
               );
             })()}
 
+            {/* Link Settings - hide for form layers */}
+            {selectedLayer?.name !== 'form' && (
+              <LinkSettings
+                layer={selectedLayer}
+                onLayerUpdate={handleLayerUpdate}
+                fieldGroups={fieldGroups}
+                allFields={fields}
+                collections={collections}
+                isLockedByOther={isLockedByOther}
+                isInsideCollectionLayer={!!parentCollectionLayer}
+              />
+            )}
+
             {/* Locale Label Panel - only show for localeSelector layers */}
             {selectedLayer && selectedLayer.name === 'localeSelector' && (
               <SettingsPanel
@@ -2570,6 +2583,7 @@ const RightSidebar = React.memo(function RightSidebar({
               fieldGroups={fieldGroups}
               allFields={fields}
               collections={collections}
+              onOpenVariablesDialog={() => setVariablesDialogOpen(true)}
             />
 
             <VideoSettings
@@ -2612,19 +2626,6 @@ const RightSidebar = React.memo(function RightSidebar({
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
             />
-
-            {/* Link Settings - hide for form layers */}
-            {selectedLayer?.name !== 'form' && (
-              <LinkSettings
-                layer={selectedLayer}
-                onLayerUpdate={handleLayerUpdate}
-                fieldGroups={fieldGroups}
-                allFields={fields}
-                collections={collections}
-                isLockedByOther={isLockedByOther}
-                isInsideCollectionLayer={!!parentCollectionLayer}
-              />
-            )}
 
             {/* Collection Filters - only for collection layers */}
             {selectedLayer && getCollectionVariable(selectedLayer)?.id && (
@@ -2729,57 +2730,6 @@ const RightSidebar = React.memo(function RightSidebar({
                 </Empty>
                 )}
             </SettingsPanel>
-
-            <ImageSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-              fieldGroups={fieldGroups}
-              allFields={fields}
-              collections={collections}
-              onOpenVariablesDialog={() => setVariablesDialogOpen(true)}
-            />
-
-            <VideoSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-              fieldGroups={fieldGroups}
-              allFields={fields}
-              collections={collections}
-            />
-
-            <AudioSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-              fieldGroups={fieldGroups}
-              allFields={fields}
-              collections={collections}
-            />
-
-            <IconSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-            />
-
-            <HTMLEmbedSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-            />
-
-            {/* Collection Filters - only for collection layers */}
-            {selectedLayer && getCollectionVariable(selectedLayer)?.id && (
-              <CollectionFiltersSettings
-                layer={selectedLayer}
-                onLayerUpdate={handleLayerUpdate}
-                collectionId={getCollectionVariable(selectedLayer)!.id}
-              />
-            )}
-
-            <ConditionalVisibilitySettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-              fieldGroups={fieldGroups}
-            />
-
           </div>
         </TabsContent>
 

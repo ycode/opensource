@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 /**
@@ -29,7 +30,7 @@ import { collectionsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import { slugify } from '@/lib/collection-utils';
-import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName } from '@/lib/collection-field-utils';
+import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon } from '@/lib/collection-field-utils';
 import { extractPlainTextFromContent } from '@/lib/cms-variables-utils';
 import { parseCollectionLinkValue, resolveCollectionLinkValue } from '@/lib/link-utils';
 import { useEditorUrl } from '@/hooks/use-editor-url';
@@ -457,6 +458,7 @@ const CMS = React.memo(function CMS() {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCollectionId, urlState.search, urlState.page, urlState.pageSize]);
 
   // Update URL when search or page changes locally (debounced to prevent loops)
@@ -491,6 +493,7 @@ const CMS = React.memo(function CMS() {
         clearTimeout(updateUrlTimeoutRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, currentPage, pageSize, selectedCollectionId]);
 
   // Load fields and items when collection changes (not when just navigating within same collection)
@@ -549,6 +552,7 @@ const CMS = React.memo(function CMS() {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(debounceTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldSearchQuery]); // Only trigger on search query change, not collection change
 
   // Track if initial load has completed for this collection
@@ -586,6 +590,7 @@ const CMS = React.memo(function CMS() {
     }, 300); // 300ms debounce
 
     return () => clearTimeout(debounceTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, currentPage, pageSize]); // Only trigger on search/pagination changes, not collection change
 
   // Reset to page 1 when search query changes (only if user typed, not from URL sync)
@@ -1471,24 +1476,64 @@ const CMS = React.memo(function CMS() {
                         );
                       }
 
-                      // Image fields - show thumbnail preview
+                      // Image fields - show thumbnail preview with filename in tooltip
                       if (field.type === 'image' && value) {
                         const asset = getAsset(value);
                         return (
                           <td
                             key={field.id}
-                            className="px-4 py-5"
+                            className="px-4"
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
-                            {asset?.public_url ? (
-                              <div className="relative size-7 rounded-[6px] overflow-hidden bg-secondary/30 -my-1.5">
-                                <div className="absolute inset-0 opacity-5 bg-checkerboard" />
-                                <img
-                                  src={asset.public_url}
-                                  alt={asset.filename || 'Image'}
-                                  className="relative w-full h-full object-contain z-10"
-                                />
-                              </div>
+                            {asset ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="relative size-8 rounded-[6px] overflow-hidden bg-secondary/30 -my-1.5 inline-block">
+                                    <div className="absolute inset-0 opacity-5 bg-checkerboard" />
+                                    {asset.public_url ? (
+                                      <img
+                                        src={asset.public_url}
+                                        alt={asset.filename || 'Image'}
+                                        className="relative w-full h-full object-contain z-10"
+                                      />
+                                    ) : (
+                                      <div className="absolute inset-0 flex items-center justify-center z-10">
+                                        <Icon name="image" className="size-3.5 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{asset.filename}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
+                        );
+                      }
+
+                      // Audio/Video/Document fields - show icon with filename in tooltip
+                      if ((field.type === 'audio' || field.type === 'video' || field.type === 'document') && value) {
+                        const asset = getAsset(value);
+                        return (
+                          <td
+                            key={field.id}
+                            className="px-4"
+                            onClick={() => !isManualMode && handleEditItem(item)}
+                          >
+                            {asset ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="relative size-8 rounded-[6px] overflow-hidden bg-secondary/30 flex items-center justify-center -my-1.5">
+                                    <Icon name={getFieldIcon(field.type)} className="size-3.5 text-muted-foreground" />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{asset.filename}</p>
+                                </TooltipContent>
+                              </Tooltip>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
@@ -1607,7 +1652,13 @@ const CMS = React.memo(function CMS() {
         </SortableContext>
       </DndContext>
     );
-  }, [sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, createFieldPopoverOpen, searchQuery, collectionItems.length, showSkeleton, totalItems, pageSize, handleSelectAll, handleColumnClick, handleEditFieldClick, handleDuplicateField, handleHideField, handleDeleteField, handleCreateFieldFromPopover, handleDragEnd, handleDuplicateItem, handleDeleteItem, handleEditItem, handleToggleItemSelection, sensors]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    sortedItems, collectionFields, isManualMode, selectedItemIds, selectedCollection?.sorting, openDropdownId, createFieldPopoverOpen, searchQuery,
+    collectionItems.length, showSkeleton, totalItems, pageSize, handleSelectAll, handleColumnClick, handleEditFieldClick, handleDuplicateField,
+    handleHideField, handleDeleteField, handleCreateFieldFromPopover, handleDragEnd, handleDuplicateItem, handleDeleteItem, handleEditItem,
+    handleToggleItemSelection, sensors,
+  ]);
 
   // Collections sidebar component
   const collectionsSidebar = (
