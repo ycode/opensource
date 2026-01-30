@@ -7,13 +7,19 @@ interface CollectionItemContextMenuProps {
   children: React.ReactNode;
   onDuplicate: () => void;
   onDelete: () => void;
+  disabled?: boolean;
 }
 
 export default function CollectionItemContextMenu({
   children,
   onDuplicate,
   onDelete,
+  disabled = false,
 }: CollectionItemContextMenuProps) {
+  if (disabled) {
+    return <>{children}</>;
+  }
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>

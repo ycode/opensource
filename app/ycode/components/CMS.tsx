@@ -27,8 +27,9 @@ import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
 import { collectionsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { toast } from 'sonner';
 import { slugify } from '@/lib/collection-utils';
-import { FIELD_TYPES, type FieldType } from '@/lib/field-types-config';
+import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName } from '@/lib/collection-field-utils';
 import { extractPlainTextFromContent } from '@/lib/cms-variables-utils';
 import { parseCollectionLinkValue, resolveCollectionLinkValue } from '@/lib/link-utils';
 import { useEditorUrl } from '@/hooks/use-editor-url';
@@ -42,6 +43,7 @@ import type { CollectionItemWithValues, CollectionField, Collection } from '@/ty
 import { Checkbox } from '@/components/ui/checkbox';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import { Badge } from '@/components/ui/badge';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 /**
  * Helper component to render reference field values in CMS list
@@ -100,13 +102,14 @@ interface ItemLockInfo {
 interface SortableRowProps {
   item: CollectionItemWithValues;
   isManualMode: boolean;
+  isSaving?: boolean;
   children: React.ReactNode;
   onDuplicate: () => void;
   onDelete: () => void;
   lockInfo?: ItemLockInfo;
 }
 
-function SortableRow({ item, isManualMode, children, onDuplicate, onDelete, lockInfo }: SortableRowProps) {
+function SortableRow({ item, isManualMode, isSaving, children, onDuplicate, onDelete, lockInfo }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -114,33 +117,36 @@ function SortableRow({ item, isManualMode, children, onDuplicate, onDelete, lock
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id, disabled: !isManualMode });
+  } = useSortable({ id: item.id, disabled: !isManualMode || isSaving });
 
   const isLockedByOther = lockInfo?.isLocked;
+  const isDisabled = isLockedByOther || isSaving;
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : isLockedByOther ? 0.7 : 1,
-    cursor: isManualMode ? 'grab' : isLockedByOther ? 'not-allowed' : 'pointer',
+    opacity: isDragging ? 0.5 : isDisabled ? 0.6 : 1,
+    cursor: isManualMode ? 'grab' : isDisabled ? 'not-allowed' : 'pointer',
   };
 
   return (
     <CollectionItemContextMenu
       onDuplicate={onDuplicate}
       onDelete={onDelete}
+      disabled={isSaving}
     >
       <tr
         ref={setNodeRef}
         style={style}
         {...attributes}
-        {...(isManualMode ? listeners : {})}
-        className={`group border-b hover:bg-secondary/50 transition-colors ${isLockedByOther ? 'bg-secondary/30' : ''}`}
+        {...(isManualMode && !isSaving ? listeners : {})}
+        onContextMenu={isSaving ? (e) => e.preventDefault() : undefined}
+        className={`group border-b hover:bg-secondary/50 transition-colors ${isDisabled ? 'bg-secondary/30' : ''}`}
       >
         {children}
         {/* Lock indicator - as proper table cell */}
         <td className="w-10 px-2 text-center">
-          {isLockedByOther && lockInfo && (
+          {isLockedByOther && lockInfo ? (
             <CollaboratorBadge
               collaborator={{
                 userId: lockInfo.ownerUserId || '',
@@ -150,7 +156,7 @@ function SortableRow({ item, isManualMode, children, onDuplicate, onDelete, lock
               size="sm"
               tooltipPrefix="Editing by"
             />
-          )}
+          ) : null}
         </td>
       </tr>
     </CollectionItemContextMenu>
@@ -372,6 +378,15 @@ const CMS = React.memo(function CMS() {
   const [hoveredCollectionId, setHoveredCollectionId] = useState<string | null>(null);
   const [collectionDropdownId, setCollectionDropdownId] = useState<string | null>(null);
 
+  // Confirm dialog state
+  const [deleteItemDialogOpen, setDeleteItemDialogOpen] = useState(false);
+  const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
+  const [deleteSelectedDialogOpen, setDeleteSelectedDialogOpen] = useState(false);
+  const [deleteFieldDialogOpen, setDeleteFieldDialogOpen] = useState(false);
+  const [deleteFieldId, setDeleteFieldId] = useState<string | null>(null);
+  const [deleteCollectionDialogOpen, setDeleteCollectionDialogOpen] = useState(false);
+  const [deleteCollectionId, setDeleteCollectionId] = useState<string | null>(null);
+
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
   const collectionFields = useMemo(
     () => (selectedCollectionId ? (fields[selectedCollectionId] || []) : []),
@@ -483,13 +498,34 @@ const CMS = React.memo(function CMS() {
     if (selectedCollectionId) {
       // Only reload if the collection actually changed
       if (prevCollectionIdRef.current !== selectedCollectionId) {
-        // Use URL state for initial page, search, and pageSize, or defaults
-        const initialPage = urlState.page || 1;
-        const initialSearch = urlState.search || '';
-        const initialPageSize = urlState.pageSize || 25;
+        // Check if items are already preloaded (from YCodeBuilderMain) using store.getState()
+        const storeState = useCollectionsStore.getState();
+        const existingItems = storeState.items[selectedCollectionId];
+        const existingFields = storeState.fields[selectedCollectionId];
+        const totalCount = storeState.itemsTotalCount[selectedCollectionId] || 0;
 
-        loadFields(selectedCollectionId);
-        loadItems(selectedCollectionId, initialPage, initialPageSize);
+        // Only load fields if not already in store
+        if (!existingFields || existingFields.length === 0) {
+          loadFields(selectedCollectionId);
+        }
+
+        // Only load items if:
+        // 1. No items in store, OR
+        // 2. We're on page > 1 (need different page), OR
+        // 3. We have fewer items than total AND fewer than what we're requesting
+        const initialPage = urlState.page || 1;
+        const initialPageSize = urlState.pageSize || 25;
+        const needsLoad = !existingItems ||
+          existingItems.length === 0 ||
+          initialPage > 1 ||
+          (existingItems.length < totalCount && existingItems.length < initialPageSize);
+
+        if (needsLoad) {
+          loadItems(selectedCollectionId, initialPage, initialPageSize);
+        }
+
+        // Mark initial load as complete
+        initialLoadCompleteRef.current = true;
 
         // Clear selections when switching collections
         setSelectedItemIds(new Set());
@@ -502,7 +538,7 @@ const CMS = React.memo(function CMS() {
       // Reset ref when no collection selected
       prevCollectionIdRef.current = null;
     }
-  }, [selectedCollectionId, urlState.page, urlState.search, urlState.pageSize, loadFields, loadItems]);
+  }, [selectedCollectionId, urlState.page, urlState.pageSize, loadFields, loadItems]);
 
   // Debounced field search - queries backend (only when user types, not on collection change)
   useEffect(() => {
@@ -515,9 +551,30 @@ const CMS = React.memo(function CMS() {
     return () => clearTimeout(debounceTimer);
   }, [fieldSearchQuery]); // Only trigger on search query change, not collection change
 
+  // Track if initial load has completed for this collection
+  const initialLoadCompleteRef = React.useRef(false);
+
+  // Reset initial load flag when collection changes
+  useEffect(() => {
+    initialLoadCompleteRef.current = false;
+  }, [selectedCollectionId]);
+
+  // Mark initial load as complete after a short delay (after first effect runs)
+  useEffect(() => {
+    if (selectedCollectionId && prevCollectionIdRef.current === selectedCollectionId) {
+      // Collection load effect has run, mark initial load complete after a tick
+      const timer = setTimeout(() => {
+        initialLoadCompleteRef.current = true;
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedCollectionId]);
+
   // Debounced search - queries backend with pagination (only when user types or changes page, not on collection change)
   useEffect(() => {
     if (!selectedCollectionId) return;
+    // Skip if initial load hasn't completed (first effect handles initial load)
+    if (!initialLoadCompleteRef.current) return;
 
     const debounceTimer = setTimeout(() => {
       if (searchQuery.trim()) {
@@ -609,18 +666,12 @@ const CMS = React.memo(function CMS() {
 
           // Get the display field for this collection
           const refCollectionFields = fields[collectionId] || [];
-          const displayField = refCollectionFields.find(f => f.key === 'title')
-            || refCollectionFields.find(f => f.key === 'name')
-            || refCollectionFields.find(f => f.type === 'text' && f.fillable)
-            || refCollectionFields[0];
+          const displayField = findDisplayField(refCollectionFields);
 
           // Build cache entries for all items in the collection
           newCache[collectionId] = {};
           response.data.items.forEach(item => {
-            const displayValue = displayField
-              ? item.values[displayField.id] || 'Untitled'
-              : 'Untitled';
-            newCache[collectionId][item.id] = displayValue;
+            newCache[collectionId][item.id] = getItemDisplayName(item, displayField);
           });
         } catch (error) {
           console.error(`Failed to fetch referenced items for collection ${collectionId}:`, error);
@@ -635,9 +686,15 @@ const CMS = React.memo(function CMS() {
     fetchReferencedItems();
   }, [selectedCollectionId, collectionItems.length, collectionFields, fields]);
 
-  // Sync URL with item editing state (URL is source of truth for persistence, not immediate UI)
+  // Handle deep linking: open sheet from URL only on initial mount
+  const initialUrlHandledRef = React.useRef(false);
+
   useEffect(() => {
-    if (!selectedCollectionId) return;
+    // Only run once on initial mount
+    if (initialUrlHandledRef.current) return;
+    if (!selectedCollectionId || collectionItems.length === 0) return;
+
+    initialUrlHandledRef.current = true;
 
     if (urlState.itemId === 'new') {
       setEditingItem(null);
@@ -648,11 +705,9 @@ const CMS = React.memo(function CMS() {
         setEditingItem(item);
         setShowItemSheet(true);
       }
-    } else {
-      setShowItemSheet(false);
-      setEditingItem(null);
     }
-  }, [urlState.itemId, selectedCollectionId, collectionItems]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCollectionId, collectionItems.length]);
 
   // Sort items (search filtering now happens on backend)
   const sortedItems = React.useMemo(() => {
@@ -718,16 +773,24 @@ const CMS = React.memo(function CMS() {
 
   const handleCreateItem = () => {
     if (selectedCollectionId) {
-      // Optimistically open sheet immediately for smooth UX
       setEditingItem(null);
       setShowItemSheet(true);
-      // Then navigate to update URL
       navigateToNewCollectionItem(selectedCollectionId);
     }
   };
 
+  // Helper to detect temporary IDs (from optimistic creates)
+  const isTempId = (id: string): boolean => {
+    return id.startsWith('temp-') || id.startsWith('temp-dup-');
+  };
+
   const handleEditItem = (item: CollectionItemWithValues) => {
     if (selectedCollectionId) {
+      // Don't open items with temp IDs - they're still being saved
+      if (isTempId(item.id)) {
+        return;
+      }
+
       // Check if item is locked by another user
       const lockInfo = getItemLockInfo(item.id);
       if (lockInfo.isLocked) {
@@ -735,44 +798,54 @@ const CMS = React.memo(function CMS() {
         return;
       }
 
-      // Optimistically open sheet immediately for smooth UX
       setEditingItem(item);
       setShowItemSheet(true);
-      // Then navigate to update URL
       navigateToCollectionItem(selectedCollectionId, item.id);
     }
   };
 
-  const handleDeleteItem = async (itemId: string) => {
+  const handleDeleteItem = (itemId: string) => {
     if (!selectedCollectionId) return;
-
-    if (confirm('Are you sure you want to delete this item?')) {
-      try {
-        await deleteItem(selectedCollectionId, itemId);
-
-        // Broadcast item deletion to other collaborators
-        if (liveCollectionUpdates) {
-          liveCollectionUpdates.broadcastItemDelete(selectedCollectionId, itemId);
-        }
-      } catch (error) {
-        console.error('Failed to delete item:', error);
-      }
-    }
+    setDeleteItemId(itemId);
+    setDeleteItemDialogOpen(true);
   };
 
-  const handleDuplicateItem = async (itemId: string) => {
+  const handleConfirmDeleteItem = () => {
+    if (!selectedCollectionId || !deleteItemId) return;
+
+    // Fire and forget - store handles optimistic update & rollback
+    deleteItem(selectedCollectionId, deleteItemId)
+      .then(() => {
+        // Broadcast item deletion to other collaborators
+        if (liveCollectionUpdates) {
+          liveCollectionUpdates.broadcastItemDelete(selectedCollectionId, deleteItemId);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to delete item:', error);
+        toast.error('Failed to delete item', {
+          description: 'The item has been restored.',
+        });
+      });
+  };
+
+  const handleDuplicateItem = (itemId: string) => {
     if (!selectedCollectionId) return;
 
-    try {
-      const newItem = await duplicateItem(selectedCollectionId, itemId);
-
-      // Broadcast item creation to other collaborators
-      if (liveCollectionUpdates && newItem) {
-        liveCollectionUpdates.broadcastItemCreate(selectedCollectionId, newItem);
-      }
-    } catch (error) {
-      console.error('Failed to duplicate item:', error);
-    }
+    // Fire and forget - store handles optimistic update & rollback
+    duplicateItem(selectedCollectionId, itemId)
+      .then((newItem) => {
+        // Broadcast item creation to other collaborators
+        if (liveCollectionUpdates && newItem) {
+          liveCollectionUpdates.broadcastItemCreate(selectedCollectionId, newItem);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to duplicate item:', error);
+        toast.error('Failed to duplicate item', {
+          description: 'Please try again.',
+        });
+      });
   };
 
   const handleColumnClick = async (fieldId: string) => {
@@ -856,54 +929,98 @@ const CMS = React.memo(function CMS() {
     }
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = () => {
+    if (!selectedCollectionId || selectedItemIds.size === 0) return;
+    setDeleteSelectedDialogOpen(true);
+  };
+
+  const handleConfirmDeleteSelected = () => {
     if (!selectedCollectionId || selectedItemIds.size === 0) return;
 
     const count = selectedItemIds.size;
     const itemText = count === 1 ? 'item' : 'items';
+    const itemIdsToDelete = Array.from(selectedItemIds);
 
-    if (confirm(`Are you sure you want to delete ${count} ${itemText}?`)) {
-      try {
-        // Use bulk delete API
-        const response = await collectionsApi.bulkDeleteItems(Array.from(selectedItemIds));
+    // Store items for potential rollback
+    const storeState = useCollectionsStore.getState();
+    const previousItems = storeState.items[selectedCollectionId] || [];
+    const previousCount = storeState.itemsTotalCount[selectedCollectionId] || 0;
+    const deletedItems = previousItems.filter(item => selectedItemIds.has(item.id));
 
+    // Optimistically remove items from store
+    useCollectionsStore.setState((state) => ({
+      items: {
+        ...state.items,
+        [selectedCollectionId]: (state.items[selectedCollectionId] || []).filter(
+          item => !selectedItemIds.has(item.id)
+        ),
+      },
+      itemsTotalCount: {
+        ...state.itemsTotalCount,
+        [selectedCollectionId]: Math.max(0, (state.itemsTotalCount[selectedCollectionId] || 0) - count),
+      },
+    }));
+
+    // Clear selections immediately
+    setSelectedItemIds(new Set());
+
+    // Fire and forget - handle errors with rollback
+    collectionsApi.bulkDeleteItems(itemIdsToDelete)
+      .then((response) => {
         if (response.error) {
           throw new Error(response.error);
         }
 
-        // Reload items to reflect deletion
-        await loadItems(selectedCollectionId);
-
-        // Clear selections after successful delete
-        setSelectedItemIds(new Set());
-
-        // Show success message if there were any errors
+        // Show warning if some items failed
         if (response.data?.errors && response.data.errors.length > 0) {
           console.warn('Some items failed to delete:', response.data.errors);
-          alert(`Deleted ${response.data.deleted} of ${count} ${itemText}. Some items failed to delete.`);
+          toast.error(`Deleted ${response.data.deleted} of ${count} ${itemText}`, {
+            description: 'Some items failed to delete.',
+          });
+          // Reload to get accurate state
+          loadItems(selectedCollectionId);
         }
-      } catch (error) {
+      })
+      .catch((error) => {
         console.error('Failed to delete items:', error);
-        alert('Failed to delete items. Please try again.');
-      }
-    }
+        // Rollback optimistic delete
+        useCollectionsStore.setState((state) => ({
+          items: {
+            ...state.items,
+            [selectedCollectionId]: [...(state.items[selectedCollectionId] || []), ...deletedItems],
+          },
+          itemsTotalCount: {
+            ...state.itemsTotalCount,
+            [selectedCollectionId]: previousCount,
+          },
+        }));
+        toast.error('Failed to delete items', {
+          description: 'The items have been restored.',
+        });
+      });
   };
 
-  const handleDeleteField = async (fieldId: string) => {
+  const handleDeleteField = (fieldId: string) => {
     if (!selectedCollectionId) return;
 
     const field = collectionFields.find(f => f.id === fieldId);
     if (field?.key) {
-      alert('Cannot delete built-in fields');
+      toast.error('Cannot delete built-in fields');
       return;
     }
 
-    if (confirm('Are you sure you want to delete this field? This will remove it from all items.')) {
-      try {
-        await deleteField(selectedCollectionId, fieldId);
-      } catch (error) {
-        console.error('Failed to delete field:', error);
-      }
+    setDeleteFieldId(fieldId);
+    setDeleteFieldDialogOpen(true);
+  };
+
+  const handleConfirmDeleteField = async () => {
+    if (!selectedCollectionId || !deleteFieldId) return;
+
+    try {
+      await deleteField(selectedCollectionId, deleteFieldId);
+    } catch (error) {
+      console.error('Failed to delete field:', error);
+      throw error; // Re-throw so ConfirmDialog stays open
     }
   };
 
@@ -1073,25 +1190,31 @@ const CMS = React.memo(function CMS() {
     setRenameValue('');
   };
 
-  const handleCollectionDelete = async (collectionId: string) => {
-    if (!confirm('Are you sure you want to delete this collection? This action cannot be undone.')) {
-      return;
-    }
+  const handleCollectionDelete = (collectionId: string) => {
+    setDeleteCollectionId(collectionId);
+    setDeleteCollectionDialogOpen(true);
+  };
+
+  const handleConfirmDeleteCollection = async () => {
+    if (!deleteCollectionId) return;
 
     try {
-      await deleteCollection(collectionId);
+      await deleteCollection(deleteCollectionId);
 
       if (liveCollectionUpdates) {
-        liveCollectionUpdates.broadcastCollectionDelete(collectionId);
+        liveCollectionUpdates.broadcastCollectionDelete(deleteCollectionId);
       }
 
       // If deleting the currently selected collection, navigate to base
-      if (selectedCollectionId === collectionId) {
+      if (selectedCollectionId === deleteCollectionId) {
         navigateToCollections();
       }
     } catch (error) {
       console.error('Failed to delete collection:', error);
-      alert('Failed to delete collection. Please try again.');
+      toast.error('Failed to delete collection', {
+        description: 'Please try again.',
+      });
+      throw error; // Re-throw so ConfirmDialog stays open
     }
   };
 
@@ -1306,6 +1429,7 @@ const CMS = React.memo(function CMS() {
                     key={item.id}
                     item={item}
                     isManualMode={isManualMode}
+                    isSaving={isTempId(item.id)}
                     onDuplicate={() => handleDuplicateItem(item.id)}
                     onDelete={() => handleDeleteItem(item.id)}
                     lockInfo={getItemLockInfo(item.id)}
@@ -1320,11 +1444,15 @@ const CMS = React.memo(function CMS() {
                       }}
                     >
                       <div className="flex">
-                      <Checkbox
-                        checked={selectedItemIds.has(item.id)}
-                        onCheckedChange={() => handleToggleItemSelection(item.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                      {isTempId(item.id) ? (
+                        <Spinner className="size-4 opacity-50" />
+                      ) : (
+                        <Checkbox
+                          checked={selectedItemIds.has(item.id)}
+                          onCheckedChange={() => handleToggleItemSelection(item.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
                       </div>
                     </td>
                     {collectionFields.filter(f => !f.hidden).map((field) => {
@@ -1654,30 +1782,30 @@ const CMS = React.memo(function CMS() {
                   </div>
                 )}
 
-                {/* Sheet for Create/Edit Item */}
-                <CollectionItemSheet
-                  open={showItemSheet}
-                  onOpenChange={(open) => {
-                    if (!open) {
-                      // Optimistically close sheet immediately for smooth UX
+                {/* Sheet for Create/Edit Item - only render when open to avoid animation issues */}
+                {showItemSheet && (
+                  <CollectionItemSheet
+                    open={true}
+                    onOpenChange={(open) => {
+                      if (!open) {
+                        setShowItemSheet(false);
+                        setEditingItem(null);
+                        if (selectedCollectionId) {
+                          navigateToCollection(selectedCollectionId);
+                        }
+                      }
+                    }}
+                    collectionId={selectedCollectionId!}
+                    itemId={editingItem?.id || null}
+                    onSuccess={() => {
                       setShowItemSheet(false);
                       setEditingItem(null);
-                      // Then navigate to update URL
                       if (selectedCollectionId) {
                         navigateToCollection(selectedCollectionId);
                       }
-                    }
-                  }}
-                  collectionId={selectedCollectionId!}
-                  itemId={editingItem?.id || null}
-                  onSuccess={() => {
-                    setShowItemSheet(false);
-                    setEditingItem(null);
-                    if (selectedCollectionId) {
-                      navigateToCollection(selectedCollectionId);
-                    }
-                  }}
-                />
+                    }}
+                  />
+                )}
               </div>
             </div>
 
@@ -1759,6 +1887,51 @@ const CMS = React.memo(function CMS() {
           useDialog={true}
         />
       )}
+
+      {/* Confirm Dialogs */}
+      <ConfirmDialog
+        open={deleteItemDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteItemDialogOpen(open);
+          if (!open) setDeleteItemId(null);
+        }}
+        title="Delete item"
+        description="Are you sure you want to delete this item?"
+        confirmLabel="Delete"
+        onConfirm={handleConfirmDeleteItem}
+      />
+      <ConfirmDialog
+        open={deleteSelectedDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteSelectedDialogOpen(open);
+        }}
+        title={`Delete ${selectedItemIds.size} item${selectedItemIds.size === 1 ? '' : 's'}`}
+        description={`Are you sure you want to delete ${selectedItemIds.size} item${selectedItemIds.size === 1 ? '' : 's'}?`}
+        confirmLabel="Delete"
+        onConfirm={handleConfirmDeleteSelected}
+      />
+      <ConfirmDialog
+        open={deleteFieldDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteFieldDialogOpen(open);
+          if (!open) setDeleteFieldId(null);
+        }}
+        title="Delete field"
+        description="Are you sure you want to delete this field? This will remove it from all items."
+        confirmLabel="Delete"
+        onConfirm={handleConfirmDeleteField}
+      />
+      <ConfirmDialog
+        open={deleteCollectionDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteCollectionDialogOpen(open);
+          if (!open) setDeleteCollectionId(null);
+        }}
+        title="Delete collection"
+        description="Are you sure you want to delete this collection? This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={handleConfirmDeleteCollection}
+      />
       </div>
     </div>
   );

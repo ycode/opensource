@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAllAssets, createAsset } from '@/lib/repositories/assetRepository';
+import { getAllAssets, getAssetsPaginated, createAsset } from '@/lib/repositories/assetRepository';
 import { uploadFile, cleanSvgContent, isValidSvg } from '@/lib/file-upload';
 import { noCache } from '@/lib/api-response';
 
@@ -10,24 +10,48 @@ export const revalidate = 0;
 /**
  * GET /api/assets
  *
- * Get all assets (optionally filtered by folder)
+ * Get assets with pagination and search support
  * Query params:
  * - folderId: string | 'null' - Filter by folder ID (use 'null' for root folder)
+ * - folderIds: string - Comma-separated folder IDs (for search across multiple folders)
+ * - search: string - Search by filename
+ * - page: number - Page number (1-based, default: 1)
+ * - limit: number - Items per page (default: 50)
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const folderIdParam = searchParams.get('folderId');
+    const folderIdsParam = searchParams.get('folderIds');
+    const search = searchParams.get('search') || undefined;
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '50', 10);
 
+    // Parse folder ID(s)
     let folderId: string | null | undefined = undefined;
-    if (folderIdParam !== null) {
+    let folderIds: string[] | undefined = undefined;
+
+    if (folderIdsParam) {
+      // Multiple folders (for search across descendants)
+      folderIds = folderIdsParam.split(',').map(id => id.trim());
+    } else if (folderIdParam !== null) {
       folderId = folderIdParam === 'null' ? null : folderIdParam;
     }
 
-    const assets = await getAllAssets(folderId);
+    const result = await getAssetsPaginated({
+      folderId,
+      folderIds,
+      search,
+      page,
+      limit,
+    });
 
     return noCache({
-      data: assets,
+      data: result.assets,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      hasMore: result.hasMore,
     });
   } catch (error) {
     console.error('Failed to fetch assets:', error);

@@ -500,7 +500,31 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
   },
 
   createItem: async (collectionId, values) => {
-    set({ isLoading: true, error: null });
+    // Create optimistic item with temporary ID
+    const tempId = `temp-${Date.now()}`;
+    const optimisticItem: CollectionItemWithValues = {
+      id: tempId,
+      collection_id: collectionId,
+      manual_order: (get().items[collectionId]?.length || 0),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      deleted_at: null,
+      is_published: false,
+      values,
+    };
+
+    // Optimistically add item to store (no loading state)
+    set(state => ({
+      items: {
+        ...state.items,
+        [collectionId]: [...(state.items[collectionId] || []), optimisticItem],
+      },
+      itemsTotalCount: {
+        ...state.itemsTotalCount,
+        [collectionId]: (state.itemsTotalCount[collectionId] || 0) + 1,
+      },
+      error: null,
+    }));
 
     try {
       const response = await collectionsApi.createItem(collectionId, values);
@@ -511,28 +535,51 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
       const newItem = response.data!;
 
+      // Replace temporary item with real item from server
       set(state => ({
         items: {
           ...state.items,
-          [collectionId]: [...(state.items[collectionId] || []), newItem],
+          [collectionId]: (state.items[collectionId] || []).map(item =>
+            item.id === tempId ? newItem : item
+          ),
         },
-        itemsTotalCount: {
-          ...state.itemsTotalCount,
-          [collectionId]: (state.itemsTotalCount[collectionId] || 0) + 1,
-        },
-        isLoading: false,
       }));
 
       return newItem;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create item';
-      set({ error: errorMessage, isLoading: false });
+      // Revert optimistic update on error
+      set(state => ({
+        items: {
+          ...state.items,
+          [collectionId]: (state.items[collectionId] || []).filter(item => item.id !== tempId),
+        },
+        itemsTotalCount: {
+          ...state.itemsTotalCount,
+          [collectionId]: Math.max(0, (state.itemsTotalCount[collectionId] || 0) - 1),
+        },
+        error: error instanceof Error ? error.message : 'Failed to create item',
+      }));
       throw error;
     }
   },
 
   updateItem: async (collectionId, itemId, values) => {
-    set({ isLoading: true, error: null });
+    // Store previous state for rollback on error
+    const previousItems = get().items[collectionId] || [];
+    const previousItem = previousItems.find(item => item.id === itemId);
+
+    // Optimistically update item in store (no loading state)
+    set(state => ({
+      items: {
+        ...state.items,
+        [collectionId]: (state.items[collectionId] || []).map(item =>
+          item.id === itemId
+            ? { ...item, values, updated_at: new Date().toISOString() }
+            : item
+        ),
+      },
+      error: null,
+    }));
 
     try {
       const response = await collectionsApi.updateItem(collectionId, itemId, values);
@@ -543,22 +590,50 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
 
       const updated = response.data!;
 
+      // Update with server response (ensures consistency)
       set(state => ({
         items: {
           ...state.items,
-          [collectionId]: (state.items[collectionId] || []).map(item => item.id === itemId ? updated : item),
+          [collectionId]: (state.items[collectionId] || []).map(item =>
+            item.id === itemId ? updated : item
+          ),
         },
-        isLoading: false,
       }));
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update item';
-      set({ error: errorMessage, isLoading: false });
+      // Revert to previous state on error
+      if (previousItem) {
+        set(state => ({
+          items: {
+            ...state.items,
+            [collectionId]: (state.items[collectionId] || []).map(item =>
+              item.id === itemId ? previousItem : item
+            ),
+          },
+          error: error instanceof Error ? error.message : 'Failed to update item',
+        }));
+      }
       throw error;
     }
   },
 
   deleteItem: async (collectionId, itemId) => {
-    set({ isLoading: true, error: null });
+    // Store item for rollback on error
+    const previousItems = get().items[collectionId] || [];
+    const deletedItem = previousItems.find(item => item.id === itemId);
+    const previousCount = get().itemsTotalCount[collectionId] || 0;
+
+    // Optimistically remove item (no loading state)
+    set(state => ({
+      items: {
+        ...state.items,
+        [collectionId]: (state.items[collectionId] || []).filter(item => item.id !== itemId),
+      },
+      itemsTotalCount: {
+        ...state.itemsTotalCount,
+        [collectionId]: Math.max(0, (state.itemsTotalCount[collectionId] || 0) - 1),
+      },
+      error: null,
+    }));
 
     try {
       const response = await collectionsApi.deleteItem(collectionId, itemId);
@@ -566,27 +641,102 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
       if (response.error) {
         throw new Error(response.error);
       }
-
-      set(state => ({
-        items: {
-          ...state.items,
-          [collectionId]: (state.items[collectionId] || []).filter(item => item.id !== itemId),
-        },
-        itemsTotalCount: {
-          ...state.itemsTotalCount,
-          [collectionId]: Math.max(0, (state.itemsTotalCount[collectionId] || 0) - 1),
-        },
-        isLoading: false,
-      }));
+      // Success - item already removed from state
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete item';
-      set({ error: errorMessage, isLoading: false });
+      // Revert optimistic delete on error
+      if (deletedItem) {
+        set(state => ({
+          items: {
+            ...state.items,
+            [collectionId]: [...(state.items[collectionId] || []), deletedItem],
+          },
+          itemsTotalCount: {
+            ...state.itemsTotalCount,
+            [collectionId]: previousCount,
+          },
+          error: error instanceof Error ? error.message : 'Failed to delete item',
+        }));
+      }
       throw error;
     }
   },
 
   duplicateItem: async (collectionId: string, itemId: string) => {
-    set({ isLoading: true, error: null });
+    // Find the source item to create optimistic duplicate
+    const sourceItem = get().items[collectionId]?.find(item => item.id === itemId);
+    const tempId = `temp-dup-${Date.now()}`;
+
+    // Optimistically add duplicate item (no loading state)
+    if (sourceItem) {
+      const collectionFields = get().fields[collectionId] || [];
+      const allItems = get().items[collectionId] || [];
+      const idField = collectionFields.find(f => f.key === 'id');
+      const nameField = collectionFields.find(f => f.key === 'name');
+      const slugField = collectionFields.find(f => f.key === 'slug');
+      const createdAtField = collectionFields.find(f => f.key === 'created_at');
+      const updatedAtField = collectionFields.find(f => f.key === 'updated_at');
+
+      // Build values matching server logic
+      const newValues = { ...sourceItem.values };
+      const now = new Date().toISOString();
+
+      if (idField && newValues[idField.id]) {
+        let highestId = 0;
+        allItems.forEach(item => {
+          const val = item.values[idField.id];
+          if (val) {
+            const num = parseInt(String(val), 10);
+            if (!isNaN(num)) highestId = Math.max(highestId, num);
+          }
+        });
+        newValues[idField.id] = String(highestId + 1);
+      }
+      if (createdAtField) newValues[createdAtField.id] = now;
+      if (updatedAtField) newValues[updatedAtField.id] = now;
+
+      if (nameField && newValues[nameField.id]) {
+        newValues[nameField.id] = `${newValues[nameField.id]} (Copy)`;
+      }
+
+      if (slugField) {
+        const originalSlug = newValues[slugField.id] ? String(newValues[slugField.id]).trim() : '';
+        const baseSlug = originalSlug || 'copy';
+        const baseSlugClean = baseSlug.replace(/-\d+$/, '');
+        const existingSlugs = new Set(
+          allItems.map(item => item.values[slugField.id]).filter((s): s is string => !!s && typeof s === 'string')
+        );
+        let newSlug = `${baseSlugClean}-copy`;
+        if (existingSlugs.has(newSlug)) {
+          let n = 1;
+          while (existingSlugs.has(`${baseSlugClean}-copy-${n}`)) n++;
+          newSlug = `${baseSlugClean}-copy-${n}`;
+        }
+        newValues[slugField.id] = newSlug;
+      }
+
+      const optimisticItem: CollectionItemWithValues = {
+        id: tempId,
+        collection_id: collectionId,
+        manual_order: (get().items[collectionId]?.length || 0),
+        created_at: now,
+        updated_at: now,
+        deleted_at: null,
+        is_published: false,
+        values: newValues,
+      };
+
+      set(state => ({
+        items: {
+          ...state.items,
+          [collectionId]: [...(state.items[collectionId] || []), optimisticItem],
+        },
+        itemsTotalCount: {
+          ...state.itemsTotalCount,
+          [collectionId]: (state.itemsTotalCount[collectionId] || 0) + 1,
+        },
+        error: null,
+      }));
+    }
 
     try {
       const response = await collectionsApi.duplicateItem(collectionId, itemId);
@@ -595,21 +745,32 @@ export const useCollectionsStore = create<CollectionsStore>((set, get) => ({
         throw new Error(response.error);
       }
 
-      // Optimistically add the new item to the store
+      // Replace temporary item with real item from server
       if (response.data) {
         set(state => ({
           items: {
             ...state.items,
-            [collectionId]: [...(state.items[collectionId] || []), response.data!],
+            [collectionId]: (state.items[collectionId] || []).map(item =>
+              item.id === tempId ? response.data! : item
+            ),
           },
-          isLoading: false,
         }));
       }
 
       return response.data;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to duplicate item';
-      set({ error: errorMessage, isLoading: false });
+      // Revert optimistic update on error
+      set(state => ({
+        items: {
+          ...state.items,
+          [collectionId]: (state.items[collectionId] || []).filter(item => item.id !== tempId),
+        },
+        itemsTotalCount: {
+          ...state.itemsTotalCount,
+          [collectionId]: Math.max(0, (state.itemsTotalCount[collectionId] || 0) - 1),
+        },
+        error: error instanceof Error ? error.message : 'Failed to duplicate item',
+      }));
       throw error;
     }
   },

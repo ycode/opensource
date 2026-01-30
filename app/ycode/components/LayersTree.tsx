@@ -391,19 +391,19 @@ const LayerRow = React.memo(function LayerRow({
 
           {/* Layer Icon */}
           {isComponentInstance ? (
-            <Icon name="component" className="size-3 mx-1.5" />
+            <Icon name="component" className="size-3 mx-1.5 shrink-0" />
           ) : layerIcon ? (
             <Icon
               name={layerIcon}
               className={cn(
-                'size-3 mx-1.5 opacity-50',
+                'size-3 mx-1.5 opacity-50 shrink-0',
                 isSelected && 'opacity-100',
               )}
             />
           ) : (
             <div
               className={cn(
-                'size-3 bg-secondary rounded mx-1.5',
+                'size-3 bg-secondary rounded mx-1.5 shrink-0',
                 isSelected && 'opacity-10 dark:bg-white'
               )}
             />
@@ -1548,12 +1548,12 @@ export default function LayersTree({
                     <Icon
                       name={layerIcon}
                       className={cn(
-                        'size-3 mx-1.5 opacity-50',
+                        'size-3 mx-1.5 opacity-50 shrink-0',
                         isActiveNodeSelected && 'opacity-100',
                       )}
                     />
                   ) : (
-                    <div className="size-3 bg-white/10 rounded mx-1.5" />
+                    <div className="size-3 bg-white/10 rounded mx-1.5 shrink-0" />
                   )}
                 </>
               );

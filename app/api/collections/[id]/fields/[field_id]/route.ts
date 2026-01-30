@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFieldById, updateField, deleteField } from '@/lib/repositories/collectionFieldRepository';
+import { isValidFieldType, VALID_FIELD_TYPES } from '@/lib/collection-field-utils';
 import { getItemsByCollectionId } from '@/lib/repositories/collectionItemRepository';
 import { deleteTranslationsInBulk } from '@/lib/repositories/translationRepository';
 import { noCache } from '@/lib/api-response';
@@ -51,14 +52,11 @@ export async function PUT(
     const body = await request.json();
 
     // Validate field type if provided
-    if (body.type) {
-      const validTypes = ['text', 'rich_text', 'number', 'boolean', 'date', 'link', 'reference', 'multi_reference', 'image'];
-      if (!validTypes.includes(body.type)) {
-        return noCache(
-          { error: `Invalid field type. Must be one of: ${validTypes.join(', ')}` },
-          400
-        );
-      }
+    if (body.type && !isValidFieldType(body.type)) {
+      return noCache(
+        { error: `Invalid field type. Must be one of: ${VALID_FIELD_TYPES.join(', ')}` },
+        400
+      );
     }
 
     const field = await updateField(fieldId, body);

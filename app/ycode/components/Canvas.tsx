@@ -17,6 +17,7 @@ import { createRoot, Root } from 'react-dom/client';
 
 import LayerRenderer from '@/components/LayerRenderer';
 import { serializeLayers } from '@/lib/layer-utils';
+import { collectEditorHiddenLayerIds } from '@/lib/animation-utils';
 import { cn } from '@/lib/utils';
 
 import type { Layer, Component, CollectionItemWithValues, CollectionField, Breakpoint, Asset, ComponentVariable } from '@/types';
@@ -90,6 +91,8 @@ interface CanvasProps {
   onCanvasClick?: () => void;
   /** Component variables when editing a component (for default value display) */
   editingComponentVariables?: ComponentVariable[];
+  /** Disable editor hidden layers (e.g., when Interactions panel is active) */
+  disableEditorHiddenLayers?: boolean;
 }
 
 /**
@@ -107,6 +110,8 @@ interface CanvasContentProps {
   liveLayerUpdates?: UseLiveLayerUpdatesReturn | null;
   liveComponentUpdates?: UseLiveComponentUpdatesReturn | null;
   editingComponentVariables?: ComponentVariable[];
+  editorHiddenLayerIds?: Map<string, Breakpoint[]>;
+  editorBreakpoint?: Breakpoint;
 }
 
 function CanvasContent({
@@ -121,6 +126,8 @@ function CanvasContent({
   liveLayerUpdates,
   liveComponentUpdates,
   editingComponentVariables,
+  editorHiddenLayerIds,
+  editorBreakpoint,
 }: CanvasContentProps) {
   // Handle click on canvas body (select body when clicking on empty space)
   const handleBodyClick = (event: React.MouseEvent) => {
@@ -152,6 +159,8 @@ function CanvasContent({
           liveLayerUpdates={liveLayerUpdates}
           liveComponentUpdates={liveComponentUpdates}
           editingComponentVariables={editingComponentVariables}
+          editorHiddenLayerIds={editorHiddenLayerIds}
+          editorBreakpoint={editorBreakpoint}
         />
       ) : (
         <div className="flex items-center justify-center min-h-[200px] text-gray-400">
@@ -200,6 +209,7 @@ export default function Canvas({
   onLayerHover,
   onCanvasClick,
   editingComponentVariables,
+  disableEditorHiddenLayers = false,
 }: CanvasProps) {
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -215,6 +225,12 @@ export default function Canvas({
   const { layers: resolvedLayers, componentMap } = useMemo(() => {
     return serializeLayers(layers, components);
   }, [layers, components]);
+
+  // Collect layer IDs that should be hidden on canvas (display: hidden with on-load)
+  const editorHiddenLayerIds = useMemo(() => {
+    if (disableEditorHiddenLayers) return undefined;
+    return collectEditorHiddenLayerIds(resolvedLayers);
+  }, [resolvedLayers, disableEditorHiddenLayers]);
 
   // Handle layer click with component resolution
   const handleLayerClick = useCallback((layerId: string, event?: React.MouseEvent) => {
@@ -361,6 +377,8 @@ export default function Canvas({
         liveLayerUpdates={liveLayerUpdates}
         liveComponentUpdates={liveComponentUpdates}
         editingComponentVariables={editingComponentVariables}
+        editorHiddenLayerIds={editorHiddenLayerIds}
+        editorBreakpoint={breakpoint}
       />
     );
   }, [
@@ -376,6 +394,8 @@ export default function Canvas({
     handleLayerHover,
     liveLayerUpdates,
     liveComponentUpdates,
+    editorHiddenLayerIds,
+    breakpoint,
   ]);
 
   // Handle keyboard events from iframe

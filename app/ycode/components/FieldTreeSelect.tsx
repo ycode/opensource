@@ -14,17 +14,11 @@ import Icon from '@/components/ui/icon';
 import { DropdownMenuItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import type { CollectionField, Collection } from '@/types';
 import type { IconProps } from '@/components/ui/icon';
-import { getFieldIcon } from '@/lib/field-types-config';
+import { getFieldIcon, filterFieldGroupsByType, DISPLAYABLE_FIELD_TYPES } from '@/lib/collection-field-utils';
 
-/** Field source for inline variable resolution */
-export type FieldSourceType = 'page' | 'collection';
-
-/** A group of fields with a source and label */
-export interface FieldGroup {
-  fields: CollectionField[];
-  label?: string;
-  source?: FieldSourceType;
-}
+// Import and re-export from centralized location for backwards compatibility
+import type { FieldSourceType, FieldGroup } from '@/lib/collection-field-utils';
+export type { FieldSourceType, FieldGroup } from '@/lib/collection-field-utils';
 
 interface FieldTreeSelectProps {
   /** Fields to display at the current level */
@@ -279,10 +273,8 @@ export function MultiSourceFieldTreeSelect({
   collections,
   onSelect,
 }: MultiSourceFieldTreeSelectProps) {
-  // Filter out empty groups
-  const nonEmptyGroups = fieldGroups.filter(
-    (group) => group.fields.filter((f) => f.type !== 'multi_reference').length > 0
-  );
+  // Filter to groups with displayable fields (excludes multi_reference)
+  const nonEmptyGroups = filterFieldGroupsByType(fieldGroups, DISPLAYABLE_FIELD_TYPES);
 
   if (nonEmptyGroups.length === 0) {
     return (

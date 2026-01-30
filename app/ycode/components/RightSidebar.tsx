@@ -71,6 +71,7 @@ import { isFieldVariable, getCollectionVariable, findParentCollectionLayer, isTe
 import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
 import { convertContentToValue, parseValueToContent } from '@/lib/cms-variables-utils';
 import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
+import { buildFieldGroups } from '@/lib/collection-field-utils';
 
 // 7. Types
 import type { Layer, FieldVariable, CollectionField } from '@/types';
@@ -1408,45 +1409,13 @@ const RightSidebar = React.memo(function RightSidebar({
   // Build field groups for multi-source inline variable selection
   // This allows showing both collection layer fields AND page collection fields when applicable
   const fieldGroups = useMemo(() => {
-    const groups: { fields: CollectionField[]; label?: string; source?: 'page' | 'collection' }[] = [];
-
-    // Add collection layer fields if inside a collection layer
-    if (parentCollectionLayer) {
-      const collectionVariable = getCollectionVariable(parentCollectionLayer);
-      const collectionId = collectionVariable?.id;
-      if (collectionId) {
-        const collectionFields = fields[collectionId] || [];
-        const collection = collections.find(c => c.id === collectionId);
-        if (collectionFields.length > 0) {
-          groups.push({
-            fields: collectionFields,
-            label: collection?.name || 'Collection',
-            source: 'collection',
-          });
-        }
-      }
-    }
-
-    // Add page collection fields if on a dynamic page
-    if (currentPage?.is_dynamic && currentPage?.settings?.cms?.collection_id) {
-      const pageCollectionId = currentPage.settings.cms.collection_id;
-      const pageCollectionFields = fields[pageCollectionId] || [];
-      // Only add if different from collection layer fields or not inside a collection layer
-      if (pageCollectionFields.length > 0) {
-        const collectionVariable = parentCollectionLayer ? getCollectionVariable(parentCollectionLayer) : null;
-        const collectionLayerCollectionId = collectionVariable?.id;
-        // Avoid duplicating if same collection
-        if (pageCollectionId !== collectionLayerCollectionId) {
-          groups.push({
-            fields: pageCollectionFields,
-            label: 'Page data',
-            source: 'page',
-          });
-        }
-      }
-    }
-
-    return groups.length > 0 ? groups : undefined;
+    const collectionVariable = parentCollectionLayer ? getCollectionVariable(parentCollectionLayer) : null;
+    return buildFieldGroups({
+      collectionLayer: collectionVariable ? { collectionId: collectionVariable.id } : null,
+      page: currentPage,
+      fieldsByCollectionId: fields,
+      collections,
+    });
   }, [parentCollectionLayer, currentPage, fields, collections]);
 
   // Get collection fields for the currently selected collection layer (for Sort By dropdown)
@@ -2644,15 +2613,18 @@ const RightSidebar = React.memo(function RightSidebar({
               onLayerUpdate={handleLayerUpdate}
             />
 
-            <LinkSettings
-              layer={selectedLayer}
-              onLayerUpdate={handleLayerUpdate}
-              fieldGroups={fieldGroups}
-              allFields={fields}
-              collections={collections}
-              isLockedByOther={isLockedByOther}
-              isInsideCollectionLayer={!!parentCollectionLayer}
-            />
+            {/* Link Settings - hide for form layers */}
+            {selectedLayer?.name !== 'form' && (
+              <LinkSettings
+                layer={selectedLayer}
+                onLayerUpdate={handleLayerUpdate}
+                fieldGroups={fieldGroups}
+                allFields={fields}
+                collections={collections}
+                isLockedByOther={isLockedByOther}
+                isInsideCollectionLayer={!!parentCollectionLayer}
+              />
+            )}
 
             {/* Collection Filters - only for collection layers */}
             {selectedLayer && getCollectionVariable(selectedLayer)?.id && (

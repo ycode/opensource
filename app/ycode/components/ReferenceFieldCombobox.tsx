@@ -19,9 +19,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { collectionsApi } from '@/lib/api';
+import { findDisplayField, getItemDisplayName } from '@/lib/collection-field-utils';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { cn } from '@/lib/utils';
-import type { CollectionItemWithValues, CollectionField } from '@/types';
+import type { CollectionItemWithValues } from '@/types';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
 
 interface ReferenceFieldComboboxProps {
@@ -59,19 +60,7 @@ export default function ReferenceFieldCombobox({
   const collectionFields = fields[collectionId] || [];
 
   // Find the title/name field for display
-  const displayField = useMemo(() => {
-    // Priority: 'title' key, 'name' key, first text field, first field
-    const titleField = collectionFields.find(f => f.key === 'title');
-    if (titleField) return titleField;
-
-    const nameField = collectionFields.find(f => f.key === 'name');
-    if (nameField) return nameField;
-
-    const textField = collectionFields.find(f => f.type === 'text' && f.fillable);
-    if (textField) return textField;
-
-    return collectionFields[0] || null;
-  }, [collectionFields]);
+  const displayField = useMemo(() => findDisplayField(collectionFields), [collectionFields]);
 
   // Parse value based on isMulti
   const selectedIds = useMemo(() => {
@@ -87,11 +76,11 @@ export default function ReferenceFieldCombobox({
     return [value];
   }, [value, isMulti]);
 
-  // Get display names for selected items
-  const getItemDisplayName = useCallback((item: CollectionItemWithValues) => {
-    if (!displayField) return 'Untitled';
-    return item.values[displayField.id] || 'Untitled';
-  }, [displayField]);
+  // Get display name for an item
+  const getDisplayName = useCallback(
+    (item: CollectionItemWithValues) => getItemDisplayName(item, displayField),
+    [displayField]
+  );
 
   // Fetch items when popover opens
   useEffect(() => {
@@ -167,7 +156,7 @@ export default function ReferenceFieldCombobox({
     // For single reference, find the item name
     const selectedItem = items.find(item => item.id === selectedIds[0]);
     if (selectedItem) {
-      return getItemDisplayName(selectedItem);
+      return getDisplayName(selectedItem);
     }
 
     // If items not loaded yet, show ID abbreviated
@@ -229,7 +218,7 @@ export default function ReferenceFieldCombobox({
           ) : (
             filteredItems.map((item) => {
               const isSelected = selectedIds.includes(item.id);
-              const displayName = getItemDisplayName(item);
+              const displayName = getDisplayName(item);
 
               return (
                 <DropdownMenuCheckboxItem

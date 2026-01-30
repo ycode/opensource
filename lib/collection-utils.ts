@@ -75,6 +75,8 @@ export function castValue(value: string | null, type: CollectionFieldType): any 
         return null;
       }
 
+    case 'email':
+    case 'phone':
     case 'text':
     default:
       // Try to parse JSON for text fields that might contain JSON objects
@@ -128,6 +130,8 @@ export function valueToString(value: any, type: CollectionFieldType): string | n
       }
       return String(value);
 
+    case 'email':
+    case 'phone':
     case 'rich_text':
     case 'text':
     default:

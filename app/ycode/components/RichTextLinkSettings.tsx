@@ -18,7 +18,9 @@ import RichTextEditor from './RichTextEditor';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectSeparator,
   SelectTrigger,
   SelectValue,
@@ -37,7 +39,7 @@ import { collectionsApi } from '@/lib/api';
 import { getLayerIcon, getLayerName, getCollectionVariable } from '@/lib/layer-utils';
 import { getPageIcon } from '@/lib/page-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import type { FieldGroup } from './FieldTreeSelect';
+import { filterFieldGroupsByType, LINK_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
 
 export interface RichTextLinkSettingsProps {
   /** Current link settings */
@@ -112,6 +114,9 @@ export default function RichTextLinkSettings({
   const pageId = linkSettings?.page?.id || null;
   const collectionItemId = linkSettings?.page?.collection_item_id || null;
   const fieldId = linkSettings?.field?.data?.field_id || null;
+  const fieldSource = linkSettings?.field?.data?.source;
+  // Construct select value from source and field_id (e.g., "page-field123" or "collection-field123")
+  const fieldSelectValue = fieldId && fieldSource ? `${fieldSource}-${fieldId}` : (fieldId || null);
   const anchorLayerId = linkSettings?.anchor_layer_id || '';
 
   // Get link behavior from link settings
@@ -182,14 +187,16 @@ export default function RichTextLinkSettings({
   // Check if the layer itself is a collection layer
   const isCollectionLayer = !!(layer && getCollectionVariable(layer));
 
-  // Derive collection fields from fieldGroups (for internal use like CMS field link)
-  const collectionFields = useMemo(() => {
-    const collectionGroup = fieldGroups?.find(g => g.source === 'collection');
-    return collectionGroup?.fields || [];
-  }, [fieldGroups]);
+  // Filter fieldGroups for CMS field link: link, email, phone, image (mailto:/tel: added at render for email/phone)
+  // Keep groups separate for organized dropdown display
+  const linkFieldGroups = useMemo(
+    () => filterFieldGroupsByType(fieldGroups, LINK_FIELD_TYPES),
+    [fieldGroups]
+  );
 
   // Check if we have collection fields available
-  const hasCollectionFields = !!(collectionFields.length > 0 && isInsideCollectionLayer);
+  const collectionGroup = fieldGroups?.find(g => g.source === 'collection');
+  const hasCollectionFields = !!(collectionGroup && collectionGroup.fields.length > 0 && isInsideCollectionLayer);
   const canUseCurrentCollectionItem = hasCollectionFields || isCollectionLayer;
 
   // Get collection ID from dynamic page settings
@@ -219,11 +226,6 @@ export default function RichTextLinkSettings({
     loadItems();
   }, [pageCollectionId, isDynamicPage]);
 
-  // Filter fields to show only link fields for CMS field link
-  const linkFields = useMemo(() => {
-    return collectionFields.filter((field) => field.type === 'link');
-  }, [collectionFields]);
-
   // Link type options for the dropdown
   const linkTypeOptions = useMemo<
     Array<
@@ -236,7 +238,7 @@ export default function RichTextLinkSettings({
       { type: 'separator' },
       { value: 'page', label: 'Page', icon: 'page' },
       { value: 'asset', label: 'Asset', icon: 'paperclip' },
-      { value: 'field', label: 'CMS field', icon: 'database', disabled: linkFields.length === 0 },
+      { value: 'field', label: 'CMS field', icon: 'database', disabled: linkFieldGroups.length === 0 },
       { type: 'separator' },
       { value: 'url', label: 'URL', icon: 'link' },
       { value: 'email', label: 'Email', icon: 'email' },
@@ -253,7 +255,7 @@ export default function RichTextLinkSettings({
       if ('value' in option && excludedLinkTypes.includes(option.value as LinkType)) return false;
       return true;
     });
-  }, [linkFields, excludedLinkTypes]);
+  }, [linkFieldGroups, excludedLinkTypes]);
 
   // Handle link type change
   const handleLinkTypeChange = useCallback(
@@ -394,16 +396,22 @@ export default function RichTextLinkSettings({
 
   // Handle field selection
   const handleFieldChange = useCallback(
-    (newFieldId: string) => {
+    (value: string) => {
       if (!linkSettings) return;
+
+      // Parse source-fieldId format (e.g., "page-field123" -> source: "page", field_id: "field123")
+      const parts = value.split('-');
+      const source = (parts[0] === 'page' || parts[0] === 'collection') ? parts[0] : undefined;
+      const fieldId = source ? parts.slice(1).join('-') : value;
 
       onChange({
         ...linkSettings,
         field: {
           type: 'field',
           data: {
-            field_id: newFieldId,
+            field_id: fieldId,
             relationships: [],
+            ...(source && { source }),
           },
         },
       });
@@ -691,20 +699,25 @@ export default function RichTextLinkSettings({
           <Label className="text-xs text-muted-foreground">Field</Label>
           <div className="col-span-2">
             <Select
-              value={fieldId || ''}
+              value={fieldSelectValue || ''}
               onValueChange={handleFieldChange}
-              disabled={linkFields.length === 0}
+              disabled={linkFieldGroups.length === 0}
             >
               <SelectTrigger className="w-full">
                 <SelectValue
-                  placeholder={linkFields.length === 0 ? 'No link fields' : 'Select field'}
+                  placeholder={linkFieldGroups.length === 0 ? 'No link fields' : 'Select field'}
                 />
               </SelectTrigger>
               <SelectContent>
-                {linkFields.map((field) => (
-                  <SelectItem key={field.id} value={field.id}>
-                    {field.name}
-                  </SelectItem>
+                {linkFieldGroups.map((group, groupIdx) => (
+                  <SelectGroup key={groupIdx}>
+                    {group.label && <SelectLabel>{group.label}</SelectLabel>}
+                    {group.fields.map((field) => (
+                      <SelectItem key={`${groupIdx}-${field.id}`} value={`${group.source}-${field.id}`}>
+                        {field.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>

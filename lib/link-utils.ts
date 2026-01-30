@@ -1,4 +1,13 @@
-import type { Page, PageFolder, Locale, LinkSettings, Layer, DynamicTextVariable, CollectionLinkValue } from '@/types';
+import type {
+  Page,
+  PageFolder,
+  Locale,
+  LinkSettings,
+  Layer,
+  DynamicTextVariable,
+  CollectionLinkValue,
+  CollectionFieldType,
+} from '@/types';
 import { buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 
 // ============================================================================
@@ -103,7 +112,7 @@ export function createPageLinkSettings(
 }
 
 /**
- * Create a field link settings object (CMS field containing URL)
+ * Create a field link settings object (CMS field containing URL, email, phone, or image)
  */
 export function createFieldLinkSettings(
   fieldId: string,
@@ -197,6 +206,8 @@ export interface LinkResolutionContext {
   translations?: Record<string, any> | null;
   getAsset?: (id: string) => { public_url?: string | null } | null;
   anchorMap?: Record<string, string>;
+  /** Map field_id to field type for mailto:/tel: prefix when resolving field links */
+  fieldsByFieldId?: Record<string, { type: CollectionFieldType }>;
 }
 
 /**
@@ -404,8 +415,19 @@ export function generateLinkHref(
       }
       break;
     case 'field': {
-      // For field-based links, prefer collection layer data, fall back to page data
-      const fieldData = collectionItemData || pageCollectionItemData;
+      // For field-based links, use source to select correct data (page vs collection)
+      const source = linkSettings.field?.data?.source;
+      let fieldData: Record<string, string> | undefined;
+      if (source === 'page') {
+        fieldData = pageCollectionItemData;
+      } else if (source === 'collection') {
+        fieldData = collectionItemData;
+      } else {
+        // No source specified - prefer collection layer data, fall back to page data (backwards compatibility)
+        fieldData = collectionItemData || pageCollectionItemData;
+      }
+
+      const fieldsByFieldId = context.fieldsByFieldId;
       if (linkSettings.field?.data?.field_id && fieldData) {
         const fieldId = linkSettings.field.data.field_id;
         const relationships = linkSettings.field.data.relationships || [];
@@ -419,13 +441,19 @@ export function generateLinkHref(
         }
 
         if (rawValue) {
+          const fieldType = fieldsByFieldId?.[fieldId]?.type;
           // Check if value is a CollectionLinkValue JSON (for 'link' field type)
           const linkValue = parseCollectionLinkValue(rawValue);
           if (linkValue) {
-            // Resolve the link value using the same context
             href = resolveCollectionLinkValue(linkValue, context) || '';
+          } else if (fieldType === 'email' || looksLikeEmail(rawValue)) {
+            href = `mailto:${rawValue}`;
+          } else if (fieldType === 'phone' || looksLikePhone(rawValue)) {
+            href = `tel:${rawValue}`;
+          } else if (fieldType === 'image' && getAsset) {
+            const asset = getAsset(rawValue);
+            href = asset?.public_url || '';
           } else {
-            // Use raw value directly (for text fields containing URLs)
             href = rawValue;
           }
         }
@@ -447,4 +475,16 @@ export function generateLinkHref(
   }
 
   return href || null;
+}
+
+/** Heuristic: value looks like email when field type unknown (e.g. collection layer fields not in fieldsByFieldId) */
+export function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+/** Heuristic: value looks like phone (digits, spaces, dashes, parens) when field type unknown */
+export function looksLikePhone(value: string): boolean {
+  const trimmed = value.trim();
+  const digitCount = (trimmed.match(/\d/g) || []).length;
+  return /^[\d\s\-\(\)\+\.]*$/.test(trimmed) && digitCount >= 7;
 }

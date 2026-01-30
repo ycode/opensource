@@ -141,6 +141,10 @@ export interface FormSettings {
     to: string; // Email address to send notifications to
     subject?: string; // Email subject line
   };
+  webhook_notification?: {
+    enabled: boolean;
+    url: string; // Webhook URL to send POST request to
+  };
 }
 
 export interface LayerSettings {
@@ -396,8 +400,13 @@ export interface LinkSettings {
 }
 
 // Essentially a layer without ID (that can have children without IDs)
+// Optional id is allowed for templates with animations that reference specific layers
 export interface LayerTemplate extends Omit<Layer, 'id' | 'children'> {
+  id?: string; // Optional: used when animations reference specific layers
   children?: Array<LayerTemplate | LayerTemplateRef>;
+  // Inlined component metadata (for portable layouts)
+  _inlinedComponentName?: string; // Component name when inlined for portability
+  _inlinedComponentVariables?: ComponentVariable[]; // Component variables when inlined
 }
 
 // Template reference marker (lazy reference resolved during template instantiation)
@@ -600,6 +609,19 @@ export interface Redirect {
   type?: '301' | '302'; // Permanent vs temporary (default 301)
 }
 
+export type SmtpProvider = 'google' | 'microsoft365' | 'mailersend' | 'postmark' | 'sendgrid' | 'mailgun' | 'amazonses' | 'other';
+
+export interface EmailSettings {
+  enabled: boolean;
+  provider: SmtpProvider;
+  smtpHost: string;
+  smtpPort: string;
+  smtpUser: string;
+  smtpPassword: string;
+  fromEmail: string;
+  fromName: string;
+}
+
 // Editor State Types
 export interface EditorState {
   selectedLayerId: string | null; // Legacy - kept for backward compatibility
@@ -742,7 +764,7 @@ export interface ActivityNotification {
 }
 
 // Collection Types (EAV Architecture)
-export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'link';
+export type CollectionFieldType = 'text' | 'number' | 'boolean' | 'date' | 'reference' | 'multi_reference' | 'rich_text' | 'image' | 'link' | 'email' | 'phone';
 export type CollectionSortDirection = 'asc' | 'desc' | 'manual';
 
 export interface CollectionSorting {
@@ -862,7 +884,7 @@ export interface VariableType {
   data: object;
 }
 
-// CMS Field Variable, used for inline variables (text contents)
+// CMS Field Variable, used for CMS data binding and inline variables (rich-text contents)
 export interface FieldVariable extends VariableType {
   type: 'field';
   data: {

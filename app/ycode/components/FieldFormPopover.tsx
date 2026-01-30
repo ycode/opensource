@@ -29,7 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FIELD_TYPES, type FieldType } from '@/lib/field-types-config';
+import Icon from '@/components/ui/icon';
+import { FIELD_TYPES, type FieldType } from '@/lib/collection-field-utils';
 import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import type { CollectionField } from '@/types';
 
@@ -74,7 +75,7 @@ export default function FieldFormPopover({
   // In edit mode, ensure the currently referenced collection is always in the list
   const availableCollections = React.useMemo(() => {
     const filtered = collections.filter(c => c.id !== currentCollectionId);
-    
+
     // In edit mode, ensure the referenced collection is included (even if collections list is stale)
     if (mode === 'edit' && field?.reference_collection_id) {
       const refCollectionExists = filtered.some(c => c.id === field.reference_collection_id);
@@ -86,7 +87,7 @@ export default function FieldFormPopover({
         }
       }
     }
-    
+
     return filtered;
   }, [collections, currentCollectionId, mode, field?.reference_collection_id]);
 
@@ -195,7 +196,10 @@ export default function FieldFormPopover({
               <SelectGroup>
                 {FIELD_TYPES.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
-                    {type.label}
+                    <span className="flex items-center gap-2">
+                      <Icon name={type.icon} className="size-3 shrink-0 opacity-60" />
+                      {type.label}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectGroup>

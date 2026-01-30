@@ -8,7 +8,7 @@ import EditingIndicator from '@/components/collaboration/EditingIndicator';
 import { useCollaborationPresenceStore, getResourceLockKey, RESOURCE_TYPES } from '@/stores/useCollaborationPresenceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
-import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings } from '@/types';
+import type { Layer, Locale, ComponentVariable, FormSettings, LinkSettings, Breakpoint, CollectionFieldType } from '@/types';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
 import { getLayerHtmlTag, getClassesString, getText, resolveFieldValue, isTextEditable, getCollectionVariable, evaluateVisibility } from '@/lib/layer-utils';
@@ -32,7 +32,68 @@ import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
 import LocaleSelector from '@/components/layers/LocaleSelector';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useCollectionsStore } from '@/stores/useCollectionsStore';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
+import type { HiddenLayerInfo } from '@/lib/animation-utils';
+
+/**
+ * Transform component layers for a specific instance.
+ * Generates unique layer IDs by combining the instance layer ID with original layer IDs.
+ * Also remaps interaction tween layer_id references to use the new IDs.
+ * This ensures each component instance has unique IDs for proper animation targeting.
+ */
+function transformComponentLayersForInstance(
+  layers: Layer[],
+  instanceLayerId: string
+): Layer[] {
+  // Build ID map: original ID -> instance-specific ID
+  const idMap = new Map<string, string>();
+
+  // First pass: collect all layer IDs and generate new ones
+  const collectIds = (layerList: Layer[]) => {
+    for (const layer of layerList) {
+      // Create a deterministic instance-specific ID
+      const newId = `${instanceLayerId}_${layer.id}`;
+      idMap.set(layer.id, newId);
+      if (layer.children) {
+        collectIds(layer.children);
+      }
+    }
+  };
+  collectIds(layers);
+
+  // Second pass: transform layers with new IDs and remapped interactions
+  const transformLayer = (layer: Layer): Layer => {
+    const newId = idMap.get(layer.id) || layer.id;
+
+    const transformedLayer: Layer = {
+      ...layer,
+      id: newId,
+    };
+
+    // Remap interaction IDs and tween layer_id references
+    // Interaction IDs must be unique per instance to prevent timeline caching issues
+    if (layer.interactions && layer.interactions.length > 0) {
+      transformedLayer.interactions = layer.interactions.map(interaction => ({
+        ...interaction,
+        id: `${instanceLayerId}_${interaction.id}`,
+        tweens: interaction.tweens.map(tween => ({
+          ...tween,
+          layer_id: idMap.get(tween.layer_id) || tween.layer_id,
+        })),
+      }));
+    }
+
+    // Recursively transform children
+    if (layer.children) {
+      transformedLayer.children = layer.children.map(transformLayer);
+    }
+
+    return transformedLayer;
+  };
+
+  return layers.map(transformLayer);
+}
 
 /**
  * Build a map of layerId -> anchor value (attributes.id) for O(1) anchor resolution
@@ -74,7 +135,9 @@ interface LayerRendererProps {
   collectionItemId?: string; // The ID of the current collection layer item being rendered
   pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
   pageCollectionItemData?: Record<string, string> | null; // Page's collection item data (for dynamic pages)
-  hiddenLayerIds?: string[]; // Layer IDs that should start hidden for animations
+  hiddenLayerInfo?: HiddenLayerInfo[]; // Layer IDs with breakpoint info for animations
+  editorHiddenLayerIds?: Map<string, Breakpoint[]>; // Layer IDs to hide on canvas (edit mode only) with breakpoint info
+  editorBreakpoint?: Breakpoint; // Current breakpoint in editor
   currentLocale?: Locale | null;
   availableLocales?: Locale[];
   localeSelectorFormat?: 'locale' | 'code'; // Format for locale selector label (inherited from parent)
@@ -92,6 +155,8 @@ interface LayerRendererProps {
   isPreview?: boolean; // Whether we're in preview mode (prefix links with /ycode/preview)
   translations?: Record<string, any> | null; // Translations for localized URL generation
   anchorMap?: Record<string, string>; // Pre-built map of layerId -> anchor value for O(1) lookups
+  /** Map field_id to field type for mailto:/tel: prefix when resolving field links */
+  fieldsByFieldId?: Record<string, { type: CollectionFieldType }>;
 }
 
 const LayerRenderer: React.FC<LayerRendererProps> = ({
@@ -112,7 +177,9 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   pageCollectionItemId,
   pageCollectionItemData,
   collectionItemSlugs,
-  hiddenLayerIds,
+  hiddenLayerInfo,
+  editorHiddenLayerIds,
+  editorBreakpoint,
   currentLocale,
   availableLocales = [],
   localeSelectorFormat,
@@ -129,6 +196,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   isPreview = false,
   translations,
   anchorMap: anchorMapProp,
+  fieldsByFieldId: fieldsByFieldIdProp,
 }) => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
@@ -146,6 +214,20 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
   const anchorMap = useMemo(() => {
     return anchorMapProp || buildAnchorMap(layers);
   }, [anchorMapProp, layers]);
+
+  // Build fieldsByFieldId for link resolution (mailto:/tel: based on field type)
+  // Use prop if provided (SSR), otherwise build from collections store (client)
+  const fieldsStore = useCollectionsStore((state) => state.fields);
+  const fieldsByFieldId = useMemo(() => {
+    if (fieldsByFieldIdProp) return fieldsByFieldIdProp;
+    const map: Record<string, { type: CollectionFieldType }> = {};
+    Object.values(fieldsStore).forEach((fields) => {
+      fields.forEach((f) => {
+        map[f.id] = { type: f.type };
+      });
+    });
+    return Object.keys(map).length > 0 ? map : undefined;
+  }, [fieldsByFieldIdProp, fieldsStore]);
 
   // Helper to render a layer or unwrap fragments
   const renderLayer = (layer: Layer): React.ReactNode => {
@@ -217,7 +299,9 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         collectionItemId={collectionItemId}
         pageCollectionItemId={pageCollectionItemId}
         pageCollectionItemData={pageCollectionItemData}
-        hiddenLayerIds={hiddenLayerIds}
+        hiddenLayerInfo={hiddenLayerInfo}
+        editorHiddenLayerIds={editorHiddenLayerIds}
+        editorBreakpoint={editorBreakpoint}
         currentLocale={currentLocale}
         availableLocales={availableLocales}
         localeSelectorFormat={localeSelectorFormat}
@@ -235,6 +319,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
         isPreview={isPreview}
         translations={translations}
         anchorMap={anchorMap}
+        fieldsByFieldId={fieldsByFieldId}
       />
     );
   };
@@ -270,7 +355,9 @@ const LayerItem: React.FC<{
   collectionItemId?: string; // The ID of the current collection layer item being rendered
   pageCollectionItemId?: string; // The ID of the page's collection item (for dynamic pages)
   pageCollectionItemData?: Record<string, string> | null;
-  hiddenLayerIds?: string[];
+  hiddenLayerInfo?: HiddenLayerInfo[];
+  editorHiddenLayerIds?: Map<string, Breakpoint[]>;
+  editorBreakpoint?: Breakpoint;
   currentLocale?: Locale | null;
   availableLocales?: Locale[];
   localeSelectorFormat?: 'locale' | 'code';
@@ -288,6 +375,7 @@ const LayerItem: React.FC<{
   isPreview?: boolean; // Whether we're in preview mode
   translations?: Record<string, any> | null; // Translations for localized URL generation
   anchorMap?: Record<string, string>; // Pre-built map of layerId -> anchor value
+  fieldsByFieldId?: Record<string, { type: CollectionFieldType }>;
 }> = ({
   layer,
   isEditMode,
@@ -311,7 +399,9 @@ const LayerItem: React.FC<{
   collectionItemId,
   pageCollectionItemId,
   pageCollectionItemData,
-  hiddenLayerIds,
+  hiddenLayerInfo,
+  editorHiddenLayerIds,
+  editorBreakpoint,
   currentLocale,
   availableLocales,
   localeSelectorFormat,
@@ -329,6 +419,7 @@ const LayerItem: React.FC<{
   isPreview,
   translations,
   anchorMap,
+  fieldsByFieldId,
 }) => {
   const isSelected = selectedLayerId === layer.id;
   const isHovered = hoveredLayerId === layer.id;
@@ -476,6 +567,7 @@ const LayerItem: React.FC<{
         translations,
         getAsset,
         anchorMap,
+        fieldsByFieldId,
       };
 
     // Check for component variable override or default value
@@ -600,6 +692,16 @@ const LayerItem: React.FC<{
   // In published pages, components are pre-resolved server-side via resolveComponents()
   const getComponentById = useComponentsStore((state) => state.getComponentById);
   const component = (isEditMode && layer.componentId) ? getComponentById(layer.componentId) : null;
+
+  // Transform component layers for this instance to ensure unique IDs per instance
+  // This enables animations to target the correct elements when multiple instances exist
+  const transformedComponentLayers = useMemo(() => {
+    if (isEditMode && component && component.layers && component.layers.length > 0) {
+      return transformComponentLayersForInstance(component.layers, layer.id);
+    }
+    return null;
+  }, [isEditMode, component, layer.id]);
+
   const collectionVariable = getCollectionVariable(layer);
   const isCollectionLayer = !!collectionVariable;
   const collectionId = collectionVariable?.id;
@@ -820,10 +922,10 @@ const LayerItem: React.FC<{
   const renderContent = () => {
     // Component instances in EDIT MODE: render component's layers directly without wrapper
     // In published mode, components are already resolved server-side into children, so render normally
-    if (isEditMode && component && component.layers && component.layers.length > 0) {
+    if (transformedComponentLayers && transformedComponentLayers.length > 0) {
       return (
         <LayerRenderer
-          layers={component.layers}
+          layers={transformedComponentLayers}
           onLayerClick={onLayerClick}
           onLayerUpdate={onLayerUpdate}
           onLayerHover={onLayerHover}
@@ -839,7 +941,9 @@ const LayerItem: React.FC<{
           collectionItemId={effectiveCollectionItemId}
           pageCollectionItemId={pageCollectionItemId}
           pageCollectionItemData={pageCollectionItemData}
-          hiddenLayerIds={hiddenLayerIds}
+          hiddenLayerInfo={hiddenLayerInfo}
+          editorHiddenLayerIds={editorHiddenLayerIds}
+          editorBreakpoint={editorBreakpoint}
           currentLocale={currentLocale}
           availableLocales={availableLocales}
           localeSelectorFormat={localeSelectorFormat}
@@ -847,7 +951,7 @@ const LayerItem: React.FC<{
           liveComponentUpdates={liveComponentUpdates}
           parentComponentLayerId={layer.id}
           parentComponentOverrides={layer.componentOverrides}
-          parentComponentVariables={component.variables}
+          parentComponentVariables={component?.variables}
           isInsideForm={isInsideForm}
           parentFormSettings={parentFormSettings}
           pages={pages}
@@ -856,6 +960,7 @@ const LayerItem: React.FC<{
           isPreview={isPreview}
           translations={translations}
           anchorMap={anchorMap}
+          fieldsByFieldId={fieldsByFieldId}
         />
       );
     }
@@ -928,8 +1033,10 @@ const LayerItem: React.FC<{
     };
 
     // Add data-gsap-hidden attribute for elements that should start hidden
-    if (hiddenLayerIds?.includes(layer.id)) {
-      elementProps['data-gsap-hidden'] = '';
+    const hiddenInfo = hiddenLayerInfo?.find(info => info.layerId === layer.id);
+    if (hiddenInfo) {
+      // Set breakpoints as value (e.g., "mobile" or "mobile tablet") or empty for all
+      elementProps['data-gsap-hidden'] = hiddenInfo.breakpoints || '';
     }
 
     // Handle alert elements (for form success/error messages)
@@ -941,6 +1048,36 @@ const LayerItem: React.FC<{
     if (layer.hiddenGenerated) {
       const existingStyle = typeof elementProps.style === 'object' ? elementProps.style : {};
       elementProps.style = { ...existingStyle, display: 'none' };
+    }
+
+    // Hide elements that have display: hidden animation with on-load apply style (edit mode only)
+    // Show them when selected or when a child is selected
+    // Only hide on the breakpoints the animation applies to
+    if (isEditMode && editorHiddenLayerIds?.has(layer.id)) {
+      const hiddenBreakpoints = editorHiddenLayerIds.get(layer.id) || [];
+      // Empty array means all breakpoints, otherwise check if current breakpoint matches
+      const shouldHideOnBreakpoint = hiddenBreakpoints.length === 0 ||
+        (editorBreakpoint && hiddenBreakpoints.includes(editorBreakpoint));
+
+      if (shouldHideOnBreakpoint) {
+        const isSelectedOrChildSelected = isSelected || (selectedLayerId && (() => {
+          // Check if selectedLayerId is a descendant of this layer
+          const checkDescendants = (children: Layer[] | undefined): boolean => {
+            if (!children) return false;
+            for (const child of children) {
+              if (child.id === selectedLayerId) return true;
+              if (checkDescendants(child.children)) return true;
+            }
+            return false;
+          };
+          return checkDescendants(layer.children);
+        })());
+
+        if (!isSelectedOrChildSelected) {
+          const existingStyle = typeof elementProps.style === 'object' ? elementProps.style : {};
+          elementProps.style = { ...existingStyle, display: 'none' };
+        }
+      }
     }
 
     // Apply custom ID from settings or attributes
@@ -1147,6 +1284,8 @@ const LayerItem: React.FC<{
               metadata: {
                 page_url: typeof window !== 'undefined' ? window.location.href : undefined,
               },
+              webhook: formSettings?.webhook_notification,
+              email: formSettings?.email_notification,
             }),
           });
 
@@ -1500,7 +1639,10 @@ const LayerItem: React.FC<{
               isPreview={isPreview}
               translations={translations}
               anchorMap={anchorMap}
-              hiddenLayerIds={hiddenLayerIds}
+              fieldsByFieldId={fieldsByFieldId}
+              hiddenLayerInfo={hiddenLayerInfo}
+              editorHiddenLayerIds={editorHiddenLayerIds}
+              editorBreakpoint={editorBreakpoint}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
               localeSelectorFormat={localeSelectorFormat}
@@ -1613,7 +1755,9 @@ const LayerItem: React.FC<{
                   collectionItemId={item.id}
                   pageCollectionItemId={pageCollectionItemId}
                   pageCollectionItemData={pageCollectionItemData}
-                  hiddenLayerIds={hiddenLayerIds}
+                  hiddenLayerInfo={hiddenLayerInfo}
+                  editorHiddenLayerIds={editorHiddenLayerIds}
+                  editorBreakpoint={editorBreakpoint}
                   currentLocale={currentLocale}
                   availableLocales={availableLocales}
                   liveLayerUpdates={liveLayerUpdates}
@@ -1629,6 +1773,7 @@ const LayerItem: React.FC<{
                   isPreview={isPreview}
                   translations={translations}
                   anchorMap={anchorMap}
+                  fieldsByFieldId={fieldsByFieldId}
                 />
               )}
             </Tag>
@@ -1676,7 +1821,10 @@ const LayerItem: React.FC<{
               isPreview={isPreview}
               translations={translations}
               anchorMap={anchorMap}
-              hiddenLayerIds={hiddenLayerIds}
+              fieldsByFieldId={fieldsByFieldId}
+              hiddenLayerInfo={hiddenLayerInfo}
+              editorHiddenLayerIds={editorHiddenLayerIds}
+              editorBreakpoint={editorBreakpoint}
               currentLocale={currentLocale}
               availableLocales={availableLocales}
               localeSelectorFormat={format}
@@ -1733,7 +1881,9 @@ const LayerItem: React.FC<{
             collectionItemId={effectiveCollectionItemId}
             pageCollectionItemId={pageCollectionItemId}
             pageCollectionItemData={pageCollectionItemData}
-            hiddenLayerIds={hiddenLayerIds}
+            hiddenLayerInfo={hiddenLayerInfo}
+            editorHiddenLayerIds={editorHiddenLayerIds}
+            editorBreakpoint={editorBreakpoint}
             currentLocale={currentLocale}
             availableLocales={availableLocales}
             localeSelectorFormat={localeSelectorFormat}
@@ -1750,6 +1900,7 @@ const LayerItem: React.FC<{
             isPreview={isPreview}
             translations={translations}
             anchorMap={anchorMap}
+            fieldsByFieldId={fieldsByFieldId}
           />
         )}
       </Tag>
@@ -1786,6 +1937,7 @@ const LayerItem: React.FC<{
       translations,
       getAsset,
       anchorMap,
+      fieldsByFieldId,
     };
     const linkHref = generateLinkHref(linkSettings, layerLinkContext);
 

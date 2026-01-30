@@ -592,6 +592,14 @@ export const componentsApi = {
   async getUnpublished(): Promise<ApiResponse<Component[]>> {
     return apiRequest<Component[]>('/api/components/unpublished');
   },
+
+  // Create a new component
+  async create(data: { name: string; layers: Layer[]; variables?: any[] }): Promise<ApiResponse<Component>> {
+    return apiRequest<Component>('/api/components', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // Layer Styles API

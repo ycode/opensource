@@ -1458,8 +1458,82 @@ function buildComponentMap(layers: Layer[], componentMap: Record<string, string>
 }
 
 /**
+ * Remap layer IDs in interactions based on an ID mapping
+ */
+function remapInteractionLayerIds(
+  interactions: Layer['interactions'],
+  idMap: Map<string, string>
+): Layer['interactions'] {
+  if (!interactions) return interactions;
+
+  return interactions.map(interaction => ({
+    ...interaction,
+    tweens: interaction.tweens.map(tween => ({
+      ...tween,
+      layer_id: idMap.get(tween.layer_id) || tween.layer_id,
+    })),
+  }));
+}
+
+/**
+ * Transform component layers with instance-specific IDs
+ * This ensures each component instance has unique layer IDs for proper targeting
+ */
+function transformLayersForInstance(
+  layers: Layer[],
+  instanceLayerId: string
+): Layer[] {
+  // Build ID map: original ID -> instance-specific ID
+  const idMap = new Map<string, string>();
+
+  // First pass: collect all layer IDs and generate new ones
+  const collectIds = (layerList: Layer[]) => {
+    for (const layer of layerList) {
+      const newId = `${instanceLayerId}_${layer.id}`;
+      idMap.set(layer.id, newId);
+      if (layer.children) {
+        collectIds(layer.children);
+      }
+    }
+  };
+  collectIds(layers);
+
+  // Second pass: transform layers with new IDs and remapped interactions
+  const transformLayer = (layer: Layer): Layer => {
+    const newId = idMap.get(layer.id) || layer.id;
+
+    const transformedLayer: Layer = {
+      ...layer,
+      id: newId,
+    };
+
+    // Remap interaction IDs and tween layer_id references
+    if (layer.interactions && layer.interactions.length > 0) {
+      transformedLayer.interactions = layer.interactions.map(interaction => ({
+        ...interaction,
+        id: `${instanceLayerId}_${interaction.id}`,
+        tweens: interaction.tweens.map(tween => ({
+          ...tween,
+          layer_id: idMap.get(tween.layer_id) || tween.layer_id,
+        })),
+      }));
+    }
+
+    // Recursively transform children
+    if (layer.children && layer.children.length > 0) {
+      transformedLayer.children = layer.children.map(transformLayer);
+    }
+
+    return transformedLayer;
+  };
+
+  return layers.map(transformLayer);
+}
+
+/**
  * Resolve component instances in layer tree
  * Replaces layers with componentId with the actual component layers
+ * Also applies instance-specific ID transformations to ensure unique IDs per instance
  */
 function resolveComponentsInLayers(layers: Layer[], components: Component[]): Layer[] {
   return layers.map(layer => {
@@ -1471,10 +1545,38 @@ function resolveComponentsInLayers(layers: Layer[], components: Component[]): La
         // The component's first layer is the actual content (Section, etc.)
         const componentContent = component.layers[0];
 
-        // Recursively resolve any nested components within the component's content
-        const resolvedChildren = componentContent.children
-          ? resolveComponentsInLayers(componentContent.children, components)
+        // Transform all component children with instance-specific IDs
+        // This ensures unique layer IDs when multiple instances of the same component exist
+        const transformedChildren = componentContent.children
+          ? transformLayersForInstance(componentContent.children, layer.id)
           : [];
+
+        // Recursively resolve any nested components within the transformed children
+        const resolvedChildren = resolveComponentsInLayers(transformedChildren, components);
+
+        // Build ID map for remapping root layer interactions
+        // The root layer's ID becomes the instance ID, so remap any self-references
+        const idMap = new Map<string, string>();
+        if (componentContent.id !== layer.id) {
+          idMap.set(componentContent.id, layer.id);
+        }
+        // Also add mappings for all child IDs (for root layer interactions targeting children)
+        if (componentContent.children) {
+          const collectChildIds = (children: Layer[]) => {
+            for (const child of children) {
+              idMap.set(child.id, `${layer.id}_${child.id}`);
+              if (child.children) {
+                collectChildIds(child.children);
+              }
+            }
+          };
+          collectChildIds(componentContent.children);
+        }
+
+        // Remap interaction layer IDs for root layer interactions
+        const remappedInteractions = idMap.size > 0
+          ? remapInteractionLayerIds(componentContent.interactions, idMap)
+          : componentContent.interactions;
 
         // Return the wrapper with the component's content merged in
         // IMPORTANT: Keep componentId so LayerRenderer knows this is a component instance
@@ -1483,6 +1585,7 @@ function resolveComponentsInLayers(layers: Layer[], components: Component[]): La
           ...componentContent, // Merge the component's properties (classes, design, etc.)
           id: layer.id, // Keep the instance's ID
           componentId: layer.componentId, // Keep the original componentId for selection
+          interactions: remappedInteractions, // Use remapped interactions
           children: resolvedChildren,
         };
 

@@ -60,6 +60,7 @@ import type { PageTreeNode } from '@/lib/page-utils';
 import { cn } from '@/lib/utils';
 import { getCollectionVariable, canDeleteLayer, findLayerById, findParentCollectionLayer, canLayerHaveLink } from '@/lib/layer-utils';
 import { CANVAS_BORDER, CANVAS_PADDING } from '@/lib/canvas-utils';
+import { buildFieldGroups, hasFieldsMatching, flattenFieldGroups, DISPLAYABLE_FIELD_TYPES } from '@/lib/collection-field-utils';
 import { DropContainerIndicator, DropLineIndicator } from '@/components/DropIndicators';
 import { DragCaptureOverlay } from '@/components/DragCaptureOverlay';
 import { setDragCursor, clearDragCursor } from '@/lib/drag-cursor';
@@ -115,7 +116,7 @@ import type { CanvasDropTarget } from '@/stores/useEditorStore';
 
 /**
  * Canvas Drop Indicator Overlay
- * 
+ *
  * Subscribes to store directly to avoid re-rendering the parent CenterCanvas component.
  * Renders drop indicators inside the scaled canvas div during drag-and-drop.
  */
@@ -144,7 +145,7 @@ function CanvasDropIndicatorOverlay({
 
   // Get element rect in iframe's internal coordinate system
   const elementRect = targetElement.getBoundingClientRect();
-  
+
   const top = elementRect.top;
   const left = elementRect.left;
   const width = elementRect.width;
@@ -166,8 +167,8 @@ function CanvasDropIndicatorOverlay({
         }}
       >
         {dropTarget.position === 'inside' ? (
-          <DropContainerIndicator 
-            label={`Add in ${displayName}`} 
+          <DropContainerIndicator
+            label={`Add in ${displayName}`}
             variant="dashed"
           />
         ) : (
@@ -180,11 +181,11 @@ function CanvasDropIndicatorOverlay({
 
 /**
  * Canvas Sibling Reorder Effect
- * 
+ *
  * Applies CSS transforms to siblings in the iframe during drag to show
  * a real-time preview of the reordered layout. Also makes the dragged
  * element semi-transparent.
- * 
+ *
  * This is implemented as an effect-only component (no visible render)
  * because we're manipulating iframe DOM directly for performance.
  */
@@ -202,7 +203,7 @@ function CanvasSiblingReorderOverlay({
   const originalIndex = useEditorStore((state) => state.draggedLayerOriginalIndex);
   const siblingIds = useEditorStore((state) => state.siblingLayerIds);
   const dropTarget = useEditorStore((state) => state.canvasSiblingDropTarget);
-  
+
   const projectedIndex = dropTarget?.projectedIndex ?? null;
 
   // State for visual indicator positions
@@ -222,21 +223,21 @@ function CanvasSiblingReorderOverlay({
     draggedLeft: number;
     parentElement: HTMLElement | null;
   } | null>(null);
-  
+
   // Track previous projected index to avoid unnecessary updates
   const prevProjectedIndexRef = useRef<number | null>(null);
-  
+
   // Store siblingIds in a ref for cleanup (since store clears them before cleanup runs)
   const siblingIdsRef = useRef<string[]>([]);
 
   // Change cursor to "grabbing" when dragging
   useEffect(() => {
     if (!isDragging) return;
-    
+
     const iframeDoc = iframeElement?.contentDocument;
     // Pass both iframe document and iframe element for comprehensive cursor setting
     setDragCursor(iframeDoc, iframeElement);
-    
+
     return () => {
       clearDragCursor(iframeDoc);
     };
@@ -245,14 +246,14 @@ function CanvasSiblingReorderOverlay({
   // Cache elements and heights when drag starts
   useEffect(() => {
     if (!iframeElement) return;
-    
+
     const iframeDoc = iframeElement.contentDocument;
     if (!iframeDoc) return;
 
     if (isDragging && draggedId && siblingIds.length > 0) {
       // Store siblingIds in ref for cleanup (before store clears them)
       siblingIdsRef.current = [...siblingIds];
-      
+
       // Build cache on drag start
       const elements = new Map<string, HTMLElement>();
       const heights = new Map<string, number>();
@@ -260,7 +261,7 @@ function CanvasSiblingReorderOverlay({
       let draggedHeight = 0;
       let draggedWidth = 0;
       let draggedLeft = 0;
-      
+
       siblingIds.forEach(id => {
         const el = iframeDoc.querySelector(`[data-layer-id="${id}"]`) as HTMLElement;
         if (el) {
@@ -275,21 +276,21 @@ function CanvasSiblingReorderOverlay({
           }
         }
       });
-      
+
       // Find and cache parent element
       let parentElement: HTMLElement | null = null;
       if (parentId) {
         parentElement = iframeDoc.querySelector(`[data-layer-id="${parentId}"]`) as HTMLElement;
       }
-      
+
       cachedDataRef.current = { elements, heights, tops, draggedHeight, draggedWidth, draggedLeft, parentElement };
       prevProjectedIndexRef.current = null;
-      
+
       // Set dropzone dimensions to match dragged element
       setDropzoneHeight(draggedHeight);
       setDropzoneWidth(draggedWidth);
       setDropzoneLeft(draggedLeft);
-      
+
       // Set initial parent rect
       if (parentElement) {
         const rect = parentElement.getBoundingClientRect();
@@ -320,26 +321,26 @@ function CanvasSiblingReorderOverlay({
       // Still dragging but cursor moved outside valid positions - keep current visual state
       return;
     }
-    
+
     const currentProjectedIndex = projectedIndex ?? originalIndex;
-    
+
     // Skip if projected index hasn't changed
     if (currentProjectedIndex === prevProjectedIndexRef.current) {
       return;
     }
-    
+
     // Check if this is the FIRST positioning (no previous index)
     // On first positioning, skip transition to avoid "jump" animation
     const isFirstPositioning = prevProjectedIndexRef.current === null;
     prevProjectedIndexRef.current = currentProjectedIndex;
 
     const { elements, heights, tops, draggedHeight } = cache;
-    
+
     // Calculate dropzone Y position (where the blue box should appear)
     // The dropzone ALWAYS shows - at original position when first dragging,
     // then moves as you drag to different positions
     let lineY: number | null = null;
-    
+
     if (currentProjectedIndex === originalIndex) {
       // Dropzone at original position (element "picked up", its spot is available)
       const draggedId = siblingIds[originalIndex];
@@ -349,7 +350,7 @@ function CanvasSiblingReorderOverlay({
       }
     } else {
       const isDraggingDown = currentProjectedIndex > originalIndex;
-      
+
       if (isDraggingDown) {
         // When dragging down, elements have shifted UP
         // The dropzone appears after the last shifted-up element
@@ -399,10 +400,10 @@ function CanvasSiblingReorderOverlay({
 
       // Calculate shift amount based on direction of movement
       let shiftAmount = 0;
-      
+
       if (currentProjectedIndex !== originalIndex) {
         const isDraggingDown = currentProjectedIndex > originalIndex;
-        
+
         if (isDraggingDown) {
           // Dragging DOWN: elements between original and projected shift UP to fill gap
           // Elements at projected and after shift DOWN for dropzone (dropzone height = dragged element height)
@@ -435,7 +436,7 @@ function CanvasSiblingReorderOverlay({
   // Uses siblingIdsRef because store clears siblingIds before this effect runs
   useEffect(() => {
     if (!iframeElement) return;
-    
+
     const iframeDoc = iframeElement.contentDocument;
     if (!iframeDoc) return;
 
@@ -452,7 +453,7 @@ function CanvasSiblingReorderOverlay({
           el.style.willChange = '';
         }
       });
-      
+
       // Clear the ref after cleanup
       siblingIdsRef.current = [];
     }
@@ -548,6 +549,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const hoveredLayerId = useEditorStore((state) => state.hoveredLayerId);
   const setHoveredLayerId = useEditorStore((state) => state.setHoveredLayerId);
   const isPreviewMode = useEditorStore((state) => state.isPreviewMode);
+  const activeInteractionTriggerLayerId = useEditorStore((state) => state.activeInteractionTriggerLayerId);
   const assets = useAssetsStore((state) => state.assets);
 
   // Note: Canvas drag-and-drop state is handled by useCanvasDropDetection hook
@@ -998,43 +1000,15 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
   // Build field groups for multi-source inline variable selection
   const fieldGroups = useMemo(() => {
-    const groups: { fields: CollectionField[]; label?: string; source?: 'page' | 'collection' }[] = [];
-
-    // Add collection layer fields if inside a collection layer
-    if (editingLayerParentCollection) {
-      const collectionVariable = getCollectionVariable(editingLayerParentCollection);
-      const collectionId = collectionVariable?.id;
-      if (collectionId) {
-        const collectionFields = collectionFieldsFromStore[collectionId] || [];
-        const collection = collectionsFromStore.find(c => c.id === collectionId);
-        if (collectionFields.length > 0) {
-          groups.push({
-            fields: collectionFields,
-            label: collection?.name || 'Collection',
-            source: 'collection',
-          });
-        }
-      }
-    }
-
-    // Add page collection fields if on a dynamic page
-    if (currentPage?.is_dynamic && currentPage?.settings?.cms?.collection_id) {
-      const pageCollectionId = currentPage.settings.cms.collection_id;
-      const pageCollectionFields = collectionFieldsFromStore[pageCollectionId] || [];
-      if (pageCollectionFields.length > 0) {
-        const collectionVariable = editingLayerParentCollection ? getCollectionVariable(editingLayerParentCollection) : null;
-        const collectionLayerCollectionId = collectionVariable?.id;
-        if (pageCollectionId !== collectionLayerCollectionId) {
-          groups.push({
-            fields: pageCollectionFields,
-            label: 'Page data',
-            source: 'page',
-          });
-        }
-      }
-    }
-
-    return groups.length > 0 ? groups : undefined;
+    const collectionVariable = editingLayerParentCollection
+      ? getCollectionVariable(editingLayerParentCollection)
+      : null;
+    return buildFieldGroups({
+      collectionLayer: collectionVariable ? { collectionId: collectionVariable.id } : null,
+      page: currentPage,
+      fieldsByCollectionId: collectionFieldsFromStore,
+      collections: collectionsFromStore,
+    });
   }, [editingLayerParentCollection, currentPage, collectionFieldsFromStore, collectionsFromStore]);
 
   // Create assets map for Canvas (asset ID -> asset)
@@ -1059,7 +1033,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     if (isDraggingLayerOnCanvas || isDraggingToCanvas) {
       return;
     }
-    
+
     if (!isPreviewMode) {
       setSelectedLayerId(layerId);
       // Switch to Layers tab when a layer is clicked on canvas
@@ -1204,7 +1178,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
       const insertPosition = (dropTarget.position === 'above' || dropTarget.position === 'below')
         ? { siblingId: dropTarget.layerId, position: dropTarget.position as 'above' | 'below' }
         : undefined;
-      
+
       const result = addLayerFromTemplate(currentPageId, dropTarget.parentId, elementType, insertPosition);
       if (result) {
         setSelectedLayerId(result.newLayerId);
@@ -1257,14 +1231,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // Handle layer reorder callback for sibling reordering on canvas
   const handleLayerReorder = useCallback((newLayers: Layer[]) => {
     if (!currentPageId) return;
-    
+
     // If editing component, would need to update component draft instead
     if (editingComponentId) {
       // TODO: Support component editing
       console.log('Sibling reorder in component not yet implemented');
       return;
     }
-    
+
     setDraftLayers(currentPageId, newLayers);
   }, [currentPageId, editingComponentId, setDraftLayers]);
 
@@ -2166,79 +2140,68 @@ const CenterCanvas = React.memo(function CenterCanvas({
             })()}
 
             {/* Inline Variable Button - matches RichTextEditor behavior */}
-            {(() => {
-              // Check if there are any displayable fields (exclude multi_reference)
-              const hasDisplayableFields = fieldGroups?.some(
-                (g) => g.fields.filter((f) => f.type !== 'multi_reference').length > 0
-              ) ?? false;
+            <div className="h-5 shrink-0 flex items-center justify-center">
+              <Separator orientation="vertical" className="mx-1 bg-secondary" />
+            </div>
+            {hasFieldsMatching(fieldGroups, f => DISPLAYABLE_FIELD_TYPES.includes(f.type)) ? (
+              <DropdownMenu
+                open={textEditorVariableDropdownOpen}
+                onOpenChange={setTextEditorVariableDropdownOpen}
+              >
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="!size-6"
+                  >
+                    <Icon name="database" className="size-3" />
+                  </Button>
+                </DropdownMenuTrigger>
 
-              return (
-                <>
-                  <div className="h-5 shrink-0 flex items-center justify-center">
-                    <Separator orientation="vertical" className="mx-1 bg-secondary" />
-                  </div>
-                  {hasDisplayableFields ? (
-                    <DropdownMenu
-                      open={textEditorVariableDropdownOpen}
-                      onOpenChange={setTextEditorVariableDropdownOpen}
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className="!size-6"
-                        >
-                          <Icon name="database" className="size-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-
-                      {fieldGroups && (
-                        <DropdownMenuContent
-                          className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
-                          align="start"
-                          sideOffset={4}
-                        >
-                          <MultiSourceFieldTreeSelect
-                            fieldGroups={fieldGroups}
-                            allFields={collectionFieldsFromStore}
-                            collections={collectionsFromStore}
-                            onSelect={(fieldId, relationshipPath, source) => {
-                              addFieldVariable(
-                                {
-                                  type: 'field',
-                                  data: {
-                                    field_id: fieldId,
-                                    relationships: relationshipPath,
-                                    source,
-                                  },
-                                },
-                                fieldGroups.flatMap(g => g.fields),
-                                collectionFieldsFromStore
-                              );
-                              setTextEditorVariableDropdownOpen(false);
-                            }}
-                          />
-                        </DropdownMenuContent>
-                      )}
-                    </DropdownMenu>
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className="!size-6"
-                          disabled={true}
-                        >
-                          <Icon name="database" className="size-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>No variables available</TooltipContent>
-                    </Tooltip>
-                  )}
-                </>
-              );
-            })()}
+                {fieldGroups && (
+                  <DropdownMenuContent
+                    className="w-56 py-0 px-1 max-h-80 overflow-y-auto"
+                    align="start"
+                    sideOffset={4}
+                  >
+                    <MultiSourceFieldTreeSelect
+                      fieldGroups={fieldGroups}
+                      allFields={collectionFieldsFromStore}
+                      collections={collectionsFromStore}
+                      onSelect={(fieldId, relationshipPath, source) => {
+                        addFieldVariable(
+                          {
+                            type: 'field',
+                            data: {
+                              field_id: fieldId,
+                              relationships: relationshipPath,
+                              source,
+                            },
+                          },
+                          flattenFieldGroups(fieldGroups),
+                          collectionFieldsFromStore
+                        );
+                        setTextEditorVariableDropdownOpen(false);
+                      }}
+                    />
+                  </DropdownMenuContent>
+                )}
+              </DropdownMenu>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="!size-6"
+                    disabled={true}
+                  >
+                    <Icon name="database" className="size-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>No variables available</TooltipContent>
+              </Tooltip>
+            )}
           </div>
 
           <div className="flex-1" />
@@ -2442,6 +2405,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         onLayerHover={handleCanvasLayerHover}
                         onCanvasClick={handleCanvasClick}
                         editingComponentVariables={editingComponentVariables}
+                        disableEditorHiddenLayers={!!activeInteractionTriggerLayerId}
                       />
 
                       {/* Drop indicator overlay - subscribes to store directly */}

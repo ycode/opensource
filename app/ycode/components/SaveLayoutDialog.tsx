@@ -40,6 +40,7 @@ interface SaveLayoutDialogProps {
 }
 
 const LAYOUT_CATEGORIES = [
+  'Navigation',
   'Hero',
   'Features',
   'Stats',

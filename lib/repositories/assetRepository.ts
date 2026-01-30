@@ -14,9 +14,104 @@ export interface CreateAssetData {
   content?: string | null; // Inline SVG content for icon assets
 }
 
+export interface PaginatedAssetsResult {
+  assets: Asset[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+export interface GetAssetsOptions {
+  folderId?: string | null; // Filter by folder (null = root, undefined = all)
+  folderIds?: string[]; // Filter by multiple folders (for search across descendants)
+  search?: string; // Search by filename
+  page?: number; // Page number (1-based)
+  limit?: number; // Items per page
+}
+
 /**
- * Get all assets
+ * Get assets with pagination and search support
+ */
+export async function getAssetsPaginated(options: GetAssetsOptions = {}): Promise<PaginatedAssetsResult> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  const {
+    folderId,
+    folderIds,
+    search,
+    page = 1,
+    limit = 50,
+  } = options;
+
+  const offset = (page - 1) * limit;
+
+  // Build the query
+  let query = client
+    .from('assets')
+    .select('*', { count: 'exact' });
+
+  // Filter by folder(s)
+  if (folderIds && folderIds.length > 0) {
+    // Multiple folders (for search across descendants)
+    // Handle 'root' specially - it means assets with null folder_id
+    const actualFolderIds = folderIds.filter(id => id !== 'root');
+    const includesRoot = folderIds.includes('root');
+    
+    if (includesRoot && actualFolderIds.length > 0) {
+      // Include both root (null) and specific folders
+      query = query.or(`asset_folder_id.is.null,asset_folder_id.in.(${actualFolderIds.join(',')})`);
+    } else if (includesRoot) {
+      // Only root
+      query = query.is('asset_folder_id', null);
+    } else {
+      // Only specific folders
+      query = query.in('asset_folder_id', actualFolderIds);
+    }
+  } else if (folderId !== undefined) {
+    // Single folder filter
+    if (folderId === null) {
+      query = query.is('asset_folder_id', null);
+    } else {
+      query = query.eq('asset_folder_id', folderId);
+    }
+  }
+
+  // Search by filename
+  if (search && search.trim()) {
+    query = query.ilike('filename', `%${search.trim()}%`);
+  }
+
+  // Apply pagination and ordering
+  query = query
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    throw new Error(`Failed to fetch assets: ${error.message}`);
+  }
+
+  const total = count || 0;
+
+  return {
+    assets: data || [],
+    total,
+    page,
+    limit,
+    hasMore: offset + limit < total,
+  };
+}
+
+/**
+ * Get all assets (legacy function for backwards compatibility)
  * @param folderId - Optional folder ID to filter assets (null for root folder, undefined for all assets)
+ * @deprecated Use getAssetsPaginated for better performance with large datasets
  */
 export async function getAllAssets(folderId?: string | null): Promise<Asset[]> {
   const client = await getSupabaseAdmin();
@@ -25,26 +120,44 @@ export async function getAllAssets(folderId?: string | null): Promise<Asset[]> {
     throw new Error('Supabase not configured');
   }
 
-  let query = client
-    .from('assets')
-    .select('*');
+  // Supabase has a default limit of 1000 rows, so we need to paginate for large datasets
+  const PAGE_SIZE = 1000;
+  const allAssets: Asset[] = [];
+  let offset = 0;
+  let hasMore = true;
 
-  // Filter by folder if specified
-  if (folderId !== undefined) {
-    if (folderId === null) {
-      query = query.is('asset_folder_id', null);
+  while (hasMore) {
+    let query = client
+      .from('assets')
+      .select('*')
+      .range(offset, offset + PAGE_SIZE - 1)
+      .order('created_at', { ascending: false });
+
+    // Filter by folder if specified
+    if (folderId !== undefined) {
+      if (folderId === null) {
+        query = query.is('asset_folder_id', null);
+      } else {
+        query = query.eq('asset_folder_id', folderId);
+      }
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`Failed to fetch assets: ${error.message}`);
+    }
+
+    if (data && data.length > 0) {
+      allAssets.push(...data);
+      offset += PAGE_SIZE;
+      hasMore = data.length === PAGE_SIZE;
     } else {
-      query = query.eq('asset_folder_id', folderId);
+      hasMore = false;
     }
   }
 
-  const { data, error } = await query.order('created_at', { ascending: false });
-
-  if (error) {
-    throw new Error(`Failed to fetch assets: ${error.message}`);
-  }
-
-  return data || [];
+  return allAssets;
 }
 
 /**

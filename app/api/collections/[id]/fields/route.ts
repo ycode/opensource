@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFieldsByCollectionId, createField } from '@/lib/repositories/collectionFieldRepository';
+import { isValidFieldType, VALID_FIELD_TYPES } from '@/lib/collection-field-utils';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -60,10 +61,9 @@ export async function POST(
     }
 
     // Validate field type
-    const validTypes = ['text', 'rich_text', 'number', 'boolean', 'date', 'link', 'reference', 'multi_reference', 'image'];
-    if (!validTypes.includes(body.type)) {
+    if (!isValidFieldType(body.type)) {
       return noCache(
-        { error: `Invalid field type. Must be one of: ${validTypes.join(', ')}` },
+        { error: `Invalid field type. Must be one of: ${VALID_FIELD_TYPES.join(', ')}` },
         400
       );
     }

@@ -363,10 +363,44 @@ export default function LayerContextMenu({
     if (!layer) return;
 
     try {
+      // Collect all layer IDs that are referenced by animations (tween.layer_id)
+      // These IDs must be preserved so animations work when layout is loaded
+      const collectReferencedLayerIds = (l: Layer): Set<string> => {
+        const ids = new Set<string>();
+
+        // Check interactions on this layer
+        if (l.interactions) {
+          l.interactions.forEach(interaction => {
+            interaction.tweens?.forEach(tween => {
+              if (tween.layer_id) {
+                ids.add(tween.layer_id);
+              }
+            });
+          });
+        }
+
+        // Recursively check children
+        if (l.children) {
+          l.children.forEach(child => {
+            collectReferencedLayerIds(child).forEach(id => ids.add(id));
+          });
+        }
+
+        return ids;
+      };
+
+      const referencedLayerIds = collectReferencedLayerIds(layer);
+
       // Strip IDs to convert Layer to LayerTemplate
+      // But preserve IDs that are referenced by animations
       const stripIds = (l: Layer): any => {
         const { id, ...rest } = l;
         const result: any = { ...rest };
+
+        // Preserve ID if it's referenced by an animation
+        if (referencedLayerIds.has(id)) {
+          result.id = id;
+        }
 
         if (result.children && Array.isArray(result.children)) {
           result.children = result.children.map((child: Layer) => stripIds(child));

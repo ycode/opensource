@@ -102,8 +102,12 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent showCloseButton={showCloseButton && !loading} aria-describedby={undefined}>
-        <DialogHeader>
+      <DialogContent
+        showCloseButton={showCloseButton && !loading}
+        aria-describedby={undefined}
+        className="overflow-hidden"
+      >
+        <DialogHeader className="bg-border/60">
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
