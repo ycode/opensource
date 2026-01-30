@@ -27,6 +27,9 @@ export const FIELD_TYPES = [
   { value: 'email', label: 'Email', icon: 'email' },
   { value: 'phone', label: 'Phone', icon: 'phone' },
   { value: 'image', label: 'Image', icon: 'image' },
+  { value: 'audio', label: 'Audio', icon: 'audio' },
+  { value: 'video', label: 'Video', icon: 'video' },
+  { value: 'document', label: 'Document', icon: 'file-text' },
   { value: 'reference', label: 'Reference', icon: 'database' },
   { value: 'multi_reference', label: 'Multi-Reference', icon: 'database' },
 ] as const;
@@ -143,6 +146,9 @@ export function getOperatorsForFieldType(
       return BOOLEAN_OPERATORS;
     case 'reference':
     case 'image':
+    case 'audio':
+    case 'video':
+    case 'document':
       return REFERENCE_OPERATORS;
     case 'multi_reference':
       return MULTI_REFERENCE_OPERATORS;
@@ -336,7 +342,35 @@ export function buildFieldGroups(config: BuildFieldGroupsConfig): FieldGroup[] |
 }
 
 /** Field types that can be used as link targets */
-export const LINK_FIELD_TYPES: CollectionFieldType[] = ['link', 'email', 'phone', 'image'];
+export const LINK_FIELD_TYPES: CollectionFieldType[] = ['link', 'email', 'phone', 'image', 'document'];
+
+/** Field types that store media assets (image, audio, video) */
+export const MEDIA_FIELD_TYPES: CollectionFieldType[] = ['image', 'audio', 'video'];
+
+/** Field types that store asset IDs (media + documents) */
+export const ASSET_FIELD_TYPES: CollectionFieldType[] = ['image', 'audio', 'video', 'document'];
+
+/** Field types that can be bound to image layers (image fields) */
+export const IMAGE_FIELD_TYPES: CollectionFieldType[] = ['image'];
+
+/** Field types that can be bound to audio layers (audio fields) */
+export const AUDIO_FIELD_TYPES: CollectionFieldType[] = ['audio'];
+
+/** Field types that can be bound to video layers (video) */
+export const VIDEO_FIELD_TYPES: CollectionFieldType[] = ['video'];
+
+/** Field types that can be bound to link layers for downloads (document fields) */
+export const DOCUMENT_FIELD_TYPES: CollectionFieldType[] = ['document'];
+
+/** Check if a field type uses asset selector (image, audio, video, document) */
+export function isAssetFieldType(fieldType: CollectionFieldType | undefined): boolean {
+  return fieldType !== undefined && ASSET_FIELD_TYPES.includes(fieldType);
+}
+
+/** Check if a field type is a media type (image, audio, video) */
+export function isMediaFieldType(fieldType: CollectionFieldType | undefined): boolean {
+  return fieldType !== undefined && MEDIA_FIELD_TYPES.includes(fieldType);
+}
 
 /**
  * Filter field groups to only include fields of specified types.

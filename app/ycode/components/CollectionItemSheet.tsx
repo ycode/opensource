@@ -12,6 +12,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useForm } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import Icon from '@/components/ui/icon';
 import {
   Sheet,
   SheetContent,
@@ -36,7 +37,7 @@ import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
 import { slugify } from '@/lib/collection-utils';
-import { validateFieldValue } from '@/lib/collection-field-utils';
+import { validateFieldValue, isAssetFieldType, getFieldIcon } from '@/lib/collection-field-utils';
 import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { toast } from 'sonner';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
@@ -442,21 +443,32 @@ export default function CollectionItemSheet({
                               placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
                               {...formField}
                             />
-                          ) : field.type === 'image' ? (
-                            /* Image Field - File Manager UI */
+                          ) : isAssetFieldType(field.type) ? (
+                            /* Asset Field - File Manager UI (Image, Audio, Video, Document) */
                             (() => {
                               const currentAssetId = formField.value || null;
                               const currentAsset = currentAssetId ? getAsset(currentAssetId) : null;
                               const assetFilename = currentAsset?.filename || null;
-                              const imageUrl = currentAsset?.public_url || null;
+
+                              // Determine asset category and labels based on field type
+                              const assetCategoryMap = {
+                                image: ASSET_CATEGORIES.IMAGES,
+                                audio: ASSET_CATEGORIES.AUDIO,
+                                video: ASSET_CATEGORIES.VIDEOS,
+                                document: ASSET_CATEGORIES.DOCUMENTS,
+                              } as const;
+                              const assetCategory = assetCategoryMap[field.type as keyof typeof assetCategoryMap] ?? ASSET_CATEGORIES.DOCUMENTS;
+                              const fieldLabelMap = { image: 'image', audio: 'audio', video: 'video', document: 'document' } as const;
+                              const fieldLabel = fieldLabelMap[field.type as keyof typeof fieldLabelMap] ?? 'file';
 
                               const handleOpenFileManager = () => {
                                 openFileManager(
                                   (asset) => {
                                     // Validate asset type
-                                    if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
+                                    if (!asset.mime_type || !isAssetOfType(asset.mime_type, assetCategory)) {
+                                      const article = fieldLabel === 'audio' ? 'an' : 'a';
                                       toast.error('Invalid asset type', {
-                                        description: 'Please select an image file.',
+                                        description: `Please select ${article} ${fieldLabel} file.`,
                                       });
                                       return false; // Don't close file manager
                                     }
@@ -466,7 +478,7 @@ export default function CollectionItemSheet({
                                     // Return void to close file manager
                                   },
                                   currentAssetId,
-                                  ASSET_CATEGORIES.IMAGES
+                                  assetCategory
                                 );
                               };
 
@@ -483,11 +495,16 @@ export default function CollectionItemSheet({
                                 return parts[1]?.toUpperCase() || 'FILE';
                               };
 
+                              // Get preview URL for images only
+                              const imageUrl = field.type === 'image' ? currentAsset?.public_url || null : null;
+
                               return (
                                 <div className="bg-input p-2 rounded-lg flex items-center gap-4">
                                   <div className="relative group bg-secondary/30 rounded-md w-full aspect-square overflow-hidden max-w-24">
-                                    {/* Checkerboard pattern for transparency */}
-                                    <div className="absolute inset-0 opacity-5 bg-checkerboard" />
+                                    {/* Checkerboard pattern for transparency (images only) */}
+                                    {field.type === 'image' && (
+                                      <div className="absolute inset-0 opacity-5 bg-checkerboard" />
+                                    )}
 
                                     {imageUrl ? (
                                       <img
@@ -496,7 +513,12 @@ export default function CollectionItemSheet({
                                         alt="Image preview"
                                       />
                                     ) : (
-                                      <div className="relative w-full h-full flex items-center justify-center z-10 text-muted-foreground"></div>
+                                      <div className="relative w-full h-full flex items-center justify-center z-10 text-muted-foreground">
+                                        {/* Show icon for audio/video/document fields */}
+                                        {field.type !== 'image' && currentAsset && (
+                                          <Icon name={getFieldIcon(field.type)} className="size-6" />
+                                        )}
+                                      </div>
                                     )}
                                   </div>
 
@@ -508,9 +530,11 @@ export default function CollectionItemSheet({
                                           {getFileExtension(currentAsset.mime_type)}
                                           <div className="size-0.5 bg-current/50 rounded-full inline-flex" />
                                           {formatFileSize(currentAsset.file_size)}
-                                          <div className="size-0.5 bg-current/50 rounded-full inline-flex" />
                                           {currentAsset.width && currentAsset.height && (
-                                            <> {currentAsset.width}×{currentAsset.height}</>
+                                            <>
+                                              <div className="size-0.5 bg-current/50 rounded-full inline-flex" />
+                                              {currentAsset.width}×{currentAsset.height}
+                                            </>
                                           )}
                                         </span>
                                       </div>

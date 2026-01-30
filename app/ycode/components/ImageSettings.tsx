@@ -42,6 +42,7 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
+import { IMAGE_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import { Separator } from '@/components/ui/separator';
 
@@ -83,11 +84,11 @@ type ImageSettingsProps = (LayerModeProps | StandaloneModeProps) & CommonProps;
 export default function ImageSettings(props: ImageSettingsProps) {
   const { fieldGroups, allFields, collections, onOpenVariablesDialog } = props;
   const isStandaloneMode = props.mode === 'standalone';
-  
+
   // Layer mode props
   const layer = isStandaloneMode ? null : props.layer;
   const onLayerUpdate = isStandaloneMode ? undefined : props.onLayerUpdate;
-  
+
   // Standalone mode props
   const standaloneValue = isStandaloneMode ? props.value : undefined;
   const standaloneOnChange = isStandaloneMode ? props.onChange : undefined;
@@ -115,18 +116,11 @@ export default function ImageSettings(props: ImageSettingsProps) {
   const linkedVariableDefaultValue = linkedImageVariable?.default_value as ImageSettingsValue | undefined;
   const effectiveImageSrc = linkedImageVariable ? linkedVariableDefaultValue?.src : imageSrc;
 
-  // Derive collection fields from fieldGroups (for CMS field selection)
-  const collectionFields = useMemo(() => {
-    const collectionGroup = fieldGroups?.find(g => g.source === 'collection');
-    return collectionGroup?.fields || [];
-  }, [fieldGroups]);
-
-  // Filter fields to only show image/asset type fields
-  // Note: Currently using 'text' type fields as image fields don't have a dedicated type
+  // Filter fields to only show image-bindable field types (image or text for URL)
   const imageFields = useMemo(() => {
-    // For now, show all text fields that could contain image URLs or asset IDs
-    return collectionFields.filter((field) => field.type === 'text');
-  }, [collectionFields]);
+    const filtered = filterFieldGroupsByType(fieldGroups, IMAGE_FIELD_TYPES);
+    return flattenFieldGroups(filtered);
+  }, [fieldGroups]);
 
   // Detect current field ID if using FieldVariable
   const currentFieldId = useMemo(() => {
@@ -209,15 +203,15 @@ export default function ImageSettings(props: ImageSettingsProps) {
   // Handle linking image to a component variable
   const handleLinkImageVariable = useCallback((variableId: string) => {
     if (!layer || !onLayerUpdate) return;
-    
+
     const currentSrc = layer.variables?.image?.src;
-    
+
     onLayerUpdate(layer.id, {
       variables: {
         ...layer.variables,
         image: {
           ...layer.variables?.image,
-          src: currentSrc 
+          src: currentSrc
             ? { ...currentSrc, id: variableId } as any
             : { type: 'asset', id: variableId, data: { asset_id: null } } as any,
           alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
@@ -229,13 +223,13 @@ export default function ImageSettings(props: ImageSettingsProps) {
   // Handle unlinking image from a component variable
   const handleUnlinkImageVariable = useCallback(() => {
     if (!layer || !onLayerUpdate) return;
-    
+
     const currentSrc = layer.variables?.image?.src;
-    
+
     if (currentSrc) {
       // Remove the variable ID from src
       const { id: _, ...srcWithoutId } = currentSrc as any;
-      
+
       onLayerUpdate(layer.id, {
         variables: {
           ...layer.variables,
@@ -251,7 +245,7 @@ export default function ImageSettings(props: ImageSettingsProps) {
 
   const handleAltChange = useCallback((value: string) => {
     const altVariable = createDynamicTextVariable(value);
-    
+
     if (isStandaloneMode) {
       updateStandaloneValue({ alt: altVariable });
     } else if (layer && onLayerUpdate) {
@@ -321,17 +315,17 @@ export default function ImageSettings(props: ImageSettingsProps) {
   })();
 
   // Get values from layer or standalone value
-  const altValue = isStandaloneMode 
-    ? getDynamicTextContent(standaloneValue?.alt) 
+  const altValue = isStandaloneMode
+    ? getDynamicTextContent(standaloneValue?.alt)
     : getDynamicTextContent(layer?.variables?.image?.alt);
-  const widthValue = isStandaloneMode 
-    ? (standaloneValue?.width || '') 
+  const widthValue = isStandaloneMode
+    ? (standaloneValue?.width || '')
     : ((layer?.attributes?.width as string) || '');
-  const heightValue = isStandaloneMode 
-    ? (standaloneValue?.height || '') 
+  const heightValue = isStandaloneMode
+    ? (standaloneValue?.height || '')
     : ((layer?.attributes?.height as string) || '');
-  const lazyValue = isStandaloneMode 
-    ? (standaloneValue?.loading === 'lazy') 
+  const lazyValue = isStandaloneMode
+    ? (standaloneValue?.loading === 'lazy')
     : (layer?.attributes?.loading === 'lazy');
 
   // Shared source picker content

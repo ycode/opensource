@@ -36,6 +36,7 @@ import {
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
 import { ASSET_CATEGORIES, isAssetOfType, DEFAULT_ASSETS } from '@/lib/asset-utils';
+import { VIDEO_FIELD_TYPES, filterFieldGroupsByType, flattenFieldGroups } from '@/lib/collection-field-utils';
 import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -385,16 +386,11 @@ export default function VideoSettings({ layer, onLayerUpdate, fieldGroups, allFi
     });
   }, [layer, onLayerUpdate]);
 
-  // Derive collection fields from fieldGroups (for CMS field selection)
-  const collectionFields = useMemo(() => {
-    const collectionGroup = fieldGroups?.find(g => g.source === 'collection');
-    return collectionGroup?.fields || [];
-  }, [fieldGroups]);
-
-  // Get video fields (image type fields can store any asset including videos)
+  // Filter fields to only show video-bindable field types (video, image for backwards compat, or text for URL)
   const videoFields = useMemo(() => {
-    return collectionFields.filter(f => f.type === 'image');
-  }, [collectionFields]);
+    const filtered = filterFieldGroupsByType(fieldGroups, VIDEO_FIELD_TYPES);
+    return flattenFieldGroups(filtered);
+  }, [fieldGroups]);
 
   // Only show for video layers
   if (!layer || layer.name !== 'video') {
