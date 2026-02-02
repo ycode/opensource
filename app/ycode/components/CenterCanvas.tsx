@@ -1932,8 +1932,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
       {/* Text Editor Toolbar - shown when editing text */}
       {isTextEditing && !isPreviewMode && (
-        <div className="absolute top-[65px] h-14 left-0 right-0 z-50 flex items-center gap-1 px-4 bg-background border-b">
-          <div className="flex items-center justify-center gap-0.5 bg-popover px-1.5 py-0.75 rounded-md">
+        <div className="absolute top-[0px] h-[65px] left-0 right-0 z-50 flex items-center justify-center gap-1 px-4 bg-background border-b">
+          <div className="flex items-center justify-center gap-0.5 bg-input p-1 rounded-lg">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -2207,20 +2207,17 @@ const CenterCanvas = React.memo(function CenterCanvas({
             )}
           </div>
 
-          <div className="flex-1" />
+          {/*<div className="flex-1" />*/}
 
-          <span className="text-xs text-muted-foreground mr-0.5">
-            Press <kbd className="mx-0.5 px-1.5 py-0.75 bg-secondary rounded text-[10px] text-foreground">ESC</kbd> to
-          </span>
+          {/*<span className="text-xs text-muted-foreground mr-0.5">*/}
+          {/*  Press <kbd className="mx-0.5 px-1.5 py-0.75 bg-secondary rounded text-[10px] text-foreground">ESC</kbd> to*/}
+          {/*</span>*/}
 
-          <Button
-            size="xs"
-            onClick={() => {
-              requestFinishEditing();
-            }}
-          >
-            Close
-          </Button>
+          {/*<Button size="xs" variant="secondary" onClick={() => {*/}
+          {/*    requestFinishEditing();*/}
+          {/*  }}>*/}
+          {/*  Close*/}
+          {/*</Button>*/}
         </div>
       )}
 
