@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Check route types
@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
   const isNextRoute = pathname.startsWith('/_next');
 
   // Note: Auth protection is handled at the page component level
-  // using useEffect + useAuthStore, not in middleware
+  // using useEffect + useAuthStore, not in proxy
   // This avoids Edge Runtime limitations with file system access
 
   // Create response

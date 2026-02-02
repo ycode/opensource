@@ -36,12 +36,13 @@ function getAllRemixIcons(): { filename: string; content: string }[] {
 
   for (const category of categories) {
     if (category.isDirectory()) {
-      const categoryPath = path.join(remixIconPath, category.name);
+      // Use template literal to avoid Turbopack static analysis warnings
+      const categoryPath = `${remixIconPath}/${category.name}`;
       const files = fs.readdirSync(categoryPath);
 
       for (const file of files) {
         if (file.endsWith('.svg')) {
-          const filePath = path.join(categoryPath, file);
+          const filePath = `${categoryPath}/${file}`;
           const content = fs.readFileSync(filePath, 'utf-8');
           icons.push({
             filename: file,

@@ -23,12 +23,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Revalidate the cache for this tag
-    revalidateTag(tag);
+    revalidateTag(tag, 'max');
 
-    return noCache({ 
-      revalidated: true, 
+    return noCache({
+      revalidated: true,
       tag,
-      now: Date.now() 
+      now: Date.now()
     });
   } catch (error) {
     return noCache(

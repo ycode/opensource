@@ -4,7 +4,7 @@ import { noCache } from '@/lib/api-response';
 
 /**
  * Vercel Cache Invalidation Endpoint
- * 
+ *
  * Handles cache tag invalidation for published pages
  */
 
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
     // Invalidate each tag
     for (const tag of tags) {
-      revalidateTag(tag);
+      revalidateTag(tag, 'max');
     }
 
     return noCache({
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Cache invalidation error:', error);
-    
+
     return noCache(
       { error: 'Failed to invalidate cache' },
       500

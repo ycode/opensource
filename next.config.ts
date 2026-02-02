@@ -1,11 +1,6 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Enable ESLint during builds with flat config
-  eslint: {
-    dirs: ['app', 'components', 'hooks', 'lib', 'stores', 'types'],
-  },
-
   images: {
     remotePatterns: [
       {
