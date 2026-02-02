@@ -2329,7 +2329,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 position: 'relative',
                 minWidth: '100%',
                 minHeight: '100%',
-                ...(isTextEditing && !isPreviewMode ? { marginTop: '56px' } : {}), // Text editor toolbar height (h-14, when active)
               }}
             >
               <div
