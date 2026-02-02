@@ -71,13 +71,13 @@ export default async function Home({ searchParams }: HomeProps) {
   if (!data || !data.pageLayers) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center p-8">
+        <div className="text-center p-8 flex flex-col items-center justify-center gap-2">
           <h1 className="text-xl font-semibold text-neutral-900">
             Welcome to Ycode
           </h1>
           <Link
             href="/ycode"
-            className="inline-block bg-blue-500 text-white text-sm font-medium h-8 flex items-center justify-center px-6 rounded-lg transition-colors"
+            className=" bg-blue-500 text-white text-sm font-medium h-8 flex items-center justify-center px-3 rounded-lg transition-colors"
           >
             Get started
           </Link>
