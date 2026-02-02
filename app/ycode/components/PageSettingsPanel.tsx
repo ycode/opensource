@@ -48,7 +48,7 @@ import { useAssetsStore } from '@/stores/useAssetsStore';
 import RichTextEditor from './RichTextEditor';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { getFieldIcon } from '@/lib/collection-field-utils';
+import { getFieldIcon, IMAGE_FIELD_TYPES } from '@/lib/collection-field-utils';
 
 export interface PageSettingsPanelHandle {
   checkUnsavedChanges: () => Promise<boolean>;
@@ -469,7 +469,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     // No unsaved changes, safe to change
     setCurrentPage(page);
     rejectedPageRef.current = null; // Clear rejected page since we're accepting a change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [page, currentPage, isSaving, name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImage, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, pendingImageFile]);
 
   // Initialize form when currentPage changes (after confirmation or when no unsaved changes)
@@ -745,7 +745,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     const activeCollection = collections.find(c => c.id === activeCollectionId);
     const activeCollectionName = activeCollection?.name || 'this collection';
     const collectionFields = fields[activeCollectionId] || [];
-    const imageFields = collectionFields // .filter(field => field.type === 'image');
+    const imageFields = collectionFields.filter(field => IMAGE_FIELD_TYPES.includes(field.type));
     const hasImageFields = imageFields.length > 0;
 
     // Get the selected field name if a field variable is selected
@@ -1190,7 +1190,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       />
 
       {/* Panel */}
-      <div className="fixed top-14 left-64 bottom-0 w-[500px] bg-background border-r z-50 flex flex-col">
+      <div className="fixed top-14 left-64 bottom-0 w-125 bg-background border-r z-50 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4">
           <div className="flex items-center justify-center gap-1.5">
@@ -1457,7 +1457,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       </Select>
                     </Field>
 
-                    <Field orientation="horizontal" className="flex !flex-row-reverse">
+                    <Field orientation="horizontal" className="flex flex-row-reverse!">
                       <FieldContent>
                         <FieldLabel htmlFor="passwordProtected">
                           Password protected
@@ -1497,7 +1497,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                       </Field>
                     )}
 
-                    <Field orientation="horizontal" className="flex !flex-row-reverse">
+                    <Field orientation="horizontal" className="flex flex-row-reverse!">
                       <FieldContent>
                         <FieldLabel htmlFor="homepage">
                           {isOnRootFolder ? 'Homepage' : 'Index page'}
@@ -1677,7 +1677,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
                           </div>
                         </Field>
 
-                        <Field orientation="horizontal" className="flex !flex-row-reverse">
+                        <Field orientation="horizontal" className="flex flex-row-reverse!">
                           <FieldContent>
                             <FieldLabel htmlFor="noindex" className="cursor-pointer">
                               Exclude this page from search engine results
