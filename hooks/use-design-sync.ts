@@ -37,11 +37,11 @@ export function useDesignSync({
 }: UseDesignSyncProps) {
   // Determine if we're editing a text style or the layer itself
   const isTextStyleMode = !!activeTextStyleKey;
-  
+
   // Get the current design and classes source (layer or text style)
   const getDesignSource = useCallback(() => {
     if (!layer) return { design: undefined, classes: '' };
-    
+
     if (isTextStyleMode && activeTextStyleKey) {
       const textStyle = layer.textStyles?.[activeTextStyleKey];
       return {
@@ -49,7 +49,7 @@ export function useDesignSync({
         classes: textStyle?.classes || '',
       };
     }
-    
+
     return {
       design: layer.design,
       classes: Array.isArray(layer.classes) ? layer.classes.join(' ') : (layer.classes || ''),
@@ -194,6 +194,7 @@ export function useDesignSync({
 
       onLayerUpdate(layer.id, finalUpdate);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isTextStyleMode excluded to prevent unnecessary re-creations
     [layer, onLayerUpdate, activeBreakpoint, activeUIState, isTextStyleMode, activeTextStyleKey, isTextEditing, ensureDynamicStyleApplied, hasTextSelection]
   );
 
@@ -386,20 +387,20 @@ export function useDesignSync({
    * Debounced version of updateDesignProperty for text inputs
    * Use this for inputs where users type values (e.g., spacing, sizing)
    * to avoid flooding the canvas with updates on every keystroke
-   * 
+   *
    * IMPORTANT: This implementation avoids stale closure issues by:
    * 1. Using a ref to always access the latest updateDesignProperty
    * 2. Cancelling pending calls when the layer changes
    * 3. Cleaning up on unmount
    */
-  
+
   // Store the latest updateDesignProperty in a ref to avoid stale closures
   const updateDesignPropertyRef = useRef(updateDesignProperty);
   updateDesignPropertyRef.current = updateDesignProperty;
-  
+
   // Track the current layer ID to detect layer changes
   const currentLayerIdRef = useRef(layer?.id);
-  
+
   // Create a stable debounced function that always calls the latest updateDesignProperty
   const debouncedFnRef = useRef(
     debounce(
@@ -413,7 +414,7 @@ export function useDesignSync({
       150
     )
   );
-  
+
   // Cancel pending debounced calls when layer changes to prevent stale updates
   useEffect(() => {
     if (currentLayerIdRef.current !== layer?.id) {
@@ -422,7 +423,7 @@ export function useDesignSync({
       currentLayerIdRef.current = layer?.id;
     }
   }, [layer?.id]);
-  
+
   // Cleanup on unmount
   useEffect(() => {
     const debouncedFn = debouncedFnRef.current;
@@ -430,7 +431,7 @@ export function useDesignSync({
       debouncedFn.cancel();
     };
   }, []);
-  
+
   // Return a stable wrapper function
   const debouncedUpdateDesignProperty = useCallback(
     (

@@ -126,6 +126,7 @@ export default function FormsPage() {
     };
 
     loadSummaries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedFormId intentionally excluded to avoid re-fetch on form switch
   }, []);
 
   // Load submissions when form is selected
@@ -660,7 +661,7 @@ export default function FormsPage() {
                     {payloadKeys.slice(0, 4).map((key) => (
                       <td
                         key={key}
-                        className="px-4 py-3 text-muted-foreground max-w-[200px] truncate"
+                        className="px-4 py-3 text-muted-foreground max-w-50 truncate"
                       >
                         {String(submission.payload[key] || '-')}
                       </td>
@@ -777,7 +778,7 @@ export default function FormsPage() {
                     <label className="text-xs font-medium capitalize text-muted-foreground">
                       {key.replace(/_/g, ' ')}
                     </label>
-                    <div className="p-2 bg-secondary/30 rounded-lg text-xs whitespace-pre-wrap break-words">
+                    <div className="p-2 bg-secondary/30 rounded-lg text-xs whitespace-pre-wrap wrap-break-word">
                       {String(value) || '-'}
                     </div>
                   </div>

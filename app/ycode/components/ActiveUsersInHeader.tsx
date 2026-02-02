@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import Image from 'next/image';
 import { useCollaborationPresenceStore } from '../../../stores/useCollaborationPresenceStore';
 import { getUserInitials, getUserStatus } from '../../../lib/collaboration-utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -105,10 +106,13 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
                 style={{ backgroundColor: user.avatar_url ? undefined : user.color }}
               >
                 {user.avatar_url ? (
-                  <img
+                  <Image
                     src={user.avatar_url}
                     alt={user.display_name || user.email || 'User'}
+                    width={32}
+                    height={32}
                     className="size-full object-cover"
+                    unoptimized
                   />
                 ) : (
                   getUserInitials(user.email || '', user.display_name)
@@ -139,10 +143,13 @@ export const ActiveUsersInHeader: React.FC<ActiveUsersInHeaderProps> = ({
                     style={{ backgroundColor: user.avatar_url ? undefined : user.color }}
                   >
                     {user.avatar_url ? (
-                      <img
+                      <Image
                         src={user.avatar_url}
                         alt={user.display_name || user.email || 'User'}
+                        width={32}
+                        height={32}
                         className="size-full object-cover"
+                        unoptimized
                       />
                     ) : (
                       getUserInitials(user.email || '', user.display_name)

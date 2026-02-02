@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import {
   FieldDescription,
@@ -275,10 +276,13 @@ export default function UsersSettingsPage() {
                     style={{ backgroundColor: user.avatar_url ? undefined : generateUserColor(user.id) }}
                   >
                     {user.avatar_url ? (
-                      <img
+                      <Image
                         src={user.avatar_url}
                         alt={user.display_name || user.email}
+                        width={32}
+                        height={32}
                         className="size-full object-cover"
+                        unoptimized
                       />
                     ) : (
                       getUserInitials(user.email, user.display_name || undefined)

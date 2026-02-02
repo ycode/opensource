@@ -77,6 +77,7 @@ function ReferenceItemsSelector({
   // Get the collection info and fields from the store
   const { collections, fields } = useCollectionsStore();
   const collection = collections.find(c => c.id === collectionId);
+  /* eslint-disable-next-line react-hooks/exhaustive-deps -- collectionFields derived from store */
   const collectionFields = fields[collectionId] || [];
 
   // Find the title/name field for display
@@ -164,7 +165,7 @@ function ReferenceItemsSelector({
           <Icon name="chevronCombo" className="size-2.5 opacity-50 ml-2" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[200px] max-h-60 overflow-y-auto" align="start">
+      <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) min-w-50 max-h-60 overflow-y-auto" align="start">
         {loading ? (
           <div className="flex items-center justify-center py-4">
             <Spinner />
@@ -454,7 +455,7 @@ export default function CollectionFiltersSettings({
   const renderAddConditionDropdown = (
     onFieldSelect: (field: CollectionField) => void
   ) => (
-    <DropdownMenuContent align="end" className="!max-h-[300px] overflow-y-auto">
+    <DropdownMenuContent align="end" className="max-h-75! overflow-y-auto">
       {/* Collection Fields Section */}
       {fields && fields.length > 0 && (
         <>
@@ -515,7 +516,7 @@ export default function CollectionFiltersSettings({
 
         <li className="*:w-full flex flex-col gap-2">
           <header className="flex items-center gap-1.5">
-            <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50 hover:bg-secondary/100">
+            <div className="size-5 flex items-center justify-center rounded-[6px] bg-secondary/50 hover:bg-secondary">
               <Icon name={icon} className="size-2.5 opacity-60" />
             </div>
             <Label variant="muted" className="truncate">{displayName}</Label>
@@ -692,7 +693,7 @@ export default function CollectionFiltersSettings({
                           className="size-5"
                         >
                           <div>
-                            <Icon name="plus" className="!size-2.5" />
+                            <Icon name="plus" className="size-2.5!" />
                           </div>
                         </Button>
                       </DropdownMenuTrigger>

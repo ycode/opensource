@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
@@ -351,10 +352,13 @@ export default function ProfilePage() {
               <div className="flex items-center gap-4">
                 <div className="relative">
                   {avatarUrl ? (
-                    <img
+                    <Image
                       src={avatarUrl}
                       alt="Profile"
+                      width={40}
+                      height={40}
                       className="size-10 rounded-full object-cover"
+                      unoptimized
                     />
                   ) : (
                     <div className="size-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-800 font-medium text-sm">
