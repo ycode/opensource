@@ -122,7 +122,7 @@ export default function HeaderBar({
   useEffect(() => {
     const checkForUpdates = async () => {
       try {
-        const response = await fetch('/api/updates/check');
+        const response = await fetch('/ycode/api/updates/check');
         if (response.ok) {
           const data = await response.json();
           setHasUpdate(data.available === true);

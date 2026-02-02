@@ -71,27 +71,27 @@ async function apiRequest<T>(
 export const pagesApi = {
   // Get all pages
   async getAll(): Promise<ApiResponse<Page[]>> {
-    return apiRequest<Page[]>('/api/pages');
+    return apiRequest<Page[]>('/ycode/api/pages');
   },
 
   // Get page by ID
   async getById(id: string): Promise<ApiResponse<Page>> {
-    return apiRequest<Page>(`/api/pages/${id}`);
+    return apiRequest<Page>(`/ycode/api/pages/${id}`);
   },
 
   // Get page by slug
   async getBySlug(slug: string): Promise<ApiResponse<Page>> {
-    return apiRequest<Page>(`/api/pages/slug/${slug}`);
+    return apiRequest<Page>(`/ycode/api/pages/slug/${slug}`);
   },
 
   // Get all published pages (for public website)
   async getAllPublished(): Promise<ApiResponse<Page[]>> {
-    return apiRequest<Page[]>('/api/pages?is_published=true');
+    return apiRequest<Page[]>('/ycode/api/pages?is_published=true');
   },
 
   // Create new page
   async create(page: Omit<Page, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>): Promise<ApiResponse<Page>> {
-    return apiRequest<Page>('/api/pages', {
+    return apiRequest<Page>('/ycode/api/pages', {
       method: 'POST',
       body: JSON.stringify(page),
     });
@@ -99,7 +99,7 @@ export const pagesApi = {
 
   // Update page
   async update(id: string, page: Partial<Page>): Promise<ApiResponse<Page>> {
-    return apiRequest<Page>(`/api/pages/${id}`, {
+    return apiRequest<Page>(`/ycode/api/pages/${id}`, {
       method: 'PUT',
       body: JSON.stringify(page),
     });
@@ -107,14 +107,14 @@ export const pagesApi = {
 
   // Delete page
   async delete(id: string): Promise<ApiResponse<void>> {
-    return apiRequest<void>(`/api/pages/${id}`, {
+    return apiRequest<void>(`/ycode/api/pages/${id}`, {
       method: 'DELETE',
     });
   },
 
   // Get unpublished pages
   async getUnpublished(): Promise<ApiResponse<Page[]>> {
-    return apiRequest<Page[]>('/api/pages/unpublished');
+    return apiRequest<Page[]>('/ycode/api/pages/unpublished');
   },
 };
 
@@ -122,12 +122,12 @@ export const pagesApi = {
 export const foldersApi = {
   // Get all folders
   async getAll(): Promise<ApiResponse<PageFolder[]>> {
-    return apiRequest<PageFolder[]>('/api/folders');
+    return apiRequest<PageFolder[]>('/ycode/api/folders');
   },
 
   // Create new folder
   async create(folder: Omit<PageFolder, 'id' | 'created_at' | 'updated_at' | 'deleted_at'>): Promise<ApiResponse<PageFolder>> {
-    return apiRequest<PageFolder>('/api/folders', {
+    return apiRequest<PageFolder>('/ycode/api/folders', {
       method: 'POST',
       body: JSON.stringify(folder),
     });
@@ -135,7 +135,7 @@ export const foldersApi = {
 
   // Update folder
   async update(id: string, folder: Partial<PageFolder>): Promise<ApiResponse<PageFolder>> {
-    return apiRequest<PageFolder>(`/api/folders/${id}`, {
+    return apiRequest<PageFolder>(`/ycode/api/folders/${id}`, {
       method: 'PUT',
       body: JSON.stringify(folder),
     });
@@ -143,7 +143,7 @@ export const foldersApi = {
 
   // Delete folder
   async delete(id: string): Promise<ApiResponse<void>> {
-    return apiRequest<void>(`/api/folders/${id}`, {
+    return apiRequest<void>(`/ycode/api/folders/${id}`, {
       method: 'DELETE',
     });
   },
@@ -157,12 +157,12 @@ export const layersApi = {
     if (isPublished !== undefined) {
       params.append('is_published', String(isPublished));
     }
-    return apiRequest<PageLayers>(`/api/layers?${params.toString()}`);
+    return apiRequest<PageLayers>(`/ycode/api/layers?${params.toString()}`);
   },
 
   // Update layers for a page
   async update(pageId: string, layers: Layer[]): Promise<ApiResponse<PageLayers>> {
-    return apiRequest<PageLayers>(`/api/layers?page_id=${pageId}`, {
+    return apiRequest<PageLayers>(`/ycode/api/layers?page_id=${pageId}`, {
       method: 'PUT',
       body: JSON.stringify({ layers }),
     });
@@ -183,7 +183,7 @@ export const pageLayersApi = {
 
   // Get all draft (non-published) page layers in one query
   async getAllDrafts(): Promise<ApiResponse<PageLayers[]>> {
-    return apiRequest<PageLayers[]>('/api/pages/drafts');
+    return apiRequest<PageLayers[]>('/ycode/api/pages/drafts');
   },
 };
 
@@ -215,7 +215,7 @@ export const publishApi = {
     };
     published_at_setting: Setting;
   }>> {
-    return apiRequest('/api/publish', {
+    return apiRequest('/ycode/api/publish', {
       method: 'POST',
       body: JSON.stringify(options),
     });
@@ -266,13 +266,13 @@ export const assetsApi = {
     if (folderId !== undefined) {
       params.set('folderId', folderId === null ? 'null' : folderId);
     }
-    const url = params.toString() ? `/api/assets?${params}` : '/api/assets';
+    const url = params.toString() ? `/ycode/api/assets?${params}` : '/ycode/api/assets';
     return apiRequest<Asset[]>(url);
   },
 
   // Create SVG asset from code
   async create(data: { filename: string; content: string; asset_folder_id?: string | null; source?: string }): Promise<ApiResponse<Asset>> {
-    return apiRequest<Asset>('/api/assets', {
+    return apiRequest<Asset>('/ycode/api/assets', {
       method: 'POST',
       body: JSON.stringify(data),
       headers: {
@@ -283,7 +283,7 @@ export const assetsApi = {
 
   // Update asset
   async update(id: string, data: { filename?: string; asset_folder_id?: string | null; content?: string | null }): Promise<ApiResponse<Asset>> {
-    return apiRequest<Asset>(`/api/assets/${id}`, {
+    return apiRequest<Asset>(`/ycode/api/assets/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -291,14 +291,14 @@ export const assetsApi = {
 
   // Delete asset
   async delete(id: string): Promise<ApiResponse<void>> {
-    return apiRequest<void>(`/api/assets/${id}`, {
+    return apiRequest<void>(`/ycode/api/assets/${id}`, {
       method: 'DELETE',
     });
   },
 
   // Bulk delete assets
   async bulkDelete(ids: string[]): Promise<ApiResponse<{ success: string[]; failed: string[] }>> {
-    return apiRequest<{ success: string[]; failed: string[] }>('/api/assets/bulk', {
+    return apiRequest<{ success: string[]; failed: string[] }>('/ycode/api/assets/bulk', {
       method: 'POST',
       body: JSON.stringify({ action: 'delete', ids }),
     });
@@ -306,7 +306,7 @@ export const assetsApi = {
 
   // Bulk move assets to folder
   async bulkMove(ids: string[], asset_folder_id: string | null): Promise<ApiResponse<{ success: string[]; failed: string[] }>> {
-    return apiRequest<{ success: string[]; failed: string[] }>('/api/assets/bulk', {
+    return apiRequest<{ success: string[]; failed: string[] }>('/ycode/api/assets/bulk', {
       method: 'POST',
       body: JSON.stringify({ action: 'move', ids, asset_folder_id }),
     });
@@ -314,7 +314,7 @@ export const assetsApi = {
 
   // Get asset usage with names
   async getUsage(id: string): Promise<ApiResponse<{ pages: { id: string; name: string }[]; components: { id: string; name: string }[]; cmsItems: { id: string; name: string; collectionId: string; collectionName: string }[]; total: number }>> {
-    return apiRequest<{ pages: { id: string; name: string }[]; components: { id: string; name: string }[]; cmsItems: { id: string; name: string; collectionId: string; collectionName: string }[]; total: number }>(`/api/assets/${id}/usage`);
+    return apiRequest<{ pages: { id: string; name: string }[]; components: { id: string; name: string }[]; cmsItems: { id: string; name: string; collectionId: string; collectionName: string }[]; total: number }>(`/ycode/api/assets/${id}/usage`);
   },
 };
 
@@ -322,12 +322,12 @@ export const assetsApi = {
 export const assetFoldersApi = {
   // Get all asset folders
   async getAll(): Promise<ApiResponse<AssetFolder[]>> {
-    return apiRequest<AssetFolder[]>('/api/asset-folders');
+    return apiRequest<AssetFolder[]>('/ycode/api/asset-folders');
   },
 
   // Create new asset folder
   async create(folder: { name: string; asset_folder_id?: string | null; depth?: number; order?: number; is_published?: boolean }): Promise<ApiResponse<AssetFolder>> {
-    return apiRequest<AssetFolder>('/api/asset-folders', {
+    return apiRequest<AssetFolder>('/ycode/api/asset-folders', {
       method: 'POST',
       body: JSON.stringify(folder),
     });
@@ -335,7 +335,7 @@ export const assetFoldersApi = {
 
   // Update asset folder
   async update(id: string, folder: Partial<AssetFolder>): Promise<ApiResponse<AssetFolder>> {
-    return apiRequest<AssetFolder>(`/api/asset-folders/${id}`, {
+    return apiRequest<AssetFolder>(`/ycode/api/asset-folders/${id}`, {
       method: 'PUT',
       body: JSON.stringify(folder),
     });
@@ -343,7 +343,7 @@ export const assetFoldersApi = {
 
   // Delete asset folder
   async delete(id: string): Promise<ApiResponse<void>> {
-    return apiRequest<void>(`/api/asset-folders/${id}`, {
+    return apiRequest<void>(`/ycode/api/asset-folders/${id}`, {
       method: 'DELETE',
     });
   },
@@ -353,7 +353,7 @@ export const assetFoldersApi = {
 export const setupApi = {
   // Get setup status
   async getStatus(): Promise<ApiResponse<{ isComplete: boolean; currentStep: string }>> {
-    return apiRequest<{ isComplete: boolean; currentStep: string }>('/api/setup/status');
+    return apiRequest<{ isComplete: boolean; currentStep: string }>('/ycode/api/setup/status');
   },
 
   // Connect Supabase
@@ -362,7 +362,7 @@ export const setupApi = {
     anon_key: string;
     service_role_key: string;
   }): Promise<ApiResponse<{ success: boolean }>> {
-    return apiRequest<{ success: boolean }>('/api/setup/connect-supabase', {
+    return apiRequest<{ success: boolean }>('/ycode/api/setup/connect-supabase', {
       method: 'POST',
       body: JSON.stringify(config),
     });
@@ -370,7 +370,7 @@ export const setupApi = {
 
   // Update Vercel env vars
   async updateVercelEnv(vars: Record<string, string>): Promise<ApiResponse<{ success: boolean }>> {
-    return apiRequest<{ success: boolean }>('/api/setup/update-vercel-env', {
+    return apiRequest<{ success: boolean }>('/ycode/api/setup/update-vercel-env', {
       method: 'POST',
       body: JSON.stringify(vars),
     });
@@ -378,14 +378,14 @@ export const setupApi = {
 
   // Run migrations
   async runMigrations(): Promise<ApiResponse<{ success: boolean }>> {
-    return apiRequest<{ success: boolean }>('/api/setup/run-migrations', {
+    return apiRequest<{ success: boolean }>('/ycode/api/setup/run-migrations', {
       method: 'POST',
     });
   },
 
   // Complete setup
   async completeSetup(): Promise<ApiResponse<{ success: boolean }>> {
-    return apiRequest<{ success: boolean }>('/api/setup/complete', {
+    return apiRequest<{ success: boolean }>('/ycode/api/setup/complete', {
       method: 'POST',
     });
   },
@@ -395,11 +395,11 @@ export const setupApi = {
 export const collectionsApi = {
   // Collections
   async getAll(): Promise<ApiResponse<Collection[]>> {
-    return apiRequest<Collection[]>('/api/collections');
+    return apiRequest<Collection[]>('/ycode/api/collections');
   },
 
   async getById(id: string): Promise<ApiResponse<Collection>> {
-    return apiRequest<Collection>(`/api/collections/${id}`);
+    return apiRequest<Collection>(`/ycode/api/collections/${id}`);
   },
 
   async create(data: {
@@ -407,27 +407,27 @@ export const collectionsApi = {
     sorting?: Record<string, any> | null;
     order?: number;
   }): Promise<ApiResponse<Collection>> {
-    return apiRequest<Collection>('/api/collections', {
+    return apiRequest<Collection>('/ycode/api/collections', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async update(id: string, data: UpdateCollectionData): Promise<ApiResponse<Collection>> {
-    return apiRequest<Collection>(`/api/collections/${id}`, {
+    return apiRequest<Collection>(`/ycode/api/collections/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   },
 
   async delete(id: string): Promise<ApiResponse<void>> {
-    return apiRequest<void>(`/api/collections/${id}`, {
+    return apiRequest<void>(`/ycode/api/collections/${id}`, {
       method: 'DELETE',
     });
   },
 
   async reorder(collectionIds: string[]): Promise<ApiResponse<{ success: boolean }>> {
-    return apiRequest<{ success: boolean }>('/api/collections/reorder', {
+    return apiRequest<{ success: boolean }>('/ycode/api/collections/reorder', {
       method: 'PUT',
       body: JSON.stringify({ collection_ids: collectionIds }),
     });
@@ -435,46 +435,46 @@ export const collectionsApi = {
 
   // Fields
   async getAllFields(): Promise<ApiResponse<CollectionField[]>> {
-    return apiRequest<CollectionField[]>('/api/collections/fields');
+    return apiRequest<CollectionField[]>('/ycode/api/collections/fields');
   },
 
   async getFields(collectionId: string, search?: string): Promise<ApiResponse<CollectionField[]>> {
     const params = new URLSearchParams();
     if (search) params.append('search', search);
     const queryString = params.toString();
-    const url = `/api/collections/${collectionId}/fields${queryString ? `?${queryString}` : ''}`;
+    const url = `/ycode/api/collections/${collectionId}/fields${queryString ? `?${queryString}` : ''}`;
     return apiRequest<CollectionField[]>(url);
   },
 
   async createField(collectionId: string, data: Omit<CreateCollectionFieldData, 'collection_id' | 'is_published'>): Promise<ApiResponse<CollectionField>> {
-    return apiRequest<CollectionField>(`/api/collections/${collectionId}/fields`, {
+    return apiRequest<CollectionField>(`/ycode/api/collections/${collectionId}/fields`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async updateField(collectionId: string, fieldId: string, data: UpdateCollectionFieldData): Promise<ApiResponse<CollectionField>> {
-    return apiRequest<CollectionField>(`/api/collections/${collectionId}/fields/${fieldId}`, {
+    return apiRequest<CollectionField>(`/ycode/api/collections/${collectionId}/fields/${fieldId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   },
 
   async deleteField(collectionId: string, fieldId: string): Promise<ApiResponse<void>> {
-    return apiRequest<void>(`/api/collections/${collectionId}/fields/${fieldId}`, {
+    return apiRequest<void>(`/ycode/api/collections/${collectionId}/fields/${fieldId}`, {
       method: 'DELETE',
     });
   },
 
   async reorderFields(collectionId: string, fieldIds: string[]): Promise<ApiResponse<{ success: boolean }>> {
-    return apiRequest<{ success: boolean }>(`/api/collections/${collectionId}/fields/reorder`, {
+    return apiRequest<{ success: boolean }>(`/ycode/api/collections/${collectionId}/fields/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ field_ids: fieldIds }),
     });
   },
 
   async getPublishableCounts(): Promise<ApiResponse<Record<string, number>>> {
-    return apiRequest<Record<string, number>>('/api/collections/publishable-counts');
+    return apiRequest<Record<string, number>>('/ycode/api/collections/publishable-counts');
   },
 
   // Items (with values)
@@ -482,7 +482,7 @@ export const collectionsApi = {
     collectionIds: string[],
     limit: number = 10
   ): Promise<ApiResponse<Record<string, { items: CollectionItemWithValues[]; total: number }>>> {
-    return apiRequest('/api/collections/items/batch', {
+    return apiRequest('/ycode/api/collections/items/batch', {
       method: 'POST',
       body: JSON.stringify({ collectionIds, limit }),
     });
@@ -507,30 +507,30 @@ export const collectionsApi = {
     if (options?.sortOrder) params.append('sortOrder', options.sortOrder);
     if (options?.offset !== undefined) params.append('offset', options.offset.toString());
     const queryString = params.toString();
-    const url = `/api/collections/${collectionId}/items${queryString ? `?${queryString}` : ''}`;
+    const url = `/ycode/api/collections/${collectionId}/items${queryString ? `?${queryString}` : ''}`;
     return apiRequest<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>(url);
   },
 
   async getItemById(collectionId: string, itemId: string): Promise<ApiResponse<CollectionItemWithValues>> {
-    return apiRequest<CollectionItemWithValues>(`/api/collections/${collectionId}/items/${itemId}`);
+    return apiRequest<CollectionItemWithValues>(`/ycode/api/collections/${collectionId}/items/${itemId}`);
   },
 
   async createItem(collectionId: string, values: Record<string, any>): Promise<ApiResponse<CollectionItemWithValues>> {
-    return apiRequest<CollectionItemWithValues>(`/api/collections/${collectionId}/items`, {
+    return apiRequest<CollectionItemWithValues>(`/ycode/api/collections/${collectionId}/items`, {
       method: 'POST',
       body: JSON.stringify({ values }),
     });
   },
 
   async updateItem(collectionId: string, itemId: string, values: Record<string, any>): Promise<ApiResponse<CollectionItemWithValues>> {
-    return apiRequest<CollectionItemWithValues>(`/api/collections/${collectionId}/items/${itemId}`, {
+    return apiRequest<CollectionItemWithValues>(`/ycode/api/collections/${collectionId}/items/${itemId}`, {
       method: 'PUT',
       body: JSON.stringify({ values }),
     });
   },
 
   async deleteItem(collectionId: string, itemId: string): Promise<ApiResponse<void>> {
-    return apiRequest<void>(`/api/collections/${collectionId}/items/${itemId}`, {
+    return apiRequest<void>(`/ycode/api/collections/${collectionId}/items/${itemId}`, {
       method: 'DELETE',
     });
   },
@@ -545,23 +545,23 @@ export const collectionsApi = {
     params.append('search', query);
     if (options?.page) params.append('page', options.page.toString());
     if (options?.limit) params.append('limit', options.limit.toString());
-    const url = `/api/collections/${collectionId}/items?${params.toString()}`;
+    const url = `/ycode/api/collections/${collectionId}/items?${params.toString()}`;
     return apiRequest<{ items: CollectionItemWithValues[]; total: number; page: number; limit: number }>(url);
   },
 
   // Published items
   async getPublishedItems(collectionId: string): Promise<ApiResponse<CollectionItemWithValues[]>> {
-    return apiRequest<CollectionItemWithValues[]>(`/api/collections/${collectionId}/items/published`);
+    return apiRequest<CollectionItemWithValues[]>(`/ycode/api/collections/${collectionId}/items/published`);
   },
 
   // Unpublished items for a collection
   async getUnpublishedItems(collectionId: string): Promise<ApiResponse<CollectionItemWithValues[]>> {
-    return apiRequest<CollectionItemWithValues[]>(`/api/collections/${collectionId}/items/unpublished`);
+    return apiRequest<CollectionItemWithValues[]>(`/ycode/api/collections/${collectionId}/items/unpublished`);
   },
 
   // Publish individual items
   async publishItems(itemIds: string[]): Promise<ApiResponse<{ count: number }>> {
-    return apiRequest<{ count: number }>('/api/collections/items/publish', {
+    return apiRequest<{ count: number }>('/ycode/api/collections/items/publish', {
       method: 'POST',
       body: JSON.stringify({ item_ids: itemIds }),
     });
@@ -569,7 +569,7 @@ export const collectionsApi = {
 
   // Bulk delete items
   async bulkDeleteItems(itemIds: string[]): Promise<ApiResponse<{ deleted: number; errors?: string[] }>> {
-    return apiRequest<{ deleted: number; errors?: string[] }>('/api/collections/items/delete', {
+    return apiRequest<{ deleted: number; errors?: string[] }>('/ycode/api/collections/items/delete', {
       method: 'POST',
       body: JSON.stringify({ item_ids: itemIds }),
     });
@@ -577,14 +577,14 @@ export const collectionsApi = {
 
   // Duplicate item
   async duplicateItem(collectionId: string, itemId: string): Promise<ApiResponse<CollectionItemWithValues>> {
-    return apiRequest<CollectionItemWithValues>(`/api/collections/${collectionId}/items/${itemId}/duplicate`, {
+    return apiRequest<CollectionItemWithValues>(`/ycode/api/collections/${collectionId}/items/${itemId}/duplicate`, {
       method: 'POST',
     });
   },
 
   // Reorder items (bulk update manual_order)
   async reorderItems(collectionId: string, updates: Array<{ id: string; manual_order: number }>): Promise<ApiResponse<{ updated: number }>> {
-    return apiRequest<{ updated: number }>(`/api/collections/${collectionId}/items/reorder`, {
+    return apiRequest<{ updated: number }>(`/ycode/api/collections/${collectionId}/items/reorder`, {
       method: 'POST',
       body: JSON.stringify({ updates }),
     });
@@ -595,12 +595,12 @@ export const collectionsApi = {
 export const componentsApi = {
   // Get unpublished components
   async getUnpublished(): Promise<ApiResponse<Component[]>> {
-    return apiRequest<Component[]>('/api/components/unpublished');
+    return apiRequest<Component[]>('/ycode/api/components/unpublished');
   },
 
   // Create a new component
   async create(data: { name: string; layers: Layer[]; variables?: any[] }): Promise<ApiResponse<Component>> {
-    return apiRequest<Component>('/api/components', {
+    return apiRequest<Component>('/ycode/api/components', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -611,7 +611,7 @@ export const componentsApi = {
 export const layerStylesApi = {
   // Get unpublished layer styles
   async getUnpublished(): Promise<ApiResponse<LayerStyle[]>> {
-    return apiRequest<LayerStyle[]>('/api/layer-styles/unpublished');
+    return apiRequest<LayerStyle[]>('/ycode/api/layer-styles/unpublished');
   },
 };
 
@@ -630,7 +630,7 @@ export const editorApi = {
     assets: Asset[];
     assetFolders: AssetFolder[];
   }>> {
-    return apiRequest('/api/editor/init');
+    return apiRequest('/ycode/api/editor/init');
   },
 };
 
@@ -638,60 +638,60 @@ export const editorApi = {
 export const localisationApi = {
   // Locales
   async getLocales(): Promise<ApiResponse<Locale[]>> {
-    return apiRequest<Locale[]>('/api/locales');
+    return apiRequest<Locale[]>('/ycode/api/locales');
   },
 
   async getLocaleById(id: string): Promise<ApiResponse<Locale>> {
-    return apiRequest<Locale>(`/api/locales/${id}`);
+    return apiRequest<Locale>(`/ycode/api/locales/${id}`);
   },
 
   async createLocale(data: CreateLocaleData): Promise<ApiResponse<{ locale: Locale; locales: Locale[] }>> {
-    return apiRequest<{ locale: Locale; locales: Locale[] }>('/api/locales', {
+    return apiRequest<{ locale: Locale; locales: Locale[] }>('/ycode/api/locales', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async updateLocale(id: string, data: UpdateLocaleData): Promise<ApiResponse<{ locale: Locale; locales: Locale[] }>> {
-    return apiRequest<{ locale: Locale; locales: Locale[] }>(`/api/locales/${id}`, {
+    return apiRequest<{ locale: Locale; locales: Locale[] }>(`/ycode/api/locales/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   },
 
   async deleteLocale(id: string): Promise<ApiResponse<void>> {
-    return apiRequest<void>(`/api/locales/${id}`, {
+    return apiRequest<void>(`/ycode/api/locales/${id}`, {
       method: 'DELETE',
     });
   },
 
   async setDefaultLocale(id: string): Promise<ApiResponse<Locale>> {
-    return apiRequest<Locale>(`/api/locales/${id}/default`, {
+    return apiRequest<Locale>(`/ycode/api/locales/${id}/default`, {
       method: 'POST',
     });
   },
 
   // Translations
   async getTranslations(localeId: string): Promise<ApiResponse<Translation[]>> {
-    return apiRequest<Translation[]>(`/api/translations?locale_id=${localeId}`);
+    return apiRequest<Translation[]>(`/ycode/api/translations?locale_id=${localeId}`);
   },
 
   async createTranslation(data: CreateTranslationData): Promise<ApiResponse<Translation>> {
-    return apiRequest<Translation>('/api/translations', {
+    return apiRequest<Translation>('/ycode/api/translations', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async updateTranslation(id: string, data: UpdateTranslationData): Promise<ApiResponse<Translation>> {
-    return apiRequest<Translation>(`/api/translations/${id}`, {
+    return apiRequest<Translation>(`/ycode/api/translations/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   },
 
   async deleteTranslation(id: string): Promise<ApiResponse<void>> {
-    return apiRequest<void>(`/api/translations/${id}`, {
+    return apiRequest<void>(`/ycode/api/translations/${id}`, {
       method: 'DELETE',
     });
   },
@@ -704,7 +704,7 @@ export const cacheApi = {
    * Should be called after publishing content
    */
   async clearAll(): Promise<ApiResponse<{ success: boolean }>> {
-    return apiRequest<{ success: boolean }>('/api/cache/clear-all', {
+    return apiRequest<{ success: boolean }>('/ycode/api/cache/clear-all', {
       method: 'POST',
     });
   },
@@ -741,7 +741,7 @@ export async function uploadFileApi(
       formData.append('asset_folder_id', assetFolderId);
     }
 
-    const response = await fetch('/api/files/upload', {
+    const response = await fetch('/ycode/api/files/upload', {
       method: 'POST',
       body: formData,
     });
@@ -768,7 +768,7 @@ export async function uploadFileApi(
 export async function deleteAssetApi(assetId: string): Promise<boolean> {
   try {
     const response = await fetch(
-      `/api/files/delete?assetId=${encodeURIComponent(assetId)}`,
+      `/ycode/api/files/delete?assetId=${encodeURIComponent(assetId)}`,
       { method: 'DELETE' }
     );
 

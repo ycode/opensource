@@ -7,8 +7,8 @@ export function proxy(request: NextRequest) {
   // Check route types
   const isYCodeRoute = pathname.startsWith('/ycode');
   const isLoginRoute = pathname.startsWith('/login');
-  const isWelcomeRoute = pathname.startsWith('/welcome');
-  const isApiRoute = pathname.startsWith('/api');
+  const isWelcomeRoute = pathname.startsWith('/ycode/welcome');
+  const isApiRoute = pathname.startsWith('/ycode/api');
   const isNextRoute = pathname.startsWith('/_next');
 
   // Note: Auth protection is handled at the page component level

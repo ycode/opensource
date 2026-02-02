@@ -1751,7 +1751,7 @@ export async function createComponentViaApi(
   layers: Layer[]
 ): Promise<Component | null> {
   try {
-    const response = await fetch('/api/components', {
+    const response = await fetch('/ycode/api/components', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

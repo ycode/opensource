@@ -939,7 +939,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
     }
 
     try {
-      const response = await fetch(`/api/layouts/${layoutKey}`, {
+      const response = await fetch(`/ycode/api/layouts/${layoutKey}`, {
         method: 'DELETE',
       });
 
@@ -986,7 +986,7 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
       const newLayoutKey = layoutName.toLowerCase().replace(/\s+/g, '-');
 
       // Call API to update layout
-      const response = await fetch(`/api/layouts/${oldLayoutKey}`, {
+      const response = await fetch(`/ycode/api/layouts/${oldLayoutKey}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

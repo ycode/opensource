@@ -69,22 +69,22 @@ async function apiRequest<T>(
 export const updatesApi = {
   // Get update status
   async getStatus(): Promise<ApiResponse<UpdateStatus>> {
-    return apiRequest<UpdateStatus>('/api/updates/status');
+    return apiRequest<UpdateStatus>('/ycode/api/updates/status');
   },
 
   // Get detailed update information
   async getDetails(): Promise<ApiResponse<UpdateDetails>> {
-    return apiRequest<UpdateDetails>('/api/updates/details');
+    return apiRequest<UpdateDetails>('/ycode/api/updates/details');
   },
 
   // Get version information
   async getVersion(): Promise<ApiResponse<VersionInfo>> {
-    return apiRequest<VersionInfo>('/api/updates/version');
+    return apiRequest<VersionInfo>('/ycode/api/updates/version');
   },
 
   // Force check for updates
   async checkForUpdates(): Promise<ApiResponse<UpdateDetails>> {
-    return apiRequest<UpdateDetails>('/api/updates/check', {
+    return apiRequest<UpdateDetails>('/ycode/api/updates/check', {
       method: 'POST',
     });
   },

@@ -6,7 +6,7 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "functions": {
-    "app/api/**/*.ts": {
+    "app/ycode/api/**/*.ts": {
       "maxDuration": 60
     }
   }

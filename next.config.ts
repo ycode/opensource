@@ -44,8 +44,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Apply to public pages ONLY (exclude /api/*, /ycode/*, /_next/*)
-        source: '/:path((?!api|ycode|_next).*)*',
+        // Apply to public pages ONLY (exclude /ycode/*, /_next/*)
+        source: '/:path((?!ycode|_next).*)*',
         headers: [
           {
             key: 'Cache-Control',

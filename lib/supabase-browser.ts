@@ -18,7 +18,7 @@ let configPromise: Promise<{ url: string; anonKey: string } | null> | null = nul
  */
 async function getSupabaseConfig(): Promise<{ url: string; anonKey: string } | null> {
   if (!configPromise) {
-    configPromise = fetch('/api/supabase/config')
+    configPromise = fetch('/ycode/api/supabase/config')
       .then(async (res) => {
         if (!res.ok) {
           // Handle 404 (not configured) gracefully - don't log, this is expected during setup

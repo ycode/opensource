@@ -426,7 +426,7 @@ export default function LayerContextMenu({
       }
 
       // Call API to save layout
-      const response = await fetch('/api/layouts', {
+      const response = await fetch('/ycode/api/layouts', {
         method: 'POST',
         body: formData,
       });

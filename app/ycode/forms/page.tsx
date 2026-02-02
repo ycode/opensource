@@ -42,21 +42,21 @@ import type { FormSubmission, FormSummary, FormSubmissionStatus } from '@/types'
 
 // API functions
 async function fetchFormSummaries(): Promise<FormSummary[]> {
-  const response = await fetch('/api/form-submissions?summary=true');
+  const response = await fetch('/ycode/api/form-submissions?summary=true');
   const data = await response.json();
   if (data.error) throw new Error(data.error);
   return data.data || [];
 }
 
 async function fetchFormSubmissions(formId: string): Promise<FormSubmission[]> {
-  const response = await fetch(`/api/form-submissions?form_id=${encodeURIComponent(formId)}`);
+  const response = await fetch(`/ycode/api/form-submissions?form_id=${encodeURIComponent(formId)}`);
   const data = await response.json();
   if (data.error) throw new Error(data.error);
   return data.data || [];
 }
 
 async function updateSubmissionStatus(id: string, status: FormSubmissionStatus): Promise<void> {
-  const response = await fetch(`/api/form-submissions/${id}`, {
+  const response = await fetch(`/ycode/api/form-submissions/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status }),
@@ -66,7 +66,7 @@ async function updateSubmissionStatus(id: string, status: FormSubmissionStatus):
 }
 
 async function deleteSubmission(id: string): Promise<void> {
-  const response = await fetch(`/api/form-submissions/${id}`, {
+  const response = await fetch(`/ycode/api/form-submissions/${id}`, {
     method: 'DELETE',
   });
   const data = await response.json();
@@ -81,7 +81,7 @@ type SortConfig = {
 
 // API function to delete all submissions for a form
 async function deleteForm(formId: string): Promise<void> {
-  const response = await fetch(`/api/form-submissions?form_id=${encodeURIComponent(formId)}`, {
+  const response = await fetch(`/ycode/api/form-submissions?form_id=${encodeURIComponent(formId)}`, {
     method: 'DELETE',
   });
   const data = await response.json();
@@ -317,7 +317,7 @@ export default function FormsPage() {
 
     try {
       const ids = Array.from(selectedSubmissionIds);
-      const response = await fetch('/api/form-submissions', {
+      const response = await fetch('/ycode/api/form-submissions', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),

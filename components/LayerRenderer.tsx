@@ -1270,7 +1270,7 @@ const LayerItem: React.FC<{
         });
 
         try {
-          const response = await fetch('/api/form-submissions', {
+          const response = await fetch('/ycode/api/form-submissions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

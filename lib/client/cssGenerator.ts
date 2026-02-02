@@ -185,7 +185,7 @@ export async function generateCSS(layers: Layer[]): Promise<string> {
  * Save CSS to settings via API and update the settings store
  */
 export async function saveCSS(css: string, key: 'draft_css' | 'published_css'): Promise<void> {
-  const response = await fetch(`/api/settings/${key}`, {
+  const response = await fetch(`/ycode/api/settings/${key}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value: css }),

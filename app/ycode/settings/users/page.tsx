@@ -62,7 +62,7 @@ export default function UsersSettingsPage() {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('/api/auth/users');
+      const response = await fetch('/ycode/api/auth/users');
       const result = await response.json();
       if (result.data) {
         setActiveUsers(result.data.activeUsers || []);
@@ -90,12 +90,12 @@ export default function UsersSettingsPage() {
     setInviteSuccess(null);
 
     try {
-      const response = await fetch('/api/auth/invite', {
+      const response = await fetch('/ycode/api/auth/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: inviteEmail.trim(),
-          redirectTo: window.location.origin + '/accept-invite',
+          redirectTo: window.location.origin + '/ycode/accept-invite',
         }),
       });
 
@@ -136,7 +136,7 @@ export default function UsersSettingsPage() {
     if (!userToDelete) return;
 
     try {
-      const response = await fetch(`/api/auth/users?id=${userToDelete.id}`, {
+      const response = await fetch(`/ycode/api/auth/users?id=${userToDelete.id}`, {
         method: 'DELETE',
       });
 
@@ -157,12 +157,12 @@ export default function UsersSettingsPage() {
 
   const handleResendInvite = async (email: string) => {
     try {
-      const response = await fetch('/api/auth/invite', {
+      const response = await fetch('/ycode/api/auth/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
-          redirectTo: window.location.origin + '/accept-invite',
+          redirectTo: window.location.origin + '/ycode/accept-invite',
         }),
       });
 
