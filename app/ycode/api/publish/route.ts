@@ -218,61 +218,60 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Always publish asset folders first (assets reference them via foreign key)
-    // First, hard delete asset folders that were soft-deleted in drafts
-    try {
-      const deleteFoldersResult = await hardDeleteSoftDeletedAssetFolders();
-      result.changes.assetFoldersDeleted = deleteFoldersResult.count;
-    } catch (assetFoldersDeleteError) {
-      console.error('Failed to delete soft-deleted asset folders:', assetFoldersDeleteError);
-      // Don't fail the entire publish if folder deletion fails
-    }
-
-    // Then publish all unpublished asset folders
-    try {
-      const unpublishedFolders = await getUnpublishedAssetFolders();
-      if (unpublishedFolders.length > 0) {
-        const allFolderIds = unpublishedFolders.map((f: any) => f.id);
-        const foldersResult = await publishAssetFolders(allFolderIds);
-        result.changes.assetFolders = foldersResult.count;
-      }
-    } catch (assetFoldersPublishError) {
-      console.error('Failed to publish asset folders:', assetFoldersPublishError);
-      // Don't fail the entire publish if folder publishing fails
-    }
-
-    // Now publish assets (after folders are published)
-    // First, hard delete assets that were soft-deleted in drafts
-    try {
-      const deleteResult = await hardDeleteSoftDeletedAssets();
-      result.changes.assetsDeleted = deleteResult.count;
-    } catch (assetsDeleteError) {
-      console.error('Failed to delete soft-deleted assets:', assetsDeleteError);
-      // Don't fail the entire publish if asset deletion fails
-    }
-
-    // Then publish all unpublished assets
-    try {
-      const unpublishedAssets = await getUnpublishedAssets();
-      if (unpublishedAssets.length > 0) {
-        const allAssetIds = unpublishedAssets.map((a: any) => a.id);
-        const assetsResult = await publishAssets(allAssetIds);
-        result.changes.assets = assetsResult.count;
-      }
-    } catch (assetsPublishError) {
-      console.error('Failed to publish assets:', assetsPublishError);
-      // Don't fail the entire publish if asset publishing fails
-    }
-
-    // Publish locales and translations
-    if (publishLocales) {
+    // Only publish assets, asset folders, and localization when doing a full publish
+    // This significantly speeds up selective page/component publishing
+    if (isPublishingAll) {
+      // Publish asset folders first (assets reference them via foreign key)
+      // First, hard delete asset folders that were soft-deleted in drafts
       try {
-        const localisationResult = await publishLocalisation();
-        result.changes.locales = localisationResult.locales;
-        result.changes.translations = localisationResult.translations;
-      } catch (localesError) {
-        console.error('Failed to publish locales/translations:', localesError);
-        // Don't fail the entire publish if localization fails
+        const deleteFoldersResult = await hardDeleteSoftDeletedAssetFolders();
+        result.changes.assetFoldersDeleted = deleteFoldersResult.count;
+      } catch (assetFoldersDeleteError) {
+        console.error('Failed to delete soft-deleted asset folders:', assetFoldersDeleteError);
+      }
+
+      // Then publish all unpublished asset folders
+      try {
+        const unpublishedFolders = await getUnpublishedAssetFolders();
+        if (unpublishedFolders.length > 0) {
+          const allFolderIds = unpublishedFolders.map((f: any) => f.id);
+          const foldersResult = await publishAssetFolders(allFolderIds);
+          result.changes.assetFolders = foldersResult.count;
+        }
+      } catch (assetFoldersPublishError) {
+        console.error('Failed to publish asset folders:', assetFoldersPublishError);
+      }
+
+      // Now publish assets (after folders are published)
+      // First, hard delete assets that were soft-deleted in drafts
+      try {
+        const deleteResult = await hardDeleteSoftDeletedAssets();
+        result.changes.assetsDeleted = deleteResult.count;
+      } catch (assetsDeleteError) {
+        console.error('Failed to delete soft-deleted assets:', assetsDeleteError);
+      }
+
+      // Then publish all unpublished assets
+      try {
+        const unpublishedAssets = await getUnpublishedAssets();
+        if (unpublishedAssets.length > 0) {
+          const allAssetIds = unpublishedAssets.map((a: any) => a.id);
+          const assetsResult = await publishAssets(allAssetIds);
+          result.changes.assets = assetsResult.count;
+        }
+      } catch (assetsPublishError) {
+        console.error('Failed to publish assets:', assetsPublishError);
+      }
+
+      // Publish locales and translations
+      if (publishLocales) {
+        try {
+          const localisationResult = await publishLocalisation();
+          result.changes.locales = localisationResult.locales;
+          result.changes.translations = localisationResult.translations;
+        } catch (localesError) {
+          console.error('Failed to publish locales/translations:', localesError);
+        }
       }
     }
 

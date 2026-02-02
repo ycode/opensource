@@ -674,30 +674,21 @@ export async function publishAssets(assetIds: string[]): Promise<{ count: number
     }
   }
 
-  // Insert new published records in batches
-  if (toInsert.length > 0) {
-    for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
-      const batch = toInsert.slice(i, i + BATCH_SIZE);
-      const { error: insertError } = await client
+  // Batch upsert all records (both new and existing)
+  const allRecords = [...toInsert, ...toUpdate];
+
+  if (allRecords.length > 0) {
+    for (let i = 0; i < allRecords.length; i += BATCH_SIZE) {
+      const batch = allRecords.slice(i, i + BATCH_SIZE);
+      const { error: upsertError } = await client
         .from('assets')
-        .insert(batch);
+        .upsert(batch, {
+          onConflict: 'id,is_published',
+        });
 
-      if (insertError) {
-        throw new Error(`Failed to insert published assets: ${insertError.message}`);
+      if (upsertError) {
+        throw new Error(`Failed to publish assets: ${upsertError.message}`);
       }
-    }
-  }
-
-  // Update existing published records
-  for (const record of toUpdate) {
-    const { error: updateError } = await client
-      .from('assets')
-      .update(record)
-      .eq('id', record.id)
-      .eq('is_published', true);
-
-    if (updateError) {
-      console.error(`Failed to update published asset ${record.id}:`, updateError);
     }
   }
 

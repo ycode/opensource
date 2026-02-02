@@ -264,6 +264,37 @@ export async function getItemById(id: string, isPublished: boolean = false): Pro
 }
 
 /**
+ * Batch fetch items by IDs
+ * @param ids - Array of item UUIDs
+ * @param isPublished - Get draft (false) or published (true) items
+ * @returns Array of items found
+ */
+export async function getItemsByIds(ids: string[], isPublished: boolean = false): Promise<CollectionItem[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  const { data, error } = await client
+    .from('collection_items')
+    .select('*')
+    .in('id', ids)
+    .eq('is_published', isPublished)
+    .is('deleted_at', null);
+
+  if (error) {
+    throw new Error(`Failed to fetch collection items: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
  * Get item with all field values joined
  * Returns item with values as { field_id: value } object
  * @param id - Item UUID

@@ -15,7 +15,7 @@ import { withTransaction } from '../database/transaction';
 import { getSupabaseAdmin } from '../supabase-server';
 import { getCollectionById, hardDeleteCollection } from '../repositories/collectionRepository';
 import { getFieldsByCollectionId } from '../repositories/collectionFieldRepository';
-import { getItemsByCollectionId, getItemById } from '../repositories/collectionItemRepository';
+import { getItemsByCollectionId, getItemById, getItemsByIds } from '../repositories/collectionItemRepository';
 import { getValuesByItemId } from '../repositories/collectionItemValueRepository';
 
 /**
@@ -208,15 +208,21 @@ async function validatePublishRequest(
     throw new Error(`Draft collection ${collectionId} not found`);
   }
 
-  // If specific item IDs provided, validate they exist
+  // If specific item IDs provided, validate they exist (batch fetch)
   if (itemIds && itemIds.length > 0) {
+    const items = await getItemsByIds(itemIds, false);
+    const foundIds = new Set(items.map(item => item.id));
+
     for (const itemId of itemIds) {
-      const item = await getItemById(itemId, false);
-      if (!item) {
+      if (!foundIds.has(itemId)) {
         throw new Error(`Draft item ${itemId} not found`);
       }
+    }
+
+    // Validate all items belong to the collection
+    for (const item of items) {
       if (item.collection_id !== collectionId) {
-        throw new Error(`Item ${itemId} does not belong to collection ${collectionId}`);
+        throw new Error(`Item ${item.id} does not belong to collection ${collectionId}`);
       }
     }
   }
@@ -352,12 +358,8 @@ async function publishSelectedItems(
     return { itemsCount: 0, valuesCount: 0 };
   }
 
-  // Fetch all draft items to publish
-  const draftItemsData = await Promise.all(
-    itemsToPublish.map(itemId => getItemById(itemId, false))
-  );
-
-  const draftItems = draftItemsData.filter((item): item is NonNullable<typeof item> => item !== null);
+  // Batch fetch all draft items to publish
+  const draftItems = await getItemsByIds(itemsToPublish, false);
 
   if (draftItems.length === 0) {
     return { itemsCount: 0, valuesCount: 0 };

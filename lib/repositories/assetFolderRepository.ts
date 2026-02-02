@@ -413,30 +413,22 @@ export async function publishAssetFolders(folderIds: string[]): Promise<{ count:
     }
   }
 
-  // Insert new published records in batches (sorted by depth)
-  if (toInsert.length > 0) {
-    for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
-      const batch = toInsert.slice(i, i + BATCH_SIZE);
-      const { error: insertError } = await client
+  // Batch upsert all records (both new and existing)
+  // Keep sorted by depth to ensure parents are processed first
+  const allRecords = [...toInsert, ...toUpdate].sort((a, b) => a.depth - b.depth);
+
+  if (allRecords.length > 0) {
+    for (let i = 0; i < allRecords.length; i += BATCH_SIZE) {
+      const batch = allRecords.slice(i, i + BATCH_SIZE);
+      const { error: upsertError } = await client
         .from('asset_folders')
-        .insert(batch);
+        .upsert(batch, {
+          onConflict: 'id,is_published',
+        });
 
-      if (insertError) {
-        throw new Error(`Failed to insert published asset folders: ${insertError.message}`);
+      if (upsertError) {
+        throw new Error(`Failed to publish asset folders: ${upsertError.message}`);
       }
-    }
-  }
-
-  // Update existing published records
-  for (const record of toUpdate) {
-    const { error: updateError } = await client
-      .from('asset_folders')
-      .update(record)
-      .eq('id', record.id)
-      .eq('is_published', true);
-
-    if (updateError) {
-      console.error(`Failed to update published asset folder ${record.id}:`, updateError);
     }
   }
 

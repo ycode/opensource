@@ -9,7 +9,7 @@
 
 import { getKnexClient } from '../knex-client';
 import { getPublishedPagesByIds } from '../repositories/pageRepository';
-import { publishPageLayers } from '../repositories/pageLayersRepository';
+import { batchPublishPageLayers } from '../repositories/pageLayersRepository';
 import { getSupabaseAdmin } from '../supabase-server';
 
 /**
@@ -375,34 +375,32 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
     }
   }
 
-  // Step 9: Publish page layers (can't batch due to individual logic in publishPageLayers)
-  // Publish layers for all valid draft pages, even if the page itself hasn't changed
-  let publishedCount = 0;
-  for (const draftPage of validDraftPages) {
-    try {
-      // Skip if parent folder check failed earlier
+  // Step 9: Batch publish page layers
+  // Filter to pages that have a published version (either just upserted or already exists)
+  const pageIdsForLayerPublish = validDraftPages
+    .filter(draftPage => {
+      // Skip if parent folder check failed
       if (draftPage.page_folder_id) {
         const publishedParent = publishedFoldersById.get(draftPage.page_folder_id);
         if (!publishedParent) {
-          continue;
+          return false;
         }
       }
 
-      // Ensure page has a published version (either just upserted or already exists)
+      // Ensure page has a published version
       const pageWasUpserted = pagesToUpsert.some(p => p.id === draftPage.id);
       const pageAlreadyPublished = publishedPagesById.has(draftPage.id);
 
-      if (!pageWasUpserted && !pageAlreadyPublished) {
-        // Page doesn't have a published version, skip layer publishing
-        continue;
-      }
+      return pageWasUpserted || pageAlreadyPublished;
+    })
+    .map(p => p.id);
 
-      await publishPageLayers(draftPage.id, draftPage.id);
-      publishedCount++;
-    } catch (error) {
-      console.error(`Error publishing layers for page ${draftPage.id}:`, error);
-    }
+  // Batch publish all layers in one operation
+  try {
+    await batchPublishPageLayers(pageIdsForLayerPublish);
+  } catch (error) {
+    console.error('Error batch publishing layers:', error);
   }
 
-  return { count: publishedCount };
+  return { count: pageIdsForLayerPublish.length };
 }
