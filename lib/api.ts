@@ -311,6 +311,11 @@ export const assetsApi = {
       body: JSON.stringify({ action: 'move', ids, asset_folder_id }),
     });
   },
+
+  // Get asset usage with names
+  async getUsage(id: string): Promise<ApiResponse<{ pages: { id: string; name: string }[]; components: { id: string; name: string }[]; cmsItems: { id: string; name: string; collectionId: string; collectionName: string }[]; total: number }>> {
+    return apiRequest<{ pages: { id: string; name: string }[]; components: { id: string; name: string }[]; cmsItems: { id: string; name: string; collectionId: string; collectionName: string }[]; total: number }>(`/api/assets/${id}/usage`);
+  },
 };
 
 // Asset Folders API

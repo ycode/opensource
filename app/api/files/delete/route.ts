@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteAsset } from '@/lib/file-upload';
+import { deleteAsset } from '@/lib/repositories/assetRepository';
 
 /**
  * DELETE /api/files/delete
- * Delete an asset (from both storage and database)
+ * Soft-delete an asset (marks as deleted_at in database)
+ * Physical file is only deleted when publishing if the asset was never published
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -17,14 +18,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const success = await deleteAsset(assetId);
-
-    if (!success) {
-      return NextResponse.json(
-        { error: 'Failed to delete asset' },
-        { status: 500 }
-      );
-    }
+    await deleteAsset(assetId);
 
     return NextResponse.json(
       { message: 'Asset deleted successfully' },
@@ -33,7 +27,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('Error deleting asset:', error);
     return NextResponse.json(
-      { error: 'Failed to delete asset' },
+      { error: error instanceof Error ? error.message : 'Failed to delete asset' },
       { status: 500 }
     );
   }

@@ -24,7 +24,8 @@ export interface ConfirmDialogProps {
   open: boolean;
   onOpenChange?: (open: boolean) => void;
   title?: string;
-  description?: string;
+  description?: React.ReactNode;
+  children?: React.ReactNode; // Slot for structured content. When provided, overrides description.
   confirmLabel?: string;
   cancelLabel?: string;
   confirmVariant?: 'default' | 'destructive' | 'secondary';
@@ -40,6 +41,7 @@ export function ConfirmDialog({
   onOpenChange,
   title = 'Are you sure?',
   description = 'This action cannot be undone.',
+  children,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   confirmVariant = 'destructive',
@@ -111,7 +113,15 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
-        <DialogDescription className="leading-relaxed">{description}</DialogDescription>
+        {children ? (
+          <div className="leading-relaxed text-muted-foreground text-xs">
+            {children}
+          </div>
+        ) : (
+          <DialogDescription className="leading-relaxed">
+            {description}
+          </DialogDescription>
+        )}
 
         <DialogFooter className="sm:justify-between">
           <Button

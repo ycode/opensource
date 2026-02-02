@@ -11,6 +11,8 @@ import { publishComponents, getUnpublishedComponents } from '@/lib/repositories/
 import { publishLayerStyles, getUnpublishedLayerStyles } from '@/lib/repositories/layerStyleRepository';
 import { getAllCollections } from '@/lib/repositories/collectionRepository';
 import { getItemsByCollectionId } from '@/lib/repositories/collectionItemRepository';
+import { publishAssets, getUnpublishedAssets, hardDeleteSoftDeletedAssets } from '@/lib/repositories/assetRepository';
+import { publishAssetFolders, getUnpublishedAssetFolders, hardDeleteSoftDeletedAssetFolders } from '@/lib/repositories/assetFolderRepository';
 import { Setting } from '@/types';
 
 // Disable caching for this route
@@ -35,6 +37,10 @@ interface PublishResult {
     collectionItems: number;
     components: number;
     layerStyles: number;
+    assetFolders: number;
+    assetFoldersDeleted: number;
+    assets: number;
+    assetsDeleted: number;
     locales: number;
     translations: number;
     css: boolean;
@@ -81,6 +87,10 @@ export async function POST(request: NextRequest) {
         collectionItems: 0,
         components: 0,
         layerStyles: 0,
+        assetFolders: 0,
+        assetFoldersDeleted: 0,
+        assets: 0,
+        assetsDeleted: 0,
         locales: 0,
         translations: 0,
         css: false,
@@ -208,6 +218,52 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Always publish asset folders first (assets reference them via foreign key)
+    // First, hard delete asset folders that were soft-deleted in drafts
+    try {
+      const deleteFoldersResult = await hardDeleteSoftDeletedAssetFolders();
+      result.changes.assetFoldersDeleted = deleteFoldersResult.count;
+    } catch (assetFoldersDeleteError) {
+      console.error('Failed to delete soft-deleted asset folders:', assetFoldersDeleteError);
+      // Don't fail the entire publish if folder deletion fails
+    }
+
+    // Then publish all unpublished asset folders
+    try {
+      const unpublishedFolders = await getUnpublishedAssetFolders();
+      if (unpublishedFolders.length > 0) {
+        const allFolderIds = unpublishedFolders.map((f: any) => f.id);
+        const foldersResult = await publishAssetFolders(allFolderIds);
+        result.changes.assetFolders = foldersResult.count;
+      }
+    } catch (assetFoldersPublishError) {
+      console.error('Failed to publish asset folders:', assetFoldersPublishError);
+      // Don't fail the entire publish if folder publishing fails
+    }
+
+    // Now publish assets (after folders are published)
+    // First, hard delete assets that were soft-deleted in drafts
+    try {
+      const deleteResult = await hardDeleteSoftDeletedAssets();
+      result.changes.assetsDeleted = deleteResult.count;
+    } catch (assetsDeleteError) {
+      console.error('Failed to delete soft-deleted assets:', assetsDeleteError);
+      // Don't fail the entire publish if asset deletion fails
+    }
+
+    // Then publish all unpublished assets
+    try {
+      const unpublishedAssets = await getUnpublishedAssets();
+      if (unpublishedAssets.length > 0) {
+        const allAssetIds = unpublishedAssets.map((a: any) => a.id);
+        const assetsResult = await publishAssets(allAssetIds);
+        result.changes.assets = assetsResult.count;
+      }
+    } catch (assetsPublishError) {
+      console.error('Failed to publish assets:', assetsPublishError);
+      // Don't fail the entire publish if asset publishing fails
+    }
+
     // Publish locales and translations
     if (publishLocales) {
       try {
@@ -248,6 +304,8 @@ export async function POST(request: NextRequest) {
       result.changes.collectionItems +
       result.changes.components +
       result.changes.layerStyles +
+      result.changes.assetFolders +
+      result.changes.assets +
       result.changes.locales +
       result.changes.translations;
 

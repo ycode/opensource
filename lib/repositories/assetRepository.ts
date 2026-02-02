@@ -12,6 +12,7 @@ export interface CreateAssetData {
   height?: number;
   asset_folder_id?: string | null;
   content?: string | null; // Inline SVG content for icon assets
+  is_published?: boolean; // Defaults to false
 }
 
 export interface PaginatedAssetsResult {
@@ -31,7 +32,7 @@ export interface GetAssetsOptions {
 }
 
 /**
- * Get assets with pagination and search support
+ * Get assets with pagination and search support (drafts only)
  */
 export async function getAssetsPaginated(options: GetAssetsOptions = {}): Promise<PaginatedAssetsResult> {
   const client = await getSupabaseAdmin();
@@ -50,10 +51,12 @@ export async function getAssetsPaginated(options: GetAssetsOptions = {}): Promis
 
   const offset = (page - 1) * limit;
 
-  // Build the query
+  // Build the query - always filter by is_published=false and deleted_at IS NULL
   let query = client
     .from('assets')
-    .select('*', { count: 'exact' });
+    .select('*', { count: 'exact' })
+    .eq('is_published', false)
+    .is('deleted_at', null);
 
   // Filter by folder(s)
   if (folderIds && folderIds.length > 0) {
@@ -61,7 +64,7 @@ export async function getAssetsPaginated(options: GetAssetsOptions = {}): Promis
     // Handle 'root' specially - it means assets with null folder_id
     const actualFolderIds = folderIds.filter(id => id !== 'root');
     const includesRoot = folderIds.includes('root');
-    
+
     if (includesRoot && actualFolderIds.length > 0) {
       // Include both root (null) and specific folders
       query = query.or(`asset_folder_id.is.null,asset_folder_id.in.(${actualFolderIds.join(',')})`);
@@ -109,7 +112,7 @@ export async function getAssetsPaginated(options: GetAssetsOptions = {}): Promis
 }
 
 /**
- * Get all assets (legacy function for backwards compatibility)
+ * Get all draft assets (legacy function for backwards compatibility)
  * @param folderId - Optional folder ID to filter assets (null for root folder, undefined for all assets)
  * @deprecated Use getAssetsPaginated for better performance with large datasets
  */
@@ -130,6 +133,8 @@ export async function getAllAssets(folderId?: string | null): Promise<Asset[]> {
     let query = client
       .from('assets')
       .select('*')
+      .eq('is_published', false)
+      .is('deleted_at', null)
       .range(offset, offset + PAGE_SIZE - 1)
       .order('created_at', { ascending: false });
 
@@ -162,19 +167,28 @@ export async function getAllAssets(folderId?: string | null): Promise<Asset[]> {
 
 /**
  * Get asset by ID
+ * @param id Asset ID
+ * @param isPublished If true, get published version; if false, get draft version (default: false)
  */
-export async function getAssetById(id: string): Promise<Asset | null> {
+export async function getAssetById(id: string, isPublished: boolean = false): Promise<Asset | null> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
     throw new Error('Supabase not configured');
   }
 
-  const { data, error } = await client
+  let query = client
     .from('assets')
     .select('*')
     .eq('id', id)
-    .single();
+    .eq('is_published', isPublished);
+
+  // Only filter deleted_at for drafts
+  if (!isPublished) {
+    query = query.is('deleted_at', null);
+  }
+
+  const { data, error } = await query.single();
 
   if (error) {
     if (error.code === 'PGRST116') {
@@ -189,8 +203,9 @@ export async function getAssetById(id: string): Promise<Asset | null> {
 /**
  * Get multiple assets by IDs in a single query
  * Returns a map of asset ID to asset for quick lookup
+ * @param isPublished If true, get published versions; if false, get draft versions (default: false)
  */
-export async function getAssetsByIds(ids: string[]): Promise<Record<string, Asset>> {
+export async function getAssetsByIds(ids: string[], isPublished: boolean = false): Promise<Record<string, Asset>> {
   const client = await getSupabaseAdmin();
 
   if (!client) {
@@ -201,10 +216,18 @@ export async function getAssetsByIds(ids: string[]): Promise<Record<string, Asse
     return {};
   }
 
-  const { data, error } = await client
+  let query = client
     .from('assets')
     .select('*')
-    .in('id', ids);
+    .in('id', ids)
+    .eq('is_published', isPublished);
+
+  // Only filter deleted_at for drafts
+  if (!isPublished) {
+    query = query.is('deleted_at', null);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Failed to fetch assets: ${error.message}`);
@@ -220,7 +243,7 @@ export async function getAssetsByIds(ids: string[]): Promise<Record<string, Asse
 }
 
 /**
- * Create asset record
+ * Create asset record (always creates as draft)
  */
 export async function createAsset(assetData: CreateAssetData): Promise<Asset> {
   const client = await getSupabaseAdmin();
@@ -229,9 +252,14 @@ export async function createAsset(assetData: CreateAssetData): Promise<Asset> {
     throw new Error('Supabase not configured');
   }
 
+  const now = new Date().toISOString();
   const { data, error } = await client
     .from('assets')
-    .insert(assetData)
+    .insert({
+      ...assetData,
+      is_published: false,
+      updated_at: now,
+    })
     .select()
     .single();
 
@@ -243,7 +271,7 @@ export async function createAsset(assetData: CreateAssetData): Promise<Asset> {
 }
 
 /**
- * Update asset
+ * Update asset (only updates drafts)
  */
 export interface UpdateAssetData {
   filename?: string;
@@ -260,8 +288,13 @@ export async function updateAsset(id: string, assetData: UpdateAssetData): Promi
 
   const { data, error } = await client
     .from('assets')
-    .update(assetData)
+    .update({
+      ...assetData,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', id)
+    .eq('is_published', false)
+    .is('deleted_at', null)
     .select()
     .single();
 
@@ -273,7 +306,8 @@ export async function updateAsset(id: string, assetData: UpdateAssetData): Promi
 }
 
 /**
- * Delete asset
+ * Soft-delete asset (sets deleted_at on draft)
+ * If the asset was never published, also deletes the physical file
  */
 export async function deleteAsset(id: string): Promise<void> {
   const client = await getSupabaseAdmin();
@@ -282,29 +316,35 @@ export async function deleteAsset(id: string): Promise<void> {
     throw new Error('Supabase not configured');
   }
 
-  // Get asset to find storage path
-  const asset = await getAssetById(id);
+  // Get draft asset
+  const draftAsset = await getAssetById(id, false);
 
-  if (!asset) {
+  if (!draftAsset) {
     throw new Error('Asset not found');
   }
 
-  // Delete from storage (only if it has a storage path - SVG icons with inline content don't)
-  if (asset.storage_path) {
+  // Check if a published version exists
+  const publishedAsset = await getAssetById(id, true);
+
+  // If never published, delete the physical file immediately
+  if (!publishedAsset && draftAsset.storage_path) {
     const { error: storageError } = await client.storage
       .from('assets')
-      .remove([asset.storage_path]);
+      .remove([draftAsset.storage_path]);
 
     if (storageError) {
-      throw new Error(`Failed to delete file: ${storageError.message}`);
+      console.error(`Failed to delete file from storage: ${storageError.message}`);
+      // Continue with soft-delete even if storage deletion fails
     }
   }
 
-  // Delete database record
+  // Soft-delete the draft record
   const { error } = await client
     .from('assets')
-    .delete()
-    .eq('id', id);
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('is_published', false)
+    .is('deleted_at', null);
 
   if (error) {
     throw new Error(`Failed to delete asset record: ${error.message}`);
@@ -312,7 +352,8 @@ export async function deleteAsset(id: string): Promise<void> {
 }
 
 /**
- * Bulk delete assets
+ * Bulk soft-delete assets
+ * If assets were never published, also deletes their physical files
  */
 export async function bulkDeleteAssets(ids: string[]): Promise<{ success: string[]; failed: string[] }> {
   const client = await getSupabaseAdmin();
@@ -325,44 +366,78 @@ export async function bulkDeleteAssets(ids: string[]): Promise<{ success: string
     return { success: [], failed: [] };
   }
 
-  const success: string[] = [];
-  const failed: string[] = [];
+  const BATCH_SIZE = 100;
+  const draftAssets: Asset[] = [];
 
-  // Get all assets to find storage paths
-  const { data: assets, error: fetchError } = await client
-    .from('assets')
-    .select('*')
-    .in('id', ids);
-
-  if (fetchError) {
-    throw new Error(`Failed to fetch assets: ${fetchError.message}`);
-  }
-
-  // Collect storage paths for batch deletion
-  const storagePaths = assets
-    ?.filter(asset => asset.storage_path)
-    .map(asset => asset.storage_path as string) || [];
-
-  // Delete from storage in batch (if there are files to delete)
-  if (storagePaths.length > 0) {
-    const { error: storageError } = await client.storage
+  // Get all draft assets in batches
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + BATCH_SIZE);
+    const { data, error: fetchDraftError } = await client
       .from('assets')
-      .remove(storagePaths);
+      .select('*')
+      .in('id', batchIds)
+      .eq('is_published', false)
+      .is('deleted_at', null);
 
-    if (storageError) {
-      console.error('Failed to delete some files from storage:', storageError);
-      // Continue with database deletion even if storage deletion fails
+    if (fetchDraftError) {
+      throw new Error(`Failed to fetch draft assets: ${fetchDraftError.message}`);
+    }
+
+    if (data) {
+      draftAssets.push(...data);
     }
   }
 
-  // Delete database records in batch
-  const { error: deleteError } = await client
-    .from('assets')
-    .delete()
-    .in('id', ids);
+  // Get published assets to check which files should be deleted immediately
+  const publishedIds = new Set<string>();
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + BATCH_SIZE);
+    const { data: publishedAssets, error: fetchPublishedError } = await client
+      .from('assets')
+      .select('id')
+      .in('id', batchIds)
+      .eq('is_published', true);
 
-  if (deleteError) {
-    throw new Error(`Failed to delete asset records: ${deleteError.message}`);
+    if (fetchPublishedError) {
+      throw new Error(`Failed to fetch published assets: ${fetchPublishedError.message}`);
+    }
+
+    publishedAssets?.forEach(a => publishedIds.add(a.id));
+  }
+
+  // Collect storage paths for assets that were never published
+  const storagePaths = draftAssets
+    .filter(asset => asset.storage_path && !publishedIds.has(asset.id))
+    .map(asset => asset.storage_path as string);
+
+  // Delete from storage for assets that were never published (in batches)
+  if (storagePaths.length > 0) {
+    for (let i = 0; i < storagePaths.length; i += BATCH_SIZE) {
+      const batch = storagePaths.slice(i, i + BATCH_SIZE);
+      const { error: storageError } = await client.storage
+        .from('assets')
+        .remove(batch);
+
+      if (storageError) {
+        console.error('Failed to delete some files from storage:', storageError);
+        // Continue with soft-delete even if storage deletion fails
+      }
+    }
+  }
+
+  // Soft-delete all draft records in batches
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + BATCH_SIZE);
+    const { error: deleteError } = await client
+      .from('assets')
+      .update({ deleted_at: new Date().toISOString() })
+      .in('id', batchIds)
+      .eq('is_published', false)
+      .is('deleted_at', null);
+
+    if (deleteError) {
+      throw new Error(`Failed to delete asset records: ${deleteError.message}`);
+    }
   }
 
   // All succeeded if we got here
@@ -370,7 +445,7 @@ export async function bulkDeleteAssets(ids: string[]): Promise<{ success: string
 }
 
 /**
- * Bulk update assets (move to folder)
+ * Bulk update assets (move to folder) - only updates drafts
  */
 export async function bulkUpdateAssets(
   ids: string[],
@@ -386,14 +461,24 @@ export async function bulkUpdateAssets(
     return { success: [], failed: [] };
   }
 
-  // Update all assets in batch
-  const { error } = await client
-    .from('assets')
-    .update(updates)
-    .in('id', ids);
+  const BATCH_SIZE = 100;
 
-  if (error) {
-    throw new Error(`Failed to update assets: ${error.message}`);
+  // Update all draft assets in batches
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + BATCH_SIZE);
+    const { error } = await client
+      .from('assets')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', batchIds)
+      .eq('is_published', false)
+      .is('deleted_at', null);
+
+    if (error) {
+      throw new Error(`Failed to update assets: ${error.message}`);
+    }
   }
 
   // All succeeded if we got here
@@ -452,4 +537,244 @@ export async function uploadFile(file: File): Promise<{ path: string; url: strin
     path: data.path,
     url: urlData.publicUrl,
   };
+}
+
+// =============================================================================
+// Publishing Functions
+// =============================================================================
+
+/**
+ * Get all unpublished (draft) assets that have changes
+ */
+export async function getUnpublishedAssets(): Promise<Asset[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  const { data, error } = await client
+    .from('assets')
+    .select('*')
+    .eq('is_published', false)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch unpublished assets: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Get soft-deleted draft assets that need their published versions and files removed
+ */
+export async function getDeletedDraftAssets(): Promise<Asset[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  const { data, error } = await client
+    .from('assets')
+    .select('*')
+    .eq('is_published', false)
+    .not('deleted_at', 'is', null);
+
+  if (error) {
+    throw new Error(`Failed to fetch deleted draft assets: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Publish assets - copies draft to published
+ */
+export async function publishAssets(assetIds: string[]): Promise<{ count: number }> {
+  if (assetIds.length === 0) {
+    return { count: 0 };
+  }
+
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // Batch size to avoid Supabase URL length limits
+  const BATCH_SIZE = 100;
+  const draftAssets: Asset[] = [];
+
+  // Fetch draft assets in batches
+  for (let i = 0; i < assetIds.length; i += BATCH_SIZE) {
+    const batchIds = assetIds.slice(i, i + BATCH_SIZE);
+    const { data, error: fetchError } = await client
+      .from('assets')
+      .select('*')
+      .in('id', batchIds)
+      .eq('is_published', false)
+      .is('deleted_at', null);
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch draft assets: ${fetchError.message}`);
+    }
+
+    if (data) {
+      draftAssets.push(...data);
+    }
+  }
+
+  if (draftAssets.length === 0) {
+    return { count: 0 };
+  }
+
+  // Check which assets already have published versions (also in batches)
+  const existingPublishedIds = new Set<string>();
+  for (let i = 0; i < assetIds.length; i += BATCH_SIZE) {
+    const batchIds = assetIds.slice(i, i + BATCH_SIZE);
+    const { data: existingPublished } = await client
+      .from('assets')
+      .select('id')
+      .in('id', batchIds)
+      .eq('is_published', true);
+
+    existingPublished?.forEach(a => existingPublishedIds.add(a.id));
+  }
+
+  // Prepare published records
+  const toInsert: any[] = [];
+  const toUpdate: any[] = [];
+
+  for (const draft of draftAssets) {
+    const publishedRecord = {
+      id: draft.id,
+      source: draft.source,
+      filename: draft.filename,
+      storage_path: draft.storage_path,
+      public_url: draft.public_url,
+      file_size: draft.file_size,
+      mime_type: draft.mime_type,
+      width: draft.width,
+      height: draft.height,
+      asset_folder_id: draft.asset_folder_id,
+      content: draft.content,
+      is_published: true,
+      created_at: draft.created_at,
+      updated_at: new Date().toISOString(),
+      deleted_at: null,
+    };
+
+    if (existingPublishedIds.has(draft.id)) {
+      toUpdate.push(publishedRecord);
+    } else {
+      toInsert.push(publishedRecord);
+    }
+  }
+
+  // Insert new published records in batches
+  if (toInsert.length > 0) {
+    for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+      const batch = toInsert.slice(i, i + BATCH_SIZE);
+      const { error: insertError } = await client
+        .from('assets')
+        .insert(batch);
+
+      if (insertError) {
+        throw new Error(`Failed to insert published assets: ${insertError.message}`);
+      }
+    }
+  }
+
+  // Update existing published records
+  for (const record of toUpdate) {
+    const { error: updateError } = await client
+      .from('assets')
+      .update(record)
+      .eq('id', record.id)
+      .eq('is_published', true);
+
+    if (updateError) {
+      console.error(`Failed to update published asset ${record.id}:`, updateError);
+    }
+  }
+
+  return { count: draftAssets.length };
+}
+
+/**
+ * Hard delete assets that were soft-deleted in drafts
+ * This removes:
+ * 1. The published record (if exists)
+ * 2. The physical file from storage
+ * 3. The soft-deleted draft record
+ */
+export async function hardDeleteSoftDeletedAssets(): Promise<{ count: number }> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase not configured');
+  }
+
+  // Get all soft-deleted draft assets
+  const deletedDrafts = await getDeletedDraftAssets();
+
+  if (deletedDrafts.length === 0) {
+    return { count: 0 };
+  }
+
+  const BATCH_SIZE = 100;
+  const ids = deletedDrafts.map(a => a.id);
+
+  // Collect storage paths to delete
+  const storagePaths = deletedDrafts
+    .filter(a => a.storage_path)
+    .map(a => a.storage_path as string);
+
+  // Delete physical files from storage in batches
+  if (storagePaths.length > 0) {
+    for (let i = 0; i < storagePaths.length; i += BATCH_SIZE) {
+      const batch = storagePaths.slice(i, i + BATCH_SIZE);
+      const { error: storageError } = await client.storage
+        .from('assets')
+        .remove(batch);
+
+      if (storageError) {
+        console.error('Failed to delete some files from storage:', storageError);
+        // Continue with database deletion
+      }
+    }
+  }
+
+  // Delete published and draft versions in batches
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + BATCH_SIZE);
+
+    // Delete published versions
+    const { error: deletePublishedError } = await client
+      .from('assets')
+      .delete()
+      .in('id', batchIds)
+      .eq('is_published', true);
+
+    if (deletePublishedError) {
+      console.error('Failed to delete published assets:', deletePublishedError);
+    }
+
+    // Delete soft-deleted draft versions
+    const { error: deleteDraftError } = await client
+      .from('assets')
+      .delete()
+      .in('id', batchIds)
+      .eq('is_published', false)
+      .not('deleted_at', 'is', null);
+
+    if (deleteDraftError) {
+      throw new Error(`Failed to delete draft assets: ${deleteDraftError.message}`);
+    }
+  }
+
+  return { count: deletedDrafts.length };
 }

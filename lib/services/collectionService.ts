@@ -144,12 +144,12 @@ export async function publishCollectionWithItems(
     });
 
     result.success = true;
-    console.log(`[Publishing] ✅ Publishing completed successfully for collection ${collectionId}`);
+    console.log(`[Publishing] Publishing completed successfully for collection ${collectionId}`);
   } catch (error) {
     result.success = false;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     result.errors = [errorMessage];
-    console.error(`[Publishing] ❌ Error publishing collection ${collectionId}:`, error);
+    console.error(`[Publishing] Error publishing collection ${collectionId}:`, error);
   }
 
   return result;
@@ -869,7 +869,7 @@ export async function groupItemsByCollection(
 
   // Group items by collection
   const itemsByCollection = new Map<string, string[]>();
-  
+
   items.forEach((item: any) => {
     const existing = itemsByCollection.get(item.collection_id) || [];
     existing.push(item.id);

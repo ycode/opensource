@@ -281,11 +281,12 @@ export default async function PageRenderer({
   }
 
   // Fetch all assets and build resolved map
+  // Use draft assets (isPublished=false) for preview mode, published assets otherwise
   let resolvedAssets: Record<string, string> | undefined;
   if (layerAssetIds.size > 0) {
     try {
       const { getAssetsByIds } = await import('@/lib/repositories/assetRepository');
-      const assetMap = await getAssetsByIds(Array.from(layerAssetIds));
+      const assetMap = await getAssetsByIds(Array.from(layerAssetIds), !isPreview);
       resolvedAssets = {};
       for (const [id, asset] of Object.entries(assetMap)) {
         if (asset.public_url) {

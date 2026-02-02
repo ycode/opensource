@@ -289,7 +289,7 @@ export async function fetchPageByPath(
         }
 
         // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-        const resolved = await resolveAllAssets(processedLayers);
+        const resolved = await resolveAllAssets(processedLayers, isPublished);
         processedLayers = resolved.layers;
 
         return {
@@ -429,7 +429,7 @@ export async function fetchPageByPath(
             }
 
             // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-            const resolved = await resolveAllAssets(resolvedLayers);
+            const resolved = await resolveAllAssets(resolvedLayers, isPublished);
             resolvedLayers = resolved.layers;
 
             return {
@@ -485,7 +485,7 @@ export async function fetchPageByPath(
     }
 
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-    const resolved = await resolveAllAssets(resolvedLayers);
+    const resolved = await resolveAllAssets(resolvedLayers, isPublished);
     resolvedLayers = resolved.layers;
 
     return {
@@ -569,7 +569,7 @@ export async function fetchErrorPage(
       : [];
 
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-    const resolved = await resolveAllAssets(resolvedLayers);
+    const resolved = await resolveAllAssets(resolvedLayers, isPublished);
     resolvedLayers = resolved.layers;
 
     return {
@@ -657,7 +657,7 @@ export async function fetchHomepage(
       : [];
 
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-    const resolved = await resolveAllAssets(resolvedLayers);
+    const resolved = await resolveAllAssets(resolvedLayers, isPublished);
     resolvedLayers = resolved.layers;
 
     return {
@@ -1783,7 +1783,7 @@ export async function renderCollectionItemsToHtml(
       );
 
       // Resolve all AssetVariables to URLs server-side
-      const resolved = await resolveAllAssets(resolvedLayers);
+      const resolved = await resolveAllAssets(resolvedLayers, isPublished);
       resolvedLayers = resolved.layers;
       let assetMap = resolved.assetMap;
 
@@ -1814,7 +1814,7 @@ export async function renderCollectionItemsToHtml(
       // Fetch any missing assets from field links
       if (missingAssetIds.length > 0) {
         const { getAssetsByIds } = await import('@/lib/repositories/assetRepository');
-        const additionalAssets = await getAssetsByIds(missingAssetIds);
+        const additionalAssets = await getAssetsByIds(missingAssetIds, isPublished);
         assetMap = { ...assetMap, ...additionalAssets };
       }
 
@@ -1961,8 +1961,9 @@ async function injectCollectionDataForHtml(
  * Resolve all AssetVariables in layer tree to DynamicTextVariables with public URLs
  * This ensures assets are resolved server-side before rendering
  * Should be called after all other layer processing (collections, components, etc.)
+ * @param isPublished - Whether to fetch published (true) or draft (false) assets
  */
-async function resolveAllAssets(layers: Layer[]): Promise<{ layers: Layer[]; assetMap: Record<string, { public_url: string | null }> }> {
+async function resolveAllAssets(layers: Layer[], isPublished: boolean = true): Promise<{ layers: Layer[]; assetMap: Record<string, { public_url: string | null }> }> {
   const { getAssetsByIds } = await import('@/lib/repositories/assetRepository');
 
   // Step 1: Collect all asset IDs from the layer tree
@@ -2012,7 +2013,7 @@ async function resolveAllAssets(layers: Layer[]): Promise<{ layers: Layer[]; ass
   layers.forEach(layer => collectAssetIds(layer, assetIds));
 
   // Step 2: Fetch all assets in a single query
-  const assetMap = await getAssetsByIds(Array.from(assetIds));
+  const assetMap = await getAssetsByIds(Array.from(assetIds), isPublished);
 
   // Step 3: Resolve layer URLs using the fetched asset map
   const resolveLayer = (layer: Layer): Layer => {

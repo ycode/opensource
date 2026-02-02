@@ -120,7 +120,7 @@ function inlineComponents(
       // Remove the componentId (it won't be valid in other projects)
       delete newLayer.componentId;
       // Set the component's layers as children (deep copy and process recursively)
-      newLayer.children = component.layers.map(child => 
+      newLayer.children = component.layers.map(child =>
         inlineComponents({ ...child }, componentsMap)
       );
     } else {
@@ -139,7 +139,7 @@ function inlineComponents(
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    
+
     const layoutKey = formData.get('layoutKey') as string;
     const layoutName = formData.get('layoutName') as string;
     const category = formData.get('category') as string;
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
         console.log(`[layouts API] Fetched components:`, Object.keys(componentsMap));
         template = inlineComponents(template, componentsMap);
         console.log(`✅ Inlined ${componentIds.length} component(s) for portability`);
-        
+
         // After inlining components, re-collect icon asset IDs since components may have icons
         // We need to inline those icons too
       } catch (error) {
@@ -175,10 +175,11 @@ export async function POST(request: NextRequest) {
 
     // Make icons portable: collect asset IDs and inline the SVG content
     // This runs after component inlining to catch icons inside components
+    // Uses draft assets (isPublished: false) since layouts are exported from the builder
     const iconAssetIds = collectIconAssetIds(template);
     if (iconAssetIds.length > 0) {
       try {
-        const assetsMap = await getAssetsByIds(iconAssetIds);
+        const assetsMap = await getAssetsByIds(iconAssetIds, false);
         template = inlineIconAssets(template, assetsMap);
         console.log(`✅ Inlined ${iconAssetIds.length} icon(s) for portability`);
       } catch (error) {
@@ -191,7 +192,7 @@ export async function POST(request: NextRequest) {
     let imageExtension = '.webp'; // default
     if (imageFile) {
       const layoutsDir = path.join(process.cwd(), 'public', 'layouts');
-      
+
       // Ensure layouts directory exists
       try {
         await fs.access(layoutsDir);
@@ -242,7 +243,7 @@ export async function POST(request: NextRequest) {
       const layoutsDir = path.join(process.cwd(), 'public', 'layouts');
       const oldImagePath = path.join(layoutsDir, `${layoutKey}${imageExtension}`);
       const newImagePath = path.join(layoutsDir, `${uniqueLayoutKey}${imageExtension}`);
-      
+
       try {
         await fs.rename(oldImagePath, newImagePath);
       } catch (error) {

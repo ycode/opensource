@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { bulkDeleteAssets, bulkUpdateAssets } from '@/lib/repositories/assetRepository';
 import { noCache } from '@/lib/api-response';
+import { cleanupAssetReferences, AffectedPageEntity, AffectedComponentEntity } from '@/lib/asset-usage-utils';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -28,10 +29,35 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'delete') {
+      // Clean up references for all assets before deletion
+      const cleanupPromises = ids.map((id: string) => cleanupAssetReferences(id));
+      const cleanupResults = await Promise.all(cleanupPromises);
+
+      // Aggregate affected entities (deduplicate by ID)
+      const affectedPagesMap = new Map<string, AffectedPageEntity>();
+      const affectedComponentsMap = new Map<string, AffectedComponentEntity>();
+
+      for (const cleanup of cleanupResults) {
+        for (const page of cleanup.affectedPages) {
+          // Keep the latest newLayers for each page
+          affectedPagesMap.set(page.pageId, page);
+        }
+        for (const component of cleanup.affectedComponents) {
+          // Keep the latest newLayers for each component
+          affectedComponentsMap.set(component.componentId, component);
+        }
+      }
+
       const result = await bulkDeleteAssets(ids);
 
       return noCache({
-        data: result,
+        data: {
+          ...result,
+          cleanup: {
+            affectedPages: Array.from(affectedPagesMap.values()),
+            affectedComponents: Array.from(affectedComponentsMap.values()),
+          },
+        },
       });
     }
 

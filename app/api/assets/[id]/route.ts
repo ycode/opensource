@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAssetById, updateAsset, deleteAsset } from '@/lib/repositories/assetRepository';
 import { noCache } from '@/lib/api-response';
 import { cleanSvgContent, isValidSvg } from '@/lib/file-upload';
+import { cleanupAssetReferences } from '@/lib/asset-usage-utils';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -147,11 +148,15 @@ export async function DELETE(
       );
     }
 
+    // Clean up all references to this asset in pages, components, and CMS items
+    const cleanupResult = await cleanupAssetReferences(id);
+    console.log(`[DELETE /api/assets/${id}] Cleaned up references:`, cleanupResult);
+
     // Delete the asset (removes from storage and database)
     await deleteAsset(id);
 
     return noCache(
-      { data: { success: true } },
+      { data: { success: true, cleanup: cleanupResult } },
       200
     );
   } catch (error) {

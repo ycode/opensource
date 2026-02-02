@@ -563,7 +563,10 @@ export interface Asset {
   source: string; // Required: identifies where the asset was uploaded from
   asset_folder_id?: string | null;
   content?: string | null; // Inline SVG content for icon assets
+  is_published: boolean;
   created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface AssetFolder {
