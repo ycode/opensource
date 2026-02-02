@@ -16,7 +16,7 @@ export interface PaginationContext {
   defaultPage?: number;
 }
 import { parseCollectionLinkValue, resolveCollectionLinkValue, looksLikeEmail, looksLikePhone } from '@/lib/link-utils';
-import { resolveInlineVariables } from '@/lib/inline-variables';
+import { resolveInlineVariables, resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { buildLayerTranslationKey, getTranslationByKey, hasValidTranslationValue, getTranslationValue } from '@/lib/localisation-utils';
 
 export interface PageData {
@@ -2228,6 +2228,43 @@ function layerToHtml(
     const imageAlt = layer.variables?.image?.alt;
     if (imageAlt && imageAlt.type === 'dynamic_text') {
       attrs.push(`alt="${escapeHtml(imageAlt.data.content)}"`);
+    }
+  }
+
+  // Handle YouTube video (VideoVariable with provider='youtube') - render as iframe
+  if (layer.name === 'video') {
+    const videoSrc = layer.variables?.video?.src;
+    if (videoSrc && videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
+      const rawVideoId = videoSrc.data.video_id || '';
+      // Resolve inline variables in video ID (supports CMS binding)
+      const videoId = resolveInlineVariablesFromData(rawVideoId, collectionItemData, pageCollectionItemData);
+      const privacyMode = layer.attributes?.youtubePrivacyMode === true;
+      const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';
+
+      // Build YouTube embed URL with parameters
+      const params: string[] = [];
+      if (layer.attributes?.autoplay === true) params.push('autoplay=1');
+      if (layer.attributes?.muted === true) params.push('mute=1');
+      if (layer.attributes?.loop === true) params.push(`loop=1&playlist=${videoId}`);
+      if (layer.attributes?.controls !== true) params.push('controls=0');
+
+      const embedUrl = `https://www.${domain}/embed/${videoId}${params.length > 0 ? '?' + params.join('&') : ''}`;
+
+      attrs.push(`src="${escapeHtml(embedUrl)}"`);
+      attrs.push('frameborder="0"');
+      attrs.push('allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"');
+      attrs.push('allowfullscreen');
+      attrs.push('data-layer-type="video"');
+
+      const attrsStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
+      const childrenHtml = layer.children
+        ? layer.children
+          .map((child) =>
+            layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, pageCollectionItemData, assetMap)
+          )
+          .join('')
+        : '';
+      return `<iframe${attrsStr}>${childrenHtml}</iframe>`;
     }
   }
 

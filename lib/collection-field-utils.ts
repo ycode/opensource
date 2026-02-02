@@ -359,6 +359,9 @@ export const AUDIO_FIELD_TYPES: CollectionFieldType[] = ['audio'];
 /** Field types that can be bound to video layers (video) */
 export const VIDEO_FIELD_TYPES: CollectionFieldType[] = ['video'];
 
+/** Field types that contain plain text values (for YouTube video IDs, etc.) */
+export const TEXT_FIELD_TYPES: CollectionFieldType[] = ['text'];
+
 /** Field types that can be bound to link layers for downloads (document fields) */
 export const DOCUMENT_FIELD_TYPES: CollectionFieldType[] = ['document'];
 

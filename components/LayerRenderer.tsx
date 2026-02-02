@@ -19,7 +19,7 @@ import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-uti
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { toast } from 'sonner';
-import { resolveInlineVariables } from '@/lib/inline-variables';
+import { resolveInlineVariables, resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { renderRichText, hasBlockElements, type RichTextLinkContext } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
@@ -1406,7 +1406,9 @@ const LayerItem: React.FC<{
 
         // YouTube video - render as iframe
         if (videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
-          const videoId = videoSrc.data.video_id || '';
+          const rawVideoId = videoSrc.data.video_id || '';
+          // Resolve inline variables in video ID (supports CMS binding)
+          const videoId = resolveInlineVariablesFromData(rawVideoId, effectiveCollectionItemData, pageCollectionItemData);
           // Use normalized attributes for consistency (already handles string/boolean conversion)
           const privacyMode = normalizedAttributes?.youtubePrivacyMode === true;
           const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';
@@ -1468,7 +1470,7 @@ const LayerItem: React.FC<{
           }
 
           return (
-            <iframe {...iframeProps} />
+            <iframe key={`youtube-${layer.id}-${videoId}`} {...iframeProps} />
           );
         }
       }
@@ -1744,7 +1746,7 @@ const LayerItem: React.FC<{
                   activeLayerId={activeLayerId}
                   projected={projected}
                   pageId={pageId}
-                  collectionItemData={item.values}
+                  collectionItemData={item.values || {}}
                   collectionItemId={item.id}
                   pageCollectionItemId={pageCollectionItemId}
                   pageCollectionItemData={pageCollectionItemData}
