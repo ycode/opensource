@@ -444,10 +444,13 @@ export default function ImageSettings(props: ImageSettingsProps) {
         const handleOpenFileManager = () => {
           openFileManager(
             (asset) => {
-              // Validate asset type
-              if (!asset.mime_type || !isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES)) {
+              // Validate asset type - allow both images and icons (SVGs)
+              const isImage = asset.mime_type && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.IMAGES);
+              const isSvg = asset.mime_type && isAssetOfType(asset.mime_type, ASSET_CATEGORIES.ICONS);
+              
+              if (!isImage && !isSvg) {
                 toast.error('Invalid asset type', {
-                  description: 'Please select an image file.',
+                  description: 'Please select an image or SVG file.',
                 });
                 return false; // Don't close file manager
               }
@@ -455,7 +458,8 @@ export default function ImageSettings(props: ImageSettingsProps) {
               handleImageChange(asset.id);
             },
             currentAssetId,
-            ASSET_CATEGORIES.IMAGES
+            // Pass undefined to show all file types, since we want both images and SVGs
+            undefined
           );
         };
 
