@@ -216,7 +216,7 @@ export function getVariableStringValue(
  */
 export function getImageUrlFromVariable(
   src: AssetVariable | FieldVariable | DynamicTextVariable | undefined | null,
-  getAsset?: (id: string) => { public_url: string | null } | null,
+  getAsset?: (id: string) => { public_url: string | null; content?: string | null } | null,
   resolveFieldValue?: (variable: FieldVariable, collectionItemData?: Record<string, string>) => string | undefined,
   collectionItemData?: Record<string, string>,
   useDefault: boolean = true
@@ -233,7 +233,15 @@ export function getImageUrlFromVariable(
     }
     if (!getAsset) return undefined;
     const asset = getAsset(src.data.asset_id);
-    return asset?.public_url || undefined;
+    // Return public_url if available, otherwise convert SVG content to data URL
+    if (asset?.public_url) {
+      return asset.public_url;
+    }
+    if (asset?.content) {
+      // Convert inline SVG content to data URL
+      return `data:image/svg+xml,${encodeURIComponent(asset.content)}`;
+    }
+    return undefined;
   }
 
   if (isFieldVariable(src)) {
@@ -246,6 +254,10 @@ export function getImageUrlFromVariable(
       const asset = getAsset(resolvedValue);
       if (asset?.public_url) {
         return asset.public_url;
+      }
+      // Also support SVG content for field variables
+      if (asset?.content) {
+        return `data:image/svg+xml,${encodeURIComponent(asset.content)}`;
       }
     }
 
