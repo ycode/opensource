@@ -2,16 +2,16 @@
 
 /**
  * useCanvasSiblingReorder Hook
- * 
+ *
  * Handles drag-and-drop reordering of sibling layers on the canvas.
  * Constrained to only allow reordering within the same parent container.
- * 
+ *
  * Features:
  * - Initiates drag from mousedown on selected layer in iframe
  * - Only detects siblings as valid drop targets
  * - Above/below positioning based on 50% vertical threshold
  * - Cannot move to different parents or nest into children
- * 
+ *
  * Performance optimizations (matching use-canvas-drop-detection):
  * - Uses refs to avoid re-creating callbacks
  * - Only updates store when drop target actually changes
@@ -80,6 +80,8 @@ interface UseCanvasSiblingReorderOptions {
   pageId: string | null;
   /** Currently selected layer ID (for drag initiation) */
   selectedLayerId: string | null;
+  /** When true, disables drag (e.g. during text edit mode so text selection works) */
+  disabled?: boolean;
   /** Callback when layers are reordered */
   onReorder?: (newLayers: Layer[]) => void;
   /** Callback when a layer is selected (for drag-to-select) */
@@ -92,6 +94,7 @@ export function useCanvasSiblingReorder({
   layers,
   pageId,
   selectedLayerId,
+  disabled = false,
   onReorder,
   onLayerSelect,
 }: UseCanvasSiblingReorderOptions) {
@@ -110,14 +113,14 @@ export function useCanvasSiblingReorder({
   const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const isPotentialDragRef = useRef(false);
   const hasDragStartedRef = useRef(false);
-  
+
   // Hit-testing state
   const currentDropTargetRef = useRef<{ layerId: string; position: 'above' | 'below' } | null>(null);
-  
+
   // RAF-based throttling for smooth hit-testing
   const rafRef = useRef<number | null>(null);
   const pendingHitTestRef = useRef<{ x: number; y: number } | null>(null);
-  
+
   // Cache of original sibling positions (captured at drag start, before any transforms)
   // This prevents feedback loops where shifted elements cause hit-test oscillation
   const cachedSiblingRectsRef = useRef<Map<string, { top: number; bottom: number; height: number }>>(new Map());
@@ -129,38 +132,38 @@ export function useCanvasSiblingReorder({
   const onLayerSelectRef = useRef(onLayerSelect);
   const zoomRef = useRef(zoom);
   const iframeRef = useRef(iframeElement);
-  
+
   // Track the layer being potentially dragged (may differ from selected)
   const potentialDragLayerIdRef = useRef<string | null>(null);
-  
+
   useEffect(() => {
     layersRef.current = layers;
   }, [layers]);
-  
+
   useEffect(() => {
     selectedLayerIdRef.current = selectedLayerId;
   }, [selectedLayerId]);
-  
+
   useEffect(() => {
     onReorderRef.current = onReorder;
   }, [onReorder]);
-  
+
   useEffect(() => {
     onLayerSelectRef.current = onLayerSelect;
   }, [onLayerSelect]);
-  
+
   useEffect(() => {
     zoomRef.current = zoom;
   }, [zoom]);
-  
+
   useEffect(() => {
     iframeRef.current = iframeElement;
   }, [iframeElement]);
 
-  // Set up drag initiation from iframe mousedown
+  // Set up drag initiation from iframe mousedown (skip when disabled, e.g. text edit mode)
   useEffect(() => {
-    if (!iframeElement) return;
-    
+    if (!iframeElement || disabled) return;
+
     const iframeDoc = iframeElement.contentDocument;
     if (!iframeDoc) return;
 
@@ -169,29 +172,29 @@ export function useCanvasSiblingReorder({
       const target = e.target as HTMLElement;
       const layerElement = target.closest('[data-layer-id]') as HTMLElement | null;
       const clickedLayerId = layerElement?.getAttribute('data-layer-id');
-      
+
       if (!clickedLayerId) {
         // Clicked on something that's not a layer - don't initiate drag
         return;
       }
-      
+
       // Store the layer being potentially dragged
       potentialDragLayerIdRef.current = clickedLayerId;
-      
+
       // Prevent text selection from starting during potential drag
       e.preventDefault();
-      
+
       // Convert iframe coordinates to window coordinates
       const currentIframe = iframeRef.current;
       let startX = e.clientX;
       let startY = e.clientY;
-      
+
       if (currentIframe) {
         const coords = iframeToWindowCoords(currentIframe, e.clientX, e.clientY);
         startX = coords.windowX;
         startY = coords.windowY;
       }
-      
+
       // Store start position in WINDOW coordinates for threshold check
       dragStartPosRef.current = { x: startX, y: startY };
       isPotentialDragRef.current = true;
@@ -202,11 +205,11 @@ export function useCanvasSiblingReorder({
       // Convert coordinates to window space if event came from iframe
       let clientX = e.clientX;
       let clientY = e.clientY;
-      
+
       // Check if event came from iframe document
       const eventDoc = e.target && (e.target as Node).ownerDocument;
       const isFromIframe = eventDoc !== document;
-      
+
       if (isFromIframe) {
         // Event is in iframe coordinates - convert to window coordinates
         const currentIframe = iframeRef.current;
@@ -216,12 +219,12 @@ export function useCanvasSiblingReorder({
           clientY = coords.windowY;
         }
       }
-      
+
       // If drag already started, perform hit-testing (RAF-throttled)
       if (hasDragStartedRef.current) {
         // Store the latest position
         pendingHitTestRef.current = { x: clientX, y: clientY };
-        
+
         // Only schedule RAF if not already pending
         if (rafRef.current === null) {
           rafRef.current = requestAnimationFrame(() => {
@@ -234,44 +237,44 @@ export function useCanvasSiblingReorder({
         }
         return;
       }
-      
+
       // Otherwise, check for drag initiation
       if (!isPotentialDragRef.current || !dragStartPosRef.current) return;
-      
+
       const dx = Math.abs(clientX - dragStartPosRef.current.x);
       const dy = Math.abs(clientY - dragStartPosRef.current.y);
-      
+
       // Check threshold
       if (dx >= DRAG_THRESHOLD || dy >= DRAG_THRESHOLD) {
         hasDragStartedRef.current = true;
-        
+
         // Clear any text selection that might have started
         const iframeDoc = iframeElement?.contentDocument;
         if (iframeDoc) {
           iframeDoc.getSelection()?.removeAllRanges();
         }
         window.getSelection()?.removeAllRanges();
-        
+
         // Prevent default to stop any ongoing selection
         e.preventDefault();
-        
+
         // Get sibling info and start the drag
         // Use the layer that was clicked (not necessarily the selected one)
         const currentLayers = layersRef.current;
         const dragLayerId = potentialDragLayerIdRef.current;
-        
+
         if (dragLayerId) {
           const siblingInfoData = getSiblingInfo(currentLayers, dragLayerId);
-          
+
           if (siblingInfoData) {
             const layer = findLayerById(currentLayers, dragLayerId);
             const layerName = layer?.name || 'Layer';
-            
+
             // Select the layer being dragged (if not already selected)
             if (onLayerSelectRef.current && dragLayerId !== selectedLayerIdRef.current) {
               onLayerSelectRef.current(dragLayerId);
             }
-            
+
             // Cache original sibling positions BEFORE any transforms are applied
             // This prevents hit-test oscillation from shifted elements
             // IMPORTANT: Convert iframe coords to window coords for comparison with clientX/Y
@@ -279,7 +282,7 @@ export function useCanvasSiblingReorder({
             const currentIframe = iframeRef.current;
             if (iframeDoc && currentIframe) {
               const scale = getIframeScale(currentIframe);
-              
+
               cachedSiblingRectsRef.current.clear();
               siblingInfoData.siblingIds.forEach(id => {
                 const el = iframeDoc.querySelector(`[data-layer-id="${id}"]`) as HTMLElement;
@@ -288,7 +291,7 @@ export function useCanvasSiblingReorder({
                   // Convert iframe-relative coords to window coords
                   const topCoords = iframeToWindowCoords(currentIframe, 0, rect.top);
                   const bottomCoords = iframeToWindowCoords(currentIframe, 0, rect.bottom);
-                  
+
                   cachedSiblingRectsRef.current.set(id, {
                     top: topCoords.windowY,
                     bottom: bottomCoords.windowY,
@@ -297,7 +300,7 @@ export function useCanvasSiblingReorder({
                 }
               });
             }
-            
+
             const startCanvasLayerDrag = useEditorStore.getState().startCanvasLayerDrag;
             startCanvasLayerDrag(
               dragLayerId,
@@ -308,7 +311,7 @@ export function useCanvasSiblingReorder({
               { x: clientX, y: clientY } // Pass current mouse position for ghost initial positioning
             );
             hasDragStartedRef.current = true;
-            
+
             // Set grabbing cursor immediately when drag starts
             // Pass both iframe doc AND iframe element for comprehensive cursor setting
             setDragCursor(iframeDoc, currentIframe);
@@ -316,72 +319,72 @@ export function useCanvasSiblingReorder({
         }
       }
     };
-    
+
     // Hit-testing function for sibling reorder
     // Uses CACHED original positions to prevent feedback loops from shifted elements
     const performHitTest = (clientX: number, clientY: number) => {
       const currentIframe = iframeRef.current;
       const currentZoom = zoomRef.current;
-      
+
       if (!currentIframe) return;
-      
+
       const state = useEditorStore.getState();
       const currentDraggedLayerId = state.draggedLayerId;
       const siblingIdsArray = state.siblingLayerIds;
       const originalIndex = state.draggedLayerOriginalIndex ?? 0;
-      
+
       if (!currentDraggedLayerId || siblingIdsArray.length === 0) return;
-      
+
       // Get fresh iframe rect (this doesn't change during drag)
       const iframeRect = currentIframe.getBoundingClientRect();
       const scale = currentZoom / 100;
-      
+
       // Check if cursor is over the iframe
-      const isOverIframe = clientX >= iframeRect.left && 
-                           clientX <= iframeRect.right && 
-                           clientY >= iframeRect.top && 
+      const isOverIframe = clientX >= iframeRect.left &&
+                           clientX <= iframeRect.right &&
+                           clientY >= iframeRect.top &&
                            clientY <= iframeRect.bottom;
-      
+
       // If not over iframe, keep the last valid drop target (free drag behavior)
       // The drop target is only cleared on explicit drag end or escape
       if (!isOverIframe) {
         return;
       }
-      
+
       // Use CACHED original positions for hit-testing (not live DOM)
       // This prevents oscillation caused by shifted elements changing their bounds
       const cachedRects = cachedSiblingRectsRef.current;
       if (cachedRects.size === 0) {
         return; // No cached positions yet
       }
-      
+
       // Find which sibling the cursor is over using cached positions
       // First pass: try exact match (cursor within element bounds)
       // Second pass: find closest element if cursor is in a gap
       let matchedLayerId: string | null = null;
       let matchedPosition: 'above' | 'below' = 'below';
-      
+
       // First pass: exact match
       for (let i = 0; i < siblingIdsArray.length; i++) {
         const siblingId = siblingIdsArray[i];
-        
+
         // Skip the dragged element
         if (siblingId === currentDraggedLayerId) continue;
-        
+
         const cachedRect = cachedRects.get(siblingId);
         if (!cachedRect) continue;
-        
+
         // Check if cursor Y is within this element's cached bounds
         if (clientY >= cachedRect.top && clientY <= cachedRect.bottom) {
           matchedLayerId = siblingId;
-          
+
           // Calculate above/below with hysteresis to prevent oscillation
           const relativeY = (clientY - cachedRect.top) / cachedRect.height;
-          
+
           // Check current position for this sibling
           const currentTarget = currentDropTargetRef.current;
           const isCurrentTarget = currentTarget?.layerId === siblingId;
-          
+
           if (isCurrentTarget) {
             // Apply hysteresis - only change if we've moved significantly past the threshold
             const currentPosition = currentTarget.position;
@@ -399,26 +402,26 @@ export function useCanvasSiblingReorder({
           break;
         }
       }
-      
+
       // Second pass: if no exact match (cursor in gap between elements), find closest sibling
       if (!matchedLayerId) {
         let closestDistance = Infinity;
         let closestSiblingId: string | null = null;
         let closestIsAbove = false;
-        
+
         for (let i = 0; i < siblingIdsArray.length; i++) {
           const siblingId = siblingIdsArray[i];
-          
+
           // Skip the dragged element
           if (siblingId === currentDraggedLayerId) continue;
-          
+
           const cachedRect = cachedRects.get(siblingId);
           if (!cachedRect) continue;
-          
+
           // Calculate distance to this element's center
           const elementCenter = (cachedRect.top + cachedRect.bottom) / 2;
           const distance = Math.abs(clientY - elementCenter);
-          
+
           if (distance < closestDistance) {
             closestDistance = distance;
             closestSiblingId = siblingId;
@@ -426,21 +429,21 @@ export function useCanvasSiblingReorder({
             closestIsAbove = clientY < elementCenter;
           }
         }
-        
+
         if (closestSiblingId) {
           matchedLayerId = closestSiblingId;
           matchedPosition = closestIsAbove ? 'above' : 'below';
         }
       }
-      
+
       // If still no match (e.g., no siblings other than dragged), keep last valid target
       if (!matchedLayerId) {
         return;
       }
-      
+
       // Calculate projected index
       const targetIndex = siblingIdsArray.indexOf(matchedLayerId);
-      
+
       let projectedIndex: number;
       if (targetIndex === -1) {
         projectedIndex = matchedPosition === 'above' ? 0 : siblingIdsArray.length;
@@ -454,13 +457,13 @@ export function useCanvasSiblingReorder({
           projectedIndex = projectedIndex - 1;
         }
       }
-      
+
       // Only update if target changed
       const newTargetKey = `${matchedLayerId}:${matchedPosition}`;
-      const currentTargetKey = currentDropTargetRef.current 
-        ? `${currentDropTargetRef.current.layerId}:${currentDropTargetRef.current.position}` 
+      const currentTargetKey = currentDropTargetRef.current
+        ? `${currentDropTargetRef.current.layerId}:${currentDropTargetRef.current.position}`
         : null;
-      
+
       if (newTargetKey !== currentTargetKey) {
         currentDropTargetRef.current = { layerId: matchedLayerId, position: matchedPosition };
         useEditorStore.getState().updateCanvasSiblingDropTarget({ layerId: matchedLayerId, position: matchedPosition, projectedIndex });
@@ -472,11 +475,11 @@ export function useCanvasSiblingReorder({
       isPotentialDragRef.current = false;
       dragStartPosRef.current = null;
       potentialDragLayerIdRef.current = null;
-      
+
       // If a drag was actually started, end it now
       if (hasDragStartedRef.current) {
         hasDragStartedRef.current = false;
-        
+
         // Read fresh state and handle drop
         const state = useEditorStore.getState();
         const { endCanvasLayerDrag, updateCanvasSiblingDropTarget } = state;
@@ -484,7 +487,7 @@ export function useCanvasSiblingReorder({
         const currentDraggedLayerId = state.draggedLayerId;
         const currentLayers = layersRef.current;
         const onReorderCallback = onReorderRef.current;
-        
+
         // Handle drop - reorder siblings if we have a valid target
         if (currentDropTarget && currentDraggedLayerId && onReorderCallback) {
           const newLayers = reorderSiblings(
@@ -495,17 +498,17 @@ export function useCanvasSiblingReorder({
           );
           onReorderCallback(newLayers);
         }
-        
+
         // Clear all state
         currentDropTargetRef.current = null;
         cachedSiblingRectsRef.current.clear();
         updateCanvasSiblingDropTarget(null);
         endCanvasLayerDrag();
-        
+
         // Reset cursor
         clearDragCursor(iframeElement?.contentDocument);
       }
-      
+
       hasDragStartedRef.current = false;
     };
 
@@ -534,14 +537,14 @@ export function useCanvasSiblingReorder({
       iframeDoc.removeEventListener('selectstart', handleSelectStart);
       document.removeEventListener('mousemove', handleDocumentMouseMove);
       document.removeEventListener('mouseup', handleDocumentMouseUp);
-      
+
       // Cancel any pending RAF
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
     };
-  }, [iframeElement]);
+  }, [iframeElement, disabled]);
 
   // Cleanup effect - reset state when drag is cancelled externally (e.g., Escape key)
   useEffect(() => {
@@ -550,7 +553,7 @@ export function useCanvasSiblingReorder({
       currentDropTargetRef.current = null;
       pendingHitTestRef.current = null;
       cachedSiblingRectsRef.current.clear();
-      
+
       // Cancel any pending RAF
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
@@ -569,11 +572,11 @@ export function useCanvasSiblingReorder({
         potentialDragLayerIdRef.current = null;
         currentDropTargetRef.current = null;
         cachedSiblingRectsRef.current.clear();
-        
+
         const { updateCanvasSiblingDropTarget, endCanvasLayerDrag } = useEditorStore.getState();
         updateCanvasSiblingDropTarget(null);
         endCanvasLayerDrag();
-        
+
         // Reset cursor
         clearDragCursor();
       }

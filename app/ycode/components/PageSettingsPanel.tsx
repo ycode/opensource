@@ -39,7 +39,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import Icon from '@/components/ui/icon';
-import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug, generateSlug, sanitizeSlug } from '@/lib/page-utils';
+import { getPageIcon, isHomepage, buildSlugPath, buildFolderPath, folderHasIndexPage, generateUniqueSlug, generateSlug, sanitizeSlug, isReservedRootSlug } from '@/lib/page-utils';
 import { isAssetOfType, ASSET_CATEGORIES } from '@/lib/asset-utils';
 import { Textarea } from '@/components/ui/textarea';
 import { uploadFileApi, deleteAssetApi } from '@/lib/api';
@@ -469,7 +469,7 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     // No unsaved changes, safe to change
     setCurrentPage(page);
     rejectedPageRef.current = null; // Clear rejected page since we're accepting a change
-     
+
   }, [page, currentPage, isSaving, name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImage, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, pendingImageFile]);
 
   // Initialize form when currentPage changes (after confirmation or when no unsaved changes)
@@ -1017,6 +1017,13 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       if (!isDynamicPage) {
         // Sanitize slug (remove trailing dashes) for comparison
         const trimmedSlug = sanitizeSlug(slug.trim(), false);
+
+        // Check for reserved slugs at root level
+        if (pageFolderId === null && isReservedRootSlug(trimmedSlug)) {
+          setError(`Slug "${trimmedSlug}" cannot be used inside the root folder.`);
+          return;
+        }
+
         const duplicateSlug = pages.find(
           (p) =>
             p.id !== currentPage?.id && // Exclude current page
