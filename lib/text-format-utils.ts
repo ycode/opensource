@@ -1,77 +1,13 @@
 import React from 'react';
 import type { TextStyle, DynamicRichTextVariable, LinkSettings } from '@/types';
 import { cn } from '@/lib/utils';
-import { formatDateInTimezone } from '@/lib/date-format-utils';
+import { formatFieldValue, resolveFieldFromSources } from '@/lib/cms-variables-utils';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
 
 /**
  * Context for resolving rich text links - re-exports LinkResolutionContext for backwards compatibility
  */
 export type RichTextLinkContext = LinkResolutionContext;
-
-/**
- * Resolve inline variables in a text string using collection item data
- * Replaces <ycode-inline-variable>{"type":"field","data":{"field_id":"...","field_type":"...","source":"page|collection"}}</ycode-inline-variable>
- * with actual field values from the appropriate data source
- * @param text - Text containing inline variable tags
- * @param collectionItemData - Data from collection layer items
- * @param pageCollectionItemData - Data from page collection (dynamic pages)
- * @param timezone - Optional timezone for formatting date values
- */
-function resolveInlineVariablesFromData(
-  text: string,
-  collectionItemData?: Record<string, string>,
-  pageCollectionItemData?: Record<string, string>,
-  timezone: string = 'UTC'
-): string {
-  if (!text) {
-    return '';
-  }
-
-  // If no data sources available, just remove the variable tags
-  if (!collectionItemData && !pageCollectionItemData) {
-    return text.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
-  }
-
-  const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
-  return text.replace(regex, (match, variableContent) => {
-    try {
-      const parsed = JSON.parse(variableContent.trim());
-
-      if (parsed.type === 'field' && parsed.data?.field_id) {
-        const fieldId = parsed.data.field_id;
-        const fieldType = parsed.data.field_type;
-        const source = parsed.data.source;
-
-        // Select the appropriate data source based on the source field
-        let fieldValue: string | undefined;
-        if (source === 'page') {
-          // Explicitly from page collection
-          fieldValue = pageCollectionItemData?.[fieldId];
-        } else if (source === 'collection') {
-          // Explicitly from collection layer
-          fieldValue = collectionItemData?.[fieldId];
-        } else {
-          // No source specified - try collection first, then page (backwards compatibility)
-          fieldValue = collectionItemData?.[fieldId] ?? pageCollectionItemData?.[fieldId];
-        }
-
-        if (!fieldValue) return '';
-
-        // Format date fields using timezone
-        if (fieldType === 'date') {
-          return formatDateInTimezone(fieldValue, timezone, 'display');
-        }
-
-        return fieldValue;
-      }
-    } catch {
-      // Invalid JSON or not a field variable, leave as is
-    }
-
-    return match;
-  });
-}
 
 /**
  * Get a human-readable label for a text style
@@ -222,44 +158,15 @@ function resolveVariableNode(
   timezone: string = 'UTC'
 ): string {
   if (node.attrs?.variable?.type === 'field' && node.attrs.variable.data?.field_id) {
-    const fieldId = node.attrs.variable.data.field_id;
-    const fieldType = node.attrs.variable.data.field_type;
-    const relationships = node.attrs.variable.data.relationships || [];
-    const source = node.attrs.variable.data.source;
-
-    // Select the appropriate data source based on the source field
-    let dataSource: Record<string, string> | undefined;
-    if (source === 'page') {
-      dataSource = pageCollectionItemData;
-    } else if (source === 'collection') {
-      dataSource = collectionItemData;
-    } else {
-      // No source specified - try collection first, then page (backwards compatibility)
-      dataSource = collectionItemData || pageCollectionItemData;
-    }
-
-    if (!dataSource) {
-      return '';
-    }
+    const { field_id, field_type, relationships = [], source } = node.attrs.variable.data;
 
     // Build the full path for relationship resolution
-    let fieldValue: string | undefined;
-    if (relationships.length > 0) {
-      const fullPath = [fieldId, ...relationships].join('.');
-      fieldValue = dataSource[fullPath];
-    } else {
-      // Simple field lookup
-      fieldValue = dataSource[fieldId];
-    }
+    const fieldPath = relationships.length > 0
+      ? [field_id, ...relationships].join('.')
+      : field_id;
 
-    if (!fieldValue) return '';
-
-    // Format date fields using timezone
-    if (fieldType === 'date') {
-      return formatDateInTimezone(fieldValue, timezone, 'display');
-    }
-
-    return fieldValue;
+    const fieldValue = resolveFieldFromSources(fieldPath, source, collectionItemData, pageCollectionItemData);
+    return formatFieldValue(fieldValue, field_type, timezone);
   }
 
   return '';

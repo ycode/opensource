@@ -19,7 +19,7 @@ import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-uti
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { toast } from 'sonner';
-import { resolveInlineVariables, resolveInlineVariablesFromData } from '@/lib/inline-variables';
+import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { renderRichText, hasBlockElements, type RichTextLinkContext } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
@@ -604,22 +604,8 @@ const LayerItem: React.FC<{
     if (textVariable?.type === 'dynamic_text') {
       const content = textVariable.data.content;
       if (content.includes('<ycode-inline-variable>')) {
-        // Use the embedded JSON resolver (client-safe)
-        if (effectiveCollectionItemData) {
-          const mockItem: any = {
-            id: 'temp',
-            collection_id: 'temp',
-            created_at: '',
-            updated_at: '',
-            deleted_at: null,
-            manual_order: 0,
-            is_published: true,
-            values: effectiveCollectionItemData,
-          };
-          return resolveInlineVariables(content, mockItem, timezone);
-        }
-        // No collection data - remove variables
-        return content.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+        // Resolve inline variables with timezone-aware date formatting
+        return resolveInlineVariablesFromData(content, effectiveCollectionItemData, pageCollectionItemData ?? undefined, timezone);
       }
       // No inline variables, return plain content
       return content;

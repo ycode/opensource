@@ -9,7 +9,7 @@
  */
 
 import type { AssetVariable, FieldVariable, DynamicTextVariable, DynamicRichTextVariable, StaticTextVariable, ComponentVariableValue } from '@/types';
-import { resolveInlineVariables } from '@/lib/inline-variables';
+import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { DEFAULT_ASSETS } from '@/lib/asset-constants';
 import { stringToTiptapContent } from '@/lib/text-format-utils';
 
@@ -268,19 +268,9 @@ export function getImageUrlFromVariable(
 
   if (isDynamicTextVariable(src)) {
     const content = src.data.content;
-    // Resolve inline variables if collectionItemData is available
-    if (content.includes('<ycode-inline-variable>') && collectionItemData) {
-      const mockItem: any = {
-        id: 'temp',
-        collection_id: 'temp',
-        created_at: '',
-        updated_at: '',
-        deleted_at: null,
-        manual_order: 0,
-        is_published: true,
-        values: collectionItemData,
-      };
-      return resolveInlineVariables(content, mockItem);
+    // Resolve inline variables if present
+    if (content.includes('<ycode-inline-variable>')) {
+      return resolveInlineVariablesFromData(content, collectionItemData);
     }
     return content;
   }
@@ -346,19 +336,9 @@ export function getVideoUrlFromVariable(
 
   if (isDynamicTextVariable(src)) {
     const content = src.data.content;
-    // Resolve inline variables if collectionItemData is available
-    if (content.includes('<ycode-inline-variable>') && collectionItemData) {
-      const mockItem: any = {
-        id: 'temp',
-        collection_id: 'temp',
-        created_at: '',
-        updated_at: '',
-        deleted_at: null,
-        manual_order: 0,
-        is_published: true,
-        values: collectionItemData,
-      };
-      return resolveInlineVariables(content, mockItem);
+    // Resolve inline variables if present
+    if (content.includes('<ycode-inline-variable>')) {
+      return resolveInlineVariablesFromData(content, collectionItemData);
     }
     return content;
   }

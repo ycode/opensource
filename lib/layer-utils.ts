@@ -6,7 +6,7 @@ import { Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, Col
 import { cn, generateId } from '@/lib/utils';
 import { iconExists, IconProps } from '@/components/ui/icon';
 import { getBlockIcon, getBlockName } from '@/lib/templates/blocks';
-import { resolveInlineVariables } from '@/lib/inline-variables';
+import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { getInheritedValue } from '@/lib/tailwind-class-mapper';
 import { cloneDeep } from 'lodash';
 import { layerHasLink, hasLinkInTree, hasRichTextLinks } from '@/lib/link-utils';
@@ -490,7 +490,7 @@ export function removeLayerById(layers: Layer[], id: string): Layer[] {
 /**
  * Reorder siblings within the same parent.
  * Moves a layer to be above or below a target sibling.
- * 
+ *
  * @param layers - The full layer tree
  * @param movedLayerId - ID of the layer being moved
  * @param targetSiblingId - ID of the sibling to drop relative to
@@ -551,12 +551,12 @@ export function reorderSiblings(
   const newLayers = layers.map(cloneLayer);
 
   // Find the parent in the cloned tree
-  const parentLayer = movedParentId 
-    ? findLayerById(newLayers, movedParentId) 
+  const parentLayer = movedParentId
+    ? findLayerById(newLayers, movedParentId)
     : null;
-  
+
   const childrenArray = parentLayer ? parentLayer.children : newLayers;
-  
+
   if (!childrenArray) {
     console.warn('[reorderSiblings] Parent has no children array');
     return layers;
@@ -595,7 +595,7 @@ export function reorderSiblings(
 
 /**
  * Get all sibling layer IDs for a given layer.
- * 
+ *
  * @param layers - The full layer tree
  * @param layerId - ID of the layer to find siblings for
  * @returns Array of sibling layer IDs (excluding the layer itself)
@@ -650,28 +650,16 @@ export function resolveFieldValue(
  */
 export function getTextWithBinding(
   layer: Layer,
-  collectionItemData?: Record<string, string>
+  collectionItemData?: Record<string, string>,
+  timezone: string = 'UTC'
 ): string | undefined {
   // Check variables.text (DynamicTextVariable with inline variables)
   const textVariable = layer.variables?.text;
   if (textVariable && textVariable.type === 'dynamic_text') {
     const content = textVariable.data.content;
     if (content.includes('<ycode-inline-variable>')) {
-      if (collectionItemData) {
-        const mockItem: any = {
-          id: 'temp',
-          collection_id: 'temp',
-          created_at: '',
-          updated_at: '',
-          deleted_at: null,
-          manual_order: 0,
-          is_published: true,
-          values: collectionItemData,
-        };
-        return resolveInlineVariables(content, mockItem);
-      }
-      // No collection data - remove variables
-      return content.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+      // Resolve inline variables with timezone-aware date formatting
+      return resolveInlineVariablesFromData(content, collectionItemData, null, timezone);
     }
     return content;
   }

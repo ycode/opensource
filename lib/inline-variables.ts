@@ -6,7 +6,10 @@
  */
 
 import type { CollectionItemWithValues } from '@/types';
-import { formatDateInTimezone } from '@/lib/date-format-utils';
+import { formatFieldValue, resolveFieldFromSources } from '@/lib/cms-variables-utils';
+
+/** Regex for matching inline variable tags (use with 'g' flag) */
+export const INLINE_VARIABLE_REGEX = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
 
 /**
  * Resolve inline variables in a text string
@@ -25,24 +28,13 @@ export function resolveInlineVariables(
     return text;
   }
 
-  const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
-  return text.replace(regex, (match, variableContent) => {
+  return text.replace(INLINE_VARIABLE_REGEX, (match, variableContent) => {
     try {
       const parsed = JSON.parse(variableContent.trim());
 
       if (parsed.type === 'field' && parsed.data?.field_id) {
-        const fieldId = parsed.data.field_id;
-        const fieldType = parsed.data.field_type;
-        const fieldValue = collectionItem.values[fieldId];
-
-        if (!fieldValue) return '';
-
-        // Format date fields using timezone
-        if (fieldType === 'date') {
-          return formatDateInTimezone(fieldValue, timezone, 'display');
-        }
-
-        return fieldValue;
+        const fieldValue = collectionItem.values[parsed.data.field_id];
+        return formatFieldValue(fieldValue, parsed.data.field_type, timezone);
       }
     } catch {
       // Invalid JSON or not a field variable, leave as is
@@ -66,36 +58,20 @@ export function resolveInlineVariablesFromData(
   if (!text) return '';
   if (!collectionItemData && !pageCollectionItemData) {
     // Remove variable tags if no data available
-    return text.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+    return text.replace(INLINE_VARIABLE_REGEX, '');
   }
 
-  const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
-  return text.replace(regex, (match, variableContent) => {
+  return text.replace(INLINE_VARIABLE_REGEX, (match, variableContent) => {
     try {
       const parsed = JSON.parse(variableContent.trim());
       if (parsed.type === 'field' && parsed.data?.field_id) {
-        const fieldId = parsed.data.field_id;
-        const fieldType = parsed.data.field_type;
-        const source = parsed.data.source;
-
-        let fieldValue: string | undefined;
-        if (source === 'page') {
-          fieldValue = pageCollectionItemData?.[fieldId];
-        } else if (source === 'collection') {
-          fieldValue = collectionItemData?.[fieldId];
-        } else {
-          // No explicit source - check collection first, then page
-          fieldValue = collectionItemData?.[fieldId] ?? pageCollectionItemData?.[fieldId];
-        }
-
-        if (!fieldValue) return '';
-
-        // Format date fields using timezone
-        if (fieldType === 'date') {
-          return formatDateInTimezone(fieldValue, timezone, 'display');
-        }
-
-        return fieldValue;
+        const fieldValue = resolveFieldFromSources(
+          parsed.data.field_id,
+          parsed.data.source,
+          collectionItemData,
+          pageCollectionItemData
+        );
+        return formatFieldValue(fieldValue, parsed.data.field_type, timezone);
       }
     } catch {
       // Invalid JSON
