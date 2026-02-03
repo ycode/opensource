@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import YCodeBuilder from './components/YCodeBuilderMain';
 import { useEditorUrl } from '@/hooks/use-editor-url';
@@ -32,9 +31,15 @@ export default function YCodeLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const { routeType } = useEditorUrl();
 
-  // Exclude preview routes from YCodeBuilder
-  // Preview routes should render independently without the editor UI
-  if (pathname?.startsWith('/ycode/preview')) {
+  // Exclude standalone routes from YCodeBuilder
+  // These routes should render independently without the editor UI
+  const prefixRoutes = ['/ycode/preview', '/ycode/devtools/'];
+  const exactRoutes = ['/ycode/welcome', '/ycode/accept-invite'];
+
+  if (
+    prefixRoutes.some(route => pathname?.startsWith(route))
+    || exactRoutes.includes(pathname || '')
+  ) {
     return <>{children}</>;
   }
 
