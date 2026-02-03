@@ -50,28 +50,29 @@ export async function up(knex: Knex): Promise<void> {
 
   // RLS policies - submissions can be created by anyone (public forms)
   // but only viewed/managed by authenticated users
+  // INSERT policy requires status = 'new' to prevent abuse
   await knex.schema.raw(`
     CREATE POLICY "Anyone can create form submissions"
       ON form_submissions FOR INSERT
-      WITH CHECK (true)
+      WITH CHECK (status = 'new')
   `);
 
   await knex.schema.raw(`
     CREATE POLICY "Authenticated users can view form submissions"
       ON form_submissions FOR SELECT
-      USING (auth.uid() IS NOT NULL)
+      USING ((SELECT auth.uid()) IS NOT NULL)
   `);
 
   await knex.schema.raw(`
     CREATE POLICY "Authenticated users can update form submissions"
       ON form_submissions FOR UPDATE
-      USING (auth.uid() IS NOT NULL)
+      USING ((SELECT auth.uid()) IS NOT NULL)
   `);
 
   await knex.schema.raw(`
     CREATE POLICY "Authenticated users can delete form submissions"
       ON form_submissions FOR DELETE
-      USING (auth.uid() IS NOT NULL)
+      USING ((SELECT auth.uid()) IS NOT NULL)
   `);
 }
 

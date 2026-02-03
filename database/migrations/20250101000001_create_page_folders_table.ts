@@ -42,23 +42,42 @@ export async function up(knex: Knex): Promise<void> {
   await knex.schema.raw('ALTER TABLE page_folders ENABLE ROW LEVEL SECURITY');
 
   // Create RLS policies
+  // Single SELECT policy: public can view published OR authenticated can view all
   await knex.schema.raw(`
-    CREATE POLICY "Public can view published folders"
+    CREATE POLICY "Page folders are viewable"
       ON page_folders FOR SELECT
-      USING (is_published = true AND deleted_at IS NULL)
+      USING (
+        (is_published = true AND deleted_at IS NULL)
+        OR (SELECT auth.uid()) IS NOT NULL
+      )
+  `);
+
+  // Authenticated users can INSERT/UPDATE/DELETE
+  await knex.schema.raw(`
+    CREATE POLICY "Authenticated users can modify page folders"
+      ON page_folders FOR INSERT
+      WITH CHECK ((SELECT auth.uid()) IS NOT NULL)
   `);
 
   await knex.schema.raw(`
-    CREATE POLICY "Authenticated users can manage folders"
-      ON page_folders FOR ALL
-      USING (auth.uid() IS NOT NULL)
+    CREATE POLICY "Authenticated users can update page folders"
+      ON page_folders FOR UPDATE
+      USING ((SELECT auth.uid()) IS NOT NULL)
+  `);
+
+  await knex.schema.raw(`
+    CREATE POLICY "Authenticated users can delete page folders"
+      ON page_folders FOR DELETE
+      USING ((SELECT auth.uid()) IS NOT NULL)
   `);
 }
 
 export async function down(knex: Knex): Promise<void> {
   // Drop policies first
-  await knex.schema.raw('DROP POLICY IF EXISTS "Public can view published folders" ON page_folders');
-  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can manage folders" ON page_folders');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Page folders are viewable" ON page_folders');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can modify page folders" ON page_folders');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can update page folders" ON page_folders');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can delete page folders" ON page_folders');
 
   // Drop table
   await knex.schema.dropTableIfExists('page_folders');

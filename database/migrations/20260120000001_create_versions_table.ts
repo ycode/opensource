@@ -69,19 +69,19 @@ export async function up(knex: Knex): Promise<void> {
   await knex.schema.raw(`
     CREATE POLICY "Authenticated users can view versions"
       ON versions FOR SELECT
-      USING (auth.uid() IS NOT NULL)
+      USING ((SELECT auth.uid()) IS NOT NULL)
   `);
 
   await knex.schema.raw(`
     CREATE POLICY "Authenticated users can create versions"
       ON versions FOR INSERT
-      WITH CHECK (auth.uid() IS NOT NULL)
+      WITH CHECK ((SELECT auth.uid()) IS NOT NULL)
   `);
 
   await knex.schema.raw(`
     CREATE POLICY "Authenticated users can update versions"
       ON versions FOR UPDATE
-      USING (auth.uid() IS NOT NULL)
+      USING ((SELECT auth.uid()) IS NOT NULL)
   `);
 }
 

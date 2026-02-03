@@ -36,7 +36,6 @@ export async function up(knex: Knex): Promise<void> {
 
   // Create indexes (partial indexes for soft delete support)
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_page_id ON page_layers(page_id, is_published) WHERE deleted_at IS NULL');
-  await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_published ON page_layers(page_id, is_published) WHERE deleted_at IS NULL');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_content_hash ON page_layers(content_hash)');
   await knex.schema.raw('CREATE INDEX IF NOT EXISTS idx_page_layers_layers ON page_layers USING GIN (layers) WHERE deleted_at IS NULL');
 
@@ -44,25 +43,42 @@ export async function up(knex: Knex): Promise<void> {
   await knex.schema.raw('ALTER TABLE page_layers ENABLE ROW LEVEL SECURITY');
 
   // Create RLS policies
+  // Single SELECT policy: public can view published layers with published pages OR authenticated can view all
   await knex.schema.raw(`
-    CREATE POLICY "Public can view published layers"
+    CREATE POLICY "Page layers are viewable"
       ON page_layers FOR SELECT
       USING (
-        is_published = TRUE
-        AND deleted_at IS NULL
-        AND EXISTS (
-          SELECT 1 FROM pages
-          WHERE pages.id = page_layers.page_id
-          AND pages.is_published = true
-          AND pages.deleted_at IS NULL
+        (
+          is_published = TRUE
+          AND deleted_at IS NULL
+          AND EXISTS (
+            SELECT 1 FROM pages
+            WHERE pages.id = page_layers.page_id
+            AND pages.is_published = true
+            AND pages.deleted_at IS NULL
+          )
         )
+        OR (SELECT auth.uid()) IS NOT NULL
       )
   `);
 
+  // Authenticated users can INSERT/UPDATE/DELETE
   await knex.schema.raw(`
-    CREATE POLICY "Authenticated users can manage layers"
-      ON page_layers FOR ALL
-      USING (auth.uid() IS NOT NULL)
+    CREATE POLICY "Authenticated users can modify page layers"
+      ON page_layers FOR INSERT
+      WITH CHECK ((SELECT auth.uid()) IS NOT NULL)
+  `);
+
+  await knex.schema.raw(`
+    CREATE POLICY "Authenticated users can update page layers"
+      ON page_layers FOR UPDATE
+      USING ((SELECT auth.uid()) IS NOT NULL)
+  `);
+
+  await knex.schema.raw(`
+    CREATE POLICY "Authenticated users can delete page layers"
+      ON page_layers FOR DELETE
+      USING ((SELECT auth.uid()) IS NOT NULL)
   `);
 
   // Create default homepage with initial draft layers
@@ -176,8 +192,10 @@ export async function up(knex: Knex): Promise<void> {
 
 export async function down(knex: Knex): Promise<void> {
   // Drop policies
-  await knex.schema.raw('DROP POLICY IF EXISTS "Public can view published layers" ON page_layers');
-  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can manage layers" ON page_layers');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Page layers are viewable" ON page_layers');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can modify page layers" ON page_layers');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can update page layers" ON page_layers');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can delete page layers" ON page_layers');
 
   // Drop table
   await knex.schema.dropTableIfExists('page_layers');
