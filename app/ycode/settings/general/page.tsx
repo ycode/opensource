@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -18,16 +18,25 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { ButtonGroup } from '@/components/ui/button-group';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import type { SitemapSettings, SitemapMode, SitemapChangeFrequency } from '@/types';
+import { useAssetsStore } from '@/stores/useAssetsStore';
+import type { SitemapSettings, SitemapMode, SitemapChangeFrequency, Asset } from '@/types';
 import { getDefaultSitemapSettings } from '@/lib/sitemap-utils';
+import { getTimezoneOptions } from '@/lib/setting-utils';
+import { getDetectedTimezone, isCloudVersion } from '@/lib/utils';
+import { Icon } from '@/components/ui/icon';
+import FileManagerDialog from '../../components/FileManagerDialog';
+import { toast } from 'sonner';
+import { ASSET_CATEGORIES } from '@/lib/asset-constants';
 
 export default function GeneralSettingsPage() {
   const [activeTab, setActiveTab] = useState('website');
-  const { getSettingByKey, updateSetting } = useSettingsStore();
+  const { getSettingByKey, saveSettings } = useSettingsStore();
 
   // Initialize sitemap settings from store
   const storedSitemapSettings = getSettingByKey('sitemap') as SitemapSettings | null;
@@ -57,6 +66,58 @@ export default function GeneralSettingsPage() {
   const [customCodeBody, setCustomCodeBody] = useState(storedCustomCodeBody || '');
   const [isSavingCustomCode, setIsSavingCustomCode] = useState(false);
 
+  // Initialize YCode badge from store
+  const storedYcodeBadge = getSettingByKey('ycode_badge') as boolean | null;
+  const [ycodeBadge, setYcodeBadge] = useState(storedYcodeBadge ?? true);
+  const [isSavingWebsite, setIsSavingWebsite] = useState(false);
+
+  // Initialize timezone from store (default UTC)
+  const storedTimezone = getSettingByKey('timezone') as string | null;
+  const [timezone, setTimezone] = useState(storedTimezone ?? 'UTC');
+  const timezoneOptions = useMemo(() => getTimezoneOptions(), []);
+
+  // Initialize favicon and web clip from store
+  const storedFaviconAssetId = getSettingByKey('favicon_asset_id') as string | null;
+  const storedWebClipAssetId = getSettingByKey('web_clip_asset_id') as string | null;
+  const [faviconAssetId, setFaviconAssetId] = useState(storedFaviconAssetId || '');
+  const [webClipAssetId, setWebClipAssetId] = useState(storedWebClipAssetId || '');
+
+  // File manager dialog state
+  const [fileManagerOpen, setFileManagerOpen] = useState(false);
+  const [fileManagerMode, setFileManagerMode] = useState<'favicon' | 'webclip'>('favicon');
+
+  // Assets store for getting asset details
+  const assetsById = useAssetsStore((state) => state.assetsById);
+  const addAssetsToCache = useAssetsStore((state) => state.addAssetsToCache);
+
+  // Fetch assets on mount if not already in cache
+  useEffect(() => {
+    const idsToFetch = [faviconAssetId, webClipAssetId].filter(
+      (id) => id && !assetsById[id]
+    );
+
+    if (idsToFetch.length === 0) return;
+
+    // Fetch missing assets
+    Promise.all(
+      idsToFetch.map((id) =>
+        fetch(`/ycode/api/assets/${id}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((result) => result?.data as Asset | null)
+          .catch(() => null)
+      )
+    ).then((fetchedAssets) => {
+      const validAssets = fetchedAssets.filter((a): a is Asset => a !== null);
+      if (validAssets.length > 0) {
+        addAssetsToCache(validAssets);
+      }
+    });
+  }, [faviconAssetId, webClipAssetId, assetsById, addAssetsToCache]);
+
+  // Get asset details for display
+  const faviconAsset = faviconAssetId ? assetsById[faviconAssetId] : null;
+  const webClipAsset = webClipAssetId ? assetsById[webClipAssetId] : null;
+
   // Derive activeSeoTab from sitemap mode
   const activeSeoTab = sitemapSettings.mode === 'auto'
     ? 'ycode-sitemap'
@@ -82,71 +143,96 @@ export default function GeneralSettingsPage() {
     updateSitemapSetting('mode', mode);
   }, [updateSitemapSetting]);
 
-  // Save SEO settings to server in a single batch request
+  // Save SEO settings
   const saveSeoSettings = useCallback(async () => {
     setIsSaving(true);
-    try {
-      const response = await fetch('/ycode/api/settings/batch', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          settings: {
-            sitemap: sitemapSettings,
-            robots_txt: robotsTxt,
-            llms_txt: llmsTxt,
-            ga_measurement_id: gaMeasurementId,
-            google_site_verification: googleSiteVerification,
-            global_canonical_url: globalCanonicalUrl,
-          },
-        }),
-      });
+    await saveSettings({
+      sitemap: sitemapSettings,
+      robots_txt: robotsTxt,
+      llms_txt: llmsTxt,
+      ga_measurement_id: gaMeasurementId,
+      google_site_verification: googleSiteVerification,
+      global_canonical_url: globalCanonicalUrl,
+    });
+    setIsSaving(false);
+  }, [saveSettings, sitemapSettings, robotsTxt, llmsTxt, gaMeasurementId, googleSiteVerification, globalCanonicalUrl]);
 
-      if (!response.ok) {
-        throw new Error('Failed to save SEO settings');
-      }
-
-      // Update local store
-      updateSetting('sitemap', sitemapSettings);
-      updateSetting('robots_txt', robotsTxt);
-      updateSetting('llms_txt', llmsTxt);
-      updateSetting('ga_measurement_id', gaMeasurementId);
-      updateSetting('google_site_verification', googleSiteVerification);
-      updateSetting('global_canonical_url', globalCanonicalUrl);
-    } catch (error) {
-      console.error('Error saving SEO settings:', error);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [sitemapSettings, robotsTxt, llmsTxt, gaMeasurementId, googleSiteVerification, globalCanonicalUrl, updateSetting]);
-
-  // Save custom code settings to server
+  // Save custom code settings
   const saveCustomCodeSettings = useCallback(async () => {
     setIsSavingCustomCode(true);
-    try {
-      const response = await fetch('/ycode/api/settings/batch', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          settings: {
-            custom_code_head: customCodeHead,
-            custom_code_body: customCodeBody,
-          },
-        }),
-      });
+    await saveSettings({
+      custom_code_head: customCodeHead,
+      custom_code_body: customCodeBody,
+    });
+    setIsSavingCustomCode(false);
+  }, [saveSettings, customCodeHead, customCodeBody]);
 
-      if (!response.ok) {
-        throw new Error('Failed to save custom code settings');
-      }
+  // Save website settings
+  const saveWebsiteSettings = useCallback(async () => {
+    setIsSavingWebsite(true);
+    await saveSettings({
+      ycode_badge: ycodeBadge,
+      timezone,
+      favicon_asset_id: faviconAssetId || null,
+      web_clip_asset_id: webClipAssetId || null,
+    });
+    setIsSavingWebsite(false);
+  }, [saveSettings, ycodeBadge, timezone, faviconAssetId, webClipAssetId]);
 
-      // Update local store
-      updateSetting('custom_code_head', customCodeHead);
-      updateSetting('custom_code_body', customCodeBody);
-    } catch (error) {
-      console.error('Error saving custom code settings:', error);
-    } finally {
-      setIsSavingCustomCode(false);
+  const handleDetectTimezone = useCallback(() => {
+    const detected = getDetectedTimezone();
+    if (detected) setTimezone(detected);
+  }, []);
+
+  // Open file manager for favicon or web clip selection
+  const handleOpenFileManager = useCallback((mode: 'favicon' | 'webclip') => {
+    setFileManagerMode(mode);
+    setFileManagerOpen(true);
+  }, []);
+
+  // Handle asset selection from file manager with size validation
+  const handleAssetSelect = useCallback((asset: Asset) => {
+    const minSize = fileManagerMode === 'favicon' ? 32 : 256;
+    const label = fileManagerMode === 'favicon' ? 'Favicon' : 'Web clip';
+
+    // Validate image type
+    if (!asset.mime_type?.startsWith('image/')) {
+      toast.error(`${label} must be an image file`);
+      return false;
     }
-  }, [customCodeHead, customCodeBody, updateSetting]);
+
+    // Validate dimensions
+    if (!asset.width || !asset.height) {
+      toast.error(`Unable to determine image dimensions`);
+      return false;
+    }
+
+    if (asset.width < minSize || asset.height < minSize) {
+      toast.error(`${label} must be at least ${minSize}x${minSize} pixels`, {
+        description: `Selected image is ${asset.width}x${asset.height} pixels`,
+      });
+      return false;
+    }
+
+    // Set the asset ID
+    if (fileManagerMode === 'favicon') {
+      setFaviconAssetId(asset.id);
+    } else {
+      setWebClipAssetId(asset.id);
+    }
+
+    setFileManagerOpen(false);
+    return false; // Prevent default file manager behavior
+  }, [fileManagerMode]);
+
+  // Remove favicon or web clip
+  const handleRemoveAsset = useCallback((mode: 'favicon' | 'webclip') => {
+    if (mode === 'favicon') {
+      setFaviconAssetId('');
+    } else {
+      setWebClipAssetId('');
+    }
+  }, []);
 
   return (
     <div className="p-8">
@@ -170,39 +256,57 @@ export default function GeneralSettingsPage() {
               </div>
 
               <div className="col-span-2 grid grid-cols-2 gap-5">
-                <Field>
-                  <FieldLabel htmlFor="project-name">
-                    Project name
-                  </FieldLabel>
-                  <Input
-                    id="project-name"
-                    placeholder="My website"
-                    required
-                  />
-                </Field>
+                {isCloudVersion() && (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor="project-name">
+                        Project name
+                      </FieldLabel>
+                      <Input
+                        id="project-name"
+                        placeholder="My website"
+                        required
+                      />
+                    </Field>
 
-                <Field>
-                  <FieldLabel htmlFor="subdomain">
-                    Subdomain
-                  </FieldLabel>
-                  <Input
-                    id="subdomain"
-                    placeholder="website"
-                    required
-                  />
-                </Field>
+                    <Field>
+                      <FieldLabel htmlFor="subdomain">
+                        Subdomain
+                      </FieldLabel>
+                      <Input
+                        id="subdomain"
+                        placeholder="website"
+                        required
+                      />
+                    </Field>
 
-                <FieldSeparator className="col-span-2" />
+                    <FieldSeparator className="col-span-2" />
+                  </>
+                )}
 
                 <div className="col-span-2 flex items-center gap-6">
-                  <div className="size-28 bg-secondary/20 rounded-lg flex items-center justify-center shrink-0">
-                    <Image
-                      src={'/y-filled.svg'}
-                      alt="Favicon preview"
-                      width={32}
-                      height={32}
-                      className="size-8"
-                    />
+                  <div className="size-28 bg-secondary/20 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+                    {faviconAsset?.public_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={faviconAsset.public_url}
+                        alt="Favicon preview"
+                        className="size-8 object-contain"
+                      />
+                    ) : faviconAsset?.content ? (
+                      <div
+                        className="size-8 text-foreground"
+                        dangerouslySetInnerHTML={{ __html: faviconAsset.content }}
+                      />
+                    ) : (
+                      <Image
+                        src={'/y-filled.svg'}
+                        alt="Favicon preview"
+                        width={32}
+                        height={32}
+                        className="size-8"
+                      />
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -210,24 +314,49 @@ export default function GeneralSettingsPage() {
                       Favicon
                     </FieldLabel>
                     <FieldDescription>
-                      32 x 32 pixels. ICO, PNG, GIF, SVG, or JPG.
+                      32 x 32 pixels minimum. ICO, PNG, GIF, SVG, or JPG.
                     </FieldDescription>
-                    <Button
-                      size="sm" variant="secondary"
-                      className="w-fit"
-                    >Upload</Button>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="w-fit"
+                        onClick={() => handleOpenFileManager('favicon')}
+                      >
+                        {faviconAssetId ? 'Change' : 'Select'}
+                      </Button>
+                      {faviconAssetId && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-fit"
+                          onClick={() => handleRemoveAsset('favicon')}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="col-span-2 flex items-center gap-6">
-                  <div className="size-28 bg-secondary/20 rounded-lg flex items-center justify-center shrink-0">
-                    <Image
-                      src={'/ycode-webclip.png'}
-                      alt="Web clip preview"
-                      width={64}
-                      height={64}
-                      className="size-16 rounded-[10px]"
-                    />
+                  <div className="size-28 bg-secondary/20 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+                    {webClipAsset?.public_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={webClipAsset.public_url}
+                        alt="Web clip preview"
+                        className="size-16 rounded-[10px] object-cover"
+                      />
+                    ) : (
+                      <Image
+                        src={'/ycode-webclip.png'}
+                        alt="Web clip preview"
+                        width={64}
+                        height={64}
+                        className="size-16 rounded-[10px]"
+                      />
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -235,12 +364,28 @@ export default function GeneralSettingsPage() {
                       Web clip
                     </FieldLabel>
                     <FieldDescription>
-                      256 x 256 pixels. Shown when web URLs are saved to a phone&apos;s home screen or browser bookmarks.
+                      256 x 256 pixels minimum. Shown when web URLs are saved to a phone&apos;s home screen or browser bookmarks.
                     </FieldDescription>
-                    <Button
-                      size="sm" variant="secondary"
-                      className="w-fit"
-                    >Upload</Button>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="w-fit"
+                        onClick={() => handleOpenFileManager('webclip')}
+                      >
+                        {webClipAssetId ? 'Change' : 'Select'}
+                      </Button>
+                      {webClipAssetId && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-fit"
+                          onClick={() => handleRemoveAsset('webclip')}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -250,16 +395,33 @@ export default function GeneralSettingsPage() {
                   <FieldLabel htmlFor="timezone">
                     Timezone
                   </FieldLabel>
-                  <Select defaultValue="">
-                    <SelectTrigger id="timezone">
-                      <SelectValue placeholder="[GMT+3:00] Europe/Vilnius" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">[GMT+3:00] Europe/Vilnius</SelectItem>
-                      <SelectItem value="2">[GMT+3:00] Europe/Vilnius</SelectItem>
-                      <SelectItem value="3">[GMT+3:00] Europe/Vilnius</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <ButtonGroup className="w-full">
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="secondary"
+                      className="shrink-0 rounded-lg"
+                      onClick={handleDetectTimezone}
+                      aria-label="Detect timezone automatically"
+                    >
+                      <Icon name="map" className="size-3.5" />
+                    </Button>
+
+                    <Separator orientation="vertical" className="self-stretch" />
+
+                    <Select value={timezone || undefined} onValueChange={setTimezone}>
+                      <SelectTrigger id="timezone" className="flex-1">
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {timezoneOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </ButtonGroup>
                 </Field>
 
                 <FieldSeparator className="col-span-2" />
@@ -268,16 +430,28 @@ export default function GeneralSettingsPage() {
                   <FieldContent>
                     <FieldLabel htmlFor="badge">Display the &ldquo;Made in Ycode&rdquo; badge</FieldLabel>
                     <FieldDescription>
-                      Upgrade to a project plan in order to disable the badge.
+                      {isCloudVersion()
+                        ? 'Upgrade to a project plan in order to disable the badge.'
+                        : 'Help support Ycode by displaying this badge on your website.'}
                     </FieldDescription>
                   </FieldContent>
-                  <Switch id="badge" />
+                  <Switch
+                    id="badge"
+                    checked={ycodeBadge}
+                    onCheckedChange={setYcodeBadge}
+                  />
                 </Field>
 
                 <FieldSeparator className="col-span-2" />
 
                 <div className="col-span-2 flex justify-end">
-                  <Button size="sm">Save changes</Button>
+                  <Button
+                    size="sm"
+                    onClick={saveWebsiteSettings}
+                    disabled={isSavingWebsite}
+                  >
+                    {isSavingWebsite ? 'Saving...' : 'Save changes'}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -471,7 +645,6 @@ export default function GeneralSettingsPage() {
               </div>
 
               <div className="col-span-2 grid grid-cols-2 gap-8">
-
                 <Field className="col-span-2">
                   <FieldLabel htmlFor="global-code-head">
                     Header
@@ -520,6 +693,14 @@ export default function GeneralSettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* File Manager Dialog for favicon/web clip selection */}
+      <FileManagerDialog
+        open={fileManagerOpen}
+        onOpenChange={setFileManagerOpen}
+        onAssetSelect={handleAssetSelect}
+        category={ASSET_CATEGORIES.IMAGES}
+      />
     </div>
   );
 }

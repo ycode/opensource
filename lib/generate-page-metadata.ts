@@ -12,6 +12,7 @@ import type { Page } from '@/types';
 import type { CollectionItemWithValues } from '@/types';
 import { resolveInlineVariables, resolveImageUrl } from '@/lib/resolve-cms-variables';
 import { getSettingsByKeys } from '@/lib/repositories/settingsRepository';
+import { getAssetById } from '@/lib/repositories/assetRepository';
 
 /**
  * Global page render settings fetched once per page render
@@ -23,6 +24,9 @@ export interface GlobalPageSettings {
   publishedCss?: string | null;
   globalCustomCodeHead?: string | null;
   globalCustomCodeBody?: string | null;
+  ycodeBadge?: boolean;
+  faviconUrl?: string | null;
+  webClipUrl?: string | null;
 }
 
 /** @deprecated Use GlobalPageSettings instead */
@@ -59,7 +63,32 @@ export const fetchGlobalPageSettings = cache(async (): Promise<GlobalPageSetting
     'published_css',
     'custom_code_head',
     'custom_code_body',
+    'ycode_badge',
+    'favicon_asset_id',
+    'web_clip_asset_id',
   ]);
+
+  // Fetch favicon and web clip asset URLs if IDs are set
+  let faviconUrl: string | null = null;
+  let webClipUrl: string | null = null;
+
+  if (settings.favicon_asset_id) {
+    try {
+      const asset = await getAssetById(settings.favicon_asset_id, true);
+      faviconUrl = asset?.public_url || null;
+    } catch {
+      // Ignore errors fetching favicon
+    }
+  }
+
+  if (settings.web_clip_asset_id) {
+    try {
+      const asset = await getAssetById(settings.web_clip_asset_id, true);
+      webClipUrl = asset?.public_url || null;
+    } catch {
+      // Ignore errors fetching web clip
+    }
+  }
 
   return {
     googleSiteVerification: settings.google_site_verification || null,
@@ -68,6 +97,9 @@ export const fetchGlobalPageSettings = cache(async (): Promise<GlobalPageSetting
     publishedCss: settings.published_css || null,
     globalCustomCodeHead: settings.custom_code_head || null,
     globalCustomCodeBody: settings.custom_code_body || null,
+    ycodeBadge: settings.ycode_badge ?? true,
+    faviconUrl,
+    webClipUrl,
   };
 });
 
@@ -134,6 +166,18 @@ export async function generatePageMetadata(
       metadata.alternates = {
         canonical: canonicalUrl,
       };
+    }
+
+    // Add custom favicon and web clip (apple-touch-icon) from settings
+    // Default favicon is handled by app/icon.svg
+    if (seoSettings.faviconUrl || seoSettings.webClipUrl) {
+      metadata.icons = {};
+      if (seoSettings.faviconUrl) {
+        metadata.icons.icon = seoSettings.faviconUrl;
+      }
+      if (seoSettings.webClipUrl) {
+        metadata.icons.apple = seoSettings.webClipUrl;
+      }
     }
   }
 

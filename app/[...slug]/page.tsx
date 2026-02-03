@@ -260,6 +260,7 @@ export default async function Page({ params, searchParams }: PageProps) {
       gaMeasurementId={globalSettings.gaMeasurementId}
       globalCustomCodeHead={globalSettings.globalCustomCodeHead}
       globalCustomCodeBody={globalSettings.globalCustomCodeBody}
+      ycodeBadge={globalSettings.ycodeBadge}
     />
   );
 }

@@ -126,6 +126,7 @@ export async function setSetting(key: string, value: any): Promise<Setting> {
 
 /**
  * Set multiple settings at once (batch upsert)
+ * Settings with null/undefined values are deleted instead of upserted.
  *
  * @param settings - Object with key-value pairs to store
  * @returns Promise resolving to the number of settings updated
@@ -141,22 +142,49 @@ export async function setSettings(settings: Record<string, any>): Promise<number
     throw new Error('Failed to initialize Supabase client');
   }
 
-  const now = new Date().toISOString();
-  const records = entries.map(([key, value]) => ({
-    key,
-    value,
-    updated_at: now,
-  }));
+  // Separate entries: null/undefined values should be deleted, others upserted
+  const toUpsert: [string, any][] = [];
+  const toDelete: string[] = [];
 
-  const { error } = await client
-    .from('settings')
-    .upsert(records, {
-      onConflict: 'key',
-    });
-
-  if (error) {
-    throw new Error(`Failed to set settings: ${error.message}`);
+  for (const [key, value] of entries) {
+    if (value === null || value === undefined) {
+      toDelete.push(key);
+    } else {
+      toUpsert.push([key, value]);
+    }
   }
 
-  return records.length;
+  // Delete settings with null values
+  if (toDelete.length > 0) {
+    const { error: deleteError } = await client
+      .from('settings')
+      .delete()
+      .in('key', toDelete);
+
+    if (deleteError) {
+      throw new Error(`Failed to delete settings: ${deleteError.message}`);
+    }
+  }
+
+  // Upsert settings with non-null values
+  if (toUpsert.length > 0) {
+    const now = new Date().toISOString();
+    const records = toUpsert.map(([key, value]) => ({
+      key,
+      value,
+      updated_at: now,
+    }));
+
+    const { error } = await client
+      .from('settings')
+      .upsert(records, {
+        onConflict: 'key',
+      });
+
+    if (error) {
+      throw new Error(`Failed to set settings: ${error.message}`);
+    }
+  }
+
+  return entries.length;
 }

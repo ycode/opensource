@@ -101,6 +101,7 @@ export default async function Home({ searchParams }: HomeProps) {
       gaMeasurementId={globalSettings.gaMeasurementId}
       globalCustomCodeHead={globalSettings.globalCustomCodeHead}
       globalCustomCodeBody={globalSettings.globalCustomCodeBody}
+      ycodeBadge={globalSettings.ycodeBadge}
     />
   );
 }

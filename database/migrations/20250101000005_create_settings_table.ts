@@ -44,6 +44,8 @@ export async function up(knex: Knex): Promise<void> {
     { key: 'site_description', value: JSON.stringify('Built with YCode') },
     { key: 'ycode_version', value: JSON.stringify('0.1.0') },
     { key: 'sitemap', value: JSON.stringify(getDefaultSitemapSettings()) },
+    { key: 'ycode_badge', value: JSON.stringify(true) },
+    { key: 'timezone', value: JSON.stringify('UTC') },
   ]).onConflict('key').ignore();
 }
 

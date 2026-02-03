@@ -697,6 +697,20 @@ export const localisationApi = {
   },
 };
 
+// Settings API
+export const settingsApi = {
+  /**
+   * Update multiple settings at once (batch upsert)
+   * @param settings - Object with key-value pairs to store
+   */
+  async batchUpdate(settings: Record<string, any>): Promise<ApiResponse<{ count: number }>> {
+    return apiRequest<{ count: number }>('/ycode/api/settings/batch', {
+      method: 'PUT',
+      body: JSON.stringify({ settings }),
+    });
+  },
+};
+
 // Cache API - Manage Next.js cache
 export const cacheApi = {
   /**
