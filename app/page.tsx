@@ -2,8 +2,7 @@ import { unstable_cache, unstable_noStore } from 'next/cache';
 import Link from 'next/link';
 import { fetchHomepage, PaginationContext } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
-import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import { generatePageMetadata } from '@/lib/generate-page-metadata';
+import { generatePageMetadata, fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
 import type { Metadata } from 'next';
 
 // Static by default for performance, dynamic only when pagination is requested
@@ -86,8 +85,8 @@ export default async function Home({ searchParams }: HomeProps) {
     );
   }
 
-  // Load published CSS from settings
-  const publishedCSS = await getSettingByKey('published_css');
+  // Load all global settings in a single query
+  const globalSettings = await fetchGlobalPageSettings();
 
   // Render homepage
   return (
@@ -95,17 +94,22 @@ export default async function Home({ searchParams }: HomeProps) {
       page={data.page}
       layers={data.pageLayers.layers || []}
       components={[]}
-      generatedCss={publishedCSS}
+      generatedCss={globalSettings.publishedCss || undefined}
       locale={data.locale}
       availableLocales={data.availableLocales}
       translations={data.translations}
+      gaMeasurementId={globalSettings.gaMeasurementId}
     />
   );
 }
 
 // Generate metadata
 export async function generateMetadata(): Promise<Metadata> {
-  const data = await fetchPublishedHomepage();
+  // Fetch page and global settings in parallel
+  const [data, globalSettings] = await Promise.all([
+    fetchPublishedHomepage(),
+    fetchGlobalPageSettings(),
+  ]);
 
   if (!data) {
     return {
@@ -116,5 +120,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return generatePageMetadata(data.page, {
     fallbackTitle: 'Home',
+    pagePath: '/',
+    globalSeoSettings: globalSettings,
   });
 }

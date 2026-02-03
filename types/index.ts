@@ -1205,3 +1205,16 @@ export interface FormSummary {
   new_count: number;
   latest_submission: string | null;
 }
+
+// Sitemap Settings
+export type SitemapMode = 'none' | 'auto' | 'custom';
+export type SitemapChangeFrequency = 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never';
+
+export interface SitemapSettings {
+  mode: SitemapMode;
+  // Auto-generated sitemap options
+  includeImages?: boolean;
+  defaultChangeFrequency?: SitemapChangeFrequency;
+  // Custom XML sitemap (when mode is 'custom')
+  customXml?: string;
+}

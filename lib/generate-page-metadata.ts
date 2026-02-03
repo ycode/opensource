@@ -6,10 +6,25 @@
 
 import 'server-only';
 
+import { cache } from 'react';
 import type { Metadata } from 'next';
 import type { Page } from '@/types';
 import type { CollectionItemWithValues } from '@/types';
 import { resolveInlineVariables, resolveImageUrl } from '@/lib/resolve-cms-variables';
+import { getSettingsByKeys } from '@/lib/repositories/settingsRepository';
+
+/**
+ * Global page render settings fetched once per page render
+ */
+export interface GlobalPageSettings {
+  googleSiteVerification?: string | null;
+  globalCanonicalUrl?: string | null;
+  gaMeasurementId?: string | null;
+  publishedCss?: string | null;
+}
+
+/** @deprecated Use GlobalPageSettings instead */
+export type GlobalSeoSettings = GlobalPageSettings;
 
 /**
  * Generate metadata options
@@ -23,7 +38,35 @@ export interface GenerateMetadataOptions {
   fallbackDescription?: string;
   /** Collection item for resolving field variables (for dynamic pages) */
   collectionItem?: CollectionItemWithValues;
+  /** Current page path for canonical URL */
+  pagePath?: string;
+  /** Pre-fetched global SEO settings (avoids duplicate fetches) */
+  globalSeoSettings?: GlobalSeoSettings;
 }
+
+/**
+ * Fetch all global page settings in a single database query
+ * Includes SEO settings and published CSS
+ * Wrapped with React cache to deduplicate within the same request
+ */
+export const fetchGlobalPageSettings = cache(async (): Promise<GlobalPageSettings> => {
+  const settings = await getSettingsByKeys([
+    'google_site_verification',
+    'global_canonical_url',
+    'ga_measurement_id',
+    'published_css',
+  ]);
+
+  return {
+    googleSiteVerification: settings.google_site_verification || null,
+    globalCanonicalUrl: settings.global_canonical_url || null,
+    gaMeasurementId: settings.ga_measurement_id || null,
+    publishedCss: settings.published_css || null,
+  };
+});
+
+/** @deprecated Use fetchGlobalPageSettings instead */
+export const fetchGlobalSeoSettings = fetchGlobalPageSettings;
 
 /**
  * Generate Next.js metadata from a page object
@@ -38,7 +81,7 @@ export async function generatePageMetadata(
   page: Page,
   options: GenerateMetadataOptions = {}
 ): Promise<Metadata> {
-  const { isPreview = false, fallbackTitle, fallbackDescription, collectionItem } = options;
+  const { isPreview = false, fallbackTitle, fallbackDescription, collectionItem, pagePath } = options;
 
   const seo = page.settings?.seo;
   const isErrorPage = page.error_page !== null;
@@ -63,6 +106,30 @@ export async function generatePageMetadata(
     title,
     description,
   };
+
+  // Use pre-fetched global SEO settings or fetch if not provided (skip for preview mode)
+  if (!isPreview) {
+    const seoSettings = options.globalSeoSettings || await fetchGlobalSeoSettings();
+
+    // Add Google Site Verification meta tag
+    if (seoSettings.googleSiteVerification) {
+      metadata.verification = {
+        google: seoSettings.googleSiteVerification,
+      };
+    }
+
+    // Add canonical URL
+    if (seoSettings.globalCanonicalUrl && pagePath !== undefined) {
+      const canonicalBase = seoSettings.globalCanonicalUrl.replace(/\/$/, '');
+      const canonicalUrl = pagePath === '/' || pagePath === ''
+        ? canonicalBase
+        : `${canonicalBase}${pagePath.startsWith('/') ? pagePath : '/' + pagePath}`;
+
+      metadata.alternates = {
+        canonical: canonicalUrl,
+      };
+    }
+  }
 
   // Add Open Graph and Twitter Card metadata (not for error pages)
   if (seo?.image && !isErrorPage) {

@@ -21,6 +21,7 @@ interface PageRendererProps {
   availableLocales?: Locale[];
   isPreview?: boolean; // Whether we're in preview mode (use draft data)
   translations?: Record<string, any> | null; // Translations for localized URL generation
+  gaMeasurementId?: string | null; // Google Analytics Measurement ID (pre-fetched)
 }
 
 /**
@@ -65,6 +66,7 @@ export default async function PageRenderer({
   availableLocales = [],
   isPreview = false,
   translations,
+  gaMeasurementId,
 }: PageRendererProps) {
   // Resolve component instances in the layer tree before rendering
   // If components array is empty, they're already resolved server-side
@@ -314,6 +316,27 @@ export default async function PageRenderer({
           id="ycode-gsap-initial-styles"
           dangerouslySetInnerHTML={{ __html: initialAnimationCSS }}
         />
+      )}
+
+      {/* Inject Google Analytics script (non-preview only) */}
+      {gaMeasurementId && (
+        <>
+          <script
+            async
+            src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
+          />
+          <script
+            id="google-analytics"
+            dangerouslySetInnerHTML={{
+              __html: `
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${gaMeasurementId}');
+              `,
+            }}
+          />
+        </>
       )}
 
       {/* Inject custom head code - Next.js hoists scripts/styles to <head> */}
