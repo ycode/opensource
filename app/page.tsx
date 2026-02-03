@@ -99,6 +99,8 @@ export default async function Home({ searchParams }: HomeProps) {
       availableLocales={data.availableLocales}
       translations={data.translations}
       gaMeasurementId={globalSettings.gaMeasurementId}
+      globalCustomCodeHead={globalSettings.globalCustomCodeHead}
+      globalCustomCodeBody={globalSettings.globalCustomCodeBody}
     />
   );
 }

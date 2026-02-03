@@ -22,6 +22,8 @@ interface PageRendererProps {
   isPreview?: boolean; // Whether we're in preview mode (use draft data)
   translations?: Record<string, any> | null; // Translations for localized URL generation
   gaMeasurementId?: string | null; // Google Analytics Measurement ID (pre-fetched)
+  globalCustomCodeHead?: string | null; // Global custom code for <head> (pre-fetched)
+  globalCustomCodeBody?: string | null; // Global custom code for </body> (pre-fetched)
 }
 
 /**
@@ -67,6 +69,8 @@ export default async function PageRenderer({
   isPreview = false,
   translations,
   gaMeasurementId,
+  globalCustomCodeHead,
+  globalCustomCodeBody,
 }: PageRendererProps) {
   // Resolve component instances in the layer tree before rendering
   // If components array is empty, they're already resolved server-side
@@ -165,16 +169,16 @@ export default async function PageRenderer({
   }
 
   // Extract custom code from page settings and resolve placeholders for dynamic pages
-  const rawCustomCodeHead = page.settings?.custom_code?.head || '';
-  const rawCustomCodeBody = page.settings?.custom_code?.body || '';
+  const rawPageCustomCodeHead = page.settings?.custom_code?.head || '';
+  const rawPageCustomCodeBody = page.settings?.custom_code?.body || '';
 
-  const customCodeHead = page.is_dynamic && collectionItem
-    ? resolveCustomCodePlaceholders(rawCustomCodeHead, collectionItem, collectionFields)
-    : rawCustomCodeHead;
+  const pageCustomCodeHead = page.is_dynamic && collectionItem
+    ? resolveCustomCodePlaceholders(rawPageCustomCodeHead, collectionItem, collectionFields)
+    : rawPageCustomCodeHead;
 
-  const customCodeBody = page.is_dynamic && collectionItem
-    ? resolveCustomCodePlaceholders(rawCustomCodeBody, collectionItem, collectionFields)
-    : rawCustomCodeBody;
+  const pageCustomCodeBody = page.is_dynamic && collectionItem
+    ? resolveCustomCodePlaceholders(rawPageCustomCodeBody, collectionItem, collectionFields)
+    : rawPageCustomCodeBody;
 
   const normalizedLayers = normalizeRootLayers(resolvedLayers);
   const hasLayers = normalizedLayers.length > 0;
@@ -339,9 +343,14 @@ export default async function PageRenderer({
         </>
       )}
 
-      {/* Inject custom head code - Next.js hoists scripts/styles to <head> */}
-      {customCodeHead && (
-        <div dangerouslySetInnerHTML={{ __html: customCodeHead }} />
+      {/* Inject global custom head code (applies to all pages) */}
+      {globalCustomCodeHead && (
+        <div dangerouslySetInnerHTML={{ __html: globalCustomCodeHead }} />
+      )}
+
+      {/* Inject page-specific custom head code */}
+      {pageCustomCodeHead && (
+        <div dangerouslySetInnerHTML={{ __html: pageCustomCodeHead }} />
       )}
 
       <div
@@ -375,9 +384,14 @@ export default async function PageRenderer({
       {/* Report content height to parent for zoom calculations (preview only) */}
       {!page.is_published && <ContentHeightReporter />}
 
-      {/* Inject custom body code before closing body tag */}
-      {customCodeBody && (
-        <div dangerouslySetInnerHTML={{ __html: customCodeBody }} />
+      {/* Inject global custom body code (applies to all pages) */}
+      {globalCustomCodeBody && (
+        <div dangerouslySetInnerHTML={{ __html: globalCustomCodeBody }} />
+      )}
+
+      {/* Inject page-specific custom body code */}
+      {pageCustomCodeBody && (
+        <div dangerouslySetInnerHTML={{ __html: pageCustomCodeBody }} />
       )}
     </>
   );

@@ -258,6 +258,8 @@ export default async function Page({ params, searchParams }: PageProps) {
       availableLocales={availableLocales}
       translations={translations}
       gaMeasurementId={globalSettings.gaMeasurementId}
+      globalCustomCodeHead={globalSettings.globalCustomCodeHead}
+      globalCustomCodeBody={globalSettings.globalCustomCodeBody}
     />
   );
 }

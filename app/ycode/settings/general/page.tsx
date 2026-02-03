@@ -50,6 +50,13 @@ export default function GeneralSettingsPage() {
   const [googleSiteVerification, setGoogleSiteVerification] = useState(storedGoogleSiteVerification || '');
   const [globalCanonicalUrl, setGlobalCanonicalUrl] = useState(storedGlobalCanonicalUrl || '');
 
+  // Initialize global custom code from store
+  const storedCustomCodeHead = getSettingByKey('custom_code_head') as string | null;
+  const storedCustomCodeBody = getSettingByKey('custom_code_body') as string | null;
+  const [customCodeHead, setCustomCodeHead] = useState(storedCustomCodeHead || '');
+  const [customCodeBody, setCustomCodeBody] = useState(storedCustomCodeBody || '');
+  const [isSavingCustomCode, setIsSavingCustomCode] = useState(false);
+
   // Derive activeSeoTab from sitemap mode
   const activeSeoTab = sitemapSettings.mode === 'auto'
     ? 'ycode-sitemap'
@@ -111,6 +118,35 @@ export default function GeneralSettingsPage() {
       setIsSaving(false);
     }
   }, [sitemapSettings, robotsTxt, llmsTxt, gaMeasurementId, googleSiteVerification, globalCanonicalUrl, updateSetting]);
+
+  // Save custom code settings to server
+  const saveCustomCodeSettings = useCallback(async () => {
+    setIsSavingCustomCode(true);
+    try {
+      const response = await fetch('/ycode/api/settings/batch', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settings: {
+            custom_code_head: customCodeHead,
+            custom_code_body: customCodeBody,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save custom code settings');
+      }
+
+      // Update local store
+      updateSetting('custom_code_head', customCodeHead);
+      updateSetting('custom_code_body', customCodeBody);
+    } catch (error) {
+      console.error('Error saving custom code settings:', error);
+    } finally {
+      setIsSavingCustomCode(false);
+    }
+  }, [customCodeHead, customCodeBody, updateSetting]);
 
   return (
     <div className="p-8">
@@ -437,29 +473,47 @@ export default function GeneralSettingsPage() {
               <div className="col-span-2 grid grid-cols-2 gap-8">
 
                 <Field className="col-span-2">
-                  <FieldLabel htmlFor="header">
+                  <FieldLabel htmlFor="global-code-head">
                     Header
                   </FieldLabel>
                   <FieldDescription>
                     Enter code that will be injected into the &lt;head&gt; tag on every page of your site.
                   </FieldDescription>
-                  <Textarea />
+                  <Textarea
+                    id="global-code-head"
+                    value={customCodeHead}
+                    onChange={(e) => setCustomCodeHead(e.target.value)}
+                    placeholder={'<script src="..."></script>\n<link rel="stylesheet" href="...">'}
+                    className="min-h-30"
+                  />
                 </Field>
 
                 <Field className="col-span-2">
-                  <FieldLabel htmlFor="Body">
+                  <FieldLabel htmlFor="global-code-body">
                     Body
                   </FieldLabel>
                   <FieldDescription>
                     Enter code that will be injected before the &lt;/body&gt; tag on every page of your site.
                   </FieldDescription>
-                  <Textarea />
+                  <Textarea
+                    id="global-code-body"
+                    value={customCodeBody}
+                    onChange={(e) => setCustomCodeBody(e.target.value)}
+                    placeholder={'<script>...</script>'}
+                    className="min-h-30"
+                  />
                 </Field>
 
                 <FieldSeparator className="col-span-2" />
 
                 <div className="col-span-2 flex justify-end">
-                  <Button size="sm">Save changes</Button>
+                  <Button
+                    size="sm"
+                    onClick={saveCustomCodeSettings}
+                    disabled={isSavingCustomCode}
+                  >
+                    {isSavingCustomCode ? 'Saving...' : 'Save changes'}
+                  </Button>
                 </div>
               </div>
             </div>
