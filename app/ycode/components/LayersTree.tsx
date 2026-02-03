@@ -432,8 +432,8 @@ const LayerRow = React.memo(function LayerRow({
             </div>
           )}
 
-          {/* Style Indicator */}
-          {node.layer.styleId && (
+          {/* Style Indicator - temporarily disabled */}
+          {/* {node.layer.styleId && (
             <div className="flex items-center gap-1 mr-2 flex-shrink-0">
               <LayersIcon className="w-3 h-3 text-purple-400" />
               {(() => {
@@ -443,7 +443,7 @@ const LayerRow = React.memo(function LayerRow({
                 );
               })()}
             </div>
-          )}
+          )} */}
 
           {/* Interaction trigger indicator */}
           {interactionTriggerLayerIds.includes(node.id) && (
