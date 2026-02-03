@@ -125,7 +125,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
     name: 'Grid',
     template: {
       name: 'div',
-      classes: ['grid', 'gap-[16px]'],
+      classes: ['grid', 'grid-cols-[repeat(2,_1fr)]', 'gap-[16px]'],
       children: [
         {
           name: 'div',
@@ -161,7 +161,7 @@ export const structureTemplates: Record<string, BlockTemplate> = {
         }
       ] as any[],
       design: {
-        layout: { isActive: true, display: 'Grid', gap: '1px' }
+        layout: { isActive: true, display: 'Grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }
       }
     }
   },
