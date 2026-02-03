@@ -39,6 +39,8 @@ import { useResourceLock } from '@/hooks/use-resource-lock';
 import { slugify } from '@/lib/collection-utils';
 import { validateFieldValue, isAssetFieldType, getFieldIcon } from '@/lib/collection-field-utils';
 import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
+import { formatDateInTimezone, localDatetimeToUTC } from '@/lib/date-format-utils';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { toast } from 'sonner';
 import ReferenceFieldCombobox from './ReferenceFieldCombobox';
 import CollectionLinkFieldInput from './CollectionLinkFieldInput';
@@ -66,6 +68,7 @@ export default function CollectionItemSheet({
   const { updatePageCollectionItem, refetchPageCollectionItem, pages } = usePagesStore();
   const { currentPageId, openFileManager } = useEditorStore();
   const getAsset = useAssetsStore((state) => state.getAsset);
+  const timezone = useSettingsStore((state) => state.settingsByKey.timezone as string | null) ?? 'UTC';
 
   // Collection collaboration sync
   const liveCollectionUpdates = useLiveCollectionUpdates();
@@ -136,7 +139,7 @@ export default function CollectionItemSheet({
   useEffect(() => {
     // Only load item data when sheet is open and we have an itemId
     if (!open) return;
-    
+
     if (itemId && collectionItems.length > 0) {
       const item = collectionItems.find(i => i.id === itemId);
       // If itemId is a temp ID, also try to find by matching the temp pattern
@@ -452,6 +455,15 @@ export default function CollectionItemSheet({
                               type="tel"
                               placeholder={field.default || `Enter ${field.name.toLowerCase()}...`}
                               {...formField}
+                            />
+                          ) : field.type === 'date' ? (
+                            <Input
+                              type="datetime-local"
+                              value={formatDateInTimezone(formField.value, timezone, 'datetime-local')}
+                              onChange={(e) => {
+                                const utcValue = localDatetimeToUTC(e.target.value, timezone);
+                                formField.onChange(utcValue);
+                              }}
                             />
                           ) : isAssetFieldType(field.type) ? (
                             /* Asset Field - File Manager UI (Image, Audio, Video, Document) */

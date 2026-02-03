@@ -1,6 +1,7 @@
 import React from 'react';
 import type { TextStyle, DynamicRichTextVariable, LinkSettings } from '@/types';
 import { cn } from '@/lib/utils';
+import { formatDateInTimezone } from '@/lib/date-format-utils';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
 
 /**
@@ -10,16 +11,18 @@ export type RichTextLinkContext = LinkResolutionContext;
 
 /**
  * Resolve inline variables in a text string using collection item data
- * Replaces <ycode-inline-variable>{"type":"field","data":{"field_id":"...","source":"page|collection"}}</ycode-inline-variable>
+ * Replaces <ycode-inline-variable>{"type":"field","data":{"field_id":"...","field_type":"...","source":"page|collection"}}</ycode-inline-variable>
  * with actual field values from the appropriate data source
  * @param text - Text containing inline variable tags
  * @param collectionItemData - Data from collection layer items
  * @param pageCollectionItemData - Data from page collection (dynamic pages)
+ * @param timezone - Optional timezone for formatting date values
  */
 function resolveInlineVariablesFromData(
   text: string,
   collectionItemData?: Record<string, string>,
-  pageCollectionItemData?: Record<string, string>
+  pageCollectionItemData?: Record<string, string>,
+  timezone: string = 'UTC'
 ): string {
   if (!text) {
     return '';
@@ -37,6 +40,7 @@ function resolveInlineVariablesFromData(
 
       if (parsed.type === 'field' && parsed.data?.field_id) {
         const fieldId = parsed.data.field_id;
+        const fieldType = parsed.data.field_type;
         const source = parsed.data.source;
 
         // Select the appropriate data source based on the source field
@@ -52,7 +56,14 @@ function resolveInlineVariablesFromData(
           fieldValue = collectionItemData?.[fieldId] ?? pageCollectionItemData?.[fieldId];
         }
 
-        return fieldValue || '';
+        if (!fieldValue) return '';
+
+        // Format date fields using timezone
+        if (fieldType === 'date') {
+          return formatDateInTimezone(fieldValue, timezone, 'display');
+        }
+
+        return fieldValue;
       }
     } catch {
       // Invalid JSON or not a field variable, leave as is
@@ -202,14 +213,17 @@ export function getTiptapTextContent(text: string): {
  * @param node - TipTap dynamicVariable node
  * @param collectionItemData - Data from collection layer items
  * @param pageCollectionItemData - Data from page collection (dynamic pages)
+ * @param timezone - Timezone for formatting date values
  */
 function resolveVariableNode(
   node: any,
   collectionItemData?: Record<string, string>,
-  pageCollectionItemData?: Record<string, string>
+  pageCollectionItemData?: Record<string, string>,
+  timezone: string = 'UTC'
 ): string {
   if (node.attrs?.variable?.type === 'field' && node.attrs.variable.data?.field_id) {
     const fieldId = node.attrs.variable.data.field_id;
+    const fieldType = node.attrs.variable.data.field_type;
     const relationships = node.attrs.variable.data.relationships || [];
     const source = node.attrs.variable.data.source;
 
@@ -229,13 +243,23 @@ function resolveVariableNode(
     }
 
     // Build the full path for relationship resolution
+    let fieldValue: string | undefined;
     if (relationships.length > 0) {
       const fullPath = [fieldId, ...relationships].join('.');
-      return dataSource[fullPath] || '';
+      fieldValue = dataSource[fullPath];
+    } else {
+      // Simple field lookup
+      fieldValue = dataSource[fieldId];
     }
 
-    // Simple field lookup
-    return dataSource[fieldId] || '';
+    if (!fieldValue) return '';
+
+    // Format date fields using timezone
+    if (fieldType === 'date') {
+      return formatDateInTimezone(fieldValue, timezone, 'display');
+    }
+
+    return fieldValue;
   }
 
   return '';
@@ -377,7 +401,8 @@ function renderInlineContent(
   pageCollectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
   isEditMode = false,
-  linkContext?: RichTextLinkContext
+  linkContext?: RichTextLinkContext,
+  timezone: string = 'UTC'
 ): React.ReactNode[] {
   return content.map((node, idx) => {
     const key = `node-${idx}`;
@@ -387,7 +412,7 @@ function renderInlineContent(
     }
 
     if (node.type === 'dynamicVariable') {
-      const value = resolveVariableNode(node, collectionItemData, pageCollectionItemData);
+      const value = resolveVariableNode(node, collectionItemData, pageCollectionItemData, timezone);
       // Create a text node structure with the resolved value and preserve marks
       const textNode = {
         type: 'text',
@@ -412,7 +437,8 @@ function renderBlock(
   textStyles?: Record<string, TextStyle>,
   useSpanForParagraphs = false,
   isEditMode = false,
-  linkContext?: RichTextLinkContext
+  linkContext?: RichTextLinkContext,
+  timezone: string = 'UTC'
 ): React.ReactNode {
   const key = `block-${idx}`;
 
@@ -425,9 +451,9 @@ function renderBlock(
     }
     // Use span with block class when inside restrictive tags
     if (useSpanForParagraphs) {
-      return React.createElement('span', { key, className: 'block' }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext));
+      return React.createElement('span', { key, className: 'block' }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
     }
-    return React.createElement('p', { key }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext));
+    return React.createElement('p', { key }, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone));
   }
 
   if (block.type === 'bulletList') {
@@ -442,7 +468,7 @@ function renderBlock(
       'ul',
       ulProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone)
       )
     );
   }
@@ -459,7 +485,7 @@ function renderBlock(
       'ol',
       olProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone)
       )
     );
   }
@@ -477,16 +503,17 @@ function renderListItem(
   pageCollectionItemData?: Record<string, string>,
   textStyles?: Record<string, TextStyle>,
   isEditMode = false,
-  linkContext?: RichTextLinkContext
+  linkContext?: RichTextLinkContext,
+  timezone: string = 'UTC'
 ): React.ReactNode {
   if (item.type !== 'listItem') return null;
 
   const children = item.content?.flatMap((block: any, idx: number) => {
     if (block.type === 'paragraph') {
       // For list items, render paragraph content without <p> wrapper
-      return renderInlineContent(block.content || [], collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext);
+      return renderInlineContent(block.content || [], collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
     }
-    return renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, false, isEditMode, linkContext);
+    return renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, false, isEditMode, linkContext, timezone);
   });
 
   const liProps: Record<string, any> = {
@@ -529,6 +556,7 @@ export function hasBlockElements(variable: DynamicRichTextVariable): boolean {
  * @param useSpanForParagraphs - If true, renders paragraphs as <span class="block"> instead of <p>
  * @param isEditMode - If true, adds data-style attributes for style selection on canvas
  * @param linkContext - Context for resolving page/asset/field links
+ * @param timezone - Timezone for formatting date values
  */
 export function renderRichText(
   variable: DynamicRichTextVariable,
@@ -537,7 +565,8 @@ export function renderRichText(
   textStyles?: Record<string, TextStyle>,
   useSpanForParagraphs = false,
   isEditMode = false,
-  linkContext?: RichTextLinkContext
+  linkContext?: RichTextLinkContext,
+  timezone: string = 'UTC'
 ): React.ReactNode {
   const content = variable.data.content;
 
@@ -557,11 +586,11 @@ export function renderRichText(
     if (!paragraph.content || paragraph.content.length === 0) {
       return null;
     }
-    return renderInlineContent(paragraph.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext);
+    return renderInlineContent(paragraph.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone);
   }
 
   return doc.content.map((block: any, idx: number) =>
-    renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode, linkContext)
+    renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone)
   );
 }
 

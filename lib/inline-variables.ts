@@ -6,17 +6,20 @@
  */
 
 import type { CollectionItemWithValues } from '@/types';
+import { formatDateInTimezone } from '@/lib/date-format-utils';
 
 /**
  * Resolve inline variables in a text string
- * Replaces <ycode-inline-variable>{"type":"field","data":{"field_id":"..."}}</ycode-inline-variable>
+ * Replaces <ycode-inline-variable>{"type":"field","data":{"field_id":"...","field_type":"..."}}</ycode-inline-variable>
  * with actual field values from the collection item
  *
  * CLIENT-SAFE: Pure string manipulation, works on both client and server
+ * @param timezone - Optional timezone for formatting date values (defaults to UTC)
  */
 export function resolveInlineVariables(
   text: string,
-  collectionItem: CollectionItemWithValues | null | undefined
+  collectionItem: CollectionItemWithValues | null | undefined,
+  timezone: string = 'UTC'
 ): string {
   if (!collectionItem || !collectionItem.values) {
     return text;
@@ -29,10 +32,17 @@ export function resolveInlineVariables(
 
       if (parsed.type === 'field' && parsed.data?.field_id) {
         const fieldId = parsed.data.field_id;
+        const fieldType = parsed.data.field_type;
         const fieldValue = collectionItem.values[fieldId];
 
-        // Replace the variable with the actual value (or empty string if not found)
-        return fieldValue || '';
+        if (!fieldValue) return '';
+
+        // Format date fields using timezone
+        if (fieldType === 'date') {
+          return formatDateInTimezone(fieldValue, timezone, 'display');
+        }
+
+        return fieldValue;
       }
     } catch {
       // Invalid JSON or not a field variable, leave as is
@@ -45,11 +55,13 @@ export function resolveInlineVariables(
 /**
  * Resolve inline variables using raw field value maps
  * Supports both collection layer data and page collection data (dynamic pages)
+ * @param timezone - Optional timezone for formatting date values (defaults to UTC)
  */
 export function resolveInlineVariablesFromData(
   text: string,
   collectionItemData?: Record<string, string>,
-  pageCollectionItemData?: Record<string, string> | null
+  pageCollectionItemData?: Record<string, string> | null,
+  timezone: string = 'UTC'
 ): string {
   if (!text) return '';
   if (!collectionItemData && !pageCollectionItemData) {
@@ -63,6 +75,7 @@ export function resolveInlineVariablesFromData(
       const parsed = JSON.parse(variableContent.trim());
       if (parsed.type === 'field' && parsed.data?.field_id) {
         const fieldId = parsed.data.field_id;
+        const fieldType = parsed.data.field_type;
         const source = parsed.data.source;
 
         let fieldValue: string | undefined;
@@ -74,7 +87,15 @@ export function resolveInlineVariablesFromData(
           // No explicit source - check collection first, then page
           fieldValue = collectionItemData?.[fieldId] ?? pageCollectionItemData?.[fieldId];
         }
-        return fieldValue || '';
+
+        if (!fieldValue) return '';
+
+        // Format date fields using timezone
+        if (fieldType === 'date') {
+          return formatDateInTimezone(fieldValue, timezone, 'display');
+        }
+
+        return fieldValue;
       }
     } catch {
       // Invalid JSON

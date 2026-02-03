@@ -18,6 +18,8 @@ export interface PaginationContext {
 import { parseCollectionLinkValue, resolveCollectionLinkValue, looksLikeEmail, looksLikePhone } from '@/lib/link-utils';
 import { resolveInlineVariables, resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { buildLayerTranslationKey, getTranslationByKey, hasValidTranslationValue, getTranslationValue } from '@/lib/localisation-utils';
+import { formatDateFieldsInItemValues } from '@/lib/date-format-utils';
+import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 
 export interface PageData {
   page: Page;
@@ -398,6 +400,10 @@ export async function fetchPageByPath(
 
             // Apply CMS translations to the item values
             enhancedItemValues = applyCmsTranslations(collectionItem.id, enhancedItemValues, collectionFields, translations);
+
+            // Format date fields in user's timezone
+            const timezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
+            enhancedItemValues = formatDateFieldsInItemValues(enhancedItemValues, collectionFields, timezone);
 
             // Create enhanced collection item with resolved reference values and translations
             const enhancedCollectionItem = {
@@ -1195,6 +1201,9 @@ export async function resolveCollectionLayers(
   paginationContext?: PaginationContext,
   translations?: Record<string, Translation>
 ): Promise<Layer[]> {
+  // Fetch timezone setting for date formatting
+  const timezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
+
   const resolveLayer = async (layer: Layer, itemValues?: Record<string, string>): Promise<Layer> => {
     // Check if this is a collection layer
     const isCollectionLayer = !!layer.variables?.collection?.id;
@@ -1326,7 +1335,9 @@ export async function resolveCollectionLayers(
           const clonedLayers: Layer[] = await Promise.all(
             sortedItems.map(async (item) => {
               // Apply CMS translations to item values before using them
-              const translatedValues = applyCmsTranslations(item.id, item.values, collectionFields, translations);
+              let translatedValues = applyCmsTranslations(item.id, item.values, collectionFields, translations);
+              // Format date fields in user's timezone
+              translatedValues = formatDateFieldsInItemValues(translatedValues, collectionFields, timezone);
 
               // Extract slug for URL building
               const itemSlug = slugField ? (translatedValues[slugField.id] || item.values[slugField.id]) : undefined;
@@ -1759,16 +1770,22 @@ export async function renderCollectionItemsToHtml(
   // Fetch collection fields for field resolution
   const collectionFields = await getFieldsByCollectionId(collectionId, isPublished);
 
+  // Get timezone setting for date formatting
+  const htmlTimezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
+
   // Render each item using the template
   const renderedItems = await Promise.all(
     items.map(async (item, index) => {
+      // Format date fields in user's timezone
+      const formattedValues = formatDateFieldsInItemValues(item.values, collectionFields, htmlTimezone);
+
       // Deep clone the template for each item
       const clonedTemplate = JSON.parse(JSON.stringify(layerTemplate));
 
       // Inject collection data into each layer of the template (text, images, etc.)
       const injectedLayers = await Promise.all(
         clonedTemplate.map((layer: Layer) =>
-          injectCollectionDataForHtml(layer, item.values, collectionFields, isPublished)
+          injectCollectionDataForHtml(layer, formattedValues, collectionFields, isPublished)
         )
       );
 

@@ -699,6 +699,7 @@ export default function GeneralSettingsPage() {
         open={fileManagerOpen}
         onOpenChange={setFileManagerOpen}
         onAssetSelect={handleAssetSelect}
+        assetId={fileManagerMode === 'favicon' ? faviconAssetId || null : webClipAssetId || null}
         category={ASSET_CATEGORIES.IMAGES}
       />
     </div>
