@@ -432,7 +432,7 @@ const RightSidebar = React.memo(function RightSidebar({
 
       case 'spacing':
         // Spacing controls (padding/margin): show for all elements
-        // Note: Hidden in text edit mode by render condition
+        // Also show in text style mode for inline padding
         return true;
 
       case 'sizing':
@@ -450,8 +450,8 @@ const RightSidebar = React.memo(function RightSidebar({
 
       case 'backgrounds':
         // Background controls: hide for text elements (show for buttons and containers)
-        // Hidden in text edit mode (block-level property)
-        if (showTextStyleControls) return false;
+        // Also show in text style mode for text highlighting
+        if (showTextStyleControls) return true;
         return !isTextLayer(layer) || isButtonLayer(layer);
 
       case 'borders':
@@ -1787,7 +1787,7 @@ const RightSidebar = React.memo(function RightSidebar({
             <LayoutControls layer={selectedLayer} onLayerUpdate={handleLayerUpdate} />
           )}
 
-          {shouldShowControl('spacing', selectedLayer) && !showTextStyleControls && (
+          {shouldShowControl('spacing', selectedLayer) && (
             <SpacingControls
               layer={selectedLayer}
               onLayerUpdate={handleLayerUpdate}
