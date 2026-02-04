@@ -7,8 +7,18 @@
  * Allows creating, applying, editing, detaching, and deleting styles
  */
 
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -18,27 +28,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Icon } from '@/components/ui/icon';
-import { Badge } from '@/components/ui/badge';
-import type { Layer, LayerStyle } from '@/types';
+import { Spinner } from '@/components/ui/spinner';
 import { useLayerStylesStore } from '@/stores/useLayerStylesStore';
-import { usePagesStore } from '@/stores/usePagesStore';
+import { useLiveLayerStyleUpdates } from '@/hooks/use-live-layer-style-updates';
 import {
   applyStyleToLayer,
   detachStyleFromLayer,
   hasStyleOverrides,
   resetLayerToStyle,
 } from '@/lib/layer-style-utils';
-import { Spinner } from '@/components/ui/spinner';
-import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
-import { useLiveLayerStyleUpdates } from '@/hooks/use-live-layer-style-updates';
+import { detachStyleAcrossStores, updateStyleAcrossStores } from '@/lib/layer-style-store-utils';
+import type { Layer, LayerStyle } from '@/types';
 
 interface LayerStylesPanelProps {
   layer: Layer | null;
@@ -62,8 +62,6 @@ export default function LayerStylesPanel({
 
   // Real-time style sync
   const liveLayerStyleUpdates = useLiveLayerStyleUpdates();
-
-  const { updateStyleOnLayers, detachStyleFromAllLayers } = usePagesStore();
 
   const [isCreating, setIsCreating] = useState(false);
   const [newStyleName, setNewStyleName] = useState('');
@@ -171,8 +169,8 @@ export default function LayerStylesPanel({
       design: currentDesign,
     });
 
-    // Update all layers using this style across all pages
-    updateStyleOnLayers(appliedStyle.id, currentClasses, currentDesign);
+    // Update all layers using this style across all pages and components
+    updateStyleAcrossStores(appliedStyle.id, currentClasses, currentDesign);
 
     // Clear overrides from the current layer since it now matches the style
     onLayerUpdate(layer.id, {
@@ -186,7 +184,7 @@ export default function LayerStylesPanel({
         design: currentDesign,
       });
     }
-  }, [layer, appliedStyle, currentClasses, currentDesign, updateStyle, updateStyleOnLayers, onLayerUpdate, liveLayerStyleUpdates]);
+  }, [layer, appliedStyle, currentClasses, currentDesign, updateStyle, onLayerUpdate, liveLayerStyleUpdates]);
 
   /**
    * Open delete confirmation dialog
@@ -217,8 +215,8 @@ export default function LayerStylesPanel({
     const result = await deleteStyle(styleToDelete);
 
     if (result.success) {
-      // Update local state to detach style from all layers
-      detachStyleFromAllLayers(styleToDelete);
+      // Update local state to detach style from all layers (pages and components)
+      detachStyleAcrossStores(styleToDelete);
 
       // Broadcast style deletion to collaborators
       if (liveLayerStyleUpdates) {
@@ -228,7 +226,7 @@ export default function LayerStylesPanel({
       // If deletion failed, throw error so dialog stays open
       throw new Error('Failed to delete layer style');
     }
-  }, [styleToDelete, deleteStyle, detachStyleFromAllLayers, liveLayerStyleUpdates]);
+  }, [styleToDelete, deleteStyle, liveLayerStyleUpdates]);
 
   /**
    * Rename the applied style
