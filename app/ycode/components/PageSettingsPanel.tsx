@@ -426,33 +426,40 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
       return;
     }
 
-    // If we just saved, accept the page update and sync initial values from the new page data
+    // If we just saved and getting updated data for the SAME page, accept and sync initial values
+    // But if switching to a DIFFERENT page, clear the flag and continue to normal flow
     if (skipNextInitializationRef.current) {
-      setCurrentPage(page);
-      rejectedPageRef.current = null;
-      // Sync initial values from the updated page to ensure they match what was saved
-      if (page && initialValuesRef.current) {
-        const settings = page.settings as PageSettings | undefined;
-        const isPageErrorPage = page.error_page !== null;
-        const isPageDynamic = page.is_dynamic === true;
-        const isPageIndex = isPageDynamic ? false : page.is_index;
+      // Check if this is the same page (updated after save) or a different page
+      if (pageId === currentPageId || (page && currentPage && page.id === currentPage.id)) {
+        setCurrentPage(page);
+        rejectedPageRef.current = null;
+        // Sync initial values from the updated page to ensure they match what was saved
+        if (page && initialValuesRef.current) {
+          const settings = page.settings as PageSettings | undefined;
+          const isPageErrorPage = page.error_page !== null;
+          const isPageDynamic = page.is_dynamic === true;
+          const isPageIndex = isPageDynamic ? false : page.is_index;
 
-        initialValuesRef.current.name = page.name;
-        initialValuesRef.current.slug = isPageErrorPage || isPageIndex ? '' : (isPageDynamic ? '*' : page.slug || '');
-        initialValuesRef.current.pageFolderId = page.page_folder_id;
-        initialValuesRef.current.isIndex = isPageIndex;
-        initialValuesRef.current.seoTitle = settings?.seo?.title || '';
-        initialValuesRef.current.seoDescription = settings?.seo?.description || '';
-        initialValuesRef.current.seoImage = settings?.seo?.image || null;
-        initialValuesRef.current.seoNoindex = isPageErrorPage ? true : (settings?.seo?.noindex || false);
-        initialValuesRef.current.customCodeHead = settings?.custom_code?.head || '';
-        initialValuesRef.current.customCodeBody = settings?.custom_code?.body || '';
-        initialValuesRef.current.authEnabled = settings?.auth?.enabled || false;
-        initialValuesRef.current.authPassword = settings?.auth?.password || '';
-        initialValuesRef.current.collectionId = settings?.cms?.collection_id || null;
-        initialValuesRef.current.slugFieldId = settings?.cms?.slug_field_id || null;
+          initialValuesRef.current.name = page.name;
+          initialValuesRef.current.slug = isPageErrorPage || isPageIndex ? '' : (isPageDynamic ? '*' : page.slug || '');
+          initialValuesRef.current.pageFolderId = page.page_folder_id;
+          initialValuesRef.current.isIndex = isPageIndex;
+          initialValuesRef.current.seoTitle = settings?.seo?.title || '';
+          initialValuesRef.current.seoDescription = settings?.seo?.description || '';
+          initialValuesRef.current.seoImage = settings?.seo?.image || null;
+          initialValuesRef.current.seoNoindex = isPageErrorPage ? true : (settings?.seo?.noindex || false);
+          initialValuesRef.current.customCodeHead = settings?.custom_code?.head || '';
+          initialValuesRef.current.customCodeBody = settings?.custom_code?.body || '';
+          initialValuesRef.current.authEnabled = settings?.auth?.enabled || false;
+          initialValuesRef.current.authPassword = settings?.auth?.password || '';
+          initialValuesRef.current.collectionId = settings?.cms?.collection_id || null;
+          initialValuesRef.current.slugFieldId = settings?.cms?.slug_field_id || null;
+        }
+        return;
+      } else {
+        // Switching to a different page - clear the skip flag so initialization runs
+        skipNextInitializationRef.current = false;
       }
-      return;
     }
 
     // Check hasUnsavedChanges by comparing current form state with initialValuesRef
