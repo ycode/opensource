@@ -7,15 +7,17 @@
 
 'use client';
 
-import type { Layer } from '@/types';
+import type { Component, Layer } from '@/types';
 import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 
 /**
  * Extract all classes from layers recursively
  * Includes classes from layer.classes, layer.textStyles, and DEFAULT_TEXT_STYLES
+ * Tracks processed componentIds to avoid duplicate extraction
  */
 function extractClassesFromLayers(layers: Layer[]): Set<string> {
   const classes = new Set<string>();
+  const processedComponentIds = new Set<string>();
 
   // Helper to extract classes from a string or array
   const extractClasses = (classValue: string | string[] | undefined) => {
@@ -34,6 +36,12 @@ function extractClassesFromLayers(layers: Layer[]): Set<string> {
 
   function processLayer(layer: Layer): void {
     if (layer.settings?.hidden) return;
+
+    // Skip if we've already processed this component
+    if (layer.componentId) {
+      if (processedComponentIds.has(layer.componentId)) return;
+      processedComponentIds.add(layer.componentId);
+    }
 
     // Extract layer classes
     extractClasses(layer.classes);
@@ -201,10 +209,45 @@ export async function saveCSS(css: string, key: 'draft_css' | 'published_css'): 
 }
 
 /**
+ * Collect all layers including component layers for CSS generation
+ * Includes both saved components and component drafts (unsaved edits)
+ */
+async function collectAllLayers(pageLayers: Layer[]): Promise<Layer[]> {
+  const { useComponentsStore } = await import('@/stores/useComponentsStore');
+  const { components, componentDrafts } = useComponentsStore.getState();
+
+  // Track which components have drafts
+  const draftComponentIds = new Set(Object.keys(componentDrafts));
+
+  // Collect layers from all components (prefer drafts over saved versions)
+  const componentLayers: Layer[] = [];
+
+  // Add component drafts first (these are the latest edits)
+  Object.values(componentDrafts).forEach((layers) => {
+    if (layers && Array.isArray(layers)) {
+      componentLayers.push(...layers);
+    }
+  });
+
+  // Add saved components that don't have drafts
+  components.forEach((component: Component) => {
+    if (!draftComponentIds.has(component.id) && component.layers && Array.isArray(component.layers)) {
+      componentLayers.push(...component.layers);
+    }
+  });
+
+  // Combine page layers and component layers
+  return [...pageLayers, ...componentLayers];
+}
+
+/**
  * Generate CSS and save it to draft_css
+ * Automatically includes component layers for comprehensive CSS generation
  */
 export async function generateAndSaveCSS(layers: Layer[]): Promise<string> {
-  const css = await generateCSS(layers);
+  // Collect all layers including component layers
+  const allLayers = await collectAllLayers(layers);
+  const css = await generateCSS(allLayers);
   await saveCSS(css, 'draft_css');
   return css;
 }

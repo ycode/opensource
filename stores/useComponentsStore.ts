@@ -479,6 +479,26 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
           detail: { componentId, layers: draftLayers }
         }));
       }
+
+      // Regenerate CSS to include updated component classes
+      try {
+        const { generateAndSaveCSS } = await import('@/lib/client/cssGenerator');
+        const { usePagesStore } = await import('./usePagesStore');
+
+        // Collect layers from ALL pages
+        const allLayers: Layer[] = [];
+        const allDrafts = usePagesStore.getState().draftsByPageId;
+        Object.values(allDrafts).forEach((pageDraft) => {
+          if (pageDraft.layers) {
+            allLayers.push(...pageDraft.layers);
+          }
+        });
+
+        await generateAndSaveCSS(allLayers);
+      } catch (cssError) {
+        console.error('Failed to generate CSS after component save:', cssError);
+        // Don't fail the save operation if CSS generation fails
+      }
     } catch (error) {
       console.error('Failed to save component draft:', error);
       set({ isSaving: false });

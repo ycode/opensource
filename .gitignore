@@ -34,7 +34,7 @@ yarn-error.log*
 .env*
 
 # credentials (Supabase config)
-.credentials.json
+*.credentials.json
 
 # vercel
 .vercel
