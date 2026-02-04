@@ -73,7 +73,8 @@ import { useVersionsStore } from '@/stores/useVersionsStore';
 
 // 6. Utils/lib
 import { findHomepage } from '@/lib/page-utils';
-import { findLayerById, getClassesString, removeLayerById, canCopyLayer, canDeleteLayer } from '@/lib/layer-utils';
+import { findLayerById, getClassesString, removeLayerById, canCopyLayer, canDeleteLayer, regenerateIdsWithInteractionRemapping } from '@/lib/layer-utils';
+import { cloneDeep } from 'lodash';
 import { pagesApi, collectionsApi } from '@/lib/api';
 
 // 5. Types
@@ -1268,29 +1269,39 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
         // Copy: Cmd/Ctrl + C (supports multi-select)
         if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
-          if (!isInputFocused && currentPageId) {
+          if (!isInputFocused && (currentPageId || editingComponentId)) {
             e.preventDefault();
+            
+            // Get layers from the correct context
+            const layers = getCurrentLayers();
+            
             if (selectedLayerIds.length > 1) {
               // Multi-select: copy all (check restrictions)
-              const draft = draftsByPageId[currentPageId];
-              if (draft) {
-                const layersToCheck = selectedLayerIds.map(id => findLayerById(draft.layers, id)).filter(Boolean) as Layer[];
-                const canCopyAll = layersToCheck.every(layer => canCopyLayer(layer));
+              const layersToCheck = selectedLayerIds.map(id => findLayerById(layers, id)).filter(Boolean) as Layer[];
+              const canCopyAll = layersToCheck.every(layer => canCopyLayer(layer));
 
-                if (canCopyAll) {
-                  const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
-                  // Store first layer in clipboard store for compatibility
-                  if (layers.length > 0) {
-                    copyToClipboard(layers[0], currentPageId);
+              if (canCopyAll) {
+                // In component edit mode, copy from component drafts
+                if (editingComponentId) {
+                  const copiedLayers = layersToCheck.map(l => cloneDeep(l));
+                  if (copiedLayers.length > 0) {
+                    copyToClipboard(copiedLayers[0], currentPageId || '');
+                  }
+                } else if (currentPageId) {
+                  const copiedLayers = copyLayersFromStore(currentPageId, selectedLayerIds);
+                  if (copiedLayers.length > 0) {
+                    copyToClipboard(copiedLayers[0], currentPageId);
                   }
                 }
               }
             } else if (selectedLayerId) {
               // Single select - check restrictions
-              const draft = draftsByPageId[currentPageId];
-              if (draft) {
-                const layer = findLayerById(draft.layers, selectedLayerId);
-                if (layer && canCopyLayer(layer)) {
+              const layer = findLayerById(layers, selectedLayerId);
+              if (layer && canCopyLayer(layer)) {
+                // In component edit mode, copy from component drafts
+                if (editingComponentId) {
+                  copyToClipboard(cloneDeep(layer), currentPageId || '');
+                } else if (currentPageId) {
                   const copiedLayer = copyLayerFromStore(currentPageId, selectedLayerId);
                   if (copiedLayer) {
                     copyToClipboard(copiedLayer, currentPageId);
@@ -1303,20 +1314,35 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
         // Cut: Cmd/Ctrl + X (supports multi-select)
         if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
-          if (!isInputFocused && currentPageId) {
+          if (!isInputFocused && (currentPageId || editingComponentId)) {
             e.preventDefault();
+            
+            // Get layers from the correct context
+            const layers = getCurrentLayers();
+            
             if (selectedLayerIds.length > 1) {
               // Multi-select: cut all (check restrictions)
-              const draft = draftsByPageId[currentPageId];
-              if (draft) {
-                const layersToCheck = selectedLayerIds.map(id => findLayerById(draft.layers, id)).filter(Boolean) as Layer[];
-                const canCutAll = layersToCheck.every(layer => canCopyLayer(layer) && canDeleteLayer(layer));
+              const layersToCheck = selectedLayerIds.map(id => findLayerById(layers, id)).filter(Boolean) as Layer[];
+              const canCutAll = layersToCheck.every(layer => canCopyLayer(layer) && canDeleteLayer(layer));
 
-                if (canCutAll) {
-                  const layers = copyLayersFromStore(currentPageId, selectedLayerIds);
-                  if (layers.length > 0) {
-                    // Store first layer in clipboard for compatibility
-                    cutToClipboard(layers[0], currentPageId);
+              if (canCutAll) {
+                // In component edit mode, cut from component drafts
+                if (editingComponentId) {
+                  const copiedLayers = layersToCheck.map(l => cloneDeep(l));
+                  if (copiedLayers.length > 0) {
+                    cutToClipboard(copiedLayers[0], currentPageId || '');
+                    // Remove layers from component draft
+                    let newLayers = layers;
+                    for (const layerId of selectedLayerIds) {
+                      newLayers = removeLayerById(newLayers, layerId);
+                    }
+                    updateCurrentLayers(newLayers);
+                    clearSelection();
+                  }
+                } else if (currentPageId) {
+                  const copiedLayers = copyLayersFromStore(currentPageId, selectedLayerIds);
+                  if (copiedLayers.length > 0) {
+                    cutToClipboard(copiedLayers[0], currentPageId);
                     deleteLayers(currentPageId, selectedLayerIds);
                     clearSelection();
 
@@ -1331,10 +1357,15 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
               }
             } else if (selectedLayerId) {
               // Single select - check restrictions
-              const draft = draftsByPageId[currentPageId];
-              if (draft) {
-                const layer = findLayerById(draft.layers, selectedLayerId);
-                if (layer && layer.id !== 'body' && canCopyLayer(layer) && canDeleteLayer(layer)) {
+              const layer = findLayerById(layers, selectedLayerId);
+              if (layer && layer.id !== 'body' && canCopyLayer(layer) && canDeleteLayer(layer)) {
+                // In component edit mode, cut from component drafts
+                if (editingComponentId) {
+                  cutToClipboard(cloneDeep(layer), currentPageId || '');
+                  const newLayers = removeLayerById(layers, selectedLayerId);
+                  updateCurrentLayers(newLayers);
+                  setSelectedLayerId(null);
+                } else if (currentPageId) {
                   const copiedLayer = copyLayerFromStore(currentPageId, selectedLayerId);
                   if (copiedLayer) {
                     cutToClipboard(copiedLayer, currentPageId);
@@ -1354,11 +1385,61 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
         // Paste: Cmd/Ctrl + V
         if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
-          if (!isInputFocused && currentPageId) {
+          if (!isInputFocused && (currentPageId || editingComponentId)) {
             e.preventDefault();
             // Use clipboard store for paste (works with context menu)
             if (clipboardLayer && selectedLayerId) {
-              pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
+              // In component edit mode, paste into component drafts
+              if (editingComponentId) {
+                const layers = getCurrentLayers();
+                const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(clipboardLayer));
+                
+                // Find parent and index of target layer
+                const findParentAndIndex = (
+                  layersList: Layer[],
+                  targetId: string,
+                  parent: Layer | null = null
+                ): { parent: Layer | null; index: number } | null => {
+                  for (let i = 0; i < layersList.length; i++) {
+                    if (layersList[i].id === targetId) {
+                      return { parent, index: i };
+                    }
+                    if (layersList[i].children && layersList[i].children!.length > 0) {
+                      const found = findParentAndIndex(layersList[i].children!, targetId, layersList[i]);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
+                
+                const result = findParentAndIndex(layers, selectedLayerId);
+                if (result) {
+                  // Insert after the target layer
+                  const insertAfterLayer = (layersList: Layer[], parentLayer: Layer | null, insertIndex: number): Layer[] => {
+                    if (parentLayer === null) {
+                      const newList = [...layersList];
+                      newList.splice(insertIndex + 1, 0, newLayer);
+                      return newList;
+                    }
+                    return layersList.map(l => {
+                      if (l.id === parentLayer.id) {
+                        const children = [...(l.children || [])];
+                        children.splice(insertIndex + 1, 0, newLayer);
+                        return { ...l, children };
+                      }
+                      if (l.children && l.children.length > 0) {
+                        return { ...l, children: insertAfterLayer(l.children, parentLayer, insertIndex) };
+                      }
+                      return l;
+                    });
+                  };
+                  
+                  const newLayers = insertAfterLayer(layers, result.parent, result.index);
+                  updateCurrentLayers(newLayers);
+                }
+              } else if (currentPageId) {
+                pasteAfter(currentPageId, selectedLayerId, clipboardLayer);
+              }
             }
           }
         }

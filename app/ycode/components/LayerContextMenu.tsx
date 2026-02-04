@@ -19,7 +19,8 @@ import { useEditorStore } from '@/stores/useEditorStore';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useClipboardStore } from '@/stores/useClipboardStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
-import { canHaveChildren, findLayerById, getClassesString, regenerateInteractionIds, canCopyLayer, canDeleteLayer } from '@/lib/layer-utils';
+import { canHaveChildren, findLayerById, getClassesString, regenerateInteractionIds, canCopyLayer, canDeleteLayer, regenerateIdsWithInteractionRemapping, removeLayerById } from '@/lib/layer-utils';
+import { cloneDeep } from 'lodash';
 import { detachSpecificLayerFromComponent } from '@/lib/component-utils';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
 import type { UseLiveComponentUpdatesReturn } from '@/hooks/use-live-component-updates';
@@ -123,17 +124,252 @@ export default function LayerContextMenu({
 
   const handleCopy = () => {
     if (!canCopy) return;
-    const layer = copyLayer(pageId, layerId);
-    if (layer) {
-      copyToClipboard(layer, pageId);
+    
+    // In component context, copy from component drafts
+    if (isComponentContext && editingComponentId) {
+      const componentLayers = componentDrafts[editingComponentId] || [];
+      const layerToCopy = findLayerById(componentLayers, layerId);
+      if (layerToCopy) {
+        copyToClipboard(cloneDeep(layerToCopy), pageId);
+      }
+    } else {
+      const layer = copyLayer(pageId, layerId);
+      if (layer) {
+        copyToClipboard(layer, pageId);
+      }
     }
   };
 
   const handleCut = () => {
     if (isLocked || !canCopy || !canDelete) return;
-    const layer = copyLayer(pageId, layerId);
-    if (layer) {
-      cutToClipboard(layer, pageId);
+    
+    // In component context, cut from component drafts
+    if (isComponentContext && editingComponentId) {
+      const componentLayers = componentDrafts[editingComponentId] || [];
+      const layerToCopy = findLayerById(componentLayers, layerId);
+      if (layerToCopy) {
+        cutToClipboard(cloneDeep(layerToCopy), pageId);
+        const newLayers = removeLayerById(componentLayers, layerId);
+        updateComponentDraft(editingComponentId, newLayers);
+        
+        // Broadcast delete to other collaborators
+        if (liveComponentUpdates) {
+          liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, newLayers);
+        }
+        
+        // Clear selection after cut
+        if (onLayerSelect) {
+          onLayerSelect(null as any);
+        }
+      }
+    } else {
+      const layer = copyLayer(pageId, layerId);
+      if (layer) {
+        cutToClipboard(layer, pageId);
+        deleteLayer(pageId, layerId);
+
+        // Broadcast delete to other collaborators
+        if (liveLayerUpdates) {
+          liveLayerUpdates.broadcastLayerDelete(pageId, layerId);
+        }
+
+        // Clear selection after cut to match keyboard shortcut behavior
+        if (onLayerSelect) {
+          onLayerSelect(null as any);
+        }
+      }
+    }
+  };
+
+  const handlePasteAfter = () => {
+    if (!clipboardLayer) return;
+    
+    // In component context, paste into component drafts
+    if (isComponentContext && editingComponentId) {
+      const componentLayers = componentDrafts[editingComponentId] || [];
+      const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(clipboardLayer));
+      
+      // Find parent and index of target layer
+      const findParentAndIndex = (
+        layersList: Layer[],
+        targetId: string,
+        parent: Layer | null = null
+      ): { parent: Layer | null; index: number } | null => {
+        for (let i = 0; i < layersList.length; i++) {
+          if (layersList[i].id === targetId) {
+            return { parent, index: i };
+          }
+          if (layersList[i].children && layersList[i].children!.length > 0) {
+            const found = findParentAndIndex(layersList[i].children!, targetId, layersList[i]);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      
+      const result = findParentAndIndex(componentLayers, layerId);
+      if (!result) return;
+      
+      // Insert after the target layer
+      const insertAfter = (layersList: Layer[], parentLayer: Layer | null, insertIndex: number): Layer[] => {
+        if (parentLayer === null) {
+          const newList = [...layersList];
+          newList.splice(insertIndex + 1, 0, newLayer);
+          return newList;
+        }
+        return layersList.map(l => {
+          if (l.id === parentLayer.id) {
+            const children = [...(l.children || [])];
+            children.splice(insertIndex + 1, 0, newLayer);
+            return { ...l, children };
+          }
+          if (l.children && l.children.length > 0) {
+            return { ...l, children: insertAfter(l.children, parentLayer, insertIndex) };
+          }
+          return l;
+        });
+      };
+      
+      const newLayers = insertAfter(componentLayers, result.parent, result.index);
+      updateComponentDraft(editingComponentId, newLayers);
+      
+      // Broadcast update to other collaborators
+      if (liveComponentUpdates) {
+        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, newLayers);
+      }
+    } else {
+      const pastedLayer = pasteAfter(pageId, layerId, clipboardLayer);
+      // Broadcast the pasted layer
+      if (liveLayerUpdates && pastedLayer) {
+        liveLayerUpdates.broadcastLayerAdd(pageId, null, 'paste', pastedLayer);
+      }
+    }
+  };
+
+  const handlePasteInside = () => {
+    if (!clipboardLayer || !canPasteInside) return;
+    
+    // In component context, paste inside in component drafts
+    if (isComponentContext && editingComponentId) {
+      const componentLayers = componentDrafts[editingComponentId] || [];
+      const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(clipboardLayer));
+      
+      // Insert as last child of target layer
+      const insertInside = (layersList: Layer[]): Layer[] => {
+        return layersList.map(l => {
+          if (l.id === layerId) {
+            return { ...l, children: [...(l.children || []), newLayer] };
+          }
+          if (l.children && l.children.length > 0) {
+            return { ...l, children: insertInside(l.children) };
+          }
+          return l;
+        });
+      };
+      
+      const newLayers = insertInside(componentLayers);
+      updateComponentDraft(editingComponentId, newLayers);
+      
+      // Broadcast update to other collaborators
+      if (liveComponentUpdates) {
+        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, newLayers);
+      }
+    } else {
+      const pastedLayer = pasteInside(pageId, layerId, clipboardLayer);
+      // Broadcast the pasted layer
+      if (liveLayerUpdates && pastedLayer) {
+        liveLayerUpdates.broadcastLayerAdd(pageId, layerId, 'paste', pastedLayer);
+      }
+    }
+  };
+
+  const handleDuplicate = () => {
+    if (!canCopy) return;
+    
+    // In component context, duplicate in component drafts
+    if (isComponentContext && editingComponentId) {
+      const componentLayers = componentDrafts[editingComponentId] || [];
+      const layerToCopy = findLayerById(componentLayers, layerId);
+      if (!layerToCopy) return;
+      
+      const newLayer = regenerateIdsWithInteractionRemapping(cloneDeep(layerToCopy));
+      
+      // Find parent and index of target layer
+      const findParentAndIndex = (
+        layersList: Layer[],
+        targetId: string,
+        parent: Layer | null = null
+      ): { parent: Layer | null; index: number } | null => {
+        for (let i = 0; i < layersList.length; i++) {
+          if (layersList[i].id === targetId) {
+            return { parent, index: i };
+          }
+          if (layersList[i].children && layersList[i].children!.length > 0) {
+            const found = findParentAndIndex(layersList[i].children!, targetId, layersList[i]);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      
+      const result = findParentAndIndex(componentLayers, layerId);
+      if (!result) return;
+      
+      // Insert after the target layer
+      const insertAfter = (layersList: Layer[], parentLayer: Layer | null, insertIndex: number): Layer[] => {
+        if (parentLayer === null) {
+          const newList = [...layersList];
+          newList.splice(insertIndex + 1, 0, newLayer);
+          return newList;
+        }
+        return layersList.map(l => {
+          if (l.id === parentLayer.id) {
+            const children = [...(l.children || [])];
+            children.splice(insertIndex + 1, 0, newLayer);
+            return { ...l, children };
+          }
+          if (l.children && l.children.length > 0) {
+            return { ...l, children: insertAfter(l.children, parentLayer, insertIndex) };
+          }
+          return l;
+        });
+      };
+      
+      const newLayers = insertAfter(componentLayers, result.parent, result.index);
+      updateComponentDraft(editingComponentId, newLayers);
+      
+      // Broadcast update to other collaborators
+      if (liveComponentUpdates) {
+        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, newLayers);
+      }
+    } else {
+      const duplicatedLayer = duplicateLayer(pageId, layerId);
+      // Broadcast the duplicated layer
+      if (liveLayerUpdates && duplicatedLayer) {
+        liveLayerUpdates.broadcastLayerAdd(pageId, null, 'duplicate', duplicatedLayer);
+      }
+    }
+  };
+
+  const handleDelete = () => {
+    if (isLocked || !canDelete) return;
+    
+    // In component context, delete from component drafts
+    if (isComponentContext && editingComponentId) {
+      const componentLayers = componentDrafts[editingComponentId] || [];
+      const newLayers = removeLayerById(componentLayers, layerId);
+      updateComponentDraft(editingComponentId, newLayers);
+      
+      // Broadcast update to other collaborators
+      if (liveComponentUpdates) {
+        liveComponentUpdates.broadcastComponentLayersUpdate(editingComponentId, newLayers);
+      }
+      
+      // Clear selection after delete
+      if (onLayerSelect) {
+        onLayerSelect(null as any);
+      }
+    } else {
       deleteLayer(pageId, layerId);
 
       // Broadcast delete to other collaborators
@@ -141,52 +377,10 @@ export default function LayerContextMenu({
         liveLayerUpdates.broadcastLayerDelete(pageId, layerId);
       }
 
-      // Clear selection after cut to match keyboard shortcut behavior
+      // Clear selection after delete to match keyboard shortcut behavior
       if (onLayerSelect) {
         onLayerSelect(null as any);
       }
-    }
-  };
-
-  const handlePasteAfter = () => {
-    if (!clipboardLayer) return;
-    const pastedLayer = pasteAfter(pageId, layerId, clipboardLayer);
-    // Broadcast the pasted layer
-    if (liveLayerUpdates && pastedLayer) {
-      liveLayerUpdates.broadcastLayerAdd(pageId, null, 'paste', pastedLayer);
-    }
-  };
-
-  const handlePasteInside = () => {
-    if (!clipboardLayer || !canPasteInside) return;
-    const pastedLayer = pasteInside(pageId, layerId, clipboardLayer);
-    // Broadcast the pasted layer
-    if (liveLayerUpdates && pastedLayer) {
-      liveLayerUpdates.broadcastLayerAdd(pageId, layerId, 'paste', pastedLayer);
-    }
-  };
-
-  const handleDuplicate = () => {
-    if (!canCopy) return;
-    const duplicatedLayer = duplicateLayer(pageId, layerId);
-    // Broadcast the duplicated layer
-    if (liveLayerUpdates && duplicatedLayer) {
-      liveLayerUpdates.broadcastLayerAdd(pageId, null, 'duplicate', duplicatedLayer);
-    }
-  };
-
-  const handleDelete = () => {
-    if (isLocked || !canDelete) return;
-    deleteLayer(pageId, layerId);
-
-    // Broadcast delete to other collaborators
-    if (liveLayerUpdates) {
-      liveLayerUpdates.broadcastLayerDelete(pageId, layerId);
-    }
-
-    // Clear selection after delete to match keyboard shortcut behavior
-    if (onLayerSelect) {
-      onLayerSelect(null as any);
     }
   };
 
