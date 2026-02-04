@@ -362,6 +362,63 @@ export async function publishPages(pageIds: string[]): Promise<{ count: number }
     }
   }
 
+  // Step 8a: Remove published pages that would violate slug+folder+error_page unique
+  // constraint (same slug/folder/error_page but different id – e.g. replaced/renamed page).
+  if (pagesToUpsert.length > 0) {
+    const slugKey = (p: { slug: string; page_folder_id: string | null; error_page: number | null }) =>
+      `${p.slug}\t${p.page_folder_id ?? ''}\t${p.error_page ?? 0}`;
+
+    // Map from slug key -> id that will occupy that slot after upsert
+    const upsertKeyToId = new Map<string, string>();
+    for (const p of pagesToUpsert) {
+      upsertKeyToId.set(slugKey(p), p.id);
+    }
+
+    const slugsToCheck = [...new Set(pagesToUpsert.map((p) => p.slug))];
+    const { data: conflictingPublished } = await client
+      .from('pages')
+      .select('id, slug, page_folder_id, error_page')
+      .eq('is_published', true)
+      .is('deleted_at', null)
+      .in('slug', slugsToCheck);
+
+    // Delete if a different page will occupy this slug/folder/error_page slot
+    const idsToDelete = (conflictingPublished || [])
+      .filter((row) => {
+        const key = slugKey(row);
+        const ownerAfterUpsert = upsertKeyToId.get(key);
+        // Delete if someone else will own this slot, or if slot is wanted but by different id
+        return ownerAfterUpsert !== undefined && ownerAfterUpsert !== row.id;
+      })
+      .map((row) => row.id);
+
+    if (idsToDelete.length > 0) {
+      console.log('[publishPages] Removing conflicting published pages:', idsToDelete);
+
+      // Delete page_layers first (FK constraint)
+      const { error: layersDeleteError } = await client
+        .from('page_layers')
+        .delete()
+        .eq('is_published', true)
+        .in('page_id', idsToDelete);
+
+      if (layersDeleteError) {
+        throw new Error(`Failed to remove conflicting published page layers: ${layersDeleteError.message}`);
+      }
+
+      // Then delete the pages
+      const { error: deleteError } = await client
+        .from('pages')
+        .delete()
+        .eq('is_published', true)
+        .in('id', idsToDelete);
+
+      if (deleteError) {
+        throw new Error(`Failed to remove conflicting published pages: ${deleteError.message}`);
+      }
+    }
+  }
+
   // Batch upsert pages
   if (pagesToUpsert.length > 0) {
     const { error: upsertError } = await client
