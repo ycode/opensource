@@ -564,6 +564,13 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         if (routeType === 'layers' && !urlState.layerId) {
           setSelectedLayerId('body');
         }
+      } else if (!page && pages.length > 0) {
+        // Page not found - redirect to homepage
+        const homePage = findHomepage(pages);
+        const defaultPage = homePage || pages[0];
+        if (defaultPage) {
+          navigateToLayers(defaultPage.id);
+        }
       }
     } else if (routeType === 'collection' && resourceId) {
       const { setSelectedCollectionId } = useCollectionsStore.getState();
