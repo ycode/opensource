@@ -79,6 +79,8 @@ export default function SpacingControls({ layer, onLayerUpdate, activeTextStyleK
     updateDesignProperties,
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
     getCurrentValue: (prop: string) => getDesignProperty('spacing', prop) || '',
+    // Read stored mode directly from design object (bypasses class inheritance)
+    getStoredMode: () => (layer?.design?.spacing as Record<string, unknown>)?.marginMode as 'all' | 'individual' | null,
   });
 
   // Use mode toggle hook for padding
@@ -91,6 +93,8 @@ export default function SpacingControls({ layer, onLayerUpdate, activeTextStyleK
     updateDesignProperties,
     // Don't wrap in useCallback - let it recreate on every render to avoid stale closures
     getCurrentValue: (prop: string) => getDesignProperty('spacing', prop) || '',
+    // Read stored mode directly from design object (bypasses class inheritance)
+    getStoredMode: () => (layer?.design?.spacing as Record<string, unknown>)?.paddingMode as 'all' | 'individual' | null,
   });
 
   // Handle margin changes (debounced for smooth typing experience)

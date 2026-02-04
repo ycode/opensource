@@ -10,6 +10,8 @@ type ModeToggleConfig = {
   updateDesignProperty: (category: DesignCategory, property: string, value: string | null) => void;
   updateDesignProperties: (updates: { category: DesignCategory; property: string; value: string | null }[]) => void;
   getCurrentValue: (property: string) => string;
+  /** Optional function to read stored mode directly from design object (bypasses class inheritance) */
+  getStoredMode?: () => 'all' | 'individual' | null;
 };
 
 /**
@@ -29,13 +31,16 @@ export function useModeToggle(config: ModeToggleConfig) {
     updateDesignProperty,
     updateDesignProperties,
     getCurrentValue,
+    getStoredMode,
   } = config;
 
   // Derive mode during render (no state or effects needed)
   const mode = useMemo((): 'all' | 'individual' => {
     // Check for stored mode preference first (persisted in layer design)
     if (modeProperty) {
-      const storedMode = getCurrentValue(modeProperty) as 'all' | 'individual' | '';
+      // Use getStoredMode if provided (reads directly from design object)
+      // Otherwise fall back to getCurrentValue (which may not work for non-class properties)
+      const storedMode = getStoredMode ? getStoredMode() : getCurrentValue(modeProperty) as 'all' | 'individual' | '';
       if (storedMode === 'all' || storedMode === 'individual') {
         return storedMode;
       }
@@ -52,7 +57,7 @@ export function useModeToggle(config: ModeToggleConfig) {
 
     // Default to unified mode
     return 'all';
-  }, [unifiedProperty, individualProperties, modeProperty, getCurrentValue]);
+  }, [unifiedProperty, individualProperties, modeProperty, getCurrentValue, getStoredMode]);
 
   // Helper function to find most common value
   const findMostCommonValue = useCallback((values: string[]): string | null => {
