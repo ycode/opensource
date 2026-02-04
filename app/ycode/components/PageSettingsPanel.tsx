@@ -391,10 +391,28 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     }
   }), [hasUnsavedChanges, isSaving]);
 
+  // Track the previous page ID to detect actual page changes (not reference changes)
+  const prevPageIdRef = useRef<string | null | undefined>(page?.id);
+
   // Intercept incoming page prop changes
+  // Only runs when page ID changes, not on every form field change
   useEffect(() => {
-    // If the incoming page is the same object reference as current, nothing to do
-    if (page === currentPage) {
+    const pageId = page?.id;
+    const currentPageId = currentPage?.id;
+
+    // If the page ID hasn't changed, nothing to do
+    // This prevents the effect from running on every form field change
+    if (pageId === prevPageIdRef.current && pageId === currentPageId) {
+      return;
+    }
+
+    // Update the ref if page ID changed
+    if (pageId !== prevPageIdRef.current) {
+      prevPageIdRef.current = pageId;
+    }
+
+    // If the incoming page is the same as current, nothing to do
+    if (pageId === currentPageId) {
       return;
     }
 
@@ -470,7 +488,8 @@ const PageSettingsPanel = React.forwardRef<PageSettingsPanelHandle, PageSettings
     setCurrentPage(page);
     rejectedPageRef.current = null; // Clear rejected page since we're accepting a change
 
-  }, [page, currentPage, isSaving, name, slug, pageFolderId, isIndex, seoTitle, seoDescription, seoImage, seoNoindex, customCodeHead, customCodeBody, authEnabled, authPassword, collectionId, slugFieldId, pendingImageFile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page?.id, currentPage?.id, isSaving]);
 
   // Initialize form when currentPage changes (after confirmation or when no unsaved changes)
   useEffect(() => {

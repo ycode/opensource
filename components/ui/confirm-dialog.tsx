@@ -109,7 +109,7 @@ export function ConfirmDialog({
         aria-describedby={undefined}
         className="overflow-hidden"
       >
-        <DialogHeader className="bg-border/60">
+        <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
