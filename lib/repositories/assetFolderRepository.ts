@@ -5,6 +5,7 @@
  */
 
 import { getSupabaseAdmin } from '../supabase-server';
+import { SUPABASE_WRITE_BATCH_SIZE } from '../supabase/constants';
 import type { AssetFolder, CreateAssetFolderData, UpdateAssetFolderData } from '../../types';
 
 /**
@@ -347,12 +348,11 @@ export async function publishAssetFolders(folderIds: string[]): Promise<{ count:
     throw new Error('Supabase not configured');
   }
 
-  const BATCH_SIZE = 100;
   const draftFolders: AssetFolder[] = [];
 
   // Fetch draft folders in batches
-  for (let i = 0; i < folderIds.length; i += BATCH_SIZE) {
-    const batchIds = folderIds.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < folderIds.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+    const batchIds = folderIds.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
     const { data, error: fetchError } = await client
       .from('asset_folders')
       .select('*')
@@ -378,8 +378,8 @@ export async function publishAssetFolders(folderIds: string[]): Promise<{ count:
 
   // Check which folders already have published versions
   const existingPublishedIds = new Set<string>();
-  for (let i = 0; i < folderIds.length; i += BATCH_SIZE) {
-    const batchIds = folderIds.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < folderIds.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+    const batchIds = folderIds.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
     const { data: existingPublished } = await client
       .from('asset_folders')
       .select('id')
@@ -418,8 +418,8 @@ export async function publishAssetFolders(folderIds: string[]): Promise<{ count:
   const allRecords = [...toInsert, ...toUpdate].sort((a, b) => a.depth - b.depth);
 
   if (allRecords.length > 0) {
-    for (let i = 0; i < allRecords.length; i += BATCH_SIZE) {
-      const batch = allRecords.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < allRecords.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+      const batch = allRecords.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
       const { error: upsertError } = await client
         .from('asset_folders')
         .upsert(batch, {
@@ -452,12 +452,11 @@ export async function hardDeleteSoftDeletedAssetFolders(): Promise<{ count: numb
     return { count: 0 };
   }
 
-  const BATCH_SIZE = 100;
   const ids = deletedDrafts.map(f => f.id);
 
   // Delete published and draft versions in batches
-  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-    const batchIds = ids.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < ids.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
 
     // Delete published versions
     const { error: deletePublishedError } = await client

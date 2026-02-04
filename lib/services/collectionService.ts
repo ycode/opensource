@@ -15,7 +15,7 @@ import { withTransaction } from '../database/transaction';
 import { getSupabaseAdmin } from '../supabase-server';
 import { getCollectionById, hardDeleteCollection } from '../repositories/collectionRepository';
 import { getFieldsByCollectionId } from '../repositories/collectionFieldRepository';
-import { getItemsByCollectionId, getItemById, getItemsByIds } from '../repositories/collectionItemRepository';
+import { getItemsByCollectionId, getAllItemsByCollectionId, getItemById, getItemsByIds } from '../repositories/collectionItemRepository';
 import { getValuesByItemId } from '../repositories/collectionItemValueRepository';
 
 /**
@@ -466,8 +466,8 @@ async function publishItemValuesBatch(itemIds: string[]): Promise<number> {
  * - Draft data differs from published data
  */
 async function getUnpublishedItemIds(collectionId: string): Promise<string[]> {
-  // Get all draft items for this collection
-  const { items: draftItems } = await getItemsByCollectionId(collectionId, false);
+  // Get all draft items for this collection (with pagination for >1000 items)
+  const draftItems = await getAllItemsByCollectionId(collectionId, false);
 
   const unpublishedItemIds: string[] = [];
 
@@ -541,15 +541,12 @@ async function cleanupDeletedPublishedItems(collectionId: string): Promise<void>
     throw new Error('Supabase client not configured');
   }
 
-  // Get all items (including soft-deleted) from draft
-  const { items: draftItems } = await getItemsByCollectionId(
+  // Get all soft-deleted items from draft (with pagination for >1000 items)
+  const deletedDraftItems = await getAllItemsByCollectionId(
     collectionId,
     false,
-    { deleted: true } // Include deleted items
+    true // Only deleted items
   );
-
-  // Find soft-deleted items
-  const deletedDraftItems = draftItems.filter(item => item.deleted_at !== null);
 
   if (deletedDraftItems.length === 0) {
     console.log(`[cleanupDeletedPublishedItems] No soft-deleted draft items found`);

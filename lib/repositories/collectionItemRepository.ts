@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '../supabase-server';
+import { SUPABASE_QUERY_LIMIT } from '../supabase/constants';
 import type { CollectionItem, CollectionItemWithValues } from '@/types';
 import { randomUUID } from 'crypto';
 import { getFieldsByCollectionId } from './collectionFieldRepository';
@@ -235,6 +236,61 @@ export async function getItemsByCollectionId(
   }
 
   return { items: data || [], total: count || 0 };
+}
+
+/**
+ * Get ALL items for a collection (with pagination to handle >1000 items)
+ * Use this for publishing and other operations that need all items
+ * @param includeDeleted - If true, only returns deleted items. If false/undefined, excludes deleted items.
+ */
+export async function getAllItemsByCollectionId(
+  collection_id: string,
+  is_published: boolean = false,
+  includeDeleted: boolean = false
+): Promise<CollectionItem[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  const allItems: CollectionItem[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = client
+      .from('collection_items')
+      .select('*')
+      .eq('collection_id', collection_id)
+      .eq('is_published', is_published)
+      .order('manual_order', { ascending: true })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + SUPABASE_QUERY_LIMIT - 1);
+
+    // Apply deleted filter
+    if (includeDeleted) {
+      query = query.not('deleted_at', 'is', null);
+    } else {
+      query = query.is('deleted_at', null);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`Failed to fetch collection items: ${error.message}`);
+    }
+
+    if (data && data.length > 0) {
+      allItems.push(...data);
+      offset += data.length;
+      hasMore = data.length === SUPABASE_QUERY_LIMIT;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allItems;
 }
 
 /**

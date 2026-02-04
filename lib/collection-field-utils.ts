@@ -230,7 +230,7 @@ export function validateFieldValue(
       return emailRegex.test(trimmed) ? null : 'Invalid email format';
     }
     case 'phone': {
-      const phoneRegex = /^[\d\s\-\(\)\+\.]*$/;
+      const phoneRegex = /^[\d\s-()+.']*$/;
       const digitCount = (trimmed.match(/\d/g) || []).length;
       if (!phoneRegex.test(trimmed) || digitCount < 7) {
         return 'Phone must contain at least 7 digits';

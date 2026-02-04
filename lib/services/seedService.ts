@@ -8,6 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getSupabaseAdmin } from '../supabase-server';
+import { SUPABASE_WRITE_BATCH_SIZE } from '../supabase/constants';
 
 const ICONS_FOLDER_NAME = 'Icons';
 const REMIX_FOLDER_NAME = 'Remix';
@@ -221,12 +222,11 @@ export async function seedRemixIcons(): Promise<SeedResult> {
       };
     }
 
-    // Batch insert icons (100 at a time for performance)
-    const BATCH_SIZE = 100;
+    // Batch insert icons
     let inserted = 0;
 
-    for (let i = 0; i < iconsToInsert.length; i += BATCH_SIZE) {
-      const batch = iconsToInsert.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < iconsToInsert.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+      const batch = iconsToInsert.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
 
       const now = new Date().toISOString();
       const assetsToInsert = batch.map(icon => ({

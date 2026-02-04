@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '../supabase-server';
+import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '../supabase/constants';
 import type { Asset } from '../../types';
 
 export interface CreateAssetData {
@@ -219,8 +220,8 @@ export async function getAssetsByIds(ids: string[], isPublished: boolean = false
   let query = client
     .from('assets')
     .select('*')
-    .in('id', ids)
-    .eq('is_published', isPublished);
+    .eq('is_published', isPublished)
+    .in('id', ids);
 
   // Only filter deleted_at for drafts
   if (!isPublished) {
@@ -366,12 +367,11 @@ export async function bulkDeleteAssets(ids: string[]): Promise<{ success: string
     return { success: [], failed: [] };
   }
 
-  const BATCH_SIZE = 100;
   const draftAssets: Asset[] = [];
 
   // Get all draft assets in batches
-  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-    const batchIds = ids.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < ids.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
     const { data, error: fetchDraftError } = await client
       .from('assets')
       .select('*')
@@ -390,8 +390,8 @@ export async function bulkDeleteAssets(ids: string[]): Promise<{ success: string
 
   // Get published assets to check which files should be deleted immediately
   const publishedIds = new Set<string>();
-  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-    const batchIds = ids.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < ids.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
     const { data: publishedAssets, error: fetchPublishedError } = await client
       .from('assets')
       .select('id')
@@ -412,8 +412,8 @@ export async function bulkDeleteAssets(ids: string[]): Promise<{ success: string
 
   // Delete from storage for assets that were never published (in batches)
   if (storagePaths.length > 0) {
-    for (let i = 0; i < storagePaths.length; i += BATCH_SIZE) {
-      const batch = storagePaths.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < storagePaths.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+      const batch = storagePaths.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
       const { error: storageError } = await client.storage
         .from('assets')
         .remove(batch);
@@ -426,8 +426,8 @@ export async function bulkDeleteAssets(ids: string[]): Promise<{ success: string
   }
 
   // Soft-delete all draft records in batches
-  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-    const batchIds = ids.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < ids.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
     const { error: deleteError } = await client
       .from('assets')
       .update({ deleted_at: new Date().toISOString() })
@@ -461,11 +461,9 @@ export async function bulkUpdateAssets(
     return { success: [], failed: [] };
   }
 
-  const BATCH_SIZE = 100;
-
   // Update all draft assets in batches
-  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-    const batchIds = ids.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < ids.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
     const { error } = await client
       .from('assets')
       .update({
@@ -545,6 +543,7 @@ export async function uploadFile(file: File): Promise<{ path: string; url: strin
 
 /**
  * Get all unpublished (draft) assets that have changes
+ * Uses pagination to handle more than 1000 assets (Supabase default limit)
  */
 export async function getUnpublishedAssets(): Promise<Asset[]> {
   const client = await getSupabaseAdmin();
@@ -553,18 +552,33 @@ export async function getUnpublishedAssets(): Promise<Asset[]> {
     throw new Error('Supabase not configured');
   }
 
-  const { data, error } = await client
-    .from('assets')
-    .select('*')
-    .eq('is_published', false)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false });
+  const allAssets: Asset[] = [];
+  let offset = 0;
+  let hasMore = true;
 
-  if (error) {
-    throw new Error(`Failed to fetch unpublished assets: ${error.message}`);
+  while (hasMore) {
+    const { data, error } = await client
+      .from('assets')
+      .select('*')
+      .eq('is_published', false)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + SUPABASE_QUERY_LIMIT - 1);
+
+    if (error) {
+      throw new Error(`Failed to fetch unpublished assets: ${error.message}`);
+    }
+
+    if (data && data.length > 0) {
+      allAssets.push(...data);
+      offset += data.length;
+      hasMore = data.length === SUPABASE_QUERY_LIMIT;
+    } else {
+      hasMore = false;
+    }
   }
 
-  return data || [];
+  return allAssets;
 }
 
 /**
@@ -605,12 +619,11 @@ export async function publishAssets(assetIds: string[]): Promise<{ count: number
   }
 
   // Batch size to avoid Supabase URL length limits
-  const BATCH_SIZE = 100;
   const draftAssets: Asset[] = [];
 
   // Fetch draft assets in batches
-  for (let i = 0; i < assetIds.length; i += BATCH_SIZE) {
-    const batchIds = assetIds.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < assetIds.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+    const batchIds = assetIds.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
     const { data, error: fetchError } = await client
       .from('assets')
       .select('*')
@@ -633,8 +646,8 @@ export async function publishAssets(assetIds: string[]): Promise<{ count: number
 
   // Check which assets already have published versions (also in batches)
   const existingPublishedIds = new Set<string>();
-  for (let i = 0; i < assetIds.length; i += BATCH_SIZE) {
-    const batchIds = assetIds.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < assetIds.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+    const batchIds = assetIds.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
     const { data: existingPublished } = await client
       .from('assets')
       .select('id')
@@ -678,8 +691,8 @@ export async function publishAssets(assetIds: string[]): Promise<{ count: number
   const allRecords = [...toInsert, ...toUpdate];
 
   if (allRecords.length > 0) {
-    for (let i = 0; i < allRecords.length; i += BATCH_SIZE) {
-      const batch = allRecords.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < allRecords.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+      const batch = allRecords.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
       const { error: upsertError } = await client
         .from('assets')
         .upsert(batch, {
@@ -716,7 +729,6 @@ export async function hardDeleteSoftDeletedAssets(): Promise<{ count: number }> 
     return { count: 0 };
   }
 
-  const BATCH_SIZE = 100;
   const ids = deletedDrafts.map(a => a.id);
 
   // Collect storage paths to delete
@@ -726,8 +738,8 @@ export async function hardDeleteSoftDeletedAssets(): Promise<{ count: number }> 
 
   // Delete physical files from storage in batches
   if (storagePaths.length > 0) {
-    for (let i = 0; i < storagePaths.length; i += BATCH_SIZE) {
-      const batch = storagePaths.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < storagePaths.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+      const batch = storagePaths.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
       const { error: storageError } = await client.storage
         .from('assets')
         .remove(batch);
@@ -740,8 +752,8 @@ export async function hardDeleteSoftDeletedAssets(): Promise<{ count: number }> 
   }
 
   // Delete published and draft versions in batches
-  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-    const batchIds = ids.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < ids.length; i += SUPABASE_WRITE_BATCH_SIZE) {
+    const batchIds = ids.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
 
     // Delete published versions
     const { error: deletePublishedError } = await client

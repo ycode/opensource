@@ -2043,7 +2043,14 @@ async function resolveAllAssets(layers: Layer[], isPublished: boolean = true): P
       const assetId = getAssetId(imageSrc);
       if (assetId) {
         const asset = assetMap[assetId];
-        const resolvedUrl = asset?.public_url || '';
+        // Use public_url if available, otherwise convert inline content to data URL
+        let resolvedUrl = '';
+        if (asset?.public_url) {
+          resolvedUrl = asset.public_url;
+        } else if (asset?.content) {
+          // Convert inline SVG content to data URL
+          resolvedUrl = `data:image/svg+xml,${encodeURIComponent(asset.content)}`;
+        }
         variableUpdates.image = {
           src: createDynamicTextVariable(resolvedUrl),
           alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
@@ -2101,16 +2108,14 @@ async function resolveAllAssets(layers: Layer[], isPublished: boolean = true): P
       if (assetId) {
         const asset = assetMap[assetId];
         const svgContent = asset?.content || '';
-        if (svgContent) {
-          variableUpdates.icon = {
-            src: {
-              type: 'static_text' as const,
-              data: {
-                content: svgContent,
-              },
+        variableUpdates.icon = {
+          src: {
+            type: 'static_text' as const,
+            data: {
+              content: svgContent,
             },
-          };
-        }
+          },
+        };
       }
     }
 

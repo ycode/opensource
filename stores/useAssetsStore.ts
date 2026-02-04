@@ -60,6 +60,9 @@ const initialState: AssetsState = {
   error: null,
 };
 
+// Track in-flight asset fetches to prevent duplicate requests
+const pendingFetches = new Set<string>();
+
 export const useAssetsStore = create<AssetsStore>((set, get) => ({
   ...initialState,
 
@@ -204,7 +207,19 @@ export const useAssetsStore = create<AssetsStore>((set, get) => ({
       return null;
     }
 
-    // If store not loaded yet, fetch from API in background
+    // Skip background fetch on server-side (relative URLs don't work in Node.js)
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    // Skip if already fetching this asset (prevents duplicate requests)
+    if (pendingFetches.has(id)) {
+      return null;
+    }
+
+    // Mark as pending and fetch from API in background
+    pendingFetches.add(id);
+    
     fetch(`/ycode/api/assets/${id}`)
       .then(res => res.ok ? res.json() : null)
       .then(result => {
@@ -220,6 +235,9 @@ export const useAssetsStore = create<AssetsStore>((set, get) => ({
       })
       .catch(err => {
         console.error('Failed to fetch asset:', err);
+      })
+      .finally(() => {
+        pendingFetches.delete(id);
       });
 
     return null;
