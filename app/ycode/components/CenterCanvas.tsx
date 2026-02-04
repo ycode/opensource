@@ -1243,12 +1243,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
   }, [currentPageId, editingComponentId, setDraftLayers]);
 
   // Use the canvas sibling reorder hook for drag-to-reorder within same parent
+  // Disable during text edit mode so text selection works
   useCanvasSiblingReorder({
     iframeElement: canvasIframeElement,
     zoom,
     layers,
     pageId: currentPageId,
     selectedLayerId,
+    disabled: isTextEditing,
     onReorder: handleLayerReorder,
     onLayerSelect: setSelectedLayerId,
   });
@@ -1465,7 +1467,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
             }
           }}
           className={cn(
-            "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-pointer items-center gap-1.25 rounded-sm py-1.5 pr-8 pl-2 text-xs outline-hidden select-none data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+            "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-pointer items-center gap-1.25 rounded-sm py-1.5 pr-8 pl-2 text-xs outline-hidden select-none data-disabled:opacity-50 data-disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
             isCurrentPage && 'bg-secondary/50'
           )}
           style={{ paddingLeft: `${depth * 14 + 8}px` }}
@@ -1480,15 +1482,15 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 }
               }}
               className={cn(
-                'size-3 flex items-center justify-center flex-shrink-0',
+                'size-3 flex items-center justify-center shrink-0',
                 isCollapsed ? '' : 'rotate-90'
               )}
             >
               <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isCurrentPage && 'opacity-80')} />
             </button>
           ) : (
-            <div className="size-3 flex-shrink-0 flex items-center justify-center">
-              <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-0', isCurrentPage && 'opacity-0')} />
+            <div className="size-3 shrink-0 flex items-center justify-center">
+              <div className={cn('ml-px w-1.5 h-px bg-white opacity-0', isCurrentPage && 'opacity-0')} />
             </div>
           )}
 
@@ -1499,7 +1501,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
           />
 
           {/* Label */}
-          <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
+          <span className="grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
             {isFolder ? (node.data as PageFolder).name : (node.data as Page).name}
           </span>
 
@@ -1777,13 +1779,13 @@ const CenterCanvas = React.memo(function CenterCanvas({
                     </span>
                   </div>
                   <div className="shrink-0">
-                    <Icon name="chevronCombo" className="!size-2.5 shrink-0 opacity-50" />
+                    <Icon name="chevronCombo" className="size-2.5! shrink-0 opacity-50" />
                   </div>
                 </Button>
               </PopoverTrigger>
 
               <PopoverContent className="w-auto min-w-60 max-w-96 p-1" align="start">
-                <div className="max-h-[400px] overflow-y-auto">
+                <div className="max-h-100 overflow-y-auto">
                   {/* Regular pages tree */}
                   {pageTree.length > 0 && pageTree.map(node => renderPageTreeNode(node, 0))}
 
@@ -1851,7 +1853,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         {/* Viewport Controls */}
         <div className="flex justify-center gap-2">
           <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
-            <TabsList className="w-[200px]">
+            <TabsList className="w-50">
             <TabsTrigger value="desktop" title="Desktop View">
               Desktop
             </TabsTrigger>
@@ -1868,7 +1870,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               <Button variant="input" size="sm">
                 {Math.round(zoom)}%
                 <div>
-                  <Icon name="chevronCombo" className="!size-2.5 opacity-50" />
+                  <Icon name="chevronCombo" className="size-2.5! opacity-50" />
                 </div>
               </Button>
             </DropdownMenuTrigger>
@@ -1878,7 +1880,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
               sideOffset={4}
               avoidCollisions={false}
               collisionPadding={0}
-              className="!max-h-[300px] w-38"
+              className="max-h-75! w-38"
             >
               <DropdownMenuItem onClick={zoomIn}>
                 Zoom in
@@ -1932,14 +1934,14 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
       {/* Text Editor Toolbar - shown when editing text */}
       {isTextEditing && !isPreviewMode && (
-        <div className="absolute top-[0px] h-[65px] left-0 right-0 z-50 flex items-center justify-center gap-1 px-4 bg-background border-b">
+        <div className="absolute top-0 h-16.25 left-0 right-0 z-50 flex items-center justify-center gap-1 px-4 bg-background border-b">
           <div className="flex items-center justify-center gap-0.5 bg-input p-1 rounded-lg">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="xs"
-                  className={cn('!size-6', textEditorActiveMarks.bold && 'bg-accent')}
+                  className={cn('size-6!', textEditorActiveMarks.bold && 'bg-accent')}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     toggleBold();
@@ -1956,7 +1958,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 <Button
                   variant="ghost"
                   size="xs"
-                  className={cn('!size-6', textEditorActiveMarks.italic && 'bg-accent')}
+                  className={cn('size-6!', textEditorActiveMarks.italic && 'bg-accent')}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     toggleItalic();
@@ -1973,7 +1975,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 <Button
                   variant="ghost"
                   size="xs"
-                  className={cn('!size-6', textEditorActiveMarks.underline && 'bg-accent')}
+                  className={cn('size-6!', textEditorActiveMarks.underline && 'bg-accent')}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     toggleUnderline();
@@ -1990,7 +1992,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 <Button
                   variant="ghost"
                   size="xs"
-                  className={cn('!size-6', textEditorActiveMarks.strike && 'bg-accent')}
+                  className={cn('size-6!', textEditorActiveMarks.strike && 'bg-accent')}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     toggleStrike();
@@ -2007,7 +2009,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 <Button
                   variant="ghost"
                   size="xs"
-                  className={cn('!size-6', textEditorActiveMarks.superscript && 'bg-accent')}
+                  className={cn('size-6!', textEditorActiveMarks.superscript && 'bg-accent')}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     toggleSuperscript();
@@ -2024,7 +2026,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 <Button
                   variant="ghost"
                   size="xs"
-                  className={cn('!size-6', textEditorActiveMarks.subscript && 'bg-accent')}
+                  className={cn('size-6!', textEditorActiveMarks.subscript && 'bg-accent')}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     toggleSubscript();
@@ -2045,7 +2047,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 <Button
                   variant="ghost"
                   size="xs"
-                  className={cn('!size-6', textEditorActiveMarks.bulletList && 'bg-accent')}
+                  className={cn('size-6!', textEditorActiveMarks.bulletList && 'bg-accent')}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     toggleBulletList();
@@ -2062,7 +2064,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 <Button
                   variant="ghost"
                   size="xs"
-                  className={cn('!size-6', textEditorActiveMarks.orderedList && 'bg-accent')}
+                  className={cn('size-6!', textEditorActiveMarks.orderedList && 'bg-accent')}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     toggleOrderedList();
@@ -2114,7 +2116,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         <Button
                           variant="ghost"
                           size="xs"
-                          className={cn('!size-6', textEditorActiveMarks.richTextLink && 'bg-accent')}
+                          className={cn('size-6!', textEditorActiveMarks.richTextLink && 'bg-accent')}
                         >
                           <Icon name="link" className="size-3" />
                         </Button>
@@ -2126,7 +2128,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                         <Button
                           variant="ghost"
                           size="xs"
-                          className="!size-6"
+                          className="size-6!"
                           disabled={true}
                         >
                           <Icon name="link" className="size-3" />
@@ -2152,7 +2154,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                   <Button
                     variant="ghost"
                     size="xs"
-                    className="!size-6"
+                    className="size-6!"
                   >
                     <Icon name="database" className="size-3" />
                   </Button>
@@ -2196,7 +2198,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                   <Button
                     variant="ghost"
                     size="xs"
-                    className="!size-6"
+                    className="size-6!"
                     disabled={true}
                   >
                     <Icon name="database" className="size-3" />
@@ -2308,7 +2310,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 ) : (
                   <div className="w-full h-full flex items-center justify-center p-12">
                     <div className="text-center max-w-md">
-                      <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
+                      <div className="w-20 h-20 bg-linear-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
                         <Icon name="layout" className="w-10 h-10 text-blue-500" />
                       </div>
                       <h2 className="text-2xl font-bold text-gray-900 mb-3">
@@ -2451,7 +2453,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
                   ) : (
                     <div className="w-full h-full flex items-center justify-center p-12">
                       <div className="text-center max-w-md relative">
-                        <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
+                        <div className="w-20 h-20 bg-linear-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
                           <Icon name="layout" className="w-10 h-10 text-blue-500" />
                         </div>
                         <h2 className="text-2xl font-bold text-gray-900 mb-3">
@@ -2472,7 +2474,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
                           {/* Add Block Panel */}
                           {showAddBlockPanel && currentPageId && (
-                            <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 bg-white border border-gray-200 rounded-lg shadow-2xl min-w-[240px]">
+                            <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 bg-white border border-gray-200 rounded-lg shadow-2xl min-w-60">
                               <div className="p-2">
                                 <div className="text-xs text-gray-500 px-3 py-2 mb-1 font-medium">Choose a block</div>
 

@@ -45,6 +45,7 @@ import Icon from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
 import { assetFoldersApi, assetsApi, uploadFileApi } from '@/lib/api';
 import type { AssetFolder, Asset } from '@/types';
+import type { AssetUsageResult, CmsItemUsageEntry } from '@/lib/asset-usage-utils';
 import { getAcceptString, getAssetIcon, getOptimizedImageUrl, isAssetOfType, getAssetCategoryFromMimeType } from '@/lib/asset-utils';
 import { ASSET_CATEGORIES } from '@/lib/asset-constants';
 import type { AssetCategory } from '@/types';
@@ -57,10 +58,13 @@ import {
 } from '@/lib/asset-folder-utils';
 import { Spinner } from '@/components/ui/spinner';
 import { useAssetsStore } from '@/stores/useAssetsStore';
+import { usePagesStore } from '@/stores/usePagesStore';
+import { useComponentsStore } from '@/stores/useComponentsStore';
 import AssetFolderDialog from './AssetFolderDialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useTreeDragDrop } from '@/hooks/use-tree-drag-drop';
 import { toast } from 'sonner';
+import type { AffectedPageEntity, AffectedComponentEntity } from '@/lib/asset-usage-utils';
 
 interface FileManagerDialogProps {
   open: boolean;
@@ -144,7 +148,7 @@ function FolderRow({
             marginLeft: `${node.depth * 14 + 8}px`,
           }}
         >
-          <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
+          <div className="absolute -bottom-0.75 -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
         </div>
       )}
       {isOver && dropPosition === 'below' && (
@@ -154,7 +158,7 @@ function FolderRow({
             marginLeft: `${node.depth * 14 + 8}px`,
           }}
         >
-          <div className="absolute -bottom-[3px] -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
+          <div className="absolute -bottom-0.75 -left-[5.5px] size-2 rounded-full border-[1.5px] bg-neutral-950 border-primary" />
         </div>
       )}
       {isOver && dropPosition === 'inside' && (
@@ -185,15 +189,15 @@ function FolderRow({
               onToggle(node.id);
             }}
             className={cn(
-              'w-4 h-4 flex items-center justify-center flex-shrink-0 cursor-pointer',
+              'w-4 h-4 flex items-center justify-center shrink-0 cursor-pointer',
               isCollapsed ? '' : 'rotate-90'
             )}
           >
             <Icon name="chevronRight" className={cn('size-2.5 opacity-50', isSelected && 'opacity-80')} />
           </div>
         ) : (
-          <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
-            <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-0', isSelected && 'opacity-0')} />
+          <div className="w-4 h-4 shrink-0 flex items-center justify-center">
+            <div className={cn('ml-px w-1.5 h-px bg-white opacity-0', isSelected && 'opacity-0')} />
           </div>
         )}
 
@@ -204,7 +208,7 @@ function FolderRow({
         />
 
         {/* Label */}
-        <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
+        <span className="grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
           {node.data.name}
         </span>
 
@@ -212,7 +216,7 @@ function FolderRow({
         {assetCount > 0 && (
           <span
             className={cn(
-              'text-xs mr-3 pointer-events-none flex-shrink-0 group-hover:opacity-0',
+              'text-xs mr-3 pointer-events-none shrink-0 group-hover:opacity-0',
               isSelected ? 'opacity-80' : 'opacity-60'
             )}
           >
@@ -508,6 +512,8 @@ export default function FileManagerDialog({
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
   const [showDeleteAssetConfirmDialog, setShowDeleteAssetConfirmDialog] = useState(false);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+  const [assetUsage, setAssetUsage] = useState<{ pages: { id: string; name: string }[]; components: { id: string; name: string }[]; cmsItems: { id: string; name: string }[]; total: number } | null>(null);
+  const [loadingUsage, setLoadingUsage] = useState(false);
   const [showEditAssetDialog, setShowEditAssetDialog] = useState(false);
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
   const [editAssetName, setEditAssetName] = useState('');
@@ -584,14 +590,14 @@ export default function FileManagerDialog({
   // Load assets when folder, search, or category changes
   const loadAssets = useCallback(async (page: number, reset: boolean = false) => {
     if (isLoadingAssets && !reset) return;
-    
+
     setIsLoadingAssets(true);
-    
+
     try {
       // Build folder IDs for search (include descendants)
       let folderIds: string[] | undefined;
       let folderId: string | null | undefined;
-      
+
       if (debouncedSearch.trim()) {
         // Search mode: include current folder and all descendants
         folderIds = getAllDescendantFolderIds(selectedFolderId);
@@ -599,7 +605,7 @@ export default function FileManagerDialog({
         // Normal mode: only current folder
         folderId = selectedFolderId;
       }
-      
+
       const result = await fetchAssets({
         folderId,
         folderIds,
@@ -607,7 +613,7 @@ export default function FileManagerDialog({
         page,
         limit: ASSETS_PER_PAGE,
       });
-      
+
       // Filter by category client-side (since category is UI-specific)
       let filteredAssets = result.assets;
       if (selectedCategory !== 'all') {
@@ -616,7 +622,7 @@ export default function FileManagerDialog({
           return assetCategory === selectedCategory;
         });
       }
-      
+
       if (reset || page === 1) {
         setAssets(filteredAssets);
       } else {
@@ -627,7 +633,7 @@ export default function FileManagerDialog({
           return [...prev, ...newAssets];
         });
       }
-      
+
       setTotalAssets(result.total);
       setHasMoreAssets(result.hasMore);
       setCurrentPage(page);
@@ -1017,9 +1023,23 @@ export default function FileManagerDialog({
   };
 
   // Show delete asset confirmation
-  const handleDeleteAsset = (id: string) => {
+  const handleDeleteAsset = async (id: string) => {
     setDeletingAssetId(id);
+    setAssetUsage(null);
+    setLoadingUsage(true);
     setShowDeleteAssetConfirmDialog(true);
+
+    // Fetch usage in background
+    try {
+      const response = await assetsApi.getUsage(id);
+      if (response.data && !response.error) {
+        setAssetUsage(response.data as AssetUsageResult);
+      }
+    } catch (error) {
+      console.error('Failed to fetch asset usage:', error);
+    } finally {
+      setLoadingUsage(false);
+    }
   };
 
   // Confirm delete asset
@@ -1046,11 +1066,81 @@ export default function FileManagerDialog({
         setAssets(prev => [assetToDelete, ...prev]);
         return;
       }
+
+      // Sync affected entities and create versions
+      const responseData = response.data as {
+        success: boolean;
+        cleanup?: {
+          affectedPages?: AffectedPageEntity[];
+          affectedComponents?: AffectedComponentEntity[];
+        };
+      } | undefined;
+
+      if (responseData?.cleanup) {
+        await syncAffectedEntitiesAfterAssetDelete(responseData.cleanup);
+      }
     } catch (error) {
       console.error('Failed to delete asset:', error);
       // Rollback: add asset back to store and local state
       addAsset(assetToDelete);
       setAssets(prev => [assetToDelete, ...prev]);
+    }
+  };
+
+  /**
+   * Sync affected pages/components and create undo versions after asset deletion
+   */
+  const syncAffectedEntitiesAfterAssetDelete = async (cleanup: {
+    affectedPages?: AffectedPageEntity[];
+    affectedComponents?: AffectedComponentEntity[];
+  }) => {
+    const { affectedPages = [], affectedComponents = [] } = cleanup;
+
+    if (affectedPages.length === 0 && affectedComponents.length === 0) {
+      return;
+    }
+
+    // Import version tracking utilities
+    const { recordVersionViaApi, initializeVersionTracking } = await import('@/lib/version-tracking');
+
+    // Get stores
+    const pagesStore = usePagesStore.getState();
+    const componentsStore = useComponentsStore.getState();
+
+    // Sync affected pages
+    for (const entity of affectedPages) {
+      // Sync local draft if it exists
+      const draft = pagesStore.draftsByPageId[entity.pageId];
+      if (draft) {
+        pagesStore.setDraftLayers(entity.pageId, entity.newLayers);
+      }
+
+      // Initialize version tracking with previous state, then record new version
+      initializeVersionTracking('page_layers', entity.pageId, entity.previousLayers);
+      await recordVersionViaApi('page_layers', entity.pageId, entity.newLayers);
+    }
+
+    // Sync affected components
+    for (const entity of affectedComponents) {
+      // Update component in store
+      const component = componentsStore.components.find(c => c.id === entity.componentId);
+      if (component) {
+        // Update the components array directly
+        componentsStore.setComponents(
+          componentsStore.components.map(c =>
+            c.id === entity.componentId ? { ...c, layers: entity.newLayers } : c
+          )
+        );
+
+        // Update component draft if it exists
+        if (componentsStore.componentDrafts[entity.componentId]) {
+          componentsStore.updateComponentDraft(entity.componentId, entity.newLayers);
+        }
+      }
+
+      // Initialize version tracking with previous state, then record new version
+      initializeVersionTracking('component', entity.componentId, entity.previousLayers);
+      await recordVersionViaApi('component', entity.componentId, entity.newLayers);
     }
   };
 
@@ -1069,10 +1159,11 @@ export default function FileManagerDialog({
     if (assetsToDelete.length === 0) return;
 
     try {
-      // Optimistically remove from store
+      // Optimistically remove from store and local state
       assetsToDelete.forEach(({ id }) => {
         removeAsset(id);
       });
+      setAssets(prev => prev.filter(a => !idsToDelete.includes(a.id)));
 
       // Clear selection
       setSelectedAssetIds(new Set());
@@ -1082,10 +1173,11 @@ export default function FileManagerDialog({
 
       if (response.error) {
         console.error('Failed to delete assets:', response.error);
-        // Rollback: add all assets back to store
+        // Rollback: add all assets back to store and local state
         assetsToDelete.forEach(({ asset }) => {
           addAsset(asset);
         });
+        setAssets(prev => [...assetsToDelete.map(({ asset }) => asset), ...prev]);
         toast.error('Failed to delete assets', {
           description: response.error,
         });
@@ -1093,16 +1185,29 @@ export default function FileManagerDialog({
       }
 
       if (response.data) {
-        const { success, failed } = response.data;
+        const { success, failed, cleanup } = response.data as {
+          success: string[];
+          failed: string[];
+          cleanup?: {
+            affectedPages?: AffectedPageEntity[];
+            affectedComponents?: AffectedComponentEntity[];
+          };
+        };
 
         // Rollback failed deletions
         if (failed.length > 0) {
+          const failedAssets: Asset[] = [];
           failed.forEach((id) => {
             const item = assetsToDelete.find((a) => a.id === id);
             if (item) {
               addAsset(item.asset);
+              failedAssets.push(item.asset);
             }
           });
+          // Re-add failed assets to local state
+          if (failedAssets.length > 0) {
+            setAssets(prev => [...failedAssets, ...prev]);
+          }
         }
 
         if (failed.length > 0) {
@@ -1110,13 +1215,19 @@ export default function FileManagerDialog({
             description: `${success.length} deleted, ${failed.length} failed`,
           });
         }
+
+        // Sync affected entities and create versions
+        if (cleanup) {
+          await syncAffectedEntitiesAfterAssetDelete(cleanup);
+        }
       }
     } catch (error) {
       console.error('Failed to delete assets:', error);
-      // Rollback: add all assets back to store
+      // Rollback: add all assets back to store and local state
       assetsToDelete.forEach(({ asset }) => {
         addAsset(asset);
       });
+      setAssets(prev => [...assetsToDelete.map(({ asset }) => asset), ...prev]);
       toast.error('Failed to delete assets');
     }
   };
@@ -1240,7 +1351,7 @@ export default function FileManagerDialog({
         const newAsset = response.data;
         addAsset(newAsset);
         // Add to local assets if in the same folder (avoid duplicates)
-        if (newAsset.asset_folder_id === selectedFolderId || 
+        if (newAsset.asset_folder_id === selectedFolderId ||
             (newAsset.asset_folder_id === null && selectedFolderId === null)) {
           setAssets(prev => {
             if (prev.some(a => a.id === newAsset.id)) return prev;
@@ -1471,7 +1582,7 @@ export default function FileManagerDialog({
                 </div>
 
                 <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as AssetCategory | 'all')}>
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-35">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1521,321 +1632,320 @@ export default function FileManagerDialog({
           <div className="flex-1 flex -my-6 -mx-6 overflow-hidden">
             {/* Folder Sidebar */}
             <div className="w-64 border-r h-full overflow-y-auto px-4">
-            <header className="py-5 flex justify-between">
-              <span className="font-medium">File manager</span>
-              <div className="-my-1">
-                <Button
-                  size="xs"
-                  variant="secondary"
-                  onClick={() => {
-                    // Expand selected folder when creating a child
-                    if (selectedFolderId) {
-                      setCollapsedIds((prev) => {
-                        const next = new Set(prev);
-                        next.delete(selectedFolderId);
-                        return next;
-                      });
-                    } else {
-                      // Expand root if creating at root level
-                      setCollapsedIds((prev) => {
-                        const next = new Set(prev);
-                        next.delete('root');
-                        return next;
-                      });
-                    }
-                    setShowCreateFolderDialog(true);
-                  }}
-                >
-                  <Icon name="plus" />
-                </Button>
-              </div>
-            </header>
-            <div className="space-y-0">
-              {flattenedFolders.map((folder) => {
-                // Virtual root gets special treatment
-                if (folder.id === 'root') {
-                  const hasRootChildren = folders.some(f => f.asset_folder_id === null);
-                  const isRootCollapsed = collapsedIds.has('root');
-
-                  return (
-                    <div
-                      key="root"
-                      className={cn(
-                        'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg cursor-pointer select-none',
-                        'hover:bg-secondary/50',
-                        selectedFolderId === null && 'bg-primary text-primary-foreground hover:bg-primary',
-                        selectedFolderId !== null && 'text-secondary-foreground/80 dark:text-muted-foreground'
-                      )}
-                      style={{ paddingLeft: '8px' }}
-                      onClick={() => setSelectedFolderId(null)}
-                    >
-                      {/* Expand/Collapse Button */}
-                      {hasRootChildren ? (
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggle('root');
-                          }}
-                          className={cn(
-                            'w-4 h-4 flex items-center justify-center flex-shrink-0 cursor-pointer',
-                            isRootCollapsed ? '' : 'rotate-90'
-                          )}
-                        >
-                          <Icon name="chevronRight" className={cn('size-2.5 opacity-50', selectedFolderId === null && 'opacity-80')} />
-                        </div>
-                      ) : (
-                        <div className="w-4 h-4 flex-shrink-0 flex items-center justify-center">
-                          <div className={cn('ml-0.25 w-1.5 h-px bg-white opacity-0', selectedFolderId === null && 'opacity-0')} />
-                        </div>
-                      )}
-
-                      {/* Folder Icon */}
-                      <Icon
-                        name="folder"
-                        className={`size-3 ml-1 mr-2 ${selectedFolderId === null ? 'opacity-90' : 'opacity-50'}`}
-                      />
-
-                      {/* Label */}
-                      <span className="flex-grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
-                        All files
-                      </span>
-
-                      {/* Asset Count - shown when not hovering */}
-                      {(folderAssetCounts['root'] || 0) > 0 && (
-                        <span
-                          className={cn(
-                            'text-xs mr-1 pointer-events-none flex-shrink-0 group-hover:opacity-0',
-                            selectedFolderId === null ? 'opacity-70' : 'opacity-40'
-                          )}
-                        >
-                          {folderAssetCounts['root'] || 0}
-                        </span>
-                      )}
-                    </div>
-                  );
-                }
-
-                return (
-                  <FolderRow
-                    key={folder.id}
-                    node={folder}
-                    isSelected={folder.id === selectedFolderId}
-                    hasChildren={hasChildFolders(folder.id, folders)}
-                    isCollapsed={collapsedIds.has(folder.id)}
-                    isOver={folder.id === overId}
-                    isDragging={folder.id === activeId}
-                    isDragActive={activeId !== null}
-                    dropPosition={folder.id === overId ? dropPosition : null}
-                    assetCount={folderAssetCounts[folder.id] || 0}
-                    onSelect={setSelectedFolderId}
-                    onToggle={handleToggle}
-                    onDelete={handleDeleteFolder}
-                    onEdit={handleEditFolder}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          {/* File Grid */}
-          <div className="flex-1 py-5 px-6 overflow-y-auto flex flex-col gap-6">
-            {/* Breadcrumb */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                {searchQuery.trim() ? (
-                  <>
-                    <span className="text-foreground font-medium">
-                      Results for &quot;{searchQuery}&quot;
-                    </span>
-                    <Icon name="chevronRight" className="size-2.5 opacity-50" />
-                    <span className="text-muted-foreground font-medium">
-                      {assets.length} {assets.length === 1 ? 'file' : 'files'}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    {breadcrumbPath.map((item, index) => (
-                      <React.Fragment key={item.id || 'root'}>
-                        <button
-                          onClick={() => setSelectedFolderId(item.id)}
-                          className={cn(
-                            'hover:text-foreground transition-colors',
-                            index === breadcrumbPath.length - 1 ? 'text-foreground font-medium' : 'cursor-pointer'
-                          )}
-                        >
-                          {item.name}
-                        </button>
-                        {index < breadcrumbPath.length - 1 && (
-                          <Icon name="chevronRight" className="size-2.5 opacity-50" />
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                {/* Show asset count */}
-                {totalAssets > 0 && selectedAssetIds.size === 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {assets.length === totalAssets
-                      ? `${totalAssets} files`
-                      : `${assets.length} of ${totalAssets} files`}
-                  </span>
-                )}
-
-                {selectedAssetIds.size > 0 ? (
-                  <>
-                    <span className="text-xs text-muted-foreground">
-                      {selectedAssetIds.size} selected
-                    </span>
-
-                    <Button
-                      size="xs"
-                      variant="secondary"
-                      className="px-2!"
-                      onClick={() => {
-                        setBulkMoveTargetFolderId(selectedFolderId);
-                        setShowBulkMoveDialog(true);
-                      }}
-                    >
-                      <Icon name="folder" />
-                      Move
-                    </Button>
-
-                    <Button
-                      size="xs"
-                      variant="destructive"
-                      className="px-2!"
-                      onClick={() => setShowBulkDeleteConfirmDialog(true)}
-                    >
-                      <Icon name="trash" />
-                      Delete
-                    </Button>
-
-                    <Button
-                      size="xs"
-                      variant="secondary"
-                      onClick={handleClearSelection}
-                    >
-                      Deselect all
-                    </Button>
-                  </>
-                ) : (
+              <header className="py-5 flex justify-between">
+                <span className="font-medium">File manager</span>
+                <div className="-my-1">
                   <Button
                     size="xs"
                     variant="secondary"
-                    onClick={handleSelectAll}
-                    disabled={assets.length === 0}
-                    className="text-xs"
-                  >
-                    Select all
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Loading indicator for initial load - show ONLY this, nothing else */}
-            {isLoadingAssets && assets.length === 0 && currentUploadingAssets.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center">
-                <Spinner />
-              </div>
-            ) : (searchQuery.trim() ? true : childFolders.length === 0) && assets.length === 0 && currentUploadingAssets.length === 0 ? (
-              <div className="flex-1 flex flex-col">
-                <div className="flex-1 w-full flex-col flex gap-1 items-center justify-center">
-                  <div>
-                    No files found
-                  </div>
-                  <div className="text-muted-foreground">
-                    {searchQuery.trim() || selectedCategory !== 'all'
-                      ? 'No files were found using the current filters'
-                      : selectedFolderId === null
-                        ? 'No files'
-                        : 'No folders or assets in this folder'}
-                  </div>
-                </div>
-                <div className="flex-1"></div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-4">
-                {/* Display child folders (hide when searching) */}
-                {!searchQuery.trim() && childFolders.map((folder) => (
-                  <FileGridItem
-                    key={folder.id}
-                    id={folder.id}
-                    name={folder.name}
-                    type="folder"
                     onClick={() => {
-                      setSelectedFolderId(folder.id);
-                      // Auto-expand the folder in the tree
-                      setCollapsedIds((prev) => {
-                        const next = new Set(prev);
-                        next.delete(folder.id);
-                        return next;
-                      });
+                      // Expand selected folder when creating a child
+                      if (selectedFolderId) {
+                        setCollapsedIds((prev) => {
+                          const next = new Set(prev);
+                          next.delete(selectedFolderId);
+                          return next;
+                        });
+                      } else {
+                        // Expand root if creating at root level
+                        setCollapsedIds((prev) => {
+                          const next = new Set(prev);
+                          next.delete('root');
+                          return next;
+                        });
+                      }
+                      setShowCreateFolderDialog(true);
                     }}
-                    onEdit={() => handleEditFolder(folder.id)}
-                    onDelete={() => handleDeleteFolder(folder.id)}
-                  />
-                ))}
+                  >
+                    <Icon name="plus" />
+                  </Button>
+                </div>
+              </header>
+              <div className="space-y-0">
+                {flattenedFolders.map((folder) => {
+                  // Virtual root gets special treatment
+                  if (folder.id === 'root') {
+                    const hasRootChildren = folders.some(f => f.asset_folder_id === null);
+                    const isRootCollapsed = collapsedIds.has('root');
 
-                {/* Display uploading assets */}
-                {currentUploadingAssets.map((uploadingAsset) => {
-                  // Remove file extension from name
-                  const nameWithoutExtension = uploadingAsset.filename.replace(/\.[^/.]+$/, '');
+                    return (
+                      <div
+                        key="root"
+                        className={cn(
+                          'group relative flex items-center h-8 outline-none focus:outline-none rounded-lg cursor-pointer select-none',
+                          'hover:bg-secondary/50',
+                          selectedFolderId === null && 'bg-primary text-primary-foreground hover:bg-primary',
+                          selectedFolderId !== null && 'text-secondary-foreground/80 dark:text-muted-foreground'
+                        )}
+                        style={{ paddingLeft: '8px' }}
+                        onClick={() => setSelectedFolderId(null)}
+                      >
+                        {/* Expand/Collapse Button */}
+                        {hasRootChildren ? (
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggle('root');
+                            }}
+                            className={cn(
+                              'w-4 h-4 flex items-center justify-center shrink-0 cursor-pointer',
+                              isRootCollapsed ? '' : 'rotate-90'
+                            )}
+                          >
+                            <Icon name="chevronRight" className={cn('size-2.5 opacity-50', selectedFolderId === null && 'opacity-80')} />
+                          </div>
+                        ) : (
+                          <div className="w-4 h-4 shrink-0 flex items-center justify-center">
+                            <div className={cn('ml-px w-1.5 h-px bg-white opacity-0', selectedFolderId === null && 'opacity-0')} />
+                          </div>
+                        )}
+
+                        {/* Folder Icon */}
+                        <Icon
+                          name="folder"
+                          className={`size-3 ml-1 mr-2 ${selectedFolderId === null ? 'opacity-90' : 'opacity-50'}`}
+                        />
+
+                        {/* Label */}
+                        <span className="grow text-xs font-medium overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none">
+                          All files
+                        </span>
+
+                        {/* Asset Count - shown when not hovering */}
+                        {(folderAssetCounts['root'] || 0) > 0 && (
+                          <span
+                            className={cn(
+                              'text-xs mr-1 pointer-events-none shrink-0 group-hover:opacity-0',
+                              selectedFolderId === null ? 'opacity-70' : 'opacity-40'
+                            )}
+                          >
+                            {folderAssetCounts['root'] || 0}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
 
                   return (
-                    <FileGridItem
-                      key={uploadingAsset.id}
-                      id={uploadingAsset.id}
-                      name={nameWithoutExtension}
-                      type="uploading"
-                      file={uploadingAsset.file}
+                    <FolderRow
+                      key={folder.id}
+                      node={folder}
+                      isSelected={folder.id === selectedFolderId}
+                      hasChildren={hasChildFolders(folder.id, folders)}
+                      isCollapsed={collapsedIds.has(folder.id)}
+                      isOver={folder.id === overId}
+                      isDragging={folder.id === activeId}
+                      isDragActive={activeId !== null}
+                      dropPosition={folder.id === overId ? dropPosition : null}
+                      assetCount={folderAssetCounts[folder.id] || 0}
+                      onSelect={setSelectedFolderId}
+                      onToggle={handleToggle}
+                      onDelete={handleDeleteFolder}
+                      onEdit={handleEditFolder}
                     />
                   );
                 })}
-
-                {/* Display existing assets */}
-                {assets.map((asset) => (
-                  <FileGridItem
-                    key={asset.id}
-                    id={asset.id}
-                    name={asset.filename}
-                    type="asset"
-                    mimeType={asset.mime_type}
-                    imageUrl={asset.public_url}
-                    content={asset.content}
-                    onClick={() => onAssetSelect?.(asset)}
-                    isSelected={selectedAssetIds.has(asset.id)}
-                    onSelectChange={(selected) => handleAssetSelect(asset.id, selected)}
-                    onPreview={
-                      asset.mime_type?.startsWith('image/') && asset.public_url
-                        ? () => handlePreviewAsset(asset.public_url!)
-                        : undefined
-                    }
-                    onEdit={() => handleEditAsset(asset.id)}
-                    onDelete={() => handleDeleteAsset(asset.id)}
-                  />
-                ))}
-
-                {/* Infinite scroll trigger */}
-                {hasMoreAssets && (
-                  <div
-                    ref={loadMoreRef}
-                    className="col-span-full flex items-center justify-center py-4"
-                  >
-                    {isLoadingAssets ? (
-                      <Spinner />
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Scroll for more</span>
-                    )}
-                  </div>
-                )}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
 
+            {/* File Grid */}
+            <div className="flex-1 py-5 px-6 overflow-y-auto flex flex-col gap-6">
+              {/* Breadcrumb */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  {searchQuery.trim() ? (
+                    <>
+                      <span className="text-foreground font-medium">
+                        Results for &quot;{searchQuery}&quot;
+                      </span>
+                      <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                      <span className="text-muted-foreground font-medium">
+                        {assets.length} {assets.length === 1 ? 'file' : 'files'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {breadcrumbPath.map((item, index) => (
+                        <React.Fragment key={item.id || 'root'}>
+                          <button
+                            onClick={() => setSelectedFolderId(item.id)}
+                            className={cn(
+                              'hover:text-foreground transition-colors',
+                              index === breadcrumbPath.length - 1 ? 'text-foreground font-medium' : 'cursor-pointer'
+                            )}
+                          >
+                            {item.name}
+                          </button>
+                          {index < breadcrumbPath.length - 1 && (
+                            <Icon name="chevronRight" className="size-2.5 opacity-50" />
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Show asset count */}
+                  {totalAssets > 0 && selectedAssetIds.size === 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {assets.length === totalAssets
+                        ? `${totalAssets} files`
+                        : `${assets.length} of ${totalAssets} files`}
+                    </span>
+                  )}
+
+                  {selectedAssetIds.size > 0 ? (
+                    <>
+                      <span className="text-xs text-muted-foreground">
+                        {selectedAssetIds.size} selected
+                      </span>
+
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        className="px-2!"
+                        onClick={() => {
+                          setBulkMoveTargetFolderId(selectedFolderId);
+                          setShowBulkMoveDialog(true);
+                        }}
+                      >
+                        <Icon name="folder" />
+                        Move
+                      </Button>
+
+                      <Button
+                        size="xs"
+                        variant="destructive"
+                        className="px-2!"
+                        onClick={() => setShowBulkDeleteConfirmDialog(true)}
+                      >
+                        <Icon name="trash" />
+                        Delete
+                      </Button>
+
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        onClick={handleClearSelection}
+                      >
+                        Deselect all
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      onClick={handleSelectAll}
+                      disabled={assets.length === 0}
+                      className="text-xs"
+                    >
+                      Select all
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Loading indicator for initial load - show ONLY this, nothing else */}
+              {isLoadingAssets && assets.length === 0 && currentUploadingAssets.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <Spinner />
+                </div>
+              ) : (searchQuery.trim() ? true : childFolders.length === 0) && assets.length === 0 && currentUploadingAssets.length === 0 ? (
+                <div className="flex-1 flex flex-col">
+                  <div className="flex-1 w-full flex-col flex gap-1 items-center justify-center">
+                    <div>
+                      No files found
+                    </div>
+                    <div className="text-muted-foreground">
+                      {searchQuery.trim() || selectedCategory !== 'all'
+                        ? 'No files were found using the current filters'
+                        : selectedFolderId === null
+                          ? 'No files'
+                          : 'No folders or assets in this folder'}
+                    </div>
+                  </div>
+                  <div className="flex-1"></div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-4">
+                  {/* Display child folders (hide when searching) */}
+                  {!searchQuery.trim() && childFolders.map((folder) => (
+                    <FileGridItem
+                      key={folder.id}
+                      id={folder.id}
+                      name={folder.name}
+                      type="folder"
+                      onClick={() => {
+                        setSelectedFolderId(folder.id);
+                        // Auto-expand the folder in the tree
+                        setCollapsedIds((prev) => {
+                          const next = new Set(prev);
+                          next.delete(folder.id);
+                          return next;
+                        });
+                      }}
+                      onEdit={() => handleEditFolder(folder.id)}
+                      onDelete={() => handleDeleteFolder(folder.id)}
+                    />
+                  ))}
+
+                  {/* Display uploading assets */}
+                  {currentUploadingAssets.map((uploadingAsset) => {
+                    // Remove file extension from name
+                    const nameWithoutExtension = uploadingAsset.filename.replace(/\.[^/.]+$/, '');
+
+                    return (
+                      <FileGridItem
+                        key={uploadingAsset.id}
+                        id={uploadingAsset.id}
+                        name={nameWithoutExtension}
+                        type="uploading"
+                        file={uploadingAsset.file}
+                      />
+                    );
+                  })}
+
+                  {/* Display existing assets */}
+                  {assets.map((asset) => (
+                    <FileGridItem
+                      key={asset.id}
+                      id={asset.id}
+                      name={asset.filename}
+                      type="asset"
+                      mimeType={asset.mime_type}
+                      imageUrl={asset.public_url}
+                      content={asset.content}
+                      onClick={() => onAssetSelect?.(asset)}
+                      isSelected={selectedAssetIds.has(asset.id)}
+                      onSelectChange={(selected) => handleAssetSelect(asset.id, selected)}
+                      onPreview={
+                        asset.mime_type?.startsWith('image/') && asset.public_url
+                          ? () => handlePreviewAsset(asset.public_url!)
+                          : undefined
+                      }
+                      onEdit={() => handleEditAsset(asset.id)}
+                      onDelete={() => handleDeleteAsset(asset.id)}
+                    />
+                  ))}
+
+                  {/* Infinite scroll trigger */}
+                  {hasMoreAssets && (
+                    <div
+                      ref={loadMoreRef}
+                      className="col-span-full flex items-center justify-center py-4"
+                    >
+                      {isLoadingAssets ? (
+                        <Spinner />
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Scroll for more</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -1898,14 +2008,88 @@ export default function FileManagerDialog({
       {/* Delete Asset Confirmation Dialog */}
       <ConfirmDialog
         open={showDeleteAssetConfirmDialog}
-        onOpenChange={setShowDeleteAssetConfirmDialog}
+        onOpenChange={(open) => {
+          setShowDeleteAssetConfirmDialog(open);
+          if (!open) {
+            setAssetUsage(null);
+            setLoadingUsage(false);
+          }
+        }}
         title="Delete asset"
-        description="Are you sure you want to delete this asset? This action cannot be undone."
         confirmLabel="Delete"
         cancelLabel="Cancel"
         confirmVariant="destructive"
         onConfirm={handleConfirmDeleteAsset}
-      />
+      >
+        {loadingUsage ? (
+          <span className="flex items-center gap-2">
+            <Spinner />
+            Checking asset usage...
+          </span>
+        ) : assetUsage && assetUsage.total > 0 ? (
+          <div className="space-y-3">
+            <p>
+              Deleting{' '}
+              <span className="text-foreground">
+                {(assetsById[deletingAssetId ?? ''] || assets.find((a) => a.id === deletingAssetId))?.filename ?? 'this asset'}
+              </span>{' '}
+              will break the asset where it is being used. Are you sure you want to delete it? This action cannot be undone.
+              This asset is used in:
+            </p>
+            <div className="space-y-2 text-muted-foreground">
+              {assetUsage.pages.length > 0 && (
+                <div>
+                  <div className="flex gap-1.5 font-medium text-muted-foreground mb-1">
+                    <span className="text-foreground">Pages</span>
+                    <span>&mdash;</span>
+                    <span>{assetUsage.pages.length} item{assetUsage.pages.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    {assetUsage.pages.map((p) => (
+                      <li key={p.id}>{p.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {assetUsage.components.length > 0 && (
+                <div>
+                  <div className="flex gap-1.5 font-medium text-muted-foreground mb-1">
+                    <span className="text-foreground">Components</span>
+                    <span>&mdash;</span>
+                    <span>{assetUsage.components.length} item{assetUsage.components.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    {assetUsage.components.map((c) => (
+                      <li key={c.id}>{c.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {assetUsage.cmsItems.length > 0 && (
+                <div>
+                  <div className="flex gap-1.5 font-medium text-muted-foreground mb-1">
+                    <span className="text-foreground">CMS items</span>
+                    <span>&mdash;</span>
+                    <span>{assetUsage.cmsItems.length} item{assetUsage.cmsItems.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5 ml-1">
+                    {assetUsage.cmsItems.map((i) => {
+                      const item = i as CmsItemUsageEntry;
+                      return (
+                        <li key={item.id}>
+                          {item.collectionName}: {item.name}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          'Are you sure you want to delete this asset? This action cannot be undone.'
+        )}
+      </ConfirmDialog>
 
       {/* Bulk Delete Assets Confirmation Dialog */}
       <ConfirmDialog
@@ -2045,7 +2229,7 @@ export default function FileManagerDialog({
                   id="svg-code"
                   value={editAssetContent || ''}
                   onChange={(e) => setEditAssetContent(e.target.value)}
-                  className="font-mono text-xs min-h-[200px] max-h-[400px]"
+                  className="font-mono text-xs min-h-50 max-h-100"
                   placeholder="<svg>...</svg>"
                   autoComplete="off"
                 />

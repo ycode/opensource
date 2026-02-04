@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '../supabase-server';
+import { SUPABASE_QUERY_LIMIT } from '../supabase/constants';
 import type { CollectionField, CreateCollectionFieldData, UpdateCollectionFieldData } from '@/types';
 import { randomUUID } from 'crypto';
 
@@ -29,19 +30,35 @@ export async function getAllFields(
     throw new Error('Supabase client not configured');
   }
 
-  const { data, error } = await client
-    .from('collection_fields')
-    .select('*')
-    .eq('is_published', is_published)
-    .is('deleted_at', null)
-    .order('collection_id', { ascending: true })
-    .order('order', { ascending: true });
+  // Use pagination to handle >1000 fields (Supabase default limit)
+  const allFields: CollectionField[] = [];
+  let offset = 0;
+  let hasMore = true;
 
-  if (error) {
-    throw new Error(`Failed to fetch all collection fields: ${error.message}`);
+  while (hasMore) {
+    const { data, error } = await client
+      .from('collection_fields')
+      .select('*')
+      .eq('is_published', is_published)
+      .is('deleted_at', null)
+      .order('collection_id', { ascending: true })
+      .order('order', { ascending: true })
+      .range(offset, offset + SUPABASE_QUERY_LIMIT - 1);
+
+    if (error) {
+      throw new Error(`Failed to fetch all collection fields: ${error.message}`);
+    }
+
+    if (data && data.length > 0) {
+      allFields.push(...data);
+      offset += data.length;
+      hasMore = data.length === SUPABASE_QUERY_LIMIT;
+    } else {
+      hasMore = false;
+    }
   }
 
-  return data || [];
+  return allFields;
 }
 
 /**

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
@@ -135,7 +136,7 @@ export default function ProfilePage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/profile/avatar', {
+      const response = await fetch('/ycode/api/profile/avatar', {
         method: 'POST',
         body: formData,
       });
@@ -171,7 +172,7 @@ export default function ProfilePage() {
     setNameError(null);
 
     try {
-      const response = await fetch('/api/profile/name', {
+      const response = await fetch('/ycode/api/profile/name', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: nameInput.trim() }),
@@ -210,7 +211,7 @@ export default function ProfilePage() {
     setEmailError(null);
 
     try {
-      const response = await fetch('/api/profile/email', {
+      const response = await fetch('/ycode/api/profile/email', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -262,7 +263,7 @@ export default function ProfilePage() {
     setPasswordError(null);
 
     try {
-      const response = await fetch('/api/profile/password', {
+      const response = await fetch('/ycode/api/profile/password', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -305,7 +306,7 @@ export default function ProfilePage() {
     setDeleteError(null);
 
     try {
-      const response = await fetch('/api/profile', {
+      const response = await fetch('/ycode/api/profile', {
         method: 'DELETE',
       });
 
@@ -351,10 +352,13 @@ export default function ProfilePage() {
               <div className="flex items-center gap-4">
                 <div className="relative">
                   {avatarUrl ? (
-                    <img
+                    <Image
                       src={avatarUrl}
                       alt="Profile"
+                      width={40}
+                      height={40}
                       className="size-10 rounded-full object-cover"
+                      unoptimized
                     />
                   ) : (
                     <div className="size-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-800 font-medium text-sm">

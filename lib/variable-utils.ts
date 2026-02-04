@@ -9,7 +9,7 @@
  */
 
 import type { AssetVariable, FieldVariable, DynamicTextVariable, DynamicRichTextVariable, StaticTextVariable, ComponentVariableValue } from '@/types';
-import { resolveInlineVariables } from '@/lib/inline-variables';
+import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { DEFAULT_ASSETS } from '@/lib/asset-constants';
 import { stringToTiptapContent } from '@/lib/text-format-utils';
 
@@ -216,7 +216,7 @@ export function getVariableStringValue(
  */
 export function getImageUrlFromVariable(
   src: AssetVariable | FieldVariable | DynamicTextVariable | undefined | null,
-  getAsset?: (id: string) => { public_url: string | null } | null,
+  getAsset?: (id: string) => { public_url: string | null; content?: string | null } | null,
   resolveFieldValue?: (variable: FieldVariable, collectionItemData?: Record<string, string>) => string | undefined,
   collectionItemData?: Record<string, string>,
   useDefault: boolean = true
@@ -233,7 +233,15 @@ export function getImageUrlFromVariable(
     }
     if (!getAsset) return undefined;
     const asset = getAsset(src.data.asset_id);
-    return asset?.public_url || undefined;
+    // Return public_url if available, otherwise convert SVG content to data URL
+    if (asset?.public_url) {
+      return asset.public_url;
+    }
+    if (asset?.content) {
+      // Convert inline SVG content to data URL
+      return `data:image/svg+xml,${encodeURIComponent(asset.content)}`;
+    }
+    return undefined;
   }
 
   if (isFieldVariable(src)) {
@@ -247,6 +255,10 @@ export function getImageUrlFromVariable(
       if (asset?.public_url) {
         return asset.public_url;
       }
+      // Also support SVG content for field variables
+      if (asset?.content) {
+        return `data:image/svg+xml,${encodeURIComponent(asset.content)}`;
+      }
     }
 
     // If getAsset is not available or asset not found, return the raw value
@@ -256,19 +268,9 @@ export function getImageUrlFromVariable(
 
   if (isDynamicTextVariable(src)) {
     const content = src.data.content;
-    // Resolve inline variables if collectionItemData is available
-    if (content.includes('<ycode-inline-variable>') && collectionItemData) {
-      const mockItem: any = {
-        id: 'temp',
-        collection_id: 'temp',
-        created_at: '',
-        updated_at: '',
-        deleted_at: null,
-        manual_order: 0,
-        is_published: true,
-        values: collectionItemData,
-      };
-      return resolveInlineVariables(content, mockItem);
+    // Resolve inline variables if present
+    if (content.includes('<ycode-inline-variable>')) {
+      return resolveInlineVariablesFromData(content, collectionItemData);
     }
     return content;
   }
@@ -334,19 +336,9 @@ export function getVideoUrlFromVariable(
 
   if (isDynamicTextVariable(src)) {
     const content = src.data.content;
-    // Resolve inline variables if collectionItemData is available
-    if (content.includes('<ycode-inline-variable>') && collectionItemData) {
-      const mockItem: any = {
-        id: 'temp',
-        collection_id: 'temp',
-        created_at: '',
-        updated_at: '',
-        deleted_at: null,
-        manual_order: 0,
-        is_published: true,
-        values: collectionItemData,
-      };
-      return resolveInlineVariables(content, mockItem);
+    // Resolve inline variables if present
+    if (content.includes('<ycode-inline-variable>')) {
+      return resolveInlineVariablesFromData(content, collectionItemData);
     }
     return content;
   }

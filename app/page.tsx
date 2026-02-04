@@ -2,8 +2,7 @@ import { unstable_cache, unstable_noStore } from 'next/cache';
 import Link from 'next/link';
 import { fetchHomepage, PaginationContext } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
-import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import { generatePageMetadata } from '@/lib/generate-page-metadata';
+import { generatePageMetadata, fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
 import type { Metadata } from 'next';
 
 // Static by default for performance, dynamic only when pagination is requested
@@ -16,7 +15,7 @@ export const revalidate = 3600; // Revalidate every hour
 async function fetchPublishedHomepage(paginationContext?: PaginationContext) {
   // Include pagination params in cache key for per-collection pagination support
   // Sort keys for consistent cache key regardless of param order
-  const paginationKey = paginationContext?.pageNumbers 
+  const paginationKey = paginationContext?.pageNumbers
     ? Object.entries(paginationContext.pageNumbers)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([id, page]) => `${id}:${page}`)
@@ -39,7 +38,7 @@ interface HomeProps {
 export default async function Home({ searchParams }: HomeProps) {
   // Await searchParams (Next.js 15 requirement)
   const resolvedSearchParams = await searchParams;
-  
+
   // Parse layer-specific pagination params (p_LAYER_ID=N)
   // This enables independent pagination for multiple collections on the same page
   const pageNumbers: Record<string, number> = {};
@@ -52,13 +51,13 @@ export default async function Home({ searchParams }: HomeProps) {
       }
     }
   }
-  
+
   // Only opt out of caching when pagination is requested
   // This keeps default page visits fast and cached
   if (Object.keys(pageNumbers).length > 0) {
     unstable_noStore();
   }
-  
+
   const paginationContext: PaginationContext = {
     pageNumbers,
     defaultPage: 1,
@@ -70,27 +69,24 @@ export default async function Home({ searchParams }: HomeProps) {
   // If no published homepage exists, show default landing page
   if (!data || !data.pageLayers) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center p-8">
-          <h1 className="text-6xl font-bold text-gray-900 mb-4">
-            YCode
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center p-8 flex flex-col items-center justify-center gap-2">
+          <h1 className="text-xl font-semibold text-neutral-900">
+            Welcome to Ycode
           </h1>
-          <p className="text-xl text-gray-600 mb-8">
-            Your website is ready! Create pages in the builder.
-          </p>
           <Link
             href="/ycode"
-            className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
+            className=" bg-blue-500 text-white text-sm font-medium h-8 flex items-center justify-center px-3 rounded-lg transition-colors"
           >
-            Open Builder →
+            Get started
           </Link>
         </div>
       </div>
     );
   }
 
-  // Load published CSS from settings
-  const publishedCSS = await getSettingByKey('published_css');
+  // Load all global settings in a single query
+  const globalSettings = await fetchGlobalPageSettings();
 
   // Render homepage
   return (
@@ -98,17 +94,25 @@ export default async function Home({ searchParams }: HomeProps) {
       page={data.page}
       layers={data.pageLayers.layers || []}
       components={[]}
-      generatedCss={publishedCSS}
+      generatedCss={globalSettings.publishedCss || undefined}
       locale={data.locale}
       availableLocales={data.availableLocales}
       translations={data.translations}
+      gaMeasurementId={globalSettings.gaMeasurementId}
+      globalCustomCodeHead={globalSettings.globalCustomCodeHead}
+      globalCustomCodeBody={globalSettings.globalCustomCodeBody}
+      ycodeBadge={globalSettings.ycodeBadge}
     />
   );
 }
 
 // Generate metadata
 export async function generateMetadata(): Promise<Metadata> {
-  const data = await fetchPublishedHomepage();
+  // Fetch page and global settings in parallel
+  const [data, globalSettings] = await Promise.all([
+    fetchPublishedHomepage(),
+    fetchGlobalPageSettings(),
+  ]);
 
   if (!data) {
     return {
@@ -119,5 +123,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return generatePageMetadata(data.page, {
     fallbackTitle: 'Home',
+    pagePath: '/',
+    globalSeoSettings: globalSettings,
   });
 }

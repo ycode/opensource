@@ -25,38 +25,38 @@ interface UseLivePageUpdatesReturn {
 
 export function useLivePageUpdates(): UseLivePageUpdatesReturn {
   const { user } = useAuthStore();
-  const { 
-    loadPages, 
-    addPage, 
-    updatePage, 
-    removePage 
+  const {
+    loadPages,
+    addPage,
+    updatePage,
+    removePage
   } = usePagesStore();
   const updateUser = useCollaborationPresenceStore((state) => state.updateUser);
   const currentUserId = useCollaborationPresenceStore((state) => state.currentUserId);
-  
+
   const channelRef = useRef<any>(null);
   const isReceivingUpdates = useRef(false);
   const lastUpdateTime = useRef<number | null>(null);
   const updateQueue = useRef<PageUpdate[]>([]);
-  
+
   // Debounced broadcast function for page updates
   const debouncedBroadcast = useRef(
     debounce((pageId: string, changes: Partial<Page>) => {
       // Get fresh values from refs and store
       const channel = channelRef.current;
       const userId = useCollaborationPresenceStore.getState().currentUserId;
-      
+
       if (!channel || !userId) {
         return;
       }
-      
+
       const update: PageUpdate = {
         page_id: pageId,
         user_id: userId,
         changes,
         timestamp: Date.now()
       };
-      
+
       channel.send({
         type: 'broadcast',
         event: 'page_update',
@@ -64,47 +64,47 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
       });
     }, 100) // 100ms debounce - faster sync
   );
-  
+
   // Initialize Supabase channel for page updates
   useEffect(() => {
     if (!user) {
       return;
     }
-    
+
     const initializeChannel = async () => {
       try {
         const supabase = await createClient();
         const channel = supabase.channel('pages:updates');
-        
+
         // Listen for page updates
         channel.on('broadcast', { event: 'page_update' }, (payload) => {
           handleIncomingPageUpdate(payload.payload);
         });
-        
+
         // Listen for page creation
         channel.on('broadcast', { event: 'page_created' }, (payload) => {
           handleIncomingPageCreate(payload.payload);
         });
-        
+
         // Listen for page deletion
         channel.on('broadcast', { event: 'page_deleted' }, (payload) => {
           handleIncomingPageDelete(payload.payload);
         });
-        
+
         await channel.subscribe((status) => {
           if (status === 'SUBSCRIBED') {
             isReceivingUpdates.current = true;
           }
         });
-        
+
         channelRef.current = channel;
       } catch (error) {
         console.error('Failed to initialize page updates:', error);
       }
     };
-    
+
     initializeChannel();
-    
+
     return () => {
       if (channelRef.current) {
         channelRef.current.unsubscribe();
@@ -112,135 +112,137 @@ export function useLivePageUpdates(): UseLivePageUpdatesReturn {
       }
       isReceivingUpdates.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers are stable refs, adding would cause reconnect loops
   }, [user]);
-  
+
   const handleIncomingPageUpdate = useCallback((update: PageUpdate) => {
     // Get fresh current user ID from store
     const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
-    
+
     if (!freshCurrentUserId || update.user_id === freshCurrentUserId) {
       return;
     }
-    
+
     // Add to update queue
     updateQueue.current.push(update);
-    
+
     // Process updates in order
     processUpdateQueue();
-    
+
     // Update last update time
     lastUpdateTime.current = Date.now();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- processUpdateQueue is a ref, adding would cause infinite loop
   }, []);
-  
+
   const handleIncomingPageCreate = useCallback((page: Page) => {
     // Get fresh current user ID from store
     const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
-    
+
     if (!freshCurrentUserId) {
       return;
     }
-    
+
     // Add the new page to the store
     addPage(page);
   }, [addPage]);
-  
+
   const handleIncomingPageDelete = useCallback((payload: { pageId: string }) => {
     // Get fresh current user ID from store
     const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
-    
+
     if (!freshCurrentUserId) {
       return;
     }
-    
+
     // Remove the page from the store (extract pageId from payload object)
     removePage(payload.pageId);
   }, [removePage]);
-  
+
   const processUpdateQueue = useCallback(() => {
     if (updateQueue.current.length === 0) {
       return;
     }
-    
+
     const update = updateQueue.current.shift();
     if (!update) return;
-    
+
     // Get fresh state from store
     const { pages: freshPages, updatePageLocal: freshUpdatePage } = usePagesStore.getState();
     const currentPage = freshPages.find(p => p.id === update.page_id);
-    
+
     if (!currentPage) {
       return;
     }
-    
+
     // Apply the update to the store (without broadcasting back)
     try {
       freshUpdatePage(update.page_id, update.changes);
     } catch (error) {
       console.error(`[LIVE-PAGE-UPDATES] Error applying update:`, error);
     }
-    
+
     // Process next update
     if (updateQueue.current.length > 0) {
       setTimeout(processUpdateQueue, 16); // Process at 60fps
     }
   }, []);
-  
+
   const broadcastPageUpdate = useCallback((pageId: string, changes: Partial<Page>) => {
     if (!channelRef.current || !currentUserId) {
       return;
     }
-    
+
     // Don't update local state - that's already done by the caller
     // Just broadcast the update to others
-    
+
     // Broadcast the update
     debouncedBroadcast.current(pageId, changes);
-    
+
     // Update user activity
     updateUser(currentUserId, {
       last_active: Date.now(),
       is_editing: false
     });
   }, [currentUserId, updateUser]);
-  
+
   const broadcastPageCreate = useCallback((page: Page) => {
     if (!channelRef.current || !currentUserId) {
       return;
     }
-    
+
     // Broadcast the page creation
     channelRef.current.send({
       type: 'broadcast',
       event: 'page_created',
       payload: page
     });
-    
+
     // Update user activity
     updateUser(currentUserId, {
       last_active: Date.now(),
       is_editing: false
     });
   }, [currentUserId, updateUser]);
-  
+
   const broadcastPageDelete = useCallback((pageId: string) => {
     if (!channelRef.current || !currentUserId) {
       return;
     }
-    
+
     // Broadcast the page deletion
     channelRef.current.send({
       type: 'broadcast',
       event: 'page_deleted',
       payload: { pageId }
     });
-    
+
     // Update user activity
     updateUser(currentUserId, {
       last_active: Date.now(),
       is_editing: false
     });
   }, [currentUserId, updateUser]);
-  
+
   return {
     broadcastPageUpdate,
     broadcastPageCreate,

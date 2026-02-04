@@ -17,6 +17,7 @@ export async function up(knex: Knex): Promise<void> {
     table.string('content_key', 255).notNullable(); // Content key (e.g., 'layer:{layerId}:text', 'seo:title', 'slug')
     table.string('content_type', 50).notNullable(); // 'text' | 'richtext' | 'asset_id'
     table.text('content_value').notNullable(); // Translated content value
+    table.boolean('is_completed').notNullable().defaultTo(false); // Track translation completion status
     table.boolean('is_published').notNullable().defaultTo(false); // Versioning for draft/published workflow
     table.timestamp('created_at', { useTz: true }).defaultTo(knex.fn.now());
     table.timestamp('updated_at', { useTz: true }).defaultTo(knex.fn.now());
@@ -51,8 +52,47 @@ export async function up(knex: Knex): Promise<void> {
     ON translations(locale_id, source_type, source_id, is_published)
     WHERE deleted_at IS NULL
   `);
+
+  // Enable Row Level Security
+  await knex.schema.raw('ALTER TABLE translations ENABLE ROW LEVEL SECURITY');
+
+  // Create RLS policies
+  // Single SELECT policy: public can view published OR authenticated can view all
+  await knex.schema.raw(`
+    CREATE POLICY "Translations are viewable"
+      ON translations FOR SELECT
+      USING (
+        (is_published = true AND deleted_at IS NULL)
+        OR (SELECT auth.uid()) IS NOT NULL
+      )
+  `);
+
+  // Authenticated users can INSERT/UPDATE/DELETE
+  await knex.schema.raw(`
+    CREATE POLICY "Authenticated users can modify translations"
+      ON translations FOR INSERT
+      WITH CHECK ((SELECT auth.uid()) IS NOT NULL)
+  `);
+
+  await knex.schema.raw(`
+    CREATE POLICY "Authenticated users can update translations"
+      ON translations FOR UPDATE
+      USING ((SELECT auth.uid()) IS NOT NULL)
+  `);
+
+  await knex.schema.raw(`
+    CREATE POLICY "Authenticated users can delete translations"
+      ON translations FOR DELETE
+      USING ((SELECT auth.uid()) IS NOT NULL)
+  `);
 }
 
 export async function down(knex: Knex): Promise<void> {
+  // Drop policies
+  await knex.schema.raw('DROP POLICY IF EXISTS "Translations are viewable" ON translations');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can modify translations" ON translations');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can update translations" ON translations');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can delete translations" ON translations');
+
   await knex.schema.dropTableIfExists('translations');
 }

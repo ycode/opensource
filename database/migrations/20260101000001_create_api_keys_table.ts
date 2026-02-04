@@ -25,25 +25,17 @@ export async function up(knex: Knex): Promise<void> {
   // Enable Row Level Security
   await knex.schema.raw('ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY');
 
-  // Create RLS policies
-  // Only authenticated users can read API keys
-  await knex.schema.raw(`
-    CREATE POLICY "Authenticated users can view api_keys"
-      ON api_keys FOR SELECT
-      USING (auth.uid() IS NOT NULL)
-  `);
-
-  // Only authenticated users can manage API keys
+  // Create RLS policy - only authenticated users can manage API keys
+  // Using FOR ALL covers SELECT, INSERT, UPDATE, DELETE
   await knex.schema.raw(`
     CREATE POLICY "Authenticated users can manage api_keys"
       ON api_keys FOR ALL
-      USING (auth.uid() IS NOT NULL)
+      USING ((SELECT auth.uid()) IS NOT NULL)
   `);
 }
 
 export async function down(knex: Knex): Promise<void> {
-  // Drop policies
-  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can view api_keys" ON api_keys');
+  // Drop policy
   await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can manage api_keys" ON api_keys');
 
   // Drop table

@@ -10,7 +10,7 @@ let configPromise: Promise<{ url: string; anonKey: string }> | null = null;
  */
 async function getSupabaseConfig(): Promise<{ url: string; anonKey: string }> {
   if (!configPromise) {
-    configPromise = fetch('/api/supabase/config')
+    configPromise = fetch('/ycode/api/supabase/config')
       .then(async (res) => {
         if (!res.ok) {
           const error = await res.json().catch(() => ({ error: 'Unknown error' }));

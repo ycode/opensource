@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '../supabase-server';
+import { SUPABASE_QUERY_LIMIT } from '../supabase/constants';
 import type { CollectionItem, CollectionItemWithValues } from '@/types';
 import { randomUUID } from 'crypto';
 import { getFieldsByCollectionId } from './collectionFieldRepository';
@@ -238,6 +239,61 @@ export async function getItemsByCollectionId(
 }
 
 /**
+ * Get ALL items for a collection (with pagination to handle >1000 items)
+ * Use this for publishing and other operations that need all items
+ * @param includeDeleted - If true, only returns deleted items. If false/undefined, excludes deleted items.
+ */
+export async function getAllItemsByCollectionId(
+  collection_id: string,
+  is_published: boolean = false,
+  includeDeleted: boolean = false
+): Promise<CollectionItem[]> {
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  const allItems: CollectionItem[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = client
+      .from('collection_items')
+      .select('*')
+      .eq('collection_id', collection_id)
+      .eq('is_published', is_published)
+      .order('manual_order', { ascending: true })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + SUPABASE_QUERY_LIMIT - 1);
+
+    // Apply deleted filter
+    if (includeDeleted) {
+      query = query.not('deleted_at', 'is', null);
+    } else {
+      query = query.is('deleted_at', null);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`Failed to fetch collection items: ${error.message}`);
+    }
+
+    if (data && data.length > 0) {
+      allItems.push(...data);
+      offset += data.length;
+      hasMore = data.length === SUPABASE_QUERY_LIMIT;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allItems;
+}
+
+/**
  * Get item by ID
  * @param id - Item UUID
  * @param isPublished - Get draft (false) or published (true) version. Defaults to false (draft).
@@ -261,6 +317,37 @@ export async function getItemById(id: string, isPublished: boolean = false): Pro
   }
 
   return data;
+}
+
+/**
+ * Batch fetch items by IDs
+ * @param ids - Array of item UUIDs
+ * @param isPublished - Get draft (false) or published (true) items
+ * @returns Array of items found
+ */
+export async function getItemsByIds(ids: string[], isPublished: boolean = false): Promise<CollectionItem[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const client = await getSupabaseAdmin();
+
+  if (!client) {
+    throw new Error('Supabase client not configured');
+  }
+
+  const { data, error } = await client
+    .from('collection_items')
+    .select('*')
+    .in('id', ids)
+    .eq('is_published', isPublished)
+    .is('deleted_at', null);
+
+  if (error) {
+    throw new Error(`Failed to fetch collection items: ${error.message}`);
+  }
+
+  return data || [];
 }
 
 /**

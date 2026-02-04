@@ -65,10 +65,12 @@ export function resolveCustomCodePlaceholders(
  * Returns the public_url of the asset stored in the field, or null if not found
  *
  * SERVER-ONLY: Requires database access via getAssetById
+ * @param isPublished - Whether to fetch published (true) or draft (false) asset (default: false)
  */
 export async function resolveFieldVariableToAssetUrl(
   fieldVariable: FieldVariable,
-  collectionItem: CollectionItemWithValues | null | undefined
+  collectionItem: CollectionItemWithValues | null | undefined,
+  isPublished: boolean = false
 ): Promise<string | null> {
   // Dynamic import to ensure server-only code is only loaded server-side
   const { getAssetById } = await import('@/lib/repositories/assetRepository');
@@ -94,7 +96,7 @@ export async function resolveFieldVariableToAssetUrl(
   }
 
   // Get the asset to retrieve its public_url
-  const asset = await getAssetById(assetId);
+  const asset = await getAssetById(assetId, isPublished);
   return asset?.public_url || null;
 }
 
@@ -103,10 +105,12 @@ export async function resolveFieldVariableToAssetUrl(
  * Handles both FieldVariable and string (asset ID) cases
  *
  * SERVER-ONLY: Requires database access via getAssetById
+ * @param isPublished - Whether to fetch published (true) or draft (false) asset (default: false)
  */
 export async function resolveImageUrl(
   image: string | FieldVariable | null,
-  collectionItem: CollectionItemWithValues | null | undefined
+  collectionItem: CollectionItemWithValues | null | undefined,
+  isPublished: boolean = false
 ): Promise<string | null> {
   // Dynamic import to ensure server-only code is only loaded server-side
   const { getAssetById } = await import('@/lib/repositories/assetRepository');
@@ -123,13 +127,13 @@ export async function resolveImageUrl(
       return null;
     }
 
-    const asset = await getAssetById(image);
+    const asset = await getAssetById(image, isPublished);
     return asset?.public_url || null;
   }
 
   // If it's a FieldVariable, resolve it
   if (image.type === 'field') {
-    return await resolveFieldVariableToAssetUrl(image, collectionItem);
+    return await resolveFieldVariableToAssetUrl(image, collectionItem, isPublished);
   }
 
   return null;

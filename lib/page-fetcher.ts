@@ -16,8 +16,10 @@ export interface PaginationContext {
   defaultPage?: number;
 }
 import { parseCollectionLinkValue, resolveCollectionLinkValue, looksLikeEmail, looksLikePhone } from '@/lib/link-utils';
-import { resolveInlineVariables } from '@/lib/inline-variables';
+import { resolveInlineVariables, resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { buildLayerTranslationKey, getTranslationByKey, hasValidTranslationValue, getTranslationValue } from '@/lib/localisation-utils';
+import { formatDateFieldsInItemValues } from '@/lib/date-format-utils';
+import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 
 export interface PageData {
   page: Page;
@@ -289,7 +291,7 @@ export async function fetchPageByPath(
         }
 
         // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-        const resolved = await resolveAllAssets(processedLayers);
+        const resolved = await resolveAllAssets(processedLayers, isPublished);
         processedLayers = resolved.layers;
 
         return {
@@ -399,6 +401,10 @@ export async function fetchPageByPath(
             // Apply CMS translations to the item values
             enhancedItemValues = applyCmsTranslations(collectionItem.id, enhancedItemValues, collectionFields, translations);
 
+            // Format date fields in user's timezone
+            const timezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
+            enhancedItemValues = formatDateFieldsInItemValues(enhancedItemValues, collectionFields, timezone);
+
             // Create enhanced collection item with resolved reference values and translations
             const enhancedCollectionItem = {
               ...collectionItem,
@@ -429,7 +435,7 @@ export async function fetchPageByPath(
             }
 
             // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-            const resolved = await resolveAllAssets(resolvedLayers);
+            const resolved = await resolveAllAssets(resolvedLayers, isPublished);
             resolvedLayers = resolved.layers;
 
             return {
@@ -485,7 +491,7 @@ export async function fetchPageByPath(
     }
 
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-    const resolved = await resolveAllAssets(resolvedLayers);
+    const resolved = await resolveAllAssets(resolvedLayers, isPublished);
     resolvedLayers = resolved.layers;
 
     return {
@@ -569,7 +575,7 @@ export async function fetchErrorPage(
       : [];
 
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-    const resolved = await resolveAllAssets(resolvedLayers);
+    const resolved = await resolveAllAssets(resolvedLayers, isPublished);
     resolvedLayers = resolved.layers;
 
     return {
@@ -657,7 +663,7 @@ export async function fetchHomepage(
       : [];
 
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
-    const resolved = await resolveAllAssets(resolvedLayers);
+    const resolved = await resolveAllAssets(resolvedLayers, isPublished);
     resolvedLayers = resolved.layers;
 
     return {
@@ -1195,6 +1201,9 @@ export async function resolveCollectionLayers(
   paginationContext?: PaginationContext,
   translations?: Record<string, Translation>
 ): Promise<Layer[]> {
+  // Fetch timezone setting for date formatting
+  const timezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
+
   const resolveLayer = async (layer: Layer, itemValues?: Record<string, string>): Promise<Layer> => {
     // Check if this is a collection layer
     const isCollectionLayer = !!layer.variables?.collection?.id;
@@ -1326,7 +1335,9 @@ export async function resolveCollectionLayers(
           const clonedLayers: Layer[] = await Promise.all(
             sortedItems.map(async (item) => {
               // Apply CMS translations to item values before using them
-              const translatedValues = applyCmsTranslations(item.id, item.values, collectionFields, translations);
+              let translatedValues = applyCmsTranslations(item.id, item.values, collectionFields, translations);
+              // Format date fields in user's timezone
+              translatedValues = formatDateFieldsInItemValues(translatedValues, collectionFields, timezone);
 
               // Extract slug for URL building
               const itemSlug = slugField ? (translatedValues[slugField.id] || item.values[slugField.id]) : undefined;
@@ -1759,16 +1770,22 @@ export async function renderCollectionItemsToHtml(
   // Fetch collection fields for field resolution
   const collectionFields = await getFieldsByCollectionId(collectionId, isPublished);
 
+  // Get timezone setting for date formatting
+  const htmlTimezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
+
   // Render each item using the template
   const renderedItems = await Promise.all(
     items.map(async (item, index) => {
+      // Format date fields in user's timezone
+      const formattedValues = formatDateFieldsInItemValues(item.values, collectionFields, htmlTimezone);
+
       // Deep clone the template for each item
       const clonedTemplate = JSON.parse(JSON.stringify(layerTemplate));
 
       // Inject collection data into each layer of the template (text, images, etc.)
       const injectedLayers = await Promise.all(
         clonedTemplate.map((layer: Layer) =>
-          injectCollectionDataForHtml(layer, item.values, collectionFields, isPublished)
+          injectCollectionDataForHtml(layer, formattedValues, collectionFields, isPublished)
         )
       );
 
@@ -1783,7 +1800,7 @@ export async function renderCollectionItemsToHtml(
       );
 
       // Resolve all AssetVariables to URLs server-side
-      const resolved = await resolveAllAssets(resolvedLayers);
+      const resolved = await resolveAllAssets(resolvedLayers, isPublished);
       resolvedLayers = resolved.layers;
       let assetMap = resolved.assetMap;
 
@@ -1814,7 +1831,7 @@ export async function renderCollectionItemsToHtml(
       // Fetch any missing assets from field links
       if (missingAssetIds.length > 0) {
         const { getAssetsByIds } = await import('@/lib/repositories/assetRepository');
-        const additionalAssets = await getAssetsByIds(missingAssetIds);
+        const additionalAssets = await getAssetsByIds(missingAssetIds, isPublished);
         assetMap = { ...assetMap, ...additionalAssets };
       }
 
@@ -1961,8 +1978,9 @@ async function injectCollectionDataForHtml(
  * Resolve all AssetVariables in layer tree to DynamicTextVariables with public URLs
  * This ensures assets are resolved server-side before rendering
  * Should be called after all other layer processing (collections, components, etc.)
+ * @param isPublished - Whether to fetch published (true) or draft (false) assets
  */
-async function resolveAllAssets(layers: Layer[]): Promise<{ layers: Layer[]; assetMap: Record<string, { public_url: string | null }> }> {
+async function resolveAllAssets(layers: Layer[], isPublished: boolean = true): Promise<{ layers: Layer[]; assetMap: Record<string, { public_url: string | null }> }> {
   const { getAssetsByIds } = await import('@/lib/repositories/assetRepository');
 
   // Step 1: Collect all asset IDs from the layer tree
@@ -2012,7 +2030,7 @@ async function resolveAllAssets(layers: Layer[]): Promise<{ layers: Layer[]; ass
   layers.forEach(layer => collectAssetIds(layer, assetIds));
 
   // Step 2: Fetch all assets in a single query
-  const assetMap = await getAssetsByIds(Array.from(assetIds));
+  const assetMap = await getAssetsByIds(Array.from(assetIds), isPublished);
 
   // Step 3: Resolve layer URLs using the fetched asset map
   const resolveLayer = (layer: Layer): Layer => {
@@ -2025,7 +2043,14 @@ async function resolveAllAssets(layers: Layer[]): Promise<{ layers: Layer[]; ass
       const assetId = getAssetId(imageSrc);
       if (assetId) {
         const asset = assetMap[assetId];
-        const resolvedUrl = asset?.public_url || '';
+        // Use public_url if available, otherwise convert inline content to data URL
+        let resolvedUrl = '';
+        if (asset?.public_url) {
+          resolvedUrl = asset.public_url;
+        } else if (asset?.content) {
+          // Convert inline SVG content to data URL
+          resolvedUrl = `data:image/svg+xml,${encodeURIComponent(asset.content)}`;
+        }
         variableUpdates.image = {
           src: createDynamicTextVariable(resolvedUrl),
           alt: layer.variables?.image?.alt || createDynamicTextVariable(''),
@@ -2083,16 +2108,14 @@ async function resolveAllAssets(layers: Layer[]): Promise<{ layers: Layer[]; ass
       if (assetId) {
         const asset = assetMap[assetId];
         const svgContent = asset?.content || '';
-        if (svgContent) {
-          variableUpdates.icon = {
-            src: {
-              type: 'static_text' as const,
-              data: {
-                content: svgContent,
-              },
+        variableUpdates.icon = {
+          src: {
+            type: 'static_text' as const,
+            data: {
+              content: svgContent,
             },
-          };
-        }
+          },
+        };
       }
     }
 
@@ -2227,6 +2250,43 @@ function layerToHtml(
     const imageAlt = layer.variables?.image?.alt;
     if (imageAlt && imageAlt.type === 'dynamic_text') {
       attrs.push(`alt="${escapeHtml(imageAlt.data.content)}"`);
+    }
+  }
+
+  // Handle YouTube video (VideoVariable with provider='youtube') - render as iframe
+  if (layer.name === 'video') {
+    const videoSrc = layer.variables?.video?.src;
+    if (videoSrc && videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
+      const rawVideoId = videoSrc.data.video_id || '';
+      // Resolve inline variables in video ID (supports CMS binding)
+      const videoId = resolveInlineVariablesFromData(rawVideoId, collectionItemData, pageCollectionItemData);
+      const privacyMode = layer.attributes?.youtubePrivacyMode === true;
+      const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';
+
+      // Build YouTube embed URL with parameters
+      const params: string[] = [];
+      if (layer.attributes?.autoplay === true) params.push('autoplay=1');
+      if (layer.attributes?.muted === true) params.push('mute=1');
+      if (layer.attributes?.loop === true) params.push(`loop=1&playlist=${videoId}`);
+      if (layer.attributes?.controls !== true) params.push('controls=0');
+
+      const embedUrl = `https://www.${domain}/embed/${videoId}${params.length > 0 ? '?' + params.join('&') : ''}`;
+
+      attrs.push(`src="${escapeHtml(embedUrl)}"`);
+      attrs.push('frameborder="0"');
+      attrs.push('allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"');
+      attrs.push('allowfullscreen');
+      attrs.push('data-layer-type="video"');
+
+      const attrsStr = attrs.length > 0 ? ' ' + attrs.join(' ') : '';
+      const childrenHtml = layer.children
+        ? layer.children
+          .map((child) =>
+            layerToHtml(child, collectionItemId, pages, folders, collectionItemSlugs, locale, translations, anchorMap, collectionItemData, pageCollectionItemData, assetMap)
+          )
+          .join('')
+        : '';
+      return `<iframe${attrsStr}>${childrenHtml}</iframe>`;
     }
   }
 

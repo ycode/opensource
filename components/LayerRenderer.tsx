@@ -19,7 +19,7 @@ import { DEFAULT_ASSETS, ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-uti
 import { generateImageSrcset, getImageSizes, getOptimizedImageUrl } from '@/lib/asset-utils';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { toast } from 'sonner';
-import { resolveInlineVariables } from '@/lib/inline-variables';
+import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { renderRichText, hasBlockElements, type RichTextLinkContext } from '@/lib/text-format-utils';
 import LayerContextMenu from '@/app/ycode/components/LayerContextMenu';
 import CanvasTextEditor from '@/app/ycode/components/CanvasTextEditor';
@@ -32,6 +32,7 @@ import PaginatedCollection from '@/components/PaginatedCollection';
 import LoadMoreCollection from '@/components/LoadMoreCollection';
 import LocaleSelector from '@/components/layers/LocaleSelector';
 import { usePagesStore } from '@/stores/usePagesStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
 import type { HiddenLayerInfo } from '@/lib/animation-utils';
 
@@ -425,6 +426,7 @@ const LayerItem: React.FC<{
   const effectiveCollectionItemData = layer._collectionItemValues || collectionItemData;
   const getAssetFromStore = useAssetsStore((state) => state.getAsset);
   const assetsById = useAssetsStore((state) => state.assetsById);
+  const timezone = useSettingsStore((state) => state.settingsByKey.timezone as string | null) ?? 'UTC';
 
   // Create asset resolver that checks pre-resolved assets first (SSR), then falls back to store
   const getAsset = useCallback((id: string) => {
@@ -580,7 +582,7 @@ const LayerItem: React.FC<{
       if (valueToRender !== undefined) {
         // Value is typed as ComponentVariableValue - check if it's a text variable (has 'type' property)
         if ('type' in valueToRender && valueToRender.type === 'dynamic_rich_text') {
-          return renderRichText(valueToRender as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext);
+          return renderRichText(valueToRender as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone);
         }
         if ('type' in valueToRender && valueToRender.type === 'dynamic_text') {
           return (valueToRender as any).data.content;
@@ -595,29 +597,15 @@ const LayerItem: React.FC<{
     if (textVariable?.type === 'dynamic_rich_text') {
       // Render rich text with formatting (bold, italic, etc.) and inline variables
       // In edit mode, adds data-style attributes for style selection
-      return renderRichText(textVariable as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext);
+      return renderRichText(textVariable as any, effectiveCollectionItemData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone);
     }
 
     // Check for inline variables in DynamicTextVariable format (legacy)
     if (textVariable?.type === 'dynamic_text') {
       const content = textVariable.data.content;
       if (content.includes('<ycode-inline-variable>')) {
-        // Use the embedded JSON resolver (client-safe)
-        if (effectiveCollectionItemData) {
-          const mockItem: any = {
-            id: 'temp',
-            collection_id: 'temp',
-            created_at: '',
-            updated_at: '',
-            deleted_at: null,
-            manual_order: 0,
-            is_published: true,
-            values: effectiveCollectionItemData,
-          };
-          return resolveInlineVariables(content, mockItem);
-        }
-        // No collection data - remove variables
-        return content.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
+        // Resolve inline variables with timezone-aware date formatting
+        return resolveInlineVariablesFromData(content, effectiveCollectionItemData, pageCollectionItemData ?? undefined, timezone);
       }
       // No inline variables, return plain content
       return content;
@@ -1270,7 +1258,7 @@ const LayerItem: React.FC<{
         });
 
         try {
-          const response = await fetch('/api/form-submissions', {
+          const response = await fetch('/ycode/api/form-submissions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1406,7 +1394,9 @@ const LayerItem: React.FC<{
 
         // YouTube video - render as iframe
         if (videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
-          const videoId = videoSrc.data.video_id || '';
+          const rawVideoId = videoSrc.data.video_id || '';
+          // Resolve inline variables in video ID (supports CMS binding)
+          const videoId = resolveInlineVariablesFromData(rawVideoId, effectiveCollectionItemData, pageCollectionItemData, timezone);
           // Use normalized attributes for consistency (already handles string/boolean conversion)
           const privacyMode = normalizedAttributes?.youtubePrivacyMode === true;
           const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';
@@ -1468,7 +1458,7 @@ const LayerItem: React.FC<{
           }
 
           return (
-            <iframe {...iframeProps} />
+            <iframe key={`youtube-${layer.id}-${videoId}`} {...iframeProps} />
           );
         }
       }
@@ -1744,7 +1734,7 @@ const LayerItem: React.FC<{
                   activeLayerId={activeLayerId}
                   projected={projected}
                   pageId={pageId}
-                  collectionItemData={item.values}
+                  collectionItemData={item.values || {}}
                   collectionItemId={item.id}
                   pageCollectionItemId={pageCollectionItemId}
                   pageCollectionItemData={pageCollectionItemData}

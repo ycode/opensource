@@ -105,7 +105,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await fetch('/api/components');
+      const response = await fetch('/ycode/api/components');
       const result = await response.json();
 
       if (result.error) {
@@ -125,7 +125,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await fetch('/api/components', {
+      const response = await fetch('/ycode/api/components', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -160,7 +160,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await fetch(`/api/components/${id}`, {
+      const response = await fetch(`/ycode/api/components/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -187,7 +187,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
   // Get preview of what will be affected by deleting a component
   getDeletePreview: async (id) => {
     try {
-      const response = await fetch(`/api/components/${id}`, {
+      const response = await fetch(`/ycode/api/components/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'preview-delete' }),
@@ -212,7 +212,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await fetch(`/api/components/${id}`, {
+      const response = await fetch(`/ycode/api/components/${id}`, {
         method: 'DELETE',
       });
 
@@ -426,7 +426,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     set({ isSaving: true });
 
     try {
-      const response = await fetch(`/api/components/${componentId}`, {
+      const response = await fetch(`/ycode/api/components/${componentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ layers: layersBeingSaved }),
@@ -478,6 +478,26 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
         window.dispatchEvent(new CustomEvent('componentUpdated', {
           detail: { componentId, layers: draftLayers }
         }));
+      }
+
+      // Regenerate CSS to include updated component classes
+      try {
+        const { generateAndSaveCSS } = await import('@/lib/client/cssGenerator');
+        const { usePagesStore } = await import('./usePagesStore');
+
+        // Collect layers from ALL pages
+        const allLayers: Layer[] = [];
+        const allDrafts = usePagesStore.getState().draftsByPageId;
+        Object.values(allDrafts).forEach((pageDraft) => {
+          if (pageDraft.layers) {
+            allLayers.push(...pageDraft.layers);
+          }
+        });
+
+        await generateAndSaveCSS(allLayers);
+      } catch (cssError) {
+        console.error('Failed to generate CSS after component save:', cssError);
+        // Don't fail the save operation if CSS generation fails
       }
     } catch (error) {
       console.error('Failed to save component draft:', error);
@@ -551,7 +571,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     for (const componentId of componentIds) {
       try {
         // Check if component exists/is deleted
-        const response = await fetch(`/api/components/${componentId}`);
+        const response = await fetch(`/ycode/api/components/${componentId}`);
         const result = await response.json();
 
         // If component doesn't exist or is deleted, restore it
@@ -559,7 +579,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
           console.log(`[Store] Restoring required component: ${componentId}`);
 
           // Restore the component via API
-          const restoreResponse = await fetch(`/api/components/${componentId}`, {
+          const restoreResponse = await fetch(`/ycode/api/components/${componentId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'restore' }),
@@ -596,7 +616,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     const updatedVariables = [...(component.variables || []), newVariable];
 
     try {
-      const response = await fetch(`/api/components/${componentId}`, {
+      const response = await fetch(`/ycode/api/components/${componentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ variables: updatedVariables }),
@@ -632,7 +652,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     const updatedVariables = [...(component.variables || []), newVariable];
 
     try {
-      const response = await fetch(`/api/components/${componentId}`, {
+      const response = await fetch(`/ycode/api/components/${componentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ variables: updatedVariables }),
@@ -668,7 +688,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     );
 
     try {
-      const response = await fetch(`/api/components/${componentId}`, {
+      const response = await fetch(`/ycode/api/components/${componentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ variables: updatedVariables }),
@@ -725,7 +745,7 @@ export const useComponentsStore = create<ComponentsStore>((set, get) => ({
     const updatedLayers = component.layers ? unlinkLayersFromVariable(component.layers) : [];
 
     try {
-      const response = await fetch(`/api/components/${componentId}`, {
+      const response = await fetch(`/ycode/api/components/${componentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

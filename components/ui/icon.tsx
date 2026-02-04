@@ -14,7 +14,7 @@ export interface IconProps extends React.SVGProps<SVGSVGElement> {
     | 'code' | 'pencil' | 'eye' | 'eye-off' | 'trash' | 'grip-vertical' | 'upload' | 'search' | 'rich-text' | 'audio' | 'cursor-default' | 'form' | 'input' | 'textarea'
     | 'select' | 'checkbox' | 'radio' | 'zap' | 'zap-outline' | 'loopAlternate' | 'loopRepeat' | 'globe' | 'ease-linear' | 'ease-in' | 'ease-in-out' | 'ease-out' | 'ease-back-in'
     | 'ease-back-in-out' | 'ease-back-out' | 'none' | 'play' | 'stop' | 'info' | 'preview' | 'linear' | 'radial' | 'color' | 'fill-image' | 'eyedrop' | 'calendar' | 'hash'
-    | 'paintbrush' | 'triangle-down' | 'plus-circle' | 'plus-circle-solid' | 'detach' | 'email' | 'phone' | 'paperclip' | 'unlink'
+    | 'paintbrush' | 'triangle-down' | 'plus-circle' | 'plus-circle-solid' | 'detach' | 'email' | 'phone' | 'paperclip' | 'unlink' | 'map'
   );
 }
 
@@ -486,6 +486,14 @@ const ICONS: Record<IconProps['name'], React.ReactNode> = {
   unlink: (
     <>
       <path d="M1.5,0 L2.5,0 L2.5,2 L1.5,2 L1.5,0 Z M9.5,10 L10.5,10 L10.5,12 L9.5,12 L9.5,10 Z M0,1.5 L0,2.5 L2,2.5 L2,1.5 L0,1.5 Z M10,9.5 L10,10.5 L12,10.5 L12,9.5 L10,9.5 Z M4.5,3.5 C4.5,2.39543 5.39543,1.5 6.5,1.5 L8.5,1.5 C9.60457,1.5 10.5,2.39543 10.5,3.5 L10.5,5 L9.5,5 L9.5,3.5 C9.5,2.94772 9.05228,2.5 8.5,2.5 L6.5,2.5 C5.94772,2.5 5.5,2.94772 5.5,3.5 L5.5,5 L4.5,5 L4.5,3.5 Z M1.5,8.5 C1.5,9.60457 2.39543,10.5 3.5,10.5 L5.5,10.5 C6.60457,10.5 7.5,9.60457 7.5,8.5 L7.5,7 L6.5,7 L6.5,8.5 C6.5,9.05228 6.05228,9.5 5.5,9.5 L3.5,9.5 C2.94772,9.5 2.5,9.05228 2.5,8.5 L2.5,7 L1.5,7 L1.5,8.5 Z M10.6464,1.35355 L1.35355,10.6464 L2.06066,11.3536 L11.3536,2.06066 L10.6464,1.35355 Z" />
+    </>
+  ),
+  map: (
+    <>
+      <path
+        d="M6 11.864L2.818 8.682C1.061 6.925 1.061 4.075 2.818 2.318C4.575 0.561 7.425 0.561 9.182 2.318C10.939 4.075 10.939 6.925 9.182 8.682L6 11.864ZM8.475 7.975C9.842 6.608 9.842 4.392 8.475 3.025C7.108 1.658 4.892 1.658 3.525 3.025C2.158 4.392 2.158 6.608 3.525 7.975L6 10.45 8.475 7.975ZM6 6.5C5.448 6.5 5 6.052 5 5.5S5.448 4.5 6 4.5 7 4.948 7 5.5 6.552 6.5 6 6.5z"
+        fill="currentColor"
+      />
     </>
   ),
   paddingSide: (

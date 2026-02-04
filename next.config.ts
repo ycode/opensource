@@ -1,11 +1,6 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Enable ESLint during builds with flat config
-  eslint: {
-    dirs: ['app', 'components', 'hooks', 'lib', 'stores', 'types'],
-  },
-
   images: {
     remotePatterns: [
       {
@@ -49,8 +44,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Apply to public pages ONLY (exclude /api/*, /ycode/*, /_next/*)
-        source: '/:path((?!api|ycode|_next).*)*',
+        // Apply to public pages ONLY (exclude /ycode/*, /_next/*)
+        source: '/:path((?!ycode|_next).*)*',
         headers: [
           {
             key: 'Cache-Control',

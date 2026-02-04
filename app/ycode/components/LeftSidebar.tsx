@@ -85,6 +85,7 @@ const LeftSidebar = React.memo(function LeftSidebar({
     if (storeSidebarTab && storeSidebarTab !== localActiveTab) {
       setLocalActiveTab(storeSidebarTab);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- localActiveTab intentionally excluded to avoid sync loops
   }, [storeSidebarTab]);
 
   const componentDrafts = useComponentsStore((state) => state.componentDrafts);

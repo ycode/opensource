@@ -8,7 +8,7 @@ import { useCollectionsStore } from '@/stores/useCollectionsStore';
 /**
  * Update URL query parameter using browser history API
  * Can be called from anywhere (including Zustand stores) without React hooks
- * 
+ *
  * @param key - Query parameter key
  * @param value - Query parameter value (null/undefined to remove)
  */
@@ -29,7 +29,7 @@ export function updateUrlQueryParam(key: string, value: string | null | undefine
 
   const query = currentSearchParams.toString();
   const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
-  
+
   // Use replaceState to avoid adding to history
   window.history.replaceState({ ...window.history.state }, '', newUrl);
 }

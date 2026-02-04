@@ -563,7 +563,10 @@ export interface Asset {
   source: string; // Required: identifies where the asset was uploaded from
   asset_folder_id?: string | null;
   content?: string | null; // Inline SVG content for icon assets
+  is_published: boolean;
   created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface AssetFolder {
@@ -1201,4 +1204,17 @@ export interface FormSummary {
   submission_count: number;
   new_count: number;
   latest_submission: string | null;
+}
+
+// Sitemap Settings
+export type SitemapMode = 'none' | 'auto' | 'custom';
+export type SitemapChangeFrequency = 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never';
+
+export interface SitemapSettings {
+  mode: SitemapMode;
+  // Auto-generated sitemap options
+  includeImages?: boolean;
+  defaultChangeFrequency?: SitemapChangeFrequency;
+  // Custom XML sitemap (when mode is 'custom')
+  customXml?: string;
 }

@@ -219,12 +219,12 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   useEffect(() => {
     const checkSupabaseConfig = async () => {
       try {
-        const response = await fetch('/api/setup/status');
+        const response = await fetch('/ycode/api/setup/status');
         const data = await response.json();
 
         if (!data.is_configured) {
           // Redirect to setup wizard
-          router.push('/welcome');
+          router.push('/ycode/welcome');
           return;
         }
 
@@ -232,7 +232,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       } catch (err) {
         console.error('Failed to check Supabase config:', err);
         // On error, redirect to setup to be safe
-        router.push('/welcome');
+        router.push('/ycode/welcome');
       }
     };
 
@@ -327,7 +327,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
         console.warn(`[Editor] Layer "${urlState.layerId}" not found on initial load, clearing selection`);
         setSelectedLayerId(null);
       }
-      
+
       hasInitializedLayerFromUrlRef.current = true;
     } else if ((isPageOrLayersRoute || isComponentRoute) && !urlState.layerId) {
       // No layer in URL - mark as initialized so clicks will update URL from now on
@@ -1725,7 +1725,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           <div className="mt-4 text-center">
             <p className="text-xs text-white/50">
               First time here?{' '}
-              <Link href="/welcome" className="text-white/80">
+              <Link href="/ycode/welcome" className="text-white/80">
                 Complete setup
               </Link>
             </p>

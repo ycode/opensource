@@ -42,8 +42,47 @@ export async function up(knex: Knex): Promise<void> {
     table.index('content_hash');
     table.index('deleted_at');
   });
+
+  // Enable Row Level Security
+  await knex.schema.raw('ALTER TABLE components ENABLE ROW LEVEL SECURITY');
+
+  // Create RLS policies
+  // Single SELECT policy: public can view published OR authenticated can view all
+  await knex.schema.raw(`
+    CREATE POLICY "Components are viewable"
+      ON components FOR SELECT
+      USING (
+        (is_published = true AND deleted_at IS NULL)
+        OR (SELECT auth.uid()) IS NOT NULL
+      )
+  `);
+
+  // Authenticated users can INSERT/UPDATE/DELETE
+  await knex.schema.raw(`
+    CREATE POLICY "Authenticated users can modify components"
+      ON components FOR INSERT
+      WITH CHECK ((SELECT auth.uid()) IS NOT NULL)
+  `);
+
+  await knex.schema.raw(`
+    CREATE POLICY "Authenticated users can update components"
+      ON components FOR UPDATE
+      USING ((SELECT auth.uid()) IS NOT NULL)
+  `);
+
+  await knex.schema.raw(`
+    CREATE POLICY "Authenticated users can delete components"
+      ON components FOR DELETE
+      USING ((SELECT auth.uid()) IS NOT NULL)
+  `);
 }
 
 export async function down(knex: Knex): Promise<void> {
+  // Drop policies
+  await knex.schema.raw('DROP POLICY IF EXISTS "Components are viewable" ON components');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can modify components" ON components');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can update components" ON components');
+  await knex.schema.raw('DROP POLICY IF EXISTS "Authenticated users can delete components" ON components');
+
   await knex.schema.dropTableIfExists('components');
 }

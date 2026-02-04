@@ -28,7 +28,9 @@ import { useLiveCollectionUpdates } from '@/hooks/use-live-collection-updates';
 import { useResourceLock } from '@/hooks/use-resource-lock';
 import { collectionsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { formatDateInTimezone } from '@/lib/date-format-utils';
 import { toast } from 'sonner';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import { slugify } from '@/lib/collection-utils';
 import { FIELD_TYPES, type FieldType, findDisplayField, getItemDisplayName, getFieldIcon } from '@/lib/collection-field-utils';
 import { extractPlainTextFromContent } from '@/lib/cms-variables-utils';
@@ -351,6 +353,7 @@ const CMS = React.memo(function CMS() {
   const getAsset = useAssetsStore((state) => state.getAsset);
   const pages = usePagesStore((state) => state.pages);
   const folders = usePagesStore((state) => state.folders);
+  const timezone = useSettingsStore((state) => state.settingsByKey.timezone as string | null) ?? 'UTC';
 
   const { urlState, navigateToCollection, navigateToCollectionItem, navigateToNewCollectionItem, navigateToCollections } = useEditorUrl();
 
@@ -393,6 +396,13 @@ const CMS = React.memo(function CMS() {
     () => (selectedCollectionId ? (fields[selectedCollectionId] || []) : []),
     [selectedCollectionId, fields]
   );
+
+  // Auto-select first collection when none is selected and collections are available
+  useEffect(() => {
+    if (!selectedCollectionId && collections.length > 0 && !isLoading) {
+      setSelectedCollectionId(collections[0].id);
+    }
+  }, [selectedCollectionId, collections, isLoading, setSelectedCollectionId]);
   const collectionItems = useMemo(
     () => (selectedCollectionId ? (items[selectedCollectionId] || []) : []),
     [selectedCollectionId, items]
@@ -1463,7 +1473,7 @@ const CMS = React.memo(function CMS() {
                     {collectionFields.filter(f => !f.hidden).map((field) => {
                       const value = item.values[field.id];
 
-                      // Format date fields
+                      // Format date fields in user's timezone
                       if (field.type === 'date' && value) {
                         return (
                           <td
@@ -1471,7 +1481,7 @@ const CMS = React.memo(function CMS() {
                             className="px-4 py-5 text-muted-foreground"
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
-                            {formatDate(value, 'MMM D YYYY, HH:mm')}
+                            {formatDateInTimezone(value, timezone, 'display')}
                           </td>
                         );
                       }
@@ -1566,7 +1576,7 @@ const CMS = React.memo(function CMS() {
                         return (
                           <td
                             key={field.id}
-                            className="px-4 py-5 text-muted-foreground max-w-[200px]"
+                            className="px-4 py-5 text-muted-foreground max-w-50"
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
                             <span className="block truncate">
@@ -1611,7 +1621,7 @@ const CMS = React.memo(function CMS() {
                         return (
                           <td
                             key={field.id}
-                            className="px-4 py-5 text-muted-foreground max-w-[200px]"
+                            className="px-4 py-5 text-muted-foreground max-w-50"
                             onClick={() => !isManualMode && handleEditItem(item)}
                           >
                             <span className="block truncate">

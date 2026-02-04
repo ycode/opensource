@@ -230,7 +230,7 @@ export function validateFieldValue(
       return emailRegex.test(trimmed) ? null : 'Invalid email format';
     }
     case 'phone': {
-      const phoneRegex = /^[\d\s\-\(\)\+\.]*$/;
+      const phoneRegex = /^[\d\s-()+.']*$/;
       const digitCount = (trimmed.match(/\d/g) || []).length;
       if (!phoneRegex.test(trimmed) || digitCount < 7) {
         return 'Phone must contain at least 7 digits';
@@ -358,6 +358,9 @@ export const AUDIO_FIELD_TYPES: CollectionFieldType[] = ['audio'];
 
 /** Field types that can be bound to video layers (video) */
 export const VIDEO_FIELD_TYPES: CollectionFieldType[] = ['video'];
+
+/** Field types that contain plain text values (for YouTube video IDs, etc.) */
+export const TEXT_FIELD_TYPES: CollectionFieldType[] = ['text'];
 
 /** Field types that can be bound to link layers for downloads (document fields) */
 export const DOCUMENT_FIELD_TYPES: CollectionFieldType[] = ['document'];

@@ -3,7 +3,7 @@ import { unstable_cache, unstable_noStore } from 'next/cache';
 import type { Metadata } from 'next';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { buildSlugPath } from '@/lib/page-utils';
-import { generatePageMetadata } from '@/lib/generate-page-metadata';
+import { generatePageMetadata, fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
 import { fetchPageByPath, fetchErrorPage, PaginationContext } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
@@ -100,7 +100,7 @@ export async function generateStaticParams() {
           if (locale.is_default) continue; // Skip default locale
 
           const localeTranslations = translationsMap[locale.id] || {};
-          
+
           // Build localized path with translated slugs
           const slugParts: string[] = [locale.code];
 
@@ -114,7 +114,7 @@ export async function generateStaticParams() {
             const translationKey = `folder:${folder.id}:slug`;
             const translatedSlug = localeTranslations[translationKey]?.content_value || folder.slug;
             folderSegments.unshift(translatedSlug);
-            
+
             currentFolderId = folder.page_folder_id;
           }
           slugParts.push(...folderSegments);
@@ -148,7 +148,7 @@ export async function generateStaticParams() {
 async function fetchPublishedPageWithLayers(slugPath: string, paginationContext?: PaginationContext) {
   // Include pagination params in cache key for per-collection pagination support
   // Sort keys for consistent cache key regardless of param order
-  const paginationKey = paginationContext?.pageNumbers 
+  const paginationKey = paginationContext?.pageNumbers
     ? Object.entries(paginationContext.pageNumbers)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([id, page]) => `${id}:${page}`)
@@ -204,13 +204,13 @@ export default async function Page({ params, searchParams }: PageProps) {
       }
     }
   }
-  
+
   // Only opt out of caching when pagination is requested
   // This keeps default page visits fast and cached
   if (Object.keys(pageNumbers).length > 0) {
     unstable_noStore();
   }
-  
+
   const paginationContext: PaginationContext = {
     pageNumbers,
     defaultPage: 1,
@@ -243,20 +243,24 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   const { page, pageLayers, components, collectionItem, collectionFields, locale, availableLocales, translations } = data;
 
-  // Load published CSS from settings
-  const publishedCSS = await getSettingByKey('published_css');
+  // Load all global settings in a single query
+  const globalSettings = await fetchGlobalPageSettings();
 
   return (
     <PageRenderer
       page={page}
       layers={pageLayers.layers || []}
       components={components}
-      generatedCss={publishedCSS}
+      generatedCss={globalSettings.publishedCss || undefined}
       collectionItem={collectionItem}
       collectionFields={collectionFields}
       locale={locale}
       availableLocales={availableLocales}
       translations={translations}
+      gaMeasurementId={globalSettings.gaMeasurementId}
+      globalCustomCodeHead={globalSettings.globalCustomCodeHead}
+      globalCustomCodeBody={globalSettings.globalCustomCodeBody}
+      ycodeBadge={globalSettings.ycodeBadge}
     />
   );
 }
@@ -268,8 +272,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // Handle catch-all slug (join array into path)
   const slugPath = Array.isArray(slug) ? slug.join('/') : slug;
 
-  // Fetch page to get name and SEO settings
-  const data = await fetchPublishedPageWithLayers(slugPath);
+  // Fetch page and global settings in parallel
+  const [data, globalSettings] = await Promise.all([
+    fetchPublishedPageWithLayers(slugPath),
+    fetchGlobalPageSettings(),
+  ]);
 
   if (!data) {
     return {
@@ -280,5 +287,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return generatePageMetadata(data.page, {
     fallbackTitle: slugPath.charAt(0).toUpperCase() + slugPath.slice(1),
     collectionItem: data.collectionItem,
+    pagePath: '/' + slugPath,
+    globalSeoSettings: globalSettings,
   });
 }

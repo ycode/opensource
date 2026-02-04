@@ -57,6 +57,7 @@ export default function ReferenceFieldCombobox({
   // Get the collection info and fields from the store
   const { collections, fields } = useCollectionsStore();
   const collection = collections.find(c => c.id === collectionId);
+  /* eslint-disable-next-line react-hooks/exhaustive-deps -- collectionFields derived from store */
   const collectionFields = fields[collectionId] || [];
 
   // Find the title/name field for display
@@ -188,7 +189,7 @@ export default function ReferenceFieldCombobox({
           </Button>
         </DropdownMenuTrigger>
 
-      <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[200px]" align="start">
+      <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) min-w-50" align="start">
         {/* Search Input */}
         <div className="mb-2">
           <Input

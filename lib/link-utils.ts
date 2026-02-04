@@ -10,6 +10,7 @@ import type {
 } from '@/types';
 import { buildLocalizedSlugPath, buildLocalizedDynamicPageUrl } from '@/lib/page-utils';
 import { isAssetFieldType } from '@/lib/collection-field-utils';
+import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
 
 // ============================================================================
 // LinkSettings Validation
@@ -214,45 +215,6 @@ export interface LinkResolutionContext {
 }
 
 /**
- * Resolve inline variables in URL/email/phone content
- * This is a simplified version - the full version is in text-format-utils.ts
- */
-function resolveInlineVariables(
-  text: string,
-  collectionItemData?: Record<string, string>,
-  pageCollectionItemData?: Record<string, string>
-): string {
-  if (!text) return '';
-  if (!collectionItemData && !pageCollectionItemData) {
-    return text.replace(/<ycode-inline-variable>[\s\S]*?<\/ycode-inline-variable>/g, '');
-  }
-
-  const regex = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
-  return text.replace(regex, (match, variableContent) => {
-    try {
-      const parsed = JSON.parse(variableContent.trim());
-      if (parsed.type === 'field' && parsed.data?.field_id) {
-        const fieldId = parsed.data.field_id;
-        const source = parsed.data.source;
-
-        let fieldValue: string | undefined;
-        if (source === 'page') {
-          fieldValue = pageCollectionItemData?.[fieldId];
-        } else if (source === 'collection') {
-          fieldValue = collectionItemData?.[fieldId];
-        } else {
-          fieldValue = collectionItemData?.[fieldId] ?? pageCollectionItemData?.[fieldId];
-        }
-        return fieldValue || '';
-      }
-    } catch {
-      // Invalid JSON
-    }
-    return match;
-  });
-}
-
-/**
  * Parse a string or object value as CollectionLinkValue
  * Returns null if the value is not a valid CollectionLinkValue
  */
@@ -363,18 +325,18 @@ export function generateLinkHref(
   switch (linkSettings.type) {
     case 'url': {
       const urlContent = linkSettings.url?.data?.content || '';
-      href = resolveInlineVariables(urlContent, collectionItemData, pageCollectionItemData) || '';
+      href = resolveInlineVariablesFromData(urlContent, collectionItemData, pageCollectionItemData) || '';
       break;
     }
     case 'email': {
       const emailContent = linkSettings.email?.data?.content || '';
-      const resolvedEmail = resolveInlineVariables(emailContent, collectionItemData, pageCollectionItemData);
+      const resolvedEmail = resolveInlineVariablesFromData(emailContent, collectionItemData, pageCollectionItemData);
       href = resolvedEmail ? `mailto:${resolvedEmail}` : '';
       break;
     }
     case 'phone': {
       const phoneContent = linkSettings.phone?.data?.content || '';
-      const resolvedPhone = resolveInlineVariables(phoneContent, collectionItemData, pageCollectionItemData);
+      const resolvedPhone = resolveInlineVariablesFromData(phoneContent, collectionItemData, pageCollectionItemData);
       href = resolvedPhone ? `tel:${resolvedPhone}` : '';
       break;
     }
@@ -496,5 +458,5 @@ export function looksLikeEmail(value: string): boolean {
 export function looksLikePhone(value: string): boolean {
   const trimmed = value.trim();
   const digitCount = (trimmed.match(/\d/g) || []).length;
-  return /^[\d\s\-\(\)\+\.]*$/.test(trimmed) && digitCount >= 7;
+  return /^[\d\s\-()+.]*$/.test(trimmed) && digitCount >= 7;
 }

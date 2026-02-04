@@ -296,6 +296,8 @@ export async function uploadFile(
 
 /**
  * Delete an asset (from both storage and database)
+ * @deprecated Use deleteAsset from '@/lib/repositories/assetRepository' instead.
+ * This function does not support the draft/published workflow.
  *
  * @param assetId - Asset ID to delete
  * @returns True if successful, false otherwise

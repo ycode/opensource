@@ -12,7 +12,7 @@ import type { ApiResponse, SupabaseConfig } from '@/types';
 export async function checkSetupStatus(): Promise<{
   is_configured: boolean;
 }> {
-  const response = await fetch('/api/setup/status');
+  const response = await fetch('/ycode/api/setup/status');
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -27,7 +27,7 @@ export async function checkSetupStatus(): Promise<{
 export async function connectSupabase(
   config: SupabaseConfig
 ): Promise<ApiResponse<void>> {
-  const response = await fetch('/api/setup/connect', {
+  const response = await fetch('/ycode/api/setup/connect', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -45,7 +45,7 @@ export async function connectSupabase(
  * Run Supabase migrations (checks and runs if needed)
  */
 export async function runMigrations(): Promise<ApiResponse<void>> {
-  const response = await fetch('/api/setup/migrate', {
+  const response = await fetch('/ycode/api/setup/migrate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   });
