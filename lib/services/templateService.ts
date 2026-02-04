@@ -12,7 +12,7 @@ const STORAGE_BUCKET = 'assets';
 
 // Production template service URL (can be overridden for local development)
 const TEMPLATE_API_URL =
-  process.env.TEMPLATE_API_URL || 'https://templates-lv53y07hp-ycode.vercel.app';
+  process.env.TEMPLATE_API_URL || 'https://templates-virid.vercel.app/';
 
 /**
  * Tables to truncate when applying a template.
@@ -287,13 +287,13 @@ export async function applyTemplate(
       const assetFoldersTableExists = await trx.schema.hasTable('asset_folders');
       if (assetFoldersTableExists && assetsTableExists) {
         await trx.raw(`
-          DELETE FROM asset_folders 
+          DELETE FROM asset_folders
           WHERE id NOT IN (
-            SELECT DISTINCT asset_folder_id FROM assets 
+            SELECT DISTINCT asset_folder_id FROM assets
             WHERE asset_folder_id IS NOT NULL
           )
           AND id NOT IN (
-            SELECT DISTINCT asset_folder_id FROM asset_folders 
+            SELECT DISTINCT asset_folder_id FROM asset_folders
             WHERE asset_folder_id IS NOT NULL
           )
         `);
