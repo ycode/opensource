@@ -396,6 +396,13 @@ const CMS = React.memo(function CMS() {
     () => (selectedCollectionId ? (fields[selectedCollectionId] || []) : []),
     [selectedCollectionId, fields]
   );
+
+  // Auto-select first collection when none is selected and collections are available
+  useEffect(() => {
+    if (!selectedCollectionId && collections.length > 0 && !isLoading) {
+      setSelectedCollectionId(collections[0].id);
+    }
+  }, [selectedCollectionId, collections, isLoading, setSelectedCollectionId]);
   const collectionItems = useMemo(
     () => (selectedCollectionId ? (items[selectedCollectionId] || []) : []),
     [selectedCollectionId, items]
